@@ -32,7 +32,6 @@ object Library {
 
     fun steamGames(context: Context): List<SteamGame> {
         val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
-        val cache = File(root, "appcache/librarycache")
         val libraries = listOfNotNull(
             root to "internal",
             GameStorage.effective(context)?.let { File(it.path) to it.label },
@@ -49,10 +48,7 @@ object Library {
                     val flags = STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     // StateFlags 4 = fully installed; anything else is downloading, updating or broken.
                     if (name.isEmpty() || flags and 4 == 0) return@forEach
-                    val dir = File(cache, appId.toString())
-                    val art = listOf("library_600x900.jpg", "logo.png", "library_header.jpg", "header.jpg")
-                        .map { File(dir, it) }.firstOrNull { it.isFile }
-                    out[appId] = SteamGame(appId, name, art, label)
+                    out[appId] = SteamGame(appId, name, SteamArt.resolve(context, appId), label)
                 }
         }
         return out.values.toList()

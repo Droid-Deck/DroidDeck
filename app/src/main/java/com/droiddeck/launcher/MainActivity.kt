@@ -50,6 +50,7 @@ import com.droiddeck.launcher.ui.FrontEndScreen
 import com.droiddeck.launcher.ui.FrontEndState
 import com.droiddeck.launcher.ui.FrontEndActions
 import com.droiddeck.launcher.frontend.CoverArt
+import com.droiddeck.launcher.frontend.SteamArt
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
@@ -937,12 +938,16 @@ class MainActivity : ComponentActivity() {
         // The libraries, off the main thread: manifests and a folder scan.
         Thread({
             val games = if (ready) Library.steamGames(this) + com.droiddeck.launcher.frontend.AddedGames.scan(this).map { g ->
-                com.droiddeck.launcher.frontend.AddedGameArt.resolve(this, g).let { art -> Library.SteamGame(g.appId.toInt(), g.name, art.portrait ?: art.header, "added", g.gameId) }
+                com.droiddeck.launcher.frontend.AddedGameArt.resolve(this, g).let { art -> Library.SteamGame(g.appId.toInt(), g.name, art.header ?: art.portrait, "added", g.gameId) }
             } else emptyList()
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             ui.post { steamGames = games; emulatorList = emus }
             // Box art for the games that have none, fetched after the list is up; the list is
             // rebuilt once if any was found.
+            if (!OfflineMode.enabled(this) && SteamArt.fetchMissing(this, games.filter { it.library != "added" }.map { it.appId })) {
+                val refreshed = games.map { g -> if (g.library == "added") g else Library.SteamGame(g.appId, g.name, SteamArt.resolve(this, g.appId), g.library, g.gameId) }
+                ui.post { steamGames = refreshed }
+            }
             if (!OfflineMode.enabled(this) && CoverArt.fetchMissing(this, emus.flatMap { it.games })) {
                 val refreshed = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
                 ui.post { emulatorList = refreshed }

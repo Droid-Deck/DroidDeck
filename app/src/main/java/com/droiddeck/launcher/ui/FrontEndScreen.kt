@@ -745,7 +745,7 @@ private fun Content(
                 }
                 Rise(4) { SectionTitle("Installed", "${s.steamGames.size} game${if (s.steamGames.size == 1) "" else "s"}") }
                 if (s.steamGames.isEmpty()) Rise(5) { Note("No games installed.") }
-                else Rise(5, Modifier.weight(1f).fillMaxWidth()) { ArtGrid(s.steamGames.map { g -> Tile(g.name, g.library, g.art, "steam:${g.appId}", null) { onSelect("app:${g.appId}") } }) }
+                else Rise(5, Modifier.weight(1f).fillMaxWidth()) { ArtGrid(s.steamGames.map { g -> Tile(g.name, g.library, g.art, "steam:${g.appId}", null) { onSelect("app:${g.appId}") } }, landscape = true) }
             }
             selected.startsWith("app:") -> {
                 val g = s.steamGames.firstOrNull { "app:${it.appId}" == selected }
@@ -769,13 +769,13 @@ private fun Content(
                                     Chip(if (s.ready) "● ready" else "runtime missing", ok = s.ready)
                                 }
                             }
-                            Poster(g.art, g.name, Modifier.width(120.dp))
+                            Poster(g.art, g.name, Modifier.width(240.dp), landscape = true)
                         }
                     }
                     val others = s.steamGames.filter { it !== g }
                     if (others.isNotEmpty()) {
                         Rise(3) { SectionTitle("More from the library", null) }
-                        Rise(4, Modifier.weight(1f).fillMaxWidth()) { ArtGrid(others.map { x -> Tile(x.name, x.library, x.art, "steam:${x.appId}", null) { onSelect("app:${x.appId}") } }) }
+                        Rise(4, Modifier.weight(1f).fillMaxWidth()) { ArtGrid(others.map { x -> Tile(x.name, x.library, x.art, "steam:${x.appId}", null) { onSelect("app:${x.appId}") } }, landscape = true) }
                     }
                 }
             }
@@ -1100,24 +1100,39 @@ private fun Cog(onClick: () -> Unit) {
 }
 
 @Composable
-private fun Poster(art: File?, name: String, modifier: Modifier) {
+private fun Poster(art: File?, name: String, modifier: Modifier, landscape: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val t = remember { Animatable(0f) }
     LaunchedEffect(Unit) { t.animateTo(1f, Motion.sp(0.6f, Spring.StiffnessLow)) }
     Box(
-        modifier = modifier.padding(start = 16.dp).aspectRatio(2f / 3f)
+        modifier = modifier.padding(start = 16.dp).aspectRatio(if (landscape) HEADER_RATIO else 2f / 3f)
             .graphicsLayer { alpha = t.value; translationY = (1f - t.value) * 16.dp.toPx(); rotationZ = (1f - t.value) * 2f; scaleX = 0.94f + 0.06f * t.value; scaleY = scaleX; shadowElevation = 22.dp.toPx(); shape = Shape12; clip = false }
             .clip(Shape12).background(artBrush(hueOf(name))),
     ) {
-        if (art != null) CoverImage(art, Modifier.fillMaxSize())
+        if (art != null) CoverImage(art, Modifier.fillMaxSize(), landscape)
         else Text(name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp), maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
 }
 
 
+private const val HEADER_RATIO = 460f / 215f
+
+@Composable
+private fun landscapeColumns(avail: androidx.compose.ui.unit.Dp, gap: androidx.compose.ui.unit.Dp): Int {
+    val metrics = LocalContext.current.resources.displayMetrics
+    val nominal = metrics.densityDpi.toFloat()
+    val dpi = if (metrics.xdpi > nominal * 0.6f && metrics.xdpi < nominal * 1.6f) metrics.xdpi else nominal
+    val mmPerDp = metrics.density / dpi * 25.4f
+    val widthMm = avail.value * mmPerDp
+    val gapMm = gap.value * mmPerDp
+    return ((widthMm + gapMm) / (MIN_LANDSCAPE_TILE_MM + gapMm)).toInt().coerceIn(2, 4)
+}
+
+private const val MIN_LANDSCAPE_TILE_MM = 34f
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ArtGrid(tiles: List<Tile>, wide: Boolean = false) {
+private fun ArtGrid(tiles: List<Tile>, wide: Boolean = false, landscape: Boolean = false) {
     val square = tiles.isNotEmpty() && tiles.all { it.art == null && (it.iconRes != null || it.iconBitmap != null) }
     // Thumbnails to recognise a game by, not posters; icon tiles are squares.
     val minSize = if (square) 64.dp else if (wide) 92.dp else 70.dp
@@ -1127,7 +1142,7 @@ private fun ArtGrid(tiles: List<Tile>, wide: Boolean = false) {
     // the visible tiles. A few hundred tiles lay out fine; the scroll follows the focused one.
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val avail = maxWidth - 8.dp
-        val cols = ((avail + gap) / (minSize + gap)).toInt().coerceAtLeast(1)
+        val cols = if (landscape) landscapeColumns(avail, gap) else ((avail + gap) / (minSize + gap)).toInt().coerceAtLeast(1)
         val tileWidth = (avail - gap * (cols - 1)) / cols
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 6.dp, bottom = 14.dp, start = 4.dp, end = 4.dp)) {
             for (row in tiles.chunked(cols)) {
@@ -1136,7 +1151,7 @@ private fun ArtGrid(tiles: List<Tile>, wide: Boolean = false) {
                         val src = remember { MutableInteractionSource() }
                         val hot = rememberHot(src)
                         val track = Modifier.paneItem("tile:" + t.key).then(if (t === tiles.first()) Modifier.firstTile() else Modifier)
-                        Box(modifier = Modifier.width(tileWidth).zIndex(if (hot) 1f else 0f)) { GameTile(t, wide, square, src, hot, track) }
+                        Box(modifier = Modifier.width(tileWidth).zIndex(if (hot) 1f else 0f)) { GameTile(t, wide, square, landscape, src, hot, track) }
                     }
                 }
             }
@@ -1145,7 +1160,7 @@ private fun ArtGrid(tiles: List<Tile>, wide: Boolean = false) {
 }
 
 @Composable
-private fun GameTile(t: Tile, wide: Boolean, square: Boolean, src: MutableInteractionSource, hot: Boolean, track: Modifier) {
+private fun GameTile(t: Tile, wide: Boolean, square: Boolean, landscape: Boolean, src: MutableInteractionSource, hot: Boolean, track: Modifier) {
     val colors = MaterialTheme.colorScheme
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else if (hot) 1.04f else 1f, Motion.sp(0.55f, Spring.StiffnessMedium), label = "tileScale")
@@ -1163,7 +1178,7 @@ private fun GameTile(t: Tile, wide: Boolean, square: Boolean, src: MutableIntera
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = t.onClick),
     ) {
         Box(modifier = Modifier.fillMaxWidth().shine(hot)) {
-            Art(t.art, t.iconRes, t.title, Modifier.fillMaxWidth(), wide, t.iconBitmap)
+            Art(t.art, t.iconRes, t.title, Modifier.fillMaxWidth(), wide, t.iconBitmap, landscape)
             androidx.compose.animation.AnimatedVisibility(
                 visible = hot, modifier = Modifier.align(Alignment.Center),
                 enter = scaleIn(Motion.sp(0.5f), initialScale = 0.5f) + fadeIn(Motion.tw(200)),
@@ -1176,8 +1191,8 @@ private fun GameTile(t: Tile, wide: Boolean, square: Boolean, src: MutableIntera
             }
         }
         Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp)) {
-            Text(t.title, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (t.sub != null) Text(t.sub, fontSize = 8.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(t.title, fontSize = if (landscape) 12.sp else 10.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (t.sub != null) Text(t.sub, fontSize = if (landscape) 10.sp else 8.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -1187,10 +1202,10 @@ private fun GameTile(t: Tile, wide: Boolean, square: Boolean, src: MutableIntera
  * is shown whole over a blurred, darkened copy of itself instead of losing its sides to the crop.
  */
 @Composable
-private fun CoverImage(art: File, modifier: Modifier) {
-    var wideArt by remember(art) { mutableStateOf(false) }
+private fun CoverImage(art: File, modifier: Modifier, landscape: Boolean = false) {
+    var mismatch by remember(art, landscape) { mutableStateOf(false) }
     Box(modifier) {
-        if (wideArt) {
+        if (mismatch) {
             AsyncImage(
                 model = art, contentDescription = null, contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f }.blur(14.dp),
@@ -1199,10 +1214,10 @@ private fun CoverImage(art: File, modifier: Modifier) {
         }
         AsyncImage(
             model = art, contentDescription = null,
-            contentScale = if (wideArt) ContentScale.Fit else ContentScale.Crop,
+            contentScale = if (mismatch) ContentScale.Fit else ContentScale.Crop,
             onSuccess = { state ->
                 val size = state.painter.intrinsicSize
-                if (size.width > size.height * 1.1f) wideArt = true
+                mismatch = (size.width > size.height * 1.1f) != landscape
             },
             modifier = Modifier.fillMaxSize(),
         )
@@ -1210,11 +1225,12 @@ private fun CoverImage(art: File, modifier: Modifier) {
 }
 
 @Composable
-private fun Art(art: File?, iconRes: Int?, label: String, modifier: Modifier, wide: Boolean = false, iconBitmap: Bitmap? = null) {
+private fun Art(art: File?, iconRes: Int?, label: String, modifier: Modifier, wide: Boolean = false, iconBitmap: Bitmap? = null, landscape: Boolean = false) {
     val colors = MaterialTheme.colorScheme
-    val ratio = if (art == null && (iconRes != null || iconBitmap != null)) 1f else if (wide) 16f / 9f else 2f / 3f
+    val ratio = if (landscape) HEADER_RATIO else if (art == null && (iconRes != null || iconBitmap != null)) 1f else if (wide) 16f / 9f else 2f / 3f
     Box(modifier = modifier.aspectRatio(ratio).background(if (art == null && iconRes == null && iconBitmap == null) artBrush(hueOf(label)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surface)))) {
         when {
+            art != null && landscape -> CoverImage(art, Modifier.fillMaxSize(), landscape = true)
             art != null -> if (wide) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                             else CoverImage(art, Modifier.fillMaxSize())
             iconRes != null -> Image(painterResource(iconRes), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(if (wide) 10.dp else 8.dp))
