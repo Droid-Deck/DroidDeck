@@ -188,6 +188,7 @@ class FrontEndActions(
     val onRuntime: () -> Unit,
     val onFrameGenPick: (engine: String, multiplier: Int) -> Unit,
     val onProtons: () -> Unit,
+    val onDecky: () -> Unit = {},
     val onPerformance: () -> Unit,
     val onRoms: () -> Unit,
     val onFiles: () -> Unit,
@@ -930,6 +931,7 @@ private fun SetupPanel(s: FrontEndState, a: FrontEndActions) {
                 SettingsGroup("Launcher tools") {
                     ActionRow("Files", "Browse and manage files", "Open", a.onFiles)
                     ActionRow("Compatibility tools", "Install ARM64 Proton builds", "Manage", a.onProtons)
+                    ActionRow("Decky Loader", "Manage Steam plugins", "Manage", a.onDecky)
                     ActionRow("Performance", "CPU core assignment", "Configure", a.onPerformance)
                     ActionRow("ROMs folder", s.romsDir ?: "Choose where emulator games are stored", "Choose", a.onRoms)
                 }

@@ -440,6 +440,33 @@ BUSCONF
     # falls through to the host, and the guest shell dies on libreadline before the game is reached.
     # FEX_ROOTFS names it outright and is read whatever the config situation.
     [ -d /usr/share/guestos/fex-mesa ] && export FEX_ROOTFS=/usr/share/guestos/fex-mesa
+    # Decky is optional and session scoped: the app's marker opts in, and this supervisor is
+    # reaped with the client session. Native ARM64 runs directly. A legacy x86_64 asset is used
+    # only when its recorded architecture and this guest's existing FEX installation agree.
+    decky_loader=$HOME/homebrew/services/PluginLoader
+    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
+      decky_arch=$(cat "$HOME/homebrew/services/.droiddeck-decky-arch" 2>/dev/null || echo unknown)
+      if [ "$decky_arch" = arm64 ] || { [ "$decky_arch" = x86_64 ] && [ -x /usr/bin/FEX ] && [ -n "${FEX_ROOTFS:-}" ]; }; then
+        (
+          decky_child=
+          decky_stop() { [ -z "$decky_child" ] || kill "$decky_child" 2>/dev/null; [ -z "$decky_child" ] || wait "$decky_child" 2>/dev/null; exit 0; }
+          trap decky_stop TERM INT HUP
+          while :; do
+            if [ "$decky_arch" = x86_64 ]; then /usr/bin/FEX "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
+            else "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
+            fi
+            decky_child=$!
+            wait "$decky_child" || true
+            decky_child=
+            sleep 3
+          done
+        ) &
+        decky_supervisor=$!
+        echo "== Decky: session supervisor started ($decky_arch)"
+      else
+        echo "== Decky: installed loader architecture is unsupported by this guest; not starting"
+      fi
+    fi
     # The client exits 42 when it has updated itself and wants a fresh start (steam.sh does this).
     # BL_STEAM_UI=desktop = the client's desktop UI (a window, the library as a list), which the
     # desktop's launchers ask for; gamescope shows one window at a time and the game takes over.
@@ -525,6 +552,11 @@ BUSCONF
       [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
       echo "== steam: the client on the desktop has exited"
     else
+      if [ -n "${decky_supervisor:-}" ]; then
+        kill "$decky_supervisor" 2>/dev/null || true
+        wait "$decky_supervisor" 2>/dev/null || true
+        echo "== Decky: session supervisor stopped"
+      fi
       reap_orphans
     fi
     exit "$rc"
