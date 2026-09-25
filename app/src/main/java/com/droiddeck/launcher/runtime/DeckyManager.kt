@@ -16,6 +16,7 @@ object DeckyManager {
     private const val RELEASES = "https://api.github.com/repos/$REPOSITORY/releases?per_page=30"
     private const val PATH = "root/homebrew/services/PluginLoader"
     private const val VERSION = "root/homebrew/services/.droiddeck-decky-version"
+    private const val CEF_REMOTE_DEBUG_MARKER = "root/.local/share/Steam/.cef-enable-remote-debugging"
 
     data class Release(val tag: String, val prerelease: Boolean, val asset: String, val url: String, val digest: String?, val shaUrl: String?, val size: Long, val machine: Int)
 
@@ -81,6 +82,13 @@ object DeckyManager {
         if (!validElf(temp, release.machine)) { temp.delete(); return "Release asset is not a compatible 64-bit Linux executable" }
         if (SessionState.running) { temp.delete(); return "A session started during the download; stop it before installing Decky Loader" }
         if (!temp.setExecutable(true, false)) { temp.delete(); return "Could not mark PluginLoader executable" }
+        // Decky injects its QAM frontend through Steam's local CEF debugger on port 8080.
+        val cefMarker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
+        val cefEnabled = cefMarker.isFile || runCatching {
+            cefMarker.parentFile?.mkdirs()
+            cefMarker.createNewFile() || cefMarker.isFile
+        }.getOrDefault(false)
+        if (!cefEnabled) { temp.delete(); return "Could not enable Steam CEF remote debugging" }
         val staged = File(target.parentFile, "PluginLoader.new")
         staged.delete()
         if (!temp.renameTo(staged)) { temp.delete(); return "Could not stage PluginLoader" }
@@ -104,6 +112,7 @@ object DeckyManager {
         File(root, PATH).delete()
         File(root, VERSION).delete()
         File(root, "root/homebrew/services/.droiddeck-decky-arch").delete()
+        File(root, CEF_REMOTE_DEBUG_MARKER).delete()
         if (wipeData) File(root, "root/homebrew").deleteRecursively()
     }
 
