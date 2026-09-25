@@ -38,7 +38,6 @@ import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.ui.ProtonPage
 import com.droiddeck.launcher.ui.ProtonRow
-import com.droiddeck.launcher.ui.DeckyPage
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.ui.CoreRow
 import com.droiddeck.launcher.ui.PerformancePage
@@ -90,11 +89,8 @@ class MainActivity : ComponentActivity() {
     private var steamDeckMode by mutableStateOf(false)
     private var showCredits by mutableStateOf(false)
     private var showProtons by mutableStateOf(false)
-    private var showDecky by mutableStateOf(false)
     private var deckyInstalled by mutableStateOf<String?>(null)
     private var deckyReleases by mutableStateOf<List<DeckyManager.Release>>(emptyList())
-    private var deckyPrerelease by mutableStateOf(true)
-    private var deckyStableAvailable by mutableStateOf(false)
     private var deckyChecking by mutableStateOf(false)
     private var deckyStage by mutableStateOf<String?>(null)
     private var deckyPercent by mutableIntStateOf(-1)
@@ -251,7 +247,6 @@ class MainActivity : ComponentActivity() {
                     sm != null -> { { ModeSettingsHost(sm) } }
                     showPerformance -> { { PerformanceHost() } }
                     showProtons -> { { ProtonHost() } }
-                    showDecky -> { { DeckyHost() } }
                     showMapping -> { { MappingHost() } }
                     else -> null
                 }
@@ -265,7 +260,7 @@ class MainActivity : ComponentActivity() {
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGenEngine = FrameGen.engine(this), frameGenMultiplier = FrameGen.multiplier(this),
                         lsfgReady = LsfgNative.isInstalled(this),
-                        pageKey = sm?.let { "settings:$it" } ?: if (showPerformance) "performance" else if (showDecky) "decky" else if (showProtons) "protons" else if (showMapping) "controller-mapping" else null,
+                        pageKey = sm?.let { "settings:$it" } ?: if (showPerformance) "performance" else if (showProtons) "protons" else if (showMapping) "controller-mapping" else null,
                         theme = theme,
                         isHomeApp = homeAppSelected,
                         homeScreenEnabled = homeScreenEnabled,
@@ -320,7 +315,6 @@ class MainActivity : ComponentActivity() {
                             frameGenLabel = FrameGen.label(this)
                         },
                         onProtons = { openProtons() },
-                        onDecky = { openDecky() },
                         onPerformance = { refreshCores(); showProtons = false; showMapping = false; showPerformance = true },
                         onRoms = { showRoms = true },
                         onFiles = { startActivity(Intent(this, com.droiddeck.launcher.files.FileManagerActivity::class.java)) },
@@ -342,7 +336,7 @@ class MainActivity : ComponentActivity() {
                             offline = OfflineMode.enabled(this)
                         },
                         onCredits = { showCredits = true },
-                        onPageBack = { settingsMode = null; showPerformance = false; showProtons = false; showDecky = false; showMapping = false },
+                        onPageBack = { settingsMode = null; showPerformance = false; showProtons = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
                         onHomeApp = { manageHomeApp() },
                         onHomeScreen = { on ->
@@ -431,6 +425,7 @@ class MainActivity : ComponentActivity() {
         refreshSecondScreenDisplays()
         refresh()
         deckyInstalled = DeckyManager.installed(this)
+        DeckyManager.syncCefMarker(this)
         deckySupervisor = DeckyManager.supervisorEnabled(this)
         // Added games' art (a store lookup for what the folders lack) starts here, not only when
         // the cog opens.
@@ -502,49 +497,30 @@ class MainActivity : ComponentActivity() {
         refreshProtons()
     }
 
-    private fun openDecky() {
-        settingsMode = null; showPerformance = false; showProtons = false; showMapping = false
-        showDecky = true
-        deckyInstalled = DeckyManager.installed(this)
-        deckySupervisor = DeckyManager.supervisorEnabled(this)
-        refreshDecky()
-    }
-
     private fun refreshDecky() {
         val request = ++deckyReleaseRequest
         deckyChecking = true
         Thread({
-            val channels = DeckyManager.releaseChannels(this)
+            val channels = runCatching { DeckyManager.releaseChannels(this) }
+                .getOrElse { DeckyManager.ReleaseChannels(emptyList(), emptyList()) }
             ui.post {
                 if (request == deckyReleaseRequest) {
-                    deckyStableAvailable = channels.stable.isNotEmpty()
-                    if (!deckyStableAvailable) deckyPrerelease = true
-                    deckyReleases = if (deckyPrerelease) channels.prerelease else channels.stable
+                    // Use the newest compatible stable build, or the newest compatible
+                    // prerelease when the fork has not published a stable ARM64 asset.
+                    deckyReleases = channels.stable.ifEmpty { channels.prerelease }
                     deckyChecking = false
                 }
             }
         }, "decky-releases").start()
     }
 
-    @Composable
-    private fun DeckyHost() {
-        DeckyPage(
-            installed = deckyInstalled, releases = deckyReleases, prerelease = deckyPrerelease,
-            checking = deckyChecking, stableAvailable = deckyStableAvailable, stage = deckyStage, percent = deckyPercent,
-            supervisor = deckySupervisor, sessionRunning = SessionState.running,
-            onChannel = { channel -> deckyPrerelease = channel; deckyReleases = emptyList(); refreshDecky() },
-            onRefresh = { refreshDecky() }, onInstall = { installDecky(it) },
-            onUninstall = { wipe -> DeckyManager.uninstall(this, wipe); deckyInstalled = null; deckySupervisor = false },
-            onSupervisor = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); deckySupervisor = enabled },
-            onBack = { showDecky = false },
-        )
-    }
-
     private fun installDecky(release: DeckyManager.Release) {
         if (deckyStage != null || SessionState.running) return
         deckyStage = "Starting…"; deckyPercent = -1
         Thread({
-            val problem = DeckyManager.install(this, release) { label, value -> ui.post { deckyStage = label; deckyPercent = value } }
+            val problem = runCatching {
+                DeckyManager.install(this, release) { label, value -> ui.post { deckyStage = label; deckyPercent = value } }
+            }.getOrElse { error -> "Decky install failed: ${error.message ?: error.javaClass.simpleName}" }
             ui.post {
                 deckyStage = null; deckyPercent = -1; deckyInstalled = DeckyManager.installed(this)
                 if (problem != null) android.widget.Toast.makeText(this, problem, android.widget.Toast.LENGTH_LONG).show()
@@ -689,6 +665,10 @@ class MainActivity : ComponentActivity() {
                 addedGamesArt = addedGamesArt,
                 linuxDownloads = linuxDownloads, androidDownloads = androidDownloads, releaseStatus = releaseStatus,
                 releaseChecking = releaseChecking, canRestoreBundled = canRestoreBundled,
+                deckyInstalled = if (mode == SessionService.MODE_STEAM) deckyInstalled else null,
+                deckyLatestRelease = if (mode == SessionService.MODE_STEAM) deckyReleases.firstOrNull() else null,
+                deckyChecking = deckyChecking, deckyStage = deckyStage, deckyPercent = deckyPercent,
+                deckyEnabled = deckySupervisor, deckySessionRunning = SessionState.running,
             ),
             ModeSettingsActions(
                 onResolution = { cap -> SessionPrefs.setResolutionCap(this, mode, cap); resolutionCap = cap },
@@ -737,6 +717,14 @@ class MainActivity : ComponentActivity() {
                 onPickAddedGameExe = { folder ->
                     pendingAddedGame = folder
                     pickAddedGameExe.launch(InAppFilePicker.buildIntent(this, listOf("exe"), "Choose the game's .exe", folder))
+                },
+                onDeckyInstall = { release -> installDecky(release) },
+                onDeckyCheck = { refreshDecky() },
+                onDeckyEnabled = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); deckySupervisor = enabled },
+                onDeckyUninstall = {
+                    DeckyManager.uninstall(this, wipeData = false)
+                    deckyInstalled = null
+                    deckySupervisor = false
                 },
                 onDismiss = { settingsMode = null },
             ),
@@ -815,6 +803,11 @@ class MainActivity : ComponentActivity() {
         renderer = SessionPrefs.desktopRenderer(this)
         gameStorage = SessionPrefs.gameStorage(this)
         storageOptions = GameStorage.options(this).map { it.label to it.path }
+        if (mode == SessionService.MODE_STEAM) {
+            deckyInstalled = DeckyManager.installed(this)
+            deckySupervisor = DeckyManager.supervisorEnabled(this)
+            refreshDecky()
+        }
         settingsMode = mode
     }
 

@@ -30,6 +30,19 @@ object DeckyManager {
     fun loader(context: Context) = File(LinuxRuntime.rootDir(context), PATH)
     fun supervisorEnabled(context: Context) = File(LinuxRuntime.rootDir(context), "root/.droiddeck-decky-enabled").isFile
 
+    /** Remove the legacy install-time debugger marker unless the user opted into Decky. */
+    fun syncCefMarker(context: Context) {
+        val marker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
+        if (!supervisorEnabled(context)) {
+            marker.delete()
+            return
+        }
+        runCatching {
+            marker.parentFile?.mkdirs()
+            marker.createNewFile()
+        }
+    }
+
     fun setSupervisorEnabled(context: Context, enabled: Boolean) {
         val marker = File(LinuxRuntime.rootDir(context), "root/.droiddeck-decky-enabled")
         val cefMarker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)

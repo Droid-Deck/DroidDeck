@@ -1,10 +1,16 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +21,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.core.FexPreset
+import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 
@@ -70,6 +77,14 @@ class ModeSettings(
     val releaseChecking: Boolean = false,
     /** A bundled display driver was deleted: the page offers to restore it. */
     val canRestoreBundled: Boolean = false,
+    /** Steam only: Decky Loader is managed from the Steam session settings. */
+    val deckyInstalled: String? = null,
+    val deckyLatestRelease: DeckyManager.Release? = null,
+    val deckyChecking: Boolean = false,
+    val deckyStage: String? = null,
+    val deckyPercent: Int = -1,
+    val deckyEnabled: Boolean = false,
+    val deckySessionRunning: Boolean = false,
 )
 
 /** One added game as the settings page shows it: its folder, the chosen .exe, the other .exe files it could be. */
@@ -109,6 +124,10 @@ class ModeSettingsActions(
     val onAddedGamesArt: (Boolean) -> Unit = {},
     val onAddedGameExe: (folderPath: String, path: String) -> Unit = { _, _ -> },
     val onPickAddedGameExe: (folderPath: String) -> Unit = {},
+    val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
+    val onDeckyCheck: () -> Unit = {},
+    val onDeckyEnabled: (Boolean) -> Unit = {},
+    val onDeckyUninstall: () -> Unit = {},
     val onDismiss: () -> Unit,
 )
 
@@ -116,6 +135,7 @@ class ModeSettingsActions(
 fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
+    var confirmDeckyRemoval by remember { mutableStateOf(false) }
     // The two driver lists open as full pages over this one ("rt" = runtime, "panel" = display).
     // Coming back restores this page as it was left: the same scroll position, and controller focus
     // on the driver box that opened the page.
@@ -253,6 +273,58 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 onPick = a.onSuspendPolicy,
             )
         }
+        if (steam) SettingsGroup("Decky") {
+            val updateAvailable = s.deckyInstalled != null && s.deckyLatestRelease != null &&
+                s.deckyInstalled != s.deckyLatestRelease.tag
+            val status = when {
+                s.deckyStage != null -> s.deckyStage
+                s.deckyChecking -> "Checking compatible releases…"
+                s.deckyInstalled == null && s.deckyLatestRelease != null -> "Ready to install ${s.deckyLatestRelease.tag}."
+                s.deckyInstalled == null -> "No compatible build found. Check again later."
+                s.deckyLatestRelease == null -> "Installed · ${s.deckyInstalled}"
+                updateAvailable -> "Update available · ${s.deckyLatestRelease.tag}"
+                else -> "Up to date · ${s.deckyInstalled}"
+            }
+            SettingsRow("Loader", status) {
+                val action = when {
+                    s.deckyStage != null -> "Working…"
+                    s.deckyChecking -> "Checking…"
+                    s.deckyInstalled == null && s.deckyLatestRelease != null -> "Install latest"
+                    s.deckyInstalled != null && updateAvailable -> "Update"
+                    else -> "Check"
+                }
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                    SecondaryButton(
+                        action,
+                        enabled = s.deckyStage == null && !s.deckyChecking && !s.deckySessionRunning,
+                    ) {
+                        if (s.deckyLatestRelease == null || (s.deckyInstalled != null && !updateAvailable)) a.onDeckyCheck()
+                        else s.deckyLatestRelease?.let(a.onDeckyInstall)
+                    }
+                    if (s.deckyInstalled != null) SecondaryButton(
+                        "Uninstall",
+                        enabled = s.deckyStage == null && !s.deckySessionRunning,
+                    ) { confirmDeckyRemoval = true }
+                }
+            }
+            if (s.deckyInstalled != null) SettingsRow(
+                "Decky",
+                if (s.deckyEnabled) "Starts with Steam. Other apps on this device may be able to control Steam while enabled."
+                else "Off. Decky stays off and Steam's remote debugging port stays closed.",
+            ) {
+                Switch(
+                    checked = s.deckyEnabled,
+                    onCheckedChange = a.onDeckyEnabled,
+                    enabled = !s.deckySessionRunning && s.deckyStage == null,
+                )
+            }
+            if (s.deckyStage != null && s.deckyPercent >= 0) {
+                LinearProgressIndicator(
+                    progress = { s.deckyPercent / 100f },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+            }
+        }
         if (steam && s.steamChannel != null) SettingsGroup("Client") {
             ChoiceRow(
                 host, "channel", "Client branch", "The Steam client build the session forces. Applies at the next session start; the client may update itself once.",
@@ -349,6 +421,15 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             )
         }
     }
+    if (confirmDeckyRemoval) AlertDialog(
+        onDismissRequest = { confirmDeckyRemoval = false },
+        title = { Text("Uninstall Decky Loader?") },
+        text = { Text("Remove the loader and keep your plugins and settings.") },
+        confirmButton = {
+            TextButton(onClick = { confirmDeckyRemoval = false; a.onDeckyUninstall() }) { Text("Uninstall") }
+        },
+        dismissButton = { TextButton(onClick = { confirmDeckyRemoval = false }) { Text("Cancel") } },
+    )
 }
 
 /** The Resolution menu's "Custom…" entry. */

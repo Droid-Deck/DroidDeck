@@ -451,14 +451,23 @@ BUSCONF
           decky_child=
           decky_stop() { [ -z "$decky_child" ] || kill "$decky_child" 2>/dev/null; [ -z "$decky_child" ] || wait "$decky_child" 2>/dev/null; exit 0; }
           trap decky_stop TERM INT HUP
+          decky_exits=0
           while :; do
             if [ "$decky_arch" = x86_64 ]; then /usr/bin/FEX "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
             else "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
             fi
             decky_child=$!
-            wait "$decky_child" || true
+            decky_status=0
+            wait "$decky_child" || decky_status=$?
             decky_child=
-            sleep 3
+            decky_exits=$((decky_exits + 1))
+            if [ "$decky_exits" -ge 5 ]; then
+              echo "== Decky: stopped after $decky_exits loader exits (last status $decky_status)"
+              break
+            fi
+            decky_delay=$((decky_exits * 3))
+            echo "== Decky: loader exited with status $decky_status; restart $((decky_exits + 1))/5 in ${decky_delay}s"
+            sleep "$decky_delay"
           done
         ) &
         decky_supervisor=$!
@@ -548,6 +557,11 @@ BUSCONF
       # script's parent, so reap_orphans - right under gamescope, where everything is the client's -
       # is not for here. The helpers this run started (the cores and redistributables beats, the
       # system bus and the NetworkManager stand-in) go with the client instead.
+      if [ -n "${decky_supervisor:-}" ]; then
+        kill "$decky_supervisor" 2>/dev/null || true
+        wait "$decky_supervisor" 2>/dev/null || true
+        echo "== Decky: session supervisor stopped"
+      fi
       _bl_jobs=$(jobs -p)
       [ -n "$_bl_jobs" ] && kill $_bl_jobs 2>/dev/null
       echo "== steam: the client on the desktop has exited"
