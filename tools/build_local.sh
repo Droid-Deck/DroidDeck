@@ -27,6 +27,66 @@ if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required to cross-compile the glibc ARM64 preload libraries." >&2
     exit 1
 fi
+for tool in curl tar zstd shasum unzip; do
+    if ! command -v "${tool}" >/dev/null 2>&1; then
+        echo "${tool} is required to build the CI-equivalent APK." >&2
+        exit 1
+    fi
+done
+if [[ -f "${repo_root}/tools/gamescope/release.env" || -f "${repo_root}/tools/wlroots/release.env" ]] \
+        && ! command -v gh >/dev/null 2>&1; then
+    echo "GitHub CLI is required to download the pinned Gamescope and wlroots release assets." >&2
+    exit 1
+fi
+
+ndk_version=${DROIDDECK_NDK_VERSION:-}
+if [[ -z "${ndk_version}" ]]; then
+    ndk_path=$(find "${sdk_dir}/ndk" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)
+    ndk_version=${ndk_path##*/}
+fi
+if [[ -z "${ndk_version}" || ! -d "${sdk_dir}/ndk/${ndk_version}" ]]; then
+    echo "No Android NDK found under ${sdk_dir}/ndk; set DROIDDECK_NDK_VERSION." >&2
+    exit 1
+fi
+export ANDROID_HOME="${sdk_dir}"
+export ANDROID_SDK_ROOT="${sdk_dir}"
+export JAVA_HOME="${java_dir}"
+export NDK="${sdk_dir}/ndk/${ndk_version}"
+
+staging_dir=$(mktemp -d "${TMPDIR:-/tmp}/droiddeck-build.XXXXXX")
+bundle_asset="${repo_root}/app/src/main/assets/pulseaudio.tzst"
+bundle_backup="${staging_dir}/pulseaudio.original.tzst"
+bundle_replaced=0
+linuxfs_dir="${repo_root}/app/src/main/assets/linuxfs"
+linuxfs_backup="${staging_dir}/linuxfs.original"
+linuxfs_preexisting=0
+linuxfs_replaced=0
+cleanup() {
+    local exit_code=$?
+    trap - EXIT
+    if [[ "${bundle_replaced}" == 1 ]]; then
+        cp -p "${bundle_backup}" "${bundle_asset}" || exit_code=1
+    fi
+    if [[ "${linuxfs_replaced}" == 1 ]]; then
+        rm -rf -- "${linuxfs_dir}" || exit_code=1
+        if [[ "${linuxfs_preexisting}" == 1 ]]; then
+            mv "${linuxfs_backup}" "${linuxfs_dir}" || exit_code=1
+        fi
+    fi
+    rm -rf -- "${staging_dir}" || exit_code=1
+    exit "${exit_code}"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if [[ -d "${linuxfs_dir}" ]]; then
+    cp -a "${linuxfs_dir}" "${linuxfs_backup}"
+    linuxfs_preexisting=1
+fi
+linuxfs_replaced=1
+rm -rf -- "${linuxfs_dir}"
+mkdir -p "${linuxfs_dir}"
 
 if ! docker image inspect "${image_name}" >/dev/null 2>&1; then
     docker build --platform linux/amd64 -t "${image_name}" \
@@ -49,7 +109,12 @@ docker run --rm --platform linux/amd64 \
         for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done
+        for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
+            [ -f "$f" ] && install -Dm644 "$f" "$d/${f#tools/linuxfs/overlay/}"
+        done
         install -Dm644 tools/linuxfs/desktop/droiddeck-desktop "$d/usr/local/bin/droiddeck-desktop"
+        install -Dm644 tools/linuxfs/desktop/droiddeck-gpu "$d/usr/local/bin/droiddeck-gpu"
+        install -Dm644 tools/linuxfs/desktop/droiddeck-desktop-gpu "$d/usr/local/bin/droiddeck-desktop-gpu"
         install -Dm644 tools/linuxfs/desktop/autostart "$d/etc/xdg/labwc/autostart"
         install -Dm644 tools/linuxfs/desktop/rc.xml "$d/etc/xdg/labwc/rc.xml"
         install -Dm644 tools/linuxfs/desktop/panel.conf "$d/etc/xdg/lxqt/panel.conf"
@@ -82,42 +147,56 @@ docker run --rm --platform linux/amd64 \
         test -f "$d/usr/local/bin/bannerlator-proton-extra"
     '
 
-export ANDROID_HOME="${sdk_dir}"
-export ANDROID_SDK_ROOT="${sdk_dir}"
-export JAVA_HOME="${java_dir}"
-ndk_version=${DROIDDECK_NDK_VERSION:-}
-if [[ -z "${ndk_version}" ]]; then
-    ndk_path=$(find "${sdk_dir}/ndk" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)
-    ndk_version=${ndk_path##*/}
-fi
-if [[ -z "${ndk_version}" || ! -d "${sdk_dir}/ndk/${ndk_version}" ]]; then
-    echo "No Android NDK found under ${sdk_dir}/ndk; set DROIDDECK_NDK_VERSION." >&2
-    exit 1
+github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
+if [[ -z "${github_repo}" ]]; then
+    origin_url=$(git -C "${repo_root}" remote get-url origin)
+    case "${origin_url}" in
+        https://github.com/*) github_repo=${origin_url#https://github.com/} ;;
+        ssh://git@github.com/*) github_repo=${origin_url#ssh://git@github.com/} ;;
+        git@github.com:*) github_repo=${origin_url#git@github.com:} ;;
+        *)
+            echo "Cannot determine the GitHub repository from origin: ${origin_url}" >&2
+            echo "Set DROIDDECK_GITHUB_REPOSITORY=owner/repo." >&2
+            exit 1
+            ;;
+    esac
+    github_repo=${github_repo%.git}
 fi
 
-for tool in curl tar zstd; do
-    if ! command -v "${tool}" >/dev/null 2>&1; then
-        echo "${tool} is required to build the bundled audio modules." >&2
-        exit 1
-    fi
+if [[ -f "${repo_root}/tools/gamescope/release.env" ]]; then
+    . "${repo_root}/tools/gamescope/release.env"
+    gamescope_archive="${staging_dir}/gamescope.tzst"
+    gh release download "${GAMESCOPE_TAG}" -R "${github_repo}" -p gamescope.tzst -O "${gamescope_archive}"
+    printf '%s  %s\n' "${GAMESCOPE_SHA256}" "${gamescope_archive}" | shasum -a 256 -c -
+    zstd -dc "${gamescope_archive}" | tar -xf - -C "${linuxfs_dir}"
+    test -f "${linuxfs_dir}/usr/local/bin/gamescope"
+fi
+
+if [[ -f "${repo_root}/tools/wlroots/release.env" ]]; then
+    . "${repo_root}/tools/wlroots/release.env"
+    wlroots_archive="${staging_dir}/wlroots.tzst"
+    gh release download "${WLROOTS_TAG}" -R "${github_repo}" -p wlroots.tzst -O "${wlroots_archive}"
+    printf '%s  %s\n' "${WLROOTS_SHA256}" "${wlroots_archive}" | shasum -a 256 -c -
+    zstd -dc "${wlroots_archive}" | tar -xf - -C "${linuxfs_dir}"
+    test -f "${linuxfs_dir}/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so"
+fi
+
+mango_dir="${linuxfs_dir}/usr/local/lib/mangoapp"
+mango_pkgs="${staging_dir}/mango-pkgs"
+mkdir -p "${mango_dir}" "${mango_pkgs}"
+while read -r package_sha256 package_url; do
+    [[ -n "${package_url}" ]] || continue
+    package_archive="${staging_dir}/$(basename "${package_url}")"
+    curl -fsSL --retry 3 -o "${package_archive}" "${package_url}"
+    printf '%s  %s\n' "${package_sha256}" "${package_archive}" | shasum -a 256 -c -
+    zstd -dc "${package_archive}" | tar -xf - -C "${mango_pkgs}"
+done < <(grep -v '^#' "${repo_root}/tools/mangoapp/packages.txt")
+install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
+for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1 libtracefs.so.1; do
+    cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
 done
-
-staging_dir=$(mktemp -d "${TMPDIR:-/tmp}/droiddeck-build.XXXXXX")
-bundle_asset="${repo_root}/app/src/main/assets/pulseaudio.tzst"
-bundle_backup="${staging_dir}/pulseaudio.original.tzst"
-bundle_replaced=0
-cleanup() {
-    local exit_code=$?
-    trap - EXIT
-    if [[ "${bundle_replaced}" == 1 ]]; then
-        cp -p "${bundle_backup}" "${bundle_asset}" || exit_code=1
-    fi
-    rm -rf -- "${staging_dir}" || exit_code=1
-    exit "${exit_code}"
-}
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+mkdir -p "${linuxfs_dir}/usr/local/bin"
+install -m644 "${repo_root}/tools/mangoapp/mangoapp" "${linuxfs_dir}/usr/local/bin/mangoapp"
 
 pa_source=${DROIDDECK_PA13_SOURCE_DIR:-"${staging_dir}/pulseaudio-13.0"}
 if [[ -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]]; then
@@ -132,7 +211,6 @@ if [[ ! -f "${pa_source}/src/pulse/version.h.in" ]]; then
     exit 1
 fi
 
-export NDK="${sdk_dir}/ndk/${ndk_version}"
 sink_output="${staging_dir}/sink-out"
 "${repo_root}/tools/aaudio-sink/build.sh" "${pa_source}" "${sink_output}"
 "${repo_root}/tools/proot/build.sh" "${repo_root}/app/src/main/jniLibs/arm64-v8a"
@@ -155,7 +233,7 @@ bundle_replaced=1
 mv "${staging_dir}/pulseaudio.tzst" "${bundle_asset}"
 
 cd "${repo_root}"
-./gradlew assembleRelease -PndkVersion="${ndk_version}"
+./gradlew assembleRelease --console=plain -PndkVersion="${ndk_version}"
 cp -p "${bundle_backup}" "${bundle_asset}"
 bundle_replaced=0
 
@@ -173,33 +251,6 @@ for audio_file in \
     fi
 done
 
-build_tools=$(find "${sdk_dir}/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)
-if [[ ! -x "${build_tools}/zipalign" || ! -x "${build_tools}/apksigner" ]]; then
-    echo "Android build-tools with zipalign/apksigner are required under ${sdk_dir}/build-tools." >&2
-    exit 1
-fi
-
-"${build_tools}/zipalign" -p -f 4 "${apk}" "${staging_dir}/app-release.aligned.apk"
-"${build_tools}/apksigner" sign \
-    --ks keystore/testkey.p12 --ks-type PKCS12 --ks-pass pass:android \
-    --ks-key-alias testkey --key-pass pass:android \
-    --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
-    --out "${apk}" "${staging_dir}/app-release.aligned.apk"
-
-signature_output=$("${build_tools}/apksigner" verify --min-sdk-version 21 --verbose --print-certs "${apk}")
-printf '%s\n' "${signature_output}"
-for scheme in \
-    'Verified using v1 scheme (JAR signing): true' \
-    'Verified using v2 scheme (APK Signature Scheme v2): true' \
-    'Verified using v3 scheme (APK Signature Scheme v3): true'; do
-    grep -qF "${scheme}" <<<"${signature_output}" || {
-        echo "APK signature check failed: ${scheme}" >&2
-        exit 1
-    }
-done
-grep -qF 'Signer #1 certificate DN: EMAILADDRESS=android@android.com, CN=Android, OU=Android, O=Android' \
-    <<<"${signature_output}"
-
 docker run --rm --platform linux/amd64 -v "${repo_root}:/src:ro" -w /src "${image_name}" \
     bash -lc '
         set -euo pipefail
@@ -207,7 +258,7 @@ docker run --rm --platform linux/amd64 -v "${repo_root}:/src:ro" -w /src "${imag
         work=$(mktemp -d)
         unzip -q "$apk" "lib/arm64-v8a/*" -d "$work"
         cd "$work/lib/arm64-v8a"
-        system="libc.so libm.so libdl.so liblog.so libandroid.so libz.so libvulkan.so
+        system="libc.so libm.so libdl.so liblog.so libandroid.so libz.so libvulkan.so libstdc++.so
             libGLESv2.so libEGL.so libnativewindow.so libjnigraphics.so libaaudio.so
             libOpenSLES.so libmediandk.so libcamera2ndk.so libsync.so libneuralnetworks.so"
         fail=0
@@ -222,6 +273,40 @@ docker run --rm --platform linux/amd64 -v "${repo_root}:/src:ro" -w /src "${imag
         [ "$fail" -eq 0 ]
         echo "every NEEDED resolves"
     '
+
+build_tools=$(find "${sdk_dir}/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)
+if [[ ! -x "${build_tools}/zipalign" || ! -x "${build_tools}/apksigner" ]]; then
+    echo "Android build-tools with zipalign/apksigner are required under ${sdk_dir}/build-tools." >&2
+    exit 1
+fi
+
+"${build_tools}/zipalign" -p -f 4 "${apk}" "${apk}.aligned"
+"${build_tools}/apksigner" sign \
+    --ks "${repo_root}/keystore/testkey.p12" --ks-type PKCS12 --ks-pass pass:android \
+    --ks-key-alias testkey --key-pass pass:android \
+    --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+    --out "${apk}" "${apk}.aligned"
+rm -f "${apk}.aligned" "${apk}.idsig"
+
+signature_output=$("${build_tools}/apksigner" verify --min-sdk-version 21 --verbose --print-certs "${apk}")
+printf '%s\n' "${signature_output}"
+if ! unzip -l "${apk}" | grep -qE 'META-INF/.*\.(SF|RSA|DSA)$'; then
+    echo "APK signature check failed: JAR signature files are missing." >&2
+    exit 1
+fi
+for scheme in \
+    'Verified using v1 scheme (JAR signing): true' \
+    'Verified using v2 scheme (APK Signature Scheme v2): true' \
+    'Verified using v3 scheme (APK Signature Scheme v3): true'; do
+    grep -qF "${scheme}" <<<"${signature_output}" || {
+        echo "APK signature check failed: ${scheme}" >&2
+        exit 1
+    }
+done
+grep -qi 'CN=Android, OU=Android, O=Android' <<<"${signature_output}" || {
+    echo "APK signature check failed: the signer is not the AOSP testkey." >&2
+    exit 1
+}
 
 printf 'APK: %s\n' "${apk}"
 printf 'SHA-256: '
