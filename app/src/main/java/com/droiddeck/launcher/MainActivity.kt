@@ -93,7 +93,8 @@ class MainActivity : ComponentActivity() {
     private var showDecky by mutableStateOf(false)
     private var deckyInstalled by mutableStateOf<String?>(null)
     private var deckyReleases by mutableStateOf<List<DeckyManager.Release>>(emptyList())
-    private var deckyPrerelease by mutableStateOf(false)
+    private var deckyPrerelease by mutableStateOf(true)
+    private var deckyStableAvailable by mutableStateOf(false)
     private var deckyChecking by mutableStateOf(false)
     private var deckyStage by mutableStateOf<String?>(null)
     private var deckyPercent by mutableIntStateOf(-1)
@@ -505,13 +506,14 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshDecky() {
         val request = ++deckyReleaseRequest
-        val channel = deckyPrerelease
         deckyChecking = true
         Thread({
-            val rows = DeckyManager.releases(this, channel)
+            val channels = DeckyManager.releaseChannels(this)
             ui.post {
                 if (request == deckyReleaseRequest) {
-                    deckyReleases = rows
+                    deckyStableAvailable = channels.stable.isNotEmpty()
+                    if (!deckyStableAvailable) deckyPrerelease = true
+                    deckyReleases = if (deckyPrerelease) channels.prerelease else channels.stable
                     deckyChecking = false
                 }
             }
@@ -522,7 +524,7 @@ class MainActivity : ComponentActivity() {
     private fun DeckyHost() {
         DeckyPage(
             installed = deckyInstalled, releases = deckyReleases, prerelease = deckyPrerelease,
-            checking = deckyChecking, stage = deckyStage, percent = deckyPercent,
+            checking = deckyChecking, stableAvailable = deckyStableAvailable, stage = deckyStage, percent = deckyPercent,
             supervisor = deckySupervisor, sessionRunning = SessionState.running,
             onChannel = { channel -> deckyPrerelease = channel; deckyReleases = emptyList(); refreshDecky() },
             onRefresh = { refreshDecky() }, onInstall = { installDecky(it) },

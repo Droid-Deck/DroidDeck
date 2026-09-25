@@ -23,7 +23,7 @@ import com.droiddeck.launcher.runtime.DeckyManager
 
 @Composable
 fun DeckyPage(
-    installed: String?, releases: List<DeckyManager.Release>, prerelease: Boolean, checking: Boolean,
+    installed: String?, releases: List<DeckyManager.Release>, prerelease: Boolean, checking: Boolean, stableAvailable: Boolean,
     stage: String?, percent: Int, supervisor: Boolean, sessionRunning: Boolean,
     onChannel: (Boolean) -> Unit, onRefresh: () -> Unit, onInstall: (DeckyManager.Release) -> Unit,
     onUninstall: (Boolean) -> Unit, onSupervisor: (Boolean) -> Unit, onBack: () -> Unit,
@@ -44,7 +44,7 @@ fun DeckyPage(
         SettingsGroup("Release channel") {
             SettingsRow("Channel", if (prerelease) "Prerelease builds" else "Stable builds") {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SecondaryButton("Stable", enabled = prerelease) { onChannel(false) }
+                    SecondaryButton("Stable", enabled = stableAvailable && prerelease) { onChannel(false) }
                     SecondaryButton("Prerelease", enabled = !prerelease) { onChannel(true) }
                 }
             }

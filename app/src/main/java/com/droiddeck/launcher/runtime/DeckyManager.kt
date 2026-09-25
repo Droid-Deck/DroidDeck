@@ -19,6 +19,7 @@ object DeckyManager {
     private const val CEF_REMOTE_DEBUG_MARKER = "root/.local/share/Steam/.cef-enable-remote-debugging"
 
     data class Release(val tag: String, val prerelease: Boolean, val asset: String, val url: String, val digest: String?, val shaUrl: String?, val size: Long, val machine: Int)
+    data class ReleaseChannels(val stable: List<Release>, val prerelease: List<Release>)
 
     fun installed(context: Context): String? {
         val loader = loader(context)
@@ -35,33 +36,41 @@ object DeckyManager {
     }
 
     fun releases(context: Context, prerelease: Boolean): List<Release> {
-        val body = Downloader.downloadString(RELEASES) ?: return emptyList()
+        val channels = releaseChannels(context)
+        return if (prerelease) channels.prerelease else channels.stable
+    }
+
+    fun releaseChannels(context: Context): ReleaseChannels {
+        val body = Downloader.downloadString(RELEASES) ?: return ReleaseChannels(emptyList(), emptyList())
         return try {
             val array = JSONArray(body)
-            buildList {
-                for (i in 0 until array.length()) {
-                    val release = array.getJSONObject(i)
-                    if (release.optBoolean("draft", false) || release.optBoolean("prerelease", false) != prerelease) continue
-                    val assets = release.optJSONArray("assets") ?: continue
-                    val rows = (0 until assets.length()).map { assets.getJSONObject(it) }
-                    val arm = rows.firstOrNull { it.optString("name") == "PluginLoader-arm64" }
-                    val guest = LinuxRuntime.rootDir(context)
-                    val fexReady = File(guest, "usr/share/guestos/fex-mesa").isDirectory && File(guest, "usr/bin/FEX").canExecute()
-                    val binary = arm ?: if (fexReady) rows.firstOrNull { it.optString("name") == "PluginLoader" } else null
-                    val name = binary?.optString("name") ?: continue
-                    val url = binary.optString("browser_download_url").takeIf { it.startsWith("https://") } ?: continue
-                    val checksum = rows.firstOrNull {
-                        val n = it.optString("name")
-                        (n == "$name.sha256" || n == "$name.sha256sum" || n == "$name.sha256.txt") && it.optString("browser_download_url").startsWith("https://")
-                    }?.optString("browser_download_url")?.takeIf { it.startsWith("https://") }
-                    val digest = binary.optString("digest").takeIf { it.matches(Regex("(?i)sha256:[0-9a-f]{64}")) }
-                    if (digest == null && checksum == null) continue
-                    val size = binary.optLong("size", 0)
-                    if (size <= 0) continue
-                    add(Release(release.optString("tag_name", "unknown"), prerelease, name, url, digest, checksum, size, if (name == "PluginLoader-arm64") 183 else 62))
-                }
+            val stable = mutableListOf<Release>()
+            val prerelease = mutableListOf<Release>()
+            for (i in 0 until array.length()) {
+                val release = array.getJSONObject(i)
+                if (release.optBoolean("draft", false)) continue
+                val isPrerelease = release.optBoolean("prerelease", false)
+                val assets = release.optJSONArray("assets") ?: continue
+                val rows = (0 until assets.length()).map { assets.getJSONObject(it) }
+                val arm = rows.firstOrNull { it.optString("name") == "PluginLoader-arm64" }
+                val guest = LinuxRuntime.rootDir(context)
+                val fexReady = File(guest, "usr/share/guestos/fex-mesa").isDirectory && File(guest, "usr/bin/FEX").canExecute()
+                val binary = arm ?: if (fexReady) rows.firstOrNull { it.optString("name") == "PluginLoader" } else null
+                val name = binary?.optString("name") ?: continue
+                val url = binary.optString("browser_download_url").takeIf { it.startsWith("https://") } ?: continue
+                val checksum = rows.firstOrNull {
+                    val n = it.optString("name")
+                    (n == "$name.sha256" || n == "$name.sha256sum" || n == "$name.sha256.txt") && it.optString("browser_download_url").startsWith("https://")
+                }?.optString("browser_download_url")?.takeIf { it.startsWith("https://") }
+                val digest = binary.optString("digest").takeIf { it.matches(Regex("(?i)sha256:[0-9a-f]{64}")) }
+                if (digest == null && checksum == null) continue
+                val size = binary.optLong("size", 0)
+                if (size <= 0) continue
+                val row = Release(release.optString("tag_name", "unknown"), isPrerelease, name, url, digest, checksum, size, if (name == "PluginLoader-arm64") 183 else 62)
+                (if (isPrerelease) prerelease else stable).add(row)
             }
-        } catch (e: Exception) { Log.w(TAG, "release metadata", e); emptyList() }
+            ReleaseChannels(stable, prerelease)
+        } catch (e: Exception) { Log.w(TAG, "release metadata", e); ReleaseChannels(emptyList(), emptyList()) }
     }
 
     /** Downloads to a sibling temp file and atomically renames only after size, digest and ELF checks. */
