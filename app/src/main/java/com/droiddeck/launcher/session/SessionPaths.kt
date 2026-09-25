@@ -41,7 +41,10 @@ object SessionPaths {
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val parent = if (SessionPrefs.logsEnabled(context)) SessionFiles.logDirectory(context)
             else File(context.cacheDir, "session-logs")
-        val made = File(parent, "session-$stamp")
+        val baseName = "session-$stamp"
+        var made = File(parent, baseName)
+        var suffix = 2
+        while (made.exists()) made = File(parent, "$baseName-${suffix++}")
         if (!made.isDirectory && !made.mkdirs()) Log.e(TAG, "could not create $made")
         dir = made
         Log.i(TAG, "session logs: $made" + if (SessionPrefs.logsEnabled(context)) "" else " (logs off: discarded at the end)")

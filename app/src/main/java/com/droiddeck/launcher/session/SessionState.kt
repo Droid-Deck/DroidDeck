@@ -12,13 +12,50 @@ import androidx.compose.runtime.setValue
  */
 object SessionState {
     @Volatile
+    var phase = SessionPhase.IDLE
+
+    @Volatile
+    var sessionId: String? = null
+
+    @Volatile
+    var lastTransitionAt = 0L
+
+    @Volatile
+    var failureCode: String? = null
+
+    @Volatile
+    var failureMessage: String? = null
+
+    @Volatile
+    var failureStatus: Int? = null
+
+    @Volatile
+    var logDirectory: File? = null
+
+    @Volatile
+    var eventsFile: File? = null
+
+    @Volatile
+    var guestPid = -1
+
+    @Volatile
+    var installing: String? = null
+
+    @Volatile
+    var stopRequested = false
+
+    @Volatile
     var running = false
     var suspended by mutableStateOf(false)
     /** MODE_RUN: the program inside the runtime the session was started for. */
+    @Volatile
     var program: String? = null
+    @Volatile
     var programArgs: List<String> = emptyList()
     /** MODE_STEAM: "desktop" for the client's desktop UI, else Big Picture; and a steam:// URL to hand it. */
+    @Volatile
     var steamUi: String? = null
+    @Volatile
     var steamUrl: String? = null
     /** A session the guest asked for (the desktop's Steam launchers): started by the activity once this one has ended. */
     var relaunch: android.content.Intent? = null
@@ -56,4 +93,18 @@ object SessionState {
     fun notifyEnded(status: Int) {
         endListener?.invoke(status)
     }
+}
+
+/** Stable lifecycle values returned by the debug agent bridge. */
+enum class SessionPhase {
+    IDLE,
+    PREPARING,
+    INSTALLING_RUNTIME,
+    STARTING_COMPOSITOR,
+    STARTING_GUEST,
+    STARTING_STEAM,
+    READY,
+    SUSPENDED,
+    STOPPING,
+    FAILED,
 }

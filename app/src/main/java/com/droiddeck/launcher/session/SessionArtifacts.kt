@@ -43,6 +43,7 @@ object SessionArtifacts {
             copySteamLogs(context, dir)
             // A session the system killed leaves its trace here and nowhere else.
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
+            SessionEvents.record("session.artifacts_collected", mapOf("reason" to reason), dir)
             File(dir, COMPLETE_MARKER).writeText("collected: $reason at ${now()}\n")
         } catch (e: Exception) {
             Log.w(TAG, "collecting session artifacts", e)
@@ -72,6 +73,7 @@ object SessionArtifacts {
      * older folder would be handed logs that are not its own. Runs on a worker thread at app
      * start; nothing here touches the session that is about to begin.
      */
+    @Synchronized
     fun finishAbandoned(context: Context) {
         val parent = LinuxRuntime.debugLogDir()
         val abandoned = parent.listFiles { f ->
@@ -97,6 +99,7 @@ object SessionArtifacts {
                     copySteamLogs(context, dir)
                 }
                 SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
+                SessionEvents.record("session.artifacts_recovered", mapOf("newest" to newest), dir)
                 File(dir, COMPLETE_MARKER).writeText("collected: late, at next app start, ${now()}\n")
                 Log.i(TAG, "finished the abandoned session folder $dir")
             } catch (e: Exception) {

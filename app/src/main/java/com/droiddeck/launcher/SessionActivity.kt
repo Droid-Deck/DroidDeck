@@ -48,6 +48,9 @@ import com.droiddeck.launcher.session.PerfHints
 import com.droiddeck.launcher.session.PerfHud
 import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionEvents
+import com.droiddeck.launcher.session.SessionArtifacts
+import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
@@ -160,6 +163,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
+            SessionEvents.begin(this, intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+        }
+        SessionState.program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
+        SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
+        SessionState.steamUi = intent.getStringExtra(SessionService.EXTRA_STEAM_UI)
+        SessionState.steamUrl = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
+        if (intent.action == SessionService.ACTION_AGENT_START) {
+            SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // Game-tier power policy for the whole session: a sustained clock floor, the panel's
         // fastest mode, and the OS told it is in gameplay. Logged so a slow device says why.
@@ -301,12 +314,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         updateOnScreenControls()
         WaylandCompositor.setFirstFrameListener {
-            SessionState.firstFrameSeen = true
+            SessionEvents.firstFrame()
             runOnUiThread {
                 loading.visible = false
                 hud.start()
             }
         }
+        SessionEvents.markReadyIfPossible()
         SessionState.endListener = endListener
         // A single Back opens the session menu; two quick presses/swipes send the Steam QAM chord.
         // The single action waits out the double-press window so the two actions stay distinct.
@@ -393,20 +407,61 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * starts when they are in. Nothing else changes.
      */
     private fun installThenStart(runtime: Boolean, desktop: Boolean) {
+        if (SessionState.stopRequested) return
         installingRuntime = true
+        SessionState.installing = if (runtime) "runtime" else "desktop"
+        SessionEvents.transition(
+            SessionPhase.INSTALLING_RUNTIME,
+            if (runtime) "runtime.installing" else "desktop.installing",
+            mapOf("component" to SessionState.installing),
+        )
         loading.step = if (runtime) "downloading the Linux runtime" else "downloading the desktop"
         loading.percent = -1
         Thread({
-            val problem = (if (runtime) installRuntime() else null) ?: (if (desktop) installDesktop() else null)
+            var failedComponent: String? = null
+            var problem: String? = null
+            if (runtime) {
+                problem = installRuntime()
+                if (problem == null) SessionEvents.record("runtime.ready") else failedComponent = "runtime"
+            }
+            if (problem == null && desktop && !SessionState.stopRequested) {
+                SessionState.installing = "desktop"
+                SessionEvents.transition(SessionPhase.INSTALLING_RUNTIME, "desktop.installing", mapOf("component" to "desktop"))
+                problem = installDesktop()
+                if (problem == null) SessionEvents.record("desktop.ready") else failedComponent = "desktop"
+            }
             uiHandler.post {
                 installingRuntime = false
-                if (problem != null) { loading.showEnded(problem); return@post }
+                SessionState.installing = null
+                if (SessionState.stopRequested) {
+                    SessionState.stopRequested = false
+                    SessionEvents.transition(SessionPhase.IDLE, "session.cancelled")
+                    collectStartArtifacts("session start cancelled")
+                    finish()
+                    return@post
+                }
+                if (problem != null) {
+                    val code = if (failedComponent == "runtime") "RUNTIME_INSTALL_FAILED" else "DESKTOP_INSTALL_FAILED"
+                    SessionEvents.fail(code, problem)
+                    collectStartArtifacts("session start failed")
+                    loading.showEnded(problem)
+                    return@post
+                }
                 loading.percent = -1
                 loading.step = "Starting the session…"
                 // The surface may have come and gone while the download ran; start on the live one.
                 if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
             }
         }, "runtime-install").start()
+    }
+
+    private fun collectStartArtifacts(reason: String) {
+        val dir = SessionPaths.take() ?: return
+        val appContext = applicationContext
+        Thread({
+            SessionArtifacts.collect(appContext, dir, reason)
+            SessionPaths.release(appContext, dir)
+        }, "session-failure-artifacts").start()
     }
 
     /** Reports one package's download on the loading screen: "<what> · 332 of 791 MB", checking, unpacking. */
@@ -441,7 +496,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        if (installingRuntime) return
+        if (installingRuntime || SessionState.stopRequested) return
+        if (!SessionState.running) {
+            SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
+        }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         // The compositor hands this keymap to wl_keyboard clients, which is how the guest reads
         // the evdev codes we inject.
@@ -505,6 +563,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
             applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(),
         )
+        if (!SessionState.running) SessionEvents.record("compositor.started")
         // ADPF: the compositor thread's frame intervals go to the power HAL against the panel's
         // period, so a long frame raises CPU clocks now rather than after the load averages up.
         PerfHints.arm(this, refreshHz())
@@ -514,6 +573,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // start nothing, and leave the loading panel counting up over a dead session.
         if (!SessionState.running) {
             CompositorHost.newSession()
+            SessionEvents.transition(SessionPhase.STARTING_GUEST, "guest.starting")
             SessionService.start(
                 this, intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM,
                 intent.getStringExtra(SessionService.EXTRA_PROGRAM),
@@ -616,6 +676,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val poll = object : Runnable {
             override fun run() {
                 if (!watching) return
+                if (SessionState.stopRequested && !SessionState.running && !installingRuntime) {
+                    SessionState.stopRequested = false
+                    SessionEvents.transition(SessionPhase.IDLE, "session.cancelled")
+                    collectStartArtifacts("session start cancelled")
+                    finish()
+                    return
+                }
                 if (loading.visible && !loading.ended) {
                     if (!installingRuntime) loading.update(this@SessionActivity, SessionState.logFile)
                     if (ticks++ % 2 == 0) loading.tick()
@@ -1128,6 +1195,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        if (intent.action == SessionService.ACTION_AGENT_START) {
+            if (SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
+                Log.w(TAG, "ignoring agent start while session phase is ${SessionState.phase}")
+                return
+            }
+            setIntent(intent)
+            recreate()
+            return
+        }
         setIntent(intent)
         if (intent.action == SessionService.ACTION_HOME_GUIDE) {
             handleHomeGuideIntent(intent)
