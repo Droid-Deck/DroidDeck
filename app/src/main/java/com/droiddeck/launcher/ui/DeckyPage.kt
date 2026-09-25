@@ -37,7 +37,11 @@ fun DeckyPage(
             SettingsRow("PluginLoader", installed?.let { "Version $it" } ?: "Not installed") {
                 SecondaryButton("Uninstall", enabled = installed != null && !sessionRunning && stage == null) { removeChoice = true }
             }
-            SettingsRow("Start with Steam", "Runs PluginLoader for this session and stops it when Steam exits") {
+            SettingsRow(
+                "Start with Steam",
+                if (supervisor) "Runs PluginLoader for this session. Enables Steam's local CEF debugging for Decky while on."
+                else "Runs PluginLoader for this session and stops it when Steam exits. Steam's local CEF debugging stays off."
+            ) {
                 SecondaryButton(if (supervisor) "On" else "Off", enabled = installed != null && !sessionRunning) { onSupervisor(!supervisor) }
             }
         }

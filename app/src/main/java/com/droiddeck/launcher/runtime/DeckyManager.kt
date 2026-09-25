@@ -32,7 +32,16 @@ object DeckyManager {
 
     fun setSupervisorEnabled(context: Context, enabled: Boolean) {
         val marker = File(LinuxRuntime.rootDir(context), "root/.droiddeck-decky-enabled")
-        if (enabled) { marker.parentFile?.mkdirs(); marker.writeText("enabled\n") } else marker.delete()
+        val cefMarker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
+        if (enabled) {
+            marker.parentFile?.mkdirs()
+            marker.writeText("enabled\n")
+            cefMarker.parentFile?.mkdirs()
+            cefMarker.createNewFile()
+        } else {
+            marker.delete()
+            cefMarker.delete()
+        }
     }
 
     fun releases(context: Context, prerelease: Boolean): List<Release> {
@@ -91,13 +100,13 @@ object DeckyManager {
         if (!validElf(temp, release.machine)) { temp.delete(); return "Release asset is not a compatible 64-bit Linux executable" }
         if (SessionState.running) { temp.delete(); return "A session started during the download; stop it before installing Decky Loader" }
         if (!temp.setExecutable(true, false)) { temp.delete(); return "Could not mark PluginLoader executable" }
-        // Decky injects its QAM frontend through Steam's local CEF debugger on port 8080.
+        // Decky needs Steam's local CEF debugger only when its session supervisor is enabled.
         val cefMarker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
-        val cefEnabled = cefMarker.isFile || runCatching {
+        val cefReady = !supervisorEnabled(context) || cefMarker.isFile || runCatching {
             cefMarker.parentFile?.mkdirs()
             cefMarker.createNewFile() || cefMarker.isFile
         }.getOrDefault(false)
-        if (!cefEnabled) { temp.delete(); return "Could not enable Steam CEF remote debugging" }
+        if (!cefReady) { temp.delete(); return "Could not enable Steam CEF remote debugging" }
         val staged = File(target.parentFile, "PluginLoader.new")
         staged.delete()
         if (!temp.renameTo(staged)) { temp.delete(); return "Could not stage PluginLoader" }
@@ -112,6 +121,7 @@ object DeckyManager {
         old.delete()
         File(target.parentFile, ".droiddeck-decky-version").writeText(release.tag + "\n")
         File(target.parentFile, ".droiddeck-decky-arch").writeText(if (release.machine == 183) "arm64\n" else "x86_64\n")
+        if (!supervisorEnabled(context)) cefMarker.delete()
         return null
     }
 
