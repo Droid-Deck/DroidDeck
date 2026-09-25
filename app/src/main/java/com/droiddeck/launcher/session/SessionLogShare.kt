@@ -22,12 +22,17 @@ object SessionLogShare {
             .maxByOrNull { it.name }
 
     /** Builds the zip (blocking). Returns null when there is no session to share. */
-    fun zipLatest(context: Context): File? {
-        val folder = latest(context) ?: return null
+    fun zipLatest(context: Context): File? = latest(context)?.let { zipFolder(context, it) }
+
+    /** Builds a zip for one specific session folder (blocking). */
+    fun zipFolder(context: Context, folder: File): File? {
+        if (!folder.isDirectory) return null
+        val files = folder.walkTopDown().filter { it.isFile }.toList()
+        if (files.isEmpty()) return null
         val out = File(context.cacheDir, "shared-logs").apply { deleteRecursively(); mkdirs() }
         val zip = File(out, "DroidDeck-${folder.name}.zip")
         ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            folder.walkTopDown().filter { it.isFile }.forEach { f ->
+            files.forEach { f ->
                 z.putNextEntry(ZipEntry(folder.name + "/" + f.relativeTo(folder).path))
                 f.inputStream().use { it.copyTo(z) }
                 z.closeEntry()

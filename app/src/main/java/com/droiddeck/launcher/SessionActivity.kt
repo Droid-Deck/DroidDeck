@@ -50,6 +50,7 @@ import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionArtifacts
+import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.wayland.HdrSupport
@@ -305,6 +306,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             }
                         },
                         onBackground = { drawerOpen = false; moveTaskToBack(true) },
+                        onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
                         onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
                         onClose = { drawerOpen = false },
                     ))
@@ -387,6 +389,30 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         incoming.action = null
         setIntent(incoming)
         if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) sendSteamGuide()
+    }
+
+    private fun shareCurrentSessionLogs() {
+        val folder = SessionPaths.current()
+        if (folder == null || !folder.isDirectory) {
+            Toast.makeText(this, "No logs for this session.", Toast.LENGTH_LONG).show()
+            return
+        }
+        Thread({
+            val zip = runCatching { SessionLogShare.zipFolder(this, folder) }
+                .onFailure { Log.w(TAG, "could not package current session logs", it) }
+                .getOrNull()
+            uiHandler.post {
+                if (zip == null) {
+                    Toast.makeText(this, "Could not create the session log archive.", Toast.LENGTH_LONG).show()
+                } else {
+                    runCatching { startActivity(SessionLogShare.shareIntent(this, zip)) }
+                        .onFailure {
+                            Log.w(TAG, "could not share current session logs", it)
+                            Toast.makeText(this, "Could not share the session logs.", Toast.LENGTH_LONG).show()
+                        }
+                }
+            }
+        }, "share-session-logs").start()
     }
 
     private fun readPrefs() {

@@ -224,6 +224,7 @@ class DrawerActions(
     val onSecondScreenDisplay: (Int) -> Unit,
     val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
     val onBackground: () -> Unit,
+    val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     val onClose: () -> Unit,
 )
@@ -294,6 +295,11 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                     Spacer(Modifier.width(10.dp))
                     Text(a.title ?: if (a.steam) "Steam" else "Desktop", fontSize = 17.sp, fontWeight = FontWeight.Bold,
                         color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    ShareSessionLogsButton(modifier = focus.track(page, "share-logs")) {
+                        host.open = null
+                        a.onShareLogs()
+                    }
+                    Spacer(Modifier.width(8.dp))
                     StopSessionButton(modifier = focus.track(page, "stop")) { host.open = null; confirmStop = true }
                 }
                 if (a.onSteamMenu != null && a.onQam != null) {
@@ -587,4 +593,25 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick),
     ) { Text("×", fontSize = 25.sp, fontWeight = FontWeight.Medium, color = colors.error) }
+}
+
+@Composable
+private fun ShareSessionLogsButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.widthIn(min = 88.dp).height(42.dp)
+            .semantics { contentDescription = "Send current session logs" }
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
+            .border(1.dp, if (hot) pal.signal else colors.outline.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
+            .controllerConfirm(onClick = onClick),
+    ) {
+        Text("send logs", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            color = if (hot) pal.signal else colors.onSurfaceVariant, maxLines = 1)
+    }
 }
