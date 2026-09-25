@@ -469,6 +469,9 @@ class SessionService : Service() {
         // The second library's name, for bannerlator-steam-library; the bind itself is made below.
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
+        // The desktop asked for with Steam in it (the front end's "Steam Desktop UI", Big Picture's
+        // "Switch to Desktop"): the desktop's autostart opens the client's desktop UI there.
+        if (SessionState.mode == MODE_DESKTOP && SessionState.steamUi == "desktop") guest.add("BL_DESKTOP_STEAM=1")
         val shellGuest = ArrayList(guest).apply {
             add("SHELL=/bin/bash")
             add("TERM=xterm-256color")
@@ -734,6 +737,8 @@ class SessionService : Service() {
      * The desktop's Steam launchers cannot start the client where they are (no dma-buf on the
      * desktop), so they leave `steam-launch` in the session directory instead: which UI, and a
      * steam:// URL or nothing. This ends the session and hands the activity the one to start.
+     * `session=desktop` (Big Picture's "Switch to Desktop", steamos-session-select) asks for the
+     * desktop instead, with Steam's desktop client started in it.
      */
     private var launchWatcher: android.os.FileObserver? = null
 
@@ -748,15 +753,18 @@ class SessionService : Service() {
                 file.delete()
                 var ui = "desktop"
                 var url = ""
+                var session = MODE_STEAM
                 text.lineSequence().forEach { line ->
                     when {
                         line.startsWith("ui=") -> ui = line.removePrefix("ui=").trim()
                         line.startsWith("url=") -> url = line.removePrefix("url=").trim()
+                        line.startsWith("session=") && line.removePrefix("session=").trim() == "desktop" -> session = MODE_DESKTOP
                     }
                 }
-                Log.i(TAG, "launch request from the session: Steam $ui" + (if (url.isNotEmpty()) " $url" else ""))
+                Log.i(TAG, "launch request from the session: " + (if (session == MODE_DESKTOP) "the desktop with " else "") +
+                    "Steam $ui" + (if (url.isNotEmpty()) " $url" else ""))
                 val next = Intent(this@SessionService, com.droiddeck.launcher.SessionActivity::class.java)
-                    .putExtra(EXTRA_MODE, MODE_STEAM)
+                    .putExtra(EXTRA_MODE, session)
                     .putExtra(EXTRA_STEAM_UI, ui)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (url.isNotEmpty()) next.putExtra(EXTRA_STEAM_URL, url)
@@ -1048,7 +1056,8 @@ class SessionService : Service() {
         const val EXTRA_PROGRAM = "program"
         /** MODE_RUN: arguments after the program (a game to boot). */
         const val EXTRA_PROGRAM_ARGS = "programArgs"
-        /** MODE_STEAM: "desktop" for the client's desktop UI (default Big Picture); a steam:// URL to hand it. */
+        /** MODE_STEAM: "desktop" for the client's desktop UI (default Big Picture); a steam:// URL to hand it.
+         *  MODE_DESKTOP: "desktop" = open Steam's desktop client in the desktop once it is up. */
         const val EXTRA_STEAM_UI = "steamUi"
         const val EXTRA_STEAM_URL = "steamUrl"
 

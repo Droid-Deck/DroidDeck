@@ -146,6 +146,9 @@ int vkp_pass_begin_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, i
  * wait_fd: a sync_file the copy must wait for before writing dst (the display's release fence of that
  * buffer), -1 = none. Always consumed (handed to the GPU, or waited for and closed). */
 int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd);
+/* A client's GPU cursor (an imported dma-buf, often UBWC) read back as w*h 0xAARRGGBB pixels through a
+ * linear host-visible copy; waited for on the CPU. Compositor thread, between frames. 0 = ok. */
+int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px);
 /* Refresh the scene -> output mapping for this scene size without presenting (creates the
  * swapchain if needed, since the mapping is in output pixels). 0 = mapping valid. */
 int vkp_update_map(int scene_w, int scene_h);

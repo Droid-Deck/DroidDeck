@@ -285,8 +285,11 @@ class MainActivity : ComponentActivity() {
                     ),
                     FrontEndActions(
                         onPlay = { startSession(Intent(this, SessionActivity::class.java)) },
+                        // Steam's desktop client as a window on the desktop: under gamescope the
+                        // client puts itself into Big Picture whatever it is started with.
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
+                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
                                 .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"))
                         },
                         onSteamGame = { g ->
@@ -414,7 +417,10 @@ class MainActivity : ComponentActivity() {
         }
         if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
         // A session folder left without its ending - the process was killed - gets it now.
-        if (!SessionState.running) Thread({ SessionArtifacts.finishAbandoned(this) }, "finish-abandoned").start()
+        if (!SessionState.running) Thread({
+            SessionArtifacts.finishAbandoned(this)
+            SessionArtifacts.scrubOlder(this)
+        }, "finish-abandoned").start()
     }
 
     override fun onResume() {

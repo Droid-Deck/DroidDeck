@@ -1910,6 +1910,104 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
     return 0;
 }
 
+/* A client's GPU cursor read back to the CPU, for the app's pointer overlay (compositor.c,
+ * wl_pointer.set_cursor). wlroots hands a nested compositor its cursor as a dma-buf from the parent's
+ * formats - on Adreno usually UBWC, which the CPU cannot read - so it is blitted into a small linear,
+ * host-visible image first. Rare (a cursor changes shape, it is not redrawn per frame) and waited
+ * for on the CPU. out: w*h pixels, B8G8R8A8 in memory = 0xAARRGGBB ints. 0 = ok. */
+static struct vkp_image *g_rb;  /* the readback image, kept for the next shape */
+
+int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px) {
+    if (!src || !out || src->w <= 0 || src->h <= 0 || src->w * src->h > max_px ||
+        g_dev_state == -2 || dev_init() != 0)
+        return -1;
+    if (g_rb && (g_rb->w != src->w || g_rb->h != src->h)) { vkp_image_destroy(g_rb); g_rb = NULL; }
+    if (!g_rb) {
+        struct vkp_image *img = calloc(1, sizeof(*img));
+        if (!img) return -1;
+        img->w = src->w; img->h = src->h;
+        VkImageCreateInfo ici = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D,
+            .format = VK_FORMAT_B8G8R8A8_UNORM, .extent = {src->w, src->h, 1}, .mipLevels = 1,
+            .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_LINEAR,
+            .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT, .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+        if (g_vk.CreateImage(g_dev, &ici, NULL, &img->image) != VK_SUCCESS) { free(img); return -1; }
+        VkMemoryRequirements req;
+        g_vk.GetImageMemoryRequirements(g_dev, img->image, &req);
+        int idx = memory_type(req.memoryTypeBits,
+                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                                    .allocationSize = req.size, .memoryTypeIndex = (uint32_t)idx};
+        if (idx < 0 || g_vk.AllocateMemory(g_dev, &mai, NULL, &img->mem) != VK_SUCCESS) {
+            g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return -1;
+        }
+        g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
+        VkImageSubresource subr = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
+        VkSubresourceLayout lay;
+        g_vk.GetImageSubresourceLayout(g_dev, img->image, &subr, &lay);
+        img->offset = lay.offset;
+        img->row_pitch = lay.rowPitch;
+        if (g_vk.MapMemory(g_dev, img->mem, 0, req.size, 0, &img->map) != VK_SUCCESS) {
+            vkp_image_destroy(img); return -1;
+        }
+        g_rb = img;
+    }
+    VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    VkCommandBuffer cmd = g_cmds[0];
+    g_vk.ResetCommandBuffer(cmd, 0);
+    VkCommandBufferBeginInfo bi = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                   .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
+    g_vk.BeginCommandBuffer(cmd, &bi);
+    VkImageMemoryBarrier acq[2] = {
+        {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+         .srcQueueFamilyIndex = src->dmabuf ? VK_QUEUE_FAMILY_FOREIGN_EXT : VK_QUEUE_FAMILY_IGNORED,
+         .dstQueueFamilyIndex = src->dmabuf ? g_qfam : VK_QUEUE_FAMILY_IGNORED,
+         .image = src->image, .subresourceRange = range, .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT},
+        {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+         .newLayout = VK_IMAGE_LAYOUT_GENERAL, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .image = g_rb->image, .subresourceRange = range,
+         .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT}};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            0, 0, NULL, 0, NULL, 2, acq);
+    VkImageBlit blit = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                        .srcOffsets = {{0, 0, 0}, {src->w, src->h, 1}},
+                        .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                        .dstOffsets = {{0, 0, 0}, {src->w, src->h, 1}}};
+    g_vk.CmdBlitImage(cmd, src->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                      g_rb->image, VK_IMAGE_LAYOUT_GENERAL, 1, &blit, VK_FILTER_NEAREST);
+    VkImageMemoryBarrier done[2] = {
+        {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+         .newLayout = VK_IMAGE_LAYOUT_GENERAL, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .image = g_rb->image, .subresourceRange = range,
+         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT, .dstAccessMask = VK_ACCESS_HOST_READ_BIT},
+        /* the client's buffer goes back to it */
+        {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+         .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+         .srcQueueFamilyIndex = src->dmabuf ? g_qfam : VK_QUEUE_FAMILY_IGNORED,
+         .dstQueueFamilyIndex = src->dmabuf ? VK_QUEUE_FAMILY_FOREIGN_EXT : VK_QUEUE_FAMILY_IGNORED,
+         .image = src->image, .subresourceRange = range, .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT}};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                            0, 0, NULL, 0, NULL, 2, done);
+    g_vk.EndCommandBuffer(cmd);
+    VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &cmd};
+    g_vk.ResetFences(g_dev, 1, &g_fence);
+    VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
+    if (qr != VK_SUCCESS) {
+        if (qr == VK_ERROR_DEVICE_LOST) device_lost("cursor readback");
+        return -1;
+    }
+    VkResult fr = timed_wait(g_fence, 1000000000ULL);
+    if (fr == VK_ERROR_DEVICE_LOST) { device_lost("cursor readback"); return -1; }
+    if (fr != VK_SUCCESS) return -1;
+    for (int y = 0; y < src->h; y++)
+        memcpy(out + (size_t)y * src->w, (const uint8_t *)g_rb->map + g_rb->offset + (size_t)y * g_rb->row_pitch,
+               (size_t)src->w * 4);
+    return 0;
+}
+
 /* ---------------------------------------------------------------- the compositor pass, off-screen
  *
  * Layer mode with screen effects on: the game's frame still has to go through the compositor pass

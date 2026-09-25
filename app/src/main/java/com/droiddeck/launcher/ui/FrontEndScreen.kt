@@ -4,7 +4,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.foundation.focusGroup
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
@@ -38,7 +37,9 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -75,9 +76,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -110,6 +114,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalInputModeManager
@@ -270,9 +275,10 @@ private fun Modifier.shine(trigger: Boolean, strength: Float = 0.22f): Modifier 
  */
 private class FrontFocus {
     val rail = HashMap<String, FocusRequester>()
+    val menuToggle = FocusRequester()
     val primary = FocusRequester()
     var primaryAttached by mutableStateOf(0)
-    var railFocused by mutableStateOf(false)
+    var focusedRail by mutableStateOf<String?>(null)
     fun railFor(key: String): FocusRequester = rail.getOrPut(key) { FocusRequester() }
     // The pane's controls by id (a tile's key, a button's label), how many of each are on screen,
     // and the last one focused.
@@ -337,6 +343,7 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
 @Composable
 private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
     var selected by rememberSaveable { mutableStateOf("steam") }
+    var navOpen by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     val colors = MaterialTheme.colorScheme
     val ctx = LocalContext.current
@@ -358,7 +365,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
 
     var anyFocused by remember { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(colors.background).systemBarsPadding().onFocusChanged { anyFocused = it.hasFocus }) {
-        val wide = maxWidth >= 640.dp
+        val drawerWidth = minOf(280.dp, maxWidth * 0.82f)
         val railSelection = when {
             s.pageKey == "performance" || s.pageKey == "protons" || s.pageKey == "controller-mapping" -> "setup"
             s.pageKey?.startsWith("settings:steam") == true -> "steam"
@@ -367,29 +374,21 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             selected.startsWith("emu:") || selected.startsWith("rom:") -> "desktop"
             else -> s.pageKey ?: selected
         }
-        val rail: @Composable () -> Unit = {
-            Rail(
-                s, railSelection,
-                onSelect = { key ->
-                    if (s.pageKey != null) a.onPageBack()
-                    selected = key
-                },
-                a,
-                modifier = if (wide) Modifier.width(236.dp).fillMaxHeight() else Modifier.fillMaxWidth().height(maxHeight * 0.42f),
-            )
+        val onRailSelect: (String) -> Unit = { key ->
+            if (s.pageKey != null) a.onPageBack()
+            selected = key
+            navOpen = false
         }
-        // The app opens with the selected rail item focused, so a controller sees where it is. An
-        // app starts in touch mode, where clickables refuse focus, so leave it first (a touch goes
-        // straight back to it); a request before the window has focus is dropped, so wait for
-        // that and retry until it sticks.
+        // Start controllers on the current page's main action; the rail is initially collapsed.
         val window = LocalWindowInfo.current
         val inputMode = LocalInputModeManager.current
         LaunchedEffect(Unit) {
             snapshotFlow { window.isWindowFocused }.first { it }
             repeat(20) {
-                if (frontFocus.railFocused) return@LaunchedEffect
+                if (anyFocused) return@LaunchedEffect
                 if (inputMode.inputMode != InputMode.Keyboard) inputMode.requestInputMode(InputMode.Keyboard)
-                runCatching { frontFocus.railFor(railSelection).requestFocus() }
+                val target = if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.menuToggle
+                runCatching { target.requestFocus() }
                 kotlinx.coroutines.delay(100)
             }
         }
@@ -401,17 +400,28 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             kotlinx.coroutines.delay(450)
             if (!anyFocused && inputModeManager.inputMode == InputMode.Keyboard) runCatching {
                 if (frontFocus.primaryAttached > 0) frontFocus.primary.requestFocus()
-                else frontFocus.railFor(railSelection).requestFocus()
+                else frontFocus.menuToggle.requestFocus()
             }
         }
-        val back = if (wide) FocusDirection.Left else FocusDirection.Up
-        val paneFocus = Modifier
-            .focusProperties {
-                enter = { frontFocus.paneEntry() }
-                exit = { dir ->
-                    if (dir == back) frontFocus.rail[railSelection] ?: FocusRequester.Default else FocusRequester.Default
+        LaunchedEffect(navOpen, railSelection) {
+            if (navOpen) {
+                frontFocus.focusedRail = null
+                repeat(12) {
+                    if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
+                    runCatching { frontFocus.railFor(railSelection).requestFocus() }
+                    if (frontFocus.focusedRail == railSelection) return@LaunchedEffect
+                    kotlinx.coroutines.delay(80)
+                }
+            } else {
+                kotlinx.coroutines.delay(120)
+                if (!anyFocused && inputModeManager.inputMode == InputMode.Keyboard) runCatching {
+                    if (frontFocus.primaryAttached > 0) frontFocus.paneEntry().requestFocus()
+                    else frontFocus.menuToggle.requestFocus()
                 }
             }
+        }
+        val paneFocus = Modifier
+            .focusProperties { enter = { frontFocus.paneEntry() } }
             .focusGroup()
         val content: @Composable (Modifier) -> Unit = { m ->
             Pane(s, selected, a, page, m.then(paneFocus), { selected = it }) { app ->
@@ -419,8 +429,34 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 else appToChooseDisplay = app
             }
         }
-        if (wide) Row(modifier = Modifier.fillMaxSize()) { rail(); content(Modifier.weight(1f).fillMaxHeight()) }
-        else Column(modifier = Modifier.fillMaxSize()) { rail(); content(Modifier.weight(1f).fillMaxWidth()) }
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                LauncherTopBar(frontFocus.menuToggle) { navOpen = true }
+                content(Modifier.weight(1f).fillMaxWidth())
+            }
+            AnimatedVisibility(
+                visible = navOpen,
+                modifier = Modifier.fillMaxSize(),
+                enter = fadeIn(Motion.tw(150)) + slideInHorizontally(Motion.tw(210)) { -it / 5 },
+                exit = fadeOut(Motion.tw(130)) + slideOutHorizontally(Motion.tw(170)) { -it / 5 },
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.62f))
+                            .clickable { navOpen = false },
+                    )
+                    Box(
+                        modifier = Modifier.align(Alignment.CenterStart)
+                            .width(drawerWidth).fillMaxHeight()
+                            .focusProperties { exit = { FocusRequester.Cancel } }
+                            .focusGroup().zIndex(1f),
+                    ) {
+                        Rail(s, railSelection, onRailSelect, a, Modifier.fillMaxSize()) { navOpen = false }
+                    }
+                }
+            }
+        }
 
         appToChooseDisplay?.let { app ->
             val secondaryDisplay = s.secondScreenDisplays.firstOrNull()
@@ -439,13 +475,42 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             )
         }
     }
+    BackHandler(enabled = navOpen) { navOpen = false }
+    val hasBackTarget = (s.pageKey != null && page != null) ||
+        ((s.pageKey == null || page == null) &&
+            (selected.startsWith("app:") || selected.startsWith("emu:") || selected.startsWith("rom:")))
+    BackHandler(enabled = !navOpen && !hasBackTarget) { navOpen = true }
+}
+
+
+@Composable
+private fun LauncherTopBar(menuRequester: FocusRequester, onMenu: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val palette = LocalPalette.current
+    var menuFocused by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth().height(48.dp).background(colors.surface),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onMenu,
+            modifier = Modifier.size(48.dp).focusRequester(menuRequester)
+                .onFocusChanged { menuFocused = it.isFocused }
+                .border(2.dp, if (menuFocused) palette.signal else Color.Transparent, Shape10),
+        ) {
+            Icon(Icons.Filled.Menu, contentDescription = "Open navigation", tint = colors.onBackground)
+        }
+        Image(painterResource(R.drawable.logo), null, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("DroidDeck", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+    }
 }
 
 
 @Composable
 private fun Rail(
     s: FrontEndState, selected: String,
-    onSelect: (String) -> Unit, a: FrontEndActions, modifier: Modifier,
+    onSelect: (String) -> Unit, a: FrontEndActions, modifier: Modifier, onDismiss: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(
@@ -458,7 +523,7 @@ private fun Rail(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp, bottom = 10.dp)) {
                 Image(painterResource(R.drawable.logo), null, modifier = Modifier.size(30.dp))
                 Spacer(Modifier.width(10.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text("DroidDeck", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                     val status = when {
                         s.busy -> if (s.percent >= 0) "${s.stage} ${s.percent}%" else s.stage
@@ -467,6 +532,9 @@ private fun Rail(
                         else -> null
                     }
                     if (status != null) Text(status, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close navigation", tint = colors.onSurfaceVariant)
                 }
             }
             AnimatedVisibility(s.busy, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
@@ -578,7 +646,10 @@ private fun NavItem(
     val focused by src.collectIsFocusedAsState()
     val frontFocus = if (register != null && key != "x") LocalFrontFocus.current else null
     val railRequester = frontFocus?.railFor(key)
-    if (frontFocus != null) LaunchedEffect(focused) { if (focused) frontFocus.railFocused = true }
+    if (frontFocus != null) LaunchedEffect(focused) {
+        if (focused) frontFocus.focusedRail = key
+        else if (frontFocus.focusedRail == key) frontFocus.focusedRail = null
+    }
     val hovered by src.collectIsHoveredAsState()
     val pressed by src.collectIsPressedAsState()
     val fg by animateColorAsState(if (current) colors.onPrimary else if (muted) colors.onSurfaceVariant else colors.onBackground, Motion.tw(280), label = "navFg")
@@ -717,6 +788,7 @@ private fun Content(
     onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val detailPosterWidth = if (LocalConfiguration.current.screenHeightDp < 600) 72.dp else 120.dp
     Column(modifier = modifier.padding(horizontal = 22.dp, vertical = 18.dp)) {
         when {
             selected == "android-apps" && s.isHomeApp -> {
@@ -773,7 +845,7 @@ private fun Content(
                                     Chip(if (s.ready) "● ready" else "runtime missing", ok = s.ready)
                                 }
                             }
-                            Poster(g.art, g.name, Modifier.width(120.dp))
+                            Poster(g.art, g.name, Modifier.width(detailPosterWidth))
                         }
                     }
                     val others = s.steamGames.filter { it !== g }
@@ -895,7 +967,7 @@ private fun Content(
                                     Chip(g.hostPath.extension.uppercase().ifEmpty { "folder" }, ok = false)
                                 }
                             }
-                            if (g.art != null) Poster(g.art, g.name, Modifier.width(120.dp))
+                            if (g.art != null) Poster(g.art, g.name, Modifier.width(detailPosterWidth))
                         }
                     }
                     val others = e.games.filter { it !== g }
@@ -1139,7 +1211,7 @@ private fun ArtGrid(tiles: List<Tile>, wide: Boolean = false) {
         val avail = maxWidth - 8.dp
         val cols = ((avail + gap) / (minSize + gap)).toInt().coerceAtLeast(1)
         val tileWidth = (avail - gap * (cols - 1)) / cols
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 6.dp, bottom = 14.dp, start = 4.dp, end = 4.dp)) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 16.dp, bottom = 14.dp, start = 4.dp, end = 4.dp)) {
             for (row in tiles.chunked(cols)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.fillMaxWidth().padding(bottom = gap)) {
                     for (t in row) key(t.key) {

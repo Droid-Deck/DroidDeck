@@ -40,6 +40,9 @@ public final class PadBridge {
     private boolean qamChordActive;
     private boolean qamSyntheticAPressed;
     private int qamChordGeneration;
+    /** Told on the main thread when a player uses the pad or the on-screen controls; see [setOnPlayerInput]. */
+    private volatile Runnable onPlayerInput;
+    private final java.util.concurrent.atomic.AtomicBoolean playerInputPosted = new java.util.concurrent.atomic.AtomicBoolean();
 
     public PadBridge(File fakeInputDir) {
         writer = new FakeInputWriter(fakeInputDir.getAbsolutePath(), SLOT);
@@ -87,6 +90,24 @@ public final class PadBridge {
         return false;
     }
 
+    /**
+     * Called (main thread) when a player presses a button, pushes a stick, trigger or d-pad past
+     * halfway, or uses the on-screen controls - the session hides its mouse cursor then. Resting
+     * sticks and trigger noise do not count.
+     */
+    public void setOnPlayerInput(Runnable listener) {
+        onPlayerInput = listener;
+    }
+
+    private void notePlayerInput() {
+        Runnable listener = onPlayerInput;
+        if (listener == null || !playerInputPosted.compareAndSet(false, true)) return;
+        mainHandler.post(() -> {
+            playerInputPosted.set(false);
+            listener.run();
+        });
+    }
+
     /** @return true when the event was a pad button and has been consumed. */
     public synchronized boolean onKeyEvent(KeyEvent event) {
         if (!isFromController(event.getDevice())) return false;
@@ -116,6 +137,7 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_DPAD_LEFT: state.left = pressed; break;
             default: return false;
         }
+        if (pressed) notePlayerInput();
         publish();
         return true;
     }
@@ -143,6 +165,10 @@ public final class PadBridge {
         state.right = hatX > 0.5f;
         state.down = hatY > 0.5f;
         state.left = hatX < -0.5f;
+        if (Math.max(Math.max(Math.abs(state.leftX), Math.abs(state.leftY)), Math.max(Math.abs(state.rightX), Math.abs(state.rightY))) > 0.5f
+                || lt > 0.5f || rt > 0.5f || state.up || state.right || state.down || state.left) {
+            notePlayerInput();
+        }
         publish();
         return true;
     }
@@ -153,6 +179,7 @@ public final class PadBridge {
      */
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
         mutation.accept(state);
+        notePlayerInput();
         publish();
     }
 

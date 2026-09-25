@@ -723,8 +723,11 @@ def cemu():
 
 # melonDS 1.x: raw SDL joystick indices. The session's pad has the kernel's Xbox 360 layout
 # (buttons A B X Y LB RB Back Start Guide LS RS = 0..10, hat 0 for the d-pad); the d-pad values
-# also take the left stick (EmuInstanceInput.cpp; encoding InputConfig/MapButton.h).
-MELONDS_JOY = """[Instance0.Joystick]
+# also take the left stick (EmuInstanceInput.cpp; encoding InputConfig/MapButton.h). The guide
+# button toggles full screen (HK_FullscreenToggle), as it does in Dolphin: the front end starts
+# melonDS full screen (-f), and leaving it shows the window's menus for settings.
+MELONDS_GUIDE = 8
+MELONDS_JOY = f"""[Instance0.Joystick]
 A = 1
 B = 0
 X = 3
@@ -737,14 +740,152 @@ Up = 17891585
 Down = 16843012
 Left = 1114376
 Right = 65794
+HK_FullscreenToggle = {MELONDS_GUIDE}
 """
+
+# The screen a handheld's wide panel suits best: the top screen as big as the panel's height allows
+# with the bottom screen alone beside it, centred (ScreenLayout.h: Horizontal = 2, EmphTop = 1;
+# melonDS's Hybrid shows the big screen a second time, small, above the bottom one; nobody needs
+# it twice). Sharp pixels: no filtering, and no integer steps that leave the panel half used. Keys as
+# melonDS writes them (Window.cpp windowCfg).
+MELONDS_WINDOW = """[Instance0.Window0]
+ScreenLayout = 2
+ScreenSizing = 1
+IntegerScaling = false
+ScreenFilter = false
+"""
+# melonDS's own defaults for those, which an existing install is moved off once. Hybrid (3) was
+# this preset's first layout, and moves on too.
+MELONDS_WINDOW_DEFAULTS = {"ScreenLayout": ("0", "3"), "ScreenSizing": ("0",), "ScreenFilter": ("true",)}
+
+
+# The window melonDS returns to when the guide button leaves full screen: 1x wide (the width of
+# two DS screens side by side, Screen.cpp screenGetMinSize) and 16:9, so gamescope stretches it to
+# fill the panel and the menu bar and cursor come out large enough to use. A bigger window keeps
+# its menus at their real size, tiny on a handheld. Qt's saveGeometry() v3 blob: magic, version,
+# frame and normal rects (x, y, right, bottom), screen, maximized, full screen, screen width, and
+# the normal rect again (QWidget::restoreGeometry).
+def melonds_geometry():
+    import base64, struct
+    w, h = 512, 288
+    try:
+        screen_w = int(os.environ.get("BL_WIDTH", "1920"))
+    except ValueError:
+        screen_w = 1920
+    rect = (0, 0, w - 1, h - 1)
+    blob = struct.pack(">IHH4i4iiBBi4i", 0x1D9D0CB, 3, 0, *rect, *rect, 0, 0, 0, screen_w, *rect)
+    return base64.b64encode(blob).decode()
+
+
+def toml_get(lines, table, key):
+    """The raw value of key in [table], or None."""
+    inside = False
+    for l in lines:
+        t = l.strip()
+        if t.startswith("["):
+            inside = t == f"[{table}]"
+        elif inside and "=" in t and t.split("=", 1)[0].strip() == key:
+            return t.split("=", 1)[1].strip()
+    return None
+
+
+def toml_set(lines, table, key, value):
+    """key = value in [table]; the table is added at the end when missing."""
+    start = None
+    for i, l in enumerate(lines):
+        t = l.strip()
+        if t.startswith("["):
+            if start is not None:
+                break
+            if t == f"[{table}]":
+                start = i
+        elif start is not None and "=" in t and t.split("=", 1)[0].strip() == key:
+            lines[i] = f"{key} = {value}"
+            return
+    if start is None:
+        lines += ["", f"[{table}]", f"{key} = {value}"]
+        return
+    end = start + 1
+    while end < len(lines) and not lines[end].strip().startswith("["):
+        end += 1
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+    lines.insert(end, f"{key} = {value}")
+
+
+def toml_str(path):
+    return '"' + path.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+# The user's own BIOS, firmware and DSi NAND, found in the ROMs folder's nds/bios (or firmware)
+# folder by what each file is: the DS BIOSes by size and checksum (the GBA BIOS is also 16 KB),
+# firmware and NAND by size, the DSi boot ROMs (both 64 KB) by the 7 or 9 in their names. A path
+# is only filled where melonDS has none, and external files are only switched on when a whole set
+# was found - without them melonDS runs DS games on its built-in free BIOS.
+DS_BIOS7_MD5 = "df692a80a5b1bc90728bc3dfc76cd948"
+DS_BIOS9_MD5 = "a392174eb3e572fed6447e956bde4b25"
+
+
+def nds_firmware_files():
+    import hashlib
+    base = system_folder(("nds", "ds"), "nds")
+    roots = [os.path.join(base, n) for n in ("bios", "BIOS", "firmware") if os.path.isdir(os.path.join(base, n))]
+    found = {}
+    for root in roots:
+        for d, _, files in os.walk(root):
+            if d[len(root):].count(os.sep) > 2:
+                continue
+            for name in sorted(files):
+                f = os.path.join(d, name)
+                try:
+                    size = os.path.getsize(f)
+                except OSError:
+                    continue
+                low = name.lower()
+                if size == 16384 or size == 4096:
+                    with open(f, "rb") as h:
+                        md5 = hashlib.md5(h.read()).hexdigest()
+                    if md5 == DS_BIOS7_MD5:
+                        found.setdefault("DS.BIOS7Path", f)
+                    elif md5 == DS_BIOS9_MD5:
+                        found.setdefault("DS.BIOS9Path", f)
+                elif size in (262144, 524288) and "dsi" not in low:
+                    found.setdefault("DS.FirmwarePath", f)
+                elif size == 65536:
+                    if "arm7" in low or "bios7" in low:
+                        found.setdefault("DSi.BIOS7Path", f)
+                    elif "arm9" in low or "bios9" in low:
+                        found.setdefault("DSi.BIOS9Path", f)
+                elif size == 131072:
+                    found.setdefault("DSi.FirmwarePath", f)
+                elif size >= 200 * 1024 * 1024 and "nand" in low:
+                    found.setdefault("DSi.NANDPath", f)
+    return found
+
+
+def melonds_bios(lines):
+    found = nds_firmware_files()
+    changed = []
+    for key, f in found.items():
+        table, k = key.split(".", 1)
+        if (toml_get(lines, table, k) or '""') == '""':
+            toml_set(lines, table, k, toml_str(f))
+            changed.append(key)
+    for table, flag, keys in (("Emu", "ExternalBIOSEnable", ("DS.BIOS7Path", "DS.BIOS9Path", "DS.FirmwarePath")),
+                              ("DSi", "ExternalBIOSEnable", ("DSi.BIOS7Path", "DSi.BIOS9Path", "DSi.FirmwarePath", "DSi.NANDPath"))):
+        if all(k in found for k in keys) and any(k in changed for k in keys):
+            toml_set(lines, table, flag, "true")
+    return changed
 
 
 def melonds():
     path = os.path.join(CONFIG, "melonDS/melonDS.toml")
+    marker = os.path.join(os.path.dirname(path), ".droiddeck-display-2")
     if not os.path.isfile(path):
-        seed(path, "[Instance0]\nJoystickID = 0\n\n" + MELONDS_JOY, "melonDS")
-        return
+        seed(path, "[Instance0]\nJoystickID = 0\n\n" + MELONDS_JOY + "\n" + MELONDS_WINDOW +
+             f'Geometry = "{melonds_geometry()}"\n', "melonDS",
+             "Player 1 on the controller, big top screen")
+        open(marker, "w").close()
     with open(path, encoding="utf-8", errors="replace") as f:
         text = f.read()
     try:
@@ -752,20 +893,40 @@ def melonds():
         joy = tomllib.loads(text).get("Instance0", {}).get("Joystick", {})
     except Exception:
         return
-    if any(isinstance(v, int) and v != -1 for v in joy.values()):
-        return  # something is bound already
-    # Replace melonDS's own all-unbound table with ours (a TOML table can be defined only once).
-    out, skipping = [], False
-    for line in text.splitlines():
-        t = line.strip()
-        if t.startswith("["):
-            skipping = t == "[Instance0.Joystick]"
-        if not skipping:
-            out.append(line)
-    with open(path + ".tmp", "w", encoding="utf-8") as f:
-        f.write("\n".join(out).rstrip("\n") + "\n\n" + MELONDS_JOY)
-    os.replace(path + ".tmp", path)
-    print(f"bannerlator-pad-defaults: melonDS: Player 1 on the controller ({path})")
+    lines = text.splitlines()
+    done = []
+    if not any(isinstance(v, int) and v != -1 and k != "HK_FullscreenToggle" for k, v in joy.items()):
+        # Replace melonDS's own all-unbound table with ours (a TOML table can be defined only once).
+        out, skipping = [], False
+        for line in lines:
+            t = line.strip()
+            if t.startswith("["):
+                skipping = t == "[Instance0.Joystick]"
+            if not skipping:
+                out.append(line)
+        lines = "\n".join(out).rstrip("\n").splitlines() + [""] + MELONDS_JOY.rstrip("\n").splitlines()
+        done.append("Player 1 on the controller")
+    elif joy.get("HK_FullscreenToggle", -1) == -1 and MELONDS_GUIDE not in joy.values():
+        toml_set(lines, "Instance0.Joystick", "HK_FullscreenToggle", str(MELONDS_GUIDE))
+        done.append("guide button toggles full screen")
+    # Once, for a melonDS set up before this: the big top screen, where it is still on its own
+    # defaults. The marker keeps whatever the user picks in melonDS's View menu afterwards.
+    if not os.path.exists(marker):
+        for l in MELONDS_WINDOW.splitlines()[1:]:
+            k, v = (x.strip() for x in l.split("=", 1))
+            if toml_get(lines, "Instance0.Window0", k) in (None,) + MELONDS_WINDOW_DEFAULTS.get(k, ()):
+                toml_set(lines, "Instance0.Window0", k, v)
+        toml_set(lines, "Instance0.Window0", "Geometry", f'"{melonds_geometry()}"')
+        done.append("big top screen, 1x window")
+        open(marker, "w").close()
+    bios = melonds_bios(lines)
+    if bios:
+        done.append("BIOS " + ", ".join(bios))
+    if done:
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            f.write("\n".join(lines).rstrip("\n") + "\n")
+        os.replace(path + ".tmp", path)
+        print(f"bannerlator-pad-defaults: melonDS: {'; '.join(done)} ({path})")
 
 
 # PPSSPP (SDL): its pad defaults leave the shoulders, the right stick and the triggers unbound on

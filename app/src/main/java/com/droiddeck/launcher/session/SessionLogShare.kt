@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import com.droiddeck.launcher.core.LogRedactor
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.util.zip.ZipEntry
@@ -22,14 +23,28 @@ object SessionLogShare {
             .maxByOrNull { it.name }
 
     /** Builds the zip (blocking). Returns null when there is no session to share. */
-    fun zipLatest(context: Context): File? {
-        val folder = latest(context) ?: return null
+    fun zipLatest(context: Context): File? = latest(context)?.let { zipFolder(context, it) }
+
+    /** Builds a zip for one specific session folder (blocking). */
+    fun zipFolder(context: Context, folder: File): File? {
+        if (!folder.isDirectory) return null
+        val files = folder.walkTopDown().filter { it.isFile }.toList()
+        if (files.isEmpty()) return null
         val out = File(context.cacheDir, "shared-logs").apply { deleteRecursively(); mkdirs() }
         val zip = File(out, "DroidDeck-${folder.name}.zip")
+        // Scrubbed on the way into the zip: a session shared while it runs has not had its end-of-
+        // session pass yet, and the redactor changes nothing in a line that is already clean.
+        LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
         ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            folder.walkTopDown().filter { it.isFile }.forEach { f ->
+            files.forEach { f ->
                 z.putNextEntry(ZipEntry(folder.name + "/" + f.relativeTo(folder).path))
-                f.inputStream().use { it.copyTo(z) }
+                if (LogRedactor.isText(f)) {
+                    val w = z.bufferedWriter()
+                    LogRedactor.scrubTo(f, w)
+                    w.flush()
+                } else {
+                    f.inputStream().use { it.copyTo(z) }
+                }
                 z.closeEntry()
             }
         }

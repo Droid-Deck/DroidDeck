@@ -43,6 +43,8 @@ object SessionFiles {
             // the three under /usr/bin, all no-ops that answer "nothing to do" (see each file).
             "usr/bin/steamos-update" to "usr/bin/steamos-update",
             "usr/bin/steamos-select-branch" to "usr/bin/steamos-select-branch",
+            // Big Picture's "Switch to Desktop": asks the app for the desktop with Steam in it.
+            "usr/bin/steamos-session-select" to "usr/bin/steamos-session-select",
             "usr/bin/jupiter-biosupdate" to "usr/bin/jupiter-biosupdate",
             "usr/bin/steamos-polkit-helpers/steamos-priv-write" to "usr/bin/steamos-polkit-helpers/steamos-priv-write",
             "usr/bin/steamos-polkit-helpers/steamos-set-timezone" to "usr/bin/steamos-polkit-helpers/steamos-set-timezone",

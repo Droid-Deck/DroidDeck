@@ -171,6 +171,17 @@ public final class WaylandCompositor {
 
     public static native void nativeSendTouch(int action, int pointerId, int x, int y);
 
+    /**
+     * The client's pointer image, straight from wl_pointer.set_cursor (labwc's resize arrows, a text
+     * field's I-beam). out = [serial, hidden, w, h, hotspotX, hotspotY, ARGB8888 pixels...]; returns
+     * the number of ints written, or 0 if {@code out} is too small. Serial 0 = the client has not
+     * set one yet; [1] = 1 means it asked for NO pointer.
+     */
+    public static native int nativeCursorSnapshot(int[] out);
+
+    /** Enough for the header plus a 256x256 cursor, the largest the compositor snapshots. */
+    public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
+
     /** Inject a key event. evdev = Linux input keycode (KEY_A=30…); state: 1=down, 0=up. */
     public static native void nativeSendKey(int evdev, int state);
 

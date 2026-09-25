@@ -6,7 +6,9 @@
 # installed desktop without re-downloading the package.
 set -u
 export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=LXQt XDG_SESSION_DESKTOP=lxqt
-export QT_QPA_PLATFORM=wayland GDK_BACKEND=wayland,x11 SDL_VIDEODRIVER=wayland,x11
+# Qt tries Wayland and falls back to X11 (Xwayland): an AppImage that bundles only Qt's xcb
+# plugin - melonDS - exits at once on a plain "wayland" ("Could not find the Qt platform plugin").
+export QT_QPA_PLATFORM="wayland;xcb" GDK_BACKEND=wayland,x11 SDL_VIDEODRIVER=wayland,x11
 export QT_QPA_PLATFORMTHEME=lxqt
 # Firefox's child processes sandbox themselves with seccomp and namespaces, neither of which
 # behaves under proot: the content process ends up unable to read the font files its parent can,

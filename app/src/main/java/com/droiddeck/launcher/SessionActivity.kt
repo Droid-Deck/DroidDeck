@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.LsfgNative
 import com.droiddeck.launcher.gpu.TurnipDriver
@@ -50,12 +51,14 @@ import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionArtifacts
+import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.ui.CursorOverlay
+import androidx.compose.ui.graphics.asImageBitmap
 import com.droiddeck.launcher.ui.DrawerActions
 import com.droiddeck.launcher.ui.HudText
 import com.droiddeck.launcher.ui.LoadingOverlay
@@ -93,6 +96,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var cursorPos by mutableStateOf(androidx.compose.ui.geometry.Offset(-100f, -100f))
     private var cursorVisible by mutableStateOf(false)
     private val cursorHide = Runnable { cursorVisible = false }
+    /** When the pad or the on-screen controls were last used (uptimeMillis); see [showCursor]. */
+    private var lastPadInputMs = 0L
+    // The program's own pointer, from wl_pointer.set_cursor (see syncClientCursor): its image in
+    // session pixels, hotspot, and whether it asked for no pointer at all.
+    private val cursorBuf = IntArray(WaylandCompositor.CURSOR_BUF_INTS)
+    private var cursorSerial = 0
+    private var clientHidesCursor = false
+    private var cursorImage by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+    private var cursorHotX by mutableStateOf(0)
+    private var cursorHotY by mutableStateOf(0)
+    private var cursorImageScale by mutableStateOf(1f)
+    /** labwc changes the shape a moment after the move that reached an edge: look again then. */
+    private val cursorResync = Runnable { if (syncClientCursor() && clientHidesCursor) cursorVisible = false }
     private val uiHandler = Handler(Looper.getMainLooper())
     private var pendingBackAction: Runnable? = null
     private var drawerDirectionKey = KeyEvent.KEYCODE_UNKNOWN
@@ -196,6 +212,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
         padBridge = bridge
+        // A player on the pad or the on-screen controls has no use for the mouse arrow; the next
+        // touchpad or mouse move brings it back (showCursor), once the pad has been quiet a moment.
+        bridge.setOnPlayerInput {
+            lastPadInputMs = android.os.SystemClock.uptimeMillis()
+            uiHandler.removeCallbacks(cursorHide)
+            cursorVisible = false
+        }
         onScreenControls = OnScreenControls(this, bridge).also { root.addView(it) }
         keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
@@ -230,7 +253,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             isFocusableInTouchMode = true
             setContent {
                 DroidDeckTheme {
-                    CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density)
+                    CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density,
+                        cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                     if (hud.text.isNotEmpty()) HudText(hud.text)
                     if (loading.visible) LoadingOverlay(loading.step, loading.percent, loading.elapsed, loading.hint, loading.ended)
                     // Opening the drawer takes the controller away from the game: release its pad.
@@ -278,6 +302,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         onHardwareKeyboard = { drawerOpen = false; pcKeyboardOpen = !pcKeyboardOpen },
                         onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
                         onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
+                        // The desktop with Steam's desktop client in it, in this session's place: the
+                        // session ends with status 0 and onSessionEnded starts the relaunch (Stop's
+                        // finish() would skip it).
+                        onSwitchToDesktop = if (SessionState.mode == SessionService.MODE_STEAM) ({
+                            drawerOpen = false
+                            SessionState.relaunch = Intent(this@SessionActivity, SessionActivity::class.java)
+                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
+                                .putExtra(SessionService.EXTRA_STEAM_UI, "desktop")
+                            SessionService.stop(this@SessionActivity)
+                        }) else null,
                         backActionsInverted = backActionsInverted,
                         onBackActionsInverted = { inverted ->
                             SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
@@ -305,6 +339,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             }
                         },
                         onBackground = { drawerOpen = false; moveTaskToBack(true) },
+                        onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
                         onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
                         onClose = { drawerOpen = false },
                     ))
@@ -387,6 +422,30 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         incoming.action = null
         setIntent(incoming)
         if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) sendSteamGuide()
+    }
+
+    private fun shareCurrentSessionLogs() {
+        val folder = SessionPaths.current()
+        if (folder == null || !folder.isDirectory) {
+            Toast.makeText(this, "No logs for this session.", Toast.LENGTH_LONG).show()
+            return
+        }
+        Thread({
+            val zip = runCatching { SessionLogShare.zipFolder(this, folder) }
+                .onFailure { Log.w(TAG, "could not package current session logs", it) }
+                .getOrNull()
+            uiHandler.post {
+                if (zip == null) {
+                    Toast.makeText(this, "Could not create the session log archive.", Toast.LENGTH_LONG).show()
+                } else {
+                    runCatching { startActivity(SessionLogShare.shareIntent(this, zip)) }
+                        .onFailure {
+                            Log.w(TAG, "could not share current session logs", it)
+                            Toast.makeText(this, "Could not share the session logs.", Toast.LENGTH_LONG).show()
+                        }
+                }
+            }
+        }, "share-session-logs").start()
     }
 
     private fun readPrefs() {
@@ -646,7 +705,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
         // A custom resolution is taken as given; the compositor fits it to the panel.
         SessionPrefs.customResolution(this, mode)?.let { return it }
-        val cap = SessionPrefs.resolutionCap(this, mode)
+        // An emulator whose frames cost next to nothing (Library.drawsAtPanel) gets the panel,
+        // unless the user chose a resolution for the mode.
+        val program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
+        val cap = if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_RUN &&
+            Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode)) 0
+        else SessionPrefs.resolutionCap(this, mode)
         val height = (if (cap <= 0) panelH else minOf(panelH, cap.toFloat())).toInt()
         val width = (height * aspect).toInt()
         // Odd sizes upset the scaler; both dimensions even is what every mode here would be.
@@ -702,11 +766,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (status == 0) {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                // A session the guest asked for (the desktop's Steam launchers) takes this one's
-                // place: the compositor stays, a new activity attaches and starts the service.
+                // A session asked for in this one's place (the desktop's Steam launchers, the
+                // drawer's DESKTOP) starts here: this activity restarts on its intent, as an agent
+                // start does. startActivity(next) could not do it - the activity is singleTop, so
+                // the request landed in this instance's onNewIntent and went with its finish().
                 SessionState.relaunch?.let { next ->
                     SessionState.relaunch = null
-                    startActivity(next)
+                    setIntent(next)
+                    recreate()
+                    return@runOnUiThread
                 }
                 finish()
             }
@@ -978,12 +1046,57 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         showCursor(x.coerceIn(left, left + drawnW), y.coerceIn(top, top + drawnH))
     }
 
-    /** The arrow stays on a desktop; in a Steam session it shows for a moment after each move. */
+    /**
+     * The arrow stays on a desktop; in a Steam session it shows for a moment after each move. While
+     * a controller is driving (input in the last [CURSOR_PAD_HOLD_MS]) it stays hidden, so a touch
+     * during play does not flash it up - Bannerlator's rule for its Wayland pointer.
+     */
     private fun showCursor(x: Float, y: Float) {
         cursorPos = androidx.compose.ui.geometry.Offset(x, y)
+        syncClientCursor()
+        uiHandler.removeCallbacks(cursorResync)
+        uiHandler.postDelayed(cursorResync, 60)
+        // A program that asked for no pointer (a mouse-look game) wins over everything below.
+        if (clientHidesCursor) { cursorVisible = false; return }
+        if (android.os.SystemClock.uptimeMillis() - lastPadInputMs < CURSOR_PAD_HOLD_MS) return
         cursorVisible = true
         uiHandler.removeCallbacks(cursorHide)
         if (SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") uiHandler.postDelayed(cursorHide, 2500)
+    }
+
+    /**
+     * Pulls the program's pointer (wl_pointer.set_cursor) if it changed: labwc's resize arrows at a
+     * window's edges and corners, a text field's I-beam, or a request for no pointer. Serial 0 = no
+     * program has set one yet, and the built-in arrow stays. Returns true when something changed.
+     */
+    private fun syncClientCursor(): Boolean {
+        if (!CompositorHost.isStarted) return false
+        val n = WaylandCompositor.nativeCursorSnapshot(cursorBuf)
+        if (n < 6) return false
+        val serial = cursorBuf[0]
+        if (serial == 0 || serial == cursorSerial) return false
+        cursorSerial = serial
+        clientHidesCursor = cursorBuf[1] != 0
+        if (clientHidesCursor) return true
+        val w = cursorBuf[2]
+        val h = cursorBuf[3]
+        if (w <= 0 || h <= 0 || n < 6 + w * h) return false
+        val bitmap = try {
+            android.graphics.Bitmap.createBitmap(cursorBuf, 6, w, w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (e: Exception) {
+            Log.w(TAG, "cursor bitmap failed", e)
+            return false
+        }
+        cursorImage = bitmap.asImageBitmap()
+        cursorHotX = cursorBuf[4]
+        cursorHotY = cursorBuf[5]
+        // Session pixels -> screen pixels, as the session's picture is scaled (movePointer).
+        val width = surfaceView.width.takeIf { it > 0 }
+        val height = surfaceView.height.takeIf { it > 0 }
+        val out = SessionState.outputSize
+        if (width != null && height != null)
+            cursorImageScale = minOf(width / out.first.toFloat(), height / out.second.toFloat())
+        return true
     }
 
     private fun refreshSecondScreenDisplays() {
@@ -1298,6 +1411,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val TAG = "SessionActivity"
         private const val UNBUFFERED_SOURCES = InputDevice.SOURCE_CLASS_JOYSTICK or InputDevice.SOURCE_CLASS_TRACKBALL or InputDevice.SOURCE_CLASS_POSITION
         private const val BACK_DOUBLE_PRESS_TIMEOUT_MS = 500L
+        private const val CURSOR_PAD_HOLD_MS = 1200L
         private const val DRAWER_HAT_THRESHOLD = 0.5f
         private const val DRAWER_STICK_ENTER_THRESHOLD = 0.55f
         private const val DRAWER_STICK_EXIT_THRESHOLD = 0.35f

@@ -226,7 +226,7 @@ static void on_client_created(struct wl_listener *l, void *data) {
 
 /* ------------------------------------------------------------------ surfaces */
 
-enum surface_role { ROLE_NONE, ROLE_TOPLEVEL, ROLE_SUBSURFACE, ROLE_DESKTOP };
+enum surface_role { ROLE_NONE, ROLE_TOPLEVEL, ROLE_SUBSURFACE, ROLE_DESKTOP, ROLE_CURSOR };
 
 struct surface {
     struct wl_resource *resource;
@@ -474,6 +474,69 @@ static struct seat_keyboard g_kbs[MAX_PTRS];
 static int g_nkbs;
 static struct seat_touch g_touches[MAX_PTRS];
 static int g_ntouches;
+
+/* ---- the client's cursor (wl_pointer.set_cursor) -------------------------------------------
+ * Not composited: under zero-copy the program's buffer goes straight to an Android layer and there
+ * is nothing to composite into. The cursor surface is snapshotted here instead and the app draws it
+ * as its overlay, above every present path (Bannerlator's design). What it buys: the real SHAPE -
+ * labwc's resize arrows at a window's edges and corners, a text field's I-beam - and an
+ * authoritative HIDE (set_cursor with a NULL surface, what a mouse-look game does).
+ * wl_shm cursors (Wine, pixman) are copied directly; a GPU cursor (labwc on Vulkan/GLES, which
+ * wlroots hands over as a dma-buf, usually UBWC) is read back through vkp_image_readback. */
+#define CURSOR_MAX_PX (256 * 256)
+static pthread_mutex_t g_cursor_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct surface *g_cursor_surface;     /* compositor thread only */
+static int g_cursor_hx, g_cursor_hy;         /* hotspot, surface-local */
+static uint32_t g_cursor_px[CURSOR_MAX_PX];  /* guarded by g_cursor_lock: ARGB8888 snapshot */
+static uint32_t g_cursor_rb[CURSOR_MAX_PX];  /* compositor thread: GPU readback staging */
+static int g_cursor_w, g_cursor_h;           /* 0 = nothing to draw */
+static int g_cursor_hidden = 1;              /* the client asked for no pointer */
+static int g_cursor_serial;                  /* bumped on every change; the app polls it */
+
+static void cursor_publish_hidden(void) {
+    pthread_mutex_lock(&g_cursor_lock);
+    if (!g_cursor_hidden) { g_cursor_hidden = 1; g_cursor_serial++; }
+    pthread_mutex_unlock(&g_cursor_lock);
+}
+
+static void cursor_publish_pixels(const uint8_t *src, int w, int h, size_t stride, int hx, int hy) {
+    if (w <= 0 || h <= 0 || w * h > CURSOR_MAX_PX) return;
+    pthread_mutex_lock(&g_cursor_lock);
+    for (int y = 0; y < h; y++)
+        memcpy(&g_cursor_px[y * w], src + (size_t)y * stride, (size_t)w * 4);
+    g_cursor_w = w; g_cursor_h = h;
+    g_cursor_hx = hx; g_cursor_hy = hy;
+    g_cursor_hidden = 0;
+    g_cursor_serial++;
+    pthread_mutex_unlock(&g_cursor_lock);
+}
+
+static void cursor_publish_shm(struct wl_shm_buffer *shm, int hx, int hy) {
+    int32_t w = wl_shm_buffer_get_width(shm), h = wl_shm_buffer_get_height(shm);
+    if (w <= 0 || h <= 0 || w * h > CURSOR_MAX_PX) return;
+    wl_shm_buffer_begin_access(shm);
+    cursor_publish_pixels((const uint8_t *)wl_shm_buffer_get_data(shm), w, h,
+                          (size_t)wl_shm_buffer_get_stride(shm), hx, hy);
+    wl_shm_buffer_end_access(shm);
+}
+
+/* Read by the app (UI thread). out = [serial, hidden, w, h, hotspotX, hotspotY, pixels...].
+ * Returns the number of ints written, or 0 if out is too small. */
+int banner_cursor_snapshot(int *out, int cap) {
+    int n = 0;
+    pthread_mutex_lock(&g_cursor_lock);
+    int need = 6 + (g_cursor_hidden ? 0 : g_cursor_w * g_cursor_h);
+    if (cap >= need) {
+        out[0] = g_cursor_serial; out[1] = g_cursor_hidden;
+        out[2] = g_cursor_w; out[3] = g_cursor_h;
+        out[4] = g_cursor_hx; out[5] = g_cursor_hy;
+        if (!g_cursor_hidden)
+            memcpy(out + 6, g_cursor_px, (size_t)g_cursor_w * g_cursor_h * 4);
+        n = need;
+    }
+    pthread_mutex_unlock(&g_cursor_lock);
+    return n;
+}
 struct active_touch { struct surface *surface; int pointer_fallback; };
 static struct active_touch g_touch_points[MAX_TOUCH_POINTS];
 static void touch_cancel_surface(struct surface *surface);
@@ -686,9 +749,11 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
     if (ci && ci->asked_feedback) ci->shm_frames++;  /* since it asked for GPU buffers */
 }
 
-/* The window the app's performance HUD follows: the latest one to start presenting GPU frames
- * (X11 binds the HUD to the _MESA_DRV window and counts X presents instead). JNI upcalls. */
+/* The window the app's performance HUD follows: the latest one at least as big as the last to
+ * start presenting GPU frames (take_dmabuf) (X11 binds the HUD to the _MESA_DRV window and counts X presents instead). JNI upcalls. */
 static struct surface *g_hud_surface;
+/* When the HUD's window last presented a frame (now_ns), to let a replacement take over. */
+static int64_t g_hud_last_ns;
 extern void banner_on_game_surface(const char *window, const char *gpu); /* window NULL = gone */
 extern void banner_on_game_frame(void);
 /* The program behind that window: its Linux pid (the Wayland client's credentials) and executable name
@@ -731,6 +796,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     s->buf_h = b->height;
     s->has_content = b->img != NULL;
     g_stat_dmabuf++;
+    const int announced_now = !s->announced_vulkan;
     if (!s->announced_vulkan) {
         char name[160];
         s->announced_vulkan = 1;
@@ -751,14 +817,23 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         else
             banner_log("error", "could not import GPU frames from %s (%dx%d, modifier %#llx)",
                        name, b->width, b->height, (unsigned long long)b->modifier);
-        /* The HUD follows the window whether its frames are copied or go straight to the layer:
-         * a zero-copy frame the compositor never imported is still a presented game frame. */
-        if (b->img || ahb_swapchain_has_ahb(b)) {
-            g_hud_surface = s;
-            banner_on_game_surface(name, vkp_gpu_name());
-            struct client_info *ci = client_info_of(wl_resource_get_client(s->resource));
-            if (ci) banner_on_game_program((int)ci->pid, strncmp(ci->name, "pid ", 4) ? ci->name : "");
-        }
+    }
+    /* The HUD follows the window whether its frames are copied or go straight to the layer: a
+     * zero-copy frame the compositor never imported is still a presented game frame. A
+     * program's small surfaces - gamescope's 1x1 cursor, Qt's menus and tooltips (melonDS) -
+     * came after the game's and drew too rarely to count, which left the HUD on 0 fps while the
+     * game ran at 60. So a new window takes the HUD only when it is at least as big (a
+     * full-screen gamescope over the desktop still does), and a window gone quiet for a second
+     * gives way to whatever draws next. */
+    if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
+        (!g_hud_surface || now_ns() - g_hud_last_ns > 1000000000LL ||
+         (announced_now && (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
+        char name[160];
+        describe(s, name, sizeof(name));
+        g_hud_surface = s;
+        banner_on_game_surface(name, vkp_gpu_name());
+        struct client_info *ci = client_info_of(wl_resource_get_client(s->resource));
+        if (ci) banner_on_game_program((int)ci->pid, strncmp(ci->name, "pid ", 4) ? ci->name : "");
     }
     /* HDR session (gate open): a DXVK game switches to HDR by REBUILDING its swapchain on the same
      * surface, so the one-shot line above never sees the 10-bit buffers - name every format change. */
@@ -780,7 +855,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
      * Asking whether the compositor could import it, as this used to, is a question about the
      * copy path and not about whether a frame happened: a game whose buffers go straight to
      * the display layer draws on screen while the counter sat at 0.0 fps and 1000.0 ms. */
-    if (s == g_hud_surface) banner_on_game_frame();
+    if (s == g_hud_surface) { g_hud_last_ns = now_ns(); banner_on_game_frame(); }
 }
 
 /* ---- hooks for ahb_swapchain.c (zero-copy layers) */
@@ -936,8 +1011,26 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         s->pending_buffer = NULL;
         s->pending_attach = 0;
 
-        if (s->role == ROLE_NONE) {
-            /* Cursor or role-less surface: never drawn (the app draws its own pointer). */
+        if (s->role == ROLE_CURSOR) {
+            /* The client's pointer image, copied out for the app's overlay (see cursor_publish_*)
+             * rather than composited, so it survives the zero-copy and HDR layer paths. */
+            if (!buffer) {
+                cursor_publish_hidden();  /* wlroots clears its cursor surface to hide the pointer */
+            } else if (shm) {
+                cursor_publish_shm(shm, g_cursor_hx, g_cursor_hy);
+            } else if (db && db->n_planes >= 1 && db->width * db->height <= CURSOR_MAX_PX) {
+                if (!db->img && !db->import_failed) {
+                    db->img = vkp_image_from_dmabuf(db->fd[0], db->format, db->modifier, db->width, db->height,
+                                                    db->stride[0], db->offset[0]);
+                    if (!db->img) db->import_failed = 1;
+                }
+                if (db->img && vkp_image_readback(db->img, g_cursor_rb, CURSOR_MAX_PX) == 0)
+                    cursor_publish_pixels((const uint8_t *)g_cursor_rb, db->width, db->height,
+                                          (size_t)db->width * 4, g_cursor_hx, g_cursor_hy);
+            }
+            if (buffer) wl_buffer_send_release(buffer);
+        } else if (s->role == ROLE_NONE) {
+            /* Role-less surface: never drawn. */
             if (buffer) wl_buffer_send_release(buffer);
         } else if (db) {
             take_dmabuf(s, db, buffer);
@@ -1009,6 +1102,7 @@ static void surface_resource_destroy(struct wl_resource *r) {
     for (int i = 0; i < g_nptrs; i++) if (g_ptrs[i].focus == r) g_ptrs[i].focus = NULL;
     for (int i = 0; i < g_nkbs; i++) if (g_kbs[i].focus == r) g_kbs[i].focus = NULL;
     touch_cancel_surface(s);
+    if (g_cursor_surface == s) { g_cursor_surface = NULL; cursor_publish_hidden(); }
     if (g_grab == s) g_grab = NULL;
     if (g_key_target == s) g_key_target = NULL;
     if (g_ime_click == s) g_ime_click = NULL;
@@ -2385,9 +2479,23 @@ static uint32_t now_ms(void) {
     return (uint32_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
 }
 
+/* wl_pointer.set_cursor: the client tells us its pointer image, or asks for none. A NULL surface
+ * means "no cursor" and is authoritative. The surface itself is snapshotted on its next commit. */
 static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint32_t serial,
                                struct wl_resource *surface, int32_t hx, int32_t hy) {
-    /* The app draws its own pointer; cursor surfaces stay role-less and aren't drawn. */
+    if (!surface) {
+        if (g_cursor_surface) g_cursor_surface->role = ROLE_NONE;
+        g_cursor_surface = NULL;
+        cursor_publish_hidden();
+        return;
+    }
+    struct surface *s = wl_resource_get_user_data(surface);
+    if (!s) return;
+    if (s->role != ROLE_NONE && s->role != ROLE_CURSOR) return;  /* already has another role */
+    s->role = ROLE_CURSOR;
+    g_cursor_surface = s;
+    g_cursor_hx = hx;
+    g_cursor_hy = hy;
 }
 static void pointer_release(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static const struct wl_pointer_interface pointer_impl = {

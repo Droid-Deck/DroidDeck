@@ -94,7 +94,8 @@ object Library {
             .firstOrNull { it.isFile && it.length() > 0L }
     }
 
-    private class Spec(val id: String, val name: String, val system: String, val program: String, val folders: List<String>, val exts: Set<String>)
+    /** [atPanel]: frames cheap enough to draw at the panel's own size (see [drawsAtPanel]). */
+    private class Spec(val id: String, val name: String, val system: String, val program: String, val folders: List<String>, val exts: Set<String>, val atPanel: Boolean = false)
     private val specs = listOf(
         Spec("rpcs3", "RPCS3", "PS3", "/opt/appimages/rpcs3.AppImage", listOf("ps3"), setOf("iso")),
         // PS2: ARMSX2, the PCSX2 fork with ARM64 recompilers. Upstream PCSX2 interprets the PS2's
@@ -102,7 +103,7 @@ object Library {
         Spec("armsx2", "ARMSX2", "PS2", "/opt/appimages/armsx2.AppImage", listOf("ps2"), setOf("iso", "chd", "cso", "gz")),
         Spec("dolphin", "Dolphin", "GameCube / Wii", "/opt/appimages/dolphin.AppImage", listOf("gc", "gamecube", "wii"), setOf("iso", "rvz", "gcz", "wbfs", "ciso")),
         Spec("duckstation", "DuckStation", "PS1", "/opt/appimages/duckstation.AppImage", listOf("ps1", "psx"), setOf("cue", "chd", "pbp", "iso", "bin", "img", "ecm", "m3u")),
-        Spec("melonds", "melonDS", "DS", "/opt/appimages/melonds.AppImage", listOf("ds", "nds"), setOf("nds", "dsi")),
+        Spec("melonds", "melonDS", "DS", "/opt/appimages/melonds.AppImage", listOf("ds", "nds"), setOf("nds", "dsi"), atPanel = true),
         Spec("cemu", "Cemu", "Wii U", "/opt/appimages/cemu.AppImage", listOf("wiiu", "wii u"), setOf("wua", "wud", "wux", "rpx")),
         Spec("ppsspp", "PPSSPP", "PSP", "/usr/bin/PPSSPPSDL", listOf("psp"), setOf("iso", "cso", "pbp", "chd")),
         Spec("retroarch", "RetroArch", "many systems", "/usr/bin/retroarch", emptyList(), emptySet()),
@@ -124,6 +125,14 @@ object Library {
 
     /** The emulator's name for a program path from the rail ("ARMSX2"), or null. */
     fun nameForProgram(program: String?): String? = specs.firstOrNull { it.program == program }?.name
+
+    /**
+     * Whether a program from the rail runs at the panel's own resolution rather than the session's
+     * 720p default. melonDS draws two 256x192 screens on the CPU: the panel's size costs it
+     * nothing, and 720p scaled up to the panel blurs the sharp pixels its screen layout is set
+     * up for (bannerlator-pad-defaults).
+     */
+    fun drawsAtPanel(program: String?): Boolean = specs.any { it.program == program && it.atPanel }
 
     /** Desktop catalog package that supplies this emulator. */
     fun packageId(emulatorId: String): String? = installedIds[emulatorId]
@@ -270,6 +279,9 @@ object Library {
             "-e", guestPath,
         )
         "cemu" -> listOf("-g", guestPath)
+        // Full screen (CLI.cpp --fullscreen); the guide button leaves it for melonDS's menus and
+        // comes back (HK_FullscreenToggle, bannerlator-pad-defaults).
+        "melonds" -> listOf("-f", guestPath)
         else -> listOf(guestPath)
     }
 }

@@ -31,6 +31,9 @@ object SessionArtifacts {
     /** Written last; a folder without it did not get its ending. */
     const val COMPLETE_MARKER = ".complete"
 
+    /** Every file in the folder has been through the redactor, own addresses and accounts included (-2: accounts added). */
+    private const val SCRUBBED_MARKER = ".scrubbed-2"
+
     /** Everything the end of a session gathers, into [dir]. Safe to call for a dead session. */
     fun collect(context: Context, dir: File, reason: String) {
         try {
@@ -40,13 +43,57 @@ object SessionArtifacts {
                     src.copyTo(wayland, overwrite = true)
                 }
             }
+            LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
             copySteamLogs(context, dir)
             // A session the system killed leaves its trace here and nowhere else.
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
+            scrubFolder(dir)
+            try { File(dir, SCRUBBED_MARKER).writeText("scrubbed ${now()}\n") } catch (e: Exception) {}
             SessionEvents.record("session.artifacts_collected", mapOf("reason" to reason), dir)
             File(dir, COMPLETE_MARKER).writeText("collected: $reason at ${now()}\n")
         } catch (e: Exception) {
             Log.w(TAG, "collecting session artifacts", e)
+        }
+    }
+
+    /**
+     * Once, for session folders written before every file was scrubbed and before the device's own
+     * addresses were (network.txt listed them; the client's IPv6 check logs "external address"
+     * into steam/connection_log.txt): the whole folder, steam/ included, through the redactor.
+     * A marker records it. Runs at app start with [finishAbandoned].
+     */
+    @Synchronized
+    fun scrubOlder(context: Context) {
+        val current = SessionPaths.current()
+        val dirs = LinuxRuntime.debugLogDir().listFiles { f ->
+            f.isDirectory && f.name.startsWith("session-") && f != current && !File(f, SCRUBBED_MARKER).exists()
+        } ?: return
+        if (dirs.isEmpty()) return
+        LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
+        dirs.forEach { dir ->
+            scrubFolder(dir)
+            File(dir, "steam").takeIf { it.isDirectory }?.let { scrubFolder(it) }
+            try { File(dir, SCRUBBED_MARKER).writeText("scrubbed ${now()}\n") } catch (e: Exception) {}
+        }
+        Log.i(TAG, "scrubbed ${dirs.size} older session folder(s)")
+    }
+
+    /**
+     * The session's own files (session.log, app.log, desktop.log, the Steam desktop client's
+     * steam-desktop.log, ...) were written as they happened, unscrubbed; this pass puts every one
+     * through the redactor before the folder can be shared. A file is rewritten only if a line
+     * changed. steam/ was scrubbed on the way in.
+     */
+    private fun scrubFolder(dir: File) {
+        dir.listFiles { f -> f.isFile && !f.name.startsWith(".") }?.forEach { f ->
+            if (!LogRedactor.isText(f)) return@forEach
+            try {
+                val tmp = File(dir, ".${f.name}.scrub")
+                tmp.bufferedWriter().use { w -> LogRedactor.scrubTo(f, w) }
+                if (tmp.length() != f.length() || tmp.readBytes().contentEquals(f.readBytes()).not()) tmp.renameTo(f) else tmp.delete()
+            } catch (e: Exception) {
+                Log.w(TAG, "could not scrub ${f.name}", e)
+            }
         }
     }
 
@@ -81,6 +128,7 @@ object SessionArtifacts {
         }?.sortedBy { it.name } ?: return
         if (abandoned.isEmpty()) return
         val current = SessionPaths.current()
+        LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
         abandoned.forEachIndexed { i, dir ->
             if (dir == current) return@forEachIndexed
             val newest = i == abandoned.lastIndex
@@ -100,6 +148,7 @@ object SessionArtifacts {
                 }
                 SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
                 SessionEvents.record("session.artifacts_recovered", mapOf("newest" to newest), dir)
+                scrubFolder(dir)
                 File(dir, COMPLETE_MARKER).writeText("collected: late, at next app start, ${now()}\n")
                 Log.i(TAG, "finished the abandoned session folder $dir")
             } catch (e: Exception) {

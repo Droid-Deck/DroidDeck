@@ -27,7 +27,12 @@ object NetworkReport {
 
     fun write(context: Context, target: File) {
         try {
-            target.writeText(build(context))
+            // Addresses as their kind ("<public IPv6>"), never the numbers: a public address is the
+            // user's, and this file goes into shared session logs. The session's made-up hardware
+            // address is stable per device (seeded from ANDROID_ID), so it is masked too.
+            val text = LogRedactor.describeAddresses(build(context))
+                .replace(Regex("(?m)^(\\s*mac )\\S+"), "$1<masked>")
+            target.writeText(text)
         } catch (e: Exception) {
             Log.w(TAG, "could not write $target", e)
         }
@@ -36,7 +41,7 @@ object NetworkReport {
     private fun build(context: Context): String = buildString {
         append("Network as the session starts\n")
         append("=============================\n")
-        append("The SSID is deliberately not recorded. Transport, address families and DNS are.\n\n")
+        append("The SSID is deliberately not recorded, and addresses appear as their kind, not their numbers.\n\n")
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
         val network = cm?.activeNetwork
         if (cm == null || network == null) {

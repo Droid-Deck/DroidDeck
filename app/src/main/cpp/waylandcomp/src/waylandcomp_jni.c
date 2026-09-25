@@ -24,6 +24,7 @@
 extern int banner_wayland_run(void);
 extern void banner_wayland_send_pointer(int action, int x, int y);
 extern void banner_wayland_send_touch(int action, int pointer_id, int x, int y);
+extern int  banner_cursor_snapshot(int *out, int cap);
 extern void banner_wayland_send_key(int evdev, int state);
 extern void banner_wayland_send_scene_input(int type, int a, int b);
 extern void banner_wayland_vsync(int64_t frame_time_ns);
@@ -276,6 +277,21 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendTouch(
         JNIEnv *env, jclass clazz, jint action, jint pointer_id, jint x, jint y) {
     banner_wayland_send_touch(action, pointer_id, x, y);
+}
+
+/* The client's pointer image and whether it wants one at all (wl_pointer.set_cursor).
+ * out = [serial, hidden, w, h, hotspotX, hotspotY, ARGB pixels...]; returns ints written, 0 if the
+ * array is too small. The app polls the serial and only rebuilds its overlay when it changes. */
+JNIEXPORT jint JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSnapshot(
+        JNIEnv *env, jclass clazz, jintArray out) {
+    if (!out) return 0;
+    jint cap = (*env)->GetArrayLength(env, out);
+    jint *buf = (*env)->GetIntArrayElements(env, out, NULL);
+    if (!buf) return 0;
+    int n = banner_cursor_snapshot((int *)buf, (int)cap);
+    (*env)->ReleaseIntArrayElements(env, out, buf, 0);
+    return n;
 }
 
 /* Inject a key event. evdev = Linux input keycode (KEY_A=30…); state 1=down 0=up. */

@@ -1,0 +1,18 @@
+#!/bin/sh
+# The SteamOS session switch. Big Picture's power menu runs it for "Switch to Desktop" (a Plasma
+# session: "plasma", "plasma-wayland-persistent", ...) and waits for Game Mode to end; with nothing
+# here it sat on "Switching to Desktop..." for ever. Here the desktop is DroidDeck's own: the app is
+# asked for a desktop session with Steam's desktop client open in it (the request file
+# bannerlator-steam-launch uses; the app ends this session and starts that one). Anything else -
+# "gamescope", the session Game Mode already is - has nothing to do.
+echo "steamos-session-select: $*" >&2
+case "${1:-}" in
+  ""|gamescope) exit 0 ;;
+esac
+dir=${BL_LAUNCH_DIR:-}
+if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+  echo "steamos-session-select: not inside a DroidDeck session (BL_LAUNCH_DIR unset)" >&2
+  exit 1
+fi
+printf 'session=desktop\nui=desktop\nurl=\n' > "$dir/steam-launch.tmp" && mv -f "$dir/steam-launch.tmp" "$dir/steam-launch"
+exit 0
