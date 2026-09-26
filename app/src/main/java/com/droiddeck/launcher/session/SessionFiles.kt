@@ -148,7 +148,141 @@ object SessionFiles {
             staged.delete()
             Log.e(TAG, "could not write ld.so.preload")
         }
+
+        val startupMovie = File(root, "root/.local/share/Steam/config/uioverrides/movies/droiddeck-startup.webm")
+        val stagedMovie = File(startupMovie.parentFile, startupMovie.name + ".staged")
+        var movieInstalled = false
+        try {
+            startupMovie.parentFile?.mkdirs()
+            context.assets.open("steam-startup/droiddeck-startup.webm").use { input ->
+                stagedMovie.outputStream().use { output -> FileUtils.copy(input, output) }
+            }
+            movieInstalled = stagedMovie.setReadable(true, false) && stagedMovie.renameTo(startupMovie)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not stage Steam startup movie", e)
+        } finally {
+            if (!movieInstalled) stagedMovie.delete()
+        }
+        if (!movieInstalled) Log.e(TAG, "Steam startup movie NOT staged")
+        if (movieInstalled) ensureStartupMovieDefault(File(root, "root/.local/share/Steam/config/config.vdf"))
     }
+
+    private data class VdfBlock(val keyStart: Int, val open: Int, val close: Int)
+
+    private fun ensureStartupMovieDefault(config: File) {
+        val path = "/uioverrides/movies/droiddeck-startup.webm"
+        var text = if (config.isFile) runCatching { config.readText() }.getOrElse {
+            Log.w(TAG, "could not read Steam config for startup movie", it)
+            return
+        } else ""
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val movie = findObject(text, "StartupMovie", 0, text.length)
+        if (movie != null) {
+            val block = text.substring(movie.keyStart, movie.close + 1)
+            val selectedId = scalar(block, "MovieID")
+            val selectedPath = scalar(block, "LocalPath")
+            if (selectedPath == path) {
+                Log.i(TAG, "Steam startup movie is set to DroidDeck")
+                return
+            }
+            if ((!selectedId.isNullOrEmpty() && selectedId != "0") || !selectedPath.isNullOrEmpty()) {
+                Log.i(TAG, "Steam startup movie selection preserved")
+                return
+            }
+            val updated = setScalar(block, "MovieID", "0", newline)
+                .let { setScalar(it, "LocalPath", path, newline) }
+            text = text.replaceRange(movie.keyStart, movie.close + 1, updated)
+        } else {
+            val steam = findSteamBlock(text)
+            if (steam == null) {
+                if (text.isNotBlank()) {
+                    Log.w(TAG, "Steam config has no Steam settings block; startup movie default not set")
+                    return
+                }
+                text = "\"InstallConfigStore\"${newline}{${newline}\t\"Software\"${newline}\t{${newline}\t\t\"Valve\"${newline}\t\t{${newline}\t\t\t\"Steam\"${newline}\t\t\t{${newline}"
+                val section = startupMovieSection("\t\t\t\t", path, newline)
+                text += section + newline + "\t\t\t}" + newline + "\t\t}" + newline + "\t}" + newline + "}"
+            } else {
+                val lineStart = text.lastIndexOf('\n', steam.close).let { if (it < 0) 0 else it + 1 }
+                val indent = text.substring(lineStart, steam.close).takeWhile { it == '\t' || it == ' ' }
+                val section = startupMovieSection(indent + "\t", path, newline)
+                text = text.substring(0, lineStart) + section + newline + indent + text.substring(lineStart)
+            }
+        }
+        val staged = File(config.parentFile, config.name + ".staged")
+        try {
+            config.parentFile?.mkdirs()
+            staged.writeText(text)
+            if (!staged.renameTo(config)) {
+                staged.delete()
+                Log.e(TAG, "could not write Steam startup movie selection")
+            } else {
+                Log.i(TAG, "Steam startup movie default selected")
+            }
+        } catch (e: Exception) {
+            staged.delete()
+            Log.w(TAG, "could not write Steam startup movie selection", e)
+        }
+    }
+
+    private fun findSteamBlock(text: String): VdfBlock? {
+        val install = findObject(text, "InstallConfigStore", 0, text.length) ?: return null
+        val software = findObject(text, "Software", install.open + 1, install.close) ?: return null
+        val valve = findObject(text, "Valve", software.open + 1, software.close) ?: return null
+        return findObject(text, "Steam", valve.open + 1, valve.close)
+    }
+
+    private fun findObject(text: String, key: String, start: Int, end: Int): VdfBlock? {
+        val pattern = Regex("(?m)^[\\t ]*\"${Regex.escape(key)}\"[\\t ]*(?:\\r?\\n[\\t ]*)?\\{")
+        val match = pattern.find(text, start)?.takeIf { it.range.first < end && it.range.last < end } ?: return null
+        val open = text.indexOf('{', match.range.first).takeIf { it < end } ?: return null
+        var depth = 0
+        var quoted = false
+        var escaped = false
+        for (index in open until end) {
+            val char = text[index]
+            if (quoted) {
+                if (escaped) escaped = false
+                else if (char == '\\') escaped = true
+                else if (char == '\"') quoted = false
+            } else {
+                when (char) {
+                    '\"' -> quoted = true
+                    '{' -> depth++
+                    '}' -> {
+                        depth--
+                        if (depth == 0) return VdfBlock(match.range.first, open, index)
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun scalar(block: String, key: String): String? {
+        val pattern = Regex("(?m)^[\\t ]*\"${Regex.escape(key)}\"[\\t ]+\"([^\"\\r\\n]*)\"")
+        return pattern.find(block)?.groupValues?.get(1)
+    }
+
+    private fun setScalar(block: String, key: String, value: String, newline: String): String {
+        val pattern = Regex("(?m)^([\\t ]*\"${Regex.escape(key)}\"[\\t ]+)\"[^\"\\r\\n]*\"([\\t ]*)$")
+        val match = pattern.find(block)
+        if (match != null) return block.replaceRange(match.range, match.groupValues[1] + "\"" + value + "\"" + match.groupValues[2])
+        val close = block.lastIndexOf('}')
+        if (close < 0) return block
+        val lineStart = block.lastIndexOf('\n', close).let { if (it < 0) 0 else it + 1 }
+        val indent = block.substring(lineStart, close).takeWhile { it == '\t' || it == ' ' } + "\t"
+        val entry = indent + "\"" + key + "\"\t\t\"" + value + "\"" + newline
+        return block.substring(0, lineStart) + entry + block.substring(lineStart)
+    }
+
+    private fun startupMovieSection(indent: String, path: String, newline: String): String = listOf(
+        indent + "\"StartupMovie\"",
+        indent + "{",
+        indent + "\t\"MovieID\"\t\t\"0\"",
+        indent + "\t\"LocalPath\"\t\t\"" + path + "\"",
+        indent + "}",
+    ).joinToString(newline)
 
     /**
      * Where the session writes its log. Downloads is the point - a failed run is handed over as a
