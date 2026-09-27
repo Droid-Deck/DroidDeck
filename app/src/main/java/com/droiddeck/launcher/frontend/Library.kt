@@ -21,6 +21,7 @@ object Library {
     class SteamGame(
         val appId: Int, val name: String, val art: File?, val library: String, val gameId: Long = appId.toLong(),
         val hero: File? = null, val lastPlayed: Long = 0L,
+        val gameFiles: File? = null, val protonPrefix: File? = null,
     )
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
@@ -66,14 +67,31 @@ object Library {
     private val NAME = Regex("^\\s*\"name\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
     private val STATE = Regex("^\\s*\"StateFlags\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
+    private val INSTALL_DIR = Regex("^\\s*\"installdir\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
+
+    /** Steam's library roots visible to this launcher: its private default plus the selected library. */
+    private fun steamLibraries(context: Context): List<Pair<File, String>> {
+        val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+        return listOfNotNull(
+            root to "internal",
+            GameStorage.effective(context)?.let { File(it.path) to it.label },
+        )
+    }
+
+    /** Proton keeps each game's prefix below compatdata/<appid>/pfx in a Steam library. */
+    fun protonPrefix(context: Context, appId: Long, preferredLibrary: File? = null): File? {
+        val ids = listOf(appId.toString(), java.lang.Integer.toString(appId.toInt())).distinct()
+        val roots = (listOfNotNull(preferredLibrary) + steamLibraries(context).map { it.first })
+            .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
+        return roots.asSequence()
+            .flatMap { root -> ids.asSequence().map { id -> File(root, "steamapps/compatdata/$id/pfx") } }
+            .firstOrNull { it.isDirectory }
+    }
 
     fun steamGames(context: Context): List<SteamGame> {
         val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
         val cache = File(root, "appcache/librarycache")
-        val libraries = listOfNotNull(
-            root to "internal",
-            GameStorage.effective(context)?.let { File(it.path) to it.label },
-        )
+        val libraries = steamLibraries(context)
         val out = LinkedHashMap<Int, SteamGame>()
         for ((library, label) in libraries) {
             val steamapps = File(library, "steamapps")
@@ -89,7 +107,17 @@ object Library {
                     val art = steamCacheImage(cache, appId, STEAM_CAPSULES)
                     val hero = steamCacheImage(cache, appId, STEAM_HEROES)
                     val lastPlayed = LAST_PLAYED.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-                    out[appId] = SteamGame(appId, name, art, label, hero = hero, lastPlayed = lastPlayed)
+                    // App manifests are Valve KeyValues (VDF) files. installdir is one folder
+                    // below steamapps/common; only expose it when the directory exists and the
+                    // manifest value cannot escape that directory.
+                    val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
+                        ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
+                    val gameFiles = installDir?.let { File(steamapps, "common/$it").takeIf(File::isDirectory) }
+                    out[appId] = SteamGame(
+                        appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
+                        gameFiles = gameFiles,
+                        protonPrefix = protonPrefix(context, appId.toLong(), library),
+                    )
                 }
         }
         return out.values.toList()

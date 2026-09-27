@@ -81,10 +81,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                 Row(verticalAlignment = Alignment.Bottom) {
                     GameHero(current, Modifier.weight(1f).heightIn(min = if (narrow) 190.dp else 250.dp)) {
                         GameHeroCopy(current, if (narrow) 28.sp else 38.sp)
-                        Actions {
-                            PrimaryButton("Launch", enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { a.onSteamGame(current) }
-                            BusyChip(s)
-                        }
+                        GameActions(current, s, a)
                     }
                     if (!narrow) Poster(current.art, current.name, Modifier.width(168.dp))
                 }
@@ -105,14 +102,26 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
         ) {
             GameHero(current, Modifier.fillMaxWidth().heightIn(min = if (narrow) 170.dp else 200.dp)) {
                 GameHeroCopy(current, if (narrow) 24.sp else 32.sp)
-                Actions {
-                            PrimaryButton("Launch", enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { a.onSteamGame(current) }
-                            BusyChip(s)
-                        }
+                GameActions(current, s, a)
             }
             SectionTitle("Launch settings", null)
             LaunchSettings(s, a, host)
         }
+    }
+}
+
+
+@Composable
+private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActions) {
+    Actions {
+        PrimaryButton("Launch", enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { a.onSteamGame(g) }
+        g.gameFiles?.takeIf { it.isDirectory }?.let { dir ->
+            SecondaryButton("Game files", compact = true) { a.onBrowseFiles(dir) }
+        }
+        g.protonPrefix?.takeIf { it.isDirectory }?.let { dir ->
+            SecondaryButton("Proton prefix", compact = true) { a.onBrowseFiles(dir) }
+        }
+        BusyChip(s)
     }
 }
 

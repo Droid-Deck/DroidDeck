@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import java.io.File
+
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -134,6 +136,7 @@ class FrontEndActions(
     val onPerformance: () -> Unit,
     val onRoms: () -> Unit,
     val onFiles: () -> Unit,
+    val onBrowseFiles: (File) -> Unit = {},
     val onLogs: () -> Unit,
     val onShareLogs: () -> Unit = {},
     val onOffline: () -> Unit,

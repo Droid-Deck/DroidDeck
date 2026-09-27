@@ -320,6 +320,10 @@ class MainActivity : ComponentActivity() {
                         onPerformance = { refreshCores(); showProtons = false; showComponents = false; showMapping = false; showPerformance = true },
                         onRoms = { showRoms = true },
                         onFiles = { startActivity(Intent(this, com.droiddeck.launcher.files.FileManagerActivity::class.java)) },
+                        onBrowseFiles = { dir ->
+                            startActivity(Intent(this, com.droiddeck.launcher.files.FileManagerActivity::class.java)
+                                .putExtra(com.droiddeck.launcher.files.FileManagerActivity.EXTRA_START_DIR, dir.absolutePath))
+                        },
                         onLogs = {
                             SessionPrefs.setLogsEnabled(this, !SessionPrefs.logsEnabled(this))
                             logsEnabled = SessionPrefs.logsEnabled(this)
@@ -952,7 +956,13 @@ class MainActivity : ComponentActivity() {
         // The libraries, off the main thread: manifests and a folder scan.
         Thread({
             val games = if (ready) Library.steamGames(this) + com.droiddeck.launcher.frontend.AddedGames.scan(this).map { g ->
-                com.droiddeck.launcher.frontend.AddedGameArt.resolve(this, g).let { art -> Library.SteamGame(g.appId.toInt(), g.name, art.portrait ?: art.header, "added", g.gameId, hero = art.hero ?: art.header) }
+                com.droiddeck.launcher.frontend.AddedGameArt.resolve(this, g).let { art ->
+                    Library.SteamGame(
+                        g.appId.toInt(), g.name, art.portrait ?: art.header, "added", g.gameId,
+                        hero = art.hero ?: art.header, gameFiles = g.folder,
+                        protonPrefix = Library.protonPrefix(this, g.appId),
+                    )
+                }
             } else emptyList()
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             ui.post { steamGames = games; emulatorList = emus }
