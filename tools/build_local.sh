@@ -41,7 +41,8 @@ fi
 
 ndk_version=${DROIDDECK_NDK_VERSION:-}
 if [[ -z "${ndk_version}" ]]; then
-    ndk_path=$(find "${sdk_dir}/ndk" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)
+    # Only complete NDKs: an interrupted sdkmanager install leaves a directory without source.properties.
+    ndk_path=$(find "${sdk_dir}/ndk" -mindepth 2 -maxdepth 2 -name source.properties -print | xargs -n1 dirname | sort -V | tail -1)
     ndk_version=${ndk_path##*/}
 fi
 if [[ -z "${ndk_version}" || ! -d "${sdk_dir}/ndk/${ndk_version}" ]]; then
