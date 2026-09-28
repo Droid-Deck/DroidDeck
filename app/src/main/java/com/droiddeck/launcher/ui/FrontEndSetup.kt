@@ -208,7 +208,12 @@ internal fun SetupPanel(
                             CheckRow(
                                 if (limitBlocks) CheckState.WARN else CheckState.OK,
                                 "Child-process limit",
-                                if (limitBlocks) "On · Android may close Steam. Turning it off takes a minute" else PhantomProcessLimit.title(s.phantomProcessStatus),
+                                when (s.phantomProcessStatus) {
+                                    PhantomProcessStatus.ENABLED -> "On · Android may close Steam. Turning it off takes a minute"
+                                    PhantomProcessStatus.UNSET -> "Not set · the ROM default may close Steam. Turning it off takes a minute"
+                                    PhantomProcessStatus.UNREADABLE -> "Could not be checked · turning it off takes a minute"
+                                    else -> PhantomProcessLimit.title(s.phantomProcessStatus)
+                                },
                             ) {
                                 if (limitBlocks) PrimaryButton(if (showLimitDetails) "Hide" else "Fix it", compact = true) { showLimitDetails = !showLimitDetails }
                                 else if (s.phantomProcessStatus != PhantomProcessStatus.NOT_APPLICABLE) {

@@ -23,16 +23,38 @@ object PhantomProcessLimit {
 
     fun read(resolver: ContentResolver, sdk: Int = Build.VERSION.SDK_INT): PhantomProcessStatus {
         if (sdk < Build.VERSION_CODES.S) return PhantomProcessStatus.NOT_APPLICABLE
-        val value = try {
+        val global = try {
             Settings.Global.getString(resolver, SETTING)
         } catch (_: Exception) {
             return PhantomProcessStatus.UNREADABLE
         }
-        return when (value?.trim()?.lowercase()) {
+        return status(global, systemProperty(OVERRIDE_PROPERTY))
+    }
+
+    /**
+     * The value Android itself acts on, in FeatureFlagUtils.isEnabled's order: the global setting
+     * when it is set, otherwise the feature-flag override property. Developer options' "Disable
+     * child process restrictions" writes only the property, so a device switched off there has no
+     * global setting at all and must not be reported as unset.
+     */
+    fun status(global: String?, override: String?): PhantomProcessStatus {
+        val value = global?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+            ?: override?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        return when (value) {
             "false", "0" -> PhantomProcessStatus.DISABLED
-            null, "" -> PhantomProcessStatus.UNSET
+            null -> PhantomProcessStatus.UNSET
             else -> PhantomProcessStatus.ENABLED
         }
+    }
+
+    private const val OVERRIDE_PROPERTY = "persist.sys.fflag.override.$SETTING"
+
+    private fun systemProperty(name: String): String? = try {
+        Class.forName("android.os.SystemProperties")
+            .getMethod("get", String::class.java)
+            .invoke(null, name) as? String
+    } catch (_: Exception) {
+        null
     }
 
     fun blocksSteam(status: PhantomProcessStatus): Boolean =
