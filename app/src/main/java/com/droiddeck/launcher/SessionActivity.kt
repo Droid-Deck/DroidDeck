@@ -1483,6 +1483,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onPause() {
+        // Do not carry transient session UI across an app/display transition. In particular, the
+        // drawer's dim layer can otherwise remain over Steam when this activity returns.
+        drawerOpen = false
+        pcKeyboardOpen = false
         (getSystemService(INPUT_SERVICE) as? InputManager)?.unregisterInputDeviceListener(deviceListener)
         releaseDrawerDirection()
         // A button held when the app goes away would stay held in the ring for the whole session.
