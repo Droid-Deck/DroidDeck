@@ -211,6 +211,22 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootNoSeccomp", on).apply()
     }
 
+    const val DEFAULT_GUEST_HOSTNAME = "DroidDeck"
+
+    @JvmStatic
+    fun guestHostname(context: Context): String =
+        validGuestHostname(prefs(context).getString("guestHostname", null)) ?: DEFAULT_GUEST_HOSTNAME
+
+    fun setGuestHostname(context: Context, name: String) {
+        val valid = validGuestHostname(name)
+        prefs(context).edit().apply { if (valid == null) remove("guestHostname") else putString("guestHostname", valid) }.apply()
+    }
+
+    fun validGuestHostname(name: String?): String? {
+        val trimmed = name?.trim() ?: return null
+        return trimmed.takeIf { Regex("[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?").matches(it) }
+    }
+
     /** Turnip's sysmem rendering (TU_DEBUG=sysmem) for the runtime's driver: bypasses GMEM tiling. */
     fun tuSysmem(context: Context): Boolean = prefs(context).getBoolean("tuSysmem", false)
 

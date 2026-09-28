@@ -6,6 +6,7 @@ import android.system.ErrnoException;
 import android.system.Os;
 import android.system.StructStat;
 import android.system.StructUtsname;
+import com.droiddeck.launcher.session.SessionPrefs;
 
 
 import java.io.File;
@@ -33,7 +34,6 @@ public final class LinuxRuntime {
     /** Shortcut extra naming which of the modes above a Linux entry launches. */
     public static final String EXTRA_LINUX_MODE = "linux_mode";
     private static final String KGSL_DEVICE = "/dev/kgsl-3d0";
-    private static final String GUEST_HOSTNAME = "DroidDeck";
     /** Where every Linux session's debug log lands: public, so a user can just hand the folder over. */
     public static final String DEBUG_LOG_DIR = "DroidDeck";
 
@@ -119,7 +119,7 @@ public final class LinuxRuntime {
         cmd.add(prootBinary(context).getPath());
         cmd.add("--kill-on-exit");
         // Preserve the host kernel identity while giving the guest the app's branded host name.
-        cmd.add("--kernel-release=" + guestUtsname());
+        cmd.add("--kernel-release=" + guestUtsname(SessionPrefs.guestHostname(context)));
         // Android's app seccomp policy traps the whole set*id family. Xwayland's Popen() calls
         // setgid()/setuid() before it execs xkbcomp and _exit(127)s when they fail, so without
         // this the keymap never compiles and Xwayland dies. -i makes proot answer those calls
@@ -250,9 +250,9 @@ public final class LinuxRuntime {
     }
 
     /** PRoot's complex -k format: sysname, nodename, release, version, machine, domain, HWCAP. */
-    private static String guestUtsname() {
+    private static String guestUtsname(String hostname) {
         StructUtsname host = Os.uname();
-        return "\\" + host.sysname + "\\" + GUEST_HOSTNAME + "\\" + host.release
+        return "\\" + host.sysname + "\\" + hostname + "\\" + host.release
                 + "\\" + host.version + "\\" + host.machine + "\\localdomain\\-1\\";
     }
 

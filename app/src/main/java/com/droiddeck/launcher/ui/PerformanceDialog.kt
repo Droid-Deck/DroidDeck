@@ -7,15 +7,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.droiddeck.launcher.session.SessionPrefs
 
 class CoreRow(val core: Int, val label: String)
 
@@ -32,6 +39,7 @@ fun PerformancePage(
     steamDeckMode: Boolean,
     noXalia: Boolean,
     prootNoSeccomp: Boolean,
+    guestHostname: String,
     phantomWarning: String?,
     onClientOverride: (Boolean) -> Unit,
     onTuSysmem: (Boolean) -> Unit,
@@ -41,6 +49,7 @@ fun PerformancePage(
     onSteamDeckMode: (Boolean) -> Unit,
     onNoXalia: (Boolean) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
+    onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
@@ -50,7 +59,7 @@ fun PerformancePage(
     val coreItems = cores.map { it.core to it.label }
     SettingsPage(
         host, title = "Performance",
-        lede = "CPU cores and session fixes. Applies next session.",
+        lede = "CPU cores, session fixes and the host name. Applies next session.",
         onBack = onDismiss,
     ) {
         SettingsGroup("Steam client cores") {
@@ -109,6 +118,25 @@ fun PerformancePage(
                 "May fix missing syscall errors on some kernels, but can reduce performance.",
                 prootNoSeccomp, onChange = onProotNoSeccomp,
             )
+        }
+        SettingsGroup("Session identity") {
+            var draft by remember(guestHostname) { mutableStateOf(guestHostname) }
+            val valid = SessionPrefs.validGuestHostname(draft) != null
+            SettingsRow(
+                "Host name",
+                if (valid || draft.isBlank()) "What the session and Steam report as this machine's name. Blank restores ${SessionPrefs.DEFAULT_GUEST_HOSTNAME}."
+                else "Letters, digits and inner hyphens only, up to 63 characters. Not saved until it is valid.",
+            ) {
+                OutlinedTextField(
+                    draft, { v ->
+                        draft = v.take(63)
+                        if (draft.isBlank() || SessionPrefs.validGuestHostname(draft) != null) onGuestHostname(draft)
+                    },
+                    singleLine = true, isError = !valid && draft.isNotBlank(),
+                    placeholder = { Text(SessionPrefs.DEFAULT_GUEST_HOSTNAME) },
+                    modifier = Modifier.width(220.dp),
+                )
+            }
         }
         if (phantomWarning != null) {
             Spacer(Modifier.height(16.dp))
