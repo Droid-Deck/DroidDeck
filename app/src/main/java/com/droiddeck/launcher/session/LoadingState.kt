@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets
  * progress, and lifting that out is the difference between "starting the Steam client" for three
  * minutes and a percentage that moves.
  */
-class LoadingState(context: Context) {
+class LoadingState(context: Context, steam: Boolean = true) {
     var visible by mutableStateOf(true)
     var step by mutableStateOf("Starting the session…")
     var percent by mutableIntStateOf(-1)
@@ -27,7 +27,10 @@ class LoadingState(context: Context) {
     /** The technical side of an ended session (exit status, log path), under the advice in [step]. */
     var endedDetail by mutableStateOf<String?>(null)
 
-    private val hints = context.resources.getStringArray(com.droiddeck.launcher.R.array.loading_hints)
+    // The desktop and the emulators get their own: the Steam ones talk about Steam.
+    private val hints = context.resources.getStringArray(
+        if (steam) com.droiddeck.launcher.R.array.loading_hints else com.droiddeck.launcher.R.array.loading_hints_desktop,
+    )
     private val startedAt = SystemClock.elapsedRealtime()
 
     /** Once a second: the clock and the hint. */

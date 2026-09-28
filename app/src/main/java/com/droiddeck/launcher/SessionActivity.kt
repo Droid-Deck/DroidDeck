@@ -234,7 +234,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         root.pointerIcon = noCursor
         surfaceView.pointerIcon = noCursor
 
-        loading = LoadingState(this)
+        loading = LoadingState(this, steam = loadingMode() == SessionService.MODE_STEAM)
         if (!SessionState.running) {
             val needRuntime = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(this) == null
             val needDesktop = intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_DESKTOP &&

@@ -6,6 +6,12 @@
         <item>By default, leaving the app pauses Steam; it picks up where it left off when you come back.</item>
         <item>Your controller appears as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
     </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>First run sets up the desktop. This may take a few minutes.</item>
+        <item>By default, leaving the app pauses the session; it picks up where it left off when you come back.</item>
+        <item>Touch works as a touchpad: drag to move the pointer, tap to click.</item>
+        <item>Your controller appears as an Xbox 360 pad. Otherwise, use the on-screen controls.</item>
+    </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Shows while a Steam or desktop session is open</string>
     <string name="session_notification">Steam is running</string>
