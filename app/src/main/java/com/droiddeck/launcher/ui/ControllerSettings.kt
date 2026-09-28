@@ -59,7 +59,7 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
     ChoiceRow(host, "controller-opacity", "Opacity", null, ControllerPrefs.opacities.map { it to "$it%" }, c.opacity, onPick = a.onOpacity)
     ChoiceRow(host, "controller-size", "Button size", "100% keeps the standard size", ControllerPrefs.sizes.map { it to "$it%" }, c.size, onPick = a.onSize)
     ToggleRow(host, "controller-stick-click", "Stick click", "Double-tap a stick and hold for L3 or R3", c.stickClick, onChange = a.onStickClick)
-    ToggleRow(host, "controller-adaptive", "Adaptive sticks", "A stick centers where your thumb lands and returns home when you let go", c.adaptiveSticks, onChange = a.onAdaptiveSticks)
+    ToggleRow(host, "controller-adaptive", "Adaptive sticks", "Sticks appear when touched near their saved positions and hide when released", c.adaptiveSticks, onChange = a.onAdaptiveSticks)
     SettingsRow("Layout", if (c.customLayout) "Custom positions saved" else "Placed for this screen's size and your grip") {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SecondaryButton("Edit") { a.onEditLayout() }

@@ -55,10 +55,10 @@ if [ -n "${BL_DEBUG_DIR:-}" ]; then
   echo "== droiddeck-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') renderer=$WLR_RENDERER"
 fi
 export WLR_BACKENDS=wayland
-# The app's compositor draws no wl_pointer cursor surfaces, so a cursor wlroots hands to its
-# parent ("hardware" cursor on the wayland backend) never shows - on the GPU renderers the whole
-# cursor was missing. Draw it into the desktop's own frames instead.
-export WLR_NO_HARDWARE_CURSORS=${WLR_NO_HARDWARE_CURSORS:-1}
+# The cursor goes to the app's compositor as a wl_pointer cursor surface ("hardware" cursor on the
+# wayland backend), which the app draws as its pointer. Drawn into the desktop's own frames instead
+# (WLR_NO_HARDWARE_CURSORS=1), it cost every frame a full-screen composite: a software cursor
+# rules out direct scan-out, so a full-screen game was never handed to the app as it is.
 mkdir -p "$HOME/.config/labwc" "$HOME/.config/lxqt"
 # Our defaults for labwc and the panel, refreshed every session. What a user changes in the
 # panel's own settings lands in panel.conf and is kept; only rc.xml and autostart are ours.
