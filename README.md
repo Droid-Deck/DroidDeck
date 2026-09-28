@@ -5,25 +5,9 @@
   </picture>
 </p>
 
-DroidDeck brings the SteamOS experience to Android. It runs Valve's own Steam client in Big Picture on your Adreno handheld, and Windows games run through Proton just like on a Steam Deck, using Valve's ARM64 build. Around that, you get a launcher built for controllers, a menu over any game, an optional Linux desktop with emulators, and it can be your Android home screen. On dual-screen handhelds, the second screen can run an Android app, a keyboard and trackpad, or a terminal.
-
-Under the hood, the ARM64 Steam client runs natively in a Linux runtime (proot, gamescope and DroidDeck's own Vulkan compositor), and FEX translates x86 games. Nothing from Valve is bundled; Steam downloads from Valve on your device.
+DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton.
 
 <p align="center"><img src="docs/releases/media/0.2.0/launch-into-steam.gif" width="80%" alt="Tapping DroidDeck on the Android home screen and landing in Steam Big Picture"></p>
-
-<p>
-<img src="docs/releases/media/0.2.0/launcher-steam.jpg" width="49%" alt="Steam tab with the capsule wall">
-<img src="docs/releases/media/0.2.0/session-drawer.gif" width="49%" alt="Session menu over a game">
-</p>
-<p>
-<img src="docs/releases/media/0.2.0/drawer-android-apps.jpg" width="49%" alt="Android apps in the session menu over Steam">
-<img src="docs/releases/media/0.2.0/linux-desktop.jpg" width="49%" alt="LXQt desktop">
-</p>
-<p align="center">
-<img src="docs/releases/media/0.2.0/dual-screen-app.gif" width="32%" alt="Android app on the second screen">
-<img src="docs/releases/media/0.2.0/second-screen-trackpad.gif" width="32%" alt="Second screen as keyboard and trackpad">
-<img src="docs/releases/media/0.2.0/second-screen-terminal.jpg" width="32%" alt="Second screen as a Linux terminal">
-</p>
 
 ## Requirements and install
 
