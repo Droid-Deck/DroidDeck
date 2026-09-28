@@ -29,3 +29,6 @@ app/src/main/jniLibs/arm64-v8a/libproot-loader.so
 droiddeck-release-key/
 password.txt
 __pycache__/
+
+# Local signing with the release key (tools/build_local.sh); holds a password.
+.signing.env

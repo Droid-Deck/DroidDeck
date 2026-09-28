@@ -30,6 +30,7 @@
 #include <time.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <poll.h>
 #include <sys/timerfd.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
@@ -247,6 +248,10 @@ struct surface {
     int releases_pending;                   /* FPS limiter: buffers of this surface still to be released */
 
     enum surface_role role;
+    /* A role-less surface's last buffer, held unreleased: it may become the pointer's image
+     * (wl_pointer.set_cursor after the commit, which is wlroots' order). */
+    struct wl_resource *idle_buffer;
+    struct wl_listener idle_buffer_destroy;
     struct wl_resource *xdg_surface, *xdg_toplevel;
     struct wl_resource *viewport;
 
@@ -475,12 +480,21 @@ static int g_ntouches;
 #define CURSOR_MAX_PX (256 * 256)
 static pthread_mutex_t g_cursor_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct surface *g_cursor_surface;     /* compositor thread only */
+static struct surface *g_cursor_shown;       /* compositor thread: whose image g_cursor_px holds */
 static int g_cursor_hx, g_cursor_hy;         /* hotspot, surface-local */
 static uint32_t g_cursor_px[CURSOR_MAX_PX];  /* guarded by g_cursor_lock: ARGB8888 snapshot */
 static uint32_t g_cursor_rb[CURSOR_MAX_PX];  /* compositor thread: GPU readback staging */
 static int g_cursor_w, g_cursor_h;           /* 0 = nothing to draw */
 static int g_cursor_hidden = 1;              /* the client asked for no pointer */
 static int g_cursor_serial;                  /* bumped on every change; the app polls it */
+
+/* The last image again, after a hide: the same surface set as the pointer once more with nothing
+ * newly committed to it (wlroots re-sets its cursor surface each time the pointer enters). */
+static void cursor_publish_shown(void) {
+    pthread_mutex_lock(&g_cursor_lock);
+    if (g_cursor_w > 0) { g_cursor_hidden = 0; g_cursor_serial++; }  /* serial: the hotspot may be new */
+    pthread_mutex_unlock(&g_cursor_lock);
+}
 
 static void cursor_publish_hidden(void) {
     pthread_mutex_lock(&g_cursor_lock);
@@ -931,6 +945,68 @@ static void surface_set_input(struct wl_client *c, struct wl_resource *r,
 
 static void send_toplevel_configure(struct surface *s);
 
+/* The pointer image from a cursor surface's buffer: wl_shm is copied, a dma-buf (labwc on a GPU
+ * renderer) is read back once the client's render into it is done - its implicit fence, as the
+ * zero-copy path waits for it (ahb_swapchain_present). */
+static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer) {
+    struct dmabuf_buffer *db = get_dmabuf(buffer);
+    struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
+    if (shm) {
+        cursor_publish_shm(shm, g_cursor_hx, g_cursor_hy);
+    } else if (db && db->n_planes >= 1 && db->width > 0 && db->height > 0 &&
+               (int64_t)db->width * db->height <= CURSOR_MAX_PX) {
+        if (!db->img && !db->import_failed) {
+            db->img = vkp_image_from_dmabuf(db->fd[0], db->format, db->modifier, db->width, db->height,
+                                            db->stride[0], db->offset[0]);
+            if (!db->img) db->import_failed = 1;
+        }
+        if (!db->img) return;
+        struct pollfd p = {.fd = db->fd[0], .events = POLLIN};
+        int r;
+        do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
+        if (vkp_image_readback(db->img, g_cursor_rb, CURSOR_MAX_PX) != 0) return;
+        cursor_publish_pixels((const uint8_t *)g_cursor_rb, db->width, db->height,
+                              (size_t)db->width * 4, g_cursor_hx, g_cursor_hy);
+    } else {
+        return;
+    }
+    g_cursor_shown = s;
+}
+
+static void on_idle_buffer_destroyed(struct wl_listener *l, void *data) {
+    struct surface *s = wl_container_of(l, s, idle_buffer_destroy);
+    wl_list_remove(&s->idle_buffer_destroy.link);
+    wl_list_init(&s->idle_buffer_destroy.link);
+    s->idle_buffer = NULL;
+}
+
+/* Only what could be a pointer image is held; anything larger goes straight back. */
+static void surface_hold_idle(struct surface *s, struct wl_resource *buffer) {
+    struct dmabuf_buffer *db = get_dmabuf(buffer);
+    struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
+    int64_t px = db ? (int64_t)db->width * db->height
+               : shm ? (int64_t)wl_shm_buffer_get_width(shm) * wl_shm_buffer_get_height(shm) : 0;
+    if (px <= 0 || px > CURSOR_MAX_PX) { wl_buffer_send_release(buffer); return; }
+    s->idle_buffer = buffer;
+    s->idle_buffer_destroy.notify = on_idle_buffer_destroyed;
+    wl_resource_add_destroy_listener(buffer, &s->idle_buffer_destroy);
+}
+
+/* Lets go of the held buffer; release = give it back to the client (not while it is going away). */
+static struct wl_resource *surface_take_idle(struct surface *s) {
+    struct wl_resource *buffer = s->idle_buffer;
+    if (!buffer) return NULL;
+    wl_list_remove(&s->idle_buffer_destroy.link);
+    wl_list_init(&s->idle_buffer_destroy.link);
+    s->idle_buffer = NULL;
+    return buffer;
+}
+
+static void surface_drop_idle(struct surface *s) {
+    struct wl_resource *buffer = surface_take_idle(s);
+    if (buffer) wl_buffer_send_release(buffer);
+}
+
 static void surface_commit(struct wl_client *c, struct wl_resource *r) {
     struct surface *s = wl_resource_get_user_data(r);
     struct surface *child;
@@ -970,28 +1046,19 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         s->pending_buffer = NULL;
         s->pending_attach = 0;
 
+        surface_drop_idle(s);  /* replaced, whatever the surface is now */
         if (s->role == ROLE_CURSOR) {
             /* The client's pointer image, copied out for the app's overlay (see cursor_publish_*)
              * rather than composited, so it survives the zero-copy and HDR layer paths. */
             if (!buffer) {
                 cursor_publish_hidden();  /* wlroots clears its cursor surface to hide the pointer */
-            } else if (shm) {
-                cursor_publish_shm(shm, g_cursor_hx, g_cursor_hy);
-            } else if (db && db->n_planes >= 1 && db->width > 0 && db->height > 0 &&
-                       (int64_t)db->width * db->height <= CURSOR_MAX_PX) {
-                if (!db->img && !db->import_failed) {
-                    db->img = vkp_image_from_dmabuf(db->fd[0], db->format, db->modifier, db->width, db->height,
-                                                    db->stride[0], db->offset[0]);
-                    if (!db->img) db->import_failed = 1;
-                }
-                if (db->img && vkp_image_readback(db->img, g_cursor_rb, CURSOR_MAX_PX) == 0)
-                    cursor_publish_pixels((const uint8_t *)g_cursor_rb, db->width, db->height,
-                                          (size_t)db->width * 4, g_cursor_hx, g_cursor_hy);
+            } else {
+                cursor_publish_buffer(s, buffer);
+                wl_buffer_send_release(buffer);
             }
-            if (buffer) wl_buffer_send_release(buffer);
         } else if (s->role == ROLE_NONE) {
-            /* Role-less surface: never drawn. */
-            if (buffer) wl_buffer_send_release(buffer);
+            /* Role-less surface: never drawn, but its buffer is kept for a set_cursor to come. */
+            if (buffer) surface_hold_idle(s, buffer);
         } else if (db) {
             take_dmabuf(s, db, buffer);
         } else if (shm) {
@@ -1063,6 +1130,8 @@ static void surface_resource_destroy(struct wl_resource *r) {
     for (int i = 0; i < g_nkbs; i++) if (g_kbs[i].focus == r) g_kbs[i].focus = NULL;
     touch_cancel_surface(s);
     if (g_cursor_surface == s) { g_cursor_surface = NULL; cursor_publish_hidden(); }
+    if (g_cursor_shown == s) g_cursor_shown = NULL;
+    surface_take_idle(s);
     if (g_grab == s) g_grab = NULL;
     if (g_key_target == s) g_key_target = NULL;
     if (g_ime_click == s) g_ime_click = NULL;
@@ -1139,6 +1208,7 @@ static void compositor_create_surface(struct wl_client *c, struct wl_resource *r
     wl_list_init(&s->child_link);
     wl_list_init(&s->toplevel_link);
     wl_list_init(&s->pending_buffer_destroy.link);
+    wl_list_init(&s->idle_buffer_destroy.link);
     wl_list_insert(&g_surfaces, &s->link);
     wl_resource_set_implementation(s->resource, &surface_impl, s, surface_resource_destroy);
 }
@@ -2143,6 +2213,16 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
     g_cursor_surface = s;
     g_cursor_hx = hx;
     g_cursor_hy = hy;
+    /* Its content may already be committed: wlroots' Wayland backend attaches and commits the
+     * cursor surface first and sets it as the pointer after, and sets it again with nothing new
+     * committed each time the pointer re-enters. */
+    struct wl_resource *buffer = surface_take_idle(s);
+    if (buffer) {
+        cursor_publish_buffer(s, buffer);
+        wl_buffer_send_release(buffer);
+    } else if (g_cursor_shown == s) {
+        cursor_publish_shown();
+    }
 }
 static void pointer_release(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static const struct wl_pointer_interface pointer_impl = {

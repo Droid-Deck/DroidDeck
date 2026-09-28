@@ -233,7 +233,7 @@ for name in %s; do
     bl_directaudio "$depot"
     bl_game_cpus
     bl_idtech3 "$@"
-    exec ${BL_TASKSET:-} "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+    exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
   fi
 done
 echo "bannerlator-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
@@ -282,7 +282,7 @@ bl_game_cpus
 bl_idtech3 "$@"
 # Proton takes its base directory from dirname(sys.argv[0]) without resolving it, so it has to be
 # started from its own tree.
-exec ${BL_TASKSET:-} "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 """
 EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
 {

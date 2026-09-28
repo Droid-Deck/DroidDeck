@@ -370,12 +370,13 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 onPick = { path -> if (path == "__pick__") a.onPickAddedGameExe(g.folderPath) else a.onAddedGameExe(g.folderPath, path) },
             )
         }
-        if (steam && s.fexPreset != null) SettingsGroup("Games") {
+        if (steam && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
             ChoiceRow(
-                host, "fex", "FEX preset", "Applies on next game launch.",
-                FexPreset.all.map { it.id to it.label }, s.fexPreset,
-                note = FexPreset.byId(s.fexPreset).detail, onPick = a.onFexPreset,
+                host, "fex", stringResource(R.string.fex_preset_title), stringResource(R.string.fex_next_launch),
+                FexPreset.all.map { it.id to stringResource(it.label) }, s.fexPreset,
+                note = stringResource(FexPreset.byId(s.fexPreset).detail), onPick = a.onFexPreset,
             )
+            GameEnvironmentRow()
             if (s.forceFullscreen != null) ToggleRow(
                 host, "fill", "Stretch games to fill the screen",
                 "Keeps games that resize their own window (FlatOut) full screen. Turn it off if a game shows up small in a corner (Quake 3). Applies next session.",

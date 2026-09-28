@@ -309,6 +309,29 @@ grep -qi 'CN=Android, OU=Android, O=Android' <<<"${signature_output}" || {
     exit 1
 }
 
+# With DroidDeck's own key at hand, sign as CI's main builds are (tools/release/sign-apk.sh), so
+# the apk installs over a release instead of being refused as a different signer. The key's
+# location and password live in an untracked .signing.env (RELEASE_KEYSTORE, RELEASE_STORE_PASSWORD,
+# RELEASE_KEY_ALIAS), looked for in this checkout and then in the main one, which worktrees share.
+signing_env=${DROIDDECK_SIGNING_ENV:-}
+if [[ -z "${signing_env}" ]]; then
+    for candidate in "${repo_root}/.signing.env" \
+            "$(dirname "$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo .)")/.signing.env"; do
+        [[ -f "${candidate}" ]] && { signing_env=${candidate}; break; }
+    done
+fi
+if [[ -n "${signing_env}" ]]; then
+    echo "Signing with DroidDeck's key (${signing_env})"
+    (
+        set -a
+        # shellcheck disable=SC1090
+        . "${signing_env}"
+        set +a
+        BUILD_TOOLS="${build_tools}" "${repo_root}/tools/release/sign-apk.sh" "${apk}" standard "${apk}.release"
+    )
+    mv "${apk}.release" "${apk}"
+fi
+
 printf 'APK: %s\n' "${apk}"
 printf 'SHA-256: '
 shasum -a 256 "${apk}" | awk '{print $1}'

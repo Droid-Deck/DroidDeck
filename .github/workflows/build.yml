@@ -307,7 +307,7 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
 
-      - name: Steam import tests
+      - name: Steam import and game environment tests
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
       - name: Unit tests
@@ -438,3 +438,92 @@ jobs:
       environment: signing-main
       variants: ${{ needs.build.outputs.variants }}
     secrets: inherit
+
+  # Each signed main build as a prerelease of the public Droid-Deck/DroidDeck-CI (main-<sha>, the
+  # last KEEP kept), where anyone can download it without a GitHub account, then a post in the
+  # Discord's builds channel linking to it. The release is made with a token of the org's
+  # "DroidDeck CI Publisher" app (installed on DroidDeck-CI only, Contents: write): its ID in the
+  # DROIDDECK_CI_APP_ID variable, its private key in the DROIDDECK_CI_APP_KEY secret.
+  # DISCORD_BUILDS_WEBHOOK is the channel's webhook URL.
+  announce:
+    needs: [build, sign]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      CI_REPO: Droid-Deck/DroidDeck-CI
+      KEEP: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: droiddeck-signed-*
+          merge-multiple: true
+          path: signed
+
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+
+      - name: Publish to DroidDeck-CI
+        id: publish
+        env:
+          GH_TOKEN: ${{ steps.ci-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          tag=main-${GITHUB_SHA::7}
+          cat signed/SHA256SUMS-*.txt > signed/SHA256SUMS.txt
+          rm signed/SHA256SUMS-*.txt
+          notes="Signed build of $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA - unreleased, for testing.
+          Each apk installs over a DroidDeck release and keeps its data. \`standard\` is the normal app; the others are the same app under another package name, installed beside it.
+
+          SHA-256:
+          \`\`\`
+          $(cat signed/SHA256SUMS.txt)
+          \`\`\`"
+          gh release delete "$tag" -R "$CI_REPO" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" -R "$CI_REPO" --target main --prerelease \
+            --title "main ${GITHUB_SHA::7}" --notes "$notes" signed/*
+          # Only the newest KEEP main builds stay; PR releases (pr-N) are left alone.
+          gh release list -R "$CI_REPO" -L 200 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("main-"))] | sort_by(.createdAt) | reverse | .['"$KEEP"':][] | .tagName' |
+            while IFS= read -r old; do gh release delete "$old" -R "$CI_REPO" --yes --cleanup-tag; done
+          url="$GITHUB_SERVER_URL/$CI_REPO/releases/tag/$tag"
+          apk=$(cd signed && ls DroidDeck-*.apk | awk 'length(a) == 0 || length($0) < length(a) { a = $0 } END { print a }')
+          echo "release=$url" >> "$GITHUB_OUTPUT"
+          echo "apk=$GITHUB_SERVER_URL/$CI_REPO/releases/download/$tag/$apk" >> "$GITHUB_OUTPUT"
+          echo "Published $url"
+
+      - name: Post to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_BUILDS_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ steps.publish.outputs.release }}
+          APK: ${{ steps.publish.outputs.apk }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WEBHOOK" ]; then
+            echo "::notice::No DISCORD_BUILDS_WEBHOOK secret; nothing posted"
+            exit 0
+          fi
+          commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA")
+          subject=$(jq -r '.commit.message | split("\n")[0]' <<<"$commit")
+          # A merge commit's subject is "Merge pull request #N from ..."; its body's first line is
+          # the PR's title, which says more.
+          title=$(jq -r '.commit.message | split("\n") | map(select(length > 0)) | .[1] // ""' <<<"$commit")
+          pr=$(sed -n 's/^Merge pull request #\([0-9]*\).*/\1/p' <<<"$subject")
+          if [ -n "$pr" ]; then
+            what="[#$pr]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$pr): ${title:-$subject}"
+          else
+            what="[\`${GITHUB_SHA::7}\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA): $subject"
+          fi
+          get=$(printf 'Download: [standard APK](<%s>) · [all variants](<%s>)' "$APK" "$RELEASE")
+          content=$(printf '**New signed build** `main-%s`\n%s\n%s' "${GITHUB_SHA::7}" "$what" "$get")
+          jq -n --arg content "$content" '{content: $content, allowed_mentions: {parse: []}}' |
+            curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK" -o /dev/null
+          echo "Posted: $content"

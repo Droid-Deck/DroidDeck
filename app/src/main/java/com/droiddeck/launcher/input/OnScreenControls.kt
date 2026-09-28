@@ -45,11 +45,11 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
         val halfW get() = if (wide) radius * SHOULDER_WIDTH else radius
         val halfH get() = if (wide) radius * SHOULDER_HEIGHT else radius
 
-        fun contains(x: Float, y: Float, r: Float): Boolean {
+        fun contains(x: Float, y: Float, r: Float, padding: Float = 0f): Boolean {
             val dx = x - cx
             val dy = y - cy
-            if (wide) return abs(dx) <= halfW + r * 0.25f && abs(dy) <= halfH + r * 0.25f
-            val hit = r * 1.25f
+            if (wide) return abs(dx) <= halfW + r * 0.25f + padding && abs(dy) <= halfH + r * 0.25f + padding
+            val hit = r * 1.25f + padding
             return dx * dx + dy * dy <= hit * hit
         }
 
@@ -350,6 +350,7 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
     override fun onDraw(canvas: Canvas) {
         for (control in controls) {
             if (!isVisible(control)) continue
+            if (control.stick >= 0 && settings.adaptiveSticks && !editing && control.pressedBy == -1) continue
             val held = control.pressedBy != -1
             val radius = control.radius
             if (control.stick >= 0) {
@@ -426,10 +427,13 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val index = event.actionIndex
-                val control = controlAt(event.getX(index), event.getY(index)) ?: return false
+                val x = event.getX(index)
+                val y = event.getY(index)
+                val control = controlAt(x, y) ?: adaptiveStickAt(x, y) ?: return false
+                if (control.pressedBy != -1) return true
                 control.pressedBy = event.getPointerId(index)
                 if (control.stick >= 0) {
-                    control.clicked = settings.stickClick && event.eventTime - control.lastUp < DOUBLE_TAP_MS
+                    control.clicked = settings.stickClick && control.lastUp > 0L && event.eventTime - control.lastUp < DOUBLE_TAP_MS
                     val adaptive = settings.adaptiveSticks
                     control.ax = if (adaptive) event.getX(index) else control.cx
                     control.ay = if (adaptive) event.getY(index) else control.cy
@@ -468,7 +472,7 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
                 for (control in controls) {
                     if (control.pressedBy == pointer || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                         if (control.pressedBy != -1) changed = true
-                        if (control.stick >= 0 && control.pressedBy != -1) control.lastUp = if (control.clicked) 0L else event.eventTime
+                        if (control.stick >= 0 && control.pressedBy != -1) control.lastUp = if (control.clicked || event.actionMasked == MotionEvent.ACTION_CANCEL) 0L else event.eventTime
                         control.pressedBy = -1
                         control.clicked = false
                         if (control.stick >= 0 && (control.kx != 0f || control.ky != 0f)) control.dirty = true
@@ -505,7 +509,25 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
     }
 
     private fun controlAt(x: Float, y: Float): Control? =
-        controls.firstOrNull { isVisible(it) && it.contains(x, y, it.radius) }
+        controls.firstOrNull {
+            isVisible(it) && (editing || !settings.adaptiveSticks || it.stick < 0) && it.contains(x, y, it.radius)
+        }
+
+    private fun adaptiveStickAt(x: Float, y: Float): Control? {
+        if (!settings.adaptiveSticks || editing || buttonsOnly) return null
+        if (x < safe.left || x >= width - safe.right || y < safe.top || y >= height - safe.bottom) return null
+        if (controls.any { it.stick < 0 && isVisible(it) && it.contains(x, y, it.radius, 5f) }) return null
+        return controls.filter {
+            val dx = x - it.cx
+            val dy = y - it.cy
+            val reach = it.radius * 1.4f * sqrt(1.5f)
+            it.stick >= 0 && isVisible(it) && it.pressedBy == -1 && dx * dx + dy * dy <= reach * reach
+        }.minByOrNull {
+            val dx = x - it.cx
+            val dy = y - it.cy
+            dx * dx + dy * dy
+        }
+    }
 
     private fun isVisible(control: Control): Boolean = when {
         buttonsOnly && !editing -> control.id == "guide" || control.id == "qam"
@@ -574,6 +596,7 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
         controls.forEach {
             it.pressedBy = -1
             it.clicked = false
+            it.lastUp = 0L
             if (it.stick >= 0 && (it.kx != 0f || it.ky != 0f)) it.dirty = true
             it.kx = 0f; it.ky = 0f
         }
