@@ -5,7 +5,9 @@
   </picture>
 </p>
 
-Run Valve's native ARM64 Steam client on an Adreno Android device. Steam runs in a Linux runtime under proot, with gamescope and an in-app Vulkan compositor. Windows games use Valve's ARM64 Proton and FEX. A desktop with LXQt, Firefox, and emulators is also available. DroidDeck can also be your Android Home app, and on dual-screen handhelds the second screen can run an Android app, a keyboard and trackpad, or a terminal.
+DroidDeck brings the SteamOS experience to Android. It runs Valve's own Steam client in Big Picture on your Adreno handheld, and Windows games run through Proton just like on a Steam Deck, using Valve's ARM64 build. Around that, you get a launcher built for controllers, a menu over any game, an optional Linux desktop with emulators, and it can be your Android home screen. On dual-screen handhelds, the second screen can run an Android app, a keyboard and trackpad, or a terminal.
+
+Under the hood, the ARM64 Steam client runs natively in a Linux runtime (proot, gamescope and DroidDeck's own Vulkan compositor), and FEX translates x86 games. Nothing from Valve is bundled; Steam downloads from Valve on your device.
 
 <p align="center"><img src="docs/releases/media/0.2.0/launch-into-steam.gif" width="80%" alt="Tapping DroidDeck on the Android home screen and landing in Steam Big Picture"></p>
 
