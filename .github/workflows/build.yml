@@ -307,6 +307,9 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
 
+      - name: Game environment launch tests
+        run: python3 -m unittest discover -s tools/tests -p test_game_environment.py
+
       - name: Unit tests
         run: ./gradlew testReleaseUnitTest --console=plain -PndkVersion="$NDK_VERSION"
 

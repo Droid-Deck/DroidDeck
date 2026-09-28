@@ -1,0 +1,59 @@
+#!/usr/bin/python3
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+
+def game_id(env):
+    prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if not prefix:
+        return None
+    value = prefix.rsplit("/", 1)[-1]
+    if not re.fullmatch(r"-?[0-9]+", value):
+        return None
+    number = int(value)
+    if not -(2**31) <= number < 2**32 or number == 0:
+        return None
+    return str(number % 2**32)
+
+
+def apply_config(env, config, app_id):
+    if config.get("version") != 1:
+        raise ValueError("unsupported environment configuration")
+    result = env.copy()
+    entries = dict(config.get("shared", {}))
+    entries.update(config.get("games", {}).get(app_id, {}))
+    for name, value in entries.items():
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise ValueError("invalid environment name")
+        if value is None:
+            result.pop(name, None)
+        elif isinstance(value, str) and "\0" not in value and len(value) <= 8192:
+            result[name] = value
+        else:
+            raise ValueError("invalid environment value")
+    return result
+
+
+def main():
+    command = sys.argv[1:]
+    if not command:
+        return 2
+    env = os.environ.copy()
+    app_id = game_id(env)
+    if len(command) > 1 and command[1] == "waitforexitandrun" and app_id:
+        path = Path.home() / ".config/droiddeck/game-environment.json"
+        try:
+            with path.open(encoding="utf-8") as source:
+                env = apply_config(env, json.load(source), app_id)
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, TypeError, AttributeError):
+            print("bannerlator-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    os.execvpe(command[0], command, env)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

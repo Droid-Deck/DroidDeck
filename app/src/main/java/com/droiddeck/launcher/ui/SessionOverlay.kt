@@ -89,6 +89,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FexPreset
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.session.SessionPrefs
@@ -405,9 +407,12 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                 ChoiceRow(host, "shape", "Screen ratio", null,
                                     SessionPrefs.shapeChoices, a.shapeMode,
                                     chipModifier = focus.track(page, "shape"), onPick = a.onShape)
-                                if (a.steam) ChoiceRow(host, "fex", "FEX preset", null,
-                                    FexPreset.all.map { it.id to it.label }, a.fexPreset,
+                            }
+                            if (a.steam) SettingsGroup(stringResource(R.string.game_settings_title)) {
+                                ChoiceRow(host, "fex", stringResource(R.string.fex_preset_title), stringResource(R.string.fex_next_launch),
+                                    FexPreset.all.map { it.id to stringResource(it.label) }, a.fexPreset,
                                     chipModifier = focus.track(page, "fex"), onPick = a.onFexPreset)
+                                GameEnvironmentRow(modifier = focus.track(page, "game-env"))
                             }
                             SettingsGroup("Support") {
                                 SettingsRow("Session logs", "Send this session's logs with a bug report") {

@@ -528,15 +528,6 @@ class SessionService : Service() {
         // XALIA_SUPPORTED_ONLY itself otherwise). Off by default: xalia is Valve's, and on a device
         // whose seccomp answers its syscalls normally there is no reason to take it away.
         if (SessionPrefs.noXalia(this)) guest.add("PROTON_USE_XALIA=0")
-        // The FEXCore preset for the x86 games the client launches: its FEX_* variables go in
-        // here, before the script, so every game process inherits them from the client. The
-        // default preset sets nothing, which is what every session ran on before.
-        if (steamHere) {
-            val preset = SessionPrefs.fexPreset(this)
-            val vars = com.droiddeck.launcher.core.FexPreset.env(preset)
-            vars.forEach { guest.add(it) }
-            if (vars.isNotEmpty()) Log.i(TAG, "fex preset $preset: ${vars.joinToString(" ")}")
-        }
         // Anything else, for a device that cannot be reached with a debugger: Downloads/droiddeck-env
         // holds KEY=VALUE lines that go into the session's environment as written, after ours, so a
         // line here wins. Zink and Turnip tunables (ZINK_DESCRIPTORS=lazy, MESA_*), gamescope's,
