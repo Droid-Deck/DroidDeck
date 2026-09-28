@@ -27,6 +27,8 @@ object GameEnvironment {
 
     fun defaults(preset: String): Map<String, String?> = linkedMapOf<String, String?>(
         "MESA_SHADER_CACHE_DISABLE" to "false",
+        "VKD3D_FEATURE_LEVEL" to "12_2",
+        "VKD3D_SHADER_MODEL" to "6_9",
     ).apply {
         FexPreset.env(preset).forEach { put(it.substringBefore('='), it.substringAfter('=')) }
     }

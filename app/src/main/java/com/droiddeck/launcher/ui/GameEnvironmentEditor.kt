@@ -11,29 +11,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.GameEnvironment
+import com.droiddeck.launcher.core.GameEnvironmentOptions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private data class VariableOption(val name: String, val value: String, val detail: Int)
-
-private val variableOptions = listOf(
-    VariableOption("MESA_SHADER_CACHE_DISABLE", "false", R.string.game_env_cache),
-    VariableOption("VKD3D_FEATURE_LEVEL", "12_2", R.string.game_env_feature),
-    VariableOption("VKD3D_SHADER_MODEL", "6_9", R.string.game_env_shader),
-    VariableOption("VKD3D_CONFIG", "nodxr", R.string.game_env_vkd3d_config),
-    VariableOption("MESA_SHADER_CACHE_MAX_SIZE", "1G", R.string.game_env_cache_size),
-    VariableOption("PROTON_LOG", "1", R.string.game_env_proton_log),
-    VariableOption("PROTON_USE_WINED3D", "1", R.string.game_env_wined3d),
-    VariableOption("PROTON_USE_XALIA", "0", R.string.game_env_xalia),
-    VariableOption("DXVK_HUD", "fps", R.string.game_env_hud),
-    VariableOption("DXVK_CONFIG", "dxvk.maxFrameRate = 60", R.string.game_env_dxvk_config),
-    VariableOption("VKD3D_FRAME_RATE", "60", R.string.game_env_vkd3d_limit),
-    VariableOption("mesa_glthread", "true", R.string.game_env_glthread),
-)
 
 @Composable
 fun GameEnvironmentRow(modifier: Modifier = Modifier) {
@@ -83,7 +69,7 @@ private fun GameEnvironmentEditor(onClose: () -> Unit) {
         text = {
             Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(stringResource(R.string.game_env_hint))
-                Text(stringResource(R.string.game_env_automatic), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.game_env_defaults), style = MaterialTheme.typography.bodySmall)
                 if (error) Text(stringResource(R.string.game_env_error), color = MaterialTheme.colorScheme.error)
                 if (config == null && !error) Text(stringResource(R.string.game_env_loading))
                 val current = config
@@ -126,7 +112,7 @@ private fun GameEnvironmentEditor(onClose: () -> Unit) {
                         TextButton(onClick = { addMenu = true }, enabled = !busy) { Text(stringResource(R.string.game_env_add)) }
                         DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }, modifier = Modifier.heightIn(max = 280.dp)) {
                             DropdownMenuItem(text = { Text(stringResource(R.string.game_env_custom)) }, onClick = { editing = "" to ""; addMenu = false })
-                            for (option in variableOptions) DropdownMenuItem(text = { Text(option.name) }, onClick = { editing = option.name to option.value; addMenu = false })
+                            for (option in GameEnvironmentOptions.all) DropdownMenuItem(text = { Text(option.name) }, onClick = { editing = option.name to option.value; addMenu = false })
                         }
                     }
                     TextButton(onClick = { save(current.withEntries(scope, emptyMap())) }, enabled = !busy && current.entries(scope).isNotEmpty()) {
@@ -162,14 +148,87 @@ private fun VariableDialog(initialName: String, initialValue: String, onDismiss:
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.game_env_cancel)) } },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true,
-                    label = { Text(stringResource(R.string.game_env_name)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = value, onValueChange = { value = it }, singleLine = true,
-                    label = { Text(stringResource(R.string.game_env_value)) }, modifier = Modifier.fillMaxWidth())
-                variableOptions.firstOrNull { it.name == name }?.let { Text(stringResource(it.detail), style = MaterialTheme.typography.bodySmall) }
+                VariableNamePicker(name) { selected ->
+                    name = selected
+                    value = GameEnvironmentOptions.find(selected)?.value.orEmpty()
+                }
+                VariableValueEditor(name, value) { value = it }
+                GameEnvironmentOptions.find(name)?.takeIf { it.detail != 0 }?.let {
+                    Text(stringResource(it.detail), style = MaterialTheme.typography.bodySmall)
+                }
                 if (!GameEnvironment.supported(name)) Text(stringResource(R.string.game_env_unused))
                 if (!valid && name.isNotEmpty()) Text(stringResource(R.string.game_env_invalid), color = MaterialTheme.colorScheme.error)
             }
         },
     )
+}
+
+@Composable
+private fun VariableNamePicker(name: String, onChange: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    var custom by remember { mutableStateOf(name.isEmpty() || GameEnvironmentOptions.find(name) == null) }
+    Text(stringResource(R.string.game_env_name), style = MaterialTheme.typography.labelMedium)
+    Box {
+        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (custom) stringResource(R.string.game_env_custom) else name)
+        }
+        DropdownMenu(expanded, onDismissRequest = { expanded = false }, modifier = Modifier.heightIn(max = 280.dp)) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.game_env_custom)) }, onClick = {
+                custom = true; onChange(""); expanded = false
+            })
+            for (option in GameEnvironmentOptions.all.sortedBy { it.name.uppercase(java.util.Locale.ROOT) }) {
+                DropdownMenuItem(text = { Text(option.name) }, onClick = {
+                    custom = false; onChange(option.name); expanded = false
+                })
+            }
+        }
+    }
+    if (custom) OutlinedTextField(value = name, onValueChange = onChange, singleLine = true,
+        label = { Text(stringResource(R.string.game_env_name)) }, modifier = Modifier.fillMaxWidth())
+}
+
+@Composable
+private fun VariableValueEditor(name: String, value: String, onChange: (String) -> Unit) {
+    val option = GameEnvironmentOptions.find(name)
+    var expanded by remember(name) { mutableStateOf(false) }
+    var custom by remember(name) { mutableStateOf(option == null || value !in option.choices && option.type != GameEnvironmentOptions.Type.MULTIPLE) }
+    when {
+        option?.type == GameEnvironmentOptions.Type.TOGGLE -> Row(
+            Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text(stringResource(R.string.game_env_value))
+            Switch(checked = value == option.choices.last(), onCheckedChange = {
+                onChange(if (it) option.choices.last() else option.choices.first())
+            })
+        }
+        option != null && option.choices.isNotEmpty() -> {
+            Box {
+                OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (custom) stringResource(R.string.game_env_custom_value) else value.ifEmpty { stringResource(R.string.game_env_select_value) })
+                }
+                DropdownMenu(expanded, onDismissRequest = { expanded = false }, modifier = Modifier.heightIn(max = 280.dp)) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.game_env_custom_value)) }, onClick = { custom = true; expanded = false })
+                    for (choice in option.choices) {
+                        val selected = choice in value.split(',')
+                        DropdownMenuItem(text = { Text(choice) }, leadingIcon = {
+                            if (option.type == GameEnvironmentOptions.Type.MULTIPLE) Checkbox(checked = selected, onCheckedChange = null)
+                        }, onClick = {
+                            custom = false
+                            if (option.type == GameEnvironmentOptions.Type.MULTIPLE) {
+                                onChange(GameEnvironmentOptions.toggle(value, choice))
+                            } else {
+                                onChange(choice); expanded = false
+                            }
+                        })
+                    }
+                }
+            }
+            if (custom) OutlinedTextField(value = value, onValueChange = onChange, singleLine = true,
+                label = { Text(stringResource(R.string.game_env_value)) }, modifier = Modifier.fillMaxWidth())
+        }
+        else -> OutlinedTextField(value = value, onValueChange = onChange, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = if (option?.type == GameEnvironmentOptions.Type.NUMBER) KeyboardType.Number else KeyboardType.Text),
+            label = { Text(stringResource(R.string.game_env_value)) }, modifier = Modifier.fillMaxWidth())
+    }
 }

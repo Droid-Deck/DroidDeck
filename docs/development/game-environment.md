@@ -17,15 +17,21 @@ no shell expansion; quotes are only needed when the consuming program expects th
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with
-`MESA_SHADER_CACHE_DISABLE=false` and preserves the selected FEX preset. FEX's own
-default remains the default preset. D3D12 capability detection, shader caching in
-VKD3D/DXVK, synchronization, ray tracing and diagnostic logging otherwise retain
-the selected runtime's defaults.
+`MESA_SHADER_CACHE_DISABLE=false`, sets `VKD3D_FEATURE_LEVEL=12_2` and
+`VKD3D_SHADER_MODEL=6_9`, and preserves the selected FEX preset. Existing edits
+and explicit removals take precedence over these defaults. FEX's own default
+remains the default preset. Shader caching in VKD3D/DXVK, synchronization, ray
+tracing and diagnostic logging otherwise retain the runtime's defaults.
+
+The variable-name picker offers 24 predefined variables and a Custom entry. Like
+WinNative, known variables use toggles, value dropdowns, multi-select lists, or
+numeric/text fields. Feature-level and shader-model dropdowns also accept custom
+values. Custom variables have editable names and literal values.
 
 | Variable | Use |
 | --- | --- |
-| `VKD3D_FEATURE_LEVEL` | Optional D3D12 capability override, including `12_2`. |
-| `VKD3D_SHADER_MODEL` | Optional shader-model override, including `6_9` on recent VKD3D builds. |
+| `VKD3D_FEATURE_LEVEL` | D3D12 capability override; defaults to `12_2`. |
+| `VKD3D_SHADER_MODEL` | Shader-model override; defaults to `6_9`. |
 | `VKD3D_CONFIG` | Per-game workarounds such as `nodxr`; not a universal performance preset. |
 | `MESA_SHADER_CACHE_MAX_SIZE` | Storage budget for Mesa's shader cache, for example `1G`. |
 | `mesa_glthread` | OpenGL threading; test with the affected game. |
@@ -36,8 +42,9 @@ the selected runtime's defaults.
 | `PROTON_USE_XALIA` | Proton's gamepad-navigation helper toggle. |
 
 Forcing `12_2` or `6_9` changes reported capabilities; it cannot implement a missing
-Vulkan feature. Automatic detection is the shared default. Suggestions are
-editable starting values, never enabled simply by opening the editor. Older or
+Vulkan feature. Remove either entry to use automatic detection for that capability.
+Other picker suggestions are editable starting values and are enabled only when
+added and saved. Older or
 custom components can support a different set of options. Android Wine wrapper,
 ALSA-server, Box64 and patched async-DXVK options are identified in the editor as
 requiring a different/custom component; custom entries remain allowed. The old

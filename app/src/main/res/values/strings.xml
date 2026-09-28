@@ -40,7 +40,7 @@
     <string name="game_env_empty">No variables set. Driver and Proton defaults apply.</string>
     <string name="game_env_inherited">Inherited</string>
     <string name="game_env_custom">Custom variable</string>
-    <string name="game_env_automatic">Graphics capabilities are detected automatically. Feature level and shader model overrides do not add missing GPU features.</string>
+    <string name="game_env_defaults">D3D12 feature level defaults to 12_2 and shader model to 6_9. Both can be changed or removed for each game.</string>
     <string name="game_env_error">Could not load or apply the settings. Check available storage and try again.</string>
     <string name="game_env_invalid">Use a valid variable name and a value without NUL characters (up to 8192 characters).</string>
     <string name="game_env_unused">The standard Linux Proton runtime does not use this variable; it may require a custom component.</string>
@@ -81,4 +81,6 @@
     <string name="fex_extreme_gn_detail">Performance with TSC and metadata hints. Try before Extreme.</string>
     <string name="fex_denuvo_label">Denuvo</string>
     <string name="fex_denuvo_detail">Performance with full code checks and the hypervisor bit hidden.</string>
+    <string name="game_env_custom_value">Custom value</string>
+    <string name="game_env_select_value">Select value</string>
 </resources>
