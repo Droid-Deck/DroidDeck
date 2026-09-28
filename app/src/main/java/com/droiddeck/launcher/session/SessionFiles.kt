@@ -38,6 +38,7 @@ object SessionFiles {
             "usr/local/bin/bannerlator-desktop-games" to "usr/local/bin/bannerlator-desktop-games",
             "usr/local/bin/bannerlator-steam-shim" to "usr/local/bin/bannerlator-steam-shim",
             "usr/local/bin/bannerlator-steam-shortcuts" to "usr/local/bin/bannerlator-steam-shortcuts",
+            "usr/local/bin/bannerlator-steam-games" to "usr/local/bin/bannerlator-steam-games",
             "usr/local/bin/bannerlator-pad-defaults" to "usr/local/bin/bannerlator-pad-defaults",
             // The SteamOS helpers the client calls in Deck mode: the two Armada found it needs, plus
             // the three under /usr/bin, all no-ops that answer "nothing to do" (see each file).

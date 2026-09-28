@@ -16,6 +16,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import com.droiddeck.launcher.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
@@ -347,13 +349,13 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             for (dir in s.addedGamesDirs) {
                 val n = s.addedGames.count { it.folderPath.startsWith("$dir/") }
                 ActionRow(
-                    dir.substringAfterLast('/').ifEmpty { dir }, dir + " · " + (if (n == 0) "no game folders with a .exe found" else "$n game${if (n == 1) "" else "s"}") + ". Forget: the games leave the client's library at the next session start; nothing on disk is touched.",
+                    dir.substringAfterLast('/').ifEmpty { dir }, dir + " · " + (if (n == 0) "no game folders with a .exe found" else "$n game${if (n == 1) "" else "s"}") + ". " + stringResource(R.string.added_games_forget_hint),
                     "Forget", onClick = { a.onForgetAddedGamesDir(dir) },
                 )
             }
             ActionRow(
                 if (s.addedGamesDirs.isEmpty()) "Games folder" else "Another games folder",
-                "Your own Windows games, one subfolder each, anywhere: internal storage, the SD card, a USB drive. As many folders as you like. Each game goes into the client's library as a non-Steam game under the ARM64 Proton, at the next session start.",
+                stringResource(R.string.added_games_import_hint),
                 "Add…", onClick = a.onPickAddedGamesDir,
             )
             ToggleRow(
@@ -400,7 +402,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             val open = host.open == "storage"
             SettingsRow(
                 "Second library",
-                "Adds a library location in Steam. Applies next session.",
+                stringResource(R.string.second_library_import_hint),
                 highlighted = open,
             ) {
                 androidx.compose.foundation.layout.Box {

@@ -19,4 +19,7 @@
     <string name="resume_session">Resume</string>
     <string name="stop_session">Stop session</string>
     <string name="frame_gen_title">Frame generation</string>
+    <string name="added_games_import_hint">Choose Windows games with one subfolder per game. Steam checks ownership while signed in. Confirmed games use their Steam library entries after restarting Steam; other games stay as non-Steam shortcuts. Steam may verify or download files for imported games.</string>
+    <string name="second_library_import_hint">Adds a Steam library and scans Windows game folders here and in steamapps/common. After the ownership check and a Steam restart, owned games use Steam entries; other games use non-Steam shortcuts.</string>
+    <string name="added_games_forget_hint">Forget removes non-Steam shortcuts next session. Manage Steam installations in Steam. Files stay on disk.</string>
 </resources>

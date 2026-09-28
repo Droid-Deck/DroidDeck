@@ -307,6 +307,9 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
 
+      - name: Steam import tests
+        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+
       - name: Unit tests
         run: ./gradlew testReleaseUnitTest --console=plain -PndkVersion="$NDK_VERSION"
 

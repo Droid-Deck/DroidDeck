@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""Resolve added games against the signed-in Steam client's licenses."""
+import ctypes as C
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+import unicodedata
+import urllib.parse
+import urllib.request
+
+STATE = ".droiddeck-games.json"
+BASE_ID = 76561197960265728
+
+
+def read_json(path, default):
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return default
+
+
+def save_json(path, value):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps(value))
+    os.replace(temp, path)
+
+
+def title_key(name):
+    return "".join(c for c in unicodedata.normalize("NFKC", name).casefold() if c.isalnum())
+
+
+def source_stamp(game):
+    try:
+        exe = Path(game["exe"])
+        stat = exe.stat()
+        hints = []
+        for parent in sorted({Path(game["folder"]), exe.parent}):
+            hint = parent / "steam_appid.txt"
+            hints.append(hint.read_text().strip() if hint.is_file() else "")
+        return [game["name"], str(exe), stat.st_size, stat.st_mtime_ns, hints]
+    except (OSError, ValueError):
+        return None
+
+
+def identify(game):
+    folder = Path(game["folder"])
+    steamapps = folder.parent.parent
+    if folder.parent.name == "common" and steamapps.name == "steamapps":
+        matches = []
+        for manifest in steamapps.glob("appmanifest_*.acf"):
+            try:
+                text = manifest.read_text()
+                install = re.search(r'"installdir"\s*"([^"\\]*)"', text, re.I)
+                if install and install[1] == folder.name:
+                    matches.append(int(manifest.stem.removeprefix("appmanifest_")))
+            except (OSError, ValueError):
+                pass
+        if matches:
+            return matches[0] if len(matches) == 1 else None
+    ids = set()
+    for parent in {folder, Path(game["exe"]).parent}:
+        try:
+            appid = int((parent / "steam_appid.txt").read_text().strip())
+            if 0 < appid < 0x80000000:
+                ids.add(appid)
+        except (OSError, ValueError):
+            pass
+    if ids:
+        return next(iter(ids)) if len(ids) == 1 else None
+    url = "https://store.steampowered.com/api/storesearch/?l=english&term=" + urllib.parse.quote(game["name"])
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            items = json.loads(response.read(1024 * 1024)).get("items", [])
+        ids = {int(item["id"]) for item in items
+               if title_key(item.get("name", "")) == title_key(game["name"])}
+        return next(iter(ids)) if len(ids) == 1 else None
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def method(obj, slot, result, *args):
+    if not obj:
+        raise RuntimeError("Steam interface unavailable")
+    table = C.cast(obj, C.POINTER(C.POINTER(C.c_void_p))).contents
+    return C.CFUNCTYPE(result, C.c_void_p, *args)(table[slot])
+
+
+def probe(steam_root, ids):
+    # Slots belong to Valve's SteamClient020, SteamUser021 and STEAMAPPS_INTERFACE_VERSION008.
+    library = C.CDLL(str(Path(steam_root) / "steamrtarm64/steamclient.so"))
+    library.CreateInterface.argtypes = [C.c_char_p, C.c_void_p]
+    library.CreateInterface.restype = C.c_void_p
+    client = library.CreateInterface(b"SteamClient020", None)
+    pipe = method(client, 0, C.c_int)(client)
+    if not pipe:
+        raise RuntimeError("Steam pipe unavailable")
+    user = 0
+    try:
+        user = method(client, 2, C.c_int, C.c_int)(client, pipe)
+        if not user:
+            raise RuntimeError("No signed-in Steam user")
+        get_interface = lambda slot, version: method(client, slot, C.c_void_p, C.c_int, C.c_int, C.c_char_p)(client, user, pipe, version)
+        account = get_interface(5, b"SteamUser021")
+        if not method(account, 1, C.c_bool)(account):
+            raise RuntimeError("Steam is offline")
+        steamid = method(account, 2, C.c_uint64)(account)
+        apps = get_interface(15, b"STEAMAPPS_INTERFACE_VERSION008")
+        subscribed = method(apps, 6, C.c_bool, C.c_uint32)
+        return {"account": str(steamid - BASE_ID), "checked": time.time(),
+                "owned": {str(appid): bool(subscribed(apps, appid)) for appid in ids}}
+    finally:
+        if user:
+            method(client, 4, None, C.c_int, C.c_int)(client, pipe, user)
+        method(client, 1, C.c_bool, C.c_int)(client, pipe)
+
+
+def watch(steam_root, listing):
+    games = read_json(listing, [])
+    if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
+        return
+    candidates, sources = {}, {}
+    for game in games:
+        sources[game["folder"]] = source_stamp(game)
+        appid = identify(game)
+        if appid:
+            candidates[game["folder"]] = appid
+    if not candidates:
+        return
+    while True:
+        for game in games:
+            folder = game["folder"]
+            stamp = source_stamp(game)
+            if stamp != sources.get(folder):
+                sources[folder] = stamp
+                appid = identify(game)
+                if appid:
+                    candidates[folder] = appid
+                else:
+                    candidates.pop(folder, None)
+        try:
+            result = subprocess.run([sys.executable, __file__, "probe", steam_root,
+                                     *map(str, sorted(set(candidates.values())))],
+                                    capture_output=True, text=True, timeout=15)
+            if result.returncode == 0:
+                snapshot = json.loads(next(line.removeprefix("DROIDDECK_OWNERSHIP=") for line in result.stdout.splitlines() if line.startswith("DROIDDECK_OWNERSHIP=")))
+                if snapshot["account"].isdigit() and int(snapshot["account"]) > 0:
+                    snapshot["candidates"] = candidates
+                    snapshot["sources"] = sources
+                    save_json(Path(steam_root) / "userdata" / snapshot["account"] / "config" / STATE, snapshot)
+        except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired):
+            pass
+        time.sleep(30)
+
+
+def seed_install(steam_root, game, appid):
+    roots = [Path(steam_root), Path("/mnt/bannerlator-sd")]
+    if any((root / "steamapps" / f"appmanifest_{appid}.acf").is_file() for root in roots):
+        return True
+    steamapps = Path(steam_root) / "steamapps"
+    common = steamapps / "common"
+    common.mkdir(parents=True, exist_ok=True)
+    name = f"DroidDeck-{appid}"
+    target = common / name
+    source = Path(game["folder"])
+    if not source.is_dir():
+        return False
+    if os.path.lexists(target):
+        if not target.is_symlink() or os.readlink(target) != str(source):
+            return False
+    else:
+        target.symlink_to(source, target_is_directory=True)
+    manifest = steamapps / f"appmanifest_{appid}.acf"
+    title = game["name"].replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+    content = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "name" "{title}"\n'
+               + f'    "StateFlags" "2"\n    "installdir" "{name}"\n' + '}\n')
+    try:
+        with manifest.open("x") as output:
+            output.write(content)
+    except FileExistsError:
+        pass
+    return True
+
+
+def route(steam_root, acct, games):
+    snapshot = read_json(Path(acct) / "config" / STATE, {})
+    if not isinstance(snapshot, dict):
+        snapshot = {}
+    owned = snapshot.get("owned", {}) if snapshot.get("account") == Path(acct).name else {}
+    candidates = snapshot.get("candidates", {})
+    sources = snapshot.get("sources", {})
+    if not all(isinstance(value, dict) for value in (owned, candidates, sources)):
+        owned, candidates, sources = {}, {}, {}
+    shortcuts, routes = [], {}
+    for game in games:
+        appid = candidates.get(game.get("folder"))
+        stamp = source_stamp(game)
+        confirmed = (isinstance(appid, int) and 0 < appid < 0x80000000
+                     and owned.get(str(appid)) is True and stamp is not None
+                     and sources.get(game.get("folder")) == stamp)
+        if confirmed:
+            try:
+                if seed_install(steam_root, game, appid):
+                    routes[str(game["appid"])] = appid
+                    continue
+            except OSError as error:
+                print(f"bannerlator-steam-games: import unavailable ({error})")
+        shortcuts.append(game)
+    save_json(Path(acct) / "config/.droiddeck-routes.json", routes)
+    return shortcuts, routes
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 4:
+        sys.exit(2)
+    try:
+        if sys.argv[1] == "probe":
+            print("DROIDDECK_OWNERSHIP=" + json.dumps(probe(sys.argv[2], [int(value) for value in sys.argv[3:]])), flush=True)
+        elif sys.argv[1] == "watch":
+            watch(sys.argv[2], sys.argv[3])
+        else:
+            sys.exit(2)
+    except (OSError, RuntimeError, ValueError):
+        sys.exit(1)

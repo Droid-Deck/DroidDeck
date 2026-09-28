@@ -1,24 +1,15 @@
 package com.droiddeck.launcher.frontend
 
 import android.content.Context
-import android.os.Environment
 import android.util.Log
+import com.droiddeck.launcher.runtime.LinuxRuntime
+import org.json.JSONObject
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.zip.CRC32
 
-/**
- * The user's own Windows games, added to the Steam client's library.
- *
- * A Games folder is scanned one level deep: each subfolder is one game, and the program to launch
- * is the .exe in it that looks most like the game - the one named after the folder, else the
- * largest, never an installer, redistributable or crash reporter - unless the user picked one
- * for that game. Each game becomes a non-Steam shortcut in the client, under the ARM64 Proton,
- * with the appid the client itself would derive, so launching from the rail and from the
- * client's own library are the same thing. Any number of Games folders, from anywhere on the
- * device: each is bound into the session under /root/Games on its own.
- */
+/** Windows game folders shared with the Steam session. */
 object AddedGames {
     private const val TAG = "AddedGames"
 
@@ -29,6 +20,7 @@ object AddedGames {
         /** What steam://rungameid/ takes for a shortcut. */
         val gameId: Long,
         val candidates: List<File>,
+        val steamAppId: Int? = null,
     ) {
         fun folderName(): String = folder.name
     }
@@ -96,12 +88,15 @@ object AddedGames {
 
     fun scan(context: Context): List<Game> {
         val out = ArrayList<Game>()
-        for (root in roots(context)) {
-            val dir = root.host
+        val folders = roots(context).map { it.host } + listOfNotNull(
+            GameStorage.effective(context)?.let { File(it.path) },
+            GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
+        )
+        for (dir in folders.distinctBy { it.absolutePath }) {
             if (!dir.isDirectory) { Log.w(TAG, "$dir is not a folder; skipped"); continue }
             for (folder in dir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()) scanGame(context, folder, out)
         }
-        return out
+        return out.distinctBy { it.folder.canonicalPath }
     }
 
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>) {
@@ -115,9 +110,22 @@ object AddedGames {
             val name = folder.name
             val crc = CRC32().apply { update(("\"$guestExe\"" + name).toByteArray()) }.value
             val appId = crc or 0x80000000L
-            out.add(Game(folder, name, exe, guestExe, guestDir, appId, (appId shl 32) or 0x02000000L, candidates))
+            val steamRoot = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+            val steamId = steamRoute(steamRoot, appId)
+            out.add(Game(folder, name, exe, guestExe, guestDir, appId,
+                steamId?.toLong() ?: ((appId shl 32) or 0x02000000L), candidates, steamId))
         }
     }
+
+    private fun steamRoute(root: File, appId: Long): Int? = runCatching {
+        val users = File(root, "config/loginusers.vdf").readText()
+        val blocks = Regex(""""(\d{5,})"\s*\{([^}]*)\}""")
+        val recent = blocks.findAll(users).firstOrNull { Regex(""""MostRecent"\s*"1"""").containsMatchIn(it.groupValues[2]) }
+            ?: return@runCatching null
+        val account = recent.groupValues[1].toLong() - 76561197960265728L
+        JSONObject(File(root, "userdata/$account/config/.droiddeck-routes.json").readText())
+            .optInt(appId.toString()).takeIf { it > 0 }
+    }.getOrNull()
 
     /** The list the session hands the runtime's shortcuts writer; one file per session start. */
     fun writeListing(context: Context, games: List<Game>): File {
@@ -126,6 +134,7 @@ object AddedGames {
         games.forEachIndexed { i, g ->
             if (i > 0) json.append(',')
             json.append("{\"name\":").append(quote(g.name)).append(",\"exe\":").append(quote(g.guestExe))
+                .append(",\"folder\":").append(quote(guestPath(context, g.folder) ?: g.guestDir))
                 .append(",\"dir\":").append(quote(g.guestDir)).append(",\"appid\":").append(g.appId)
             // The art, as the session sees it: the app's cache is bound at its own path, a file in
             // the game's folder at the folder's guest path.
@@ -145,5 +154,5 @@ object AddedGames {
         return guestPath(context, file)
     }
 
-    private fun quote(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+    private fun quote(s: String): String = JSONObject.quote(s)
 }

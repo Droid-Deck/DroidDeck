@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-"""Puts the app's added games (Windows games in the user's own folders) into the Steam client's
-library as non-Steam shortcuts, each mapped to the ARM64 Proton, before the client starts.
+"""Import added games while Steam is closed, preserving user-created shortcuts.
 
-    bannerlator-steam-shortcuts <steam_root> <added-games.json>
-
-The JSON is a list the app writes each session: {"name", "exe", "dir", "appid"} with guest paths.
-The client keeps non-Steam games in userdata/<account>/config/shortcuts.vdf, a binary VDF it
-reads at start-up and rewrites at exit, so this runs while it is down. Entries the app wrote
-carry the tag "droiddeck-app" and are replaced wholesale; anything the user added inside the
-client is kept as it is. The appid is the one the client itself derives (crc32 of exe+name with
-the top bit set), so the launch URL the app uses matches what the client shows.
+Usage: bannerlator-steam-shortcuts <steam_root> <added-games.json>
 """
 import importlib.machinery
 import importlib.util
@@ -207,8 +199,15 @@ def main():
         try:
             with open(path, "rb") as f:
                 existing = parse(f.read()).get("shortcuts", {})
-        except (ValueError, IndexError) as e:
-            print("bannerlator-steam-shortcuts: could not read the existing file (%s); starting over" % e)
+        except (ValueError, IndexError, struct.error) as e:
+            print("bannerlator-steam-shortcuts: could not read the existing file (%s); keeping it unchanged" % e)
+            return 1
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bannerlator-steam-games")
+    loader = importlib.machinery.SourceFileLoader("steam_games", helper)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    routing = importlib.util.module_from_spec(spec)
+    loader.exec_module(routing)
+    games, routes = routing.route(steam_root, acct, games)
     kept = [v for v in existing.values() if isinstance(v, dict) and TAG not in (v.get("tags") or {}).values()]
     ours = [shortcut(g) for g in games if g.get("exe") and g.get("name")]
     entries = {str(i): v for i, v in enumerate(kept + ours)}
@@ -226,8 +225,8 @@ def main():
         compat = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(compat)
         cfg = os.path.join(steam_root, "config", "config.vdf")
-        if os.path.isfile(cfg) and ours:
-            compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe")])
+        if os.path.isfile(cfg) and (ours or routes):
+            compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe")] + [str(appid) for appid in set(routes.values())])
             print("bannerlator-steam-shortcuts: mapped them to %s" % compat.TOOL)
     except Exception as e:  # noqa: BLE001 - the games still show; the client falls back to the default tool
         print("bannerlator-steam-shortcuts: compat mapping skipped (%s)" % e)
