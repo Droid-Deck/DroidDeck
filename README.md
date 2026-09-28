@@ -22,7 +22,7 @@ Run Valve's native ARM64 Steam client on an Adreno Android device. Steam runs in
 <img src="docs/releases/media/0.2.0/session-drawer.gif" width="49%" alt="Session menu over a game">
 </p>
 <p>
-<img src="docs/releases/media/0.2.0/android-apps.gif" width="49%" alt="Launching an Android app from the launcher">
+<img src="docs/releases/media/0.2.0/drawer-android-apps.jpg" width="49%" alt="Android apps in the session menu over Steam">
 <img src="docs/releases/media/0.2.0/linux-desktop.jpg" width="49%" alt="LXQt desktop">
 </p>
 <p align="center">
