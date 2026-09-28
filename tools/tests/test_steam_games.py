@@ -42,15 +42,46 @@ class ImportsTest(unittest.TestCase):
                                candidates={str(self.folder): 42},
                                sources={str(self.folder): imports.source_stamp(self.game)}))
 
-    def test_owned_uses_real_id_and_requires_verification(self):
+    def test_owned_uses_real_id_and_registers_installed_files(self):
         self.snapshot()
         games, routes = imports.route(self.steam, self.acct, [self.game])
         self.assertEqual([], games)
         self.assertEqual({str(self.game['appid']): 42}, routes)
         manifest = self.steam / 'steamapps/appmanifest_42.acf'
-        self.assertIn('"StateFlags" "2"', manifest.read_text())
+        self.assertIn('"StateFlags" "4"', manifest.read_text())
+        self.assertIn('"Universe" "1"', manifest.read_text())
         self.assertEqual(self.folder, (self.steam / 'steamapps/common/DroidDeck-42').resolve())
         self.assertEqual(b'game', self.exe.read_bytes())
+
+    def test_migrates_only_unchanged_legacy_import_manifests(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        current = path.read_text()
+        legacy = current.replace('    "Universe" "1"\n', '').replace('"StateFlags" "4"', '"StateFlags" "2"')
+        path.write_text(legacy)
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(current, path.read_text())
+        changed = legacy.replace('"StateFlags" "2"', '"StateFlags" "6"')
+        path.write_text(changed)
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(changed, path.read_text())
+
+    def test_unresolved_titles_are_retried_after_network_recovers(self):
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([self.game]))
+        from unittest.mock import Mock
+        result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
+        with patch.object(imports, 'identify', side_effect=[None, 42]) as identify, \
+             patch.object(imports.time, 'monotonic', side_effect=[0, 301]), \
+             patch.object(imports.time, 'sleep', side_effect=[None, RuntimeError('stop')]), \
+             patch.object(imports.subprocess, 'run', return_value=result), \
+             patch('builtins.print'):
+            with self.assertRaisesRegex(RuntimeError, 'stop'):
+                imports.watch(self.steam, listing)
+        self.assertEqual(2, identify.call_count)
+        snapshot = imports.read_json(self.acct / 'config' / imports.STATE, {})
+        self.assertTrue(snapshot['owned']['42'])
 
     def test_unowned_unknown_and_different_account_stay_shortcuts(self):
         for owned, account in [(False, '123'), (True, '456')]:
@@ -115,6 +146,23 @@ class ImportsTest(unittest.TestCase):
             with patch.object(imports.urllib.request, 'urlopen') as request:
                 request.return_value.__enter__.return_value.read.return_value = json.dumps({'items': items}).encode()
                 self.assertEqual(expected, imports.identify(self.game))
+
+    def test_store_country_and_edition_suffixes(self):
+        for folder, store in [('FINAL FANTASY VII REMAKE', 'FINAL FANTASY VII REMAKE INTERGRADE'),
+                              ('FINAL FANTASY XV', 'FINAL FANTASY XV WINDOWS EDITION')]:
+            with patch.object(imports.urllib.request, 'urlopen') as request:
+                request.return_value.__enter__.return_value.read.return_value = json.dumps({'items': [{'id': 42, 'name': store}]}).encode()
+                self.assertEqual(42, imports.identify(dict(self.game, name=folder)))
+                self.assertIn('cc=US&', request.call_args.args[0])
+
+    def test_edition_matching_rejects_ambiguous_titles_and_soundtracks(self):
+        with patch.object(imports.urllib.request, 'urlopen') as request:
+            request.return_value.__enter__.return_value.read.return_value = json.dumps({'items': [
+                {'id': 42, 'name': 'Example WINDOWS EDITION'},
+                {'id': 43, 'name': 'Example INTERGRADE'},
+                {'id': 44, 'name': 'Example Soundtrack'},
+            ]}).encode()
+            self.assertIsNone(imports.identify(self.game))
 
     def test_corrupt_shortcuts_are_preserved(self):
         path = self.acct / 'config/shortcuts.vdf'

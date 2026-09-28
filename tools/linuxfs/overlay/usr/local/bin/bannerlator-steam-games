@@ -32,7 +32,12 @@ def save_json(path, value):
 
 
 def title_key(name):
-    return "".join(c for c in unicodedata.normalize("NFKC", name).casefold() if c.isalnum())
+    return "".join(c for c in unicodedata.normalize("NFKC", name.replace("™", "").replace("®", "")).casefold() if c.isalnum())
+
+
+def edition_key(name):
+    name = re.sub(r"(?i)\s+(?:windows edition|intergrade)\s*$", "", name)
+    return title_key(name)
 
 
 def source_stamp(game):
@@ -73,13 +78,16 @@ def identify(game):
             pass
     if ids:
         return next(iter(ids)) if len(ids) == 1 else None
-    url = "https://store.steampowered.com/api/storesearch/?l=english&term=" + urllib.parse.quote(game["name"])
+    url = "https://store.steampowered.com/api/storesearch/?l=english&cc=US&term=" + urllib.parse.quote(game["name"])
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             items = json.loads(response.read(1024 * 1024)).get("items", [])
-        ids = {int(item["id"]) for item in items
-               if title_key(item.get("name", "")) == title_key(game["name"])}
-        return next(iter(ids)) if len(ids) == 1 else None
+        for key in (title_key, edition_key):
+            ids = {int(item["id"]) for item in items
+                   if key(item.get("name", "")) == key(game["name"]) and key(game["name"])}
+            if ids:
+                return next(iter(ids)) if len(ids) == 1 else None
+        return None
     except (OSError, ValueError, KeyError):
         return None
 
@@ -125,60 +133,76 @@ def watch(steam_root, listing):
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
-    for game in games:
-        sources[game["folder"]] = source_stamp(game)
-        appid = identify(game)
-        if appid:
-            candidates[game["folder"]] = appid
-    if not candidates:
-        return
+    next_lookup = 0
+    last_status = None
     while True:
+        now = time.monotonic()
         for game in games:
             folder = game["folder"]
             stamp = source_stamp(game)
-            if stamp != sources.get(folder):
+            if now >= next_lookup or stamp != sources.get(folder):
                 sources[folder] = stamp
                 appid = identify(game)
                 if appid:
                     candidates[folder] = appid
                 else:
                     candidates.pop(folder, None)
-        try:
-            result = subprocess.run([sys.executable, __file__, "probe", steam_root,
-                                     *map(str, sorted(set(candidates.values())))],
-                                    capture_output=True, text=True, timeout=15)
-            if result.returncode == 0:
-                snapshot = json.loads(next(line.removeprefix("DROIDDECK_OWNERSHIP=") for line in result.stdout.splitlines() if line.startswith("DROIDDECK_OWNERSHIP=")))
-                if snapshot["account"].isdigit() and int(snapshot["account"]) > 0:
+        if now >= next_lookup:
+            next_lookup = now + 300
+        status = "waiting for a matching Steam title"
+        if candidates:
+            try:
+                result = subprocess.run([sys.executable, __file__, "probe", steam_root,
+                                         *map(str, sorted(set(candidates.values())))],
+                                        capture_output=True, text=True, timeout=15)
+                if result.returncode != 0:
+                    status = "ownership probe failed: " + (result.stderr.strip()[-300:] or str(result.returncode))
+                else:
+                    line = next(line for line in result.stdout.splitlines() if line.startswith("DROIDDECK_OWNERSHIP="))
+                    snapshot = json.loads(line.removeprefix("DROIDDECK_OWNERSHIP="))
+                    if not snapshot["account"].isdigit() or int(snapshot["account"]) <= 0:
+                        raise ValueError("invalid Steam account")
                     snapshot["candidates"] = candidates
                     snapshot["sources"] = sources
                     save_json(Path(steam_root) / "userdata" / snapshot["account"] / "config" / STATE, snapshot)
-        except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired):
-            pass
+                    status = "matched %d/%d games; %d owned" % (len(candidates), len(games), sum(snapshot["owned"].values()))
+            except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired) as error:
+                status = "ownership check unavailable: " + str(error)
+        if status != last_status:
+            print("bannerlator-steam-games: " + status, flush=True)
+            last_status = status
         time.sleep(30)
 
 
 def seed_install(steam_root, game, appid):
-    roots = [Path(steam_root), Path("/mnt/bannerlator-sd")]
-    if any((root / "steamapps" / f"appmanifest_{appid}.acf").is_file() for root in roots):
-        return True
     steamapps = Path(steam_root) / "steamapps"
     common = steamapps / "common"
-    common.mkdir(parents=True, exist_ok=True)
     name = f"DroidDeck-{appid}"
     target = common / name
     source = Path(game["folder"])
+    title = game["name"].replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+    content = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
+               + f'    "StateFlags" "4"\n    "installdir" "{name}"\n' + '}\n')
+    legacy = content.replace('    "Universe" "1"\n', '')
+    manifest = steamapps / f"appmanifest_{appid}.acf"
+    for root in [Path(steam_root), Path("/mnt/bannerlator-sd")]:
+        existing = root / "steamapps" / manifest.name
+        if existing.is_file():
+            if (existing == manifest and source.is_dir() and target.is_symlink()
+                    and os.readlink(target) == str(source)
+                    and existing.read_text() in (legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))):
+                temp = manifest.with_suffix(".droiddeck")
+                temp.write_text(content)
+                os.replace(temp, manifest)
+            return True
     if not source.is_dir():
         return False
+    common.mkdir(parents=True, exist_ok=True)
     if os.path.lexists(target):
         if not target.is_symlink() or os.readlink(target) != str(source):
             return False
     else:
         target.symlink_to(source, target_is_directory=True)
-    manifest = steamapps / f"appmanifest_{appid}.acf"
-    title = game["name"].replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
-    content = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "name" "{title}"\n'
-               + f'    "StateFlags" "2"\n    "installdir" "{name}"\n' + '}\n')
     try:
         with manifest.open("x") as output:
             output.write(content)
@@ -225,5 +249,6 @@ if __name__ == "__main__":
             watch(sys.argv[2], sys.argv[3])
         else:
             sys.exit(2)
-    except (OSError, RuntimeError, ValueError):
+    except (OSError, RuntimeError, ValueError) as error:
+        print(str(error), file=sys.stderr)
         sys.exit(1)
