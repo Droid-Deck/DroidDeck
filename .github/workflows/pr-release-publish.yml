@@ -120,18 +120,22 @@ jobs:
         with:
           name: droiddeck-pr-signed-standard
           path: signed
-      - name: Publish to DroidDeck-CI when configured
+      # A token of the org's "DroidDeck CI Publisher" app, as build.yml's announce job uses.
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+      - name: Publish to DroidDeck-CI
         env:
-          GH_TOKEN: ${{ secrets.DROIDDECK_CI_TOKEN }}
+          GH_TOKEN: ${{ steps.ci-token.outputs.token }}
           PR_NUMBER: ${{ inputs.pr_number }}
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           LABEL: ${{ needs.authorize.outputs.label }}
         run: |
           set -euo pipefail
-          if [[ -z "$GH_TOKEN" ]]; then
-            echo '::warning::No CI token; download the signed APK from this run'
-            exit 0
-          fi
           repo=Droid-Deck/DroidDeck-CI
           tag="pr-$PR_NUMBER"
           apk="DroidDeck-$LABEL.apk"
