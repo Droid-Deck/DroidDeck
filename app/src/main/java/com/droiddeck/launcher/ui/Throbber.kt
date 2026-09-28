@@ -64,6 +64,12 @@ internal fun LogoThrobber(modifier: Modifier = Modifier, running: Boolean = true
     }
 }
 
+/** The ball of a throbber laid out in [bounds]: its centre and its radius, at rest. */
+internal fun throbberBall(bounds: androidx.compose.ui.geometry.Rect): Pair<Offset, Float> {
+    val s = bounds.width / LogoShape.WIDTH
+    return Offset(bounds.left + (LogoShape.CX - LogoShape.LEFT) * s, bounds.top + LogoShape.CY * s) to LogoShape.BALL * s
+}
+
 private const val LOOP_MS = 1900
 private val Settle = CubicBezierEasing(0.5f, 0f, 0.3f, 1f)
 private val Turn = CubicBezierEasing(0.65f, 0f, 0.35f, 1f)

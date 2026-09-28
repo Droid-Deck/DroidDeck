@@ -4,6 +4,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.key
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.runtime.remember
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
@@ -131,8 +134,12 @@ fun LoadingOverlay(
     onRetry: (() -> Unit)? = null,
     onShareLogs: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
+    /** The blue the page opens on when a button flooded to it, gathered into the throbber's ball. */
+    flood: Color? = null,
+    onFlooded: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
+    var ball by remember { mutableStateOf<Pair<Offset, Float>?>(null) }
     val stages = remember(steam) { loadStages(steam) }
     var reached by remember { mutableStateOf(0) }
     LaunchedEffect(step, steam) {
@@ -170,7 +177,13 @@ fun LoadingOverlay(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.align(Alignment.Center).verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 24.dp),
         ) {
-            LogoThrobber(Modifier.width(if (ended) 88.dp else 110.dp), running = !ended)
+            // Held on the plain D while the flood gathers, and started fresh when it lands.
+            key(flood == null) {
+                LogoThrobber(
+                    Modifier.width(if (ended) 88.dp else 110.dp).onGloballyPositioned { ball = throbberBall(it.boundsInRoot()) },
+                    running = !ended && flood == null,
+                )
+            }
             Spacer(Modifier.height(30.dp))
             Text(
                 if (ended) "The session ended" else title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
@@ -195,6 +208,7 @@ fun LoadingOverlay(
             modifier = Modifier.align(Alignment.BottomCenter).padding(start = 120.dp, end = 120.dp, bottom = 28.dp),
         )
         if (!ended && onCancel != null) CancelHint(onCancel, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp))
+        if (flood != null) FloodGather(flood, ball, onFlooded)
     }
 }
 
