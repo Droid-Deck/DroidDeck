@@ -133,8 +133,12 @@ internal fun CapsuleWall(
     // Animations off in the system settings: a still wall.
     val still = Motion.scale == 0f
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val wallW = maxWidth * 1.3f
-        val wallH = maxHeight * 2.4f
+        // Centred on the page and big enough that, once tilted, it still covers every corner.
+        val tilt = Math.toRadians(13.0)
+        val cos = kotlin.math.cos(tilt).toFloat()
+        val sin = kotlin.math.sin(tilt).toFloat()
+        val wallW = (maxWidth * cos + maxHeight * sin) * 1.1f
+        val wallH = maxOf(maxHeight * 2.4f, (maxWidth * sin + maxHeight * cos) * 1.1f)
         val columns = ((wallW + gap) / (capW + gap)).toInt() + 1
         val perRun = ((wallH + gap) / (capH + gap)).toInt() + 1
         val run = (capH + gap) * perRun
@@ -142,7 +146,7 @@ internal fun CapsuleWall(
             horizontalArrangement = Arrangement.spacedBy(gap),
             modifier = Modifier
                 .wrapContentSize(Alignment.TopStart, unbounded = true)
-                .offset(x = maxWidth * 0.16f, y = -(wallH - maxHeight) / 2)
+                .offset(x = -(wallW - maxWidth) / 2, y = -(wallH - maxHeight) / 2)
                 .requiredSize(wallW, wallH)
                 .graphicsLayer { rotationZ = -13f },
         ) {
