@@ -26,9 +26,23 @@ public final class PadBridge {
     /** Slot 0 is the one the session exports; extra slots would each show as another pad. */
     private static final int SLOT = 0;
     private static final float DEAD_ZONE = 0.12f;
-    private static final long QAM_GUIDE_LEAD_MS = 80;
-    private static final long QAM_A_HOLD_MS = 120;
-    private static final long QAM_GUIDE_TAIL_MS = 40;
+    // The client takes A as part of the chord only once it has had Guide held for a while, and a
+    // client starved of CPU needs longer. Too short, and it acts on A as well, selecting whatever it
+    // had focused before opening QAM: with 80 ms of lead that was 3 times in 20 at rest; 400 ms
+    // was clean at rest but let 3 in 15 through with the session down to 1 fps, where 1000 ms let
+    // none through. So the lead is 400 ms, stretched to eight frames when frames are slow.
+    private static final long QAM_GUIDE_LEAD_MIN_MS = 400;
+    private static final long QAM_GUIDE_LEAD_MAX_MS = 1500;
+    private static final int QAM_GUIDE_LEAD_FRAMES = 8;
+    private static final long QAM_A_HOLD_MS = 200;
+    private static final long QAM_GUIDE_TAIL_MS = 200;
+    // Off the main thread, so a busy UI cannot shorten or stretch the steps.
+    private static final Handler chordHandler;
+    static {
+        android.os.HandlerThread thread = new android.os.HandlerThread("qam-chord", android.os.Process.THREAD_PRIORITY_DISPLAY);
+        thread.start();
+        chordHandler = new Handler(thread.getLooper());
+    }
 
     private final FakeInputWriter writer;
     private final PadState state = new PadState();
@@ -212,21 +226,27 @@ public final class PadBridge {
         qamChordActive = true;
         int generation = ++qamChordGeneration;
         publish();
-        mainHandler.postDelayed(() -> pressQamA(generation), QAM_GUIDE_LEAD_MS);
+        chordHandler.postDelayed(() -> pressQamA(generation), qamGuideLeadMs());
+    }
+
+    static long qamGuideLeadMs() {
+        long frame = com.droiddeck.launcher.wayland.WaylandCompositor.recentFrameIntervalMs();
+        if (frame <= 0) return QAM_GUIDE_LEAD_MIN_MS;
+        return Math.max(QAM_GUIDE_LEAD_MIN_MS, Math.min(QAM_GUIDE_LEAD_MAX_MS, frame * QAM_GUIDE_LEAD_FRAMES));
     }
 
     private synchronized void pressQamA(int generation) {
         if (generation != qamChordGeneration || !qamChordActive) return;
         qamSyntheticAPressed = true;
         publish();
-        mainHandler.postDelayed(() -> releaseQamA(generation), QAM_A_HOLD_MS);
+        chordHandler.postDelayed(() -> releaseQamA(generation), QAM_A_HOLD_MS);
     }
 
     private synchronized void releaseQamA(int generation) {
         if (generation != qamChordGeneration || !qamChordActive) return;
         qamSyntheticAPressed = false;
         publish();
-        mainHandler.postDelayed(() -> releaseQamGuide(generation), QAM_GUIDE_TAIL_MS);
+        chordHandler.postDelayed(() -> releaseQamGuide(generation), QAM_GUIDE_TAIL_MS);
     }
 
     private synchronized void releaseQamGuide(int generation) {

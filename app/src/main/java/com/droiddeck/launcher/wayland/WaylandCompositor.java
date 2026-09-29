@@ -67,9 +67,30 @@ public final class WaylandCompositor {
         if (l != null) l.onGameSurface(window, gpuName);
     }
 
+    private static volatile long lastFrameNanos;
+    private static volatile long frameIntervalNanos;
+
+    /**
+     * How long frames are taking to arrive right now, in ms, or -1 before the first: the smoothed
+     * interval, or the time since the last frame when that is longer (a session that has stalled).
+     */
+    public static long recentFrameIntervalMs() {
+        long last = lastFrameNanos;
+        if (last == 0) return -1;
+        return Math.max(frameIntervalNanos, System.nanoTime() - last) / 1_000_000;
+    }
+
     /** Invoked from native (banner_on_game_frame) for every frame of the HUD's window. */
     @SuppressWarnings("unused")
     static void onGameFrame() {
+        long now = System.nanoTime();
+        long previous = lastFrameNanos;
+        lastFrameNanos = now;
+        if (previous != 0) {
+            long interval = now - previous;
+            long smoothed = frameIntervalNanos;
+            frameIntervalNanos = smoothed == 0 ? interval : (smoothed * 3 + interval) / 4;
+        }
         com.droiddeck.launcher.session.PerfHints.onFrame();
         GameListener l = gameListener;
         if (l != null) l.onGameFrame();
