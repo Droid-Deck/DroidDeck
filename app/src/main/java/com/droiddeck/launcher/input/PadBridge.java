@@ -30,8 +30,9 @@ public final class PadBridge {
     // client starved of CPU needs longer. Too short, and it acts on A as well, selecting whatever it
     // had focused before opening QAM: with 80 ms of lead that was 3 times in 20 at rest, and 250 ms
     // none in 20; with the session down to 1 fps a fixed 400 ms still let 3 in 15 through, where
-    // 1000 ms let none. So the lead is 250 ms, stretched to eight frames when frames are slow.
-    private static final long QAM_GUIDE_LEAD_MIN_MS = 250;
+    // 1000 ms let none. The lead keeps 80 ms when frames are quick, for a QAM that feels immediate,
+    // and stretches to eight frames when they are slow.
+    private static final long QAM_GUIDE_LEAD_MIN_MS = 80;
     private static final long QAM_GUIDE_LEAD_MAX_MS = 1500;
     private static final int QAM_GUIDE_LEAD_FRAMES = 8;
     private static final long QAM_A_HOLD_MS = 200;
