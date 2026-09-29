@@ -437,8 +437,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             performBackAction(double = false)
         }
         pendingBackAction = pending
-        // Android's own double-tap window (300 ms): the single action waits it out, so it is felt.
-        uiHandler.postDelayed(pending, android.view.ViewConfiguration.getDoubleTapTimeout().toLong())
+        uiHandler.postDelayed(pending, BACK_DOUBLE_PRESS_TIMEOUT_MS)
     }
 
     private fun performBackAction(double: Boolean) {
@@ -1564,6 +1563,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     companion object {
         private const val TAG = "SessionActivity"
         private const val UNBUFFERED_SOURCES = InputDevice.SOURCE_CLASS_JOYSTICK or InputDevice.SOURCE_CLASS_TRACKBALL or InputDevice.SOURCE_CLASS_POSITION
+        private const val BACK_DOUBLE_PRESS_TIMEOUT_MS = 500L
         private const val CURSOR_PAD_HOLD_MS = 1200L
         private const val DRAWER_HAT_THRESHOLD = 0.5f
         private const val DRAWER_STICK_ENTER_THRESHOLD = 0.55f
