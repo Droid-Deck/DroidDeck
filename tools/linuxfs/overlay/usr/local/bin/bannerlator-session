@@ -254,7 +254,7 @@ case $mode in
     bannerlator-steam-install || exit $?
     step "Steam client ready"
     steam_root=$XDG_DATA_HOME/Steam
-    # Register the card library (bound at /mnt/bannerlator-sd) with the client - internal storage is
+    # Register the card library (bound at /mnt/droiddeck-sd) with the client - internal storage is
     # its main library already - and the ARM64 Proton that lets it launch the Windows ones.
     # A request left in ~/.bl-proton-extra installs a third-party Proton before the client starts,
     # so it is in the Compatibility dropdown the first time the user looks. One per line, each the
@@ -466,7 +466,7 @@ case $mode in
         local d
         [ -e "$compat_stamp" ] && [ "$((beat % 12))" -ne 0 ] || return 0
         for d in "$steam_root/steamapps" "$steam_root/steamapps/common" "$steam_root/config" \
-                 "$steam_root/compatibilitytools.d" /mnt/bannerlator-sd/steamapps; do
+                 "$steam_root/compatibilitytools.d" /mnt/droiddeck-sd/steamapps; do
           [ "$d" -nt "$compat_stamp" ] && return 0
         done
         return 1

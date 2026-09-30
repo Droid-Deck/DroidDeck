@@ -16,7 +16,7 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
     var compCatalog by mutableStateOf<List<ComponentsManager.CatalogItem>>(emptyList())
     var compCatalogAt by mutableStateOf(0L)
     var compProton by mutableStateOf<String?>(null)
-    var compComp by mutableStateOf("dxvk")
+    var compComp by mutableStateOf(com.droiddeck.launcher.ui.GPU_TAB)
     var compChecking by mutableStateOf(false)
     var compBusy by mutableStateOf<String?>(null)
     var compDownloads by mutableStateOf<Map<String, Int>>(emptyMap())

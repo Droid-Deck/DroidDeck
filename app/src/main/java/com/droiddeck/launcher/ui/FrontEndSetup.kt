@@ -153,7 +153,9 @@ internal fun SetupPanel(
     }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val gpuOk = remember { DeviceSupport.adreno() }
+    // Tested hardware passes; an Adreno below it (a 610, say) warns rather than claiming support.
+    val gpu = remember { com.droiddeck.launcher.gpu.GpuInfo.detect() }
+    val gpuOk = gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED
     val gpuName = remember { DeviceSupport.gpuName() }
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
@@ -195,8 +197,16 @@ internal fun SetupPanel(
                         Column(modifier = Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
                             CheckRow(
                                 if (gpuOk) CheckState.OK else CheckState.WARN,
-                                if (gpuOk) "Device supported" else "GPU not supported",
-                                if (gpuOk) gpuName else "Steam draws with an Adreno driver; $gpuName may show a black screen",
+                                when (gpu.support) {
+                                    com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> "Device supported"
+                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> "Untested GPU"
+                                    else -> "GPU not supported"
+                                },
+                                when (gpu.support) {
+                                    com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> "${gpu.name} · $gpuName"
+                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> "${gpu.name}: ${gpu.supportText.replaceFirstChar { it.lowercase() }}"
+                                    else -> "Steam draws with an Adreno driver; $gpuName may show a black screen"
+                                },
                             )
                             CheckRow(
                                 when { s.busy -> CheckState.BUSY; !s.ready -> CheckState.WARN; else -> CheckState.OK },

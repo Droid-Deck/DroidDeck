@@ -79,7 +79,7 @@ block=$(printf '%s\n' "$pairs" | awk -F'\t' -v now="$(date +%s)" '
 for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            "$steam_root"/compatibilitytools.d/*/files/share/default_pfx*/system.reg \
            "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
-           /mnt/bannerlator-sd/steamapps/compatdata/*/pfx/system.reg; do
+           /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg; do
   [ -f "$reg" ] || continue
   seeded=$(dirname "$reg")/.bannerlator-redists
   [ "$(cat "$seeded" 2>/dev/null)" = "$stamp" ] && continue

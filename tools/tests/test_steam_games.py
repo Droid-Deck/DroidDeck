@@ -20,6 +20,7 @@ def load(name):
 
 imports = load('bannerlator-steam-games')
 shortcuts = load('bannerlator-steam-shortcuts')
+library = load('bannerlator-steam-library')
 
 
 class ImportsTest(unittest.TestCase):
@@ -73,6 +74,7 @@ class ImportsTest(unittest.TestCase):
         from unittest.mock import Mock
         result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
         with patch.object(imports, 'identify', side_effect=[None, 42]) as identify, \
+             patch.object(imports, 'request_restart'), \
              patch.object(imports.time, 'monotonic', side_effect=[0, 301]), \
              patch.object(imports.time, 'sleep', side_effect=[None, RuntimeError('stop')]), \
              patch.object(imports.subprocess, 'run', return_value=result), \
@@ -83,6 +85,35 @@ class ImportsTest(unittest.TestCase):
         snapshot = imports.read_json(self.acct / 'config' / imports.STATE, {})
         self.assertTrue(snapshot['owned']['42'])
 
+    def run_watch(self, beats, routes=None, busy=False):
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([self.game]))
+        if routes is not None:
+            imports.save_json(self.acct / 'config/.droiddeck-routes.json', routes)
+        if busy:
+            (self.steam / 'steamapps/downloading/7').mkdir(parents=True)
+        from unittest.mock import Mock
+        result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
+        with patch.object(imports, 'identify', return_value=42), \
+             patch.object(imports, 'game_running', return_value=False), \
+             patch.object(imports, 'request_restart') as restart, \
+             patch.object(imports.time, 'monotonic', side_effect=list(range(0, 30 * beats, 30))), \
+             patch.object(imports.time, 'sleep', side_effect=[None] * (beats - 1) + [RuntimeError('stop')]), \
+             patch.object(imports.subprocess, 'run', return_value=result), \
+             patch('builtins.print'):
+            with self.assertRaisesRegex(RuntimeError, 'stop'):
+                imports.watch(self.steam, listing)
+        return restart
+
+    def test_newly_owned_game_restarts_the_client_once(self):
+        self.assertEqual(1, self.run_watch(3).call_count)
+
+    def test_imported_game_does_not_restart_the_client(self):
+        self.assertEqual(0, self.run_watch(2, routes={'1': 42}).call_count)
+
+    def test_restart_waits_for_downloads(self):
+        self.assertEqual(0, self.run_watch(2, busy=True).call_count)
+
     def test_unowned_unknown_and_different_account_stay_shortcuts(self):
         for owned, account in [(False, '123'), (True, '456')]:
             self.snapshot(owned, account)
@@ -90,6 +121,93 @@ class ImportsTest(unittest.TestCase):
         (self.acct / 'config' / imports.STATE).unlink()
         self.assertEqual(([self.game], {}), imports.route(self.steam, self.acct, [self.game]))
         self.assertFalse((self.steam / 'steamapps').exists())
+
+    def winnative_manifest(self, flags='4', installdir='Example'):
+        path = self.folder.parent / imports.WINNATIVE / 'appmanifest_42.acf'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('"AppState"\n{\n\t"appid"\t\t"42"\n\t"StateFlags"\t\t"%s"\n\t"installdir"\t\t"%s"\n'
+                        '\t"buildid"\t\t"7"\n\t"InstalledDepots"\n\t{\n\t\t"43"\n\t\t{\n\t\t\t"manifest"\t\t"99"\n'
+                        '\t\t\t"size"\t\t"4"\n\t\t}\n\t}\n}\n' % (flags, installdir))
+        return path
+
+    def test_winnative_manifest_carries_installed_build(self):
+        source = self.winnative_manifest()
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        text = (self.steam / 'steamapps/appmanifest_42.acf').read_text()
+        self.assertEqual(source.read_text().replace('"Example"', '"DroidDeck-42"'), text)
+
+    def test_winnative_manifest_identifies_folder(self):
+        self.winnative_manifest()
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
+            self.assertEqual(42, imports.identify(self.game))
+
+    def test_incomplete_winnative_manifest_is_ignored(self):
+        for flags, installdir in [('1026', 'Example'), ('4', 'Other')]:
+            self.winnative_manifest(flags, installdir)
+            self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
+    def test_depot_config_records_installed_depots(self):
+        config = self.folder / '.DepotDownloader/depot.config'
+        config.parent.mkdir()
+        config.write_text(json.dumps({'installedManifestIDs': {'43': 99}}))
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        (self.folder / '.download_complete').touch()
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        text = (self.steam / 'steamapps/appmanifest_42.acf').read_text()
+        self.assertIn('"InstalledDepots"\n    {\n        "43"\n        {\n            "manifest" "99"', text)
+        self.assertTrue(text.endswith('    }\n}\n'))
+        config.write_text(json.dumps({'installedManifestIDs': {'43': 0x7FFFFFFFFFFFFFFF}}))
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
+    def test_bare_import_manifest_gains_installed_build(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        self.winnative_manifest()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertIn('"buildid"\t\t"7"', (self.steam / 'steamapps/appmanifest_42.acf').read_text())
+
+    def steam_fresh_install(self, downloaded='0'):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        path.write_text('"AppState"\n{\n\t"appid"\t\t"42"\n\t"StateFlags"\t\t"6"\n\t"installdir"\t\t"DroidDeck-42"\n'
+                        '\t"buildid"\t\t"0"\n\t"BytesDownloaded"\t\t"%s"\n\t"BytesStaged"\t\t"0"\n'
+                        '\t"InstalledDepots"\n\t{\n\t}\n}\n' % downloaded)
+        self.winnative_manifest()
+        return path
+
+    def test_queued_fresh_install_takes_installed_build(self):
+        path = self.steam_fresh_install()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertIn('"buildid"\t\t"7"', path.read_text())
+
+    def test_started_fresh_install_is_left_to_steam(self):
+        for downloaded, staging in [('5', False), ('0', True)]:
+            path = self.steam_fresh_install(downloaded)
+            if staging:
+                (self.steam / 'steamapps/downloading/42').mkdir(parents=True)
+            before = path.read_text()
+            imports.route(self.steam, self.acct, [self.game])
+            self.assertEqual(before, path.read_text())
+
+    def test_links_and_snapshots_from_the_old_mount_carry_over(self):
+        old = self.root / 'old-mount'
+        with patch.object(imports, 'LIBRARY', str(self.root / 'Games')), \
+             patch.object(imports, 'LEGACY_LIBRARY', str(old)):
+            legacy_game = dict(self.game, folder=str(old / 'Example'), exe=str(old / 'Example/Example.exe'))
+            stamp = imports.source_stamp(self.game)
+            imports.save_json(self.acct / 'config' / imports.STATE,
+                              dict(account='123', owned={'42': True}, candidates={legacy_game['folder']: 42},
+                                   sources={legacy_game['folder']: [stamp[0], legacy_game['exe']] + stamp[2:]}))
+            link = self.steam / 'steamapps/common/DroidDeck-42'
+            link.parent.mkdir(parents=True)
+            link.symlink_to(legacy_game['folder'], target_is_directory=True)
+            games, routes = imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual([], games)
+        self.assertEqual({str(self.game['appid']): 42}, routes)
+        self.assertEqual(str(self.folder), imports.os.readlink(link))
 
     def test_existing_manifest_is_never_overwritten(self):
         manifest = self.steam / 'steamapps/appmanifest_42.acf'
@@ -186,6 +304,34 @@ class ImportsTest(unittest.TestCase):
         result = shortcuts.parse(path.read_bytes())['shortcuts']
         self.assertEqual([manual], list(result.values()))
         self.assertEqual({str(self.game['appid']): 42}, json.loads((path.parent / '.droiddeck-routes.json').read_text()))
+
+
+class LibraryRenameTest(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.steam = Path(temp.name)
+        self.vdf = self.steam / 'steamapps/libraryfolders.vdf'
+        self.vdf.parent.mkdir()
+
+    def entry(self, index, path):
+        return '\t"%d"\n\t{\n\t\t"path"\t\t"%s"\n\t\t"contentid"\t\t"%d"\n\t}\n' % (index, path, 7 + index)
+
+    def test_old_mount_keeps_its_entry_under_the_new_path(self):
+        self.vdf.write_text('"libraryfolders"\n{\n' + self.entry(0, '/root') + self.entry(1, '/mnt/bannerlator-sd') + '}\n')
+        with patch('builtins.print'):
+            library.rename(str(self.steam), '/mnt/bannerlator-sd', '/mnt/droiddeck-sd')
+        text = self.vdf.read_text()
+        self.assertIn('"path"\t\t"/mnt/droiddeck-sd"\n\t\t"contentid"\t\t"8"', text)
+        self.assertNotIn('bannerlator-sd', text)
+
+    def test_old_mount_is_dropped_when_new_path_is_registered(self):
+        self.vdf.write_text('"libraryfolders"\n{\n' + self.entry(0, '/mnt/droiddeck-sd') + self.entry(1, '/mnt/bannerlator-sd') + '}\n')
+        with patch('builtins.print'):
+            library.rename(str(self.steam), '/mnt/bannerlator-sd', '/mnt/droiddeck-sd')
+        text = self.vdf.read_text()
+        self.assertEqual(1, text.count('"path"'))
+        self.assertIn('/mnt/droiddeck-sd', text)
 
 
 class SteamProbeTest(unittest.TestCase):

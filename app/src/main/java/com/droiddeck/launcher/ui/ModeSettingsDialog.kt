@@ -33,6 +33,8 @@ class DriverRow(val id: String, val name: String, val detail: String, val remova
         const val BUNDLED = "BUNDLED"
         const val DOWNLOADED = "DOWNLOADED"
         const val IMPORTED = "IMPORTED"
+        /** One half of an Android + Linux bundle: picked and deleted together with the other. */
+        const val BUNDLE = "ANDROID + LINUX"
     }
 }
 
@@ -47,12 +49,10 @@ class ModeSettings(
     val shapeMode: String,
     val hdr: Boolean,
     val hdrReason: String?,
+    /** The GPU drivers in use, as the row that opens them on the Components page says it. */
+    val gpuDrivers: String = "Auto",
     /** Frames per second the session is capped at; 0 = none. */
     val fpsLimit: Int = 0,
-    val linuxRows: List<DriverRow>,
-    val linuxSelected: String,
-    val androidRows: List<DriverRow>,
-    val androidSelected: String,
     val touchMode: String,
     val suspendPolicy: String,
     /** Steam only. */
@@ -83,12 +83,6 @@ class ModeSettings(
     val addedGames: List<AddedGameRow> = emptyList(),
     val addedGamesArt: Boolean = true,
     /** Latest Banners-Turnip release: what each driver menu offers to download, and the refresh line. */
-    val linuxDownloads: List<DownloadRow> = emptyList(),
-    val androidDownloads: List<DownloadRow> = emptyList(),
-    val releaseStatus: String = "Not checked yet - tap refresh to look for new drivers",
-    val releaseChecking: Boolean = false,
-    /** A bundled display driver was deleted: the page offers to restore it. */
-    val canRestoreBundled: Boolean = false,
     /** Steam only: Decky Loader is managed from the Steam session settings. */
     val deckyInstalled: String? = null,
     val deckyLatestRelease: DeckyManager.Release? = null,
@@ -108,17 +102,9 @@ class ModeSettingsActions(
     val onCustomResolution: (Pair<Int, Int>?) -> Unit = {},
     val onShape: (String) -> Unit,
     val onHdr: (Boolean) -> Unit,
+    /** Opens the GPU drivers on the Components page: they are shared by every session. */
+    val onGpuDrivers: () -> Unit = {},
     val onFpsLimit: (Int) -> Unit = {},
-    val onSelectLinux: (String) -> Unit,
-    val onImportLinux: () -> Unit,
-    val onRemoveLinux: (String) -> Unit,
-    val onRefreshReleases: () -> Unit = {},
-    /** Asset name of the release driver to download. */
-    val onDownloadDriver: (String) -> Unit = {},
-    val onRestoreBundled: () -> Unit = {},
-    val onSelectAndroid: (String) -> Unit,
-    val onImportAndroid: () -> Unit,
-    val onRemoveAndroid: (String) -> Unit,
     val onTouch: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
     val onOsc: (String) -> Unit,
@@ -153,51 +139,13 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
     var confirmDeckyRemoval by remember { mutableStateOf(false) }
-    // The two driver lists open as full pages over this one ("rt" = runtime, "panel" = display).
-    // Coming back restores this page as it was left: the same scroll position, and controller focus
-    // on the driver box that opened the page.
-    var driverPage by remember { mutableStateOf<String?>(null) }
-    var returnTo by remember { mutableStateOf<String?>(null) }
     val pageScroll = androidx.compose.foundation.rememberScrollState()
-    val runtimeChip = remember { androidx.compose.ui.focus.FocusRequester() }
-    val displayChip = remember { androidx.compose.ui.focus.FocusRequester() }
     val firstChip = remember { androidx.compose.ui.focus.FocusRequester() }
-    fun openDriverPage(key: String) { returnTo = key; driverPage = key }
-    androidx.compose.runtime.LaunchedEffect(driverPage) {
-        if (driverPage == null) {
-            // One frame first: the box has to be laid out before it can take focus. Opened from the
-            // cog, focus starts on the first control (Resolution) so the d-pad works at once; back
-            // from a driver page, it returns to the driver box that opened it.
-            androidx.compose.runtime.withFrameNanos { }
-            val target = when (returnTo) { "rt" -> runtimeChip; "panel" -> displayChip; else -> firstChip }
-            runCatching { target.requestFocus() }
-        }
-    }
-    when (driverPage) {
-        "rt" -> {
-            DriverPage(
-                title = "Runtime driver",
-                hint = (if (steam) "Used by Steam and games." else "Used by desktop apps.") + " Applies next session.",
-                rows = s.linuxRows, selected = s.linuxSelected, downloads = s.linuxDownloads,
-                status = s.releaseStatus, checking = s.releaseChecking, importLabel = "Import Turnip zip…", canRestore = false,
-                onSelect = a.onSelectLinux, onDelete = a.onRemoveLinux, onRefresh = a.onRefreshReleases,
-                onDownload = a.onDownloadDriver, onImport = a.onImportLinux, onRestore = {}, onBack = { driverPage = null },
-            )
-            return
-        }
-        "panel" -> {
-            DriverPage(
-                title = "Display driver",
-                hint = "Used by the compositor in both modes. Restart the app to apply.",
-                rows = s.androidRows, selected = s.androidSelected, downloads = s.androidDownloads,
-                status = s.releaseStatus, checking = s.releaseChecking, importLabel = "Import an AdrenoTools zip…",
-                canRestore = s.canRestoreBundled,
-                onSelect = a.onSelectAndroid, onDelete = a.onRemoveAndroid, onRefresh = a.onRefreshReleases,
-                onDownload = a.onDownloadDriver, onImport = a.onImportAndroid, onRestore = a.onRestoreBundled,
-                onBack = { driverPage = null },
-            )
-            return
-        }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        // One frame first: the box has to be laid out before it can take focus. Opened from the
+        // cog, focus starts on the first control (Resolution) so the d-pad works at once.
+        androidx.compose.runtime.withFrameNanos { }
+        runCatching { firstChip.requestFocus() }
     }
     SettingsPage(
         host,
@@ -244,17 +192,8 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             )
         }
         SettingsGroup("Drivers") {
-            SettingsRow("Runtime driver", (if (steam) "Used by Steam and games." else "Used by desktop apps.") + " Applies next session.") {
-                ValueChip(
-                    s.linuxRows.firstOrNull { it.id == s.linuxSelected }?.name ?: "Runtime default", open = false,
-                    modifier = androidx.compose.ui.Modifier.focusRequester(runtimeChip),
-                ) { openDriverPage("rt") }
-            }
-            SettingsRow("Display driver", "Used by the compositor in both modes. Restart the app to apply.") {
-                ValueChip(
-                    s.androidRows.firstOrNull { it.id == s.androidSelected }?.name ?: "Auto - picked by GPU", open = false,
-                    modifier = androidx.compose.ui.Modifier.focusRequester(displayChip),
-                ) { openDriverPage("panel") }
+            SettingsRow("GPU drivers", "Shared by Steam and the desktop, on the Components page.") {
+                ValueChip(s.gpuDrivers, open = false) { a.onGpuDrivers() }
             }
         }
         SettingsGroup(if (steam) "Touch & controls" else "Touch") {

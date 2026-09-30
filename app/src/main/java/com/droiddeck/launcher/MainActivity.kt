@@ -165,6 +165,9 @@ class MainActivity : ComponentActivity() {
     private val pickAndroidDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = false) }
     }
+    private val pickAnyDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = null) }
+    }
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
@@ -662,11 +665,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** On the Components page the pad's LB / RB step through FEX, DXVK and VKD3D-Proton, wrapping around. */
+    /** On the Components page the pad's LB / RB step through GPU drivers, FEX, DXVK and VKD3D-Proton, wrapping around. */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                val all = ComponentsManager.COMPONENTS
+                val all = listOf(com.droiddeck.launcher.ui.GPU_TAB) + ComponentsManager.COMPONENTS
                 val step = if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else all.size - 1
                 components.compComp = all[(all.indexOf(components.compComp).coerceAtLeast(0) + step) % all.size]
             }
@@ -686,6 +689,8 @@ class MainActivity : ComponentActivity() {
         syncLossless()
         // Opening the app and coming back from a session both land here.
         updates.onResume()
+        // Auto keeps this GPU's recommended driver pair installed and set: once per app start.
+        drivers.ensureAuto(force = false)
         // Swaps queued while a game ran on that Proton go in once nothing uses it (usually the
         // session has just ended). Cheap when nothing is queued.
         if (!SessionState.running) Thread({
@@ -812,14 +817,16 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun openComponents(focusContent: Boolean = true) {
+    private fun openComponents(focusContent: Boolean = true, tab: String? = null) {
         focusComponentsContent = focusContent
+        if (tab != null) components.compComp = tab
         settingsMode = null
         showPerformance = false
         showProtons = false
         showMapping = false
         showComponents = true
         components.refreshComponents(snapshotFirst = true)
+        drivers.refreshDrivers()
     }
 
     private fun importComponent(uri: Uri) {
@@ -854,6 +861,22 @@ class MainActivity : ComponentActivity() {
             onRefresh = { components.refreshComponentCatalog() },
             onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, "Choose a component package (-linux .wcp)")) },
             onBack = { showComponents = false },
+            gpu = drivers.state(),
+            gpuActions = com.droiddeck.launcher.ui.GpuDriversActions(
+                onAuto = { on -> drivers.setMode(on) },
+                onPair = { key -> drivers.selectPair(key) },
+                onRefresh = { if (drivers.mode == SessionPrefs.GPU_DRIVERS_AUTO) drivers.ensureAuto(force = true) else drivers.checkLatestTurnip() },
+                // Picking one driver on its own is Manual: Auto would put its pair back.
+                onSelectLinux = { id -> drivers.selectDriver(id, linux = true) },
+                onSelectAndroid = { id -> drivers.selectDriver(id, linux = false) },
+                onRemoveLinux = { id -> drivers.deleteDriver(id, linux = true) },
+                onRemoveAndroid = { id -> drivers.deleteDriver(id, linux = false) },
+                onDownloadDriver = { name -> drivers.downloadReleaseDriver(name) },
+                onImportLinux = { pickLinuxDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a Linux runtime driver (-Linux zip or Android + Linux bundle)")) },
+                onImportAndroid = { pickAndroidDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a display driver (AdrenoTools zip or Android + Linux bundle)")) },
+                onImportZip = { pickAnyDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a driver zip or an Android + Linux bundle")) },
+                onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
+            ),
         )
     }
 
@@ -921,9 +944,7 @@ class MainActivity : ComponentActivity() {
             ModeSettings(
                 mode = mode, resolutionCap = resolutionCap, customResolution = customResolution, shapeMode = shapeMode,
                 hdr = hdrOn, hdrReason = hdrReason, fpsLimit = fpsLimit,
-                linuxRows = drivers.linuxRows,
-                linuxSelected = if (mode == SessionService.MODE_STEAM) drivers.linuxSteam else drivers.linuxDesktop,
-                androidRows = drivers.androidRows, androidSelected = drivers.androidSelected,
+                gpuDrivers = drivers.summary(),
                 touchMode = touchMode,
                 suspendPolicy = suspendPolicy,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
@@ -944,8 +965,6 @@ class MainActivity : ComponentActivity() {
                 addedGamesDirs = if (mode == SessionService.MODE_STEAM) addedGamesDirs else null,
                 addedGames = if (mode == SessionService.MODE_STEAM) addedGames else emptyList(),
                 addedGamesArt = addedGamesArt,
-                linuxDownloads = drivers.linuxDownloads, androidDownloads = drivers.androidDownloads, releaseStatus = drivers.releaseStatus,
-                releaseChecking = drivers.releaseChecking, canRestoreBundled = drivers.canRestoreBundled,
                 deckyInstalled = if (mode == SessionService.MODE_STEAM) decky.deckyInstalled else null,
                 deckyLatestRelease = if (mode == SessionService.MODE_STEAM) decky.deckyReleases.firstOrNull() else null,
                 deckyChecking = decky.deckyChecking, deckyStage = decky.deckyStage, deckyPercent = decky.deckyPercent,
@@ -956,16 +975,8 @@ class MainActivity : ComponentActivity() {
                 onCustomResolution = { size -> SessionPrefs.setCustomResolution(this, mode, size); customResolution = size },
                 onShape = { shape -> SessionPrefs.setShapeMode(this, shape); shapeMode = shape },
                 onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
+                onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },
                 onFpsLimit = { fps -> SessionPrefs.setFpsLimit(this, mode, fps); fpsLimit = fps },
-                onSelectLinux = { id -> SessionPrefs.setLinuxDriver(this, mode, id); drivers.refreshDrivers() },
-                onImportLinux = { pickLinuxDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a Linux runtime driver (-Linux zip)")) },
-                onRemoveLinux = { id -> drivers.deleteDriver(id, linux = true) },
-                onRefreshReleases = { drivers.checkLatestTurnip() },
-                onDownloadDriver = { name -> drivers.downloadReleaseDriver(name) },
-                onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
-                onSelectAndroid = { id -> SessionPrefs.setAndroidDriver(this, id); drivers.refreshDrivers() },
-                onImportAndroid = { pickAndroidDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a display driver (AdrenoTools zip)")) },
-                onRemoveAndroid = { id -> drivers.deleteDriver(id, linux = false) },
                 onTouch = { t -> SessionPrefs.setTouchMode(this, t); touchMode = t },
                 onSuspendPolicy = { policy -> SessionPrefs.setSuspendPolicy(this, mode, policy); suspendPolicy = policy },
                 onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },

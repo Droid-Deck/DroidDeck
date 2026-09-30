@@ -112,15 +112,52 @@ object SessionPrefs {
     }
 
     /**
-     * The imported glibc Turnip a mode draws with inside the runtime, keyed by
-     * SessionService.MODE_STEAM / MODE_DESKTOP so Steam and the desktop can differ; "" = the
-     * driver built into the runtime. Resolved by LinuxVulkanDriver at session start.
+     * The imported glibc Turnip every session draws with inside the runtime - Steam, its games and
+     * the desktop alike, as they run on the same GPU; "" = the driver built into the runtime.
+     * Resolved by LinuxVulkanDriver at session start. It was once chosen per mode: the Steam
+     * session's choice, the one nearly everyone set, carries over.
      */
-    fun linuxDriver(context: Context, mode: String): String =
-        prefs(context).getString("linuxDriver.$mode", "") ?: ""
+    fun linuxDriver(context: Context): String =
+        prefs(context).getString("linuxDriver", null)
+            ?: prefs(context).getString("linuxDriver.steam", null)
+            ?: prefs(context).getString("linuxDriver.desktop", "") ?: ""
 
-    fun setLinuxDriver(context: Context, mode: String, id: String) {
-        prefs(context).edit().putString("linuxDriver.$mode", id).apply()
+    fun setLinuxDriver(context: Context, id: String) {
+        prefs(context).edit().putString("linuxDriver", id).apply()
+    }
+
+    const val GPU_DRIVERS_AUTO = "auto"
+    const val GPU_DRIVERS_MANUAL = "manual"
+
+    /**
+     * Who picks the GPU drivers: [GPU_DRIVERS_AUTO] (the app, the matched pair recommended for
+     * this GPU, kept current - DriverPairs) or [GPU_DRIVERS_MANUAL] (the user). Auto for new
+     * installs; see settleGpuDriverMode.
+     */
+    fun gpuDriverMode(context: Context): String =
+        prefs(context).getString("gpuDriverMode", GPU_DRIVERS_AUTO) ?: GPU_DRIVERS_AUTO
+
+    fun setGpuDriverMode(context: Context, mode: String) {
+        prefs(context).edit().putString("gpuDriverMode", mode).apply()
+    }
+
+    /**
+     * Auto arrived after people had picked drivers by hand: an install that chose either driver
+     * keeps its choice (Manual), everyone else is Auto. Decided once, at process start.
+     */
+    fun settleGpuDriverMode(context: Context) {
+        val p = prefs(context)
+        if (p.contains("gpuDriverMode")) return
+        val chosen = androidDriver(context).isNotEmpty() || linuxDriver(context).isNotEmpty()
+        p.edit().putString("gpuDriverMode", if (chosen) GPU_DRIVERS_MANUAL else GPU_DRIVERS_AUTO).apply()
+    }
+
+    /** Drivers Auto downloaded: the only ones it removes when a newer pair replaces them. */
+    fun gpuAutoInstalled(context: Context): Set<String> =
+        prefs(context).getStringSet("gpuAutoInstalled", emptySet()).orEmpty()
+
+    fun setGpuAutoInstalled(context: Context, ids: Set<String>) {
+        prefs(context).edit().putStringSet("gpuAutoInstalled", ids.toSet()).apply()
     }
 
     /**
@@ -581,7 +618,7 @@ object SessionPrefs {
     // ── Game storage ────────────────────────────────────────────────────────────────────────
 
     /**
-     * A second Steam library on this device: the folder bound at /mnt/bannerlator-sd and
+     * A second Steam library on this device: the folder bound at /mnt/droiddeck-sd and
      * registered with the client, which then asks where to install every game and shows both
      * on its Storage page. "" = automatic: the SD card when one is in the phone (the default,
      * so the choice is made inside the client like anywhere else); GAME_STORAGE_OFF = internal

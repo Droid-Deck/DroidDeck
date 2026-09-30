@@ -11,7 +11,7 @@ import sys
 
 HOME = os.environ.get("HOME", "/root")
 STEAM_ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HOME, ".local/share/Steam")
-LIBRARIES = ((STEAM_ROOT, "Steam Games"), ("/mnt/bannerlator-sd", "SD Games"))
+LIBRARIES = ((STEAM_ROOT, "Steam Games"), ("/mnt/droiddeck-sd", "SD Games"))
 # The client's own tools and runtimes live in steamapps beside the games; they are not titles.
 NOT_GAMES = {228980, 1493710, 3127680, 4183110, 4427310, 4185400}
 APPS_DIR = os.path.join(HOME, ".local/share/applications")

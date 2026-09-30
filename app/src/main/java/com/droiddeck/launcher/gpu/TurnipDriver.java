@@ -179,10 +179,7 @@ public final class TurnipDriver {
      *         {@link IOException} on read/extract failures.
      */
     public String installFromZip(Uri zipUri, String displayName) throws IOException {
-        if (!contentDir.exists()) contentDir.mkdirs();
-        File tmpDir = new File(contentDir, ".tmp-" + System.currentTimeMillis());
-        FileUtils.delete(tmpDir);
-        if (!tmpDir.mkdirs()) throw new IOException("cannot create " + tmpDir);
+        File tmpDir = newStagingDir();
         boolean keep = false;
         try {
             try (InputStream is = context.getContentResolver().openInputStream(zipUri);
@@ -198,24 +195,42 @@ public final class TurnipDriver {
                     Files.copy(zis, new File(tmpDir, base).toPath(), StandardCopyOption.REPLACE_EXISTING);
                 }
             }
-            String rejected = rejectionReason(tmpDir);
-            if (rejected != null) throw new IllegalArgumentException("Not an AdrenoTools driver: " + rejected);
-
-            JSONObject meta = readMetaFile(new File(tmpDir, "meta.json"));
-            String name = meta != null ? meta.optString("name", "") : "";
-            if (name.isEmpty()) {
-                name = displayName != null ? displayName : "adrenotools-driver";
-                if (name.toLowerCase().endsWith(".zip")) name = name.substring(0, name.length() - 4);
-            }
-            String id = uniqueId(LinuxVulkanDriverManager.sanitizeId(name));
-            File dir = new File(contentDir, id);
-            if (!tmpDir.renameTo(dir)) throw new IOException("cannot move into " + dir);
+            String id = adopt(tmpDir, displayName);
             keep = true;
-            Log.i(TAG, "imported AdrenoTools driver " + id + " (" + (meta != null ? meta.optString("libraryName", "") : "?") + ") -> " + dir);
             return id;
         } finally {
             if (!keep) FileUtils.delete(tmpDir);
         }
+    }
+
+    /** An empty directory beside the installed drivers, for a driver's files before {@link #adopt}. */
+    File newStagingDir() throws IOException {
+        if (!contentDir.exists()) contentDir.mkdirs();
+        File tmpDir = new File(contentDir, ".tmp-" + System.nanoTime());
+        FileUtils.delete(tmpDir);
+        if (!tmpDir.mkdirs()) throw new IOException("cannot create " + tmpDir);
+        return tmpDir;
+    }
+
+    /**
+     * Check a staged driver (meta.json and its library, flat) and move it in as a new driver.
+     * Returns the id; the caller deletes {@code tmpDir} when this throws.
+     */
+    String adopt(File tmpDir, String displayName) throws IOException {
+        String rejected = rejectionReason(tmpDir);
+        if (rejected != null) throw new IllegalArgumentException("Not an AdrenoTools driver: " + rejected);
+
+        JSONObject meta = readMetaFile(new File(tmpDir, "meta.json"));
+        String name = meta != null ? meta.optString("name", "") : "";
+        if (name.isEmpty()) {
+            name = displayName != null ? displayName : "adrenotools-driver";
+            if (name.toLowerCase().endsWith(".zip")) name = name.substring(0, name.length() - 4);
+        }
+        String id = uniqueId(LinuxVulkanDriverManager.sanitizeId(name));
+        File dir = new File(contentDir, id);
+        if (!tmpDir.renameTo(dir)) throw new IOException("cannot move into " + dir);
+        Log.i(TAG, "imported AdrenoTools driver " + id + " (" + (meta != null ? meta.optString("libraryName", "") : "?") + ") -> " + dir);
+        return id;
     }
 
     private static JSONObject readMetaFile(File metaFile) {

@@ -141,6 +141,7 @@ fun DriverPage(
             text = {
                 Text(
                     if (row.tag == DriverRow.BUNDLED) "It is built into the app, so this removes its unpacked files and hides it. \"Restore built-in drivers\" brings it back, and Auto still uses it on a GPU that needs it."
+                    else if (row.tag == DriverRow.BUNDLE) "It is one half of an Android + Linux bundle, so its runtime and display drivers are both removed. A driver in use goes back to the default."
                     else "Its files are removed from the app." + if (row.id == selected) " It is the driver in use, so the default takes its place." else "",
                     fontSize = 13.sp,
                 )

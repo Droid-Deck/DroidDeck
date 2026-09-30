@@ -12,6 +12,8 @@ import java.util.zip.CRC32
 /** Windows game folders shared with the Steam session. */
 object AddedGames {
     private const val TAG = "AddedGames"
+    private const val LIBRARY = "/mnt/droiddeck-sd"
+    private const val LEGACY_LIBRARY = "/mnt/bannerlator-sd"
 
     class Game(
         val folder: File, val name: String, val exe: File, val guestExe: String, val guestDir: String,
@@ -65,7 +67,7 @@ object AddedGames {
             if (path.startsWith("$roms/")) return "/root/ROMs/" + path.removePrefix("$roms/")
         }
         GameStorage.effective(context)?.let { lib ->
-            if (path.startsWith("${lib.path}/")) return "/mnt/bannerlator-sd/" + path.removePrefix("${lib.path}/")
+            if (path.startsWith("${lib.path}/")) return "$LIBRARY/" + path.removePrefix("${lib.path}/")
         }
         return null
     }
@@ -108,7 +110,8 @@ object AddedGames {
             if (guestExe == null) { Log.w(TAG, "${folder.name}: the session cannot see ${exe.path}"); return }
             val guestDir = guestPath(context, exe.parentFile ?: folder) ?: return
             val name = folder.name
-            val crc = CRC32().apply { update(("\"$guestExe\"" + name).toByteArray()) }.value
+            // Keyed by the pre-rename path so shortcut ids, and the prefixes and saves under them, stay put.
+            val crc = CRC32().apply { update(("\"${guestExe.replaceFirst(Regex("^$LIBRARY/"), "$LEGACY_LIBRARY/")}\"" + name).toByteArray()) }.value
             val appId = crc or 0x80000000L
             val steamRoot = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
             val steamId = steamRoute(steamRoot, appId)

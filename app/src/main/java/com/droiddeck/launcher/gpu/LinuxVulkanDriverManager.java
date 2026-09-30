@@ -126,9 +126,7 @@ public class LinuxVulkanDriverManager {
      *         Linux driver; {@link IOException} on read/extract failures.
      */
     public String installDriver(Uri zipUri, String displayName) throws IOException {
-        File tmpDir = new File(rootDir, ".tmp-" + System.currentTimeMillis());
-        FileUtils.delete(tmpDir);
-        if (!tmpDir.mkdirs()) throw new IOException("cannot create " + tmpDir);
+        File tmpDir = newStagingDir();
         boolean keep = false;
         try {
             String soName = null;
@@ -156,9 +154,32 @@ public class LinuxVulkanDriverManager {
                         }
                     }
                     // The zip's own freedreno_icd.aarch64.json is dropped on purpose: its
-                    // library_path is relative to itself, and we write an absolute one below.
+                    // library_path is relative to itself, and adopt() writes an absolute one.
                 }
             }
+            String id = adopt(tmpDir, soName, zipMeta, displayName);
+            keep = true;
+            return id;
+        } finally {
+            if (!keep) FileUtils.delete(tmpDir);
+        }
+    }
+
+    /** An empty directory beside the installed drivers, for a driver's files before {@link #adopt}. */
+    File newStagingDir() throws IOException {
+        File tmpDir = new File(rootDir, ".tmp-" + System.nanoTime());
+        FileUtils.delete(tmpDir);
+        if (!tmpDir.mkdirs()) throw new IOException("cannot create " + tmpDir);
+        return tmpDir;
+    }
+
+    /**
+     * Check a staged driver ({@link #LIB_NAME} in {@code tmpDir}, copied from {@code soName} in
+     * the zip), write its manifest and meta.json, and move it in. Returns the id; the caller
+     * deletes {@code tmpDir} when this throws.
+     */
+    String adopt(File tmpDir, String soName, JSONObject zipMeta, String displayName) throws IOException {
+        try {
             if (soName == null) {
                 throw new IllegalArgumentException("No libvulkan_freedreno*.so in this zip. An Android "
                         + "(AdrenoTools) or -Wayland Turnip zip is not a Linux runtime driver.");
@@ -212,13 +233,10 @@ public class LinuxVulkanDriverManager {
             if (!FileUtils.writeString(new File(tmpDir, META_NAME), meta.toString(2))) throw new IOException("cannot write meta.json");
 
             if (!tmpDir.renameTo(dir)) throw new IOException("cannot move into " + dir);
-            keep = true;
             Log.i(TAG, "imported Linux Vulkan driver " + id + " (" + soName + ", minGlibc=" + minGlibc + ") -> " + dir);
             return id;
         } catch (org.json.JSONException e) {
             throw new IOException("manifest write failed: " + e.getMessage());
-        } finally {
-            if (!keep) FileUtils.delete(tmpDir);
         }
     }
 

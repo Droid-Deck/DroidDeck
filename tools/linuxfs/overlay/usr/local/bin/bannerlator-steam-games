@@ -13,6 +13,9 @@ import urllib.parse
 import urllib.request
 
 STATE = ".droiddeck-games.json"
+WINNATIVE = ".winnative-steam/steamapps"
+LIBRARY = "/mnt/droiddeck-sd"
+LEGACY_LIBRARY = "/mnt/bannerlator-sd"
 BASE_ID = 76561197960265728
 
 
@@ -40,6 +43,11 @@ def edition_key(name):
     return title_key(name)
 
 
+def legacy_path(path):
+    path = str(path)
+    return LEGACY_LIBRARY + path[len(LIBRARY):] if path == LIBRARY or path.startswith(LIBRARY + "/") else path
+
+
 def source_stamp(game):
     try:
         exe = Path(game["exe"])
@@ -53,19 +61,23 @@ def source_stamp(game):
         return None
 
 
+def manifest_ids(steamapps, name):
+    matches = []
+    for manifest in Path(steamapps).glob("appmanifest_*.acf"):
+        try:
+            install = re.search(r'"installdir"\s*"([^"\\]*)"', manifest.read_text(), re.I)
+            if install and install[1] == name:
+                matches.append(int(manifest.stem.removeprefix("appmanifest_")))
+        except (OSError, ValueError):
+            pass
+    return matches
+
+
 def identify(game):
     folder = Path(game["folder"])
     steamapps = folder.parent.parent
-    if folder.parent.name == "common" and steamapps.name == "steamapps":
-        matches = []
-        for manifest in steamapps.glob("appmanifest_*.acf"):
-            try:
-                text = manifest.read_text()
-                install = re.search(r'"installdir"\s*"([^"\\]*)"', text, re.I)
-                if install and install[1] == folder.name:
-                    matches.append(int(manifest.stem.removeprefix("appmanifest_")))
-            except (OSError, ValueError):
-                pass
+    for library in ([steamapps] if folder.parent.name == "common" and steamapps.name == "steamapps" else []) + [folder.parent / WINNATIVE]:
+        matches = manifest_ids(library, folder.name)
         if matches:
             return matches[0] if len(matches) == 1 else None
     ids = set()
@@ -144,6 +156,27 @@ def game_running():
     return False
 
 
+def downloads_idle(steam_root):
+    try:
+        return not any(Path(steam_root, "steamapps/downloading").iterdir())
+    except OSError:
+        return True
+
+
+def request_restart(steam_root):
+    """The client reads manifests and shortcuts only at start, so an import needs one restart;
+    the session's loop runs the importer between the exit and the next start."""
+    Path(os.environ.get("HOME", "/root"), ".bl-restart-once").touch()
+    subprocess.run([str(Path(steam_root) / "steamrtarm64/steam"), "-shutdown"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+
+
+def unimported(steam_root, snapshot, candidates):
+    routes = read_json(Path(steam_root) / "userdata" / snapshot["account"] / "config/.droiddeck-routes.json", {})
+    routed = set(routes.values()) if isinstance(routes, dict) else set()
+    return sorted({appid for appid in candidates.values() if snapshot["owned"].get(str(appid)) is True} - routed)
+
+
 def watch(steam_root, listing):
     games = read_json(listing, [])
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
@@ -158,6 +191,7 @@ def watch(steam_root, listing):
     # beat (a client that is not logged on fails it for as long as it stays that way), and none
     # starts while a game is running: the answer can wait, the game's cores cannot.
     probed, next_probe, failures = None, 0, 0
+    pending, requested = [], []
     while True:
         now = time.monotonic()
         for game in games:
@@ -195,6 +229,7 @@ def watch(steam_root, listing):
                     snapshot["candidates"] = candidates
                     snapshot["sources"] = sources
                     save_json(Path(steam_root) / "userdata" / snapshot["account"] / "config" / STATE, snapshot)
+                    pending = unimported(steam_root, snapshot, candidates)
                     status = "matched %d/%d games; %d owned" % (len(candidates), len(games), sum(snapshot["owned"].values()))
             except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired) as error:
                 status = "ownership check unavailable: " + str(error)
@@ -202,10 +237,49 @@ def watch(steam_root, listing):
                 next_probe = now + min(300, 30 * 2 ** failures)
         elif candidates:
             status = last_status
+        if pending and pending != requested and not game_running() and downloads_idle(steam_root):
+            requested = pending
+            print("bannerlator-steam-games: restarting the client once to import %s" % pending, flush=True)
+            try:
+                request_restart(steam_root)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                print("bannerlator-steam-games: restart unavailable: %s" % error, flush=True)
         if status != last_status:
             print("bannerlator-steam-games: " + status, flush=True)
             last_status = status
         time.sleep(30)
+
+
+def installed_build(folder, appid, installdir):
+    """The build another Steam client recorded for these files, so Steam updates from it
+    instead of verifying every file."""
+    try:
+        text = (folder.parent / WINNATIVE / f"appmanifest_{appid}.acf").read_text()
+        install = re.search(r'("installdir"\s*")([^"\\]*)(")', text, re.I)
+        flags = re.search(r'"StateFlags"\s*"(\d+)"', text)
+        if (install and install[2] == folder.name and flags and flags[1] == "4"
+                and re.search(rf'"appid"\s*"{appid}"', text) and '"InstalledDepots"' in text):
+            return text[:install.start(2)] + installdir + text[install.end(2):]
+    except OSError:
+        pass
+    if not (folder / ".download_complete").is_file():
+        return None
+    try:
+        ids = json.loads((folder / ".DepotDownloader/depot.config").read_text())["installedManifestIDs"]
+        depots = sorted((int(depot), int(gid)) for depot, gid in ids.items())
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+    if not depots or not all(0 < depot < 0x80000000 and 0 < gid < 0x7FFFFFFFFFFFFFFF for depot, gid in depots):
+        return None
+    return "".join(f'        "{depot}"\n        {{\n            "manifest" "{gid}"\n        }}\n' for depot, gid in depots)
+
+
+def update_not_started(text, steamapps, appid, installdir):
+    fields = dict(re.findall(r'^\s*"(\w+)"\s*"([^"]*)"', text, re.M))
+    return (fields.get("installdir") == installdir and fields.get("buildid", "0") == "0"
+            and fields.get("BytesDownloaded", "0") == "0" and fields.get("BytesStaged", "0") == "0"
+            and re.search(r'"InstalledDepots"\s*\{\s*\}', text) is not None
+            and not (steamapps / "downloading" / str(appid)).exists())
 
 
 def seed_install(steam_root, game, appid):
@@ -215,16 +289,30 @@ def seed_install(steam_root, game, appid):
     target = common / name
     source = Path(game["folder"])
     title = game["name"].replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
-    content = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
+    minimal = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
                + f'    "StateFlags" "4"\n    "installdir" "{name}"\n' + '}\n')
-    legacy = content.replace('    "Universe" "1"\n', '')
+    legacy = minimal.replace('    "Universe" "1"\n', '')
+    build = installed_build(source, appid, name)
+    if build is None:
+        content = minimal
+    elif build.lstrip().startswith('"AppState"'):
+        content = build
+    else:
+        content = minimal[:-2] + '    "InstalledDepots"\n    {\n' + build + '    }\n}\n'
     manifest = steamapps / f"appmanifest_{appid}.acf"
-    for root in [Path(steam_root), Path("/mnt/bannerlator-sd")]:
+    if target.is_symlink() and os.readlink(target) != str(source) and os.readlink(target) == legacy_path(source):
+        relink = target.with_name(name + ".droiddeck")
+        relink.unlink(missing_ok=True)
+        relink.symlink_to(source, target_is_directory=True)
+        os.replace(relink, target)
+    for root in [Path(steam_root), Path(LIBRARY)]:
         existing = root / "steamapps" / manifest.name
         if existing.is_file():
             if (existing == manifest and source.is_dir() and target.is_symlink()
                     and os.readlink(target) == str(source)
-                    and existing.read_text() in (legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))):
+                    and existing.read_text() != content
+                    and (existing.read_text() in (minimal, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
+                         or (build is not None and update_not_started(existing.read_text(), steamapps, appid, name)))):
                 temp = manifest.with_suffix(".droiddeck")
                 temp.write_text(content)
                 os.replace(temp, manifest)
@@ -256,11 +344,13 @@ def route(steam_root, acct, games):
         owned, candidates, sources = {}, {}, {}
     shortcuts, routes = [], {}
     for game in games:
-        appid = candidates.get(game.get("folder"))
+        folder = game.get("folder", "")
+        appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)
+        recorded = sources.get(folder, sources.get(legacy_path(folder)))
         confirmed = (isinstance(appid, int) and 0 < appid < 0x80000000
                      and owned.get(str(appid)) is True and stamp is not None
-                     and sources.get(game.get("folder")) == stamp)
+                     and recorded in (stamp, [stamp[0], legacy_path(stamp[1])] + stamp[2:]))
         if confirmed:
             try:
                 if seed_install(steam_root, game, appid):
