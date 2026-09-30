@@ -64,8 +64,20 @@ object SessionState {
     @JvmStatic var hdr = false
 
     /** The pad is presented to the Steam client as a Steam Deck controller this session
-     *  (SteamDeckPad): its Quick Access button is a real button, not the Guide+A chord. */
-    @JvmStatic @Volatile var deckPad = false
+     *  (SteamDeckPad): its Quick Access button is a real button, not the Guide+A chord. Decided by
+     *  the service as the session starts, which can be after the activity has resumed - hence
+     *  [deckPadListener]. */
+    @Volatile private var deckPadValue = false
+    @JvmStatic var deckPad: Boolean
+        get() = deckPadValue
+        set(value) {
+            if (deckPadValue == value) return
+            deckPadValue = value
+            deckPadListener?.invoke()
+        }
+
+    /** Told (on the thread that changed it) whenever [deckPad] changes. */
+    @Volatile var deckPadListener: (() -> Unit)? = null
 
     /** Which session this is: SessionService.MODE_STEAM or MODE_DESKTOP. */
     @Volatile

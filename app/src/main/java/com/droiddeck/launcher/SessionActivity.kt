@@ -93,6 +93,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var padBridge: PadBridge? = null
     /** The handheld's gyro and accelerometer, fed to the Deck controller while the session shows. */
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
+    /** Between onResume and onPause. */
+    private var resumed = false
+    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion() } }
+
+    /** Motion is read while the session shows and only if the pad is a Deck controller - which
+     *  the service can decide after this activity has resumed (SessionState.deckPadListener). */
+    private fun updatePadMotion() {
+        if (resumed && SessionState.deckPad) padMotion?.start() else padMotion?.stop()
+    }
     private var onScreenControls: OnScreenControls? = null
     private var keyboard: KeyboardHost? = null
     private var watching = true
@@ -229,6 +238,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
         }
+        SessionState.deckPadListener = deckPadListener
         // A player on the pad or the on-screen controls has no use for the mouse arrow; the next
         // touchpad or mouse move brings it back (showCursor), once the pad has been quiet a moment.
         bridge.setOnPlayerInput {
@@ -1516,9 +1526,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         onScreenControls?.reload()
         updateOnScreenControls()
-        // Any Steam session: the activity can resume before the service has decided on the Deck
-        // controller, and only that controller reads the motion.
-        if (SessionState.mode == SessionService.MODE_STEAM) padMotion?.start()
+        resumed = true
+        updatePadMotion()
         readPrefs()
         if (CompositorHost.isStarted) applyFrameGen()
     }
@@ -1532,7 +1541,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         releaseDrawerDirection()
         // A button held when the app goes away would stay held in the ring for the whole session.
         onScreenControls?.releaseAll()
-        padMotion?.stop()
+        resumed = false
+        updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
         super.onPause()
     }
@@ -1586,6 +1596,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         closeSecondScreen(reset = true)
         if (::hud.isInitialized) hud.stop()
         padBridge?.stop()
+        padMotion?.stop()
+        if (SessionState.deckPadListener === deckPadListener) SessionState.deckPadListener = null
         if (SessionState.endListener === endListener) SessionState.endListener = null
         WaylandCompositor.clearFirstFrameListener(firstFrameListener)
         super.onDestroy()

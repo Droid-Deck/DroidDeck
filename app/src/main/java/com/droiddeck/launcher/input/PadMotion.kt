@@ -20,13 +20,16 @@ import kotlin.math.roundToInt
  * and units as SDL's Deck driver undoes them (SDL_hidapi_steamdeck.c): X right, Y away from the
  * player, Z up; 1 g = 16384, 2000 °/s = 32768. The Steam client calibrates the gyro itself.
  *
- * Sensors run only while the session is on screen, sampled as often as the Deck reports (4 ms); each
- * reading goes straight into the pad's ring ([FakeInputWriter.writeMotion]), where libfakeinput's
- * 4 ms report picks up the latest.
+ * Sensors run only while the session is on screen with the pad a Deck controller, sampled as often
+ * as the Deck reports (4 ms); each reading goes straight into the pad's ring
+ * ([FakeInputWriter.writeMotion]), where libfakeinput's 4 ms report picks up the latest.
  */
 class PadMotion(private val context: Context, private val rotation: () -> Int) : SensorEventListener {
     private val sensors = context.getSystemService(SensorManager::class.java)
     private var thread: HandlerThread? = null
+    /** Readings are taken only while this is set; a callback already queued when [stop] ran drops. */
+    @Volatile private var active = false
+    // Touched only on the worker thread.
     private val accel = ShortArray(3)
     private val gyro = ShortArray(3)
 
@@ -41,6 +44,7 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         val worker = HandlerThread("pad-motion", android.os.Process.THREAD_PRIORITY_DISPLAY).apply { start() }
         thread = worker
         val handler = Handler(worker.looper)
+        active = true
         gyroscope?.let { sensors.registerListener(this, it, SAMPLING_US, handler) }
         accelerometer?.let { sensors.registerListener(this, it, SAMPLING_US, handler) }
         Log.i(TAG, "pad motion: gyro ${gyroscope?.name ?: "none"}, accelerometer ${accelerometer?.name ?: "none"}")
@@ -49,14 +53,19 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
     fun stop() {
         val worker = thread ?: return
         thread = null
+        active = false
         sensors?.unregisterListener(this)
+        // A still controller, not one frozen mid-turn - published on the worker, after any reading
+        // already queued there, so nothing can overwrite it.
+        Handler(worker.looper).post {
+            gyro.fill(0)
+            FakeInputWriter.writeMotion(SLOT, accel, gyro)
+        }
         worker.quitSafely()
-        // A still controller, not one frozen mid-turn.
-        gyro.fill(0)
-        FakeInputWriter.writeMotion(SLOT, accel, gyro)
     }
 
     override fun onSensorChanged(event: SensorEvent) {
+        if (!active) return
         val values = event.values
         // Natural orientation to the screen's: Android's display-rotation transform.
         val (x, y) = when (rotation()) {

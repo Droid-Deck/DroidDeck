@@ -57,6 +57,8 @@ import java.util.Locale
  */
 class SessionService : Service() {
     private val components = java.util.concurrent.CopyOnWriteArrayList<SessionPart>()
+    /** The Steam Deck controller's sysfs binds (SteamDeckPad), when this session has one. */
+    private var deckBinds: List<String> = emptyList()
     private val stopLock = Any()
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -293,6 +295,7 @@ class SessionService : Service() {
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
+        deckBinds = emptyList()
         if (controllersOn) addControllerEnvironment(guest, fakeInputDir)
         // The desktop is wlroots (labwc). Stock wlroots allocates through gbm on a real DRM render
         // node, and ours is a KGSL stand-in - labwc died at "unable to create allocator" - so the
@@ -622,9 +625,14 @@ class SessionService : Service() {
         val uinput = !File(Environment.getExternalStorageDirectory(), NO_UINPUT_SWITCH).exists()
         // In Steam, the pad is what a Deck's is: a Steam Deck controller the client reads over
         // hidraw (SteamDeckPad), which only works with Steam Input's virtual pad for games to read.
-        SessionState.deckPad = uinput && SessionState.mode == MODE_STEAM &&
+        // Decided only once its sysfs is in place: without it the client would find no Deck, and
+        // with the Deck asked for the pad's own nodes are withdrawn - no controller at all.
+        val wantsDeck = uinput && SessionState.mode == MODE_STEAM &&
             SessionPrefs.steamController(this) == SessionPrefs.CONTROLLER_DECK &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
+        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!) else emptyList()
+        SessionState.deckPad = deckBinds.isNotEmpty()
+        if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         if (uinput) {
             // /dev/uinput, stood in for by libfakeinput: the virtual pad Steam Input makes for a
             // game becomes a node the game reads, carrying the player's layout, as on a Deck.
@@ -652,8 +660,7 @@ class SessionService : Service() {
     private fun sessionBinds(controllersOn: Boolean, fakeInputDir: File): ArrayList<String> {
         val binds = ArrayList<String>()
         if (controllersOn) binds.add(fakeInputDir.path + ":/dev/input")
-        // fakeInputDir is <session root>/dev/input.
-        if (controllersOn && SessionState.deckPad) binds.addAll(SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!))
+        if (controllersOn) binds.addAll(deckBinds)
         // The client's battery readout (the Quick Access Menu, the top bar) reads
         // /sys/class/power_supply/BAT<n>/..., a laptop's or a Deck's naming; Android's supply is
         // called "battery" and its files differ, so the client sees no battery at all. A directory

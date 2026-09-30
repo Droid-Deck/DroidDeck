@@ -241,28 +241,32 @@ public class FakeInputWriter {
         data.putInt(DECK_CONTROLS_OFFSET, 0);
     }
 
+    // Lock order: RING_LOCK, then the slot. Every writer holds the slot while it touches data, and
+    // re-checks it there: a writer that looked the slot up just before this ran finds it gone.
     private static void releaseRingSlotLocked(int slot) {
         RingSlot ringSlot = RING_SLOTS[slot];
         if (ringSlot == null) {
             return;
         }
-        ringSlot.data = null;
-        if (ringSlot.ringChannel != null) {
-            try {
-                ringSlot.ringChannel.close();
-            } catch (IOException ignored) {
+        synchronized (ringSlot) {
+            ringSlot.data = null;
+            if (ringSlot.ringChannel != null) {
+                try {
+                    ringSlot.ringChannel.close();
+                } catch (IOException ignored) {
+                }
+                ringSlot.ringChannel = null;
             }
-            ringSlot.ringChannel = null;
-        }
-        if (ringSlot.ringRaf != null) {
-            try {
-                ringSlot.ringRaf.close();
-            } catch (IOException ignored) {
+            if (ringSlot.ringRaf != null) {
+                try {
+                    ringSlot.ringRaf.close();
+                } catch (IOException ignored) {
+                }
+                ringSlot.ringRaf = null;
             }
-            ringSlot.ringRaf = null;
-        }
-        if (ringSlot.ringFile != null && ringSlot.ringFile.exists()) {
-            ringSlot.ringFile.delete();
+            if (ringSlot.ringFile != null && ringSlot.ringFile.exists()) {
+                ringSlot.ringFile.delete();
+            }
         }
         RING_SLOTS[slot] = null;
     }
@@ -354,6 +358,9 @@ public class FakeInputWriter {
             return false;
         }
         synchronized (ringSlot) {
+            if (ringSlot.data == null) {
+                return false;
+            }
             if (!ringSlot.active) {
                 if (ringSlot.everActivated) {
                     ringSlot.generation++;
@@ -403,6 +410,9 @@ public class FakeInputWriter {
         ByteBuffer source = this.buffer.duplicate();
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
+            if (ring == null) {
+                return false;
+            }
             long writeSeq = ring.getLong(RING_WRITE_SEQ_OFFSET);
             int sourceLimit = source.limit();
             while (source.remaining() >= EVENT_SIZE) {
@@ -468,9 +478,10 @@ public class FakeInputWriter {
         synchronized (RING_LOCK) {
             ringSlot = slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
         }
-        if (ringSlot == null || ringSlot.data == null) return;
+        if (ringSlot == null) return;
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
+            if (ring == null) return;
             long seq = ring.getLong(IMU_SEQ_OFFSET);
             ring.putLong(IMU_SEQ_OFFSET, seq + 1); // odd: write in progress
             nativeStoreFence();
@@ -494,9 +505,10 @@ public class FakeInputWriter {
         synchronized (RING_LOCK) {
             ringSlot = slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
         }
-        if (ringSlot == null || ringSlot.data == null) return;
+        if (ringSlot == null) return;
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
+            if (ring == null) return;
             long seq = ring.getLong(IMU_SEQ_OFFSET);
             ring.putLong(IMU_SEQ_OFFSET, seq + 1);
             nativeStoreFence();
