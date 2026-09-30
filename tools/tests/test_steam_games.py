@@ -74,6 +74,7 @@ class ImportsTest(unittest.TestCase):
         from unittest.mock import Mock
         result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
         with patch.object(imports, 'identify', side_effect=[None, 42]) as identify, \
+             patch.object(imports, 'request_restart'), \
              patch.object(imports.time, 'monotonic', side_effect=[0, 301]), \
              patch.object(imports.time, 'sleep', side_effect=[None, RuntimeError('stop')]), \
              patch.object(imports.subprocess, 'run', return_value=result), \
@@ -83,6 +84,35 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual(2, identify.call_count)
         snapshot = imports.read_json(self.acct / 'config' / imports.STATE, {})
         self.assertTrue(snapshot['owned']['42'])
+
+    def run_watch(self, beats, routes=None, busy=False):
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([self.game]))
+        if routes is not None:
+            imports.save_json(self.acct / 'config/.droiddeck-routes.json', routes)
+        if busy:
+            (self.steam / 'steamapps/downloading/7').mkdir(parents=True)
+        from unittest.mock import Mock
+        result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
+        with patch.object(imports, 'identify', return_value=42), \
+             patch.object(imports, 'game_running', return_value=False), \
+             patch.object(imports, 'request_restart') as restart, \
+             patch.object(imports.time, 'monotonic', side_effect=list(range(0, 30 * beats, 30))), \
+             patch.object(imports.time, 'sleep', side_effect=[None] * (beats - 1) + [RuntimeError('stop')]), \
+             patch.object(imports.subprocess, 'run', return_value=result), \
+             patch('builtins.print'):
+            with self.assertRaisesRegex(RuntimeError, 'stop'):
+                imports.watch(self.steam, listing)
+        return restart
+
+    def test_newly_owned_game_restarts_the_client_once(self):
+        self.assertEqual(1, self.run_watch(3).call_count)
+
+    def test_imported_game_does_not_restart_the_client(self):
+        self.assertEqual(0, self.run_watch(2, routes={'1': 42}).call_count)
+
+    def test_restart_waits_for_downloads(self):
+        self.assertEqual(0, self.run_watch(2, busy=True).call_count)
 
     def test_unowned_unknown_and_different_account_stay_shortcuts(self):
         for owned, account in [(False, '123'), (True, '456')]:

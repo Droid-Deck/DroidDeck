@@ -156,6 +156,27 @@ def game_running():
     return False
 
 
+def downloads_idle(steam_root):
+    try:
+        return not any(Path(steam_root, "steamapps/downloading").iterdir())
+    except OSError:
+        return True
+
+
+def request_restart(steam_root):
+    """The client reads manifests and shortcuts only at start, so an import needs one restart;
+    the session's loop runs the importer between the exit and the next start."""
+    Path(os.environ.get("HOME", "/root"), ".bl-restart-once").touch()
+    subprocess.run([str(Path(steam_root) / "steamrtarm64/steam"), "-shutdown"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+
+
+def unimported(steam_root, snapshot, candidates):
+    routes = read_json(Path(steam_root) / "userdata" / snapshot["account"] / "config/.droiddeck-routes.json", {})
+    routed = set(routes.values()) if isinstance(routes, dict) else set()
+    return sorted({appid for appid in candidates.values() if snapshot["owned"].get(str(appid)) is True} - routed)
+
+
 def watch(steam_root, listing):
     games = read_json(listing, [])
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
@@ -170,6 +191,7 @@ def watch(steam_root, listing):
     # beat (a client that is not logged on fails it for as long as it stays that way), and none
     # starts while a game is running: the answer can wait, the game's cores cannot.
     probed, next_probe, failures = None, 0, 0
+    pending, requested = [], []
     while True:
         now = time.monotonic()
         for game in games:
@@ -207,6 +229,7 @@ def watch(steam_root, listing):
                     snapshot["candidates"] = candidates
                     snapshot["sources"] = sources
                     save_json(Path(steam_root) / "userdata" / snapshot["account"] / "config" / STATE, snapshot)
+                    pending = unimported(steam_root, snapshot, candidates)
                     status = "matched %d/%d games; %d owned" % (len(candidates), len(games), sum(snapshot["owned"].values()))
             except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired) as error:
                 status = "ownership check unavailable: " + str(error)
@@ -214,6 +237,13 @@ def watch(steam_root, listing):
                 next_probe = now + min(300, 30 * 2 ** failures)
         elif candidates:
             status = last_status
+        if pending and pending != requested and not game_running() and downloads_idle(steam_root):
+            requested = pending
+            print("bannerlator-steam-games: restarting the client once to import %s" % pending, flush=True)
+            try:
+                request_restart(steam_root)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                print("bannerlator-steam-games: restart unavailable: %s" % error, flush=True)
         if status != last_status:
             print("bannerlator-steam-games: " + status, flush=True)
             last_status = status

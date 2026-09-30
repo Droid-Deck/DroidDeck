@@ -21,9 +21,10 @@ The resulting snapshot is stored under that account's `userdata/<id>/config` and
 refreshed every 30 seconds while logged in. Title lookups retry every five minutes and
 when the source changes, so an early network failure does not end the watcher. Changed
 status and probe failures are written to the session log. Startup and post-exit import
-use the last successful snapshot for the selected account. A newly identified title
-therefore starts as a shortcut and becomes a Steam entry after Steam exits and starts
-again. An unavailable client or offline first launch falls back to shortcuts; existing
+use the last successful snapshot for the selected account. The client reads manifests
+and shortcuts only at start, so when a snapshot confirms owned titles that are not yet
+imported, the watcher restarts the client once (not while a game runs or a download is in
+progress) and the importer runs between the exit and the next start. An unavailable client or offline first launch falls back to shortcuts; existing
 snapshots remain usable offline. Steam still enforces the current license at launch.
 
 For a confirmed game without a manifest, the importer links the source folder into the
