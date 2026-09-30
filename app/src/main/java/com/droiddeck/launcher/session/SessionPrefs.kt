@@ -44,11 +44,22 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("appImagesEnabled", on).apply()
     }
 
-    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean("hud", true)
+    /**
+     * The session's performance HUD (the fps box). A Deck-mode Steam session with the performance
+     * overlay has Steam's own (mangoapp, from the QAM), so there the HUD is off unless turned on
+     * in one - a choice kept apart from every other session's, where it stays on by default.
+     */
+    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), !mangoappSession(context))
 
     fun setHudEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("hud", on).apply()
+        prefs(context).edit().putBoolean(hudKey(context), on).apply()
     }
+
+    private fun hudKey(context: Context) = if (mangoappSession(context)) "hudDeck" else "hud"
+
+    /** A Steam session that runs Deck mode with its performance overlay (mangoapp). */
+    private fun mangoappSession(context: Context) =
+        SessionState.mode == SessionService.MODE_STEAM && steamDeckMode(context) && mangoapp(context)
 
     /** When enabled, a single Back opens Steam QAM and a double Back opens the session menu. */
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
