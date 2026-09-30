@@ -63,6 +63,8 @@ fun CreditsDialog(onDismiss: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Text("maxjivi05: gamescope runtime and controller support, based on WinNative.", style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(10.dp))
+                Text("LSFG frame generation: from the work of Camille LaVey / the Eden emulator project, ported to WinNative and DroidDeck by maxjivi05.", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(10.dp))
                 Text(
                     "GPL-3.0. Steam, Steam Deck, and Proton are Valve trademarks. Not affiliated with Valve. Third-party software remains under its authors' licenses.",
                     style = MaterialTheme.typography.bodySmall,

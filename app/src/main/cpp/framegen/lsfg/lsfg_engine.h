@@ -16,8 +16,9 @@
 // unavoidable cost of interpolating rather than extrapolating; no placement of
 // this code changes it.
 //
-// Ported from WinNative's vkr_lsfg.cpp (GPL-3.0-or-later), LSFG port credited
-// to Camille LaVey / the Eden Emulator Project, following upstream lsfg-vk.
+// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
+// upstream lsfg-vk. Ported to WinNative (vkr_lsfg.cpp) and DroidDeck by
+// @maxjivi05, where it runs on gamescope's output in the compositor.
 // ============================================================================
 
 #include <cstdint>
