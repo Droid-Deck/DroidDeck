@@ -124,6 +124,23 @@ static int mkdir_parent_of(const char *path, mode_t mode) {
     return mkdir_parents(buf, mode);
 }
 
+/* Create a file that belongs to the guest, not to root.
+ *
+ * The runner starts as root (a root manager started it) and writes a few files on the guest's
+ * behalf: the pid file, and the --put/--write targets, which include the guest's /etc/passwd and
+ * /etc/group. Left root-owned they are files the app's own uid cannot replace, so the next session
+ * - unrooted, or rooted with a different uid - writes them and silently fails. Measured on a
+ * Galaxy S23: a rooted session left files in the rootfs that the app could no longer rewrite. */
+static int guest_uid = -1;
+static int guest_gid = -1;
+
+static void own_as_guest(const char *path) {
+    if (guest_uid < 0 && guest_gid < 0) return;
+    if (chown(path, (uid_t)(guest_uid < 0 ? 0 : guest_uid), (gid_t)(guest_gid < 0 ? 0 : guest_gid)) != 0) {
+        warn("cannot give the guest ownership of", path);
+    }
+}
+
 /* One device node under the guest's /dev, for the tmpfs fallback above. */
 static void make_dev(const char *dev, const char *name, int major, int minor, mode_t mode) {
     char path[4096];
@@ -183,6 +200,7 @@ static int copy_file(const char *src, const char *dst) {
     if (failed) warn("cannot read", src);
     close(in);
     close(out);
+    if (!failed) own_as_guest(dst);
     return failed ? -1 : 0;
 }
 
@@ -194,6 +212,7 @@ static int write_file(const char *dst, const char *content) {
     ssize_t wrote = write(out, content, len);
     close(out);
     if (wrote < 0 || (size_t)wrote != len) { warn("cannot write", dst); return -1; }
+    own_as_guest(dst);
     return 0;
 }
 
@@ -262,6 +281,8 @@ int main(int argc, char **argv) {
         else { fprintf(stderr, "%s: unknown argument %s\n", prog, a); usage(); return 2; }
     }
     if (root == NULL || i >= argc) { usage(); return 2; }
+    guest_uid = uid;
+    guest_gid = gid;
 
     /* A namespace of our own, so every mount below belongs to this guest and is gone when it exits:
      * in the host's namespace they would outlive the session, stack on the next one's (the second
