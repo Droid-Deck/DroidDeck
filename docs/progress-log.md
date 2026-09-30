@@ -32,7 +32,11 @@ Device-tested on the AYN Thor (Katamari under Proton Experimental ARM64).
   Controller (V1 HID protocol) and runs its handshake (0x83, 0xAE, 0x81/0x87 lizard off, 0x8F).
 - **Switches**: `droiddeck-no-uinput` (back to the 28de:11ff disguise), `droiddeck-no-deck-pad`
   (Xbox 360 pad to the client, the Guide+A QAM chord).
-- **Not yet**: gyro/accelerometer from the phone's sensors, back grips, trackpads from touch; the
+- **Gyro**: `PadMotion.kt` feeds the handheld's own gyro and accelerometer (4 ms sampling, while
+  the session is on screen) into an IMU block after ring 0's events, turned to the screen and then
+  to the Deck's axes and units; the Deck report carries them. Verified: Steam's Gyro Calibration
+  page moves with the Thor (sh5001 IMU); at rest the accelerometer reads 1 g.
+- **Not yet**: a Bluetooth pad's own IMU (DualSense), back grips, trackpads from touch; the
   game's rumble on the virtual pad goes straight to the vibrator rather than back through the client.
 - **Prior art checked**: WinNative and Bannerlator never emulated uinput or hidraw; Bannerlator's
   `-steamdeck` mode stopped at "the virtual pad never arrives", which is this missing uinput.

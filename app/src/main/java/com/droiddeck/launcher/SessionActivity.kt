@@ -91,6 +91,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var loading: LoadingState
     private lateinit var hud: PerfHud
     private var padBridge: PadBridge? = null
+    /** The handheld's gyro and accelerometer, fed to the Deck controller while the session shows. */
+    private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
     private var onScreenControls: OnScreenControls? = null
     private var keyboard: KeyboardHost? = null
     private var watching = true
@@ -223,6 +225,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
         padBridge = bridge
+        padMotion = com.droiddeck.launcher.input.PadMotion(this) {
+            @Suppress("DEPRECATION")
+            (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
+        }
         // A player on the pad or the on-screen controls has no use for the mouse arrow; the next
         // touchpad or mouse move brings it back (showCursor), once the pad has been quiet a moment.
         bridge.setOnPlayerInput {
@@ -1510,6 +1516,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         onScreenControls?.reload()
         updateOnScreenControls()
+        // Any Steam session: the activity can resume before the service has decided on the Deck
+        // controller, and only that controller reads the motion.
+        if (SessionState.mode == SessionService.MODE_STEAM) padMotion?.start()
         readPrefs()
         if (CompositorHost.isStarted) applyFrameGen()
     }
@@ -1523,6 +1532,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         releaseDrawerDirection()
         // A button held when the app goes away would stay held in the ring for the whole session.
         onScreenControls?.releaseAll()
+        padMotion?.stop()
         keyboard?.takeIf { it.shown }?.hide()
         super.onPause()
     }

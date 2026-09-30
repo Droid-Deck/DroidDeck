@@ -1163,8 +1163,40 @@ static constexpr uint32_t SNAPSHOT_QAM_BIT = 1u << 11;
 struct DeckHidraw {
   int peer = -1;
   FakeInputRingHeader *ring = nullptr;
+  size_t mapping_size = 0;
   uint8_t pending_feature = 0;
 };
+
+// The pad's motion, after the ring's events (FakeInputWriter.writeMotion, PadMotion): already in
+// the Deck's axes and units, under a seqlock. Absent from a ring file written without one.
+struct DeckImu {
+  uint32_t magic;  // IMU1 once written
+  uint32_t reserved;
+  uint64_t seq;    // odd while being written
+  int16_t accel[3];
+  int16_t gyro[3];
+};
+static constexpr uint32_t DECK_IMU_MAGIC = 0x31554D49;
+static constexpr size_t DECK_IMU_BLOCK_SIZE = 64;
+static_assert(sizeof(DeckImu) <= DECK_IMU_BLOCK_SIZE, "the IMU block is 64 bytes in the ring file");
+
+__attribute__((visibility("hidden"))) static bool read_deck_imu(const DeckHidraw &deck, int16_t *accel, int16_t *gyro) {
+  if (deck.mapping_size < FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE) return false;
+  const auto *imu = reinterpret_cast<const DeckImu *>(reinterpret_cast<const uint8_t *>(deck.ring) +
+                                                      FAKE_INPUT_RING_SIZE);
+  for (int attempt = 0; attempt < 4; attempt++) {
+    uint64_t seq = __atomic_load_n(&imu->seq, __ATOMIC_ACQUIRE);
+    if (seq & 1) continue;
+    if (__atomic_load_n(&imu->magic, __ATOMIC_RELAXED) != DECK_IMU_MAGIC) return false;
+    for (int i = 0; i < 3; i++) {
+      accel[i] = __atomic_load_n(&imu->accel[i], __ATOMIC_RELAXED);
+      gyro[i] = __atomic_load_n(&imu->gyro[i], __ATOMIC_RELAXED);
+    }
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    if (seq == __atomic_load_n(&imu->seq, __ATOMIC_RELAXED)) return true;
+  }
+  return false;
+}
 
 static std::unordered_map<int, std::shared_ptr<DeckHidraw>> &deck_map() {
   static auto *map = new std::unordered_map<int, std::shared_ptr<DeckHidraw>>();
@@ -1221,7 +1253,8 @@ static inline void put32(uint8_t *at, uint32_t value) {
 // SteamDeckStatePacket_t) from the ring's snapshot: kSnapshotButtons order, kSnapshotAxisCodes
 // order, sticks as evdev has them (Y down), triggers 0..255.
 __attribute__((visibility("hidden"))) static void
-build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int32_t *axes) {
+build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int32_t *axes,
+                  const int16_t *accel, const int16_t *gyro) {
   memset(report, 0, DECK_REPORT_BYTES);
   report[0] = 0x01;  // report version
   report[2] = 0x09;  // ID_CONTROLLER_DECK_STATE
@@ -1244,6 +1277,10 @@ build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int3
   if (right_trigger > 127) low |= DECK_L_R2;
   put32(report + 8, low);
   put32(report + 12, high);
+  for (int i = 0; i < 3; i++) {
+    put16(report + 24 + i * 2, accel[i]);  // sAccelX/Y/Z
+    put16(report + 30 + i * 2, gyro[i]);   // sGyroX/Y/Z
+  }
   put16(report + 44, std::min(32767, left_trigger * 32767 / 255));
   put16(report + 46, std::min(32767, right_trigger * 32767 / 255));
   auto stick = [](int32_t value) { return std::max(-32767, std::min(32767, value)); };
@@ -1261,13 +1298,15 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
   SnapshotState snap;
   uint32_t buttons = 0;
   int32_t axes[8] = {};
+  int16_t accel[3] = {}, gyro[3] = {};
   for (;;) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
       memcpy(axes, snap.axes, sizeof(axes));
     }
+    read_deck_imu(*self, accel, gyro);
     uint8_t report[DECK_REPORT_BYTES];
-    build_deck_report(report, ++packet, buttons, axes);
+    build_deck_report(report, ++packet, buttons, axes, accel, gyro);
     // A reader that fell behind loses reports rather than getting stale ones later; a reader that
     // has closed ends the stream.
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
@@ -1277,7 +1316,7 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
     nanosleep(&interval, nullptr);
   }
   syscall(SYS_close, self->peer);
-  munmap(self->ring, FAKE_INPUT_RING_SIZE);
+  munmap(self->ring, self->mapping_size);
   return nullptr;
 }
 
@@ -1293,16 +1332,22 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
     errno = ENODEV;
     return -1;
   }
-  void *mapping = mmap(nullptr, FAKE_INPUT_RING_SIZE, PROT_READ, MAP_SHARED, ring_fd, 0);
+  // The IMU block is mapped only where the file has one: past its end a mapping faults.
+  struct stat ring_stat;
+  size_t mapping_size = FAKE_INPUT_RING_SIZE;
+  if (fstat(ring_fd, &ring_stat) == 0 &&
+      static_cast<size_t>(ring_stat.st_size) >= FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE)
+    mapping_size = FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE;
+  void *mapping = mmap(nullptr, mapping_size, PROT_READ, MAP_SHARED, ring_fd, 0);
   syscall(SYS_close, ring_fd);
   if (mapping == MAP_FAILED || !ring_header_is_valid(static_cast<FakeInputRingHeader *>(mapping))) {
-    if (mapping != MAP_FAILED) munmap(mapping, FAKE_INPUT_RING_SIZE);
+    if (mapping != MAP_FAILED) munmap(mapping, mapping_size);
     errno = ENODEV;
     return -1;
   }
   int pair[2];
   if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) < 0) {
-    munmap(mapping, FAKE_INPUT_RING_SIZE);
+    munmap(mapping, mapping_size);
     return -1;
   }
   // Room for a few reports only, so what the client reads is never more than a few ms old.
@@ -1313,6 +1358,7 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   auto deck = std::make_shared<DeckHidraw>();
   deck->peer = pair[1];
   deck->ring = static_cast<FakeInputRingHeader *>(mapping);
+  deck->mapping_size = mapping_size;
   {
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map()[pair[0]] = deck;
@@ -1325,7 +1371,7 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
     deck_map().erase(pair[0]);
     syscall(SYS_close, pair[0]);
     syscall(SYS_close, pair[1]);
-    munmap(mapping, FAKE_INPUT_RING_SIZE);
+    munmap(mapping, mapping_size);
     errno = ENOMEM;
     return -1;
   }

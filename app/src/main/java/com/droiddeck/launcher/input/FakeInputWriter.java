@@ -95,6 +95,15 @@ public class FakeInputWriter {
     private static final int RING_SNAPSHOT_BUTTONS_OFFSET = 40;
     private static final int RING_SNAPSHOT_AXES_OFFSET = 44; // short[8]
     private static final String RING_DIR_NAME = "fakeinput-rings";
+    // Motion, after the events - MUST match the IMU block in fakeinput_steam.cpp (DeckImu): what
+    // the pad's gyro and accelerometer read, in the Steam Deck controller's axes and units, under a
+    // seqlock like the snapshot's. Only libfakeinput's Deck controller reads it.
+    private static final int IMU_OFFSET = RING_SIZE;
+    private static final int IMU_MAGIC = 0x31554D49; // IMU1
+    private static final int IMU_SEQ_OFFSET = IMU_OFFSET + 8;
+    private static final int IMU_ACCEL_OFFSET = IMU_OFFSET + 16; // short[3]
+    private static final int IMU_GYRO_OFFSET = IMU_OFFSET + 22; // short[3]
+    private static final int RING_FILE_SIZE = RING_SIZE + 64;
 
     private static final Object RING_LOCK = new Object();
     private static final RingSlot[] RING_SLOTS = new RingSlot[MAX_FAKE_INPUT_SLOTS];
@@ -221,6 +230,11 @@ public class FakeInputWriter {
         for (int i = 0; i < 8; i++) {
             data.putShort(RING_SNAPSHOT_AXES_OFFSET + (i * 2), (short) 0);
         }
+        data.putInt(IMU_OFFSET, 0);
+        data.putLong(IMU_SEQ_OFFSET, 0L);
+        for (int i = 0; i < 6; i++) {
+            data.putShort(IMU_ACCEL_OFFSET + (i * 2), (short) 0);
+        }
     }
 
     private static void releaseRingSlotLocked(int slot) {
@@ -293,9 +307,9 @@ public class FakeInputWriter {
         FileChannel channel = null;
         try {
             raf = new RandomAccessFile(ringFile, "rw");
-            raf.setLength(RING_SIZE);
+            raf.setLength(RING_FILE_SIZE);
             channel = raf.getChannel();
-            ByteBuffer data = channel.map(FileChannel.MapMode.READ_WRITE, 0, RING_SIZE);
+            ByteBuffer data = channel.map(FileChannel.MapMode.READ_WRITE, 0, RING_FILE_SIZE);
             initializeRingHeader(data);
 
             RingSlot ringSlot = new RingSlot();
@@ -439,6 +453,31 @@ public class FakeInputWriter {
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 14, clampShort(this.prevHatY));
         nativeStoreFence();
         ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 2); // even: write complete
+    }
+
+    /**
+     * Publishes the pad's motion for slot {@code slot}: accelerometer and gyro, already in the Deck
+     * controller's axes and units (see PadMotion). Safe from any thread.
+     */
+    public static void writeMotion(int slot, short[] accel, short[] gyro) {
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
+        }
+        if (ringSlot == null || ringSlot.data == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            long seq = ring.getLong(IMU_SEQ_OFFSET);
+            ring.putLong(IMU_SEQ_OFFSET, seq + 1); // odd: write in progress
+            nativeStoreFence();
+            for (int i = 0; i < 3; i++) {
+                ring.putShort(IMU_ACCEL_OFFSET + i * 2, accel[i]);
+                ring.putShort(IMU_GYRO_OFFSET + i * 2, gyro[i]);
+            }
+            ring.putInt(IMU_OFFSET, IMU_MAGIC);
+            nativeStoreFence();
+            ring.putLong(IMU_SEQ_OFFSET, seq + 2);
+        }
     }
 
     private static short clampShort(int value) {
