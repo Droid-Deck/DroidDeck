@@ -826,13 +826,13 @@ class MainActivity : ComponentActivity() {
                 onPair = { key -> drivers.selectPair(key) },
                 onRefresh = { if (drivers.mode == SessionPrefs.GPU_DRIVERS_AUTO) drivers.ensureAuto(force = true) else drivers.checkLatestTurnip() },
                 // Picking one driver on its own is Manual: Auto would put its pair back.
-                onSelectLinux = { id -> SessionPrefs.setLinuxDriver(this, id); drivers.setMode(false); drivers.refreshDrivers() },
-                onSelectAndroid = { id -> SessionPrefs.setAndroidDriver(this, id); drivers.setMode(false); drivers.refreshDrivers() },
+                onSelectLinux = { id -> drivers.selectDriver(id, linux = true) },
+                onSelectAndroid = { id -> drivers.selectDriver(id, linux = false) },
                 onRemoveLinux = { id -> drivers.deleteDriver(id, linux = true) },
                 onRemoveAndroid = { id -> drivers.deleteDriver(id, linux = false) },
                 onDownloadDriver = { name -> drivers.downloadReleaseDriver(name) },
-                onImportLinux = { pickLinuxDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a Linux runtime driver (-Linux zip)")) },
-                onImportAndroid = { pickAndroidDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a display driver (AdrenoTools zip)")) },
+                onImportLinux = { pickLinuxDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a Linux runtime driver (-Linux zip or Android + Linux bundle)")) },
+                onImportAndroid = { pickAndroidDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a display driver (AdrenoTools zip or Android + Linux bundle)")) },
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
             ),
         )

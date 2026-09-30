@@ -13,6 +13,8 @@ import com.droiddeck.launcher.gpu.GpuInfo.Family
  *   newest release that carries both halves.
  * - WinNative ships its display (`v1.x`) and Linux (`linux-v0.x`) builds as two release lines with
  *   their own numbers: the pair is the newest of each, of one flavour (Balanced or Performance).
+ * - DroidDeck's DD-Turnip ships both halves in one zip per release (DriverBundle): the pair is the
+ *   newest bundle, and it can never be mixed.
  */
 object DriverPairs {
     const val BANNER = "banner"
@@ -21,6 +23,7 @@ object DriverPairs {
     const val BANNER_ONEUI = "banner-8g2-oneui"
     const val WN_BALANCED = "wn-b"
     const val WN_PERFORMANCE = "wn-p"
+    const val DD_TURNIP = "dd-turnip"
 
     class DriverPair(
         val key: String,
@@ -30,11 +33,15 @@ object DriverPairs {
         val families: Set<Family>,
         val display: TurnipReleases.Asset?,
         val linux: TurnipReleases.Asset?,
+        /** Both halves in one zip, instead of [display] and [linux]. */
+        val bundle: TurnipReleases.Asset? = null,
     ) {
-        val complete: Boolean get() = display != null && linux != null
+        val complete: Boolean get() = bundle != null || (display != null && linux != null)
+        /** The zips to download for the pair: the bundle, or the two halves. */
+        val assets: List<TurnipReleases.Asset> get() = listOfNotNull(bundle ?: display, if (bundle == null) linux else null)
         /** "r4 · 1.19 + 0.1.2": the build of each half. */
         val version: String
-            get() = listOfNotNull(display?.tag, linux?.tag).distinct().joinToString(" + ") { it.removePrefix("linux-") }
+            get() = listOfNotNull(bundle?.tag, display?.tag, linux?.tag).distinct().joinToString(" + ") { it.removePrefix("linux-").removePrefix("DD-Turnip-") }
         fun suits(gpu: GpuInfo) = gpu.family in families ||
             (gpu.family == Family.ADRENO_UNKNOWN && (Family.A7XX in families || Family.A8XX in families))
     }
@@ -48,18 +55,20 @@ object DriverPairs {
         BANNER_ONEUI -> "Banners-Turnip · 8 Gen 2 on One UI" to setOf(Family.A7XX)
         WN_BALANCED -> "WinNative · Balanced" to ALL_ADRENO
         WN_PERFORMANCE -> "WinNative · Performance" to ALL_ADRENO
+        DD_TURNIP -> "DroidDeck · DD-Turnip" to ALL_ADRENO
         else -> key to ALL_ADRENO
     }
 
     /** Every pair the last release check found, in the order the list shows them. */
     fun from(check: TurnipReleases.Check?): List<DriverPair> {
         val assets = check?.assets.orEmpty().filter { it.pair.isNotEmpty() }
-        val order = listOf(BANNER, BANNER_A8XX, BANNER_ONEUI, BANNER_710, WN_BALANCED, WN_PERFORMANCE)
+        val order = listOf(DD_TURNIP, BANNER, BANNER_A8XX, BANNER_ONEUI, BANNER_710, WN_BALANCED, WN_PERFORMANCE)
         return assets.map { it.pair }.distinct()
             .sortedBy { order.indexOf(it).let { i -> if (i < 0) order.size else i } }
             .map { key ->
                 val (name, families) = describe(key)
                 val halves = assets.filter { it.pair == key }
+                halves.firstOrNull { it.bundle }?.let { return@map DriverPair(key, name, families, null, null, it) }
                 // The list keeps the newest release of each half; for Banners-Turnip the two halves
                 // must come from the same release, so a set missing one half in its newest release
                 // is offered incomplete rather than mixed with an older one.

@@ -79,6 +79,8 @@ class GpuDriversState(
     val linuxDownloads: List<DownloadRow> = emptyList(),
     val androidDownloads: List<DownloadRow> = emptyList(),
     val canRestoreBundled: Boolean = false,
+    /** The Android + Linux bundle both drivers are set to ("DD-Turnip 0.1.0"), or null. */
+    val activeBundle: String? = null,
 ) {
     /** The pair both drivers are set to, if they make one. */
     val activePair: PairRow? get() = pairs.firstOrNull { it.active }
@@ -130,11 +132,20 @@ internal fun GpuDriversPanel(s: GpuDriversState, a: GpuDriversActions, onAdvance
             }
         }
         SettingsGroup("Advanced") {
-            SettingsRow("Runtime driver", "Games and the desktop draw with it. Pick it on its own, or import a -Linux Turnip zip.") {
-                SecondaryButton(s.linuxRows.firstOrNull { it.id == s.linuxSelected }?.name ?: "Runtime default", compact = true) { onAdvanced("rt") }
-            }
-            SettingsRow("Display driver", "Puts frames on the screen. Changes apply after DroidDeck restarts.") {
-                SecondaryButton(s.androidRows.firstOrNull { it.id == s.androidSelected }?.name ?: "Auto - picked by GPU", compact = true) { onAdvanced("panel") }
+            if (s.activeBundle != null) {
+                SettingsRow("Runtime + display driver", "${s.activeBundle} carries both, so they are set together. Picking another driver in either list splits them.") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SecondaryButton("Runtime", compact = true) { onAdvanced("rt") }
+                        SecondaryButton("Display", compact = true) { onAdvanced("panel") }
+                    }
+                }
+            } else {
+                SettingsRow("Runtime driver", "Games and the desktop draw with it. Pick it on its own, or import a -Linux Turnip zip or an Android + Linux bundle.") {
+                    SecondaryButton(s.linuxRows.firstOrNull { it.id == s.linuxSelected }?.name ?: "Runtime default", compact = true) { onAdvanced("rt") }
+                }
+                SettingsRow("Display driver", "Puts frames on the screen. Changes apply after DroidDeck restarts.") {
+                    SecondaryButton(s.androidRows.firstOrNull { it.id == s.androidSelected }?.name ?: "Auto - picked by GPU", compact = true) { onAdvanced("panel") }
+                }
             }
         }
     }
@@ -180,11 +191,11 @@ private fun AutoCard(s: GpuDriversState) {
     ) {
         Text("IN USE", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = colors.onSurfaceVariant)
         Text(
-            active?.let { "${it.name} ${it.version}" } ?: "The drivers built into DroidDeck",
+            active?.let { "${it.name} ${it.version}" } ?: s.activeBundle ?: "The drivers built into DroidDeck",
             fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
         )
         Text(
-            if (active != null) "Runtime and display drivers set together as a matched pair."
+            if (active != null || s.activeBundle != null) "Runtime and display drivers set together as a matched pair."
             else recommended?.let { "Recommended for this GPU: ${it.name}." } ?: "Tap refresh to look for drivers for this GPU.",
             fontSize = 13.sp, color = colors.onSurfaceVariant,
         )

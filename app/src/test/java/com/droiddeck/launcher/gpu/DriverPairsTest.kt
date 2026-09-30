@@ -68,4 +68,16 @@ class DriverPairsTest {
         assertTrue(wn.suits(gpu(830)))
         assertFalse(pairs.getValue(DriverPairs.BANNER).suits(gpu(830)))
     }
+
+    @Test
+    fun aBundleIsACompletePairOnItsOwn() {
+        val zip = TurnipReleases.Asset("DroidDeck", "DD-Turnip-v0.1.0", "DD-Turnip-v0.1.0.zip", "https://example/dd", 6_000_000,
+            false, "Android + Linux", "0".repeat(64), DriverPairs.DD_TURNIP, bundle = true)
+        val dd = DriverPairs.from(TurnipReleases.Check(listOf(zip), emptyList(), emptyList(), 0L)).single()
+        assertTrue(dd.complete)
+        assertEquals(listOf(zip), dd.assets)
+        assertEquals("v0.1.0", dd.version)
+        assertTrue(dd.suits(gpu(840)))
+        assertTrue(dd.suits(gpu(740)))
+    }
 }

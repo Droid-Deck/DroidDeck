@@ -33,6 +33,8 @@ class DriverRow(val id: String, val name: String, val detail: String, val remova
         const val BUNDLED = "BUNDLED"
         const val DOWNLOADED = "DOWNLOADED"
         const val IMPORTED = "IMPORTED"
+        /** One half of an Android + Linux bundle: picked and deleted together with the other. */
+        const val BUNDLE = "ANDROID + LINUX"
     }
 }
 
