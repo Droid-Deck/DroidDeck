@@ -132,9 +132,11 @@ fun PerformancePage(
             )
             // Only where there is a root manager to use: elsewhere the switch would do nothing.
             if (rootAvailable) ToggleRow(
-                host, "root", "Enter the session with chroot",
-                "Runs the session as root through chroot instead of proot, without a syscall tracer " +
-                    "in the middle. Turn it off to go back to proot.",
+                host, "root", "Enter the session with chroot (experimental)",
+                "Runs the session through chroot instead of proot, with no syscall tracer in the " +
+                    "middle. Needs a sepolicy rule that lets one domain both mount the rootfs and " +
+                    "use the GPU: without it the session starts and cannot draw. Off, the session " +
+                    "runs under proot as usual.",
                 rootSession, onChange = onRootSession,
             )
         }

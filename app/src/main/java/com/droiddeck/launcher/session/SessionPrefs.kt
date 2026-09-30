@@ -560,11 +560,12 @@ object SessionPrefs {
     }
 
     /**
-     * Whether a rooted device runs the session through chroot instead of proot. On by default
-     * where a root manager is present - it is the whole point of having root - and off is there
-     * for a device whose root is incomplete enough that proot is still the safer way in.
+     * Whether a rooted device runs the session through chroot instead of proot.
+     *
+     * Off by default: chroot is experimental and remains a separate opt-in path while it is
+     * validated across root managers and devices. Proot remains the safe default.
      */
-    fun rootSession(context: Context): Boolean = prefs(context).getBoolean("rootSession", true)
+    fun rootSession(context: Context): Boolean = prefs(context).getBoolean("rootSession", false)
 
     fun setRootSession(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("rootSession", on).apply()
