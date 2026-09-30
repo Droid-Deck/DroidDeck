@@ -101,14 +101,14 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             SecondaryButton("Check now", enabled = !u.checking && u.stage == null, compact = true, onClick = ua.onCheck)
         }
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
-            // Landscape has the width for status and channels side by side; a narrow pane stacks them.
+            // Landscape has the width for channels and status side by side; a narrow pane stacks them.
             if (LocalNarrowPane.current) {
                 StatusPanel(s, u, ua, me)
                 Box(Modifier.height(18.dp))
                 ChannelPicker(u, ua)
             } else Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
                 Box(Modifier.weight(1f)) { ChannelPicker(u, ua) }
+                Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
             }
             AboutFooter(s)
         }
@@ -294,14 +294,14 @@ private fun TestRow(t: Release, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The build's full label, quietly under everything else. */
+/** The build's version and full label on one quiet line under everything else. */
 @Composable
 private fun AboutFooter(s: FrontEndState) {
     val colors = MaterialTheme.colorScheme
-    Column(Modifier.padding(top = 20.dp, start = 2.dp)) {
-        Text("DroidDeck ${AppUpdates.installed().version}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
-        Text(s.buildLabel, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+    Text(
+        "DroidDeck ${AppUpdates.installed().version} · ${s.buildLabel}", fontSize = 12.5.sp, color = colors.onSurfaceVariant,
+        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 20.dp, start = 2.dp),
+    )
 }
 
 private fun channelName(f: Follow) = when (f.channel) {
