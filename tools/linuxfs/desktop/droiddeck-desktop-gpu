@@ -12,6 +12,10 @@ import re
 
 HOME = os.environ.get("HOME", "/root")
 SYSTEM_DIR = "/usr/share/applications"
+# The user's own AppImages (the front end's Add AppImage).
+LOCAL_DIR = "/usr/local/share/applications"
+# Flathub's games, as Flatpak exports them; the copies here win over these as they do over the system's.
+FLATPAK_DIR = os.path.join(HOME, ".local/share/flatpak/exports/share/applications")
 USER_DIR = os.path.join(HOME, ".local/share/applications")
 MARK = "X-DroidDeck-GPU=1"
 # The client and its games already hand themselves to the app (bannerlator-steam-launch).
@@ -37,6 +41,14 @@ def main_group(text):
     return lines[:start + 1], lines[start + 1:end], lines[end:]
 
 
+def gpu_exec(exec_line):
+    """The Exec that runs a program on the GPU; a Flatpak app goes through its launcher, which
+    keeps it on gamescope's X server instead of the desktop's Wayland socket."""
+    if exec_line.startswith("/usr/bin/flatpak run ") or exec_line.startswith("flatpak run "):
+        exec_line = "/usr/local/bin/bannerlator-flatpak-run " + exec_line.split(" run ", 1)[1]
+    return "droiddeck-gpu " + exec_line
+
+
 def wrap(text):
     head, group, rest = main_group(text)
     if group is None:
@@ -59,7 +71,7 @@ def wrap(text):
     for l in group:
         k = l.split("=", 1)[0].strip() if "=" in l else None
         if k == "Exec":
-            out_group.append("Exec=droiddeck-gpu " + exec_line)
+            out_group.append("Exec=" + gpu_exec(exec_line))
         elif k == "Actions":
             continue
         else:
@@ -73,7 +85,7 @@ def wrap(text):
     wrapped_rest = []
     for l in rest:
         if l.startswith("Exec=") and not l[5:].startswith("droiddeck-gpu "):
-            l = "Exec=droiddeck-gpu " + l[5:]
+            l = "Exec=" + gpu_exec(l[5:])
         wrapped_rest.append(l)
     if wrapped_rest and wrapped_rest[0].strip():
         wrapped_rest.insert(0, "")
@@ -92,8 +104,9 @@ def main():
     on = enabled()
     os.makedirs(USER_DIR, exist_ok=True)
     written = set()
-    if on and os.path.isdir(SYSTEM_DIR):
-        for name in sorted(os.listdir(SYSTEM_DIR)):
+    sources = [d for d in (SYSTEM_DIR, LOCAL_DIR, FLATPAK_DIR) if os.path.isdir(d)] if on else []
+    for source in sources:
+        for name in sorted(os.listdir(source)):
             if not name.endswith(".desktop") or SKIP.match(name):
                 continue
             target = os.path.join(USER_DIR, name)
@@ -101,7 +114,7 @@ def main():
             if os.path.exists(target) and not ours(target):
                 continue
             try:
-                with open(os.path.join(SYSTEM_DIR, name), encoding="utf-8", errors="replace") as f:
+                with open(os.path.join(source, name), encoding="utf-8", errors="replace") as f:
                     text = wrap(f.read())
             except OSError:
                 continue

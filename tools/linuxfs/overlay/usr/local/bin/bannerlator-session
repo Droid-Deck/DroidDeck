@@ -92,6 +92,10 @@ export XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+# Flatpak (the store's apps): its sandboxes through the app instead of bubblewrap, which needs the
+# user namespaces Android keeps from apps, and its apps' menu entries and icons on the desktop.
+export FLATPAK_BWRAP=/usr/local/bin/bannerlator-bwrap
+export XDG_DATA_DIRS=$XDG_DATA_HOME/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}
 
 # The cores a program runs on outside Steam (the desktop and everything started from it, a
 # program from the rail): the user's game cores when set (BL_GAME_CPUS), else every core but the
@@ -407,6 +411,26 @@ case $mode in
         fi
       done
     ) &
+    # Resume from the Steam menu. The menu is an overlay that takes input, and a fullscreen game that
+    # loses input minimizes itself; gamescope only takes a window out of that state when the focused
+    # window changes, which the menu never does, so the game stayed minimized after Resume (a black
+    # screen with its small caption in the top-left corner). gamescope-3.16.29-p4 restores it itself;
+    # this asks it again a moment after input comes back from the client (app 769) to anything else,
+    # which covers a game that minimizes late. Harmless when nothing is minimized.
+    # BL_RESTORE_ON_RESUME=0 turns it off.
+    [ -z "${BL_DESKTOP:-}" ] && [ "${BL_RESTORE_ON_RESUME:-1}" = 1 ] && (
+      prev=
+      xprop -spy -root GAMESCOPE_FOCUSED_APP 2>/dev/null | while read -r line; do
+        app=${line##*= }
+        case $app in ''|*[!0-9]*) prev=; continue ;; esac
+        if [ "$prev" = 769 ] && [ "$app" != 769 ]; then
+          nap 1
+          xprop -root -f GAMESCOPE_RESTORE_FOCUS_WINDOW 32c -set GAMESCOPE_RESTORE_FOCUS_WINDOW 1 2>/dev/null \
+            && echo "== resume: asked gamescope to restore the game window (app $app)"
+        fi
+        prev=$app
+      done
+    ) &
     # The library beat. Both helpers are whole programs under proot (the compat one a python
     # start and a parse of the client's config), and nearly every beat has nothing new for them.
     # The seeder marks Proton's prefix template as well as the prefixes, so a new prefix is born
@@ -584,6 +608,24 @@ BUSCONF
     if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
       bannerlator-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
       games_watcher=$!
+    fi
+    # Lossless Scaling (Steam app 993090): whether this account owns it, asked of the signed-in
+    # client once a session until the answer is yes. From then on the app offers importing
+    # Lossless.dll and passes BL_LOSSLESS_OWNED=1, so the question is never asked again.
+    if [ "${BL_LOSSLESS_OWNED:-0}" != 1 ]; then
+      (
+        owned=$HOME/.config/droiddeck/lossless-owned
+        for ((_i = 0; _i < 60; _i++)); do
+          nap 30
+          [ -e "$owned" ] && exit 0
+          answer=$(bannerlator-steam-games probe "$steam_root" 993090 2>/dev/null) || continue
+          case $answer in
+            *'"993090": true'*) mkdir -p "${owned%/*}" && : > "$owned" && echo "== Lossless Scaling: owned" ;;
+            *) echo "== Lossless Scaling: not owned by this account" ;;
+          esac
+          exit 0
+        done
+      ) &
     fi
     echo "== steam args: ${_bl_ui[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
     # An update that cannot install asks for a restart (rc=42) every time; the count is capped so a

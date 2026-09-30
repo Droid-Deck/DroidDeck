@@ -7,7 +7,7 @@
 // ship as RCDATA resources inside Lossless.dll from the user's own paid copy
 // of Lossless Scaling (Steam app 993090). Every implementation - upstream
 // lsfg-vk, LSFG-Android, eden, WinNative - requires the user to supply their
-// own DLL and extracts the resources on device. Bannerlator does the same, and
+// own DLL and extracts the resources on device. DroidDeck does the same, and
 // bundles nothing.
 //
 // The DLL is mmap'd READ-ONLY and parsed as data. It is never loaded as a
@@ -26,9 +26,9 @@
 // Both producers fill the same shader-id -> SPIR-V words map, so everything
 // downstream of this file is source-agnostic.
 //
-// Derived from WinNative's lsfg_dll.c (GPL-3.0-or-later), whose LSFG port is
-// credited to Camille LaVey / the Eden Emulator Project, and which follows
-// upstream lsfg-vk (PancakeTAS). Bannerlator is GPL-3.0; see THIRD-PARTY-LICENSES.md.
+// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
+// upstream lsfg-vk (PancakeTAS). Ported to WinNative (lsfg_dll.c) and DroidDeck
+// by @maxjivi05. GPL-3.0-or-later.
 // ============================================================================
 
 #include <cstdint>
@@ -98,17 +98,10 @@ const char* variantName(Variant v);
 // reported as valid - the translator handles it.
 DllStatus validateDll(const std::string& dllPath);
 
-// Which producer would be used for this DLL.
-Variant dllVariant(const std::string& dllPath, bool preferFp16);
-
 // Parse the DLL, produce all 25 SPIR-V modules, and write them to cachePath
 // (via temp file + rename, so a failed build cannot leave a half-written
 // cache behind). Records which producer ran in the cache header.
 DllStatus buildCache(const std::string& dllPath, const std::string& cachePath, bool preferFp16);
-
-// Is the cache current for this DLL? Compares source size + content hash.
-DllStatus cacheMatchesSource(const std::string& cachePath, const std::string& dllPath,
-                             bool& outMatches);
 
 // Load a previously built cache.
 DllStatus loadModules(const std::string& cachePath, ModuleSet& outSet);

@@ -1,9 +1,10 @@
 // See lsfg_dxbc.h. DXBC -> SPIR-V via DXVK's vendored translator.
 //
 // Follows upstream lsfg-vk's src/extract/trans.cpp, including its
-// encounter-order binding renumber. Derived from WinNative's lsfg_dxbc.cpp
-// (GPL-3.0-or-later); the translator itself is DXVK's, zlib licensed, vendored
-// under cpp/thirdparty/dxbc.
+// encounter-order binding renumber. Ported to WinNative (lsfg_dxbc.cpp) and
+// DroidDeck by @maxjivi05 from the work of Camille LaVey / the Eden Emulator
+// Project (GPL-3.0-or-later); the translator itself is DXVK's, zlib licensed,
+// vendored under cpp/thirdparty/dxbc.
 
 #include "lsfg_dxbc.h"
 

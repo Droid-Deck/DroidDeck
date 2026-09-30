@@ -22,6 +22,8 @@
          relay helper opens the input stream under this uid, and PulseAudio exposes it to the
          Steam client as DirectAudioMic. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Installs DroidDeck's own updates (Updates page) over itself, after the user allows it. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />

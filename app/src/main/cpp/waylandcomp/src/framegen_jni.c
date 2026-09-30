@@ -14,9 +14,9 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetFrameGenEngine(JN
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetFrameGenArmed(JNIEnv *env, jclass clazz,
-                                                                        jboolean armed, jint multiplier) {
+                                                                        jboolean armed, jint multiplier, jint targetFps) {
     (void)env; (void)clazz;
-    vkp_framegen_set_armed(armed ? 1 : 0, (int)multiplier);
+    vkp_framegen_set_armed(armed ? 1 : 0, (int)multiplier, (int)targetFps);
 }
 
 JNIEXPORT void JNICALL

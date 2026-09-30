@@ -8,7 +8,9 @@ import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.util.Locale
@@ -86,20 +88,22 @@ class PerfHud(context: Context) {
     }
 
     private fun line(base: Float): String {
-        val engine = FrameGen.engine(context)
-        if (engine == FrameGen.ENGINE_OFF) return fps(base)
-        val name = if (engine == FrameGen.ENGINE_LSFG) "LSFG" else "Win-FG"
-        val multiplier = FrameGen.multiplier(context)
+        val mode = FrameGen.mode(context)
+        if (mode.engine == FrameGen.ENGINE_OFF) return fps(base)
+        val lsfg = mode.engine == FrameGen.ENGINE_LSFG
+        val name = if (lsfg) "LSFG" else "Win-FG"
+        val label = FrameGen.label(context, mode)
+        if (lsfg && Lossless.cacheFile(context)?.isFile != true) return context.getString(R.string.hud_fg_needs_lossless, name)
         val stats = try { WaylandCompositor.nativeFrameGenStats() } catch (t: Throwable) { null }
         val problem = try { WaylandCompositor.nativeFrameGenProblem() } catch (t: Throwable) { -1 }
         return when {
-            problem == 1 -> "$name: unsupported"
-            problem == 2 -> "$name: engine failed"
+            problem == 1 -> context.getString(R.string.hud_fg_unsupported, name)
+            problem == 2 -> context.getString(R.string.hud_fg_failed, name)
             stats != null && stats[3] > 1f -> {
                 val source = if (stats[2] > 1f) stats[2] else base
-                String.format(Locale.US, "%s %d×  %.0f → %.0f fps", name, multiplier, source, stats[3])
+                String.format(Locale.US, "%s  %.0f → %.0f fps", label, source, stats[3])
             }
-            else -> String.format(Locale.US, "%s %d×  %s · FG starting", name, multiplier, fps(base))
+            else -> context.getString(R.string.hud_fg_starting, label, fps(base))
         }
     }
 

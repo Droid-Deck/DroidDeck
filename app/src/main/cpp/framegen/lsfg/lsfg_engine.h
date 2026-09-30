@@ -16,8 +16,9 @@
 // unavoidable cost of interpolating rather than extrapolating; no placement of
 // this code changes it.
 //
-// Ported from WinNative's vkr_lsfg.cpp (GPL-3.0-or-later), LSFG port credited
-// to Camille LaVey / the Eden Emulator Project, following upstream lsfg-vk.
+// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
+// upstream lsfg-vk. Ported to WinNative (vkr_lsfg.cpp) and DroidDeck by
+// @maxjivi05, where it runs on gamescope's output in the compositor.
 // ============================================================================
 
 #include <cstdint>
@@ -108,6 +109,10 @@ private:
     // only while generating, so the slot still carries whatever was there when
     // generation last stopped.
     bool historyFresh() const { return haveCopied_ && lastCopiedCount_ + 1 == frameCount_; }
+
+    // With a target rate the pacer plans 0..3 generations frame by frame, so the ring and the
+    // shared chain have to follow every frame it keeps warm, not just the ones that generate.
+    bool followEveryFrame() const { return warm_ && pacer_.Config().target_rate != 0; }
 
     Device      device_{};
     std::string cachePath_;

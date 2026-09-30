@@ -72,6 +72,10 @@ class ModeSettings(
     val steamChannel: String? = null,
     /** Steam only: enable the SteamOS client interface and its performance controls. */
     val steamDeckMode: Boolean = false,
+    /** Steam, Deck mode: the QAM's performance overlay (mangoapp) is started. */
+    val mangoapp: Boolean = true,
+    /** Steam only: what the pad is to the client (SessionPrefs.CONTROLLER_*); null outside Steam. */
+    val steamController: String? = null,
     /** Steam only: start a Steam session when DroidDeck opens. */
     val runSteamAtStartup: Boolean = false,
     /** Steam only: the user's chosen Games folders; null outside Steam. */
@@ -129,6 +133,8 @@ class ModeSettingsActions(
     val onForceFullscreen: (Boolean) -> Unit = {},
     val onSteamChannel: (String) -> Unit = {},
     val onSteamDeckMode: (Boolean) -> Unit = {},
+    val onMangoapp: (Boolean) -> Unit = {},
+    val onSteamController: (String) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onPickAddedGamesDir: () -> Unit = {},
     val onForgetAddedGamesDir: (path: String) -> Unit = {},
@@ -268,6 +274,16 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 ), s.oscMode,
                 note = "Auto shows all controls without a controller. Steam + QAM shows only those buttons.", onPick = a.onOsc,
             )
+            if (steam && s.steamController != null) ChoiceRow(
+                host, "controller", "Controller", "What your controller is to Steam. Applies next session.",
+                listOf(
+                    SessionPrefs.CONTROLLER_DECK to "Steam Deck controller",
+                    SessionPrefs.CONTROLLER_XBOX360 to "Xbox 360 controller",
+                ), s.steamController,
+                note = "Steam Deck controller: Steam reads it as a Deck's own, with its Quick Access button and the device's gyro. " +
+                    "Xbox 360 controller: the plain pad of earlier versions; Quick Access opens with Guide+A.",
+                onPick = a.onSteamController,
+            )
             if (steam) ChoiceRow(
                 host, "back-actions", "Back", SessionPrefs.backActionsOrder(s.backActionsInverted),
                 listOf(
@@ -355,10 +371,17 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 "Enables Steam's Deck interface and Quick Access performance overlay controls. Applies next session.",
                 s.steamDeckMode, onChange = a.onSteamDeckMode,
             )
-            ChoiceRow(
+            if (s.steamDeckMode) ToggleRow(
+                host, "mangoapp", "Performance overlay",
+                "The Quick Access Menu's frame-rate and usage overlay. Turn off if games crash or go black with Deck mode on. Applies next session.",
+                s.mangoapp, onChange = a.onMangoapp,
+            )
+            // Deck mode fixes the branch (SessionPrefs.steamChannel); the choice is for Deck mode off.
+            if (s.steamDeckMode) SettingsRow("Client branch", "Steam Deck public beta: Deck mode needs it, so Steam doesn't keep offering an update") {}
+            else ChoiceRow(
                 host, "channel", "Client branch", "The Steam client build the session forces. Applies at the next session start; the client may update itself once.",
                 listOf("publicbeta" to "Public beta", "steamdeck_publicbeta" to "Steam Deck public beta"), s.steamChannel,
-                note = "Public beta is what every session ran on before. Steam Deck public beta is the channel Deck mode needs (on public beta it reinstalls the same client at every start) and the one Armada bootstraps from; Deck mode picks it unless you choose here.",
+                note = "Public beta is what every session ran on before. Steam Deck public beta is the one Armada bootstraps from, and the one Deck mode always uses.",
                 onPick = a.onSteamChannel,
             )
         }

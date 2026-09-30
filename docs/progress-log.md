@@ -7,6 +7,47 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-09-29 - `feat/controller-input`: the pad the way SteamOS has it
+
+Device-tested on the AYN Thor (Katamari under Proton Experimental ARM64).
+
+- **Why**: the client read the pad as an Xbox 360 controller, and games read the *same* node
+  wearing Steam Input's virtual identity (28de:11ff), because the client's own virtual pad needs
+  `/dev/uinput` and never appeared. Steam Input's layouts therefore never reached a game, and the
+  QAM was a timed Guide+A chord. InputPlumber itself cannot run in the sandbox (root, uinput, uhid,
+  udev, D-Bus), so what it provides is emulated in the interposer instead.
+- **`/dev/uinput` stand-in** (`FAKE_EVDEV_UINPUT=1`, libfakeinput): a gamepad the client makes
+  becomes `/dev/input/event16+`, backed by a ring of the app's own format, with the client's name,
+  ids and bits; its writes are that ring's events. Other devices (virtual keyboard and mouse) are
+  accepted and dropped. `inputudev.c` describes these nodes to Wine's HID bus from a `.uevent` file
+  beside each one, and while one exists describes the app's pads as the Xbox 360 pad they are, so
+  Wine reads only Steam Input's output. Verified: the client makes "Microsoft X-Box 360 pad 0",
+  re-makes it at game launch, and the game binds it (`Controller 0 uses xinput : true`).
+- **Steam Deck controller** (`FAKE_EVDEV_DECK=1`, Steam sessions): `/dev/hidraw16`, found through a
+  sysfs tree `SteamDeckPad.kt` binds in (usb_device → interface 2 → hid 28de:1205 → hidraw), streams
+  the Deck's 64-byte state report every 4 ms from ring 0 and answers feature reports as InputPlumber
+  does. systemd 261's libudev refuses a syspath not on sysfs, so `fstatfs`/`statfs` report sysfs
+  for that tree. The app's evdev nodes are withdrawn while it is on, and only the `steam` process
+  sees the Deck. QAM is a real button (snapshot bit 11). Verified: the client lists a Steam Deck
+  Controller (V1 HID protocol) and runs its handshake (0x83, 0xAE, 0x81/0x87 lizard off, 0x8F).
+- **Setting**: Steam page → Touch & controls → **Controller**: *Steam Deck controller* (default) or
+  *Xbox 360 controller* (the pad of earlier versions, QAM by Guide+A; games still get Steam Input's
+  virtual pad). Debug switches: `droiddeck-no-uinput` (back to the 28de:11ff disguise),
+  `droiddeck-no-deck-pad` (forces the Xbox 360 pad).
+- **Gyro**: `PadMotion.kt` feeds the handheld's own gyro and accelerometer (4 ms sampling, while
+  the session is on screen) into an IMU block after ring 0's events, turned to the screen and then
+  to the Deck's axes and units; the Deck report carries them. Verified: Steam's Gyro Calibration
+  page moves with the Thor (sh5001 IMU); at rest the accelerometer reads 1 g.
+- **Deck grips + trackpads on the second screen** (`DeckControlsPanel.kt`, offered while the pad
+  is a Deck controller): tabs for the four grips (2x2), either trackpad with a click bar, and both
+  trackpads over the grips in a row; a second finger on a trackpad clicks it. True black for OLED.
+  Grips, pad positions, touch, click and pressure go through the same block after ring 0's events
+  as the gyro (`DeckControls.kt`) into the Deck report.
+- **Not yet**: a Bluetooth pad's own IMU (DualSense); the
+  game's rumble on the virtual pad goes straight to the vibrator rather than back through the client.
+- **Prior art checked**: WinNative and Bannerlator never emulated uinput or hidraw; Bannerlator's
+  `-steamdeck` mode stopped at "the virtual pad never arrives", which is this missing uinput.
+
 ## 2026-09-25 - main `8cdedbe`: melonDS out of the box, touch in Big Picture, log privacy, Decky
 
 State: **main = `8cdedbe`** (PR #22 merge). Device-tested on the AYANEO Pocket FIT (repacked test builds)

@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
@@ -91,9 +92,8 @@ class FrontEndState(
     val steamGames: List<Library.SteamGame>,
     val emulators: List<Library.Emulator>,
     val running: String?,
-    val frameGenEngine: String = FrameGen.ENGINE_OFF,
-    val frameGenMultiplier: Int = 2,
-    val lsfgReady: Boolean = false,
+    val frameGen: FrameGen.Mode = FrameGen.Mode.OFF,
+    val lossless: Lossless.State = Lossless.State.NONE,
     val pageKey: String? = null,
     val theme: String = Themes.GRAPHITE,
     val isHomeApp: Boolean = false,
@@ -114,6 +114,11 @@ class FrontEndState(
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
     val showPhantomGate: Boolean = false,
     val launcherFullscreen: Boolean = true,
+    /** Beta features the user turns on in Setup: the Flathub Store and AppImage import. */
+    val storeEnabled: Boolean = false,
+    val appImagesEnabled: Boolean = false,
+    /** The Updates page: DroidDeck's own builds and the channel followed. */
+    val updates: UpdatesState = UpdatesState(),
 )
 
 class FrontEndActions(
@@ -122,6 +127,11 @@ class FrontEndActions(
     val onSteamGame: (Library.SteamGame) -> Unit,
     val onDesktop: () -> Unit,
     val onEmulator: (Library.Emulator) -> Unit,
+    /** A Flatpak app by id and name, from the Store. */
+    val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
+    /** Pick an AppImage to import; open an imported one by its directory and name. */
+    val onImportAppImage: () -> Unit = {},
+    val onAppImage: (String, String) -> Unit = { _, _ -> },
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
     val onSteamSettings: () -> Unit,
@@ -129,10 +139,14 @@ class FrontEndActions(
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
     val onRuntime: () -> Unit,
-    val onFrameGenPick: (engine: String, multiplier: Int) -> Unit,
+    val onFrameGenPick: (FrameGen.Mode) -> Unit,
+    val onImportLossless: () -> Unit,
     val onProtons: () -> Unit,
     /** The Components page: FEX / DXVK / VKD3D-Proton per Proton. */
     val onComponents: (focusContent: Boolean) -> Unit,
+    /** A game page's Manage saves: import a save zip into this game, or export its saves in a layout. */
+    val onSaveImport: (Library.SteamGame) -> Unit = {},
+    val onSaveExport: (Library.SteamGame, com.droiddeck.launcher.session.GameSaves.Layout) -> Unit = { _, _ -> },
     val onPerformance: () -> Unit,
     val onRoms: () -> Unit,
     val onFiles: () -> Unit,
@@ -140,15 +154,15 @@ class FrontEndActions(
     val onLogs: () -> Unit,
     val onShareLogs: () -> Unit = {},
     val onOffline: () -> Unit,
-    val onCredits: () -> Unit,
     val onPageBack: () -> Unit = {},
     val onTheme: (String) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
+    val onStoreEnabled: (Boolean) -> Unit = {},
+    val onAppImagesEnabled: (Boolean) -> Unit = {},
     val onHomeApp: () -> Unit = {},
     val onHomeScreen: (Boolean) -> Unit = {},
     val onAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit = { _, _ -> },
     val onBackActionsInverted: (Boolean) -> Unit = {},
-    val onCheckLatestBuild: () -> Unit = {},
     val onRefreshPhantomStatus: () -> Unit = {},
     val onOpenDeveloperOptions: (Int?) -> Unit = {},
     val onWirelessAdbPair: (String, Int, String, (String?) -> Unit) -> Unit = { _, _, _, done -> done("Wireless debugging is unavailable") },
@@ -160,6 +174,7 @@ class FrontEndActions(
     val onStartWirelessAdbPairing: () -> Unit = {},
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
+    val updates: UpdatesActions = UpdatesActions(),
 )
 
 internal object Motion {
@@ -350,6 +365,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         selected = if (selected.startsWith("emu:")) "desktop" else "emu:" + selected.removePrefix("rom:").substringBefore(':')
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
+    // The Store turned off in Setup takes its page with it.
+    LaunchedEffect(s.storeEnabled) { if (!s.storeEnabled && selected == "store") selected = "steam" }
     // The last game uninstalled leaves the Games tab on its empty state.
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:")) selected = "games"

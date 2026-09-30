@@ -4,10 +4,9 @@
 // SPDX-FileCopyrightText: Copyright 2025 lsfg-vk
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Ported into Bannerlator's compositor from WinNative (GPL-3.0-or-later),
-// whose LSFG port is credited to Camille LaVey / the Eden Emulator Project and
-// follows upstream lsfg-vk. Only the Vulkan dispatch differs: Bannerlator
-// resolves entry points through the renderer's own table (see lsfg_vkd.h).
+// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
+// upstream lsfg-vk. Ported to WinNative and DroidDeck by @maxjivi05; only the
+// Vulkan dispatch differs here (see lsfg_vkd.h).
 
 #include "lsfg_delta.hpp"
 #include "lsfg_shaders.hpp"

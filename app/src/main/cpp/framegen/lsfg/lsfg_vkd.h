@@ -2,10 +2,10 @@
 // ============================================================================
 // lsfg_vkd - the Vulkan entry points the LSFG chain calls, as a single global.
 //
-// Two dispatch styles meet here. Bannerlator's compositor resolves Vulkan
+// Two dispatch styles meet here. DroidDeck's compositor resolves Vulkan
 // through a per-context VkTable (`vk_`), because an adrenotools-loaded driver
 // lives in an isolated linker namespace and shares no global symbols with the
-// system loader. The LSFG chain, ported from eden by way of WinNative, calls
+// system loader. The LSFG chain, ported from Eden by way of WinNative, calls
 // through a file-scope `vkd`. Rather than rewrite ~2,300 lines of proven chain
 // code to thread a table through every call, this shim exposes exactly the 34
 // entry points the chain uses and is filled from the renderer's own table when

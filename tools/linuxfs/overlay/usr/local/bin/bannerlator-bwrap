@@ -1,0 +1,318 @@
+#!/usr/bin/python3
+# bubblewrap for Flatpak (FLATPAK_BWRAP), in a runtime that cannot have it.
+#
+# bwrap builds each sandbox from mount namespaces, which Android gives no app. proot gives the same
+# picture - Flatpak's runtime as /usr, the app as /app, host paths bound where Flatpak asks - but a
+# proot nested inside the session's proot runs every system call through two tracers, some thirty
+# times slower on a program's start. So a sandbox is described to the app instead, over a socket
+# only this app's uid may use, and the app starts it as a proot of its own beside the session's
+# (BwrapSpawner). This process stands in for the sandbox until it ends: its output, its pid for
+# --info-fd, and its exit status come back here.
+#
+# Sandboxes that remap nothing - Flatpak's install triggers (`--ro-bind / /` and the directory they
+# update) and the D-Bus proxy (every top-level directory bound onto itself) - need no proot at all
+# and run here directly, with the file descriptors Flatpak handed them.
+import base64
+import json
+import os
+import signal
+import socket
+import struct
+import sys
+
+SOCKET = "\0com.droiddeck.launcher.bwrap"
+VERSION = "bubblewrap 0.11.0 (droiddeck)"
+
+# Options and how many arguments each takes; bwrap(1).
+NO_ARG = {
+    "--unshare-user", "--unshare-user-try", "--unshare-ipc", "--unshare-pid", "--unshare-net",
+    "--unshare-uts", "--unshare-cgroup", "--unshare-cgroup-try", "--unshare-all", "--share-net",
+    "--disable-userns", "--assert-userns-disabled", "--clearenv", "--new-session",
+    "--die-with-parent", "--as-pid-1", "--level-prefix", "--tmp-overlay", "--ro-overlay",
+}
+ONE_ARG = {
+    "--args", "--argv0", "--userns", "--userns2", "--pidns", "--uid", "--gid", "--hostname",
+    "--chdir", "--unsetenv", "--lock-file", "--sync-fd", "--remount-ro", "--exec-label",
+    "--file-label", "--proc", "--dev", "--tmpfs", "--mqueue", "--dir", "--seccomp",
+    "--add-seccomp-fd", "--block-fd", "--userns-block-fd", "--info-fd", "--json-status-fd",
+    "--cap-add", "--cap-drop", "--perms", "--size", "--overlay-src",
+}
+TWO_ARG = {
+    "--setenv", "--bind", "--bind-try", "--dev-bind", "--dev-bind-try", "--ro-bind",
+    "--ro-bind-try", "--bind-fd", "--ro-bind-fd", "--file", "--bind-data", "--ro-bind-data",
+    "--symlink", "--chmod",
+}
+THREE_ARG = {"--overlay"}
+
+
+def read_fd(fd):
+    chunks = []
+    while True:
+        b = os.read(fd, 65536)
+        if not b:
+            break
+        chunks.append(b)
+    os.close(fd)
+    return b"".join(chunks)
+
+
+def fd_path(fd):
+    return os.readlink("/proc/self/fd/%d" % fd)
+
+
+def expand(argv):
+    """argv with every --args FD replaced by the NUL-separated arguments read from FD."""
+    out = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--args" and i + 1 < len(argv):
+            data = read_fd(int(argv[i + 1]))
+            # Each argument ends in a NUL; an empty one (--setenv LD_LIBRARY_PATH "") is kept.
+            parts = data.split(b"\0")
+            if parts and parts[-1] == b"":
+                parts.pop()
+            out.extend(x.decode("utf-8", "surrogateescape") for x in parts)
+            i += 2
+            continue
+        out.append(a)
+        i += 1
+    return out
+
+
+class Spec:
+    def __init__(self):
+        self.ops = []
+        self.env = dict(os.environ)
+        self.cwd = None
+        self.info_fds = []
+        self.json_fds = []
+        self.keep_fds = []
+        self.command = []
+        self.argv0 = None
+
+
+def parse(argv):
+    s = Spec()
+    perms = None
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--":
+            s.command = argv[i + 1:]
+            break
+        if not a.startswith("--"):
+            s.command = argv[i:]
+            break
+        if a in ("--version",):
+            print(VERSION)
+            sys.exit(0)
+        if a == "--help":
+            print("usage: bwrap [OPTIONS...] [--] COMMAND [ARGS...]")
+            sys.exit(0)
+        n = 0 if a in NO_ARG else 1 if a in ONE_ARG else 2 if a in TWO_ARG else 3 if a in THREE_ARG else -1
+        if n < 0:
+            sys.stderr.write("bwrap: Unknown option %s\n" % a)
+            sys.exit(1)
+        args = argv[i + 1:i + 1 + n]
+        if len(args) < n:
+            sys.stderr.write("bwrap: %s takes %d arguments\n" % (a, n))
+            sys.exit(1)
+        i += 1 + n
+        op_perms, perms = perms, None
+        if a == "--perms":
+            perms = int(args[0], 8)
+        elif a == "--clearenv":
+            s.env = {"PWD": os.getcwd()} if "PWD" in os.environ else {}
+        elif a == "--setenv":
+            s.env[args[0]] = args[1]
+        elif a == "--unsetenv":
+            s.env.pop(args[0], None)
+        elif a == "--chdir":
+            s.cwd = args[0]
+        elif a == "--argv0":
+            s.argv0 = args[0]
+        elif a in ("--bind", "--bind-try", "--dev-bind", "--dev-bind-try", "--ro-bind", "--ro-bind-try"):
+            s.ops.append({"t": "bind", "src": args[0], "dest": args[1], "try": a.endswith("-try"),
+                          "ro": a.startswith("--ro")})
+        elif a in ("--bind-fd", "--ro-bind-fd"):
+            fd = int(args[0])
+            s.ops.append({"t": "bind", "src": fd_path(fd), "dest": args[1], "try": False,
+                          "ro": a.startswith("--ro")})
+            os.close(fd)
+        elif a in ("--file", "--bind-data", "--ro-bind-data"):
+            s.ops.append({"t": "file", "dest": args[1], "data": read_fd(int(args[0])),
+                          "perms": op_perms if op_perms is not None else 0o666 if a == "--file" else 0o600})
+        elif a == "--symlink":
+            s.ops.append({"t": "symlink", "target": args[0], "dest": args[1]})
+        elif a == "--dir":
+            s.ops.append({"t": "dir", "dest": args[0], "perms": op_perms if op_perms is not None else 0o755})
+        elif a in ("--tmpfs", "--mqueue"):
+            s.ops.append({"t": "dir", "dest": args[0], "perms": op_perms if op_perms is not None else 0o755,
+                          "empty": True})
+        elif a == "--proc":
+            s.ops.append({"t": "proc", "dest": args[0]})
+        elif a == "--dev":
+            s.ops.append({"t": "dev", "dest": args[0]})
+        elif a in ("--seccomp", "--add-seccomp-fd"):
+            # proot is the sandbox; there is no filter to install under it.
+            os.close(int(args[0]))
+        elif a == "--block-fd":
+            read_fd(int(args[0]))
+        elif a == "--sync-fd":
+            s.keep_fds.append(int(args[0]))
+        elif a == "--info-fd":
+            s.info_fds.append(int(args[0]))
+        elif a == "--json-status-fd":
+            s.json_fds.append(int(args[0]))
+        # Everything else - namespaces, capabilities, labels, locks, --remount-ro, --chmod - has
+        # nothing to act on under proot.
+    if not s.command:
+        sys.stderr.write("bwrap: No command specified\n")
+        sys.exit(1)
+    return s
+
+
+def real(path):
+    try:
+        return os.path.realpath(path)
+    except OSError:
+        return path
+
+
+def remaps_nothing(s):
+    """True when every path in the sandbox is what it is out here already."""
+    for op in s.ops:
+        t = op["t"]
+        if t == "bind":
+            src = real(op["src"])
+            if not os.path.exists(src):
+                if op["try"]:
+                    continue
+                return False
+            if src != real(op["dest"]) and not (op["src"] == "/" and op["dest"] == "/"):
+                return False
+        elif t == "symlink":
+            if not os.path.islink(op["dest"]) or os.readlink(op["dest"]) != op["target"]:
+                return False
+        elif t == "file":
+            # The D-Bus proxy's /.flatpak-info names the app to the bus; nothing here reads it.
+            if op["dest"] != "/.flatpak-info":
+                return False
+        elif t == "dir":
+            if not os.path.isdir(op["dest"]) or op.get("empty") and op["dest"] not in ("/tmp", "/var/tmp", "/run"):
+                return False
+        elif t in ("proc", "dev"):
+            if op["dest"] != "/" + t:
+                return False
+    return True
+
+
+def report_pid(s, pid):
+    for fd in s.info_fds:
+        try:
+            os.write(fd, json.dumps({"child-pid": pid}).encode() + b"\n")
+            os.close(fd)
+        except OSError:
+            pass
+    for fd in s.json_fds:
+        try:
+            os.write(fd, json.dumps({"child-pid": pid}).encode() + b"\n")
+        except OSError:
+            pass
+
+
+def run_here(s):
+    report_pid(s, os.getpid())
+    for fd in s.json_fds:
+        os.close(fd)
+    if s.cwd:
+        os.chdir(s.cwd)
+    argv = list(s.command)
+    program = argv[0]
+    if s.argv0:
+        argv[0] = s.argv0
+    try:
+        os.execvpe(program, argv, s.env)
+    except OSError as e:
+        sys.stderr.write("bwrap: execvp %s: %s\n" % (program, e.strerror))
+        sys.exit(1)
+
+
+def send(sock, kind, payload):
+    sock.sendall(kind + struct.pack(">I", len(payload)) + payload)
+
+
+def recv_exact(sock, n):
+    buf = b""
+    while len(buf) < n:
+        b = sock.recv(n - len(buf))
+        if not b:
+            return None
+        buf += b
+    return buf
+
+
+def run_by_app(s):
+    ops = []
+    for op in s.ops:
+        op = dict(op)
+        if op["t"] == "bind":
+            # The app resolves no guest symlinks; hand it the path they lead to.
+            op["src"] = real(op["src"])
+        if op["t"] == "file":
+            op["data"] = base64.b64encode(op["data"]).decode()
+        ops.append(op)
+    argv = list(s.command)
+    if s.argv0:
+        argv[0] = s.argv0
+    request = {"argv": argv, "env": s.env, "cwd": s.cwd or "/", "ops": ops}
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(SOCKET)
+    except OSError as e:
+        sys.stderr.write("bwrap: DroidDeck is not answering (%s); open DroidDeck and try again\n" % e)
+        sys.exit(1)
+    send(sock, b"R", json.dumps(request).encode())
+    # This process is the sandbox as far as Flatpak is concerned: ended, it takes the sandbox down.
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda *_: os._exit(128 + 15))
+    status = 1
+    out = sys.stdout.buffer
+    while True:
+        head = recv_exact(sock, 5)
+        if head is None:
+            sys.stderr.write("bwrap: DroidDeck closed the sandbox\n")
+            break
+        kind, size = head[:1], struct.unpack(">I", head[1:])[0]
+        payload = recv_exact(sock, size) if size else b""
+        if payload is None:
+            break
+        if kind == b"P":
+            report_pid(s, int(payload))
+        elif kind == b"O":
+            out.write(payload)
+            out.flush()
+        elif kind == b"E":
+            sys.stderr.write("bwrap: %s\n" % payload.decode("utf-8", "replace"))
+        elif kind == b"X":
+            status = int(payload)
+            break
+    for fd in s.json_fds:
+        try:
+            os.write(fd, json.dumps({"exit-code": status}).encode() + b"\n")
+        except OSError:
+            pass
+    sys.exit(status)
+
+
+def main():
+    s = parse(expand(sys.argv[1:]))
+    if remaps_nothing(s):
+        run_here(s)
+    else:
+        run_by_app(s)
+
+
+if __name__ == "__main__":
+    main()

@@ -8,6 +8,8 @@ object SessionPrefs {
     const val SUSPEND_MANUAL = "manual"
     const val SUSPEND_NEVER = "never"
 
+    const val CONTROLLER_DECK = "deck"
+    const val CONTROLLER_XBOX360 = "xbox360"
     const val OSC_AUTO = "auto"
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
@@ -28,11 +30,36 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
-    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean("hud", true)
+    /** The Flathub Store (beta): its rail item and the Store's apps on the Desktop page. Off by default. */
+    fun storeEnabled(context: Context): Boolean = prefs(context).getBoolean("storeEnabled", false)
+
+    fun setStoreEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("storeEnabled", on).apply()
+    }
+
+    /** AppImage import (beta): the AppImages section on the Desktop page. Off by default. */
+    fun appImagesEnabled(context: Context): Boolean = prefs(context).getBoolean("appImagesEnabled", false)
+
+    fun setAppImagesEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("appImagesEnabled", on).apply()
+    }
+
+    /**
+     * The session's performance HUD (the fps box). A Deck-mode Steam session with the performance
+     * overlay has Steam's own (mangoapp, from the QAM), so there the HUD is off unless turned on
+     * in one - a choice kept apart from every other session's, where it stays on by default.
+     */
+    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), !mangoappSession(context))
 
     fun setHudEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("hud", on).apply()
+        prefs(context).edit().putBoolean(hudKey(context), on).apply()
     }
+
+    private fun hudKey(context: Context) = if (mangoappSession(context)) "hudDeck" else "hud"
+
+    /** A Steam session that runs Deck mode with its performance overlay (mangoapp). */
+    private fun mangoappSession(context: Context) =
+        SessionState.mode == SessionService.MODE_STEAM && steamDeckMode(context) && mangoapp(context)
 
     /** When enabled, a single Back opens Steam QAM and a double Back opens the session menu. */
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
@@ -274,9 +301,38 @@ object SessionPrefs {
     fun noGlError(context: Context): Boolean = prefs(context).getBoolean("noGlError", true)
     fun setNoGlError(context: Context, on: Boolean) { prefs(context).edit().putBoolean("noGlError", on).apply() }
 
-    /** Runs the SteamOS gamepad client with its Quick Access performance controls. */
-    fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", false)
+    /**
+     * What the pad is to the Steam client: [CONTROLLER_DECK], a Steam Deck controller (Quick Access
+     * button, gyro, Steam Input's full treatment - SteamDeckPad), or [CONTROLLER_XBOX360], the plain
+     * Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
+     */
+    fun steamController(context: Context): String =
+        prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
+    fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
+
+    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On for new installs (settleDeckModeDefault). */
+    fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", true)
     fun setSteamDeckMode(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamDeckMode", on).apply() }
+
+    /**
+     * Deck mode became the default for new installs; an install from before keeps what it ran with
+     * (off), so an update never changes its interface or restarts the client on its own. Run once at
+     * process start, before anything reads or writes these prefs: a new install has neither prefs
+     * nor a runtime yet. The answer is written down, so it is decided once.
+     */
+    fun settleDeckModeDefault(context: Context) {
+        val p = prefs(context)
+        if (p.contains("steamDeckMode")) return
+        val existing = p.all.isNotEmpty() || java.io.File(context.filesDir, "linuxfs").exists()
+        p.edit().putBoolean("steamDeckMode", !existing).apply()
+    }
+
+    /**
+     * Deck mode's performance overlay (mangoapp, beside gamescope): the QAM's Overlay Level draws
+     * through it. Off is the way out where Valve's mangoapp crashes (one Turnip build did).
+     */
+    fun mangoapp(context: Context): Boolean = prefs(context).getBoolean("mangoapp", true)
+    fun setMangoapp(context: Context, on: Boolean) { prefs(context).edit().putBoolean("mangoapp", on).apply() }
 
     /**
      * Zink's lazy descriptor mode (ZINK_DESCRIPTORS=lazy) with its compact set layout
@@ -354,14 +410,18 @@ object SessionPrefs {
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
 
-    /** The Steam client branch forced on the command line: "publicbeta" (every session so far) or "steamdeck_publicbeta" (Armada's). */
+    /**
+     * The Steam client branch forced on the command line: "publicbeta" (every session so far) or
+     * "steamdeck_publicbeta" (Armada's). Deck mode always takes the Deck branch, whatever was chosen:
+     * with -steamos3 the client picks its own branch as SteamOS does, and on publicbeta it settled
+     * on steamdeck_stable - an older client it then offered as a "Software Update" in every session,
+     * which applying turns into the exit-42 restart loop (seen on device 2026-09-30). Earlier, Deck
+     * mode on publicbeta also reinstalled the same client at every start (2026-09-23). On
+     * steamdeck_publicbeta the client finds no update. The choice applies with Deck mode off.
+     */
     fun steamChannel(context: Context): String =
-        prefs(context).getString("steamChannel", null)
-            // Deck mode on the publicbeta channel reinstalls the same client at every start (the
-            // client reports "installed version 0" against that manifest and exits 42 to apply it,
-            // losing the launch URL each time); on steamdeck_publicbeta the second launch comes up
-            // clean. Seen on device 2026-09-23. So Deck mode takes the Deck channel unless chosen.
-            ?: if (steamDeckMode(context)) "steamdeck_publicbeta" else "publicbeta"
+        if (steamDeckMode(context)) "steamdeck_publicbeta"
+        else prefs(context).getString("steamChannel", null) ?: "publicbeta"
 
     fun setSteamChannel(context: Context, id: String) {
         prefs(context).edit().putString("steamChannel", id).apply()

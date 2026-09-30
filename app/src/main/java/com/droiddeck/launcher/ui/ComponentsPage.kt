@@ -295,7 +295,7 @@ fun ComponentsPage(
 }
 
 @Composable
-private fun ToolIcon(icon: ImageVector, description: String, busy: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun ToolIcon(icon: ImageVector, description: String, busy: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -304,7 +304,7 @@ private fun ToolIcon(icon: ImageVector, description: String, busy: Boolean = fal
         contentAlignment = Alignment.Center,
         modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
             .background(if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
-            .border(if (hot) 2.dp else 1.dp, if (hot) pal.signal else pal.line2, RoundedCornerShape(12.dp))
+            .glideBorder(hot, RoundedCornerShape(12.dp), pal.signal, pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick),
     ) {
@@ -327,7 +327,7 @@ private fun SmallButton(text: String, enabled: Boolean = true, accent: Boolean =
         contentAlignment = Alignment.Center,
         modifier = modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
             .background(if (hot) pal.signal else colors.surfaceVariant)
-            .border(2.dp, if (hot) colors.onBackground else pal.line2, RoundedCornerShape(10.dp))
+            .glideBorder(hot, RoundedCornerShape(10.dp), colors.onBackground, pal.line2, restWidth = 2.dp)
             .hoverable(src).clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -369,7 +369,7 @@ private fun InstalledLine(item: InstalledItem, modifier: Modifier = Modifier, on
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.weight(1f).heightIn(min = 56.dp).then(modifier)
-                .border(2.dp, if (hot) pal.signal else Color.Transparent, ROW_SHAPE)
+                .glideBorder(hot, ROW_SHAPE, pal.signal)
                 .hoverable(src).clickable(interactionSource = src, indication = null, onClick = onSelect)
                 .controllerConfirm(onClick = onSelect)
                 .padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
@@ -398,7 +398,7 @@ private fun InstalledLine(item: InstalledItem, modifier: Modifier = Modifier, on
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.padding(end = 6.dp).size(40.dp).clip(ROW_SHAPE)
                     .background(if (delHot) colors.error.copy(alpha = 0.14f) else Color.Transparent)
-                    .border(2.dp, if (delHot) colors.error else Color.Transparent, ROW_SHAPE)
+                    .glideBorder(delHot, ROW_SHAPE, colors.error)
                     .hoverable(delSrc).clickable(interactionSource = delSrc, indication = null, onClick = onDelete)
                     .controllerConfirm(onClick = onDelete),
             ) { Icon(Icons.Outlined.Delete, contentDescription = "Delete ${item.name}", tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }

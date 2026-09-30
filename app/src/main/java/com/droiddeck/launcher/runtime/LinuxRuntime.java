@@ -115,6 +115,37 @@ public final class LinuxRuntime {
                                        File externalStorage, List<String> extraBinds,
                                        List<String> guestCommand) {
         File root = rootDir(context);
+        List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
+        // A session's binds are the view its programs have; a one-off command's are not recorded.
+        if (sessionRoot != null) lastBinds = binds;
+        List<String> cmd = prootPrefix(context, root, "/root");
+        for (String spec : binds) bind(cmd, spec);
+        cmd.addAll(guestCommand);
+        return cmd;
+    }
+
+    /**
+     * The binds of the last command built: the guest's view of the host, which the Flatpak
+     * sandboxes started beside a session (BwrapSpawner) translate their paths through.
+     */
+    private static volatile List<String> lastBinds;
+
+    public static List<String> lastBinds(Context context) {
+        List<String> binds = lastBinds;
+        if (binds != null) return binds;
+        return binds(context, null, null, android.os.Environment.getExternalStorageDirectory(), null);
+    }
+
+    /** proot and its options up to the binds: the rootfs at {@code root}, starting in {@code cwd}. */
+    public static List<String> prootPrefix(Context context, File root, String cwd) {
+        return prootPrefix(context, root, cwd, false);
+    }
+
+    /**
+     * As above; {@code fakeRoot} has the guest see uid 0 (proot -0), for the package tools that
+     * refuse any other uid. Files it writes still belong to the app.
+     */
+    public static List<String> prootPrefix(Context context, File root, String cwd, boolean fakeRoot) {
         List<String> cmd = new ArrayList<>();
         cmd.add(prootBinary(context).getPath());
         cmd.add("--kill-on-exit");
@@ -125,12 +156,24 @@ public final class LinuxRuntime {
         // this the keymap never compiles and Xwayland dies. -i makes proot answer those calls
         // itself while still reporting our real ids, so nothing inside sees a different user.
         int uid = Process.myUid();
-        cmd.add("-i");
-        cmd.add(uid + ":" + uid);
+        if (fakeRoot) {
+            cmd.add("-0");
+        } else {
+            cmd.add("-i");
+            cmd.add(uid + ":" + uid);
+        }
         cmd.add("-r");
         cmd.add(root.getPath());
         cmd.add("-w");
-        cmd.add("/root");
+        cmd.add(cwd);
+        return cmd;
+    }
+
+    /** The {@code host:guest} (or same-path) bind specs of a session; see {@link #command}. */
+    public static List<String> binds(Context context, File sessionRoot, File runtimeDir,
+                                     File externalStorage, List<String> extraBinds) {
+        File root = rootDir(context);
+        List<String> cmd = new ArrayList<>();
         bind(cmd, "/dev");
         bind(cmd, "/proc");
         bind(cmd, "/sys");
@@ -142,7 +185,7 @@ public final class LinuxRuntime {
         bind(cmd, new File(root, "etc/bannerlator/empty").getPath() + ":/sys/fs/selinux");
         bind(cmd, context.getFilesDir().getPath());
         bind(cmd, context.getCacheDir().getPath());
-        bind(cmd, runtimeDir.getPath());
+        if (runtimeDir != null) bind(cmd, runtimeDir.getPath());
         if (sessionRoot != null) bind(cmd, sessionRoot.getPath());
         if (externalStorage != null && externalStorage.isDirectory()) {
             bind(cmd, externalStorage.getPath());
@@ -198,8 +241,9 @@ public final class LinuxRuntime {
         if (extraBinds != null) {
             for (String spec : extraBinds) bind(cmd, spec);
         }
-        cmd.addAll(guestCommand);
-        return cmd;
+        List<String> specs = new ArrayList<>();
+        for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
+        return specs;
     }
 
     /**
@@ -328,7 +372,7 @@ public final class LinuxRuntime {
     }
 
     /** PRoot's complex -k format: sysname, nodename, release, version, machine, domain, HWCAP. */
-    private static String guestUtsname(String hostname) {
+    static String guestUtsname(String hostname) {
         StructUtsname host = Os.uname();
         return "\\" + host.sysname + "\\" + hostname + "\\" + host.release
                 + "\\" + host.version + "\\" + host.machine + "\\localdomain\\-1\\";

@@ -45,8 +45,9 @@ int fge_start(int kind, const char *cache_path);
 void fge_stop(void);
 /* The engine came up but later found it cannot generate (chain build failed). */
 int fge_unavailable(void);
-void fge_configure(uint32_t multiplier, float flow_scale, float refresh_hz, int model,
-                   int perf_preset);
+/* target_fps > 0: LSFG picks 0..3 generations per frame to reach it (Win-FG ignores it). */
+void fge_configure(uint32_t multiplier, uint32_t target_fps, float flow_scale, float refresh_hz,
+                   int model, int perf_preset);
 /* Build/rebuild the chain for this extent; the guest extent for the flow pyramid is the same
  * (the Wayland scene is the game's own size in fullscreen). 1 = chain valid. */
 int fge_prepare(uint32_t w, uint32_t h, VkFormat fmt);

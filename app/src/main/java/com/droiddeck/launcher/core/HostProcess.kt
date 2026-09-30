@@ -64,7 +64,8 @@ object HostProcess {
         }
     }
 
-    private fun pidOf(process: Process): Int = try {
+    @JvmStatic
+    fun pidOf(process: Process): Int = try {
         val field = process.javaClass.getDeclaredField("pid")
         field.isAccessible = true
         val pid = field.getInt(process)

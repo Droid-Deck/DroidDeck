@@ -202,12 +202,11 @@ private fun RowScope.KeyCap(
             else -> Color.White.copy(alpha = 0.07f)
         }, label = "keyFill",
     )
-    val edge = if (focused) pal.signal else if (lit) pal.signal.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.12f)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier.weight(weight).fillMaxHeight()
             .background(fill, RoundedCornerShape(7.dp))
-            .border(if (focused) 2.dp else 1.dp, edge, RoundedCornerShape(7.dp))
+            .glideBorder(focused, RoundedCornerShape(7.dp), pal.signal, if (lit) pal.signal.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.12f))
             .pointerInput(Unit) {
                 awaitEachGesture {
                     awaitFirstDown().consume()
@@ -244,7 +243,7 @@ private fun HeaderButton(text: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxHeight()
             .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(7.dp))
-            .border(if (focused) 2.dp else 1.dp, if (focused) pal.signal else Color.White.copy(alpha = 0.14f), RoundedCornerShape(7.dp))
+            .glideBorder(focused, RoundedCornerShape(7.dp), pal.signal, Color.White.copy(alpha = 0.14f))
             .clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .padding(horizontal = 12.dp),
     ) { Text(text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White) }

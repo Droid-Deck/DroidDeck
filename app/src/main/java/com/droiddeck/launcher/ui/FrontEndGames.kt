@@ -120,8 +120,53 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         }
         g.protonPrefix?.takeIf { it.isDirectory }?.let { dir ->
             SecondaryButton("Proton prefix", compact = true) { a.onBrowseFiles(dir) }
+            // Only games added to the library; Steam titles keep their saves with Steam Cloud.
+            if (g.library == Library.ADDED) ManageSaves(g, dir, a)
         }
         BusyChip(s)
+    }
+}
+
+/**
+ * Manage saves: import a GameHub or Winlator save zip into this game's prefix, export its saves as
+ * either, or open the save folder found for it. The saves are looked for when the menu opens.
+ */
+@Composable
+private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndActions) {
+    var open by remember(g.gameId) { androidx.compose.runtime.mutableStateOf(false) }
+    val saves by androidx.compose.runtime.produceState<List<com.droiddeck.launcher.session.GameSaves.SaveDir>?>(null, g.gameId, open) {
+        if (open) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.droiddeck.launcher.session.GameSaves.locate(prefix, g) }.getOrDefault(emptyList())
+        }
+    }
+    val found = saves
+    val summary = when {
+        found == null -> "Looking for this game's saves…"
+        found.isEmpty() -> "No save folder found by name: an export takes the whole user folder."
+        else -> {
+            val mb = found.sumOf { it.bytes } / 1048576.0
+            (if (found.size == 1) found[0].relPath else "${found.size} save folders") + " · ${found.sumOf { it.files }} files · " +
+                (if (mb < 1) "${(mb * 1024).toInt()} KB" else String.format("%.1f MB", mb))
+        }
+    }
+    Box {
+        SecondaryButton("Manage saves", compact = true) { open = !open }
+        AnchoredMenu(open, onDismiss = { open = false }, title = "Game saves", note = summary) { first ->
+            MenuItem("Import saves…", checked = false, detail = "A GameHub or Winlator zip · the saves there now are backed up first", focusRequester = first) {
+                open = false; a.onSaveImport(g)
+            }
+            MenuItem("Export as GameHub zip…", checked = false, detail = "Saves under steamuser, for GameHub and BannerHub") {
+                open = false; a.onSaveExport(g, com.droiddeck.launcher.session.GameSaves.Layout.GAMEHUB)
+            }
+            MenuItem("Export as Winlator zip…", checked = false, detail = "Saves under xuser, for Winlator, WinNative and Bannerlator") {
+                open = false; a.onSaveExport(g, com.droiddeck.launcher.session.GameSaves.Layout.WINLATOR)
+            }
+            found?.firstOrNull()?.let { d ->
+                MenuItem("Open save folder", checked = false, detail = d.relPath) {
+                    open = false; a.onBrowseFiles(java.io.File(prefix, "drive_c/users/steamuser/" + d.relPath))
+                }
+            }
+        }
     }
 }
 
@@ -175,7 +220,7 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
         modifier = Modifier.fillMaxWidth().paneItem("game:${g.appId}")
             .clip(Shape12)
             .background(if (selected) pal.signal.copy(alpha = 0.14f) else if (hovered) Color.White.copy(alpha = 0.05f) else Color.Transparent)
-            .border(2.dp, if (selected || focused) pal.signal else Color.Transparent, Shape12)
+            .glideBorder(focused, Shape12, pal.signal, if (selected) pal.signal else Color.Transparent, restWidth = 2.dp)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onSelect)
             .controllerConfirm(onClick = onLaunch)
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -234,7 +279,7 @@ private fun lastPlayedText(lastPlayed: Long): String? {
 
 private fun libraryLabel(library: String): String = when (library) {
     "internal" -> "Internal storage"
-    "added" -> "Added game"
+    Library.ADDED -> "Added game"
     else -> library
 }
 

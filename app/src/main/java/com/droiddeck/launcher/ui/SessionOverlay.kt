@@ -1,6 +1,28 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.draw.alpha
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.util.lerp
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.offset
@@ -42,9 +64,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -93,9 +113,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FexPreset
 import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.input.SecondScreenDisplay
@@ -137,9 +159,8 @@ class DrawerActions(
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
-    val frameGenEngine: String,
-    val frameGenMultiplier: Int,
-    val lsfgReady: Boolean,
+    val frameGen: FrameGen.Mode,
+    val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
     val backActionsInverted: Boolean,
@@ -153,7 +174,8 @@ class DrawerActions(
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
-    val onFrameGenPick: (engine: String, multiplier: Int) -> Unit,
+    val onFrameGenPick: (FrameGen.Mode) -> Unit,
+    val onImportLossless: () -> Unit,
     /** The Android keyboard (text, turned into key presses). */
     val onKeyboard: () -> Unit,
     /** The on-screen PC keyboard: real keys, Esc, F1-F12, Ctrl, Alt... */
@@ -195,6 +217,8 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
     var androidAppsExpanded by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     var confirmStop by remember { mutableStateOf(false) }
+    var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val pageScroll = remember { List(DRAWER_PAGES) { ScrollState(0) } }
     val veil by animateFloatAsState(if (open) 1f else 0f, Motion.tw(260), label = "veil")
     val focus = remember { DrawerFocus() }
@@ -240,10 +264,10 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
             enter = slideInHorizontally(Motion.sp(0.8f, Spring.StiffnessLow)) { it } + fadeIn(Motion.tw(220)),
             exit = slideOutHorizontally(Motion.tw(240)) { it } + fadeOut(Motion.tw(200)),
         ) {
+            FocusGlideHost(Modifier.fillMaxHeight().width(sheetWidth)) { Box(Modifier.fillMaxSize().onGloballyPositioned { sheetCoords = it }) {
             Column(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .width(sheetWidth)
+                    .fillMaxSize()
                     .background(pal.background.copy(alpha = 0.97f))
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
                     .focusGroup()
@@ -255,7 +279,7 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = if (short) 40.dp else 44.dp)) {
                     Text(a.title ?: if (a.steam) "Steam" else "Desktop", fontSize = if (short) 18.sp else 20.sp, fontWeight = FontWeight.Bold,
                         color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    StopSessionButton(modifier = focus.track(page, "stop")) { host.open = null; confirmStop = true }
+                    StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
                 if (a.onSteamMenu != null && a.onQam != null) {
                     val qamInteraction = remember { MutableInteractionSource() }
@@ -323,11 +347,11 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                 chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen,
                             )
                             val fgOpen = host.open == "fg"
-                            val fgLabel = FrameGen.label(a.frameGenEngine, a.frameGenMultiplier)
-                            SettingsRow("Frame generation", null, highlighted = fgOpen) {
+                            val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
+                            SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
                                 Box {
                                     ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
-                                    FrameGenMenu(host, a.frameGenEngine, a.frameGenMultiplier, a.lsfgReady, a.onFrameGenPick)
+                                    FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
                                 }
                             }
                         }
@@ -357,7 +381,9 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                             }
                             if (a.steam && a.secondScreenDisplays.isNotEmpty()) SettingsGroup("Second screen") {
                                 ChoiceRow(host, "second-screen-mode", "Shows", null,
-                                    listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL).map { it to it.label },
+                                    (listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
+                                        (if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()))
+                                        .map { it to it.label },
                                     a.secondScreenMode, chipModifier = focus.track(page, "second-screen-mode"), onPick = a.onSecondScreenMode)
                                 if (a.secondScreenDisplays.size > 1) ChoiceRow(host, "second-screen-display", "Display", null,
                                     a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
@@ -435,6 +461,18 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                     }
                 } }
             }
+            StopConfirm(
+                open = confirmStop,
+                pill = sheetCoords?.let { sc -> stopCoords?.takeIf { it.isAttached && sc.isAttached }?.let { sc.localBoundingBoxOf(it, clipBounds = false) } },
+                controllerActive = controllerActive,
+                onCancel = { confirmStop = false },
+                onStop = { onScreen ->
+                    confirmStop = false
+                    val from = a.onStopFrom
+                    if (from != null) from(onScreen) else a.onStop()
+                },
+            )
+            } }
         }
     }
 
@@ -453,44 +491,6 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                 secondaryDisplay?.let { a.onLaunchAndroidApp(app, it.id) }
             },
             onDismiss = { appToChooseDisplay = null },
-        )
-    }
-    if (confirmStop) {
-        val cancelFocus = remember { FocusRequester() }
-        val cancel = { confirmStop = false }
-        // Where Stop sits on screen: the dialog is a window of its own, so its bounds are taken
-        // against the screen and the session's overlay converts them back.
-        var stopOnScreen by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
-        val stop = {
-            confirmStop = false
-            val from = a.onStopFrom
-            if (from != null) from(stopOnScreen) else a.onStop()
-        }
-        LaunchedEffect(controllerActive) {
-            if (controllerActive) {
-                androidx.compose.runtime.withFrameNanos { }
-                runCatching { cancelFocus.requestFocus() }
-            }
-        }
-        AlertDialog(
-            onDismissRequest = cancel,
-            modifier = Modifier.controllerBack(onBack = cancel),
-            title = { Text("Stop session?") },
-            confirmButton = {
-                val dialogView = LocalView.current
-                TextButton(
-                    onClick = stop,
-                    modifier = Modifier.controllerConfirm(onClick = stop).onGloballyPositioned { c ->
-                        val at = IntArray(2).also { dialogView.rootView.getLocationOnScreen(it) }
-                        stopOnScreen = c.boundsInWindow().translate(at[0].toFloat(), at[1].toFloat())
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
-                ) { Text("Stop") }
-            },
-            dismissButton = {
-                TextButton(onClick = cancel, modifier = Modifier.focusRequester(cancelFocus)
-                    .controllerConfirm(onClick = cancel)) { Text("Cancel") }
-            },
         )
     }
 }
@@ -522,7 +522,7 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = "Stop session" }
-            .clip(shape).background(fill).border(if (hot) 2.dp else 1.dp, colors.error.copy(alpha = if (hot) 0.9f else 0.55f), shape)
+            .clip(shape).background(fill).glideBorder(hot, shape, colors.error.copy(alpha = 0.9f), colors.error.copy(alpha = 0.55f))
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(start = 12.dp, end = 14.dp),
@@ -547,7 +547,7 @@ private fun QuickAction(
     val shape = RoundedCornerShape(12.dp)
     val tile = modifier.height(if (compact) 44.dp else 64.dp).clip(shape)
         .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
-        .border(if (hot) 2.dp else 1.dp, if (hot) pal.signal else pal.line, shape)
+        .glideBorder(hot, shape, pal.signal, pal.line)
         .hoverable(interactionSource)
         .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
         .controllerConfirm(onClick = onConfirm ?: onClick)
@@ -578,7 +578,7 @@ private fun DrawerBumper(label: String, description: String, modifier: Modifier 
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier.size(44.dp).clip(ring)
-            .border(2.dp, if (hot) pal.signal else Color.Transparent, ring)
+            .glideBorder(hot, ring, pal.signal)
             .hoverable(src).clickable(interactionSource = src, indication = null, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .semantics { contentDescription = description },
@@ -637,7 +637,7 @@ private fun DrawerPageTabs(page: Int, modifier: Modifier = Modifier, compact: Bo
                             listOf(pal.signal.copy(alpha = 0.34f * glow), pal.signal.copy(alpha = 0.10f * glow), Color.Transparent),
                         ),
                     )
-                    .border(if (focused) 2.dp else 0.dp, if (focused) colors.onBackground else Color.Transparent, RoundedCornerShape(16.dp))
+                    .glideBorder(focused, RoundedCornerShape(16.dp), colors.onBackground)
                     .semantics { contentDescription = "${drawerPageTitles[index]} page" }
                     .hoverable(source)
                     .clickable(interactionSource = source, indication = LocalIndication.current, onClick = select)
@@ -786,3 +786,220 @@ private const val DRAWER_TAB_LEAN_DP = 12f
 private const val DRAWER_TAB_SIDE_SCALE = 0.5f
 
 private const val DRAWER_TAB_SIDE_ALPHA = 0.7f
+
+/** Room between the Stop pill and the box that steps out under it: the pull. */
+private val StepPull = 6.dp
+private val StepBoxCorner = 16.dp
+private val StepFillet = 10.dp
+private val StepBoxMaxWidth = 264.dp
+
+/**
+ * The stair-step outline: the pill [p] on top, a box under it from [left] to the pill's right edge
+ * and down to [bottom], the pull between them [pullTop] (the box's top). Right edges are flush and
+ * the inside corner where the pull meets the box is rounded the other way. While the box is still
+ * no wider than the pill it is just the pill, stretched down.
+ */
+private fun stepPath(path: Path, p: Rect, left: Float, bottom: Float, pullTop: Float, box: Float, fillet: Float) {
+    path.reset()
+    val r = p.right; val tl = p.left; val tt = p.top
+    val pb = maxOf(bottom, p.bottom)
+    val l = minOf(left, tl)
+    val pt = minOf(pullTop, pb)
+    val sw = tl - l
+    val h = (pb - pt).coerceAtLeast(0f)
+    val rt = minOf(p.height / 2f, p.width / 2f)
+    val rbr = minOf(box, (pb - tt) / 2f)
+    val rbl = minOf(lerp(minOf(box, (pb - tt) / 2f), minOf(box, h / 2f), (sw / box).coerceIn(0f, 1f)), (r - l) / 2f)
+    val rpl = minOf(box, sw / 2f, h / 2f)
+    val f = minOf(fillet, sw / 2f)
+    val yl = minOf(pt + rpl, pb - rbl)
+    fun corner(rect: Rect, start: Float, sweep: Float, endX: Float, endY: Float) {
+        if (rect.width < 0.5f) path.lineTo(endX, endY) else path.arcTo(rect, start, sweep, false)
+    }
+    path.moveTo(tl + rt, tt)
+    path.lineTo(r - rt, tt)
+    corner(Rect(r - 2 * rt, tt, r, tt + 2 * rt), -90f, 90f, r, tt + rt)
+    path.lineTo(r, pb - rbr)
+    corner(Rect(r - 2 * rbr, pb - 2 * rbr, r, pb), 0f, 90f, r - rbr, pb)
+    path.lineTo(l + rbl, pb)
+    corner(Rect(l, pb - 2 * rbl, l + 2 * rbl, pb), 90f, 90f, l, pb - rbl)
+    path.lineTo(l, yl)
+    corner(Rect(l, pt, l + 2 * rpl, pt + 2 * rpl), 180f, 90f, l + rpl, pt)
+    path.lineTo(tl - f, pt)
+    corner(Rect(tl - 2 * f, pt - 2 * f, tl, pt), 90f, -90f, tl, pt - f)
+    path.lineTo(tl, tt + rt)
+    corner(Rect(tl, tt, tl + 2 * rt, tt + 2 * rt), 180f, 90f, tl + rt, tt)
+    path.close()
+}
+
+/**
+ * Stop's confirm, grown out of the Stop pill at [pill] (px, in the sheet): a pull the pill's width
+ * drops out of it and a wider box steps out to the left under it for the choices, right edges
+ * flush, so Stop lands under the pill. Cancel, B and a tap outside fold it back into the pill,
+ * width first. [onStop] gets Stop's bounds on screen for the flood.
+ */
+@Composable
+private fun StopConfirm(
+    open: Boolean,
+    pill: Rect?,
+    controllerActive: Boolean,
+    onCancel: () -> Unit,
+    onStop: (Rect?) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val density = LocalDensity.current
+    val left = remember { Animatable(0f) }
+    val bottom = remember { Animatable(0f) }
+    val tint = remember { Animatable(0f) }
+    val dim = remember { Animatable(0f) }
+    val items = remember { List(3) { Animatable(0f) } }
+    // Composed from the first open until it has folded back into the pill.
+    var shown by remember { mutableStateOf(false) }
+    var grown by remember { mutableStateOf(false) }
+    var content by remember { mutableStateOf<IntSize?>(null) }
+    val cancelFocus = remember { FocusRequester() }
+    var stopFocused by remember { mutableStateOf(false) }
+    var cancelFocused by remember { mutableStateOf(false) }
+    var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val view = LocalView.current
+    if (!open && !shown) return
+    val pull = with(density) { StepPull.toPx() }
+
+    LaunchedEffect(open, pill, content) {
+        val p = pill ?: return@LaunchedEffect
+        val c = content ?: return@LaunchedEffect
+        val boxLeft = (p.right - c.width).coerceAtLeast(0f)
+        val boxBottom = p.bottom + pull + c.height
+        if (open) {
+            shown = true
+            if (!grown) {
+                left.snapTo(p.left); bottom.snapTo(p.bottom); tint.snapTo(0f)
+                items.forEach { it.snapTo(0f) }
+                grown = true
+            }
+            coroutineScope {
+                launch { dim.animateTo(1f, Motion.tw(260)) }
+                launch { tint.animateTo(1f, Motion.tw(200)) }
+                launch { bottom.animateTo(boxBottom, Motion.sp(0.7f, 380f)) }
+                launch { delay(Motion.ms(110).toLong()); left.animateTo(boxLeft, Motion.sp(0.55f, 300f)) }
+                items.forEachIndexed { i, a ->
+                    launch { delay(Motion.ms(260 + i * 55).toLong()); a.animateTo(1f, Motion.tw(220)) }
+                }
+                if (controllerActive) launch {
+                    delay(Motion.ms(300).toLong())
+                    withFrameNanos { }
+                    runCatching { cancelFocus.requestFocus() }
+                }
+            }
+        } else if (grown) {
+            coroutineScope {
+                items.forEach { launch { it.animateTo(0f, Motion.tw(90)) } }
+                launch { delay(Motion.ms(60).toLong()); dim.animateTo(0f, Motion.tw(300)) }
+                launch { delay(Motion.ms(60).toLong()); left.animateTo(p.left, Motion.sp(1f, 420f)) }
+                launch { delay(Motion.ms(160).toLong()); bottom.animateTo(p.bottom, Motion.sp(1f, 380f)) }
+                launch { delay(Motion.ms(200).toLong()); tint.animateTo(0f, Motion.tw(200)) }
+            }
+            grown = false
+            shown = false
+            content = null
+        }
+    }
+    val p = pill ?: return
+
+    Box(Modifier.fillMaxSize()) {
+        // The rest of the sheet dims behind it, and a tap there cancels.
+        Box(
+            Modifier.fillMaxSize().graphicsLayer { alpha = dim.value }.background(Color(0x59000000))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open, onClick = onCancel),
+        )
+        val path = remember { Path() }
+        val boxCorner = with(density) { StepBoxCorner.toPx() }
+        val fillet = with(density) { StepFillet.toPx() }
+        val rim = with(density) { 1.4.dp.toPx() }
+        val restFill = colors.surface
+        val hotFill = lerp(colors.surface, colors.error, 0.22f)
+        Canvas(Modifier.fillMaxSize()) {
+            if (!grown) return@Canvas
+            stepPath(path, p, left.value, bottom.value, p.bottom + pull, boxCorner, fillet)
+            drawPath(path, lerp(hotFill, restFill, tint.value))
+            drawPath(path, colors.error.copy(alpha = lerp(0.9f, 0.55f, tint.value)), style = Stroke(rim))
+        }
+        // The pill's label rides on top, as the pull's handle.
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.offset { IntOffset(p.left.roundToInt(), p.top.roundToInt()) }
+                .size(with(density) { p.width.toDp() }, with(density) { p.height.toDp() })
+                .padding(start = 12.dp, end = 14.dp),
+        ) {
+            Icon(Icons.Outlined.PowerSettingsNew, contentDescription = null, tint = colors.error, modifier = Modifier.size(18.dp))
+            Text("Stop", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.error)
+        }
+        val maxW = with(density) { StepBoxMaxWidth.toPx() }.coerceAtMost(p.right)
+        Column(
+            modifier = Modifier
+                .offset { IntOffset((p.right - (content?.width ?: maxW.roundToInt())).roundToInt(), (p.bottom + pull).roundToInt()) }
+                .width(with(density) { maxW.toDp() })
+                .onSizeChanged { if (content != it) content = it }
+                .controllerBack(onCancel)
+                .onPreviewKeyEvent { e ->
+                    // Keep a controller in here, as the dialog's own window used to.
+                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (e.key) {
+                        Key.DirectionUp, Key.DirectionDown -> true
+                        Key.DirectionLeft -> cancelFocused
+                        Key.DirectionRight -> stopFocused
+                        else -> false
+                    }
+                }
+                .padding(start = 18.dp, end = 12.dp, top = 14.dp, bottom = 12.dp),
+        ) {
+            Text(
+                "Stop session?", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
+                modifier = Modifier.graphicsLayer { alpha = items[0].value; translationY = (1f - items[0].value) * 6.dp.toPx() },
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+            ) {
+                ConfirmChoice(
+                    "Cancel", danger = false, enabled = open,
+                    modifier = Modifier.graphicsLayer { alpha = items[1].value; translationY = (1f - items[1].value) * 6.dp.toPx() }
+                        .focusRequester(cancelFocus).onFocusChanged { cancelFocused = it.isFocused },
+                    onClick = onCancel,
+                )
+                ConfirmChoice(
+                    "Stop", danger = true, enabled = open,
+                    modifier = Modifier.graphicsLayer { alpha = items[2].value; translationY = (1f - items[2].value) * 6.dp.toPx() }
+                        .onFocusChanged { stopFocused = it.isFocused }
+                        .onGloballyPositioned { stopCoords = it },
+                ) {
+                    val at = IntArray(2).also { view.rootView.getLocationOnScreen(it) }
+                    onStop(stopCoords?.takeIf { it.isAttached }?.boundsInWindow()?.translate(at[0].toFloat(), at[1].toFloat()))
+                }
+            }
+        }
+    }
+}
+
+/** One of the confirm's two choices: a capsule that fills when focused; Stop in the danger red. */
+@Composable
+private fun ConfirmChoice(label: String, danger: Boolean, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
+    val shape = RoundedCornerShape(20.dp)
+    val accent = if (danger) colors.error else pal.signal
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.heightIn(min = 40.dp).clip(shape)
+            .background(if (hot) accent.copy(alpha = if (danger) 0.18f else 0.14f) else Color.Transparent)
+            .glideBorder(hot, shape, accent)
+            .hoverable(src)
+            .clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp),
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (danger) colors.error else colors.onBackground)
+    }
+}

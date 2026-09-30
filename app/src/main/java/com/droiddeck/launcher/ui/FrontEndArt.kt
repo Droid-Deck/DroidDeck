@@ -118,13 +118,12 @@ private fun GameTile(t: Tile, wide: Boolean, square: Boolean, src: MutableIntera
     val lift by animateFloatAsState(if (hot) -5f else 0f, Motion.sp(0.6f), label = "tileLift")
     val elev by animateFloatAsState(if (hot) 18f else 2f, Motion.tw(300), label = "tileElev")
     val pal = LocalPalette.current
-    val ring by animateColorAsState(if (hot) pal.signal else Color.Transparent, Motion.tw(220), label = "tileRing")
     Column(
         modifier = track
             .graphicsLayer { scaleX = scale; scaleY = scale; translationY = lift.dp.toPx(); shadowElevation = elev.dp.toPx(); shape = Shape12; clip = false; ambientShadowColor = if (hot) pal.signal else Color.Black; spotShadowColor = if (hot) pal.signal else Color.Black; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.9f) }
             .clip(Shape12)
             .background(colors.surface)
-            .border(2.5.dp, ring, Shape12)
+            .glideBorder(hot, Shape12, pal.signal, hotWidth = 2.5.dp)
             .alpha(if (t.dim && !hot) 0.55f else 1f)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = t.onClick),
     ) {

@@ -148,6 +148,8 @@ jobs:
             label="${BUILD_REF} at ${BUILD_SHA:0:7}"
           fi
           echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "DROIDDECK_SOURCE_COMMIT=${PR_HEAD_SHA:-$BUILD_SHA}" >> "$GITHUB_ENV"
+          echo "DROIDDECK_PR_NUMBER=${PR_NUMBER:-0}" >> "$GITHUB_ENV"
           echo "Build: \`$label\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Cache the preloads
@@ -385,7 +387,7 @@ jobs:
               success)
                 echo "###  Build passed"
                 echo
-                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key. After approval, a maintainer can run **PR Release Publish** from \`main\` to create an APK that installs over the release."
+                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key. A maintainer can run **PR Release Publish** from \`main\` to create an APK that installs over the release."
                 ;;
               failure)
                 echo "### ERROR: Build failed"
@@ -454,6 +456,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      pull-requests: read
     env:
       CI_REPO: Droid-Deck/DroidDeck-CI
       KEEP: 10
@@ -472,6 +475,34 @@ jobs:
           owner: Droid-Deck
           repositories: DroidDeck-CI
 
+      # What this build is, for the top of the release notes: the merged PR's title and the first
+      # paragraph of its description, or the commit's subject for a push made without a PR.
+      - name: Describe the change
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+            --jq '[.[] | select(.merged_at != null and .base.ref == "main")] | first // empty')
+          if [ -n "$pr" ]; then
+            number=$(jq -r .number <<<"$pr")
+            title=$(jq -r .title <<<"$pr")
+            merged=$(jq -r '.merged_at[:10]' <<<"$pr")
+            summary=$(jq -r '.body // ""' <<<"$pr" | tr -d '\r' | { grep -v '^🤖' || true; } |
+              awk '!p && /^#/ { next } NF { p = 1; print; next } p { exit }' | head -n 6 | cut -c1-400)
+            {
+              echo "**Merged to main** - [PR #$number]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$number): $title (merged $merged)"
+              if [ -n "$summary" ]; then
+                echo
+                echo "$summary"
+              fi
+            } > notes-head.md
+          else
+            subject=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" --jq '.commit.message | split("\n")[0]')
+            echo "**Pushed to main** without a PR - $subject" > notes-head.md
+          fi
+          cat notes-head.md
+
       - name: Publish to DroidDeck-CI
         id: publish
         env:
@@ -481,7 +512,9 @@ jobs:
           tag=main-${GITHUB_SHA::7}
           cat signed/SHA256SUMS-*.txt > signed/SHA256SUMS.txt
           rm signed/SHA256SUMS-*.txt
-          notes="Signed build of $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA - unreleased, for testing.
+          notes="$(cat notes-head.md)
+
+          Signed build of $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA - in main, not yet in a DroidDeck release; for testing.
           Each apk installs over a DroidDeck release and keeps its data. \`standard\` is the normal app; the others are the same app under another package name, installed beside it.
 
           SHA-256:

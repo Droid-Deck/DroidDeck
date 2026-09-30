@@ -461,10 +461,12 @@ public final class WaylandCompositor {
     public static native void nativeSetFrameGenEngine(int kind);
 
     /** Arm (multiplier 2..4: one real frame plus multiplier-1 interpolated ones per game frame) or
-     *  disarm. Generated frames are presented ahead of the real frame on consecutive vblanks. */
-    public static native void nativeSetFrameGenArmed(boolean armed, int multiplier);
+     *  disarm. A targetFps above 0 makes LSFG adaptive instead: it generates 0..3 frames per game
+     *  frame, whatever reaches that rate. Generated frames are presented ahead of the real frame
+     *  on consecutive vblanks. */
+    public static native void nativeSetFrameGenArmed(boolean armed, int multiplier, int targetFps);
 
-    /** LSFG Native: the SPIR-V cache built from the user's Lossless.dll ({@code LsfgNative.cacheFile}). */
+    /** LSFG Native: the SPIR-V cache built from the user's Lossless.dll ({@code Lossless.cacheFile}). */
     public static native void nativeSetLsfgCachePath(String path);
 
     /** Flow scale (0.25-1.0) and the panel's real refresh rate (the pacer never generates above it). */

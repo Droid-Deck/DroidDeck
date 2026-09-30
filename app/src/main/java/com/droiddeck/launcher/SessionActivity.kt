@@ -1,5 +1,6 @@
 package com.droiddeck.launcher
 
+import androidx.compose.foundation.layout.fillMaxSize
 import android.hardware.input.InputManager
 import android.hardware.display.DisplayManager
 import android.content.Intent
@@ -23,6 +24,7 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,9 +34,10 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
-import com.droiddeck.launcher.gpu.LsfgNative
+import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.input.EvdevKeys
 import com.droiddeck.launcher.input.KeyboardHost
@@ -91,6 +94,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var loading: LoadingState
     private lateinit var hud: PerfHud
     private var padBridge: PadBridge? = null
+    /** The handheld's gyro and accelerometer, fed to the Deck controller while the session shows. */
+    private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
+    /** Between onResume and onPause. */
+    private var resumed = false
+    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion() } }
+
+    /** Motion is read while the session shows and only if the pad is a Deck controller - which
+     *  the service can decide after this activity has resumed (SessionState.deckPadListener). */
+    private fun updatePadMotion() {
+        if (resumed && SessionState.deckPad) padMotion?.start() else padMotion?.stop()
+    }
     private var onScreenControls: OnScreenControls? = null
     private var keyboard: KeyboardHost? = null
     private var watching = true
@@ -158,16 +172,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pcKeyboardOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
     private var fillScreen by mutableStateOf(true)
-    private var frameGenLabel by mutableStateOf("Off")
-    private var frameGenEngine by mutableStateOf(FrameGen.ENGINE_OFF)
-    private var frameGenMultiplier by mutableStateOf(2)
+    private var lossless by mutableStateOf(Lossless.State.NONE)
+    private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
+    }
+    private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
     private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
-    private var secondScreenMode by mutableStateOf(SecondScreenMode.NONE)
+    private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
-    private var selectedSecondScreenDisplay by mutableStateOf(-1)
+    private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
+    /** Between onStart and onStop: while stopped the second screen stays closed, its choice kept. */
+    private var started = false
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
     private val displayListener = object : DisplayManager.DisplayListener {
@@ -246,6 +264,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
         padBridge = bridge
+        padMotion = com.droiddeck.launcher.input.PadMotion(this) {
+            @Suppress("DEPRECATION")
+            (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
+        }
+        SessionState.deckPadListener = deckPadListener
         // A player on the pad or the on-screen controls has no use for the mouse arrow; the next
         // touchpad or mouse move brings it back (showCursor), once the pad has been quiet a moment.
         bridge.setOnPlayerInput {
@@ -320,6 +343,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         isFocusableInTouchMode = true
         setContent {
             DroidDeckTheme {
+            com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
                 CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (hud.text.isNotEmpty()) HudText(hud.text)
@@ -341,6 +365,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 // Opening the drawer takes the controller away from the game: release its pad.
                 androidx.compose.runtime.LaunchedEffect(drawerOpen) {
                     if (drawerOpen) {
+                        syncLossless()
                         padBridge?.releaseAll()
                         androidx.compose.runtime.withFrameNanos { }
                         val requested = sessionOverlay.requestFocus()
@@ -364,8 +389,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     androidApps = androidApps,
                     hudOn = hudOn,
                     fillScreen = if (SessionState.mode == SessionService.MODE_STEAM) fillScreen else null,
-                    frameGenEngine = frameGenEngine, frameGenMultiplier = frameGenMultiplier,
-                    lsfgReady = LsfgNative.isInstalled(this@SessionActivity),
+                    frameGen = frameGen,
+                    lossless = lossless,
                     oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
                     shapeMode = shapeMode, fexPreset = fexPreset,
@@ -374,10 +399,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     selectedSecondScreenDisplay = selectedSecondScreenDisplay,
                     onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
                     onFillScreen = { on -> SessionPrefs.setForceFullscreen(this@SessionActivity, on); fillScreen = on },
-                    onFrameGenPick = { engine, multiplier ->
-                        FrameGen.set(this@SessionActivity, engine, multiplier)
+                    onFrameGenPick = { mode ->
+                        FrameGen.set(this@SessionActivity, mode)
                         readPrefs()
                         applyFrameGen()
+                    },
+                    onImportLossless = {
+                        pickLossless.launch(InAppFilePicker.buildIntent(
+                            this@SessionActivity, listOf("dll"), getString(R.string.lsfg_pick_title)))
                     },
                     onKeyboard = { drawerOpen = false; pcKeyboardOpen = false; keyboard?.toggle() },
                     onHardwareKeyboard = { drawerOpen = false; pcKeyboardOpen = !pcKeyboardOpen },
@@ -449,6 +478,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     ) { finishFlooded() }
                 }
             }
+        }
         }
     }
 
@@ -583,9 +613,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hudOn = SessionPrefs.hudEnabled(this)
         fillScreen = SessionPrefs.forceFullscreen(this)
         touchMode = SessionPrefs.touchMode(this)
-        frameGenLabel = FrameGen.label(this)
-        frameGenEngine = FrameGen.engine(this)
-        frameGenMultiplier = FrameGen.multiplier(this)
+        frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         oscMode = SessionPrefs.oscMode(this)
@@ -889,8 +917,33 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val hz = refreshHz()
         Thread({
             val problem = FrameGen.apply(this, hz)
-            if (problem != null) runOnUiThread { Toast.makeText(this, problem, Toast.LENGTH_LONG).show() }
+            val state = Lossless.state(this)
+            runOnUiThread {
+                lossless = state
+                if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
+            }
         }, "frame-gen").start()
+    }
+
+    /** A Lossless Scaling installed or updated in Steam during the session is taken when the drawer opens. */
+    private fun syncLossless() {
+        Thread({
+            Lossless.sync(this)
+            val state = Lossless.state(this)
+            runOnUiThread { lossless = state }
+        }, "lossless-sync").start()
+    }
+
+    private fun importLossless(dll: File) {
+        Thread({
+            val message = Lossless.message(this, Lossless.import(this, dll))
+            val state = Lossless.state(this)
+            runOnUiThread {
+                lossless = state
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                if (FrameGen.engine(this) == FrameGen.ENGINE_LSFG) applyFrameGen()
+            }
+        }, "lossless-import").start()
     }
 
     // ── Session state ───────────────────────────────────────────────────────────────────────
@@ -954,8 +1007,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         // It stays until the user leaves: a failure read against a timer is a failure not read.
+        val what = when (SessionState.mode) {
+            SessionService.MODE_RUN -> com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: "The program"
+            SessionService.MODE_DESKTOP -> "The desktop"
+            else -> "Steam"
+        }
         loading.showEnded(
-            hint ?: "Steam stopped unexpectedly. Share the logs with a bug report, or try again.",
+            hint ?: "$what stopped unexpectedly. Share the logs with a bug report, or try again.",
             "Exit status $status · ${SessionState.logFile?.path ?: "no log"}",
         )
         focusEndedScreen()
@@ -1299,11 +1357,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
         if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) closeSecondScreen(reset = true)
+        // A choice kept while its display was away (asleep, waking): back as soon as it is.
+        else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
         if (secondScreenDisplays.none { it.id == displayId }) return
         selectedSecondScreenDisplay = displayId
+        SessionState.secondScreenDisplay = displayId
         if (secondScreenMode != SecondScreenMode.NONE) showSecondScreen(secondScreenMode)
     }
 
@@ -1325,8 +1386,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun showSecondScreen(mode: SecondScreenMode) {
         val target = displayManager.getDisplay(selectedSecondScreenDisplay)
         if (target == null || !target.isValid || (target.flags and Display.FLAG_PRESENTATION) == 0) {
-            closeSecondScreen(reset = true)
-            refreshSecondScreenDisplays()
+            // Not there right now - a panel still waking, say. The choice is kept; the display
+            // listener shows it again when the display comes back (refreshSecondScreenDisplays).
+            closeSecondScreen(reset = false)
             return
         }
         var presentation = secondScreenPresentation
@@ -1358,6 +1420,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (!presentation.isShowing) presentation.show()
             presentation.showMode(mode)
             secondScreenMode = mode
+            SessionState.secondScreenMode = mode
+            SessionState.secondScreenDisplay = selectedSecondScreenDisplay
         } catch (e: Exception) {
             Log.w(TAG, "could not show second-screen controls on ${target.name}", e)
             closeSecondScreen(reset = true)
@@ -1377,7 +1441,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun closeSecondScreen(reset: Boolean) {
         secondScreenPresentation?.closeControls()
         secondScreenPresentation = null
-        if (reset) secondScreenMode = SecondScreenMode.NONE
+        if (reset) {
+            secondScreenMode = SecondScreenMode.NONE
+            SessionState.secondScreenMode = SecondScreenMode.NONE
+        }
     }
 
     /** Touchpad on the desktop, direct in Steam, unless the drawer says otherwise. */
@@ -1490,15 +1557,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onStart() {
         super.onStart()
+        started = true
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
         refreshSecondScreenDisplays()
-        if (secondScreenMode != SecondScreenMode.NONE) showSecondScreen(secondScreenMode)
+        if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         SessionService.setActivityVisible(this, true)
     }
 
     override fun onStop() {
+        started = false
         displayManager.unregisterDisplayListener(displayListener)
-        closeSecondScreen(reset = true)
+        // Closed while the session is out of sight (sleep, a closed lid, another app), and kept:
+        // onStart puts it back.
+        closeSecondScreen(reset = false)
         SessionService.setActivityVisible(this, false)
         super.onStop()
     }
@@ -1535,6 +1606,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         onScreenControls?.reload()
         updateOnScreenControls()
+        resumed = true
+        updatePadMotion()
         readPrefs()
         if (CompositorHost.isStarted) applyFrameGen()
     }
@@ -1548,6 +1621,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         releaseDrawerDirection()
         // A button held when the app goes away would stay held in the ring for the whole session.
         onScreenControls?.releaseAll()
+        resumed = false
+        updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
         super.onPause()
     }
@@ -1601,6 +1676,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         closeSecondScreen(reset = true)
         if (::hud.isInitialized) hud.stop()
         padBridge?.stop()
+        padMotion?.stop()
+        if (SessionState.deckPadListener === deckPadListener) SessionState.deckPadListener = null
         if (SessionState.endListener === endListener) SessionState.endListener = null
         WaylandCompositor.clearFirstFrameListener(firstFrameListener)
         super.onDestroy()

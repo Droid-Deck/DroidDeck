@@ -104,6 +104,7 @@ public final class FileUtils {
     public static String sizeToString(long bytes) {
         if (bytes >= 1L << 30) return String.format(java.util.Locale.US, "%.1f GB", bytes / (float) (1L << 30));
         if (bytes >= 1L << 20) return String.format(java.util.Locale.US, "%.0f MB", bytes / (float) (1L << 20));
+        if (bytes >= 1L << 10) return String.format(java.util.Locale.US, "%.0f KB", bytes / (float) (1L << 10));
         return bytes + " B";
     }
 }

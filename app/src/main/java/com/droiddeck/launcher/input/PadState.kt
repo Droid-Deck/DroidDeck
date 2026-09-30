@@ -57,5 +57,7 @@ class PadState {
         const val R3 = 9
         /** The Steam/Guide button, which the fake evdev node reports as BTN_MODE. */
         const val GUIDE = 12
+        /** The Quick Access button: a Deck controller's (SteamDeckPad) only, since an Xbox pad has none. */
+        const val QAM = 13
     }
 }

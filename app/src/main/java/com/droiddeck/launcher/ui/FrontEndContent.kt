@@ -149,9 +149,18 @@ private fun Content(
         }
         return
     }
+    if (selected == "updates") {
+        UpdatesPage(s, a, modifier.padding(horizontal = padH, vertical = padV))
+        return
+    }
     // Steam is a full-bleed wall of the library with Play over it.
     if (selected == "steam") {
         SteamHome(s, a, modifier)
+        return
+    }
+    // The Store scrolls and navigates inside itself (its tabs and an app's page).
+    if (selected == "store" && s.storeEnabled) {
+        StorePage(s, a, modifier)
         return
     }
     // The Games tab lays out its own list and detail.
@@ -192,6 +201,8 @@ private fun Content(
                     Rise(3) { SectionTitle("Emulators", "${installed.size} installed") }
                     Rise(4) { EmulatorGrid(installed, first = true, onSelect = onSelect) }
                 }
+                if (s.storeEnabled) Rise(5) { InstalledAppsGrid(a) }
+                if (s.appImagesEnabled) Rise(5) { AppImagesSection(a, s.ready) }
                 if (available.isNotEmpty()) {
                     Rise(5) { SectionTitle("Available to install", available.size.toString()) }
                     Rise(6) { EmulatorGrid(available, first = installed.isEmpty(), onSelect = onSelect) }
@@ -392,7 +403,7 @@ private fun EmulatorTile(e: Library.Emulator, modifier: Modifier, isFirst: Boole
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(Shape14)
             .background(if (hot) pal.signal.copy(alpha = 0.10f) else if (e.installed) colors.surface else Color.Transparent)
-            .border(if (hot) 2.dp else 1.dp, if (hot) pal.signal else pal.line, Shape14)
+            .glideBorder(hot, Shape14, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {

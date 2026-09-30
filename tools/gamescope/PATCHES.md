@@ -30,6 +30,14 @@ library list, before anything is published.
   down moves nothing - so in the app's touchpad mode the Steam client saw no hover and a click landed
   wherever the pointer had last been. The motion now always warps the real pointer as well
   (`bAlwaysWarpCursor`), which the other touch modes did already.
+- `0112-restore-iconified-game-on-resume.patch` - this app: the Steam menu is an overlay that
+  takes input without changing the focus window, and a fullscreen wine game minimizes itself when
+  it loses input. gamescope only takes a window out of iconic when the focus window changes, and
+  wine will not activate a window it believes iconic, so after Resume the game stayed minimized: a
+  black screen with its small caption in the top-left corner (Titanfall 2, GE-Proton 11). The
+  iconify request is remembered and the window goes back to NormalState before input returns to it,
+  then focus is handed over again. `GAMESCOPE_RESTORE_FOCUS_WINDOW` on the root window asks for the
+  same restore from outside (the session script's resume watcher).
 
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.

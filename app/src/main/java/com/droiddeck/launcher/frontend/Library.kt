@@ -23,6 +23,9 @@ object Library {
         val hero: File? = null, val lastPlayed: Long = 0L,
         val gameFiles: File? = null, val protonPrefix: File? = null,
     )
+    /** The [SteamGame.library] of a game added to the library rather than installed by Steam. */
+    const val ADDED = "added"
+
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
         /** The emulator's own icon, bundled (the runtime keeps them as theme SVGs the app cannot draw). */
@@ -163,7 +166,13 @@ object Library {
     )
 
     /** The emulator's name for a program path from the rail ("ARMSX2"), or null. */
-    fun nameForProgram(program: String?): String? = specs.firstOrNull { it.program == program }?.name
+    fun nameForProgram(program: String?): String? =
+        if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER) {
+            com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
+        } else specs.firstOrNull { it.program == program }?.name
+
+    /** Flatpak apps' and AppImages' names by id or directory, as launched: the session only knows that. */
+    val flatpakNames = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /**
      * Whether a program from the rail runs at the panel's own resolution rather than the session's

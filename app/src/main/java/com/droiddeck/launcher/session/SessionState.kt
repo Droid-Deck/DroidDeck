@@ -63,6 +63,27 @@ object SessionState {
      *  gets DXVK_HDR=1 and gamescope --hdr-enabled. Decided by the activity before the compositor starts. */
     @JvmStatic var hdr = false
 
+    /** The pad is presented to the Steam client as a Steam Deck controller this session
+     *  (SteamDeckPad): its Quick Access button is a real button, not the Guide+A chord. Decided by
+     *  the service as the session starts, which can be after the activity has resumed - hence
+     *  [deckPadListener]. */
+    @Volatile private var deckPadValue = false
+    @JvmStatic var deckPad: Boolean
+        get() = deckPadValue
+        set(value) {
+            if (deckPadValue == value) return
+            deckPadValue = value
+            deckPadListener?.invoke()
+        }
+
+    /** Told (on the thread that changed it) whenever [deckPad] changes. */
+    @Volatile var deckPadListener: (() -> Unit)? = null
+
+    /** What the second screen shows, and on which display: kept for the session, so a screen
+     *  turned off (sleep, a closed lid) or an activity recreated brings it back as it was. */
+    @Volatile var secondScreenMode = com.droiddeck.launcher.input.SecondScreenMode.NONE
+    @Volatile var secondScreenDisplay = -1
+
     /** Which session this is: SessionService.MODE_STEAM or MODE_DESKTOP. */
     @Volatile
     var mode = "steam"

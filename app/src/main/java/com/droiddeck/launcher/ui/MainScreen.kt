@@ -51,25 +51,3 @@ fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () ->
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
-
-@Composable
-fun CreditsDialog(onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Credits") },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text("The412Banner: app, compositor, runtime, and Steam session.", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(10.dp))
-                Text("maxjivi05: gamescope runtime and controller support, based on WinNative.", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "GPL-3.0. Steam, Steam Deck, and Proton are Valve trademarks. Not affiliated with Valve. Third-party software remains under its authors' licenses.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
-    )
-}

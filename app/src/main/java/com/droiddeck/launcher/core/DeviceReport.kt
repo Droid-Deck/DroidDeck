@@ -144,6 +144,7 @@ object DeviceReport {
         k("Threaded GL (glthread)", SessionPrefs.glThread(context))
         k("No GL error checks", SessionPrefs.noGlError(context))
         k("Steam Deck mode", SessionPrefs.steamDeckMode(context))
+        k("Steam controller", SessionPrefs.steamController(context))
         k("FEX preset", SessionPrefs.fexPreset(context).ifEmpty { "FEX defaults" })
         k("Skip xalia", SessionPrefs.noXalia(context))
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))

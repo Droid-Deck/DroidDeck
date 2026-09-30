@@ -1,9 +1,9 @@
 // See lsfg_dll.h. PE resource walk + on-device SPIR-V cache for the Lossless
 // Scaling frame-generation chain.
 //
-// Derived from WinNative's lsfg_dll.c (GPL-3.0-or-later), LSFG port credited to
-// Camille LaVey / the Eden Emulator Project, following upstream lsfg-vk
-// (PancakeTAS). Bannerlator is GPL-3.0.
+// LSFG from the work of Camille LaVey / the Eden Emulator Project, following
+// upstream lsfg-vk (PancakeTAS). Ported to WinNative (lsfg_dll.c) and DroidDeck
+// by @maxjivi05. GPL-3.0-or-later.
 
 #include "lsfg_dll.h"
 #include "lsfg_dxbc.h"
@@ -478,20 +478,6 @@ DllStatus validateDll(const std::string& dllPath) {
     return status;
 }
 
-Variant dllVariant(const std::string& dllPath, bool preferFp16) {
-    if (dllPath.empty()) return Variant::None;
-
-    PeImage img;
-    if (!img.open(dllPath)) return Variant::None;
-
-    ResourceTable table;
-    if (parseResources(img, table) != DllStatus::Ok) return Variant::None;
-
-    Variant v = selectVariant(table, preferFp16);
-    if (v == Variant::None && hasBaseChain(table)) v = Variant::DxbcTranslated;
-    return v;
-}
-
 DllStatus buildCache(const std::string& dllPath, const std::string& cachePath, bool preferFp16) {
     if (dllPath.empty() || cachePath.empty()) return DllStatus::NotInstalled;
 
@@ -544,22 +530,6 @@ DllStatus buildCache(const std::string& dllPath, const std::string& cachePath, b
     for (const Module& m : set.modules) totalWords += m.words.size();
     LSFG_LOGI("cached %zu LSFG modules, %zu SPIR-V words (%s)",
               set.modules.size(), totalWords, variantName(set.variant));
-    return DllStatus::Ok;
-}
-
-DllStatus cacheMatchesSource(const std::string& cachePath, const std::string& dllPath,
-                             bool& outMatches) {
-    outMatches = false;
-    if (cachePath.empty() || dllPath.empty()) return DllStatus::CacheUnusable;
-
-    CacheHeader header{};
-    if (!readCacheHeader(cachePath, header)) return DllStatus::CacheUnusable;
-
-    PeImage img;
-    if (!img.open(dllPath)) return DllStatus::NotInstalled;
-
-    outMatches = header.sourceSize == (uint64_t)img.size()
-              && header.sourceHash == fnv1a64(img.data(), img.size());
     return DllStatus::Ok;
 }
 

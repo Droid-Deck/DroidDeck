@@ -116,7 +116,7 @@ internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Un
         modifier = Modifier.paneItem("back:$label").heightIn(min = if (compact) 44.dp else 48.dp)
             .clip(shape)
             .background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f))
-            .border(2.dp, if (hot) pal.signal else Color.Transparent, shape)
+            .glideBorder(hot, shape, pal.signal)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(start = 8.dp, end = 16.dp),
@@ -180,7 +180,7 @@ internal fun PrimaryButton(
             .shine(hot, 0.45f)
             // The grow and shine alone barely show on the light fill: outline it when a
             // controller is on it, as the other controls are.
-            .border(2.dp, if (hot) pal.signal else Color.Transparent, Shape12)
+            .glideBorder(hot, Shape12, pal.signal)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled) {
                 placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
                 onClick()
@@ -209,11 +209,10 @@ internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boo
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.955f else if (hot) 1.02f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "secScale")
     val pal = LocalPalette.current
-    val edge by animateColorAsState(if (hot) pal.signal else pal.line2, Motion.tw(250), label = "secEdge")
     val fill by animateColorAsState(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.03f), Motion.tw(250), label = "secFill")
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(fill).border(1.dp, edge, Shape12)
+        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(fill).glideBorder(hot, Shape12, pal.signal, pal.line2)
             .alpha(if (enabled) 1f else 0.5f)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
@@ -228,10 +227,9 @@ internal fun Cog(size: androidx.compose.ui.unit.Dp = 48.dp, onClick: () -> Unit)
     val hot = rememberHot(src)
     val rot by animateFloatAsState(if (hot) 90f else 0f, Motion.sp(0.55f), label = "cog")
     val pal = LocalPalette.current
-    val edge by animateColorAsState(if (hot) pal.signal else pal.line2, Motion.tw(250), label = "cogEdge")
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem("cog").downToFirstTile().size(size).clip(if (size > 48.dp) Shape14 else Shape12).background(Color.White.copy(alpha = 0.03f)).border(1.dp, edge, if (size > 48.dp) Shape14 else Shape12)
+        modifier = Modifier.paneItem("cog").downToFirstTile().size(size).clip(if (size > 48.dp) Shape14 else Shape12).background(Color.White.copy(alpha = 0.03f)).glideBorder(hot, if (size > 48.dp) Shape14 else Shape12, pal.signal, pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick),
     ) { Icon(Icons.Filled.Settings, "Settings", tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(if (size > 48.dp) 20.dp else 18.dp).rotate(rot)) }
 }
