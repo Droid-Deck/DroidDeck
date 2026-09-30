@@ -3,7 +3,9 @@
  * through f1f34cd7, 2026-09-14..19), GPL-3.0: the locking, the fork handlers, the shared device
  * table, the Steam virtual-gamepad identity and the Z/RZ trigger placement are that author's.
  * Added here: an opt-in Xbox 360 identity (FAKE_EVDEV_IDENTITY=xbox360), which is what gets SDL's
- * built-in mapping applied with no configuration when the pad is read by the Steam client itself.
+ * built-in mapping applied with no configuration when the pad is read by the Steam client itself;
+ * and a stand-in for /dev/uinput (FAKE_EVDEV_UINPUT=1), so the virtual pads Steam Input makes for
+ * a game become more of these nodes instead of vanishing.
  */
 #include <algorithm>
 #include <cerrno>
@@ -24,6 +26,7 @@
 #include <fcntl.h>
 #include <linux/input.h>
 #include <linux/joystick.h>
+#include <linux/uinput.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -31,6 +34,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/eventfd.h>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -80,6 +84,11 @@ static constexpr uint32_t FAKE_INPUT_RING_CAPACITY = 4096;
 static constexpr unsigned int FAKE_INPUT_MAJOR = 13;
 static constexpr unsigned int FAKE_INPUT_EVENT_MINOR_BASE = 64;
 static constexpr unsigned int FAKE_INPUT_JS_MINOR_BASE = 0;
+// Nodes from event16 up are the virtual pads programs make through the /dev/uinput stand-in;
+// below that are the app's own rings, one per slot.
+static constexpr int UINPUT_EVENT_BASE = 16;
+static constexpr int UINPUT_EVENT_LIMIT = 64;
+static constexpr uint32_t UINPUT_DESCRIPTION_MAGIC = 0x46495544;
 
 struct FakeInputRingHeader {
   uint32_t magic;             // 0
@@ -107,8 +116,28 @@ static constexpr size_t FAKE_INPUT_RING_SIZE =
     FAKE_INPUT_RING_HEADER_SIZE +
     (FAKE_INPUT_RING_CAPACITY * FAKE_INPUT_EVENT_SIZE);
 
+// What a program told the /dev/uinput stand-in about the device it made, stored after the ring
+// in that device's file so every process that opens the node answers the same identity.
+struct UinputDescription {
+  uint32_t magic;
+  int32_t owner_pid;
+  struct input_id id;
+  uint32_t ff_effects_max;
+  char name[UINPUT_MAX_NAME_SIZE];
+  char phys[64];
+  uint8_t evbits[(EV_MAX + 8) / 8];
+  uint8_t keybits[(KEY_MAX + 8) / 8];
+  uint8_t absbits[(ABS_MAX + 8) / 8];
+  uint8_t ffbits[(FF_MAX + 8) / 8];
+  struct input_absinfo absinfo[ABS_CNT];
+};
+
+static constexpr size_t UINPUT_FILE_SIZE = FAKE_INPUT_RING_SIZE + sizeof(UinputDescription);
+
 struct FakeController {
   char *event = nullptr;
+  // Set for a node made through the /dev/uinput stand-in; null for the app's own pads.
+  const UinputDescription *uinput = nullptr;
   int slot = -1;
   FakeInputRingHeader *ring = nullptr;
   uint64_t read_seq = 0;
@@ -189,6 +218,7 @@ struct FakeConfig {
   const char *udev_data_dir;
   bool vibration_enabled;
   bool xbox360_identity;
+  bool uinput_enabled;
 };
 
 static FakeConfig &config() {
@@ -201,6 +231,7 @@ static FakeConfig &config() {
         getenv("FAKE_EVDEV_VIBRATION") && atoi(getenv("FAKE_EVDEV_VIBRATION"));
     const char *identity = getenv("FAKE_EVDEV_IDENTITY");
     c->xbox360_identity = identity && !strcmp(identity, "xbox360");
+    c->uinput_enabled = getenv("FAKE_EVDEV_UINPUT") && atoi(getenv("FAKE_EVDEV_UINPUT"));
     pthread_atfork(controller_fork_prepare, controller_fork_parent,
                    controller_fork_child);
     Logger::init();
@@ -233,6 +264,7 @@ static const char *fake_hook_dir() { return config().hook_dir; }
 static const char *fake_udev_data_dir() { return config().udev_data_dir; }
 static bool fake_vibration_enabled() { return config().vibration_enabled; }
 static bool fake_xbox360_identity() { return config().xbox360_identity; }
+static bool fake_uinput_enabled() { return config().uinput_enabled; }
 
 static bool ring_paths_loaded = false;
 static int next_ff_id = 0;
@@ -535,10 +567,22 @@ keyframe_value(const FakeController &fake, uint16_t type, uint16_t code) {
   return 0; // SYN / unknown
 }
 
+// A virtual pad's ring and description live beside its node, hidden from anything that lists
+// event* names: /dev/input/.uinput-event<n>.
+__attribute__((visibility("hidden"))) static std::string uinput_ring_path(int node) {
+  return std::string(fake_hook_dir()) + "/.uinput-event" + std::to_string(node);
+}
+
+__attribute__((visibility("hidden"))) static bool process_alive(pid_t pid) {
+  return pid > 0 && (kill(pid, 0) == 0 || errno == EPERM);
+}
+
 __attribute__((visibility("hidden"))) static int
 open_fake_input_ring(const char *event, int flags) {
   int slot = get_event_number(event);
-  std::string ring_path = get_ring_path_for_slot(slot);
+  bool virtual_pad = slot >= UINPUT_EVENT_BASE;
+  std::string ring_path = virtual_pad ? uinput_ring_path(slot) : get_ring_path_for_slot(slot);
+  size_t mapping_size = virtual_pad ? UINPUT_FILE_SIZE : FAKE_INPUT_RING_SIZE;
   if (ring_path.empty()) {
     Logger::log("No input ring is configured for %s (slot %d)\n", event, slot);
     errno = ENODEV;
@@ -551,8 +595,7 @@ open_fake_input_ring(const char *event, int flags) {
   if (fd < 0)
     return -1;
 
-  void *mapping =
-      mmap(nullptr, FAKE_INPUT_RING_SIZE, PROT_READ, MAP_SHARED, fd, 0);
+  void *mapping = mmap(nullptr, mapping_size, PROT_READ, MAP_SHARED, fd, 0);
   if (mapping == MAP_FAILED) {
     int saved_errno = errno;
     syscall(SYS_close, fd);
@@ -562,9 +605,16 @@ open_fake_input_ring(const char *event, int flags) {
 
   FakeInputRingHeader *ring =
       reinterpret_cast<FakeInputRingHeader *>(mapping);
-  if (!ring_header_is_valid(ring)) {
+  const UinputDescription *description =
+      virtual_pad ? reinterpret_cast<const UinputDescription *>(
+                        static_cast<const uint8_t *>(mapping) + FAKE_INPUT_RING_SIZE)
+                  : nullptr;
+  // A virtual pad whose maker has gone (a crashed client leaves its files) is not there.
+  if (!ring_header_is_valid(ring) ||
+      (description && (description->magic != UINPUT_DESCRIPTION_MAGIC ||
+                       !process_alive(description->owner_pid)))) {
     Logger::log("Input ring %s has no valid header\n", ring_path.c_str());
-    munmap(mapping, FAKE_INPUT_RING_SIZE);
+    munmap(mapping, mapping_size);
     syscall(SYS_close, fd);
     errno = ENODEV;
     return -1;
@@ -574,7 +624,8 @@ open_fake_input_ring(const char *event, int flags) {
   controller->event = strdup(event);
   controller->slot = slot;
   controller->ring = ring;
-  controller->mapping_size = FAKE_INPUT_RING_SIZE;
+  controller->uinput = description;
+  controller->mapping_size = mapping_size;
   controller->generation = ring_generation(ring);
   // Establish the cursor at open so taps arriving before the first read stay
   // queued. If publication is busy, read() will finish establishing it later.
@@ -618,18 +669,30 @@ __attribute__((visibility("hidden"))) static bool presents_steam_virtual() {
 // gamepad's axes by their position among the ones it advertises, so the triggers have to sit
 // where that pad has them: as ABS_GAS and ABS_BRAKE they follow the sticks, the right stick
 // lands on the left trigger, and a released right trigger reads as the right stick held up.
-__attribute__((visibility("hidden"))) static uint16_t presented_abs_code(uint16_t code) {
-  if (!presents_steam_virtual()) return code;
+// A pad made through /dev/uinput is that pad for real, whoever reads it.
+__attribute__((visibility("hidden"))) static bool
+presents_xbox_triggers(const FakeController &fake) {
+  return fake.uinput || presents_steam_virtual();
+}
+
+__attribute__((visibility("hidden"))) static uint16_t
+presented_abs_code(const FakeController &fake, uint16_t code) {
+  if (!presents_xbox_triggers(fake)) return code;
   if (code == ABS_BRAKE) return ABS_Z;
   if (code == ABS_GAS) return ABS_RZ;
   return code;
 }
 
-__attribute__((visibility("hidden"))) static uint16_t ring_abs_code(uint16_t code) {
-  if (!presents_steam_virtual()) return code;
+// The snapshot keeps the triggers in the ABS_GAS/ABS_BRAKE places either way.
+__attribute__((visibility("hidden"))) static uint16_t snapshot_abs_code(uint16_t code) {
   if (code == ABS_Z) return ABS_BRAKE;
   if (code == ABS_RZ) return ABS_GAS;
   return code;
+}
+
+__attribute__((visibility("hidden"))) static uint16_t
+ring_abs_code(const FakeController &fake, uint16_t code) {
+  return presents_xbox_triggers(fake) ? snapshot_abs_code(code) : code;
 }
 
 __attribute__((visibility("hidden"))) static void
@@ -707,6 +770,346 @@ __attribute__((visibility("hidden"))) static long long monotonic_ms() {
   return static_cast<long long>(now.tv_sec) * 1000LL + now.tv_nsec / 1000000LL;
 }
 
+// ---- /dev/uinput, stood in for ----
+//
+// Under Steam, a game is meant to read Steam Input's output, not the pad: the client hides the
+// physical pad from the game (SDL_GAMECONTROLLER_IGNORE_DEVICES, and its overlay refuses the
+// open) and makes it a virtual X-Box 360 pad through /dev/uinput, which it then drives with the
+// layout the player chose. The sandbox has no uinput the client may use, so the virtual pad never
+// appeared and every game was left reading the physical pad as-is.
+//
+// So /dev/uinput is answered here. A gamepad the client makes becomes another of this library's
+// nodes - /dev/input/event16 and up - backed by a ring file of the same layout the app writes,
+// and the client's writes are that ring's events. Any process reading the node sees the identity
+// the client gave it and gets exactly what the client wrote. A device that is not a gamepad (the
+// client's virtual keyboard and mouse) is accepted and its events dropped, which is what happened
+// to them before.
+struct UinputWriter {
+  UinputDescription description{};
+  bool created = false;
+  bool published = false;
+  int node = -1;
+  pid_t owner = 0;
+  FakeInputRingHeader *ring = nullptr;
+  UinputDescription *shared = nullptr;
+  std::vector<struct input_event> pending;
+  uint32_t buttons = 0;
+  int16_t axes[8] = {};
+};
+
+static std::unordered_map<int, std::shared_ptr<UinputWriter>> &uinput_map() {
+  static auto *map = new std::unordered_map<int, std::shared_ptr<UinputWriter>>();
+  return *map;
+}
+
+__attribute__((visibility("hidden"))) static bool is_uinput_path(const char *pathname) {
+  return pathname && (!strcmp(pathname, "/dev/uinput") || !strcmp(pathname, "/dev/input/uinput"));
+}
+
+__attribute__((visibility("hidden"))) static void set_bit(uint8_t *bits, size_t size, int bit) {
+  if (bit >= 0 && static_cast<size_t>(bit) / 8 < size) bits[bit / 8] |= 1u << (bit % 8);
+}
+
+__attribute__((visibility("hidden"))) static bool test_bit(const uint8_t *bits, size_t size, int bit) {
+  return bit >= 0 && static_cast<size_t>(bit) / 8 < size && (bits[bit / 8] >> (bit % 8)) & 1u;
+}
+
+// A real uinput fd reads EV_UINPUT requests and polls as writable. An eventfd that is never
+// signalled does both: nothing to read, always writable, blocking or not as the caller asked.
+__attribute__((visibility("hidden"))) static int open_uinput(int flags) {
+  int fd = eventfd(0, ((flags & O_NONBLOCK) ? EFD_NONBLOCK : 0) | ((flags & O_CLOEXEC) ? EFD_CLOEXEC : 0));
+  if (fd < 0) return -1;
+  auto writer = std::make_shared<UinputWriter>();
+  writer->owner = getpid();
+  std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+  uinput_map()[fd] = writer;
+  Logger::log("uinput: opened as fd %d\n", fd);
+  return fd;
+}
+
+// The layout the client asks for only matters to readers; what makes it a pad is a south button
+// and a left stick, which is also what every pad the ring format carries has.
+__attribute__((visibility("hidden"))) static bool is_gamepad(const UinputDescription &d) {
+  return test_bit(d.evbits, sizeof(d.evbits), EV_KEY) && test_bit(d.keybits, sizeof(d.keybits), BTN_SOUTH) &&
+         test_bit(d.evbits, sizeof(d.evbits), EV_ABS) && test_bit(d.absbits, sizeof(d.absbits), ABS_X);
+}
+
+__attribute__((visibility("hidden"))) static void unpublish_uinput(UinputWriter &w) {
+  if (!w.published) return;
+  // Readers holding the mapping see the generation move and report the device gone; the node's
+  // removal is what tells SDL and Wine through inotify.
+  __atomic_add_fetch(&w.ring->generation, 1, __ATOMIC_RELEASE);
+  std::string node = std::string(fake_hook_dir()) + "/event" + std::to_string(w.node);
+  unlink(node.c_str());
+  unlink((uinput_ring_path(w.node) + ".uevent").c_str());
+  unlink(uinput_ring_path(w.node).c_str());
+  munmap(w.ring, UINPUT_FILE_SIZE);
+  Logger::log("uinput: removed event%d\n", w.node);
+  w.ring = nullptr;
+  w.shared = nullptr;
+  w.published = false;
+}
+
+// A node number is claimed by creating its ring file exclusively, so two processes making pads
+// at once cannot take the same one. A file left by a process that has gone is reclaimed.
+__attribute__((visibility("hidden"))) static int claim_uinput_node(int *fd_out) {
+  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  for (int node = UINPUT_EVENT_BASE; node < UINPUT_EVENT_LIMIT; node++) {
+    std::string path = uinput_ring_path(node);
+    int fd = my_open(path.c_str(), O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
+    if (fd >= 0) {
+      *fd_out = fd;
+      return node;
+    }
+    if (errno != EEXIST) return -1;
+    int existing = my_open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (existing < 0) continue;
+    UinputDescription old{};
+    bool stale = pread(existing, &old, sizeof(old), FAKE_INPUT_RING_SIZE) == sizeof(old) &&
+                 old.magic == UINPUT_DESCRIPTION_MAGIC && !process_alive(old.owner_pid);
+    syscall(SYS_close, existing);
+    if (stale) {
+      unlink((std::string(fake_hook_dir()) + "/event" + std::to_string(node)).c_str());
+      unlink((path + ".uevent").c_str());
+      unlink(path.c_str());
+      node--;  // try the same number again
+    }
+  }
+  errno = ENOSPC;
+  return -1;
+}
+
+__attribute__((visibility("hidden"))) static int publish_uinput(UinputWriter &w) {
+  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  int fd = -1;
+  int node = claim_uinput_node(&fd);
+  if (node < 0) return -1;
+  void *mapping = MAP_FAILED;
+  if (ftruncate(fd, UINPUT_FILE_SIZE) == 0)
+    mapping = mmap(nullptr, UINPUT_FILE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  syscall(SYS_close, fd);
+  std::string ring_path = uinput_ring_path(node);
+  if (mapping == MAP_FAILED) {
+    unlink(ring_path.c_str());
+    return -1;
+  }
+  auto *ring = static_cast<FakeInputRingHeader *>(mapping);
+  ring->magic = FAKE_INPUT_RING_MAGIC;
+  ring->version = FAKE_INPUT_RING_VERSION;
+  ring->event_size = FAKE_INPUT_EVENT_SIZE;
+  ring->capacity = FAKE_INPUT_RING_CAPACITY;
+  ring->generation = 1;
+  auto *shared = reinterpret_cast<UinputDescription *>(static_cast<uint8_t *>(mapping) + FAKE_INPUT_RING_SIZE);
+  *shared = w.description;
+  shared->magic = UINPUT_DESCRIPTION_MAGIC;
+  shared->owner_pid = w.owner;
+  __atomic_thread_fence(__ATOMIC_RELEASE);
+
+  // The identity Wine's HID bus reads through libudev (inputudev.c in libblsession), written
+  // before the node so the first lookup finds it.
+  char uevent[256];
+  int length = snprintf(uevent, sizeof(uevent), "PRODUCT=%x/%x/%x/%x\nNAME=\"%s\"\nPHYS=\"%s\"\n",
+                        shared->id.bustype, shared->id.vendor, shared->id.product, shared->id.version,
+                        shared->name, shared->phys);
+  int uevent_fd = my_open((ring_path + ".uevent").c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+  if (uevent_fd >= 0) {
+    if (write(uevent_fd, uevent, std::min<size_t>(length, sizeof(uevent) - 1)) < 0) {}
+    syscall(SYS_close, uevent_fd);
+  }
+  std::string node_path = std::string(fake_hook_dir()) + "/event" + std::to_string(node);
+  int node_fd = my_open(node_path.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+  if (node_fd < 0) {
+    munmap(mapping, UINPUT_FILE_SIZE);
+    unlink((ring_path + ".uevent").c_str());
+    unlink(ring_path.c_str());
+    return -1;
+  }
+  syscall(SYS_close, node_fd);
+  w.node = node;
+  w.ring = ring;
+  w.shared = shared;
+  w.published = true;
+  Logger::log("uinput: \"%s\" %04x:%04x is /dev/input/event%d\n", shared->name, shared->id.vendor,
+              shared->id.product, node);
+  return 0;
+}
+
+// Same publication as the app's writer (FakeInputWriter.flushBufferToRing): the events, then the
+// absolute state under its seqlock, then the cursor that makes both visible.
+__attribute__((visibility("hidden"))) static void flush_uinput(UinputWriter &w) {
+  if (!w.published || w.pending.empty()) {
+    w.pending.clear();
+    return;
+  }
+  FakeInputRingHeader *ring = w.ring;
+  auto *events = reinterpret_cast<struct input_event *>(reinterpret_cast<uint8_t *>(ring) +
+                                                        FAKE_INPUT_RING_HEADER_SIZE);
+  uint64_t write_seq = __atomic_load_n(&ring->write_seq, __ATOMIC_RELAXED);
+  struct timeval now = {};
+  gettimeofday(&now, nullptr);
+  for (struct input_event ev : w.pending) {
+    ev.time = now;
+    events[write_seq % FAKE_INPUT_RING_CAPACITY] = ev;
+    write_seq++;
+    if (ev.type == EV_KEY) {
+      for (size_t i = 0; i < kSnapshotButtonCount; i++)
+        if (kSnapshotButtons[i] == ev.code)
+          w.buttons = ev.value ? (w.buttons | (1u << i)) : (w.buttons & ~(1u << i));
+    } else if (ev.type == EV_ABS) {
+      uint16_t code = snapshot_abs_code(ev.code);
+      for (int i = 0; i < 8; i++)
+        if (kSnapshotAxisCodes[i] == code)
+          w.axes[i] = static_cast<int16_t>(std::max(-32768, std::min(32767, ev.value)));
+    }
+  }
+  w.pending.clear();
+  uint64_t sequence = __atomic_load_n(&ring->snapshot_seq, __ATOMIC_RELAXED);
+  __atomic_store_n(&ring->snapshot_seq, sequence + 1, __ATOMIC_RELAXED);
+  __atomic_thread_fence(__ATOMIC_RELEASE);
+  __atomic_store_n(&ring->snapshot_buttons, w.buttons, __ATOMIC_RELAXED);
+  for (int i = 0; i < 8; i++) __atomic_store_n(&ring->snapshot_axes[i], w.axes[i], __ATOMIC_RELAXED);
+  __atomic_thread_fence(__ATOMIC_RELEASE);
+  __atomic_store_n(&ring->snapshot_seq, sequence + 2, __ATOMIC_RELEASE);
+  __atomic_store_n(&ring->write_seq, write_seq, __ATOMIC_RELEASE);
+}
+
+__attribute__((visibility("hidden"))) static ssize_t
+write_uinput(UinputWriter &w, const void *buf, size_t count) {
+  if (!w.created) {
+    // The legacy description: written once, before UI_DEV_CREATE.
+    if (count != sizeof(struct uinput_user_dev)) {
+      errno = EINVAL;
+      return -1;
+    }
+    const auto *legacy = static_cast<const struct uinput_user_dev *>(buf);
+    memcpy(w.description.name, legacy->name, sizeof(w.description.name));
+    w.description.name[sizeof(w.description.name) - 1] = '\0';
+    w.description.id = legacy->id;
+    w.description.ff_effects_max = legacy->ff_effects_max;
+    for (int i = 0; i < ABS_CNT; i++) {
+      w.description.absinfo[i].minimum = legacy->absmin[i];
+      w.description.absinfo[i].maximum = legacy->absmax[i];
+      w.description.absinfo[i].fuzz = legacy->absfuzz[i];
+      w.description.absinfo[i].flat = legacy->absflat[i];
+    }
+    return static_cast<ssize_t>(count);
+  }
+  if (count % sizeof(struct input_event)) {
+    errno = EINVAL;
+    return -1;
+  }
+  const auto *events = static_cast<const struct input_event *>(buf);
+  for (size_t i = 0; i < count / sizeof(struct input_event); i++) {
+    w.pending.push_back(events[i]);
+    // A frame ends at SYN_REPORT; a writer that never sends one still gets its events out.
+    if ((events[i].type == EV_SYN && events[i].code == SYN_REPORT) || w.pending.size() >= 64)
+      flush_uinput(w);
+  }
+  return static_cast<ssize_t>(count);
+}
+
+__attribute__((visibility("hidden"))) static int
+ioctl_uinput(UinputWriter &w, ioctl_request_t op, void *argp) {
+  if (_IOC_TYPE(op) != UINPUT_IOCTL_BASE) {
+    errno = ENOTTY;
+    return -1;
+  }
+  int number = _IOC_NR(op);
+  int value = static_cast<int>(reinterpret_cast<intptr_t>(argp));
+  UinputDescription &d = w.description;
+  if (number == _IOC_NR(UI_GET_VERSION)) {
+    *static_cast<unsigned int *>(argp) = 5;
+    return 0;
+  }
+  if (number == _IOC_NR(UI_GET_SYSNAME(0))) {
+    if (!w.created) {
+      errno = ENOENT;
+      return -1;
+    }
+    snprintf(static_cast<char *>(argp), _IOC_SIZE(op), "input%d", w.published ? w.node : 0);
+    return 0;
+  }
+  if (number == _IOC_NR(UI_DEV_DESTROY)) {
+    if (getpid() == w.owner) unpublish_uinput(w);
+    w.created = false;
+    return 0;
+  }
+  if (w.created && number != _IOC_NR(UI_BEGIN_FF_UPLOAD) && number != _IOC_NR(UI_END_FF_UPLOAD) &&
+      number != _IOC_NR(UI_BEGIN_FF_ERASE) && number != _IOC_NR(UI_END_FF_ERASE)) {
+    errno = EINVAL;  // the kernel refuses configuration once the device exists
+    return -1;
+  }
+  switch (number) {
+  case _IOC_NR(UI_SET_EVBIT): set_bit(d.evbits, sizeof(d.evbits), value); return 0;
+  case _IOC_NR(UI_SET_KEYBIT): set_bit(d.keybits, sizeof(d.keybits), value); return 0;
+  case _IOC_NR(UI_SET_ABSBIT): set_bit(d.absbits, sizeof(d.absbits), value); return 0;
+  case _IOC_NR(UI_SET_FFBIT): set_bit(d.ffbits, sizeof(d.ffbits), value); return 0;
+  case _IOC_NR(UI_SET_RELBIT):
+  case _IOC_NR(UI_SET_MSCBIT):
+  case _IOC_NR(UI_SET_LEDBIT):
+  case _IOC_NR(UI_SET_SNDBIT):
+  case _IOC_NR(UI_SET_SWBIT):
+  case _IOC_NR(UI_SET_PROPBIT):
+    return 0;
+  case _IOC_NR(UI_SET_PHYS):
+    snprintf(d.phys, sizeof(d.phys), "%s", static_cast<const char *>(argp));
+    return 0;
+  case _IOC_NR(UI_DEV_SETUP): {
+    const auto *setup = static_cast<const struct uinput_setup *>(argp);
+    d.id = setup->id;
+    memcpy(d.name, setup->name, sizeof(d.name));
+    d.name[sizeof(d.name) - 1] = '\0';
+    d.ff_effects_max = setup->ff_effects_max;
+    return 0;
+  }
+  case _IOC_NR(UI_ABS_SETUP): {
+    const auto *setup = static_cast<const struct uinput_abs_setup *>(argp);
+    if (setup->code >= ABS_CNT) {
+      errno = EINVAL;
+      return -1;
+    }
+    d.absinfo[setup->code] = setup->absinfo;
+    return 0;
+  }
+  case _IOC_NR(UI_DEV_CREATE):
+    w.created = true;
+    if (!is_gamepad(d)) {
+      Logger::log("uinput: \"%s\" %04x:%04x is not a gamepad; its events are dropped\n", d.name,
+                  d.id.vendor, d.id.product);
+      return 0;
+    }
+    if (publish_uinput(w) < 0) {
+      Logger::log("uinput: could not publish \"%s\": %s\n", d.name, strerror(errno));
+      w.created = false;
+      errno = ENOMEM;
+      return -1;
+    }
+    return 0;
+  // Force feedback reaches the client only as EV_UINPUT requests on this fd, and none are ever
+  // sent: a game's rumble on a virtual pad goes straight to the app (check_ff_event).
+  case _IOC_NR(UI_BEGIN_FF_UPLOAD):
+  case _IOC_NR(UI_END_FF_UPLOAD):
+  case _IOC_NR(UI_BEGIN_FF_ERASE):
+  case _IOC_NR(UI_END_FF_ERASE):
+    errno = EINVAL;
+    return -1;
+  default:
+    Logger::log("uinput: unhandled ioctl %d\n", number);
+    errno = EINVAL;
+    return -1;
+  }
+}
+
+// Only the process that made the device takes it down: a forked child closing its inherited
+// copy of the fd (as a spawn does before exec) must not remove the parent's pad.
+__attribute__((visibility("hidden"))) static void close_uinput(int fd) {
+  std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+  auto it = uinput_map().find(fd);
+  if (it == uinput_map().end()) return;
+  if (getpid() == it->second->owner) unpublish_uinput(*it->second);
+  uinput_map().erase(it);
+}
+
 EXPORT int open(const char *pathname, int flags, ...) {
   va_list va;
   mode_t mode;
@@ -724,6 +1127,8 @@ EXPORT int open(const char *pathname, int flags, ...) {
   va_end(va);
 
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+
+  if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
 
   char *fake_path = nullptr;
   const char *event = nullptr;
@@ -787,6 +1192,8 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
   va_end(va);
 
   static auto my_openat = reinterpret_cast<int (*)(int, const char *, int, ...)>(dlsym(RTLD_NEXT, "openat"));
+
+  if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
 
   char *fake_path = nullptr;
   const char *event = nullptr;
@@ -890,6 +1297,7 @@ EXPORT int fstat(int fd, struct stat *buf) {
 
 EXPORT int access(const char *pathname, int mode) {
   static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
+  if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
 
   char *fake_path = nullptr;
   if (pathname) {
@@ -920,6 +1328,7 @@ EXPORT int access(const char *pathname, int mode) {
 
 EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
   static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
+  if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
 
   char *fake_path = nullptr;
   if (pathname) {
@@ -1034,6 +1443,8 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   // blocking ioctl(BINDER_WRITE_READ), so a parked binder pool thread would own
   // controller_mutex() for as long as it waits and deadlock every other ioctl.
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
+  auto maker = uinput_map().find(fd);
+  if (maker != uinput_map().end()) return ioctl_uinput(*maker->second, op, argp);
   auto controller = controller_map().find(fd);
   if (controller == controller_map().end()) {
     guard.unlock();
@@ -1044,6 +1455,8 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   int number = (op >> 0 & 0xFF);
   const char *event = controller->second->event ? controller->second->event : "event0";
   int event_number = controller->second->slot;
+  // A virtual pad answers with what its maker described, not with the app's pad identity.
+  const UinputDescription *made = controller->second->uinput;
 
   if (type == 0x45 && number == 0x1) {
     Logger::log("Hooking ioctl EVIOCGVERSION for event %s\n", event);
@@ -1055,7 +1468,9 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     struct input_id id;
     memset(&id, 0, sizeof(id));
     id.bustype = 0x03;
-    if (presents_steam_virtual()) {
+    if (made) {
+      id = made->id;
+    } else if (presents_steam_virtual()) {
       id.vendor = STEAM_VIRTUAL_VENDOR_ID;
       id.product = STEAM_VIRTUAL_PRODUCT_ID;
     } else if (fake_xbox360_identity()) {
@@ -1065,11 +1480,15 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
       id.vendor = static_cast<uint16_t>(GAMEPAD_VENDOR_ID_BASE + event_number);
       id.product = static_cast<uint16_t>(GAMEPAD_PRODUCT_ID_BASE + event_number);
     }
-    id.version = GAMEPAD_VERSION;
+    if (!made) id.version = GAMEPAD_VERSION;
     memcpy(argp, (void *)&id, sizeof(id));
     return 0;
   } else if (type == 0x45 && number == 0x6) {
     Logger::log("Hooking ioctl EVIOCGNAME for event %s\n", event);
+    if (made) {
+      if (argp && _IOC_SIZE(op)) snprintf(static_cast<char *>(argp), _IOC_SIZE(op), "%s", made->name);
+      return 0;
+    }
     copy_slot_ioctl_string(op, argp,
                            presents_steam_virtual() ? STEAM_VIRTUAL_NAME_TEMPLATE
                            : (fake_xbox360_identity() ? X360_NAME_TEMPLATE : GAMEPAD_NAME_TEMPLATE),
@@ -1077,10 +1496,18 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     return 0;
   } else if (type == 0x45 && number == 0x7) {
     Logger::log("Hooking ioctl EVIOCGPHYS for event %s\n", event);
+    if (made) {
+      if (argp && _IOC_SIZE(op)) snprintf(static_cast<char *>(argp), _IOC_SIZE(op), "%s", made->phys);
+      return 0;
+    }
     copy_slot_ioctl_string(op, argp, GAMEPAD_PHYS_TEMPLATE, event_number);
     return 0;
   } else if (type == 0x45 && number == 0x8) {
     Logger::log("Hooking ioctl EVIOCGUNIQ for event %s\n", event);
+    if (made) {
+      if (argp && _IOC_SIZE(op)) static_cast<char *>(argp)[0] = '\0';
+      return 0;
+    }
     copy_slot_ioctl_string(op, argp, GAMEPAD_UNIQ_TEMPLATE, event_number);
     return 0;
   } else if (type == 0x45 && number == 0x9) {
@@ -1097,6 +1524,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     return copy_ioctl_bits(op, argp, bitmask);
   } else if (type == 0x45 && number == 0x20) {
     Logger::log("Hooking ioctl EVIOCGBIT(0, len) for event %s\n", event);
+    if (made) return copy_ioctl_bits(op, argp, made->evbits);
     unsigned char bitmask[(EV_MAX + 8) / 8] = {};
     bitmask[EV_SYN / 8] |= (1 << (EV_SYN % 8));
     bitmask[EV_KEY / 8] |= (1 << (EV_KEY % 8));
@@ -1104,6 +1532,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     return copy_ioctl_bits(op, argp, bitmask);
   } else if (type == 0x45 && number == 0x21) {
     Logger::log("Hooking ioctl EVIOCGBIT(EV_KEY, len) for event %s\n", event);
+    if (made) return copy_ioctl_bits(op, argp, made->keybits);
     unsigned char bitmask[(KEY_MAX + 8) / 8] = {};
     const int xbox_buttons[] = {BTN_A,    BTN_B,      BTN_X,      BTN_Y,
                                 BTN_TL,   BTN_TR,     BTN_SELECT, BTN_START,
@@ -1117,13 +1546,14 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     return copy_ioctl_bits(op, argp, bitmask);
   } else if (type == 0x45 && number == 0x23) {
     Logger::log("Hooking ioctl EVIOCGBIT(EV_ABS, len) for event %s\n", event);
+    if (made) return copy_ioctl_bits(op, argp, made->absbits);
     unsigned char bitmask[(ABS_MAX + 8) / 8] = {};
     bitmask[ABS_X / 8] |= (1 << (ABS_X % 8));
     bitmask[ABS_Y / 8] |= (1 << (ABS_Y % 8));
     bitmask[ABS_RX / 8] |= (1 << (ABS_RX % 8));
     bitmask[ABS_RY / 8] |= (1 << (ABS_RY % 8));
     for (uint16_t trigger : {ABS_GAS, ABS_BRAKE}) {
-      uint16_t code = presented_abs_code(trigger);
+      uint16_t code = presented_abs_code(*controller->second, trigger);
       bitmask[code / 8] |= (1 << (code % 8));
     }
     bitmask[ABS_HAT0X / 8] |= (1 << (ABS_HAT0X % 8));
@@ -1131,6 +1561,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     return copy_ioctl_bits(op, argp, bitmask);
   } else if (type == 0x45 && number == 0x35) {
     Logger::log("Hooking ioctl EVIOCGBIT(EV_FF, len) for event %s\n", event);
+    if (made) return copy_ioctl_bits(op, argp, made->ffbits);
     unsigned char bitmask[(FF_MAX + 8) / 8] = {};
     bitmask[FF_RUMBLE / 8] |= (1 << (FF_RUMBLE % 8));
     bitmask[FF_PERIODIC / 8] |= (1 << (FF_PERIODIC % 8));
@@ -1163,8 +1594,10 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     Logger::log("Hooking ioctl EVIOCGABS(ABS) for event %s\n", event);
     struct input_absinfo abs_info;
     memset(&abs_info, 0, sizeof(abs_info));
-    uint16_t code = ring_abs_code(number - 0x40);
-    if (code == ABS_GAS || code == ABS_BRAKE) {
+    uint16_t code = ring_abs_code(*controller->second, number - 0x40);
+    if (made) {
+      abs_info = made->absinfo[number - 0x40];
+    } else if (code == ABS_GAS || code == ABS_BRAKE) {
       abs_info.value = 0;
       abs_info.minimum = 0;
       abs_info.maximum = 255;
@@ -1218,6 +1651,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
 EXPORT int close(int fd) {
   static auto my_close = reinterpret_cast<decltype(&::close)>(dlsym(RTLD_NEXT, "close"));
 
+  close_uinput(fd);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto controller = controller_map().find(fd);
   if (controller != controller_map().end()) {
@@ -1283,7 +1717,7 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
             size_t index = (fake.read_seq + i) % FAKE_INPUT_RING_CAPACITY;
             struct input_event ev;
             memcpy(&ev, ring_events + index * FAKE_INPUT_EVENT_SIZE, FAKE_INPUT_EVENT_SIZE);
-            if (ev.type == EV_ABS) ev.code = presented_abs_code(ev.code);
+            if (ev.type == EV_ABS) ev.code = presented_abs_code(fake, ev.code);
             memcpy(static_cast<uint8_t *>(buf) + i * FAKE_INPUT_EVENT_SIZE, &ev,
                    FAKE_INPUT_EVENT_SIZE);
           }
@@ -1309,7 +1743,7 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
         ev.type = kNeutralEvents[index].type;
         ev.code = kNeutralEvents[index].code;
         ev.value = keyframe_value(fake, ev.type, ev.code);
-        if (ev.type == EV_ABS) ev.code = presented_abs_code(ev.code);
+        if (ev.type == EV_ABS) ev.code = presented_abs_code(fake, ev.code);
         memcpy(static_cast<uint8_t *>(buf) + i * FAKE_INPUT_EVENT_SIZE,
                &ev, FAKE_INPUT_EVENT_SIZE);
         --fake.keyframe_remaining;
@@ -1333,6 +1767,8 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   static auto my_write = reinterpret_cast<decltype(&::write)>(dlsym(RTLD_NEXT, "write"));
 
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
+  auto made = uinput_map().find(fd);
+  if (made != uinput_map().end()) return write_uinput(*made->second, buf, count);
   auto controller = controller_map().find(fd);
   if (controller != controller_map().end()) {
     if (fake_fd_is_stale(fd)) {
@@ -1355,6 +1791,17 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
 
 EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
+  auto made = uinput_map().find(fd);
+  if (made != uinput_map().end()) {
+    // One description or whole events per vector, which is how uinput writers write.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t written = write_uinput(*made->second, iov[i].iov_base, iov[i].iov_len);
+      if (written < 0) return total ? total : -1;
+      total += written;
+    }
+    return total;
+  }
   auto controller = controller_map().find(fd);
   if (controller != controller_map().end()) {
     if (fake_fd_is_stale(fd)) {

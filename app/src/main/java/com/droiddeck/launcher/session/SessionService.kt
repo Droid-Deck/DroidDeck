@@ -605,6 +605,12 @@ class SessionService : Service() {
     /** The fake evdev pads: the ring files the app writes and the identity SDL and Steam see. */
     private fun addControllerEnvironment(guest: MutableList<String>, fakeInputDir: File) {
         FakeInputWriter.prepareRingSlots(fakeInputDir, 4)
+        // Virtual pads a client made last session (event16 and up, and their hidden rings) are
+        // not there any more; a client that crashed never took its own down.
+        fakeInputDir.listFiles()?.forEach { file ->
+            val node = Regex("event(\\d+)").matchEntire(file.name)?.groupValues?.get(1)?.toIntOrNull()
+            if (file.name.startsWith(".uinput-") || (node != null && node >= FIRST_VIRTUAL_PAD)) file.delete()
+        }
         guest.add("FAKE_EVDEV_DIR=" + fakeInputDir.path)
         val rings = FakeInputWriter.getRingEnv(fakeInputDir)
         if (!rings.isNullOrEmpty()) guest.add("FAKE_EVDEV_MEMFD_PATHS=$rings")
@@ -612,11 +618,18 @@ class SessionService : Service() {
         // identity gets the standard layout without the user configuring the pad by hand.
         guest.add("FAKE_EVDEV_IDENTITY=xbox360")
         guest.add("FAKE_EVDEV_VIBRATION=1")
-        // Steam Input's virtual-gamepad identity is for games the client starts, which are
-        // meant to see that pad. Everywhere else (the desktop, a program from the rail) it
-        // hides the pad: SDL ignores a Steam virtual gamepad unless it runs under Steam, so
-        // every SDL emulator came up with no controller. There it is a plain Xbox 360 pad.
-        if (SessionState.mode == MODE_STEAM) guest.add("FAKE_EVDEV_STEAM_VIRTUAL=1")
+        if (!File(Environment.getExternalStorageDirectory(), NO_UINPUT_SWITCH).exists()) {
+            // /dev/uinput, stood in for by libfakeinput: the virtual pad Steam Input makes for a
+            // game becomes a node the game reads, carrying the player's layout, as on a Deck.
+            // The pad itself stays the Xbox 360 controller the client reads.
+            guest.add("FAKE_EVDEV_UINPUT=1")
+        } else if (SessionState.mode == MODE_STEAM) {
+            // Without it, games see the pad itself wearing Steam Input's virtual-gamepad identity -
+            // for games the client starts only. Everywhere else (the desktop, a program from the
+            // rail) that identity hides the pad: SDL ignores a Steam virtual gamepad unless it
+            // runs under Steam, so every SDL emulator came up with no controller.
+            guest.add("FAKE_EVDEV_STEAM_VIRTUAL=1")
+        }
         guest.add("SDL_JOYSTICK_DISABLE_UDEV=1")
         guest.add("SDL_HIDAPI_JOYSTICK_DISABLE_UDEV=1")
         guest.add("SDL_JOYSTICK_HIDAPI=0")
@@ -1145,6 +1158,9 @@ class SessionService : Service() {
         private const val STEAM_EXIT_MS = 10_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val PAD_LOG_SWITCH = "Download/droiddeck-pad-log"
+        private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"
+        /** libfakeinput numbers the pads made through its /dev/uinput stand-in from here. */
+        private const val FIRST_VIRTUAL_PAD = 16
 
         const val EXTRA_MODE = "mode"
         const val MODE_STEAM = "steam"
