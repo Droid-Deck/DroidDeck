@@ -79,6 +79,11 @@ object SessionState {
     /** Told (on the thread that changed it) whenever [deckPad] changes. */
     @Volatile var deckPadListener: (() -> Unit)? = null
 
+    /** What the second screen shows, and on which display: kept for the session, so a screen
+     *  turned off (sleep, a closed lid) or an activity recreated brings it back as it was. */
+    @Volatile var secondScreenMode = com.droiddeck.launcher.input.SecondScreenMode.NONE
+    @Volatile var secondScreenDisplay = -1
+
     /** Which session this is: SessionService.MODE_STEAM or MODE_DESKTOP. */
     @Volatile
     var mode = "steam"

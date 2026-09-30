@@ -176,9 +176,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
     private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
-    private var secondScreenMode by mutableStateOf(SecondScreenMode.NONE)
+    private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
-    private var selectedSecondScreenDisplay by mutableStateOf(-1)
+    private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
+    /** Between onStart and onStop: while stopped the second screen stays closed, its choice kept. */
+    private var started = false
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
     private val displayListener = object : DisplayManager.DisplayListener {
@@ -1290,11 +1292,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
         if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) closeSecondScreen(reset = true)
+        // A choice kept while its display was away (asleep, waking): back as soon as it is.
+        else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
         if (secondScreenDisplays.none { it.id == displayId }) return
         selectedSecondScreenDisplay = displayId
+        SessionState.secondScreenDisplay = displayId
         if (secondScreenMode != SecondScreenMode.NONE) showSecondScreen(secondScreenMode)
     }
 
@@ -1316,8 +1321,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun showSecondScreen(mode: SecondScreenMode) {
         val target = displayManager.getDisplay(selectedSecondScreenDisplay)
         if (target == null || !target.isValid || (target.flags and Display.FLAG_PRESENTATION) == 0) {
-            closeSecondScreen(reset = true)
-            refreshSecondScreenDisplays()
+            // Not there right now - a panel still waking, say. The choice is kept; the display
+            // listener shows it again when the display comes back (refreshSecondScreenDisplays).
+            closeSecondScreen(reset = false)
             return
         }
         var presentation = secondScreenPresentation
@@ -1349,6 +1355,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (!presentation.isShowing) presentation.show()
             presentation.showMode(mode)
             secondScreenMode = mode
+            SessionState.secondScreenMode = mode
+            SessionState.secondScreenDisplay = selectedSecondScreenDisplay
         } catch (e: Exception) {
             Log.w(TAG, "could not show second-screen controls on ${target.name}", e)
             closeSecondScreen(reset = true)
@@ -1368,7 +1376,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun closeSecondScreen(reset: Boolean) {
         secondScreenPresentation?.closeControls()
         secondScreenPresentation = null
-        if (reset) secondScreenMode = SecondScreenMode.NONE
+        if (reset) {
+            secondScreenMode = SecondScreenMode.NONE
+            SessionState.secondScreenMode = SecondScreenMode.NONE
+        }
     }
 
     /** Touchpad on the desktop, direct in Steam, unless the drawer says otherwise. */
@@ -1481,15 +1492,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onStart() {
         super.onStart()
+        started = true
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
         refreshSecondScreenDisplays()
-        if (secondScreenMode != SecondScreenMode.NONE) showSecondScreen(secondScreenMode)
+        if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         SessionService.setActivityVisible(this, true)
     }
 
     override fun onStop() {
+        started = false
         displayManager.unregisterDisplayListener(displayListener)
-        closeSecondScreen(reset = true)
+        // Closed while the session is out of sight (sleep, a closed lid, another app), and kept:
+        // onStart puts it back.
+        closeSecondScreen(reset = false)
         SessionService.setActivityVisible(this, false)
         super.onStop()
     }
