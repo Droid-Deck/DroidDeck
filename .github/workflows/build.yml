@@ -385,7 +385,7 @@ jobs:
               success)
                 echo "###  Build passed"
                 echo
-                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key. After approval, a maintainer can run **PR Release Publish** from \`main\` to create an APK that installs over the release."
+                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key. A maintainer can run **PR Release Publish** from \`main\` to create an APK that installs over the release."
                 ;;
               failure)
                 echo "### ERROR: Build failed"

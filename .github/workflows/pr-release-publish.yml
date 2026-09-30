@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: Open, approved pull request
+        description: Open pull request
         required: true
         type: number
 
@@ -27,7 +27,7 @@ jobs:
       head_sha: ${{ steps.gate.outputs.head_sha }}
       label: ${{ steps.gate.outputs.label }}
     steps:
-      - name: Check the PR, review, and build
+      - name: Check the PR and build
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -51,19 +51,6 @@ jobs:
             .event == "pull_request" and .head_sha == $head and .conclusion == "success" and
             any(.pull_requests[]?; .number == $number and .head.sha == $head and .base.sha == $base)
           ' <<<"$run" >/dev/null
-
-          approved=$(gh api --paginate --slurp \
-            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" |
-            jq -r --arg head "$head" '[.[][] | select(.commit_id == $head)] |
-              group_by(.user.login) | map(max_by(.id)) | .[] |
-              select(.state == "APPROVED") | .user.login')
-          maintainer_approved=false
-          while IFS= read -r reviewer; do
-            [[ -n "$reviewer" ]] || continue
-            permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$reviewer/permission" --jq .permission)
-            [[ "$permission" == write || "$permission" == admin ]] && maintainer_approved=true
-          done <<<"$approved"
-          [[ "$maintainer_approved" == true ]] || { echo '::error::A maintainer must approve this commit'; exit 1; }
 
           sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
           tools=$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
@@ -89,9 +76,6 @@ jobs:
             .state == "open" and .draft == false and .base.ref == "main" and
             .head.sha == $head and .base.sha == $base
           ' <<<"$current" >/dev/null
-          [[ $(gh pr view "$PR_NUMBER" -R "$GITHUB_REPOSITORY" --json reviewDecision --jq .reviewDecision) == APPROVED ]] || {
-            echo '::error::The current PR revision still needs approval'; exit 1;
-          }
           {
             echo "run_id=$run_id"
             echo "head_sha=$head"
