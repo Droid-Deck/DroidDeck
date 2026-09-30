@@ -63,6 +63,10 @@ object SessionState {
      *  gets DXVK_HDR=1 and gamescope --hdr-enabled. Decided by the activity before the compositor starts. */
     @JvmStatic var hdr = false
 
+    /** The pad is presented to the Steam client as a Steam Deck controller this session
+     *  (SteamDeckPad): its Quick Access button is a real button, not the Guide+A chord. */
+    @JvmStatic @Volatile var deckPad = false
+
     /** Which session this is: SessionService.MODE_STEAM or MODE_DESKTOP. */
     @Volatile
     var mode = "steam"

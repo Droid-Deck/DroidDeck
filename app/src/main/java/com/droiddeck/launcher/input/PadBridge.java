@@ -7,6 +7,8 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 
+import com.droiddeck.launcher.session.SessionState;
+
 import java.io.File;
 
 /**
@@ -19,7 +21,10 @@ import java.io.File;
  * SDL → Big Picture.
  *
  * <p>The identity the interposer reports is an Xbox 360 pad, which is what makes SDL apply a known
- * mapping without the user configuring anything.
+ * mapping without the user configuring anything. In a Steam session it is a Steam Deck controller
+ * to the client instead ({@link com.droiddeck.launcher.session.SteamDeckPad}), which has a Quick
+ * Access button of its own; an Xbox pad has none, so there the client's menu is reached with the
+ * Guide-then-A chord the client itself answers.
  */
 public final class PadBridge {
     private static final String TAG = "PadBridge";
@@ -54,6 +59,8 @@ public final class PadBridge {
     private boolean systemQamPressed;
     private boolean qamChordActive;
     private boolean qamSyntheticAPressed;
+    /** The Deck controller's Quick Access button, held for one tap. */
+    private boolean qamTapPressed;
     private int qamChordGeneration;
     /** Told on the main thread when a player uses the pad or the on-screen controls; see [setOnPlayerInput]. */
     private volatile Runnable onPlayerInput;
@@ -77,6 +84,7 @@ public final class PadBridge {
         systemQamPressed = false;
         qamChordActive = false;
         qamSyntheticAPressed = false;
+        qamTapPressed = false;
         qamChordGeneration++;
         if (open) {
             state.clear();
@@ -204,7 +212,8 @@ public final class PadBridge {
         boolean qamStarted = qamPressed && !systemQamPressed;
         systemGuidePressed = guidePressed;
         systemQamPressed = qamPressed;
-        if (qamStarted) startQamChord();
+        // A Deck controller's QAM button is held for as long as the touch one is.
+        if (qamStarted && !SessionState.getDeckPad()) startQamChord();
         else publish();
     }
 
@@ -217,9 +226,23 @@ public final class PadBridge {
         publish();
     }
 
-    /** Starts the same Guide-then-A sequence used by the touch QAM button. */
+    /** Opens the client's Quick Access menu: a tap of the Deck's button, or the Guide-then-A chord. */
     public synchronized void triggerQam() {
-        startQamChord();
+        if (!SessionState.getDeckPad()) {
+            startQamChord();
+            return;
+        }
+        if (qamTapPressed) return;
+        qamTapPressed = true;
+        int generation = qamChordGeneration;
+        publish();
+        chordHandler.postDelayed(() -> releaseQamTap(generation), QAM_A_HOLD_MS);
+    }
+
+    private synchronized void releaseQamTap(int generation) {
+        if (generation != qamChordGeneration || !qamTapPressed) return;
+        qamTapPressed = false;
+        publish();
     }
 
     private void startQamChord() {
@@ -258,16 +281,17 @@ public final class PadBridge {
 
     private void publish() {
         if (!open && !start()) return;
-        if (systemGuidePressed || qamChordActive) {
-            effectiveState.copyFrom(state);
-            effectiveState.press(PadState.GUIDE, true);
-            if (qamSyntheticAPressed) {
-                effectiveState.press(PadState.A, state.isDown(PadState.A) || qamSyntheticAPressed);
-            }
-            writer.writePad(effectiveState);
-        } else {
+        boolean guide = systemGuidePressed || qamChordActive;
+        boolean qam = SessionState.getDeckPad() && (systemQamPressed || qamTapPressed);
+        if (!guide && !qam) {
             writer.writePad(state);
+            return;
         }
+        effectiveState.copyFrom(state);
+        if (guide) effectiveState.press(PadState.GUIDE, true);
+        if (qam) effectiveState.press(PadState.QAM, true);
+        if (qamSyntheticAPressed) effectiveState.press(PadState.A, true);
+        writer.writePad(effectiveState);
     }
 
     private static float axis(MotionEvent event, int axis) {

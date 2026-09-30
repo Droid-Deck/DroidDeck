@@ -292,6 +292,7 @@ class SessionService : Service() {
 
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
+        SessionState.deckPad = false
         if (controllersOn) addControllerEnvironment(guest, fakeInputDir)
         // The desktop is wlroots (labwc). Stock wlroots allocates through gbm on a real DRM render
         // node, and ours is a KGSL stand-in - labwc died at "unable to create allocator" - so the
@@ -618,11 +619,16 @@ class SessionService : Service() {
         // identity gets the standard layout without the user configuring the pad by hand.
         guest.add("FAKE_EVDEV_IDENTITY=xbox360")
         guest.add("FAKE_EVDEV_VIBRATION=1")
-        if (!File(Environment.getExternalStorageDirectory(), NO_UINPUT_SWITCH).exists()) {
+        val uinput = !File(Environment.getExternalStorageDirectory(), NO_UINPUT_SWITCH).exists()
+        // In Steam, the pad is what a Deck's is: a Steam Deck controller the client reads over
+        // hidraw (SteamDeckPad), which only works with Steam Input's virtual pad for games to read.
+        SessionState.deckPad = uinput && SessionState.mode == MODE_STEAM &&
+            !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
+        if (uinput) {
             // /dev/uinput, stood in for by libfakeinput: the virtual pad Steam Input makes for a
             // game becomes a node the game reads, carrying the player's layout, as on a Deck.
-            // The pad itself stays the Xbox 360 controller the client reads.
             guest.add("FAKE_EVDEV_UINPUT=1")
+            if (SessionState.deckPad) guest.add("FAKE_EVDEV_DECK=1")
         } else if (SessionState.mode == MODE_STEAM) {
             // Without it, games see the pad itself wearing Steam Input's virtual-gamepad identity -
             // for games the client starts only. Everywhere else (the desktop, a program from the
@@ -632,7 +638,9 @@ class SessionService : Service() {
         }
         guest.add("SDL_JOYSTICK_DISABLE_UDEV=1")
         guest.add("SDL_HIDAPI_JOYSTICK_DISABLE_UDEV=1")
-        guest.add("SDL_JOYSTICK_HIDAPI=0")
+        // The client reads a Deck controller through SDL's HIDAPI; a hint in the environment
+        // outranks the client's own. Nothing else is shown the Deck (libfakeinput).
+        if (!SessionState.deckPad) guest.add("SDL_JOYSTICK_HIDAPI=0")
         if (File(Environment.getExternalStorageDirectory(), PAD_LOG_SWITCH).exists()) {
             guest.add("FAKE_EVDEV_LOG=1")
         }
@@ -643,6 +651,8 @@ class SessionService : Service() {
     private fun sessionBinds(controllersOn: Boolean, fakeInputDir: File): ArrayList<String> {
         val binds = ArrayList<String>()
         if (controllersOn) binds.add(fakeInputDir.path + ":/dev/input")
+        // fakeInputDir is <session root>/dev/input.
+        if (controllersOn && SessionState.deckPad) binds.addAll(SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!))
         // The client's battery readout (the Quick Access Menu, the top bar) reads
         // /sys/class/power_supply/BAT<n>/..., a laptop's or a Deck's naming; Android's supply is
         // called "battery" and its files differ, so the client sees no battery at all. A directory
@@ -1159,6 +1169,7 @@ class SessionService : Service() {
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val PAD_LOG_SWITCH = "Download/droiddeck-pad-log"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"
+        private const val NO_DECK_PAD_SWITCH = "Download/droiddeck-no-deck-pad"
         /** libfakeinput numbers the pads made through its /dev/uinput stand-in from here. */
         private const val FIRST_VIRTUAL_PAD = 16
 

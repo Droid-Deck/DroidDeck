@@ -67,6 +67,9 @@ public class FakeInputWriter {
     /** Bit 10 of the snapshot word. The first ten are PadState's own bit order; the Steam
      *  button is not, because PadState keeps 10 and 11 for the triggers. */
     private static final int SNAPSHOT_IDX_MODE = 10;
+    /** Bit 11: the Quick Access button. Snapshot only - an Xbox pad's evdev node has no such key;
+     *  libfakeinput's Deck controller reads it from here. */
+    private static final int SNAPSHOT_IDX_QAM = 11;
 
     private static final int EVENT_SIZE = 24;
     static final int MAX_EVENTS_PER_UPDATE = 32;
@@ -110,6 +113,7 @@ public class FakeInputWriter {
     private volatile boolean destroyed = false;
 
     private final boolean[] prevButtonStates = new boolean[12];
+    private boolean prevQam;
     private int prevThumbLX, prevThumbLY, prevThumbRX, prevThumbRY;
     private int prevTriggerL, prevTriggerR;
     private int prevHatX, prevHatY;
@@ -416,6 +420,9 @@ public class FakeInputWriter {
                 buttons |= (1 << i);
             }
         }
+        if (this.prevQam) {
+            buttons |= (1 << SNAPSHOT_IDX_QAM);
+        }
         long seq = ring.getLong(RING_SNAPSHOT_SEQ_OFFSET);
         ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 1); // odd: write in progress
         nativeStoreFence();
@@ -510,6 +517,11 @@ public class FakeInputWriter {
                 writeEvent(EV_MSC, MSC_SCAN, BUTTON_MAP[i]);
                 writeEvent(EV_KEY, BUTTON_MAP[i], 0);
             }
+        }
+
+        if (prevQam) {
+            prevQam = false;
+            hasChanges = true;
         }
 
         // Zero all axes
@@ -620,6 +632,11 @@ public class FakeInputWriter {
         // reports as button 8 - exactly the "guide:b8" in the mapping Steam writes for this pad.
         writeButton(SNAPSHOT_IDX_MODE,
                 state.isDown(PadState.GUIDE));
+        boolean qam = state.isDown(PadState.QAM);
+        if (forceResend || qam != prevQam) {
+            prevQam = qam;
+            hasChanges = true;
+        }
 
         // Sticks
         int lx = (int) (state.leftX * 32767);

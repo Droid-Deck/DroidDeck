@@ -41,6 +41,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/statfs.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
 #include <sys/time.h>
@@ -1110,6 +1111,366 @@ __attribute__((visibility("hidden"))) static void close_uinput(int fd) {
   uinput_map().erase(it);
 }
 
+// ---- The pad as a Steam Deck controller ----
+//
+// On a Deck, and on the handhelds InputPlumber serves, the Steam client reads the built-in
+// controller itself as a Steam Deck controller: a vendor HID device it talks to over hidraw, which
+// is what gives it the Quick Access button, the back grips, gyro and trackpads, and Steam Input's
+// full treatment of the pad. With FAKE_EVDEV_DECK set the app's pad in ring slot 0 is presented to
+// the client that way: /dev/hidraw16, found through the sysfs tree the app binds into the session
+// (SteamDeckPad.kt), streams the Deck's 64-byte state report every 4 ms, as the real one does, built
+// from the ring's absolute snapshot; its feature reports are answered as InputPlumber answers them
+// for a virtual Deck. The evdev nodes of the app's pads are then withdrawn - the client would
+// otherwise count the pad twice - and games get Steam Input's virtual pad (the /dev/uinput stand-in).
+//
+// A read returns one report and never blocks past the next one, so the fd is one end of a
+// SOCK_SEQPACKET socket pair with a thread writing reports into the other end: poll, select and
+// epoll then work on it with no help from the hooks here.
+static constexpr const char *DECK_HIDRAW_PATH = "/dev/hidraw16";
+static constexpr unsigned int DECK_HIDRAW_MAJOR = 240;
+static constexpr unsigned int DECK_HIDRAW_MINOR = 16;
+static constexpr int DECK_REPORT_BYTES = 64;
+static constexpr int DECK_REPORT_INTERVAL_US = 4000;
+static constexpr const char *DECK_NAME = "Valve Software Steam Deck Controller";
+static constexpr const char *DECK_SERIAL = "DROIDDECK0001";
+
+// InputPlumber, src/drivers/steam_deck/report_descriptor.rs (CONTROLLER_DESCRIPTOR): one 64-byte
+// vendor input report and one 64-byte feature report, no report ids.
+static const uint8_t kDeckReportDescriptor[] = {
+    0x06, 0xff, 0xff, 0x09, 0x01, 0xa1, 0x01, 0x09, 0x02, 0x09, 0x03, 0x15, 0x00,
+    0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x81, 0x02, 0x09, 0x06, 0x09, 0x07,
+    0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0};
+
+// Feature report ids (SDL, src/joystick/hidapi/steam/controller_constants.h).
+static constexpr uint8_t DECK_GET_ATTRIBUTES_VALUES = 0x83;
+static constexpr uint8_t DECK_GET_STRING_ATTRIBUTE = 0xAE;
+static constexpr uint8_t DECK_GET_CHIP_ID = 0xBA;
+static constexpr uint8_t DECK_TRIGGER_RUMBLE_CMD = 0xEB;
+
+// Button bits of the state report (SDL, SDL_hidapi_steamdeck.c): the low word, then the high.
+static constexpr uint32_t DECK_L_R2 = 0x00000001, DECK_L_L2 = 0x00000002, DECK_L_R1 = 0x00000004,
+                          DECK_L_L1 = 0x00000008, DECK_L_Y = 0x00000010, DECK_L_B = 0x00000020,
+                          DECK_L_X = 0x00000040, DECK_L_A = 0x00000080, DECK_L_UP = 0x00000100,
+                          DECK_L_RIGHT = 0x00000200, DECK_L_LEFT = 0x00000400,
+                          DECK_L_DOWN = 0x00000800, DECK_L_VIEW = 0x00001000,
+                          DECK_L_STEAM = 0x00002000, DECK_L_MENU = 0x00004000,
+                          DECK_L_L3 = 0x00400000, DECK_L_R3 = 0x04000000;
+static constexpr uint32_t DECK_H_QAM = 0x00040000;
+// Bit 11 of the ring snapshot's button word: the Quick Access button, which an Xbox pad does not
+// have and the evdev nodes therefore never report (FakeInputWriter.SNAPSHOT_IDX_QAM).
+static constexpr uint32_t SNAPSHOT_QAM_BIT = 1u << 11;
+
+struct DeckHidraw {
+  int peer = -1;
+  FakeInputRingHeader *ring = nullptr;
+  uint8_t pending_feature = 0;
+};
+
+static std::unordered_map<int, std::shared_ptr<DeckHidraw>> &deck_map() {
+  static auto *map = new std::unordered_map<int, std::shared_ptr<DeckHidraw>>();
+  return *map;
+}
+
+static bool fake_deck_enabled() {
+  static int enabled = -1;
+  if (enabled < 0) enabled = getenv("FAKE_EVDEV_DECK") && atoi(getenv("FAKE_EVDEV_DECK")) ? 1 : 0;
+  return enabled == 1;
+}
+
+// The Deck is the client's alone: a game that found it would have the pad twice, once through it
+// and once through Steam Input's virtual pad.
+__attribute__((visibility("hidden"))) static bool process_is_steam_client() {
+  static int known;
+  if (known == 0) {
+    char exe[PATH_MAX];
+    ssize_t length = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+    bool client = false;
+    if (length > 0) {
+      exe[length] = '\0';
+      const char *name = strrchr(exe, '/');
+      client = !strcmp(name ? name + 1 : exe, "steam");
+    }
+    known = client ? 1 : -1;
+  }
+  return known == 1;
+}
+
+__attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char *pathname) {
+  return pathname && fake_deck_enabled() && !strcmp(pathname, DECK_HIDRAW_PATH);
+}
+
+// The app's own pads are the Deck now; their evdev nodes are withdrawn from everyone.
+__attribute__((visibility("hidden"))) static bool is_withdrawn_pad_path(const char *pathname) {
+  if (!fake_deck_enabled() || !pathname || strncmp(pathname, "/dev/input/", 11)) return false;
+  const char *event = strrchr(pathname, '/') + 1;
+  if (strncmp(event, "event", 5) && strncmp(event, "js", 2)) return false;
+  int number = get_event_number(event);
+  return number >= 0 && number < UINPUT_EVENT_BASE;
+}
+
+static inline void put16(uint8_t *at, int value) {
+  at[0] = static_cast<uint8_t>(value & 0xff);
+  at[1] = static_cast<uint8_t>((value >> 8) & 0xff);
+}
+
+static inline void put32(uint8_t *at, uint32_t value) {
+  for (int i = 0; i < 4; i++) at[i] = static_cast<uint8_t>(value >> (8 * i));
+}
+
+// The Deck's state report (SDL, controller_structs.h: ValveInReportHeader_t then
+// SteamDeckStatePacket_t) from the ring's snapshot: kSnapshotButtons order, kSnapshotAxisCodes
+// order, sticks as evdev has them (Y down), triggers 0..255.
+__attribute__((visibility("hidden"))) static void
+build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int32_t *axes) {
+  memset(report, 0, DECK_REPORT_BYTES);
+  report[0] = 0x01;  // report version
+  report[2] = 0x09;  // ID_CONTROLLER_DECK_STATE
+  report[3] = DECK_REPORT_BYTES;
+  put32(report + 4, packet);
+  static const uint32_t kButtonBits[11] = {DECK_L_A,    DECK_L_B,    DECK_L_X,    DECK_L_Y,
+                                           DECK_L_L1,   DECK_L_R1,   DECK_L_VIEW, DECK_L_MENU,
+                                           DECK_L_L3,   DECK_L_R3,   DECK_L_STEAM};
+  uint32_t low = 0, high = 0;
+  for (int i = 0; i < 11; i++)
+    if (buttons & (1u << i)) low |= kButtonBits[i];
+  if (buttons & SNAPSHOT_QAM_BIT) high |= DECK_H_QAM;
+  int32_t hat_x = axes[6], hat_y = axes[7];
+  if (hat_y < 0) low |= DECK_L_UP;
+  if (hat_y > 0) low |= DECK_L_DOWN;
+  if (hat_x < 0) low |= DECK_L_LEFT;
+  if (hat_x > 0) low |= DECK_L_RIGHT;
+  int32_t left_trigger = axes[5], right_trigger = axes[4];  // ABS_BRAKE, ABS_GAS
+  if (left_trigger > 127) low |= DECK_L_L2;
+  if (right_trigger > 127) low |= DECK_L_R2;
+  put32(report + 8, low);
+  put32(report + 12, high);
+  put16(report + 44, std::min(32767, left_trigger * 32767 / 255));
+  put16(report + 46, std::min(32767, right_trigger * 32767 / 255));
+  auto stick = [](int32_t value) { return std::max(-32767, std::min(32767, value)); };
+  put16(report + 48, stick(axes[0]));
+  put16(report + 50, stick(-axes[1]));
+  put16(report + 52, stick(axes[2]));
+  put16(report + 54, stick(-axes[3]));
+}
+
+__attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg) {
+  auto *deck = static_cast<std::shared_ptr<DeckHidraw> *>(arg);
+  std::shared_ptr<DeckHidraw> self = *deck;
+  delete deck;
+  uint32_t packet = 0;
+  SnapshotState snap;
+  uint32_t buttons = 0;
+  int32_t axes[8] = {};
+  for (;;) {
+    if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
+      buttons = snap.buttons;
+      memcpy(axes, snap.axes, sizeof(axes));
+    }
+    uint8_t report[DECK_REPORT_BYTES];
+    build_deck_report(report, ++packet, buttons, axes);
+    // A reader that fell behind loses reports rather than getting stale ones later; a reader that
+    // has closed ends the stream.
+    if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
+        errno != EAGAIN && errno != EWOULDBLOCK)
+      break;
+    struct timespec interval = {0, DECK_REPORT_INTERVAL_US * 1000L};
+    nanosleep(&interval, nullptr);
+  }
+  syscall(SYS_close, self->peer);
+  munmap(self->ring, FAKE_INPUT_RING_SIZE);
+  return nullptr;
+}
+
+__attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
+  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  if (!process_is_steam_client()) {
+    errno = ENOENT;
+    return -1;
+  }
+  std::string ring_path = get_ring_path_for_slot(0);
+  int ring_fd = ring_path.empty() ? -1 : my_open(ring_path.c_str(), O_RDONLY | O_CLOEXEC);
+  if (ring_fd < 0) {
+    errno = ENODEV;
+    return -1;
+  }
+  void *mapping = mmap(nullptr, FAKE_INPUT_RING_SIZE, PROT_READ, MAP_SHARED, ring_fd, 0);
+  syscall(SYS_close, ring_fd);
+  if (mapping == MAP_FAILED || !ring_header_is_valid(static_cast<FakeInputRingHeader *>(mapping))) {
+    if (mapping != MAP_FAILED) munmap(mapping, FAKE_INPUT_RING_SIZE);
+    errno = ENODEV;
+    return -1;
+  }
+  int pair[2];
+  if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) < 0) {
+    munmap(mapping, FAKE_INPUT_RING_SIZE);
+    return -1;
+  }
+  // Room for a few reports only, so what the client reads is never more than a few ms old.
+  int buffer = DECK_REPORT_BYTES * 4;
+  setsockopt(pair[1], SOL_SOCKET, SO_SNDBUF, &buffer, sizeof(buffer));
+  if (!(flags & O_CLOEXEC)) fcntl(pair[0], F_SETFD, 0);
+  if (flags & O_NONBLOCK) fcntl(pair[0], F_SETFL, fcntl(pair[0], F_GETFL) | O_NONBLOCK);
+  auto deck = std::make_shared<DeckHidraw>();
+  deck->peer = pair[1];
+  deck->ring = static_cast<FakeInputRingHeader *>(mapping);
+  {
+    std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+    deck_map()[pair[0]] = deck;
+  }
+  pthread_t thread;
+  auto *arg = new std::shared_ptr<DeckHidraw>(deck);
+  if (pthread_create(&thread, nullptr, deck_report_thread, arg) != 0) {
+    delete arg;
+    std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+    deck_map().erase(pair[0]);
+    syscall(SYS_close, pair[0]);
+    syscall(SYS_close, pair[1]);
+    munmap(mapping, FAKE_INPUT_RING_SIZE);
+    errno = ENOMEM;
+    return -1;
+  }
+  pthread_detach(thread);
+  Logger::log("deck: %s opened as fd %d\n", DECK_HIDRAW_PATH, pair[0]);
+  return pair[0];
+}
+
+// libudev (systemd's sd-device) accepts a device only where its directory is on sysfs, which it
+// checks with fstatfs on the directory it resolved. The Deck's sysfs is the app's own files bound
+// into /sys, so those paths are said to be sysfs; nothing else is touched.
+static constexpr long SYSFS_FS_MAGIC = 0x62656572;
+
+__attribute__((visibility("hidden"))) static bool is_deck_sysfs_path(const char *path) {
+  return path && (!strncmp(path, "/sys/devices/droiddeck", 22) || !strncmp(path, "/sys/class/hidraw", 17));
+}
+
+__attribute__((visibility("hidden"))) static bool is_deck_sysfs_fd(int fd) {
+  char link[64], path[PATH_MAX];
+  snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+  ssize_t length = readlink(link, path, sizeof(path) - 1);
+  if (length <= 0) return false;
+  path[length] = '\0';
+  return is_deck_sysfs_path(path);
+}
+
+EXPORT int fstatfs(int fd, struct statfs *buf) {
+  static auto real = reinterpret_cast<int (*)(int, struct statfs *)>(dlsym(RTLD_NEXT, "fstatfs"));
+  int result = real(fd, buf);
+  if (result == 0 && fake_deck_enabled() && is_deck_sysfs_fd(fd)) buf->f_type = SYSFS_FS_MAGIC;
+  return result;
+}
+
+EXPORT int statfs(const char *path, struct statfs *buf) {
+  static auto real = reinterpret_cast<int (*)(const char *, struct statfs *)>(dlsym(RTLD_NEXT, "statfs"));
+  int result = real(path, buf);
+  if (result == 0 && fake_deck_enabled() && is_deck_sysfs_path(path)) buf->f_type = SYSFS_FS_MAGIC;
+  return result;
+}
+
+#ifdef __GLIBC__
+EXPORT int fstatfs64(int fd, struct statfs64 *buf) {
+  return fstatfs(fd, reinterpret_cast<struct statfs *>(buf));
+}
+
+EXPORT int statfs64(const char *path, struct statfs64 *buf) {
+  return statfs(path, reinterpret_cast<struct statfs *>(buf));
+}
+#endif
+
+__attribute__((visibility("hidden"))) static int copy_ioctl_string(ioctl_request_t op, void *argp, const char *value) {
+  size_t size = _IOC_SIZE(op);
+  if (!argp || !size) return 0;
+  snprintf(static_cast<char *>(argp), size, "%s", value);
+  return static_cast<int>(std::min(size, strlen(value) + 1));
+}
+
+// Feature reports carry the report id (0) first, then the Valve message: type, length, payload.
+__attribute__((visibility("hidden"))) static int
+deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
+  size_t size = _IOC_SIZE(op);
+  if (!buf || size < 2) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (set) {
+    deck.pending_feature = buf[1];
+    if (buf[1] == DECK_TRIGGER_RUMBLE_CMD && size >= 10) {
+      int left = buf[6] | buf[7] << 8, right = buf[8] | buf[9] << 8;
+      send_vibration(left, right, left || right ? 1000 : 0, 0);
+    }
+    Logger::log("deck: feature 0x%02x set\n", buf[1]);
+    return static_cast<int>(size);
+  }
+  uint8_t reply[DECK_REPORT_BYTES + 1] = {};
+  switch (deck.pending_feature) {
+  case DECK_GET_ATTRIBUTES_VALUES: {
+    // InputPlumber's capture from a real Deck (steam_deck_uhid.rs, handle_get_report).
+    static const uint8_t kAttributes[] = {0x00, 0x83, 0x2d, 0x01, 0x05, 0x12, 0x00, 0x00, 0x02,
+                                          0x00, 0x00, 0x00, 0x00, 0x0a, 0x2b, 0x12, 0xa9, 0x62,
+                                          0x04, 0xad, 0xf1, 0xe4, 0x65, 0x09, 0x2e, 0x00, 0x00,
+                                          0x00, 0x0b, 0xa0, 0x0f, 0x00, 0x00, 0x0d, 0x00, 0x00,
+                                          0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x0e};
+    memcpy(reply, kAttributes, sizeof(kAttributes));
+    break;
+  }
+  case DECK_GET_STRING_ATTRIBUTE:
+    reply[1] = DECK_GET_STRING_ATTRIBUTE;
+    reply[2] = 0x14;
+    reply[3] = 0x01;
+    memcpy(reply + 4, DECK_SERIAL, strlen(DECK_SERIAL));
+    break;
+  case DECK_GET_CHIP_ID:
+    reply[1] = DECK_GET_CHIP_ID;
+    reply[2] = 0x11;
+    memcpy(reply + 4, "DROIDDECKCHIP01", 15);
+    break;
+  default:
+    reply[1] = deck.pending_feature;
+    break;
+  }
+  Logger::log("deck: feature 0x%02x read\n", deck.pending_feature);
+  size_t length = std::min(size, sizeof(reply));
+  memcpy(buf, reply, length);
+  return static_cast<int>(length);
+}
+
+__attribute__((visibility("hidden"))) static int
+ioctl_deck(DeckHidraw &deck, ioctl_request_t op, void *argp) {
+  if (_IOC_TYPE(op) != 'H') {
+    errno = ENOTTY;
+    return -1;
+  }
+  switch (_IOC_NR(op)) {
+  case 0x01:  // HIDIOCGRDESCSIZE
+    *static_cast<int *>(argp) = sizeof(kDeckReportDescriptor);
+    return 0;
+  case 0x02: {  // HIDIOCGRDESC: struct hidraw_report_descriptor { __u32 size; __u8 value[4096]; }
+    auto *descriptor = static_cast<uint8_t *>(argp);
+    uint32_t size;
+    memcpy(&size, descriptor, sizeof(size));
+    memcpy(descriptor + 4, kDeckReportDescriptor, std::min<size_t>(size, sizeof(kDeckReportDescriptor)));
+    return 0;
+  }
+  case 0x03: {  // HIDIOCGRAWINFO: struct hidraw_devinfo { __u32 bustype; __s16 vendor, product; }
+    struct {
+      uint32_t bustype;
+      int16_t vendor;
+      int16_t product;
+    } info = {BUS_USB, static_cast<int16_t>(0x28de), static_cast<int16_t>(0x1205)};
+    memcpy(argp, &info, sizeof(info));
+    return 0;
+  }
+  case 0x04: return copy_ioctl_string(op, argp, DECK_NAME);                 // HIDIOCGRAWNAME
+  case 0x05: return copy_ioctl_string(op, argp, "usb-droiddeck-1/input2");  // HIDIOCGRAWPHYS
+  case 0x08: return copy_ioctl_string(op, argp, DECK_SERIAL);               // HIDIOCGRAWUNIQ
+  case 0x06: return deck_feature(deck, op, static_cast<uint8_t *>(argp), true);   // HIDIOCSFEATURE
+  case 0x07: return deck_feature(deck, op, static_cast<uint8_t *>(argp), false);  // HIDIOCGFEATURE
+  default:
+    Logger::log("deck: unhandled hidraw ioctl 0x%02x\n", _IOC_NR(op));
+    errno = EINVAL;
+    return -1;
+  }
+}
+
 EXPORT int open(const char *pathname, int flags, ...) {
   va_list va;
   mode_t mode;
@@ -1129,6 +1490,11 @@ EXPORT int open(const char *pathname, int flags, ...) {
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
+  if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
+  if (is_withdrawn_pad_path(pathname)) {
+    errno = ENOENT;
+    return -1;
+  }
 
   char *fake_path = nullptr;
   const char *event = nullptr;
@@ -1194,6 +1560,11 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
   static auto my_openat = reinterpret_cast<int (*)(int, const char *, int, ...)>(dlsym(RTLD_NEXT, "openat"));
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
+  if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
+  if (is_withdrawn_pad_path(pathname)) {
+    errno = ENOENT;
+    return -1;
+  }
 
   char *fake_path = nullptr;
   const char *event = nullptr;
@@ -1243,6 +1614,17 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 EXPORT int stat(const char *pathname, struct stat *statbuf) {
   static auto my_stat = reinterpret_cast<decltype(&::stat)>(dlsym(RTLD_NEXT, "stat"));
 
+  if (is_withdrawn_pad_path(pathname) || (is_deck_hidraw_path(pathname) && !process_is_steam_client())) {
+    errno = ENOENT;
+    return -1;
+  }
+  if (is_deck_hidraw_path(pathname)) {
+    memset(statbuf, 0, sizeof(*statbuf));
+    statbuf->st_mode = S_IFCHR | 0666;
+    statbuf->st_rdev = makedev(DECK_HIDRAW_MAJOR, DECK_HIDRAW_MINOR);
+    return 0;
+  }
+
   const char *event = nullptr;
   char *fake_path = nullptr;
 
@@ -1286,6 +1668,11 @@ EXPORT int fstat(int fd, struct stat *buf) {
   int ret = my_fstat(fd, buf);
 
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+  if (ret == 0 && deck_map().count(fd)) {
+    buf->st_mode = (buf->st_mode & ~S_IFMT) | S_IFCHR;
+    buf->st_rdev = makedev(DECK_HIDRAW_MAJOR, DECK_HIDRAW_MINOR);
+    return ret;
+  }
   auto controller = controller_map().find(fd);
   if (ret == 0 && controller != controller_map().end()) {
     buf->st_mode = (buf->st_mode & ~S_IFMT) | S_IFCHR;
@@ -1298,6 +1685,11 @@ EXPORT int fstat(int fd, struct stat *buf) {
 EXPORT int access(const char *pathname, int mode) {
   static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
+  if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname)) {
+    errno = ENOENT;
+    return -1;
+  }
 
   char *fake_path = nullptr;
   if (pathname) {
@@ -1329,6 +1721,11 @@ EXPORT int access(const char *pathname, int mode) {
 EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
   static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
+  if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname)) {
+    errno = ENOENT;
+    return -1;
+  }
 
   char *fake_path = nullptr;
   if (pathname) {
@@ -1445,6 +1842,8 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto maker = uinput_map().find(fd);
   if (maker != uinput_map().end()) return ioctl_uinput(*maker->second, op, argp);
+  auto deck = deck_map().find(fd);
+  if (deck != deck_map().end()) return ioctl_deck(*deck->second, op, argp);
   auto controller = controller_map().find(fd);
   if (controller == controller_map().end()) {
     guard.unlock();
@@ -1653,6 +2052,7 @@ EXPORT int close(int fd) {
 
   close_uinput(fd);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
+  deck_map().erase(fd);
   auto controller = controller_map().find(fd);
   if (controller != controller_map().end()) {
     Logger::log("Removing controller, fd %d event %s\n", controller->first,
@@ -1769,6 +2169,7 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto made = uinput_map().find(fd);
   if (made != uinput_map().end()) return write_uinput(*made->second, buf, count);
+  if (deck_map().count(fd)) return static_cast<ssize_t>(count);
   auto controller = controller_map().find(fd);
   if (controller != controller_map().end()) {
     if (fake_fd_is_stale(fd)) {
@@ -1791,6 +2192,11 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
 
 EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
+  if (deck_map().count(fd)) {
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) total += static_cast<ssize_t>(iov[i].iov_len);
+    return total;
+  }
   auto made = uinput_map().find(fd);
   if (made != uinput_map().end()) {
     // One description or whole events per vector, which is how uinput writers write.
