@@ -222,26 +222,24 @@ public final class LinuxRuntime {
     public static List<String> binds(Context context, File sessionRoot, File runtimeDir,
                                      File externalStorage, List<String> extraBinds) {
         File root = rootDir(context);
-        List<String> cmd = new ArrayList<>();
-        bind(cmd, "/dev");
-        bind(cmd, "/proc");
-        bind(cmd, "/sys");
-        bind(cmd, "/dev/urandom:/dev/random");
-        bind(cmd, "/proc/self/fd:/dev/fd");
-        bind(cmd, "/proc/self/fd/0:/dev/stdin");
-        bind(cmd, "/proc/self/fd/1:/dev/stdout");
-        bind(cmd, "/proc/self/fd/2:/dev/stderr");
-        bind(cmd, new File(root, "etc/bannerlator/empty").getPath() + ":/sys/fs/selinux");
-        bind(cmd, context.getFilesDir().getPath());
-        bind(cmd, context.getCacheDir().getPath());
-        if (runtimeDir != null) bind(cmd, runtimeDir.getPath());
-        if (sessionRoot != null) bind(cmd, sessionRoot.getPath());
-        if (externalStorage != null && externalStorage.isDirectory()) {
-            bind(cmd, externalStorage.getPath());
-        }
+        List<String> specs = new ArrayList<>();
+        add(specs, "/dev");
+        add(specs, "/proc");
+        add(specs, "/sys");
+        add(specs, "/dev/urandom:/dev/random");
+        add(specs, "/proc/self/fd:/dev/fd");
+        add(specs, "/proc/self/fd/0:/dev/stdin");
+        add(specs, "/proc/self/fd/1:/dev/stdout");
+        add(specs, "/proc/self/fd/2:/dev/stderr");
+        add(specs, new File(root, "etc/bannerlator/empty").getPath() + ":/sys/fs/selinux");
+        add(specs, context.getFilesDir().getPath());
+        add(specs, context.getCacheDir().getPath());
+        if (runtimeDir != null) add(specs, runtimeDir.getPath());
+        if (sessionRoot != null) add(specs, sessionRoot.getPath());
+        if (externalStorage != null && externalStorage.isDirectory()) add(specs, externalStorage.getPath());
         File shm = new File(context.getCacheDir(), "shm");
         shm.mkdirs();
-        bind(cmd, shm.getPath() + ":/dev/shm");
+        add(specs, shm.getPath() + ":/dev/shm");
 
         // Android denies these; glibc, Steam and libcap read them at startup.
         File fakeProc = new File(root, "etc/bannerlator/proc");
@@ -268,17 +266,23 @@ public final class LinuxRuntime {
         for (String[] entry : procFiles) {
             File fake = new File(fakeProc, entry[0]);
             if (fake.isFile() && !new File(entry[1]).canRead()) {
-                bind(cmd, fake.getPath() + ":" + entry[1]);
+                add(specs, fake.getPath() + ":" + entry[1]);
             }
         }
-        bindGpuNode(context, cmd);
-        bindAdrenoStats(cmd);
-        bindCpuTemps(cmd, root);
+        bindGpuNode(context, specs);
+        bindAdrenoStats(specs);
+        bindCpuTemps(specs, root);
         if (extraBinds != null) {
-            for (String spec : extraBinds) bind(cmd, spec);
+            for (String spec : extraBinds) add(specs, spec);
         }
-        List<String> specs = new ArrayList<>();
-        for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
+        return specs;
+    }
+
+    /** Compatibility name used by the rooted runner and its command-line test. */
+    public static List<String> bindSpecs(Context context, File sessionRoot, File runtimeDir,
+                                         File externalStorage, List<String> extraBinds) {
+        List<String> specs = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
+        if (sessionRoot != null) lastBinds = specs;
         return specs;
     }
 
