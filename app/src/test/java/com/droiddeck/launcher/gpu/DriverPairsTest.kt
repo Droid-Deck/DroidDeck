@@ -36,13 +36,14 @@ class DriverPairsTest {
 
     @Test
     fun autoPicksWinNativeBalancedOn8xxAndBannersElsewhere() {
-        assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(830)))
-        assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(825)))
-        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(740)))
-        assertEquals(DriverPairs.BANNER_ONEUI, DriverPairs.recommendedKey(gpu(740, oneUi = true)))
-        assertEquals(DriverPairs.BANNER_710, DriverPairs.recommendedKey(gpu(720)))
-        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(650)))
-        assertNull(DriverPairs.recommendedKey(gpu(0, adreno = false)))
+        assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(830), emptyList()))
+        assertEquals("840 with no DD-Turnip release listed", DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(840), emptyList()))
+        assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(825), emptyList()))
+        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(740), emptyList()))
+        assertEquals(DriverPairs.BANNER_ONEUI, DriverPairs.recommendedKey(gpu(740, oneUi = true), emptyList()))
+        assertEquals(DriverPairs.BANNER_710, DriverPairs.recommendedKey(gpu(720), emptyList()))
+        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(650), emptyList()))
+        assertNull(DriverPairs.recommendedKey(gpu(0, adreno = false), emptyList()))
     }
 
     @Test
@@ -88,6 +89,21 @@ class DriverPairsTest {
         assertEquals("DroidDeck · DD-Turnip", dd.name)
         assertTrue(dd.suits(gpu(840)))
         assertTrue(dd.suits(gpu(740)))
-        assertEquals("Auto is unchanged", DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(840)))
+    }
+
+    @Test
+    fun adreno840GetsTheNewestOfficialDdTurnip() {
+        fun bundle(tag: String) = TurnipReleases.Asset("DroidDeck", tag, "$tag.zip", "https://example/$tag", 6_000_000,
+            false, "Android + Linux", "0".repeat(64), DriverPairs.ddTurnip(tag), bundle = true)
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(bundle("DD-Turnip-v0.9.0"), bundle("DD-Turnip-v1.0.0"), bundle("DD-Turnip-v0.10.1"),
+                asset("WN-Turnip-1.19-b_Axxx.zip", "v1.19", false, DriverPairs.WN_BALANCED),
+                asset("WN-Linux-Turnip-0.1.2-b_Axxx.zip", "linux-v0.1.2", true, DriverPairs.WN_BALANCED)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertEquals(DriverPairs.ddTurnip("DD-Turnip-v1.0.0"), DriverPairs.recommendedKey(gpu(840), pairs))
+        assertEquals("other 8xx keep WinNative", DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(830), pairs))
+        assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(825), pairs))
+        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(740), pairs))
     }
 }

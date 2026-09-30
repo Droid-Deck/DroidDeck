@@ -108,6 +108,8 @@ object TurnipReleases {
                         val a = list.getJSONObject(j)
                         val name = a.getString("name")
                         val kind = src.classify(name, tag) ?: continue
+                        // A bundle is only offered from an official release, never a pre-release.
+                        if (kind.bundle && r.optBoolean("prerelease")) continue
                         val linux = kind.linux
                         val label = kind.label
                         // Only assets GitHub has a sha256 for are offered: the download is checked against it.

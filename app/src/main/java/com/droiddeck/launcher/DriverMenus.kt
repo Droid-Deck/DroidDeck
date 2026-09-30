@@ -116,8 +116,9 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     fun refreshPairs() {
         val lm = LinuxVulkanDriverManager(activity)
         val td = TurnipDriver(activity)
-        val recommended = DriverPairs.recommendedKey(gpu)
-        pairRows = DriverPairs.from(TurnipReleases.cached(activity)).map { p ->
+        val pairs = DriverPairs.from(TurnipReleases.cached(activity))
+        val recommended = DriverPairs.recommendedKey(gpu, pairs)
+        pairRows = pairs.map { p ->
             val bundle = p.bundle?.let { installedBundle(it) }
             val displayId = if (p.bundle != null) bundle?.androidId else p.display?.let { TurnipReleases.installedId(activity, it, td::isInstalled) }
             val linuxId = if (p.bundle != null) bundle?.linuxId else p.linux?.let { TurnipReleases.installedId(activity, it, lm::isInstalled) }
@@ -151,8 +152,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (mode != SessionPrefs.GPU_DRIVERS_AUTO || pairBusy != null || releaseChecking) return
         if (!force && autoCheckedThisProcess) return
         autoCheckedThisProcess = true
-        val key = DriverPairs.recommendedKey(gpu)
-        if (key == null) {
+        if (DriverPairs.recommendedKey(gpu, emptyList()) == null) {
             autoStatus = "No drivers to set: ${gpu.supportText.lowercase()}"
             return
         }
@@ -167,7 +167,9 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 releaseChecking = false
                 refreshReleaseRows()
                 refreshPairs()
-                val pair = DriverPairs.from(TurnipReleases.cached(activity)).firstOrNull { it.key == key }
+                val pairs = DriverPairs.from(TurnipReleases.cached(activity))
+                val key = DriverPairs.recommendedKey(gpu, pairs)
+                val pair = pairs.firstOrNull { it.key == key }
                 val row = pairRows.firstOrNull { it.key == key }
                 when {
                     row?.active == true -> autoStatus = "Up to date" + (problem?.let { " (couldn't check: $it)" } ?: "")
