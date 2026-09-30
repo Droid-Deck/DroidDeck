@@ -372,14 +372,18 @@ object SessionPrefs {
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
 
-    /** The Steam client branch forced on the command line: "publicbeta" (every session so far) or "steamdeck_publicbeta" (Armada's). */
+    /**
+     * The Steam client branch forced on the command line: "publicbeta" (every session so far) or
+     * "steamdeck_publicbeta" (Armada's). Deck mode always takes the Deck branch, whatever was chosen:
+     * with -steamos3 the client picks its own branch as SteamOS does, and on publicbeta it settled
+     * on steamdeck_stable - an older client it then offered as a "Software Update" in every session,
+     * which applying turns into the exit-42 restart loop (seen on device 2026-09-30). Earlier, Deck
+     * mode on publicbeta also reinstalled the same client at every start (2026-09-23). On
+     * steamdeck_publicbeta the client finds no update. The choice applies with Deck mode off.
+     */
     fun steamChannel(context: Context): String =
-        prefs(context).getString("steamChannel", null)
-            // Deck mode on the publicbeta channel reinstalls the same client at every start (the
-            // client reports "installed version 0" against that manifest and exits 42 to apply it,
-            // losing the launch URL each time); on steamdeck_publicbeta the second launch comes up
-            // clean. Seen on device 2026-09-23. So Deck mode takes the Deck channel unless chosen.
-            ?: if (steamDeckMode(context)) "steamdeck_publicbeta" else "publicbeta"
+        if (steamDeckMode(context)) "steamdeck_publicbeta"
+        else prefs(context).getString("steamChannel", null) ?: "publicbeta"
 
     fun setSteamChannel(context: Context, id: String) {
         prefs(context).edit().putString("steamChannel", id).apply()
