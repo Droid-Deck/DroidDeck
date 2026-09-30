@@ -70,6 +70,8 @@ class ModeSettings(
     val steamChannel: String? = null,
     /** Steam only: enable the SteamOS client interface and its performance controls. */
     val steamDeckMode: Boolean = false,
+    /** Steam, Deck mode: the QAM's performance overlay (mangoapp) is started. */
+    val mangoapp: Boolean = true,
     /** Steam only: what the pad is to the client (SessionPrefs.CONTROLLER_*); null outside Steam. */
     val steamController: String? = null,
     /** Steam only: start a Steam session when DroidDeck opens. */
@@ -128,6 +130,7 @@ class ModeSettingsActions(
     val onForceFullscreen: (Boolean) -> Unit = {},
     val onSteamChannel: (String) -> Unit = {},
     val onSteamDeckMode: (Boolean) -> Unit = {},
+    val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onPickAddedGamesDir: () -> Unit = {},
@@ -358,6 +361,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 host, "steamdeck", "Steam Deck mode",
                 "Enables Steam's Deck interface and Quick Access performance overlay controls. Applies next session.",
                 s.steamDeckMode, onChange = a.onSteamDeckMode,
+            )
+            if (s.steamDeckMode) ToggleRow(
+                host, "mangoapp", "Performance overlay",
+                "The Quick Access Menu's frame-rate and usage overlay. Turn off if games crash or go black with Deck mode on. Applies next session.",
+                s.mangoapp, onChange = a.onMangoapp,
             )
             // Deck mode fixes the branch (SessionPrefs.steamChannel); the choice is for Deck mode off.
             if (s.steamDeckMode) SettingsRow("Client branch", "Steam Deck public beta: Deck mode needs it, so Steam doesn't keep offering an update") {}

@@ -292,9 +292,29 @@ object SessionPrefs {
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
 
-    /** Runs the SteamOS gamepad client with its Quick Access performance controls. */
-    fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", false)
+    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On for new installs (settleDeckModeDefault). */
+    fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", true)
     fun setSteamDeckMode(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamDeckMode", on).apply() }
+
+    /**
+     * Deck mode became the default for new installs; an install from before keeps what it ran with
+     * (off), so an update never changes its interface or restarts the client on its own. Run once at
+     * process start, before anything reads or writes these prefs: a new install has neither prefs
+     * nor a runtime yet. The answer is written down, so it is decided once.
+     */
+    fun settleDeckModeDefault(context: Context) {
+        val p = prefs(context)
+        if (p.contains("steamDeckMode")) return
+        val existing = p.all.isNotEmpty() || java.io.File(context.filesDir, "linuxfs").exists()
+        p.edit().putBoolean("steamDeckMode", !existing).apply()
+    }
+
+    /**
+     * Deck mode's performance overlay (mangoapp, beside gamescope): the QAM's Overlay Level draws
+     * through it. Off is the way out where Valve's mangoapp crashes (one Turnip build did).
+     */
+    fun mangoapp(context: Context): Boolean = prefs(context).getBoolean("mangoapp", true)
+    fun setMangoapp(context: Context, on: Boolean) { prefs(context).edit().putBoolean("mangoapp", on).apply() }
 
     /**
      * Zink's lazy descriptor mode (ZINK_DESCRIPTORS=lazy) with its compact set layout
