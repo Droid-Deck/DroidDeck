@@ -70,6 +70,8 @@ class ModeSettings(
     val steamChannel: String? = null,
     /** Steam only: enable the SteamOS client interface and its performance controls. */
     val steamDeckMode: Boolean = false,
+    /** Steam only: what the pad is to the client (SessionPrefs.CONTROLLER_*); null outside Steam. */
+    val steamController: String? = null,
     /** Steam only: start a Steam session when DroidDeck opens. */
     val runSteamAtStartup: Boolean = false,
     /** Steam only: the user's chosen Games folders; null outside Steam. */
@@ -126,6 +128,7 @@ class ModeSettingsActions(
     val onForceFullscreen: (Boolean) -> Unit = {},
     val onSteamChannel: (String) -> Unit = {},
     val onSteamDeckMode: (Boolean) -> Unit = {},
+    val onSteamController: (String) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onPickAddedGamesDir: () -> Unit = {},
     val onForgetAddedGamesDir: (path: String) -> Unit = {},
@@ -258,6 +261,16 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     SessionPrefs.OSC_NEVER to "Never",
                 ), s.oscMode,
                 note = "Auto shows all controls without a controller. Steam + QAM shows only those buttons.", onPick = a.onOsc,
+            )
+            if (steam && s.steamController != null) ChoiceRow(
+                host, "controller", "Controller", "What your controller is to Steam. Applies next session.",
+                listOf(
+                    SessionPrefs.CONTROLLER_DECK to "Steam Deck controller",
+                    SessionPrefs.CONTROLLER_XBOX360 to "Xbox 360 controller",
+                ), s.steamController,
+                note = "Steam Deck controller: Steam reads it as a Deck's own, with its Quick Access button and the device's gyro. " +
+                    "Xbox 360 controller: the plain pad of earlier versions; Quick Access opens with Guide+A.",
+                onPick = a.onSteamController,
             )
             if (steam) ChoiceRow(
                 host, "back-actions", "Back", SessionPrefs.backActionsOrder(s.backActionsInverted),

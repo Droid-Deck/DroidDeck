@@ -30,8 +30,10 @@ Device-tested on the AYN Thor (Katamari under Proton Experimental ARM64).
   for that tree. The app's evdev nodes are withdrawn while it is on, and only the `steam` process
   sees the Deck. QAM is a real button (snapshot bit 11). Verified: the client lists a Steam Deck
   Controller (V1 HID protocol) and runs its handshake (0x83, 0xAE, 0x81/0x87 lizard off, 0x8F).
-- **Switches**: `droiddeck-no-uinput` (back to the 28de:11ff disguise), `droiddeck-no-deck-pad`
-  (Xbox 360 pad to the client, the Guide+A QAM chord).
+- **Setting**: Steam page → Touch & controls → **Controller**: *Steam Deck controller* (default) or
+  *Xbox 360 controller* (the pad of earlier versions, QAM by Guide+A; games still get Steam Input's
+  virtual pad). Debug switches: `droiddeck-no-uinput` (back to the 28de:11ff disguise),
+  `droiddeck-no-deck-pad` (forces the Xbox 360 pad).
 - **Gyro**: `PadMotion.kt` feeds the handheld's own gyro and accelerometer (4 ms sampling, while
   the session is on screen) into an IMU block after ring 0's events, turned to the screen and then
   to the Deck's axes and units; the Deck report carries them. Verified: Steam's Gyro Calibration

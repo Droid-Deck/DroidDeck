@@ -623,6 +623,7 @@ class SessionService : Service() {
         // In Steam, the pad is what a Deck's is: a Steam Deck controller the client reads over
         // hidraw (SteamDeckPad), which only works with Steam Input's virtual pad for games to read.
         SessionState.deckPad = uinput && SessionState.mode == MODE_STEAM &&
+            SessionPrefs.steamController(this) == SessionPrefs.CONTROLLER_DECK &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
         if (uinput) {
             // /dev/uinput, stood in for by libfakeinput: the virtual pad Steam Input makes for a

@@ -8,6 +8,8 @@ object SessionPrefs {
     const val SUSPEND_MANUAL = "manual"
     const val SUSPEND_NEVER = "never"
 
+    const val CONTROLLER_DECK = "deck"
+    const val CONTROLLER_XBOX360 = "xbox360"
     const val OSC_AUTO = "auto"
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
@@ -266,6 +268,15 @@ object SessionPrefs {
     /** MESA_NO_ERROR=1: no GL error checking. */
     fun noGlError(context: Context): Boolean = prefs(context).getBoolean("noGlError", true)
     fun setNoGlError(context: Context, on: Boolean) { prefs(context).edit().putBoolean("noGlError", on).apply() }
+
+    /**
+     * What the pad is to the Steam client: [CONTROLLER_DECK], a Steam Deck controller (Quick Access
+     * button, gyro, Steam Input's full treatment - SteamDeckPad), or [CONTROLLER_XBOX360], the plain
+     * Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
+     */
+    fun steamController(context: Context): String =
+        prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
+    fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
 
     /** Runs the SteamOS gamepad client with its Quick Access performance controls. */
     fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", false)
