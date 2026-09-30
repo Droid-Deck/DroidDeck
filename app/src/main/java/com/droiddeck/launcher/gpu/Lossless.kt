@@ -5,6 +5,7 @@ import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
+import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.security.DigestOutputStream
 import java.security.MessageDigest
@@ -12,7 +13,7 @@ import java.security.MessageDigest
 /**
  * LSFG's shader chain, from the user's own Lossless Scaling (Steam app 993090).
  *
- * The copy the Steam client installs, in the runtime's library or on the card, is taken by
+ * The copy the Steam client installs, in any library it installs to, is taken by
  * itself and taken again whenever the client updates it. Once the session has seen the account
  * own the app, a Lossless.dll can also be imported by hand; it stays until the Steam copy changes
  * or another is imported. The DLL is copied in and its shaders are built into a cache named after
@@ -162,12 +163,13 @@ object Lossless {
             ?.forEach { it.delete() }
     }
 
+    /** The newest copy in any library the client installs to: its own, the card's, the Games folders. */
     private fun steamDll(context: Context): File? {
         val libraries = listOfNotNull(
             File(LinuxRuntime.rootDir(context), "root/.local/share/Steam"),
             GameStorage.effective(context)?.path?.let(::File),
-        )
-        return libraries.map { File(it, STEAM_DLL) }.firstOrNull { it.isFile }
+        ) + SessionPrefs.addedGamesDirs(context).map(::File)
+        return libraries.map { File(it, STEAM_DLL) }.filter { it.isFile }.maxByOrNull { it.lastModified() }
     }
 
     private fun markOwned(context: Context) {
