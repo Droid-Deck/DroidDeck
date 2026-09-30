@@ -97,7 +97,7 @@ def write(obj):
     return bytes(out)
 
 
-def shortcut(game):
+def shortcut(game, launch_options=""):
     appid = int(game["appid"]) & 0xFFFFFFFF
     return {
         "appid": struct.unpack("<i", struct.pack("<I", appid))[0],
@@ -106,7 +106,7 @@ def shortcut(game):
         "StartDir": '"%s"' % game["dir"],
         "icon": (game.get("art") or {}).get("icon", "") or "",
         "ShortcutPath": "",
-        "LaunchOptions": "",
+        "LaunchOptions": launch_options,
         "IsHidden": 0,
         "AllowDesktopConfig": 1,
         "AllowOverlay": 1,
@@ -208,8 +208,22 @@ def main():
     routing = importlib.util.module_from_spec(spec)
     loader.exec_module(routing)
     games, routes = routing.route(steam_root, acct, games)
+    # Steam saves Big Picture's per-shortcut launch options in shortcuts.vdf. Keep them when
+    # refreshing our entries, keyed by the appid that stays stable across session starts.
+    managed = {
+        v.get("appid"): v for v in existing.values()
+        if isinstance(v, dict) and TAG in (v.get("tags") or {}).values()
+    }
     kept = [v for v in existing.values() if isinstance(v, dict) and TAG not in (v.get("tags") or {}).values()]
-    ours = [shortcut(g) for g in games if g.get("exe") and g.get("name")]
+    ours = []
+    for game in games:
+        if not game.get("exe") or not game.get("name"):
+            continue
+        entry = shortcut(game)
+        previous = managed.get(entry["appid"])
+        if previous and isinstance(previous.get("LaunchOptions"), str):
+            entry["LaunchOptions"] = previous["LaunchOptions"]
+        ours.append(entry)
     entries = {str(i): v for i, v in enumerate(kept + ours)}
     tmp = path + ".bannerlator"
     with open(tmp, "wb") as f:
