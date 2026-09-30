@@ -256,6 +256,7 @@ else
     "${repo_root}/tools/proot/build.sh" "${proot_out}"
     echo "${proot_inputs}" > "${proot_out}/.proot-inputs"
 fi
+"${repo_root}/tools/rootrun/build.sh" "${repo_root}/app/src/main/jniLibs/arm64-v8a"
 
 cp -p "${bundle_asset}" "${bundle_backup}"
 bundle_dir="${staging_dir}/pulseaudio-bundle"

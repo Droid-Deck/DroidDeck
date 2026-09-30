@@ -40,6 +40,8 @@ fun PerformancePage(
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
     prootNoSeccomp: Boolean,
+    rootAvailable: Boolean,
+    rootSession: Boolean,
     guestHostname: String,
     phantomWarning: String?,
     onClientOverride: (Boolean) -> Unit,
@@ -51,6 +53,7 @@ fun PerformancePage(
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
+    onRootSession: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
@@ -126,6 +129,13 @@ fun PerformancePage(
                 host, "seccomp", "Run proot without seccomp",
                 "May fix missing syscall errors on some kernels, but can reduce performance.",
                 prootNoSeccomp, onChange = onProotNoSeccomp,
+            )
+            // Only where there is a root manager to use: elsewhere the switch would do nothing.
+            if (rootAvailable) ToggleRow(
+                host, "root", "Enter the session with chroot",
+                "Runs the session as root through chroot instead of proot, without a syscall tracer " +
+                    "in the middle. Turn it off to go back to proot.",
+                rootSession, onChange = onRootSession,
             )
         }
         SettingsGroup("Session identity") {
