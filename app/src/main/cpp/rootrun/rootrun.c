@@ -19,12 +19,18 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/audit.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
 #include <sched.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
@@ -59,6 +65,36 @@ static const char *prog = "rootrun";
 static void warn(const char *what, const char *path) {
     fprintf(stderr, "%s: %s %s: %s\n", prog, what, path ? path : "", strerror(errno));
 }
+
+/* Refuse memfd_create in the guest, so shared memory falls back to files under /dev/shm.
+ *
+ * A memfd is anonymous kernel shmem and always carries u:object_r:tmpfs:s0 - there is no inode to
+ * label, and fscreate does not reach it (measured). The compositor's domain drops an fd with that
+ * label, so a client that makes its buffer pool from a memfd cannot hand it over and the session
+ * dies at "invalid arguments for wl_shm#N.create_pool". A file under /dev/shm is labeled
+ * app_data_file by the tmpfs mount above and is accepted.
+ *
+ * ENOSYS, not EPERM: memfd_create is a fallback-able interface and every implementation that uses
+ * it already handles its absence, which is what the kernel reports on a system without it. The
+ * filter is installed before the exec and inherited, and applies to the guest's whole process tree.
+ * Best effort - a kernel without seccomp leaves the guest as it was. */
+static void block_memfd_create(void) {
+#ifdef __NR_memfd_create
+    struct sock_filter filter[] = {
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (uint32_t)offsetof(struct seccomp_data, arch)),
+        /* Not arm64: fall through to ALLOW, the last instruction (1 + 1 + 3). */
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_AARCH64, 0, 3),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (uint32_t)offsetof(struct seccomp_data, nr)),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_memfd_create, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (ENOSYS & SECCOMP_RET_DATA)),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+    };
+    struct sock_fprog prog = { .len = (unsigned short)(sizeof filter / sizeof filter[0]), .filter = filter };
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) { warn("cannot set no_new_privs", NULL); return; }
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) warn("cannot filter memfd_create", NULL);
+#endif
+}
+
 
 /* Every component of path, path included, as directories. */
 static int mkdir_parents(const char *path, mode_t mode) {
@@ -358,6 +394,8 @@ int main(int argc, char **argv) {
     if (gid >= 0 && setgid((gid_t)gid) != 0) warn("cannot setgid", NULL);
     if (uid >= 0 && setuid((uid_t)uid) != 0) warn("cannot setuid", NULL);
 
+    /* Before the exec, so the guest and everything it starts inherit it. */
+    block_memfd_create();
 
     execv(argv[i], &argv[i]);
     fprintf(stderr, "%s: cannot exec %s: %s\n", prog, argv[i], strerror(errno));
