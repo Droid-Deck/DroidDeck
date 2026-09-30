@@ -115,11 +115,32 @@ jobs:
     permissions:
       actions: read
       contents: read
+      pull-requests: read
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: droiddeck-pr-signed-standard
           path: signed
+      # What this build is, for the top of the release notes: the PR's title and the first
+      # paragraph of its description.
+      - name: Describe the change
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+          title=$(jq -r .title <<<"$pr")
+          summary=$(jq -r '.body // ""' <<<"$pr" | tr -d '\r' | { grep -v '^🤖' || true; } |
+            awk '!p && /^#/ { next } NF { p = 1; print; next } p { exit }' | head -n 6 | cut -c1-400)
+          {
+            echo "**Not merged** - a test build of open [PR #$PR_NUMBER]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PR_NUMBER): $title"
+            if [ -n "$summary" ]; then
+              echo
+              echo "$summary"
+            fi
+          } > notes-head.md
+          cat notes-head.md
       # A token of the org's "DroidDeck CI Publisher" app, as build.yml's announce job uses.
       - uses: actions/create-github-app-token@v2
         id: ci-token
@@ -140,7 +161,9 @@ jobs:
           tag="pr-$PR_NUMBER"
           apk="DroidDeck-$LABEL.apk"
           sha=$(sha256sum "signed/$apk" | cut -d ' ' -f 1)
-          notes="Source: https://github.com/$GITHUB_REPOSITORY/pull/$PR_NUMBER
+          notes="$(cat notes-head.md)
+
+          Source: https://github.com/$GITHUB_REPOSITORY/pull/$PR_NUMBER
           Commit: $HEAD_SHA
           APK SHA-256: $sha"
           if ! gh release view "$tag" -R "$repo" >/dev/null 2>&1; then
