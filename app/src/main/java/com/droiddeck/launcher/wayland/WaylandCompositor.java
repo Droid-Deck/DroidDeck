@@ -207,6 +207,9 @@ public final class WaylandCompositor {
      */
     public static native int nativeCursorSnapshot(int[] out);
 
+    /** The serial {@link #nativeCursorSnapshot} would report, without copying the image. */
+    public static native int nativeCursorSerial();
+
     /** Enough for the header plus a 256x256 cursor, the largest the compositor snapshots. */
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
@@ -433,6 +436,10 @@ public final class WaylandCompositor {
     /** The in-game FPS limiter: frames per second, 0 = unlimited. Paces when replaced buffers go
      *  back to the game, like the X11 IdleNotify pacer, so the game itself slows to the cap. */
     public static native void nativeSetFpsLimit(int fps);
+
+    /** KGSL power control off (true: the GPU held at its top clock) or back on. Device-wide and
+     *  outlives the process; see {@code GpuClockPin}. A no-op without /dev/kgsl-3d0. */
+    public static native void nativeSetGpuTurbo(boolean on);
 
     /** Inject the app's X-server input in scene (virtual desktop) pixels. type 2 = move to a,b;
      *  3 = evdev button a (BTN_LEFT=0x110…) pressed (b=1) or released (b=0); 4 = a wheel steps,

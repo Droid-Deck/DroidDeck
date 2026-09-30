@@ -219,6 +219,13 @@ object SessionPrefs {
      * plainly exist is the signature - and the fallback is to trace everything instead: slower,
      * but correct. Max's advice for devices whose kernels "don't work well with it".
      */
+    /** Hold the GPU at its top clock during a session (GpuClockPin). Off by default: power and heat. */
+    fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", false)
+
+    fun setGpuClockPin(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gpuClockPin", on).apply()
+    }
+
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)
 
     fun setProotNoSeccomp(context: Context, on: Boolean) {
@@ -458,6 +465,22 @@ object SessionPrefs {
     fun setHdr(context: Context, mode: String, on: Boolean) {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }
+
+    /**
+     * The session's frame cap, 0 for none. One number used everywhere a frame is paced: gamescope's
+     * -r (what the client and its games see as the display's rate), the compositor's buffer release
+     * pacer, the rate the display layer votes for, and the panel mode picked, which is the fastest
+     * one the cap divides evenly (40 on a 120 Hz panel, not on a 144 Hz one). A 60 fps cap on a
+     * 144 Hz panel with nothing else changed judders; this is what WinNative's per-shortcut limit
+     * does. Applies next session.
+     */
+    fun fpsLimit(context: Context, mode: String): Int = prefs(context).getInt("fpsLimit.$mode", 0)
+
+    fun setFpsLimit(context: Context, mode: String, fps: Int) {
+        prefs(context).edit().putInt("fpsLimit.$mode", fps.coerceAtLeast(0)).apply()
+    }
+
+    val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
 
     /**
      * The mode whose per-mode settings apply: a program run under gamescope (MODE_RUN) is a

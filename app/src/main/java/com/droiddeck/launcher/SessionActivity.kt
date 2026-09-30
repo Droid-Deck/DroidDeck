@@ -173,7 +173,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
-        override fun onDisplayChanged(displayId: Int) = refreshSecondScreenDisplays()
+        override fun onDisplayChanged(displayId: Int) {
+            followPanelRefresh(displayId)
+            refreshSecondScreenDisplays()
+        }
+    }
+
+    /**
+     * The panel's rate, followed for the rest of the session. It is read once at start, and a
+     * panel that drops from 120 to 60 Hz later (battery saver, heat, a vendor overriding the mode
+     * asked for) left the compositor telling gamescope every frame took 8.3 ms, so the client and
+     * its games paced against a vblank that no longer came. (WinNative 53836ca9.)
+     */
+    private fun followPanelRefresh(displayId: Int) {
+        if (!CompositorHost.isStarted) return
+        val display = (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
+        if (display.displayId != displayId) return
+        val hz = display.refreshRate
+        if (hz > 1f) WaylandCompositor.nativeSetOutputRefreshRate(hz)
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
@@ -202,9 +219,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // Game-tier power policy for the whole session: the panel's fastest mode, and the OS told
-        // it is in gameplay. Logged so a slow device says why.
-        Log.i(TAG, "perf: " + PerfMode.apply(this))
+        // Game-tier power policy for the whole session: the panel's fastest mode (one the frame cap
+        // divides, when there is a cap), and the OS told it is in gameplay. Logged so a slow device
+        // says why. The cap is the session's: an activity re-created mid-session keeps it.
+        if (!SessionState.running) {
+            SessionState.fpsLimit = SessionPrefs.fpsLimit(
+                this, SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
+            )
+        }
+        Log.i(TAG, "perf: " + PerfMode.apply(this, SessionState.fpsLimit))
         goFullscreen()
         // The device's volume keys change the stream the session plays on (the relay and
         // PulseAudio are media playback); they are never forwarded to the guest.
@@ -757,7 +780,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         CompositorHost.startOrAttach(
             holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
-            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(),
+            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), SessionState.fpsLimit,
         )
         if (!SessionState.running) SessionEvents.record("compositor.started")
         // The service owns everything below the compositor. It is started whenever no session is
@@ -1233,6 +1256,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      */
     private fun syncClientCursor(): Boolean {
         if (!CompositorHost.isStarted) return false
+        // Asked on every pointer move; the image is copied only when the client has changed it.
+        if (WaylandCompositor.nativeCursorSerial() == cursorSerial) return false
         val n = WaylandCompositor.nativeCursorSnapshot(cursorBuf)
         if (n < 6) return false
         val serial = cursorBuf[0]

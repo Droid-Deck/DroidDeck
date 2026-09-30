@@ -6,6 +6,7 @@
  */
 #include <jni.h>
 #include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -25,6 +26,7 @@ extern int banner_wayland_run(void);
 extern void banner_wayland_send_pointer(int action, int x, int y);
 extern void banner_wayland_send_touch(int action, int pointer_id, int x, int y);
 extern int  banner_cursor_snapshot(int *out, int cap);
+extern int  banner_cursor_serial(void);
 extern void banner_wayland_send_key(int evdev, int state);
 extern void banner_wayland_send_scene_input(int type, int a, int b);
 extern void banner_wayland_vsync(int64_t frame_time_ns);
@@ -292,6 +294,13 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSnapshot(
     int n = banner_cursor_snapshot((int *)buf, (int)cap);
     (*env)->ReleaseIntArrayElements(env, out, buf, 0);
     return n;
+}
+
+/* The serial nativeCursorSnapshot would return, without copying anything. */
+JNIEXPORT jint JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSerial(JNIEnv *env, jclass clazz) {
+    (void)env; (void)clazz;
+    return banner_cursor_serial();
 }
 
 /* Inject a key event. evdev = Linux input keycode (KEY_A=30…); state 1=down 0=up. */
@@ -669,4 +678,14 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputPreedit(JNI
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputDelete(JNIEnv *env, jclass clazz, jint before, jint after) {
     banner_host_text_delete(before, after);
+}
+
+/* KGSL's power control, off (the GPU held at its top clock) or back on. The property is the
+ * device's, not this process's: it outlives the fd and the app, so the caller clears it at stop
+ * and again at every app start. No root; the kernel's thermal limits still apply. */
+extern void adrenotools_set_turbo(bool turbo);
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGpuTurbo(JNIEnv *env, jclass clazz, jboolean on) {
+    (void)env; (void)clazz;
+    adrenotools_set_turbo(on == JNI_TRUE);
 }

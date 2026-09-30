@@ -74,6 +74,10 @@ object SessionState {
     @Volatile
     var refreshHz: Float = 60f
 
+    /** The session's frame cap (SessionPrefs.fpsLimit), fixed when it starts; 0 = none. */
+    @Volatile
+    var fpsLimit: Int = 0
+
     /** The compositor has presented a frame, so the loading panel is behind us for this session. */
     @Volatile
     var firstFrameSeen = false

@@ -38,6 +38,7 @@ fun PerformancePage(
     noGlError: Boolean,
     noXalia: Boolean,
     gamescopeRealtime: Boolean,
+    gpuClockPin: Boolean,
     prootNoSeccomp: Boolean,
     guestHostname: String,
     phantomWarning: String?,
@@ -48,6 +49,7 @@ fun PerformancePage(
     onNoGlError: (Boolean) -> Unit,
     onNoXalia: (Boolean) -> Unit,
     onGamescopeRealtime: (Boolean) -> Unit,
+    onGpuClockPin: (Boolean) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
@@ -100,6 +102,13 @@ fun PerformancePage(
                 host, "gsrealtime", "gamescope: realtime GPU queue",
                 "Gives the compositor's GPU work priority over the game's. Can smooth frame pacing, but can cost games GPU time.",
                 gamescopeRealtime, onChange = onGamescopeRealtime,
+            )
+        }
+        SettingsGroup("GPU") {
+            ToggleRow(
+                host, "gpuclock", "Hold the GPU at its top clock",
+                "Adreno only. Fewer hitches from the clock ramping up, at the cost of battery and heat. Released when the session ends.",
+                gpuClockPin, onChange = onGpuClockPin,
             )
         }
         SettingsGroup("Session fixes") {

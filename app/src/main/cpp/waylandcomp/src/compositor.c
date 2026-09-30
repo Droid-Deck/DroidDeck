@@ -541,6 +541,13 @@ static void cursor_publish_shm(struct wl_shm_buffer *shm, int hx, int hy) {
     wl_shm_buffer_end_access(shm);
 }
 
+/* The serial alone, without the lock: the app asks on every pointer move, and the snapshot below
+ * copies up to 256 KB of pixels across JNI and holds the lock the compositor thread takes to
+ * change the cursor. A torn read is only a missed or an extra snapshot. */
+int banner_cursor_serial(void) {
+    return __atomic_load_n(&g_cursor_serial, __ATOMIC_RELAXED);
+}
+
 /* Read by the app (UI thread). out = [serial, hidden, w, h, hotspotX, hotspotY, pixels...].
  * Returns the number of ints written, or 0 if out is too small. */
 int banner_cursor_snapshot(int *out, int cap) {

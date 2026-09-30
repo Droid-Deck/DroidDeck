@@ -47,6 +47,8 @@ class ModeSettings(
     val shapeMode: String,
     val hdr: Boolean,
     val hdrReason: String?,
+    /** Frames per second the session is capped at; 0 = none. */
+    val fpsLimit: Int = 0,
     val linuxRows: List<DriverRow>,
     val linuxSelected: String,
     val androidRows: List<DriverRow>,
@@ -102,6 +104,7 @@ class ModeSettingsActions(
     val onCustomResolution: (Pair<Int, Int>?) -> Unit = {},
     val onShape: (String) -> Unit,
     val onHdr: (Boolean) -> Unit,
+    val onFpsLimit: (Int) -> Unit = {},
     val onSelectLinux: (String) -> Unit,
     val onImportLinux: () -> Unit,
     val onRemoveLinux: (String) -> Unit,
@@ -213,6 +216,12 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 host, "shape", "Screen ratio",
                 if (custom != null) "Set by the custom resolution." else "Auto uses at least 16:9.",
                 com.droiddeck.launcher.session.SessionPrefs.shapeChoices, s.shapeMode, enabled = custom == null, onPick = a.onShape,
+            )
+            ChoiceRow(
+                host, "fps", "Frame limit", "Applies next session.",
+                com.droiddeck.launcher.session.SessionPrefs.fpsLimitChoices, s.fpsLimit,
+                note = "Caps the whole session. The screen switches to a rate the cap divides evenly.",
+                onPick = a.onFpsLimit,
             )
             if (editCustom) CustomResolutionDialog(
                 initial = custom,

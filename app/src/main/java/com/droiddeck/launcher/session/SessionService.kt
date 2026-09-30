@@ -267,6 +267,8 @@ class SessionService : Service() {
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
 
+        Log.i(TAG, GpuClockPin.start(this))
+
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
         // The desktop's Steam launchers start the client there (bannerlator-steam-launch), through the
@@ -285,7 +287,7 @@ class SessionService : Service() {
             guest.add("DXVK_HDR=1")
             Log.i(TAG, "hdr: gamescope --hdr-enabled, DXVK_HDR=1")
         }
-        guest.add("BL_FPS=0")
+        guest.add("BL_FPS=" + SessionState.fpsLimit)
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)
@@ -943,6 +945,7 @@ class SessionService : Service() {
         val stoppedGen = sessionGen
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
+        GpuClockPin.stop(this)
         SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
         suspendOperationPending = false
         launchWatcher?.stopWatching()
