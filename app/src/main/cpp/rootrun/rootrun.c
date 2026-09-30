@@ -72,7 +72,7 @@ static void warn(const char *what, const char *path) {
  * label, and fscreate does not reach it (measured). The compositor's domain drops an fd with that
  * label, so a client that makes its buffer pool from a memfd cannot hand it over and the session
  * dies at "invalid arguments for wl_shm#N.create_pool". A file under /dev/shm is labeled
- * app_data_file by the tmpfs mount above and is accepted.
+ * app_data_file by the mount main() makes there and is accepted.
  *
  * ENOSYS, not EPERM: memfd_create is a fallback-able interface and every implementation that uses
  * it already handles its absence, which is what the kernel reports on a system without it. The
