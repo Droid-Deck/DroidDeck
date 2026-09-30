@@ -1,12 +1,10 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -216,7 +214,7 @@ private fun ReleaseNotes(title: String, notes: String, key: String) {
             if (open) "Less" else "More", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
             modifier = Modifier.padding(top = 2.dp).offset(x = (-6).dp).paneItem("notes:more")
                 .clip(Shape12).border(2.dp, if (hot) pal.signal else Color.Transparent, Shape12)
-                .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = toggle)
+                .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = toggle)
                 .controllerConfirm(onClick = toggle)
                 .padding(horizontal = 6.dp, vertical = 4.dp),
         )
@@ -274,19 +272,17 @@ private fun ChannelCard(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    val edge by animateColorAsState(if (hot || selected) pal.signal else pal.line, Motion.tw(200), label = "channelEdge")
-    val fill by animateColorAsState(
-        if (selected) pal.signal.copy(alpha = 0.10f) else if (hot) Color.White.copy(alpha = 0.05f) else colors.surface,
-        Motion.tw(200), label = "channelFill",
-    )
+    // Focus shows at once, as on the Components page: no ripple, no fade.
+    val edge = if (hot || selected) pal.signal else pal.line
+    val fill = if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else Color.Transparent
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxWidth().paneItem("channel:$title")
-            .clip(Shape14).background(fill).border(if (hot) 2.dp else 1.dp, edge, Shape14)
+            .clip(Shape14).background(colors.surface).background(fill).border(if (hot) 2.dp else 1.dp, edge, Shape14)
             .alpha(if (enabled) 1f else 0.55f)
             .hoverable(src)
-            .clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.RadioButton, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
@@ -319,10 +315,10 @@ private fun TestRow(t: Release, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().paneItem("test:${t.pr}")
             .heightIn(min = 52.dp)
             .clip(Shape12)
-            .background(if (selected) pal.signal.copy(alpha = 0.08f) else colors.surface)
+            .background(colors.surface).background(if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else Color.Transparent)
             .border(if (hot) 2.dp else 1.dp, if (hot || selected) pal.signal else pal.line, Shape12)
             .hoverable(src)
-            .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.RadioButton, onClick = onClick)
+            .clickable(interactionSource = src, indication = null, role = Role.RadioButton, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
