@@ -26,12 +26,23 @@ if [[ ! -x "$CC" ]]; then
   echo "Android NDK toolchain not found at $TOOLCHAIN" >&2
   exit 1
 fi
-# -static: the runner must not need the app's linker to find its libc, because it is started by a
-# root shell with none of the app's environment. 16 KB max-page-size, like every other library here:
-# a 16 KB-page kernel refuses a 4 KB-only ELF, and a 4 KB kernel loads an aligned one unchanged.
-"$CC" -O2 -static -Wall -Wextra -Wl,-z,max-page-size=16384 -o "$OUTDIR/librootrun.so" "$SRC"
+# Dynamic, not static: a static link emits a TLS segment at 8-byte alignment, which Bionic refuses
+# on arm64 ("executable's TLS segment is underaligned ... needs to be at least 64") - the runner
+# would not start at all. A dynamic link has no TLS segment, and libc is on the device already.
+# 16 KB max-page-size, like every other library here: a 16 KB-page kernel refuses a 4 KB-only ELF,
+# and a 4 KB kernel loads an aligned one unchanged.
+"$CC" -O2 -Wall -Wextra -Wl,-z,max-page-size=16384 -o "$OUTDIR/librootrun.so" "$SRC"
 "$TOOLCHAIN/llvm-strip" --strip-unneeded "$OUTDIR/librootrun.so"
 NEEDED=$("$TOOLCHAIN/llvm-readelf" -d "$OUTDIR/librootrun.so" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p' | tr '\n' ' ')
 echo "librootrun.so NEEDED: ${NEEDED:-none}"
-if [[ -n "$NEEDED" ]]; then echo "ERROR: librootrun.so should be static" >&2; exit 1; fi
+for lib in $NEEDED; do
+  case $lib in libc.so|libdl.so|libm.so) ;;
+  *) echo "ERROR: unexpected dependency $lib" >&2; exit 1 ;;
+  esac
+done
+# Bionic refuses an executable with an underaligned TLS segment; a dynamic link must not have one.
+if "$TOOLCHAIN/llvm-readelf" -l "$OUTDIR/librootrun.so" | grep -q "^  TLS"; then
+  echo "ERROR: librootrun.so has a TLS segment; Bionic will refuse it on arm64" >&2
+  exit 1
+fi
 ls -l "$OUTDIR/librootrun.so"
