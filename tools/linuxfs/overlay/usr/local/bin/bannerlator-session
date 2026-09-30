@@ -171,6 +171,26 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(--mangoapp)
     echo "== gamescope: mangoapp on ($(command -v mangoapp), config $MANGOHUD_CONFIGFILE)"
   fi
+  # libdecor opens its plugins in turn and libdecor-gtk.so comes first. GTK cannot initialise in
+  # this session - it wants an X display, and Xwayland is gamescope's, not up yet - so libdecor
+  # closes the plugin again. On the way in libgdk-3 registered its own wl_log() handler with
+  # libwayland-client, and closing it does not take that back: the library's global handler slot is
+  # left pointing into an unmapped libgdk-3. Turnip is mapped over that freed range moments later
+  # (gamescope loads it for every session), so the first Wayland protocol error calls the stale
+  # handler - into zeroed .rodata, which decodes as UDF #0. SIGILL, and the session is gone before
+  # it draws anything. A plugin directory holding only the cairo plugin keeps the GTK one from ever
+  # being opened; the decorations are the same, cairo being what libdecor falls back to anyway.
+  if [ -z "${LIBDECOR_PLUGIN_DIR:-}" ] && [ -e /usr/lib/libdecor/plugins-1/libdecor-gtk.so ]; then
+    bl_decor=${XDG_RUNTIME_DIR:-/tmp}/libdecor-plugins
+    if [ ! -e "$bl_decor/libdecor-cairo.so" ] && [ -e /usr/lib/libdecor/plugins-1/libdecor-cairo.so ]; then
+      mkdir -p "$bl_decor" 2>/dev/null
+      ln -sf /usr/lib/libdecor/plugins-1/libdecor-cairo.so "$bl_decor/libdecor-cairo.so" 2>/dev/null
+    fi
+    if [ -e "$bl_decor/libdecor-cairo.so" ]; then
+      export LIBDECOR_PLUGIN_DIR="$bl_decor"
+      echo "== libdecor: cairo plugin only ($bl_decor); the GTK one leaves a dangling wl_log handler"
+    fi
+  fi
   export BL_INSIDE=1
   exec gamescope "${args[@]}" -- "$0" "$mode" "$@"
 fi
