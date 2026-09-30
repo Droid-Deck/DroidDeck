@@ -128,6 +128,22 @@ def probe(steam_root, ids):
         method(client, 1, C.c_bool, C.c_int)(client, pipe)
 
 
+def game_running():
+    """Whether a Proton game is up: a wineserver is there for as long as any prefix is in use."""
+    try:
+        pids = [p for p in os.listdir("/proc") if p.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open("/proc/%s/comm" % pid) as f:
+                if f.read().strip() == "wineserver":
+                    return True
+        except OSError:
+            pass
+    return False
+
+
 def watch(steam_root, listing):
     games = read_json(listing, [])
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
@@ -138,7 +154,10 @@ def watch(steam_root, listing):
     # The probe is a fresh python that loads steamclient.so, seconds of CPU under proot. Ownership
     # only moves with a purchase or a new match, so it runs when the matches or their sources
     # change, after a failed probe, and otherwise every five minutes - not on every 30 s beat.
-    probed, next_probe = None, 0
+    # A failed probe is retried on a doubling delay up to those five minutes rather than on every
+    # beat (a client that is not logged on fails it for as long as it stays that way), and none
+    # starts while a game is running: the answer can wait, the game's cores cannot.
+    probed, next_probe, failures = None, 0, 0
     while True:
         now = time.monotonic()
         for game in games:
@@ -155,7 +174,9 @@ def watch(steam_root, listing):
             next_lookup = now + 300
         status = "waiting for a matching Steam title"
         key = (dict(candidates), dict(sources))
-        if candidates and (key != probed or now >= next_probe):
+        if candidates and (key != probed or now >= next_probe) and game_running():
+            status = last_status
+        elif candidates and (key != probed or now >= next_probe):
             probed, next_probe = key, now + 300
             try:
                 result = subprocess.run([sys.executable, __file__, "probe", steam_root,
@@ -163,8 +184,10 @@ def watch(steam_root, listing):
                                         capture_output=True, text=True, timeout=15)
                 if result.returncode != 0:
                     status = "ownership probe failed: " + (result.stderr.strip()[-300:] or str(result.returncode))
-                    probed = None
+                    failures += 1
+                    next_probe = now + min(300, 30 * 2 ** failures)
                 else:
+                    failures = 0
                     line = next(line for line in result.stdout.splitlines() if line.startswith("DROIDDECK_OWNERSHIP="))
                     snapshot = json.loads(line.removeprefix("DROIDDECK_OWNERSHIP="))
                     if not snapshot["account"].isdigit() or int(snapshot["account"]) <= 0:
@@ -175,7 +198,8 @@ def watch(steam_root, listing):
                     status = "matched %d/%d games; %d owned" % (len(candidates), len(games), sum(snapshot["owned"].values()))
             except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired) as error:
                 status = "ownership check unavailable: " + str(error)
-                probed = None
+                failures += 1
+                next_probe = now + min(300, 30 * 2 ** failures)
         elif candidates:
             status = last_status
         if status != last_status:

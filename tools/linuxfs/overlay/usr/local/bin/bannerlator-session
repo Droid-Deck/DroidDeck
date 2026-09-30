@@ -269,13 +269,24 @@ case $mode in
     # device it took 5 of 8, leaving out both little cores and the fastest one - which is a
     # reasonable thing to do while a game is running and the wrong thing when the client is all
     # there is. BL_CLIENT_CPUS overrides it. Re-applied on a beat because steamwebhelper spawns
-    # children continuously and each one inherits Steam's choice, not ours.
+    # children continuously and each one inherits Steam's choice, not ours. The beat reads /proc
+    # itself instead of running pgrep, and only runs taskset for a process that is new or has
+    # grown threads since it was last pinned: every fork is a round of traced syscalls, and a
+    # beat that forked a taskset per process every 5 s did that for an hour. taskset -a, because
+    # without it only a process's main thread moves and the renderer's workers stay where they were.
     if [ -n "${BL_CLIENT_CPUS:-}" ]; then
       step "client cores: $BL_CLIENT_CPUS"
       (
-        for _ in $(seq 1 720); do
-          for _p in $(pgrep -f 'steamwebhelper|steamrtarm64/steam|gamescope' 2>/dev/null); do
-            taskset -cp "$BL_CLIENT_CPUS" "$_p" >/dev/null 2>&1 || true
+        declare -A _bl_pinned=()
+        for ((_i = 0; _i < 720; _i++)); do
+          for _d in /proc/[0-9]*; do
+            IFS= read -r -d '' _c < "$_d/cmdline" 2>/dev/null || continue
+            case $_c in *steamwebhelper*|*steamrtarm64/steam|*gamescope*) ;; *) continue ;; esac
+            _t=("$_d"/task/*)
+            _p=${_d#/proc/}
+            [ "${_bl_pinned[$_p]:-}" = "${#_t[@]}" ] && continue
+            taskset -a -cp "$BL_CLIENT_CPUS" "$_p" >/dev/null 2>&1 || true
+            _bl_pinned[$_p]=${#_t[@]}
           done
           nap 5
         done
@@ -396,13 +407,33 @@ case $mode in
         fi
       done
     ) &
+    # The library beat. Both helpers are whole programs under proot (the compat one a python
+    # start and a parse of the client's config), and nearly every beat has nothing new for them.
+    # The seeder marks Proton's prefix template as well as the prefixes, so a new prefix is born
+    # marked and every 15 s is soon enough for the rest. The compat pass runs when a directory it
+    # reads from has changed since its last run - a new manifest, a new depot or tool, the client
+    # rewriting config.vdf - which [ -nt ] answers without starting anything, and once a minute
+    # regardless.
     (
       beat=0
-      for _ in $(seq 1 720); do
+      compat_stamp=$HOME/.bl-compat-beat
+      rm -f "$compat_stamp"
+      compat_due() {
+        local d
+        [ -e "$compat_stamp" ] && [ "$((beat % 12))" -ne 0 ] || return 0
+        for d in "$steam_root/steamapps" "$steam_root/steamapps/common" "$steam_root/config" \
+                 "$steam_root/compatibilitytools.d" /mnt/bannerlator-sd/steamapps; do
+          [ "$d" -nt "$compat_stamp" ] && return 0
+        done
+        return 1
+      }
+      for ((_i = 0; _i < 720; _i++)); do
         nap 5
-        bannerlator-seed-redists "$steam_root" >/dev/null 2>&1 || true
         beat=$((beat + 1))
-        if [ "$((beat % 3))" -eq 0 ]; then
+        [ "$((beat % 3))" -eq 0 ] || continue
+        bannerlator-seed-redists "$steam_root" >/dev/null 2>&1 || true
+        if compat_due; then
+          : > "$compat_stamp"
           bannerlator-steam-compat "$steam_root" >/dev/null 2>&1 || true
         fi
       done

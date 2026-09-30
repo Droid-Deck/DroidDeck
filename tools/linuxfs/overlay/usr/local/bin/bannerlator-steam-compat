@@ -152,6 +152,9 @@ bl_game_cpus() {
 # container that path never reaches Proton either. (WinNative's winnative-proton-launch.)
 BL_LIBPATH_SETUP = """
 bl_libpath() {
+  # A Proton built to prefer PipeWire (CachyOS's among the adopted ones) hung its audio thread
+  # here, where only PulseAudio answers. (WinNative, winnative-proton-launch.)
+  export PROTON_USE_PIPEWIRE=${PROTON_USE_PIPEWIRE:-0}
   [ -n "${LD_LIBRARY_PATH:-}" ] || return 0
   local kept= dir old_ifs=$IFS
   IFS=:
@@ -246,17 +249,29 @@ if [ -f "$fake" ]; then
     *) LD_PRELOAD="$fake${LD_PRELOAD:+:$LD_PRELOAD}"; export LD_PRELOAD ;;
   esac
 fi
+# The newest of the ARM64 depots the client has, by the build number that opens each one's version
+# file: taking the first one found ran a stale Experimental over a newer 11.0. (WinNative.)
+depot=
+best=0
 for name in %s; do
-  depot="$steam_root/steamapps/common/$name"
-  if [ -d "$depot/files/bin-arm64" ] && [ -x "$depot/proton" ]; then
-    bl_components "$depot"
-    bl_directaudio "$depot"
-    bl_game_cpus
-    bl_idtech3 "$@"
-    bl_libpath
-    exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+  candidate="$steam_root/steamapps/common/$name"
+  [ -d "$candidate/files/bin-arm64" ] && [ -x "$candidate/proton" ] || continue
+  build=0
+  read -r build _ 2>/dev/null < "$candidate/version"
+  case $build in "" | *[!0-9]*) build=0 ;; esac
+  if [ -z "$depot" ] || [ "$build" -gt "$best" ]; then
+    depot=$candidate
+    best=$build
   fi
 done
+if [ -n "$depot" ]; then
+  bl_components "$depot"
+  bl_directaudio "$depot"
+  bl_game_cpus
+  bl_idtech3 "$@"
+  bl_libpath
+  exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+fi
 echo "bannerlator-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
 exit 1
 """ % " ".join('"%s"' % n for n in SOURCES)
@@ -568,15 +583,23 @@ def register_default(config_path, apps=(), name=None, protect=()):
         write_changed(config_path, text)
 
 
+def depot_build(depot):
+    """The build number a depot's version file starts with; 0 when there is none."""
+    try:
+        with open(os.path.join(depot, "version"), encoding="utf-8", errors="replace") as f:
+            first = f.read().split(None, 1)
+    except OSError:
+        return 0
+    return int(first[0]) if first and first[0].isdigit() else 0
+
+
 def find_source(steam_root):
-    """The ARM64 Proton depot the client has downloaded, or None."""
+    """The newest ARM64 Proton depot the client has downloaded (the one the launcher runs), or None."""
     common = os.path.join(steam_root, "steamapps", "common")
-    for name in SOURCES:
-        depot = os.path.join(common, name)
-        # bin-arm64 is what makes it the native build rather than the x86_64 one.
-        if os.path.isdir(os.path.join(depot, "files", "bin-arm64")):
-            return depot
-    return None
+    # bin-arm64 is what makes it the native build rather than the x86_64 one.
+    found = [os.path.join(common, name) for name in SOURCES
+             if os.path.isdir(os.path.join(common, name, "files", "bin-arm64"))]
+    return max(found, key=depot_build) if found else None
 
 
 def build_tool(tool_dir):
