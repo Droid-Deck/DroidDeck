@@ -21,6 +21,8 @@ constexpr float SOURCE_SMOOTHING = 0.15f;
 constexpr float SOURCE_STALE_SECONDS = 0.5f;
 constexpr float DISCONTINUITY_SECONDS = 0.25f;
 constexpr float HEADROOM_EPSILON = 0.02f;
+// A target is aimed just under, so rounding never puts output past the panel's refresh rate.
+constexpr float TARGET_MARGIN = 0.1f;
 constexpr float CREDIT_EPSILON = 1.0e-4f;
 constexpr float SOURCE_ACCUM_FLOOR = 0.01f;
 constexpr uint32_t MIN_RATE_SAMPLES = 12;
@@ -116,6 +118,7 @@ LsfgPlan LsfgPacer::Plan(size_t capacity, uint64_t source_frames) {
     if (target_rate > 0.0f && config.refresh_rate > 0.0f) {
         target_rate = std::min(target_rate, config.refresh_rate);
     }
+    if (target_rate > 0.0f) target_rate -= TARGET_MARGIN;
 
     if (target_rate == 0.0f) {
         // No explicit target rate: the multiplier is the multiplier, full stop.
