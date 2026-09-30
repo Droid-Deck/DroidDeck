@@ -127,7 +127,7 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     )
 }
 
-/** Where things stand, in one headline, what's new in a line or two, and at most one big button. */
+/** Where things stand, as a system updater says it: a status line, what you'd get, and one button. */
 @Composable
 private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, me: AppUpdates.Installed) {
     val colors = MaterialTheme.colorScheme
@@ -136,47 +136,37 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
     val release = catalog?.let { AppUpdates.release(it, u.follow) }
     val offer = if (me.ci) catalog?.let { AppUpdates.offer(it, u.follow, me) } else null
     val name = channelName(u.follow)
-    class Look(val icon: ImageVector, val tint: Color, val headline: String, val detail: String?)
+    val offered = release != null && (offer == Offer.UPDATE || offer == Offer.SWITCH)
+    class Look(val tint: Color, val status: String, val headline: String, val detail: String?)
     val look = when {
-        !me.ci -> Look(Icons.Outlined.Code, colors.onSurfaceVariant, "Local build",
-            "Built on a computer, so it's signed differently from the builds here. Uninstall it to switch to one.")
-        catalog == null -> Look(Icons.Outlined.Sync, pal.signal, if (u.checking) "Checking for updates…" else "Not checked yet", null)
-        offer == Offer.UPDATE -> Look(Icons.Outlined.Download, AttentionAmber, "Update ready", null)
-        offer == Offer.SWITCH -> Look(Icons.Outlined.SwapHoriz, pal.signal, "Switch to $name", "Your games and settings stay as they are.")
-        offer == Offer.AHEAD -> Look(Icons.Outlined.Info, pal.signal, "You're ahead of Stable", "You'll move onto Stable with its next release.")
-        offer == Offer.GONE -> Look(Icons.Outlined.Info, AttentionAmber, "This test has ended", "Its fix was merged or dropped. Nightly keeps you on the newest fixes.")
-        else -> Look(Icons.Outlined.CheckCircle, pal.good, "You're up to date", null)
+        !me.ci -> Look(colors.onSurfaceVariant, "Local build", "Built on a computer",
+            "It's signed differently from the builds here, so Android won't update it in place. Uninstall it to switch.")
+        catalog == null -> Look(colors.onSurfaceVariant, if (u.checking) "Checking…" else "Not checked yet", "Updates", null)
+        offer == Offer.UPDATE -> Look(AttentionAmber, "Update available", newBuild(u.follow, release!!), null)
+        offer == Offer.SWITCH -> Look(pal.signal, "Ready to switch", newBuild(u.follow, release!!), null)
+        offer == Offer.AHEAD -> Look(pal.signal, "Ahead of Stable", "You're ahead of Stable",
+            "This build is newer than the last Stable release. You'll move onto Stable with its next one.")
+        offer == Offer.GONE -> Look(AttentionAmber, "Test ended", "This test has ended",
+            "Its fix was merged or dropped. Follow Nightly to keep getting the newest fixes.")
+        else -> Look(pal.good, "Up to date", "You have the latest $name", null)
     }
-    val attention = offer == Offer.UPDATE
     Column(
-        modifier = Modifier.fillMaxWidth().clip(Shape16)
-            .background(if (attention) AttentionAmber.copy(alpha = 0.06f) else colors.surface)
-            .border(1.dp, if (attention) AttentionAmber.copy(alpha = 0.35f) else pal.line, Shape16)
-            .padding(20.dp),
+        modifier = Modifier.fillMaxWidth().clip(Shape16).background(colors.surface).border(1.dp, pal.line, Shape16).padding(20.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp).clip(CircleShape).background(look.tint.copy(alpha = 0.16f))) {
-                Icon(look.icon, contentDescription = null, tint = look.tint, modifier = Modifier.size(26.dp))
-            }
-            Column {
-                Text(look.headline, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                Text(runningLine(catalog, me), fontSize = 13.sp, color = colors.onSurfaceVariant)
-            }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(look.tint))
+            Text(look.status, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = look.tint)
         }
-        if (look.detail != null) Text(look.detail, fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 14.dp))
-        // What the update brings: the change's title and one line from its notes.
-        if (release != null && (offer == Offer.UPDATE || offer == Offer.SWITCH)) {
-            Column(
-                modifier = Modifier.padding(top = 14.dp).fillMaxWidth().clip(Shape12).background(colors.surfaceVariant).padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text("WHAT'S NEW · ${ago(release.publishedAt).uppercase()}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = colors.onSurfaceVariant)
-                Text(release.title.ifBlank { release.tag }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (release.summary.isNotBlank()) Text(release.summary, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
+        Text(look.headline, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.padding(top = 6.dp))
+        if (offered) {
+            Text("Published ${ago(release!!.publishedAt)}", fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+            Text(changeTitle(release.title.ifBlank { release.tag }), fontSize = 15.sp, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp))
+            if (release.summary.isNotBlank()) Text(release.summary, fontSize = 13.5.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
         }
+        if (look.detail != null) Text(look.detail, fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
         if (u.error != null) Text(u.error, fontSize = 13.sp, color = pal.error, modifier = Modifier.padding(top = 12.dp))
         val installable = release?.apk != null && !s.sessionRunning
+        val button = release?.apk?.size?.takeIf { it > 0 }?.let { " · ${megabytes(it)}" }.orEmpty()
         Box(Modifier.padding(top = 18.dp)) {
             when {
                 u.stage != null -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -184,17 +174,32 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
                     if (u.percent >= 0) LinearProgressIndicator(progress = { u.percent / 100f }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))
                     else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))
                 }
-                offer == Offer.UPDATE -> PrimaryButton("Update now", enabled = installable, main = true, icon = Icons.Outlined.Download, modifier = Modifier.fillMaxWidth()) { ua.onInstall(release!!) }
-                offer == Offer.SWITCH -> PrimaryButton("Switch to $name", enabled = installable, main = true, icon = Icons.Outlined.SwapHoriz, modifier = Modifier.fillMaxWidth()) { ua.onInstall(release!!) }
-                offer == Offer.AHEAD -> SecondaryButton("Install Stable ${release?.version.orEmpty()} anyway", enabled = installable, modifier = Modifier.fillMaxWidth()) { ua.onInstall(release!!) }
-                offer == Offer.GONE -> PrimaryButton("Follow Nightly", main = true, modifier = Modifier.fillMaxWidth()) { ua.onFollow(Follow(Channel.NIGHTLY)) }
+                offer == Offer.UPDATE -> PrimaryButton("Update$button", enabled = installable, main = true) { ua.onInstall(release!!) }
+                offer == Offer.SWITCH -> PrimaryButton("Install$button", enabled = installable, main = true) { ua.onInstall(release!!) }
+                offer == Offer.AHEAD -> SecondaryButton("Install Stable ${release?.version.orEmpty()} anyway", enabled = installable) { ua.onInstall(release!!) }
+                offer == Offer.GONE -> PrimaryButton("Follow Nightly", main = true) { ua.onFollow(Follow(Channel.NIGHTLY)) }
             }
         }
-        if (s.sessionRunning && (offer == Offer.UPDATE || offer == Offer.SWITCH || offer == Offer.AHEAD)) {
+        if (s.sessionRunning && (offered || offer == Offer.AHEAD)) {
             Text("Stop the running session to update.", fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
+        Box(Modifier.padding(top = 18.dp, bottom = 12.dp).fillMaxWidth().height(1.dp).background(pal.line))
+        Text(runningLine(catalog, me), fontSize = 13.sp, color = colors.onSurfaceVariant)
     }
 }
+
+/** The headline for a build on offer: "DroidDeck 0.3.0", "New Nightly build", "PR #93 test build". */
+private fun newBuild(f: Follow, r: Release) = when (f.channel) {
+    Channel.STABLE -> "DroidDeck ${r.version ?: r.tag}"
+    Channel.NIGHTLY -> "New Nightly build"
+    Channel.TEST -> "PR #${r.pr} test build"
+}
+
+/** A PR title as a sentence: "fix(steam): keep the client alive" -> "Keep the client alive". */
+private fun changeTitle(t: String): String =
+    t.replace(Regex("""^[a-z]+(\([^)]*\))?!?:\s*"""), "").replaceFirstChar { it.uppercase() }
+
+private fun megabytes(bytes: Long) = "${(bytes + 524_288) / 1_048_576} MB"
 
 /** The three channels as cards to pick from; Test builds opens its list of PRs under it. */
 @Composable
@@ -310,14 +315,14 @@ private fun channelName(f: Follow) = when (f.channel) {
     Channel.TEST -> "the PR #${f.pr} test"
 }
 
-/** What is running, in plain words: "On Stable 0.2.0", "On Nightly · built 3 hours ago", "On the PR #93 test build". */
+/** What is running, in plain words: "You have Stable 0.2.0", "You have Nightly from 3 hours ago". */
 private fun runningLine(catalog: AppUpdates.Catalog?, me: AppUpdates.Installed): String {
-    val built = if (me.committedAt > 0) " · built ${ago(me.committedAt)}" else ""
+    val from = if (me.committedAt > 0) " from ${ago(me.committedAt)}" else ""
     return when {
-        !me.ci -> "DroidDeck ${me.version}$built"
-        me.pr != 0 -> "On the PR #${me.pr} test build$built"
-        catalog?.stable?.let { AppUpdates.isRunning(it, me) } == true -> "On Stable ${catalog.stable.version ?: catalog.stable.tag}"
-        else -> "On Nightly$built"
+        !me.ci -> "You have DroidDeck ${me.version}$from"
+        me.pr != 0 -> "You have the PR #${me.pr} test build$from"
+        catalog?.stable?.let { AppUpdates.isRunning(it, me) } == true -> "You have Stable ${catalog.stable.version ?: catalog.stable.tag}"
+        else -> "You have Nightly$from"
     }
 }
 
