@@ -1711,19 +1711,10 @@ static void xdg_output_manager_get(struct wl_client *c, struct wl_resource *r, u
     if (!xo) { wl_client_post_no_memory(c); return; }
     wl_resource_set_implementation(xo, &xdg_output_impl, NULL, NULL);
     wl_resource_set_user_data(xo, output);
-    wl_output_send_geometry(output, 0, 0, 340, 190, WL_OUTPUT_SUBPIXEL_UNKNOWN,
-                            "Bannerlator", "Wayland", WL_OUTPUT_TRANSFORM_NORMAL);
-    wl_output_send_mode(output, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
-                        g_output_w > 0 ? g_output_w : 1920, g_output_h > 0 ? g_output_h : 1080,
-                        g_output_refresh_mhz > 0 ? g_output_refresh_mhz : 60000);
-    if (wl_resource_get_version(output) >= WL_OUTPUT_NAME_SINCE_VERSION) {
-        wl_output_send_name(output, "Bannerlator-1");
-        wl_output_send_description(output, "Bannerlator display");
-    }
-    if (wl_resource_get_version(output) >= 2) {
-        wl_output_send_scale(output, 1);
-        wl_output_send_done(output);
-    }
+    /* Only this object's own events. The wl_output's geometry, mode, scale, name and description
+     * are sent when it is bound and must not be repeated here: a second `name` is a protocol error
+     * for the client ("An output named 'X' already exists") and a second `geometry` resets what it
+     * already took. The xdg_output object adds the logical position and size on top. */
     zxdg_output_v1_send_logical_position(xo, 0, 0);
     zxdg_output_v1_send_logical_size(xo, g_output_w > 0 ? g_output_w : 1920,
                                      g_output_h > 0 ? g_output_h : 1080);
@@ -1732,6 +1723,8 @@ static void xdg_output_manager_get(struct wl_client *c, struct wl_resource *r, u
         zxdg_output_v1_send_name(xo, "Bannerlator-1");
         zxdg_output_v1_send_description(xo, "Bannerlator display");
     }
+    /* Below v3 this object's `done` is what completes the output; at v3+ the wl_output's own
+     * `done` does, and sending this one as well is a protocol error. */
     if (ver < 3) zxdg_output_v1_send_done(xo);
 }
 
