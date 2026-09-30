@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -45,7 +46,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,7 +96,11 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier) {
         PageHeader("Updates") {
-            Box(Modifier.weight(1f))
+            // The build that is running, beside the title where it is always in view.
+            Text(
+                "DroidDeck ${me.version} · ${s.buildLabel}", fontSize = 12.5.sp, color = colors.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(top = 6.dp),
+            )
             val checked = u.catalog?.checkedAt?.takeIf { it > 0 }
             if (!LocalNarrowPane.current) Text(
                 if (u.checking) "Checking…" else if (checked != null) "Checked ${ago(checked)}" else "Not checked yet",
@@ -100,7 +108,7 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             )
             SecondaryButton("Check now", enabled = !u.checking && u.stage == null, compact = true, onClick = ua.onCheck)
         }
-        Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
             // Landscape has the width for channels and status side by side; a narrow pane stacks them.
             if (LocalNarrowPane.current) {
                 StatusPanel(s, u, ua, me)
@@ -110,7 +118,6 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 Box(Modifier.weight(1f)) { ChannelPicker(u, ua) }
                 Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
             }
-            AboutFooter(s)
         }
     }
     if (u.askPermission) AlertDialog(
@@ -151,23 +158,22 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         else -> Look(pal.good, "Up to date", "You have the latest $name", null)
     }
     Column(
-        modifier = Modifier.fillMaxWidth().clip(Shape16).background(colors.surface).border(1.dp, pal.line, Shape16).padding(20.dp),
+        modifier = Modifier.fillMaxWidth().clip(Shape16).background(colors.surface).border(1.dp, pal.line, Shape16).padding(18.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Box(Modifier.size(7.dp).clip(CircleShape).background(look.tint))
             Text(look.status, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = look.tint)
+            if (offered) Text("· ${ago(release!!.publishedAt)}", fontSize = 13.sp, color = colors.onSurfaceVariant)
         }
-        Text(look.headline, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.padding(top = 6.dp))
+        Text(look.headline, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.padding(top = 4.dp))
         if (offered) {
-            Text("Published ${ago(release!!.publishedAt)}", fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
-            Text(changeTitle(release.title.ifBlank { release.tag }), fontSize = 15.sp, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp))
-            if (release.summary.isNotBlank()) Text(release.summary, fontSize = 13.5.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+            ReleaseNotes(changeTitle(release!!.title.ifBlank { release.tag }), release.summary, release.tag)
         }
         if (look.detail != null) Text(look.detail, fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
         if (u.error != null) Text(u.error, fontSize = 13.sp, color = pal.error, modifier = Modifier.padding(top = 12.dp))
         val installable = release?.apk != null && !s.sessionRunning
         val button = release?.apk?.size?.takeIf { it > 0 }?.let { " · ${megabytes(it)}" }.orEmpty()
-        Box(Modifier.padding(top = 18.dp)) {
+        Box(Modifier.padding(top = 14.dp)) {
             when {
                 u.stage != null -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (u.percent >= 0) "${u.stage}… ${u.percent}%" else "${u.stage}…", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
@@ -183,8 +189,36 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         if (s.sessionRunning && (offered || offer == Offer.AHEAD)) {
             Text("Stop the running session to update.", fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
-        Box(Modifier.padding(top = 18.dp, bottom = 12.dp).fillMaxWidth().height(1.dp).background(pal.line))
-        Text(runningLine(catalog, me), fontSize = 13.sp, color = colors.onSurfaceVariant)
+    }
+}
+
+/** The change and its notes, two lines each; More opens the rest when either is cut short. */
+@Composable
+private fun ReleaseNotes(title: String, notes: String, key: String) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    var open by rememberSaveable(key) { mutableStateOf(false) }
+    var cut by remember(key) { mutableStateOf(false) }
+    Text(
+        title, fontSize = 15.sp, color = colors.onBackground, maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis,
+        onTextLayout = { if (it.hasVisualOverflow) cut = true }, modifier = Modifier.padding(top = 10.dp),
+    )
+    if (notes.isNotBlank()) Text(
+        notes, fontSize = 13.5.sp, color = colors.onSurfaceVariant, maxLines = if (open) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis,
+        onTextLayout = { if (it.hasVisualOverflow) cut = true }, modifier = Modifier.padding(top = 4.dp),
+    )
+    if (cut || open) {
+        val src = remember { MutableInteractionSource() }
+        val hot = rememberHot(src)
+        val toggle = { open = !open }
+        Text(
+            if (open) "Less" else "More", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
+            modifier = Modifier.padding(top = 2.dp).offset(x = (-6).dp).paneItem("notes:more")
+                .clip(Shape12).border(2.dp, if (hot) pal.signal else Color.Transparent, Shape12)
+                .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = toggle)
+                .controllerConfirm(onClick = toggle)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+        )
     }
 }
 
@@ -299,31 +333,10 @@ private fun TestRow(t: Release, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The build's version and full label on one quiet line under everything else. */
-@Composable
-private fun AboutFooter(s: FrontEndState) {
-    val colors = MaterialTheme.colorScheme
-    Text(
-        "DroidDeck ${AppUpdates.installed().version} · ${s.buildLabel}", fontSize = 12.5.sp, color = colors.onSurfaceVariant,
-        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 20.dp, start = 2.dp),
-    )
-}
-
 private fun channelName(f: Follow) = when (f.channel) {
     Channel.STABLE -> "Stable"
     Channel.NIGHTLY -> "Nightly"
     Channel.TEST -> "the PR #${f.pr} test"
-}
-
-/** What is running, in plain words: "You have Stable 0.2.0", "You have Nightly from 3 hours ago". */
-private fun runningLine(catalog: AppUpdates.Catalog?, me: AppUpdates.Installed): String {
-    val from = if (me.committedAt > 0) " from ${ago(me.committedAt)}" else ""
-    return when {
-        !me.ci -> "You have DroidDeck ${me.version}$from"
-        me.pr != 0 -> "You have the PR #${me.pr} test build$from"
-        catalog?.stable?.let { AppUpdates.isRunning(it, me) } == true -> "You have Stable ${catalog.stable.version ?: catalog.stable.tag}"
-        else -> "You have Nightly$from"
-    }
 }
 
 private fun ago(millis: Long): String {

@@ -218,17 +218,22 @@ object AppUpdates {
         val paragraphs = paragraphs(body)
         val head = paragraphs.firstOrNull().orEmpty()
         val title = head.substringAfter("): ", "").substringBeforeLast(" (merged").ifBlank { plain(head) }.ifBlank { name }
-        val summary = paragraphs.getOrNull(1)?.takeUnless { it.startsWith("Signed build") || it.startsWith("Source:") }
-            ?.lineSequence()?.first()?.trimStart('-', '*', ' ').orEmpty()
-        return plain(title) to plain(summary)
+        val summary = paragraphs.getOrNull(1)?.takeUnless { it.startsWith("Signed build") || it.startsWith("Source:") }.orEmpty()
+        return plain(title) to lines(summary)
     }
 
     /** A stable release: its name, and the first paragraph of its notes that is prose rather than a heading or picture. */
     private fun describeStable(name: String, body: String): Pair<String, String> =
-        name to plain(paragraphs(body).firstOrNull { !it.startsWith("#") && !it.startsWith("![") && !it.startsWith("<") }.orEmpty())
+        name to lines(paragraphs(body).firstOrNull { !it.startsWith("#") && !it.startsWith("![") && !it.startsWith("<") }.orEmpty())
 
     private fun paragraphs(body: String): List<String> =
         body.replace("\r", "").split(Regex("\n\\s*\n")).map { it.trim() }.filter { it.isNotEmpty() }
+
+    /** A paragraph's lines as text, a list item's marker as a bullet: the page shows them collapsed or in full. */
+    private fun lines(md: String): String = md.lines().map { line ->
+        val item = Regex("""^\s*[-*]\s+""").find(line)
+        if (item != null) "• " + plain(line.substring(item.range.last + 1)) else plain(line)
+    }.filter { it.isNotEmpty() }.joinToString("\n")
 
     /** Markdown down to text: links to their words, emphasis and code marks gone, on one line. */
     private fun plain(md: String): String = md
