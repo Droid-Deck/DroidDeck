@@ -441,6 +441,10 @@ public final class WaylandCompositor {
      *  outlives the process; see {@code GpuClockPin}. A no-op without /dev/kgsl-3d0. */
     public static native void nativeSetGpuTurbo(boolean on);
 
+    /** setpriority() on one of our own processes or threads, only ever raising it (no cgroup move,
+     *  unlike android.os.Process.setThreadPriority). Returns the nice it is left at; 100 = unknown. */
+    public static native int nativeRaisePriority(int tid, int nice);
+
     /** Inject the app's X-server input in scene (virtual desktop) pixels. type 2 = move to a,b;
      *  3 = evdev button a (BTN_LEFT=0x110…) pressed (b=1) or released (b=0); 4 = a wheel steps,
      *  negative = up. */

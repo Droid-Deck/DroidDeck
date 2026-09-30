@@ -689,3 +689,19 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGpuTurbo(JNIEnv *
     (void)env; (void)clazz;
     adrenotools_set_turbo(on == JNI_TRUE);
 }
+
+/* Raises one of our own processes or threads to `nice` with a bare setpriority(), never lowering
+ * it. android.os.Process.setThreadPriority is not used for this: it also moves the thread between
+ * scheduling groups by priority, and a guest process must stay where Android put the app. Returns
+ * the nice value it is left at, or 100 when it could not be read. */
+JNIEXPORT jint JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeRaisePriority(JNIEnv *env, jclass clazz, jint tid, jint nice) {
+    (void)env; (void)clazz;
+    errno = 0;
+    int before = getpriority(PRIO_PROCESS, (id_t)tid);
+    if (before == -1 && errno != 0) return 100;
+    if (before > nice) setpriority(PRIO_PROCESS, (id_t)tid, nice);
+    errno = 0;
+    int after = getpriority(PRIO_PROCESS, (id_t)tid);
+    return after == -1 && errno != 0 ? 100 : after;
+}
