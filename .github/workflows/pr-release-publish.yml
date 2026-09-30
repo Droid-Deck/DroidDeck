@@ -26,7 +26,15 @@ jobs:
       run_id: ${{ steps.gate.outputs.run_id }}
       head_sha: ${{ steps.gate.outputs.head_sha }}
       label: ${{ steps.gate.outputs.label }}
+      variants: ${{ steps.variants.outputs.list }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Every variant a main build ships, so a PR build can be tried under any of them.
+      - name: The packages a signed build ships as
+        id: variants
+        run: echo "list=$(awk '!/^#/ && NF { print $1 }' tools/release/variants.txt | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
       - name: Check the PR and build
         id: gate
         env:
@@ -54,9 +62,9 @@ jobs:
 
           sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
           tools=$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
-          stable_tag=$(gh api repos/The412Banner/DroidDeck/releases/latest --jq .tag_name)
+          stable_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
           mkdir -p "$RUNNER_TEMP/stable" "$RUNNER_TEMP/pr"
-          gh release download "$stable_tag" -R The412Banner/DroidDeck \
+          gh release download "$stable_tag" -R "$GITHUB_REPOSITORY" \
             -p "DroidDeck-$stable_tag.apk" -D "$RUNNER_TEMP/stable"
           gh run download "$run_id" -R "$GITHUB_REPOSITORY" -n droiddeck-apk -D "$RUNNER_TEMP/pr"
           mapfile -t apks < <(find "$RUNNER_TEMP/pr" -type f -name '*.apk')
@@ -87,7 +95,7 @@ jobs:
     uses: ./.github/workflows/sign.yml
     with:
       environment: signing-main
-      variants: '["standard"]'
+      variants: ${{ needs.authorize.outputs.variants }}
       run_id: ${{ needs.authorize.outputs.run_id }}
       label: ${{ needs.authorize.outputs.label }}
       artifact: droiddeck-pr-signed
@@ -103,7 +111,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: droiddeck-pr-signed-standard
+          pattern: droiddeck-pr-signed-*
+          merge-multiple: true
           path: signed
       # What this build is, for the top of the release notes: the PR's title and the first
       # paragraph of its description.
@@ -138,25 +147,31 @@ jobs:
           GH_TOKEN: ${{ steps.ci-token.outputs.token }}
           PR_NUMBER: ${{ inputs.pr_number }}
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
-          LABEL: ${{ needs.authorize.outputs.label }}
         run: |
           set -euo pipefail
           repo=Droid-Deck/DroidDeck-CI
           tag="pr-$PR_NUMBER"
-          apk="DroidDeck-$LABEL.apk"
-          sha=$(sha256sum "signed/$apk" | cut -d ' ' -f 1)
+          cat signed/SHA256SUMS-*.txt > signed/SHA256SUMS.txt
+          rm signed/SHA256SUMS-*.txt
           notes="$(cat notes-head.md)
 
           Source: https://github.com/$GITHUB_REPOSITORY/pull/$PR_NUMBER
           Commit: $HEAD_SHA
-          APK SHA-256: $sha"
+          Each apk installs over a DroidDeck release and keeps its data. \`standard\` is the normal app; the others are the same app under another package name, installed beside it.
+
+          SHA-256:
+          \`\`\`
+          $(cat signed/SHA256SUMS.txt)
+          \`\`\`"
           if ! gh release view "$tag" -R "$repo" >/dev/null 2>&1; then
             gh release create "$tag" -R "$repo" --target main --title "PR #$PR_NUMBER" --notes "$notes" --prerelease
           fi
-          gh release upload "$tag" "signed/$apk" -R "$repo" --clobber
+          gh release upload "$tag" signed/* -R "$repo" --clobber
           gh release edit "$tag" -R "$repo" --title "PR #$PR_NUMBER" --notes "$notes" --prerelease
+          # Drop the previous build's files: anything this build did not just upload.
+          keep=$(cd signed && ls | jq -R . | jq -sc .)
           gh api "repos/$repo/releases/tags/$tag" |
-            jq -r --arg keep "$apk" '.assets[] | select(.name | endswith(".apk")) | select(.name != $keep) | .id' |
+            jq -r --argjson keep "$keep" '.assets[] | select(.name as $n | $keep | index($n) | not) | .id' |
             while IFS= read -r id; do
               gh api --method DELETE "repos/$repo/releases/assets/$id" >/dev/null
             done

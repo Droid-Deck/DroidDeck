@@ -12,6 +12,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashHandler.install(this)
+        // Before anything else touches the session prefs: a new install's first read decides it.
+        com.droiddeck.launcher.session.SessionPrefs.settleDeckModeDefault(this)
         BwrapSpawner.start(this)
     }
 }

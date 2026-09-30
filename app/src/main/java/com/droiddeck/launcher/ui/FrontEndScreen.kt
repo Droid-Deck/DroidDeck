@@ -117,6 +117,8 @@ class FrontEndState(
     /** Beta features the user turns on in Setup: the Flathub Store and AppImage import. */
     val storeEnabled: Boolean = false,
     val appImagesEnabled: Boolean = false,
+    /** The Updates page: DroidDeck's own builds and the channel followed. */
+    val updates: UpdatesState = UpdatesState(),
 )
 
 class FrontEndActions(
@@ -152,7 +154,6 @@ class FrontEndActions(
     val onLogs: () -> Unit,
     val onShareLogs: () -> Unit = {},
     val onOffline: () -> Unit,
-    val onCredits: () -> Unit,
     val onPageBack: () -> Unit = {},
     val onTheme: (String) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
@@ -162,7 +163,6 @@ class FrontEndActions(
     val onHomeScreen: (Boolean) -> Unit = {},
     val onAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit = { _, _ -> },
     val onBackActionsInverted: (Boolean) -> Unit = {},
-    val onCheckLatestBuild: () -> Unit = {},
     val onRefreshPhantomStatus: () -> Unit = {},
     val onOpenDeveloperOptions: (Int?) -> Unit = {},
     val onWirelessAdbPair: (String, Int, String, (String?) -> Unit) -> Unit = { _, _, _, done -> done("Wireless debugging is unavailable") },
@@ -174,6 +174,7 @@ class FrontEndActions(
     val onStartWirelessAdbPairing: () -> Unit = {},
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
+    val updates: UpdatesActions = UpdatesActions(),
 )
 
 internal object Motion {
