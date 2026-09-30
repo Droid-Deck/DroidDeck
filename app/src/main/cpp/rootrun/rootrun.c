@@ -27,9 +27,25 @@
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
+#include <sys/xattr.h>
 #include <unistd.h>
 
 #define VERSION "1"
+
+/* The label the guest's /dev/shm is given, and the only one that lets a client's buffer through.
+ *
+ * An fd crossing a unix socket is checked by the kernel's security_file_receive hook, which runs the
+ * receiving domain against the file's own label. The compositor runs in the app's domain
+ * (u:r:untrusted_app_27:s0:c..), which receives app_data_file fds and silently drops tmpfs ones -
+ * the fd never reaches the receiver's ancillary data, and libwayland then reports the missing
+ * argument as "invalid arguments for wl_shm#N.create_pool". Files made on a fresh tmpfs come out
+ * u:object_r:tmpfs:s0, so a guest that shm_open()s there cannot hand its pool to the compositor.
+ *
+ * This is what the guest under proot never hit: that path binds the app's cache at /dev/shm, whose
+ * files carry app_data_file already. The type alone is enough - the category set is not part of the
+ * check - and app_data_file is the type the guest's own rootfs files already have, so this grants
+ * nothing the guest could not already send. */
+#define SHM_SELINUX_LABEL "u:object_r:app_data_file:s0"
 
 static const char *prog = "rootrun";
 
@@ -258,20 +274,24 @@ int main(int argc, char **argv) {
     /* The guest writes here from its first line. */
     chmod(dev, 0755);
 
-    /* A real tmpfs for /dev/shm, and the app's own bind to it is skipped below.
+    /* The guest's /dev/shm, and the app's own bind to that path is skipped below.
      *
-     * wl_shm.create_pool only accepts a descriptor whose backing store is shmem: libwayland checks
-     * that the fd is a shmem file (memfd or tmpfs) and otherwise refuses the request with "invalid
-     * arguments". The app's cache lives on f2fs, so binding that at /dev/shm had every client's
-     * pool rejected - gamescope died at "invalid arguments for wl_shm#27.create_pool" and the
-     * session never came up. proot never hit this: it binds the host's /dev, where /dev/shm is
-     * already a tmpfs. Sized in pages; tmpfs is charged only as it is used. */
+     * A real tmpfs, not the app's cache: glibc's shm_open and everything above it want the semantics
+     * of the real thing. What the guest writes here is labeled for the compositor's domain (see
+     * SHM_SELINUX_LABEL) - without that, a session starts, connects, and then dies the moment its
+     * first client creates a pool. Sized in pages; tmpfs is charged only as it is used. */
     {
         char shm[4096];
         snprintf(shm, sizeof(shm), "%s/dev/shm", root);
         mkdir_parents(shm, 0755);
         if (mount_fs("tmpfs", shm, "tmpfs", MS_NOSUID | MS_NODEV | MS_STRICTATIME) == 0) {
             chmod(shm, 0777);
+            /* The label is inherited by everything created under it, so one call covers every pool
+             * the session makes. Best effort: a kernel without SELinux, or a policy that refuses
+             * the set, leaves the guest as it would have been anyway. */
+            if (setxattr(shm, "security.selinux", SHM_SELINUX_LABEL,
+                         sizeof(SHM_SELINUX_LABEL) - 1, 0) != 0)
+                warn("cannot label the guest's /dev/shm", strerror(errno));
             shm_ready = 1;
         } else {
             warn("cannot mount tmpfs for", shm);
@@ -281,8 +301,9 @@ int main(int argc, char **argv) {
     for (int b = 0; b < nbind; b++) {
         char *left = NULL, *right = NULL;
         if (split_pair(binds[b], &left, &right) != 0) { fprintf(stderr, "%s: bad bind %s\n", prog, binds[b]); continue; }
-        /* The tmpfs above is the shm the guest needs; binding the app's cache over it would put
-         * the session back on f2fs and break every wl_shm client. */
+        /* The tmpfs above is the shm the guest needs, and it carries the label the compositor
+         * accepts; binding the app's cache over it would replace it with the cache's directory,
+         * which is not the same filesystem and not ours to label. */
         if (shm_ready && strcmp(right, "/dev/shm") == 0) continue;
         char dst[4096];
         snprintf(dst, sizeof(dst), "%s%s", root, right);
