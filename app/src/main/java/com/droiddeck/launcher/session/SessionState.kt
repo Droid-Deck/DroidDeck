@@ -47,6 +47,13 @@ object SessionState {
     @Volatile
     var running = false
     var suspended by mutableStateOf(false)
+    /**
+     * The display this app is on when that is a display of its own (a monitor, a TV, or the screen
+     * Samsung DeX gives it), or -1 for the phone's own screen. Kept across the activity going away,
+     * so a pause policy can tell DeX's hidden activity from a session nobody is watching.
+     */
+    @Volatile
+    var externalDisplayId = -1
     /** MODE_RUN: the program inside the runtime the session was started for. */
     @Volatile
     var program: String? = null

@@ -182,6 +182,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
     private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
+    /** The user's answer to SessionPrefs.pauseOnSecondaryDisplay, read at onResume. */
+    private var pauseOnSecondaryDisplay by mutableStateOf(false)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
     /** Between onStart and onStop: while stopped the second screen stays closed, its choice kept. */
@@ -194,6 +196,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onDisplayChanged(displayId: Int) {
             followPanelRefresh(displayId)
             refreshSecondScreenDisplays()
+            reportExternalDisplay()
         }
     }
 
@@ -394,6 +397,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
                     shapeMode = shapeMode, fexPreset = fexPreset,
+                    externalDisplay = SessionState.externalDisplayId >= 0,
+                    pauseOnSecondaryDisplay = pauseOnSecondaryDisplay,
                     secondScreenMode = secondScreenMode,
                     secondScreenDisplays = secondScreenDisplays,
                     selectedSecondScreenDisplay = selectedSecondScreenDisplay,
@@ -434,6 +439,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionService.suspendPolicyChanged(this@SessionActivity)
                     },
                     onTouch = { v -> SessionPrefs.setTouchMode(this@SessionActivity, v); readPrefs() },
+                    onPauseOnSecondaryDisplay = { on ->
+                        SessionPrefs.setPauseOnSecondaryDisplay(this@SessionActivity, on)
+                        pauseOnSecondaryDisplay = on
+                        SessionService.externalDisplayChanged(this@SessionActivity)
+                    },
                     onShape = { v -> SessionPrefs.setShapeMode(this@SessionActivity, v); readPrefs() },
                     onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
                     onSecondScreenMode = ::selectSecondScreenMode,
@@ -616,6 +626,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
+        pauseOnSecondaryDisplay = SessionPrefs.pauseOnSecondaryDisplay(this)
         oscMode = SessionPrefs.oscMode(this)
         shapeMode = SessionPrefs.shapeMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
@@ -1383,6 +1394,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         showSecondScreen(mode)
     }
 
+    /**
+     * Tells the service which display this app is on when that is a display of its own - a monitor,
+     * a TV, or the screen Samsung DeX gives the app, which is where it runs under DeX. There
+     * Android reports the activity hidden and the phone's own panel off while the session is
+     * plainly being watched, so a pause policy must not read either as nobody watching.
+     *
+     * Read on every start and on every display change: on DeX the window moves to the external
+     * display while the activity runs, and the answer changes under it.
+     */
+    private fun reportExternalDisplay() {
+        if (!::displayManager.isInitialized) return
+        val own = display?.displayId ?: Display.DEFAULT_DISPLAY
+        val shown = own != Display.DEFAULT_DISPLAY && displayManager.getDisplay(own)?.isValid == true
+        SessionState.externalDisplayId = if (shown) own else -1
+        SessionService.setExternalDisplay(this, SessionState.externalDisplayId)
+    }
+
     private fun showSecondScreen(mode: SecondScreenMode) {
         val target = displayManager.getDisplay(selectedSecondScreenDisplay)
         if (target == null || !target.isValid || (target.flags and Display.FLAG_PRESENTATION) == 0) {
@@ -1562,6 +1590,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         SessionService.setActivityVisible(this, true)
+        reportExternalDisplay()
     }
 
     override fun onStop() {

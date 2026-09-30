@@ -72,6 +72,15 @@ class SessionService : Service() {
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var activityVisible = true
     private var screenOn = true
+    /**
+     * The display the session's picture is on when that is a display of its own - a monitor, a TV,
+     * or Samsung DeX on one - or -1 for the phone's own screen. On such a display Android reports
+     * this activity hidden and the phone's panel off while the session is being watched, so the
+     * activity says which display it is on and the service keeps the flag for the session.
+     */
+    private var externalDisplayId = -1
+    /** The last "session has left the screen" answer, so a pause latches on the transition. */
+    private var wasAway = false
     private var manualPauseRequested = false
     private var suspendOperationPending = false
     private var suspendAttemptFailed = false
@@ -148,6 +157,12 @@ class SessionService : Service() {
                 updateSuspendPolicy()
                 return START_NOT_STICKY
             }
+            ACTION_EXTERNAL_DISPLAY -> {
+                externalDisplayId = intent.getIntExtra(EXTRA_EXTERNAL_DISPLAY_ID, -1)
+                suspendAttemptFailed = false
+                updateSuspendPolicy()
+                return START_NOT_STICKY
+            }
             ACTION_SUSPEND_POLICY_CHANGED -> {
                 if (!SessionState.running) return START_NOT_STICKY
                 suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -175,6 +190,8 @@ class SessionService : Service() {
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
+        externalDisplayId = -1
+        wasAway = false
         manualPauseRequested = false
         suspendOperationPending = false
         suspendAttemptFailed = false
@@ -905,16 +922,31 @@ class SessionService : Service() {
         launchWatcher = watcher
     }
 
+    /**
+     * The session has left the screen: this app is not the one on show, or the panel it draws on is
+     * off.
+     *
+     * A session on a display of its own is left out of it - a monitor, a TV, or Samsung DeX on one,
+     * where the app runs on the monitor and Android turns the phone's own panel off and reports the
+     * activity hidden while the session is plainly being watched. The rule is kept in
+     * [SessionSuspend] with the tests that pin it.
+     */
+    private fun sessionAway(): Boolean = SessionSuspend.away(
+        activityVisible = activityVisible,
+        screenOn = screenOn,
+        externalDisplay = externalDisplayId >= 0,
+        pauseOnSecondaryDisplay = SessionPrefs.pauseOnSecondaryDisplay(this),
+    )
+
     private fun updateSuspendPolicy() {
         if (!SessionState.running) return
-        if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && (!activityVisible || !screenOn)) {
-            manualPauseRequested = true
-        }
-        val shouldSuspend = when (suspendPolicy) {
-            SessionPrefs.SUSPEND_AUTO -> !activityVisible || !screenOn
-            SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
-            else -> false
-        }
+        val away = sessionAway()
+        // Manual pauses on arriving away, never on staying there: a Resume taken while the session
+        // is still "away" used to be undone by the next evaluation, which is the other half of the
+        // DeX bug - the session came back and was stopped again before a frame was drawn.
+        if (SessionSuspend.manualPause(suspendPolicy, away, wasAway)) manualPauseRequested = true
+        wasAway = away
+        val shouldSuspend = SessionSuspend.shouldSuspend(suspendPolicy, away, manualPauseRequested)
         val controller = suspendController ?: return
         if (suspendOperationPending || suspendAttemptFailed || shouldSuspend == SessionState.suspended) return
         suspendOperationPending = true
@@ -1203,6 +1235,8 @@ class SessionService : Service() {
         private const val ACTION_SUSPEND_POLICY_CHANGED = "com.droiddeck.launcher.SUSPEND_POLICY_CHANGED"
         private const val ACTION_ACTIVITY_VISIBLE = "com.droiddeck.launcher.ACTIVITY_VISIBLE"
         private const val ACTION_ACTIVITY_HIDDEN = "com.droiddeck.launcher.ACTIVITY_HIDDEN"
+        private const val ACTION_EXTERNAL_DISPLAY = "com.droiddeck.launcher.EXTERNAL_DISPLAY"
+        private const val EXTRA_EXTERNAL_DISPLAY_ID = "externalDisplayId"
         private const val ACTION_TRACK_AUXILIARY = "com.droiddeck.launcher.TRACK_AUXILIARY"
         private const val ACTION_STOP_AUXILIARY = "com.droiddeck.launcher.STOP_AUXILIARY"
         private const val ACTION_AUXILIARY_EXITED = "com.droiddeck.launcher.AUXILIARY_EXITED"
@@ -1261,9 +1295,29 @@ class SessionService : Service() {
             context.startService(Intent(context, SessionService::class.java).setAction(action))
         }
 
+        /**
+         * Which display this app is on when that is a display of its own (a monitor, a TV, or the
+         * screen Samsung DeX gives it), or -1 for the phone's own screen. The service keeps it for
+         * the session: it outlives the activity, and the flag is what stops a pause policy from
+         * reading DeX's hidden activity and dark phone panel as a session nobody is watching.
+         */
+        fun setExternalDisplay(context: Context, displayId: Int) {
+            if (!SessionState.running) return
+            context.startService(
+                Intent(context, SessionService::class.java)
+                    .setAction(ACTION_EXTERNAL_DISPLAY)
+                    .putExtra(EXTRA_EXTERNAL_DISPLAY_ID, displayId),
+            )
+        }
+
         fun resume(context: Context) {
             if (!SessionState.running) return
             context.startService(Intent(context, SessionService::class.java).setAction(ACTION_RESUME))
+        }
+
+        /** The user changed whether a session pauses while it is on a display of its own. */
+        fun externalDisplayChanged(context: Context) {
+            setExternalDisplay(context, SessionState.externalDisplayId)
         }
 
         fun suspendPolicyChanged(context: Context) {

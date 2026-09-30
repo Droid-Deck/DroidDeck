@@ -163,6 +163,9 @@ class DrawerActions(
     val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
+    /** The session's picture is on a display of its own: a monitor, a TV, or DeX on one. */
+    val externalDisplay: Boolean,
+    val pauseOnSecondaryDisplay: Boolean,
     val backActionsInverted: Boolean,
     val touchMode: String,
     val touchAuto: String,
@@ -186,6 +189,8 @@ class DrawerActions(
     val onSwitchToDesktop: (() -> Unit)? = null,
     val onOsc: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
+    /** The user changed whether the session pauses while it is on a display of its own. */
+    val onPauseOnSecondaryDisplay: (Boolean) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
     val onShape: (String) -> Unit,
@@ -432,6 +437,15 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                     note = "Auto pauses in the background and resumes when visible. Manual pauses there and waits for Resume. Never keeps the session running.",
                                     chipModifier = focus.track(page, "suspend"),
                                     onPick = a.onSuspendPolicy,
+                                )
+                                if (a.externalDisplay) ToggleRow(
+                                    host, "pause-secondary", "Pause on this display too",
+                                    "This session is on a display of its own, so it keeps running while you " +
+                                        "watch it there. Turn this on to pause it when this app is not on " +
+                                        "screen anyway.",
+                                    a.pauseOnSecondaryDisplay,
+                                    chipModifier = focus.track(page, "pause-secondary"),
+                                    onChange = a.onPauseOnSecondaryDisplay,
                                 )
                             }
                             SettingsGroup("Next session") {

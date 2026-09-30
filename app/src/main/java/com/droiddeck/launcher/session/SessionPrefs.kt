@@ -559,6 +559,23 @@ object SessionPrefs {
         prefs(context).edit().putString("suspendPolicy.${prefMode(mode)}", normalized).apply()
     }
 
+    /**
+     * Whether the session keeps running while it is on a display of its own - a monitor, a TV, or
+     * the screen Samsung DeX gives the app.
+     *
+     * Off, the session pauses whenever the phone's own panel is off or the app is not on screen.
+     * On DeX both happen while the session is running on the monitor - the panel is turned off and
+     * the app is reported hidden - so a pause policy stopped a session somebody was watching, and
+     * Manual then could not bring it back: the Resume was undone by the next evaluation, and the
+     * monitor kept showing the paused overlay with no way out of it.
+     */
+    fun pauseOnSecondaryDisplay(context: Context): Boolean =
+        prefs(context).getBoolean("pauseOnSecondaryDisplay", false)
+
+    fun setPauseOnSecondaryDisplay(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("pauseOnSecondaryDisplay", on).apply()
+    }
+
     // ── Game storage ────────────────────────────────────────────────────────────────────────
 
     /**
