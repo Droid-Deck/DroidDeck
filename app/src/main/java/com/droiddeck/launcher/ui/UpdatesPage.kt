@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Sync
@@ -106,7 +107,7 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 if (u.checking) "Checking…" else if (checked != null) "Checked ${ago(checked)}" else "Not checked yet",
                 fontSize = 13.sp, color = colors.onSurfaceVariant,
             )
-            SecondaryButton("Check now", enabled = !u.checking && u.stage == null, compact = true, onClick = ua.onCheck)
+            ToolIcon(Icons.Outlined.Refresh, "Check for updates", busy = u.checking, enabled = !u.checking && u.stage == null, onClick = ua.onCheck)
         }
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
             // Landscape has the width for channels and status side by side; a narrow pane stacks them.
