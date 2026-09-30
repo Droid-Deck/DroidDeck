@@ -28,6 +28,7 @@ add_library(bannerwayland SHARED
         generated/presentation-time-protocol.c
         generated/pointer-constraints-unstable-v1-protocol.c
         generated/relative-pointer-unstable-v1-protocol.c
+        generated/xdg-output-unstable-v1-protocol.c
         generated/wlr-data-control-unstable-v1-protocol.c
         generated/text-input-unstable-v3-protocol.c
         generated/xdg-toplevel-icon-v1-protocol.c
