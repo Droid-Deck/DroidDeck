@@ -8,6 +8,8 @@ enum class SecondScreenMode(val id: String, val label: String) {
     NONE("none", "None"),
     KEYBOARD_TRACKPAD("keyboard-trackpad", "Keyboard + trackpad"),
     TERMINAL("terminal", "Terminal"),
+    /** The Steam Deck controller's back grips and trackpads; offered while the pad is one. */
+    DECK_CONTROLS("deck-controls", "Deck grips + trackpads"),
 }
 
 data class SecondScreenDisplay(val id: Int, val label: String)

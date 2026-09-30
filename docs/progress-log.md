@@ -38,7 +38,12 @@ Device-tested on the AYN Thor (Katamari under Proton Experimental ARM64).
   the session is on screen) into an IMU block after ring 0's events, turned to the screen and then
   to the Deck's axes and units; the Deck report carries them. Verified: Steam's Gyro Calibration
   page moves with the Thor (sh5001 IMU); at rest the accelerometer reads 1 g.
-- **Not yet**: a Bluetooth pad's own IMU (DualSense), back grips, trackpads from touch; the
+- **Deck grips + trackpads on the second screen** (`DeckControlsPanel.kt`, offered while the pad
+  is a Deck controller): tabs for the four grips (2x2), either trackpad with a click bar, and both
+  trackpads over the grips in a row; a second finger on a trackpad clicks it. True black for OLED.
+  Grips, pad positions, touch, click and pressure go through the same block after ring 0's events
+  as the gyro (`DeckControls.kt`) into the Deck report.
+- **Not yet**: a Bluetooth pad's own IMU (DualSense); the
   game's rumble on the virtual pad goes straight to the vibrator rather than back through the client.
 - **Prior art checked**: WinNative and Bannerlator never emulated uinput or hidraw; Bannerlator's
   `-steamdeck` mode stopped at "the virtual pad never arrives", which is this missing uinput.

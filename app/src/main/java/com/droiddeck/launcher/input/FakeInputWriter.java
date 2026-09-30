@@ -95,14 +95,17 @@ public class FakeInputWriter {
     private static final int RING_SNAPSHOT_BUTTONS_OFFSET = 40;
     private static final int RING_SNAPSHOT_AXES_OFFSET = 44; // short[8]
     private static final String RING_DIR_NAME = "fakeinput-rings";
-    // Motion, after the events - MUST match the IMU block in fakeinput_steam.cpp (DeckImu): what
-    // the pad's gyro and accelerometer read, in the Steam Deck controller's axes and units, under a
-    // seqlock like the snapshot's. Only libfakeinput's Deck controller reads it.
+    // After the events - MUST match the block in fakeinput_steam.cpp (DeckImu): what a Deck has and
+    // an Xbox pad does not - motion, back grips, trackpads - in the Steam Deck controller's axes and
+    // units, under a seqlock like the snapshot's. Only libfakeinput's Deck controller reads it.
     private static final int IMU_OFFSET = RING_SIZE;
     private static final int IMU_MAGIC = 0x31554D49; // IMU1
     private static final int IMU_SEQ_OFFSET = IMU_OFFSET + 8;
     private static final int IMU_ACCEL_OFFSET = IMU_OFFSET + 16; // short[3]
     private static final int IMU_GYRO_OFFSET = IMU_OFFSET + 22; // short[3]
+    private static final int DECK_PADS_OFFSET = IMU_OFFSET + 28; // short[4]: left X, Y, right X, Y
+    private static final int DECK_PRESSURE_OFFSET = IMU_OFFSET + 36; // short[2]: left, right
+    private static final int DECK_CONTROLS_OFFSET = IMU_OFFSET + 40; // int: DeckControls bits
     private static final int RING_FILE_SIZE = RING_SIZE + 64;
 
     private static final Object RING_LOCK = new Object();
@@ -232,9 +235,10 @@ public class FakeInputWriter {
         }
         data.putInt(IMU_OFFSET, 0);
         data.putLong(IMU_SEQ_OFFSET, 0L);
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 12; i++) {
             data.putShort(IMU_ACCEL_OFFSET + (i * 2), (short) 0);
         }
+        data.putInt(DECK_CONTROLS_OFFSET, 0);
     }
 
     private static void releaseRingSlotLocked(int slot) {
@@ -474,6 +478,31 @@ public class FakeInputWriter {
                 ring.putShort(IMU_ACCEL_OFFSET + i * 2, accel[i]);
                 ring.putShort(IMU_GYRO_OFFSET + i * 2, gyro[i]);
             }
+            ring.putInt(IMU_OFFSET, IMU_MAGIC);
+            nativeStoreFence();
+            ring.putLong(IMU_SEQ_OFFSET, seq + 2);
+        }
+    }
+
+    /**
+     * Publishes the Deck's back grips and trackpads for slot {@code slot} (see DeckControls):
+     * {@code controls} is the DeckControls bit set, {@code pads} left X, Y, right X, Y and
+     * {@code pressure} left, right, already in the Deck's units. Safe from any thread.
+     */
+    public static void writeDeckControls(int slot, int controls, short[] pads, short[] pressure) {
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
+        }
+        if (ringSlot == null || ringSlot.data == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            long seq = ring.getLong(IMU_SEQ_OFFSET);
+            ring.putLong(IMU_SEQ_OFFSET, seq + 1);
+            nativeStoreFence();
+            for (int i = 0; i < 4; i++) ring.putShort(DECK_PADS_OFFSET + i * 2, pads[i]);
+            for (int i = 0; i < 2; i++) ring.putShort(DECK_PRESSURE_OFFSET + i * 2, pressure[i]);
+            ring.putInt(DECK_CONTROLS_OFFSET, controls);
             ring.putInt(IMU_OFFSET, IMU_MAGIC);
             nativeStoreFence();
             ring.putLong(IMU_SEQ_OFFSET, seq + 2);

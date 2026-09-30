@@ -112,6 +112,7 @@ class SecondScreenPresentation(
         when (currentMode) {
             SecondScreenMode.KEYBOARD_TRACKPAD -> renderKeyboardAndTrackpad()
             SecondScreenMode.TERMINAL -> renderTerminal()
+            SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam), weightParams())
             SecondScreenMode.NONE -> Unit
         }
     }

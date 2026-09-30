@@ -1155,6 +1155,10 @@ static constexpr uint32_t DECK_L_R2 = 0x00000001, DECK_L_L2 = 0x00000002, DECK_L
                           DECK_L_DOWN = 0x00000800, DECK_L_VIEW = 0x00001000,
                           DECK_L_STEAM = 0x00002000, DECK_L_MENU = 0x00004000,
                           DECK_L_L3 = 0x00400000, DECK_L_R3 = 0x04000000;
+static constexpr uint32_t DECK_L_L5 = 0x00008000, DECK_L_R5 = 0x00010000,
+                          DECK_L_LEFT_PAD = 0x00020000, DECK_L_RIGHT_PAD = 0x00040000,
+                          DECK_L_LEFT_TOUCH = 0x00080000, DECK_L_RIGHT_TOUCH = 0x00100000;
+static constexpr uint32_t DECK_H_L4 = 0x00000200, DECK_H_R4 = 0x00000400;
 static constexpr uint32_t DECK_H_QAM = 0x00040000;
 // Bit 11 of the ring snapshot's button word: the Quick Access button, which an Xbox pad does not
 // have and the evdev nodes therefore never report (FakeInputWriter.SNAPSHOT_IDX_QAM).
@@ -1167,20 +1171,38 @@ struct DeckHidraw {
   uint8_t pending_feature = 0;
 };
 
-// The pad's motion, after the ring's events (FakeInputWriter.writeMotion, PadMotion): already in
-// the Deck's axes and units, under a seqlock. Absent from a ring file written without one.
+// What the Deck has and an Xbox pad does not, after the ring's events: motion (PadMotion) and the
+// back grips and trackpads (the second screen's Deck controls, DeckControls), already in the
+// Deck's axes and units, under a seqlock (FakeInputWriter.writeMotion / writeDeckControls).
+// Absent from a ring file written without one.
 struct DeckImu {
   uint32_t magic;  // IMU1 once written
   uint32_t reserved;
   uint64_t seq;    // odd while being written
   int16_t accel[3];
   int16_t gyro[3];
+  int16_t pads[4];         // left X, Y, right X, Y: -32768..32767, Y up
+  uint16_t pressure[2];    // left, right: 0..32767
+  uint32_t controls;       // DECK_EXTRA_* bits
+};
+// DeckImu::controls (DeckControls.kt).
+static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 4,
+                          DECK_EXTRA_R5 = 8, DECK_EXTRA_LPAD_TOUCH = 16,
+                          DECK_EXTRA_RPAD_TOUCH = 32, DECK_EXTRA_LPAD_CLICK = 64,
+                          DECK_EXTRA_RPAD_CLICK = 128;
+
+struct DeckExtras {
+  int16_t accel[3] = {};
+  int16_t gyro[3] = {};
+  int16_t pads[4] = {};
+  uint16_t pressure[2] = {};
+  uint32_t controls = 0;
 };
 static constexpr uint32_t DECK_IMU_MAGIC = 0x31554D49;
 static constexpr size_t DECK_IMU_BLOCK_SIZE = 64;
 static_assert(sizeof(DeckImu) <= DECK_IMU_BLOCK_SIZE, "the IMU block is 64 bytes in the ring file");
 
-__attribute__((visibility("hidden"))) static bool read_deck_imu(const DeckHidraw &deck, int16_t *accel, int16_t *gyro) {
+__attribute__((visibility("hidden"))) static bool read_deck_extras(const DeckHidraw &deck, DeckExtras &out) {
   if (deck.mapping_size < FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE) return false;
   const auto *imu = reinterpret_cast<const DeckImu *>(reinterpret_cast<const uint8_t *>(deck.ring) +
                                                       FAKE_INPUT_RING_SIZE);
@@ -1188,12 +1210,19 @@ __attribute__((visibility("hidden"))) static bool read_deck_imu(const DeckHidraw
     uint64_t seq = __atomic_load_n(&imu->seq, __ATOMIC_ACQUIRE);
     if (seq & 1) continue;
     if (__atomic_load_n(&imu->magic, __ATOMIC_RELAXED) != DECK_IMU_MAGIC) return false;
+    DeckExtras read;
     for (int i = 0; i < 3; i++) {
-      accel[i] = __atomic_load_n(&imu->accel[i], __ATOMIC_RELAXED);
-      gyro[i] = __atomic_load_n(&imu->gyro[i], __ATOMIC_RELAXED);
+      read.accel[i] = __atomic_load_n(&imu->accel[i], __ATOMIC_RELAXED);
+      read.gyro[i] = __atomic_load_n(&imu->gyro[i], __ATOMIC_RELAXED);
     }
+    for (int i = 0; i < 4; i++) read.pads[i] = __atomic_load_n(&imu->pads[i], __ATOMIC_RELAXED);
+    for (int i = 0; i < 2; i++) read.pressure[i] = __atomic_load_n(&imu->pressure[i], __ATOMIC_RELAXED);
+    read.controls = __atomic_load_n(&imu->controls, __ATOMIC_RELAXED);
     __atomic_thread_fence(__ATOMIC_ACQUIRE);
-    if (seq == __atomic_load_n(&imu->seq, __ATOMIC_RELAXED)) return true;
+    if (seq == __atomic_load_n(&imu->seq, __ATOMIC_RELAXED)) {
+      out = read;
+      return true;
+    }
   }
   return false;
 }
@@ -1254,7 +1283,7 @@ static inline void put32(uint8_t *at, uint32_t value) {
 // order, sticks as evdev has them (Y down), triggers 0..255.
 __attribute__((visibility("hidden"))) static void
 build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int32_t *axes,
-                  const int16_t *accel, const int16_t *gyro) {
+                  const DeckExtras &extras) {
   memset(report, 0, DECK_REPORT_BYTES);
   report[0] = 0x01;  // report version
   report[2] = 0x09;  // ID_CONTROLLER_DECK_STATE
@@ -1275,12 +1304,24 @@ build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int3
   int32_t left_trigger = axes[5], right_trigger = axes[4];  // ABS_BRAKE, ABS_GAS
   if (left_trigger > 127) low |= DECK_L_L2;
   if (right_trigger > 127) low |= DECK_L_R2;
+  uint32_t controls = extras.controls;
+  if (controls & DECK_EXTRA_L4) high |= DECK_H_L4;
+  if (controls & DECK_EXTRA_R4) high |= DECK_H_R4;
+  if (controls & DECK_EXTRA_L5) low |= DECK_L_L5;
+  if (controls & DECK_EXTRA_R5) low |= DECK_L_R5;
+  if (controls & DECK_EXTRA_LPAD_TOUCH) low |= DECK_L_LEFT_TOUCH;
+  if (controls & DECK_EXTRA_RPAD_TOUCH) low |= DECK_L_RIGHT_TOUCH;
+  if (controls & DECK_EXTRA_LPAD_CLICK) low |= DECK_L_LEFT_PAD;
+  if (controls & DECK_EXTRA_RPAD_CLICK) low |= DECK_L_RIGHT_PAD;
   put32(report + 8, low);
   put32(report + 12, high);
+  for (int i = 0; i < 4; i++) put16(report + 16 + i * 2, extras.pads[i]);  // s{Left,Right}PadX/Y
   for (int i = 0; i < 3; i++) {
-    put16(report + 24 + i * 2, accel[i]);  // sAccelX/Y/Z
-    put16(report + 30 + i * 2, gyro[i]);   // sGyroX/Y/Z
+    put16(report + 24 + i * 2, extras.accel[i]);  // sAccelX/Y/Z
+    put16(report + 30 + i * 2, extras.gyro[i]);   // sGyroX/Y/Z
   }
+  put16(report + 56, extras.pressure[0]);  // sPressurePadLeft
+  put16(report + 58, extras.pressure[1]);  // sPressurePadRight
   put16(report + 44, std::min(32767, left_trigger * 32767 / 255));
   put16(report + 46, std::min(32767, right_trigger * 32767 / 255));
   auto stick = [](int32_t value) { return std::max(-32767, std::min(32767, value)); };
@@ -1298,15 +1339,15 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
   SnapshotState snap;
   uint32_t buttons = 0;
   int32_t axes[8] = {};
-  int16_t accel[3] = {}, gyro[3] = {};
+  DeckExtras extras;
   for (;;) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
       memcpy(axes, snap.axes, sizeof(axes));
     }
-    read_deck_imu(*self, accel, gyro);
+    read_deck_extras(*self, extras);
     uint8_t report[DECK_REPORT_BYTES];
-    build_deck_report(report, ++packet, buttons, axes, accel, gyro);
+    build_deck_report(report, ++packet, buttons, axes, extras);
     // A reader that fell behind loses reports rather than getting stale ones later; a reader that
     // has closed ends the stream.
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
