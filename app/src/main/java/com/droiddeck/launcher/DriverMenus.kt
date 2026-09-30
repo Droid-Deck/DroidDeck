@@ -278,16 +278,28 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     /**
      * Import off the main thread - a driver zip is a few MB and the glibc check reads the whole
      * library - then say what happened. A refusal's message is the user-facing reason. A bundle,
-     * from either list's import, installs both halves and is set as both drivers at once.
+     * from any import, installs both halves and is set as both drivers at once. [linux] null (the
+     * tab's own Import .zip) takes a single driver to whichever list its libc belongs in.
      */
-    fun importDriver(uri: Uri, linux: Boolean) {
+    fun importDriver(uri: Uri, linux: Boolean?) {
         val name = activity.displayNameOf(uri)
         Thread({
             var bundle: DriverBundle.Bundle? = null
             val problem = try {
-                if (DriverBundle.isBundle(activity, uri)) bundle = DriverBundle.install(activity, uri)
-                else if (linux) LinuxVulkanDriverManager(activity).installDriver(uri, name)
-                else TurnipDriver(activity).installFromZip(uri, name)
+                when {
+                    DriverBundle.isBundle(activity, uri) -> bundle = DriverBundle.install(activity, uri)
+                    linux == true -> LinuxVulkanDriverManager(activity).installDriver(uri, name)
+                    linux == false -> TurnipDriver(activity).installFromZip(uri, name)
+                    else -> try {
+                        TurnipDriver(activity).installFromZip(uri, name)
+                    } catch (display: IllegalArgumentException) {
+                        try {
+                            LinuxVulkanDriverManager(activity).installDriver(uri, name)
+                        } catch (runtime: IllegalArgumentException) {
+                            throw IllegalArgumentException("Not a driver zip: neither an AdrenoTools driver, a -Linux Turnip nor an Android + Linux bundle")
+                        }
+                    }
+                }
                 null
             } catch (e: IllegalArgumentException) {
                 e.message

@@ -70,10 +70,11 @@ object TurnipReleases {
             val gpus = if (m.groupValues[3] == "Axxx") "all Adreno" else m.groupValues[3]
             Kind(m.groupValues[1].isNotEmpty(), "$gpus · $flavour", "wn-" + m.groupValues[2])
         },
-        // DD-Turnip-v<ver>.zip: DroidDeck's own all-in-one build, both halves in one zip.
-        Source("DroidDeck", "Droid-Deck/Drivers") { name, _ ->
+        // DD-Turnip-v<ver>.zip: DroidDeck's own all-in-one build, both halves in one zip, published
+        // to Drivers-CI (releases only). Every release is offered, not just the newest, each its own pair.
+        Source("DroidDeck", "Droid-Deck/Drivers-CI") { name, tag ->
             if (!Regex("""^DD-Turnip-v\d+\.\d+\.\d+\.zip$""").matches(name)) return@Source null
-            Kind(false, "Android + Linux · all Adreno", DriverPairs.DD_TURNIP, bundle = true)
+            Kind(false, "Android + Linux · all Adreno", DriverPairs.ddTurnip(tag), bundle = true)
         },
     )
 
@@ -112,7 +113,7 @@ object TurnipReleases {
                         // Only assets GitHub has a sha256 for are offered: the download is checked against it.
                         val sha = Hashes.githubSha256(a.optString("digest")) ?: continue
                         // Newest first: the first release carrying a variant is the one offered.
-                        if (!seen.add("$linux|${kind.bundle}|$label")) continue
+                        if (!seen.add(if (kind.bundle) kind.pair else "$linux|$label")) continue
                         assets.put(JSONObject().put("source", src.label).put("tag", tag).put("name", name)
                             .put("url", a.getString("browser_download_url")).put("size", a.optLong("size"))
                             .put("linux", linux).put("label", label).put("sha256", sha).put("pair", kind.pair)

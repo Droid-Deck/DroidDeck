@@ -24,6 +24,8 @@ object DriverPairs {
     const val WN_BALANCED = "wn-b"
     const val WN_PERFORMANCE = "wn-p"
     const val DD_TURNIP = "dd-turnip"
+    /** Each DD-Turnip release is its own pair: "dd-turnip:DD-Turnip-v0.1.0". */
+    fun ddTurnip(tag: String) = "$DD_TURNIP:$tag"
 
     class DriverPair(
         val key: String,
@@ -48,14 +50,18 @@ object DriverPairs {
 
     private val ALL_ADRENO = setOf(Family.A6XX, Family.A7XX, Family.A7XX_LOW, Family.A8XX, Family.ADRENO_UNKNOWN)
 
-    private fun describe(key: String): Pair<String, Set<Family>> = when (key) {
+    private fun describe(key: String): Pair<String, Set<Family>> = when {
+        key.startsWith(DD_TURNIP) -> "DroidDeck · DD-Turnip" to ALL_ADRENO
+        else -> describeFixed(key)
+    }
+
+    private fun describeFixed(key: String): Pair<String, Set<Family>> = when (key) {
         BANNER -> "Banners-Turnip · Adreno 6xx/7xx" to setOf(Family.A6XX, Family.A7XX)
         BANNER_A8XX -> "Banners-Turnip · Adreno 8xx" to setOf(Family.A8XX)
         BANNER_710 -> "Banners-Turnip · Adreno 710/720/722 (test)" to setOf(Family.A7XX_LOW)
         BANNER_ONEUI -> "Banners-Turnip · 8 Gen 2 on One UI" to setOf(Family.A7XX)
         WN_BALANCED -> "WinNative · Balanced" to ALL_ADRENO
         WN_PERFORMANCE -> "WinNative · Performance" to ALL_ADRENO
-        DD_TURNIP -> "DroidDeck · DD-Turnip" to ALL_ADRENO
         else -> key to ALL_ADRENO
     }
 
@@ -64,7 +70,7 @@ object DriverPairs {
         val assets = check?.assets.orEmpty().filter { it.pair.isNotEmpty() }
         val order = listOf(DD_TURNIP, BANNER, BANNER_A8XX, BANNER_ONEUI, BANNER_710, WN_BALANCED, WN_PERFORMANCE)
         return assets.map { it.pair }.distinct()
-            .sortedBy { order.indexOf(it).let { i -> if (i < 0) order.size else i } }
+            .sortedBy { key -> order.indexOf(key.substringBefore(':')).let { i -> if (i < 0) order.size else i } }
             .map { key ->
                 val (name, families) = describe(key)
                 val halves = assets.filter { it.pair == key }

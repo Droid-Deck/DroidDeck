@@ -217,6 +217,9 @@ fun ComponentsPage(
         when {
             gpuTab -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
                 GpuDriversPanel(gpu, gpuActions) { driverPage = it }
+                Row(modifier = Modifier.padding(top = 14.dp)) {
+                    SmallButton("Import .zip", onClick = gpuActions.onImportZip)
+                }
             }
             snapshot == null -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
                 CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))

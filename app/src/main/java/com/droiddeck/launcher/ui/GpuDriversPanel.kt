@@ -21,6 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -97,6 +100,8 @@ class GpuDriversActions(
     val onDownloadDriver: (String) -> Unit = {},
     val onImportLinux: () -> Unit = {},
     val onImportAndroid: () -> Unit = {},
+    /** The tab's own import: a bundle, or a single driver of either kind. */
+    val onImportZip: () -> Unit = {},
     val onRestoreBundled: () -> Unit = {},
 )
 
@@ -132,21 +137,44 @@ internal fun GpuDriversPanel(s: GpuDriversState, a: GpuDriversActions, onAdvance
             }
         }
         SettingsGroup("Advanced") {
-            if (s.activeBundle != null) {
-                SettingsRow("Runtime + display driver", "${s.activeBundle} carries both, so they are set together. Picking another driver in either list splits them.") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SecondaryButton("Runtime", compact = true) { onAdvanced("rt") }
-                        SecondaryButton("Display", compact = true) { onAdvanced("panel") }
-                    }
-                }
-            } else {
-                SettingsRow("Runtime driver", "Games and the desktop draw with it. Pick it on its own, or import a -Linux Turnip zip or an Android + Linux bundle.") {
-                    SecondaryButton(s.linuxRows.firstOrNull { it.id == s.linuxSelected }?.name ?: "Runtime default", compact = true) { onAdvanced("rt") }
-                }
-                SettingsRow("Display driver", "Puts frames on the screen. Changes apply after DroidDeck restarts.") {
-                    SecondaryButton(s.androidRows.firstOrNull { it.id == s.androidSelected }?.name ?: "Auto - picked by GPU", compact = true) { onAdvanced("panel") }
-                }
+            val together = s.activeBundle?.let { "Set together with the %s driver: $it carries both." }
+            SettingsRow("Runtime driver", together?.format("display") ?: "Games and the desktop draw with it.") {
+                DriverDropdown(s.linuxRows, s.linuxSelected, "Runtime default", a.onSelectLinux) { onAdvanced("rt") }
             }
+            SettingsRow("Display driver", together?.format("runtime") ?: "Puts frames on the screen. Changes apply after DroidDeck restarts.") {
+                DriverDropdown(s.androidRows, s.androidSelected, "Auto - picked by GPU", a.onSelectAndroid) { onAdvanced("panel") }
+            }
+        }
+    }
+}
+
+/**
+ * One driver list as a drop-down: the installed drivers to pick from, and the full page for
+ * downloading and deleting them. An Android + Linux bundle's row is tagged, and picking it sets both.
+ */
+@Composable
+private fun DriverDropdown(rows: List<DriverRow>, selected: String, fallback: String, onSelect: (String) -> Unit, onManage: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    var open by remember { mutableStateOf(false) }
+    Box {
+        SecondaryButton((rows.firstOrNull { it.id == selected }?.name ?: fallback) + "  ▾", compact = true) { open = true }
+        DropdownMenu(open, onDismissRequest = { open = false }, modifier = Modifier.heightIn(max = 360.dp)) {
+            for (row in rows) DropdownMenuItem(
+                leadingIcon = { Radio(row.id == selected) },
+                text = {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(row.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (row.id == selected) pal.signal else colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (row.tag == DriverRow.BUNDLE) Text(row.tag, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = colors.onSurfaceVariant)
+                        }
+                        if (row.detail.isNotEmpty()) Text(row.detail, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                },
+                onClick = { open = false; if (row.id != selected) onSelect(row.id) },
+            )
+            HorizontalDivider(color = pal.line)
+            DropdownMenuItem(text = { Text("Download, import or delete…", fontSize = 14.sp, color = pal.signal) }, onClick = { open = false; onManage() })
         }
     }
 }

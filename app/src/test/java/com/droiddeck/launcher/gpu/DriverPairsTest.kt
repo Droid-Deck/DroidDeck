@@ -70,14 +70,24 @@ class DriverPairsTest {
     }
 
     @Test
-    fun aBundleIsACompletePairOnItsOwn() {
-        val zip = TurnipReleases.Asset("DroidDeck", "DD-Turnip-v0.1.0", "DD-Turnip-v0.1.0.zip", "https://example/dd", 6_000_000,
-            false, "Android + Linux", "0".repeat(64), DriverPairs.DD_TURNIP, bundle = true)
-        val dd = DriverPairs.from(TurnipReleases.Check(listOf(zip), emptyList(), emptyList(), 0L)).single()
+    fun everyBundleReleaseIsACompletePairOnItsOwnNewestFirst() {
+        fun bundle(tag: String) = TurnipReleases.Asset("DroidDeck", tag, "$tag.zip", "https://example/$tag", 6_000_000,
+            false, "Android + Linux", "0".repeat(64), DriverPairs.ddTurnip(tag), bundle = true)
+        val newer = bundle("DD-Turnip-v0.2.0")
+        val older = bundle("DD-Turnip-v0.1.0")
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER), newer, older,
+                asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertEquals(listOf(DriverPairs.ddTurnip("DD-Turnip-v0.2.0"), DriverPairs.ddTurnip("DD-Turnip-v0.1.0"), DriverPairs.BANNER), pairs.map { it.key })
+        val dd = pairs.first()
         assertTrue(dd.complete)
-        assertEquals(listOf(zip), dd.assets)
-        assertEquals("v0.1.0", dd.version)
+        assertEquals(listOf(newer), dd.assets)
+        assertEquals("v0.2.0", dd.version)
+        assertEquals("DroidDeck · DD-Turnip", dd.name)
         assertTrue(dd.suits(gpu(840)))
         assertTrue(dd.suits(gpu(740)))
+        assertEquals("Auto is unchanged", DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(840)))
     }
 }
