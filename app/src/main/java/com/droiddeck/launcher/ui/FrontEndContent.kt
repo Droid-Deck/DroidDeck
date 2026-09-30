@@ -149,6 +149,10 @@ private fun Content(
         }
         return
     }
+    if (selected == "updates") {
+        UpdatesPage(s, a, modifier.padding(horizontal = padH, vertical = padV))
+        return
+    }
     // Steam is a full-bleed wall of the library with Play over it.
     if (selected == "steam") {
         SteamHome(s, a, modifier)

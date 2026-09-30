@@ -158,8 +158,9 @@ internal fun SetupPanel(
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
     val checks = 4
     val readyCount = listOf(gpuOk, s.ready && !s.busy, !limitBlocks, signedIn).count { it }
-    // Five tabs instead of one long scroll; LB and RB turn them from anywhere on the page.
-    val tabs = listOf("Overview", "Controller", "Session", "Launcher", "About")
+    // Four tabs instead of one long scroll; LB and RB turn them from anywhere on the page. Build
+    // and credits are on the Updates page.
+    val tabs = listOf("Overview", "Controller", "Session", "Launcher")
     var tab by rememberSaveable { mutableStateOf(0) }
     val tabFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
@@ -325,12 +326,6 @@ internal fun SetupPanel(
                                 else "Off: import ARM64 AppImages from your storage",
                                 s.appImagesEnabled,
                             ) { a.onAppImagesEnabled(it) }
-                        }
-                    }
-                    else -> {
-                        SettingsGroup("About") {
-                            ActionRow("Build", s.buildLabel, "Check for newer", a.onCheckLatestBuild)
-                            ActionRow("Credits", "The people and projects DroidDeck builds on", "View", a.onCredits)
                         }
                     }
                 }

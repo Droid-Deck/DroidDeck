@@ -1,0 +1,39 @@
+name: PR Release Cleanup
+run-name: remove PR #${{ github.event.pull_request.number }}'s test build
+
+# A merged or closed PR's test build leaves DroidDeck-CI, so the app's Updates page stops offering it
+# (a merged fix is in the next Nightly). pull_request_target for the publisher app's secrets; nothing
+# from the PR is checked out or run.
+on:
+  pull_request_target:
+    types: [ closed ]
+    branches: [ main ]
+
+permissions: {}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # A token of the org's "DroidDeck CI Publisher" app, as build.yml's announce job uses.
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+      - name: Delete the test build
+        env:
+          GH_TOKEN: ${{ steps.ci-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          tag="pr-$PR_NUMBER"
+          if gh release view "$tag" -R Droid-Deck/DroidDeck-CI >/dev/null 2>&1; then
+            gh release delete "$tag" -R Droid-Deck/DroidDeck-CI --yes --cleanup-tag
+            echo "Deleted $tag"
+          else
+            echo "No test build for PR #$PR_NUMBER"
+          fi

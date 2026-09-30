@@ -148,6 +148,8 @@ jobs:
             label="${BUILD_REF} at ${BUILD_SHA:0:7}"
           fi
           echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "DROIDDECK_SOURCE_COMMIT=${PR_HEAD_SHA:-$BUILD_SHA}" >> "$GITHUB_ENV"
+          echo "DROIDDECK_PR_NUMBER=${PR_NUMBER:-0}" >> "$GITHUB_ENV"
           echo "Build: \`$label\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Cache the preloads

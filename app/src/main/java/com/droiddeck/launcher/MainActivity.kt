@@ -57,7 +57,6 @@ import com.droiddeck.launcher.ui.ControllerActions
 import com.droiddeck.launcher.ui.ControllerMappingPage
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.ControllerEditorActivity
-import com.droiddeck.launcher.ui.CreditsDialog
 import com.droiddeck.launcher.ui.FrontEndScreen
 import com.droiddeck.launcher.ui.FrontEndState
 import com.droiddeck.launcher.ui.FrontEndActions
@@ -82,6 +81,7 @@ class MainActivity : ComponentActivity() {
     private val drivers = DriverMenus(this, ui)
     private val components = ComponentsMenu(this, ui)
     private val decky = DeckyMenu(this, ui)
+    private val updates = UpdatesMenu(this, ui)
     private val protons = ProtonMenu(this, ui)
 
     // The screen's state. Compose redraws whatever reads these when they change.
@@ -106,7 +106,6 @@ class MainActivity : ComponentActivity() {
     private var noGlError by mutableStateOf(true)
     private var steamDeckMode by mutableStateOf(false)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
-    private var showCredits by mutableStateOf(false)
     private var showProtons by mutableStateOf(false)
     // Components page: FEX / DXVK / VKD3D-Proton per Proton (ComponentsManager).
     private var showComponents by mutableStateOf(false)
@@ -314,6 +313,7 @@ class MainActivity : ComponentActivity() {
         storeEnabled = SessionPrefs.storeEnabled(this)
         appImagesEnabled = SessionPrefs.appImagesEnabled(this)
         applyLauncherFullscreen()
+        updates.start()
         setContent {
             DroidDeckTheme(theme) {
                 val sm = settingsMode
@@ -353,6 +353,7 @@ class MainActivity : ComponentActivity() {
                         buildLabel = BuildConfig.BUILD_LABEL,
                         oscMode = oscMode,
                         controller = controllerSettings,
+                        updates = updates.state(),
                         phantomProcessStatus = phantomProcessStatus,
                         showPhantomGate = showPhantomGate,
                         launcherFullscreen = launcherFullscreen,
@@ -443,7 +444,6 @@ class MainActivity : ComponentActivity() {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
                             offline = OfflineMode.enabled(this)
                         },
-                        onCredits = { showCredits = true },
                         onPageBack = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
                         onLauncherFullscreen = { on ->
@@ -462,9 +462,6 @@ class MainActivity : ComponentActivity() {
                         onBackActionsInverted = { inverted ->
                             SessionPrefs.setBackActionsInverted(this, inverted)
                             backActionsInverted = inverted
-                        },
-                        onCheckLatestBuild = {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/The412Banner/DroidDeck/actions/workflows/build.yml")))
                         },
                         onRefreshPhantomStatus = { refreshPhantomStatus() },
                         onOpenDeveloperOptions = { displayId -> openDeveloperOptions(displayId) },
@@ -516,6 +513,7 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                         },
+                        updates = updates.actions(),
                         controller = ControllerActions(
                             onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },
                             onTint = { t -> ControllerPrefs.setTint(this, t); refreshController() },
@@ -557,7 +555,6 @@ class MainActivity : ComponentActivity() {
                     onConfirm = { Thread({ LinuxRuntimeInstaller.uninstall(this); ui.post { refresh() } }, "uninstall").start() },
                     onDismiss = { showRemove = false },
                 )
-                if (showCredits) CreditsDialog { showCredits = false }
                 flood?.let { f -> com.droiddeck.launcher.ui.LaunchFlood(f.from, onProgress = { floodProgress = it }) { launchFlooded(f) } }
                 returning?.let { r ->
                     com.droiddeck.launcher.ui.FloodReturn(androidx.compose.ui.graphics.Color(r.color), r.to, onProgress = { floodProgress = it }) {
@@ -648,6 +645,8 @@ class MainActivity : ComponentActivity() {
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
         }
         refreshPhantomStatus()
+        // Opening the app and coming back from a session both land here.
+        updates.onResume()
         // Swaps queued while a game ran on that Proton go in once nothing uses it (usually the
         // session has just ended). Cheap when nothing is queued.
         if (!SessionState.running) Thread({
@@ -676,6 +675,11 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         displayManager.registerDisplayListener(secondScreenDisplayListener, ui)
         refreshSecondScreenDisplays()
+    }
+
+    override fun onDestroy() {
+        updates.unregister()
+        super.onDestroy()
     }
 
     override fun onStop() {
