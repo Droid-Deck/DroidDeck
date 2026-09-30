@@ -563,7 +563,8 @@ object SessionPrefs {
      * Whether a rooted device runs the session through chroot instead of proot.
      *
      * Off by default: chroot is experimental and remains a separate opt-in path while it is
-     * validated across root managers and devices. Proot remains the safe default.
+     * validated across root managers and devices. Proot remains the safe default; chroot can be
+     * enabled for testing the rooted path and its GPU bindings.
      */
     fun rootSession(context: Context): Boolean = prefs(context).getBoolean("rootSession", false)
 

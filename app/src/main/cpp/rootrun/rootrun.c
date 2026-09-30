@@ -175,13 +175,12 @@ static void usage(void) {
             "  --hostname NAME       set the guest's hostname (best effort)\n"
             "  --uid N --gid N       drop to this uid and gid before exec\n"
             "  --pidfile PATH        write this process's pid here before the exec\n"
-            "  --context SELINUX     run the guest in this SELinux context (best effort)\n"
             "  --keep-env            keep this process's environment as well\n",
             prog);
 }
 
 int main(int argc, char **argv) {
-    const char *root = NULL, *dir = "/", *hostname = NULL, *pidfile = NULL, *context = NULL;
+    const char *root = NULL, *dir = "/", *hostname = NULL, *pidfile = NULL;
     char **binds = calloc((size_t)argc, sizeof(char *));
     char **puts = calloc((size_t)argc, sizeof(char *));
     char **writes = calloc((size_t)argc, sizeof(char *));
@@ -201,7 +200,6 @@ int main(int argc, char **argv) {
         else if (strcmp(a, "--dir") == 0 && i + 1 < argc) dir = argv[++i];
         else if (strcmp(a, "--hostname") == 0 && i + 1 < argc) hostname = argv[++i];
         else if (strcmp(a, "--pidfile") == 0 && i + 1 < argc) pidfile = argv[++i];
-        else if (strcmp(a, "--context") == 0 && i + 1 < argc) context = argv[++i];
         else if (strcmp(a, "--uid") == 0 && i + 1 < argc) uid = atoi(argv[++i]);
         else if (strcmp(a, "--gid") == 0 && i + 1 < argc) gid = atoi(argv[++i]);
         else if (strcmp(a, "--keep-env") == 0) keep_env = 1;
@@ -314,23 +312,6 @@ int main(int argc, char **argv) {
 
     if (gid >= 0 && setgid((gid_t)gid) != 0) warn("cannot setgid", NULL);
     if (uid >= 0 && setuid((uid_t)uid) != 0) warn("cannot setuid", NULL);
-
-    /* The guest's SELinux context, written after the mounts and before the exec. Started through a
-     * root manager the runner itself is in the manager's domain (ksu), where the GPU's ioctls are
-     * denied: Turnip cannot query the kernel driver and gamescope dies at "failed to find physical
-     * device" (measured on a Galaxy S23 with KernelSU-Next). The app's own domain is where the GPU
-     * works, and where proot's guest has always run. Best effort: a policy that refuses the
-     * transition leaves the guest in the runner's domain, no worse off than without the flag. */
-    if (context != NULL) {
-        int fd = open("/proc/self/attr/exec", O_WRONLY | O_CLOEXEC);
-        if (fd < 0) {
-            warn("cannot open attr/exec for", context);
-        } else {
-            size_t len = strlen(context);
-            if (write(fd, context, len) != (ssize_t)len) warn("cannot set the guest's context to", context);
-            close(fd);
-        }
-    }
 
 
     execv(argv[i], &argv[i]);

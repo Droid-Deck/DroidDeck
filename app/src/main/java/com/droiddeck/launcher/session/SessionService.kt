@@ -440,7 +440,7 @@ class SessionService : Service() {
             Log.i(TAG, "root: the session runs under proot (no root, the switch is off, or the guest command was not in the expected shape)")
         }
         if (useRoot) {
-            Log.i(TAG, "root: entering the guest with chroot (experimental; needs a sepolicy rule for the GPU)")
+            Log.i(TAG, "root: entering the guest with chroot (experimental)")
         }
         val pid = if (useRoot) {
             val argv = LinuxRuntime.rootRunnerCommand(
