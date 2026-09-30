@@ -34,6 +34,8 @@ public final class LinuxRuntime {
     /** Shortcut extra naming which of the modes above a Linux entry launches. */
     public static final String EXTRA_LINUX_MODE = "linux_mode";
     private static final String KGSL_DEVICE = "/dev/kgsl-3d0";
+    /** Where Turnip's KGSL backend gets its shareable memory from; see {@link #bindGpuNode}. */
+    private static final String DMA_HEAP_DIR = "/dev/dma_heap";
     /** Where every Linux session's debug log lands: public, so a user can just hand the folder over. */
     public static final String DEBUG_LOG_DIR = "DroidDeck";
 
@@ -359,6 +361,21 @@ public final class LinuxRuntime {
         add(specs, new File(base, "sys").getPath() + ":/sys/dev/char");
         add(specs, dri.getPath() + ":/dev/dri");
         add(specs, KGSL_DEVICE + ":/dev/dri/" + node);
+        // The node at its real path as well as the /dev/dri alias, and the dma-buf heap with it.
+        //
+        // Turnip picks its kernel backend by what it can open: with /dev/kgsl-3d0 present it uses
+        // KGSL and talks to the GPU through that node; without it, it enumerates /dev/dri, and
+        // there the alias above is a KGSL node wearing a DRM name, so the version ioctl it opens
+        // with answers ENOTTY and the driver reports "failed to query kernel driver version for
+        // device /dev/dri/renderD0" - the whole GPU is gone, and every log says the session
+        // started normally (measured on a Galaxy S23). Only the rooted path needs this: proot
+        // binds the host's whole /dev, so its guest always had both names.
+        //
+        // The heap is where Turnip's shareable memory comes from: without it every allocation
+        // fails and gamescope dies at "vkAllocateMemory failed" (same device, measured the same
+        // way). Bound whole rather than node by node, so a device with several heaps keeps them.
+        if (new File(KGSL_DEVICE).canRead()) add(specs, KGSL_DEVICE);
+        if (new File(DMA_HEAP_DIR).canRead()) add(specs, DMA_HEAP_DIR);
     }
 
     /**
