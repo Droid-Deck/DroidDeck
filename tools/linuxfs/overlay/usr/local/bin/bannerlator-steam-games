@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.request
 
 STATE = ".droiddeck-games.json"
+WINNATIVE = ".winnative-steam/steamapps"
 BASE_ID = 76561197960265728
 
 
@@ -53,19 +54,23 @@ def source_stamp(game):
         return None
 
 
+def manifest_ids(steamapps, name):
+    matches = []
+    for manifest in Path(steamapps).glob("appmanifest_*.acf"):
+        try:
+            install = re.search(r'"installdir"\s*"([^"\\]*)"', manifest.read_text(), re.I)
+            if install and install[1] == name:
+                matches.append(int(manifest.stem.removeprefix("appmanifest_")))
+        except (OSError, ValueError):
+            pass
+    return matches
+
+
 def identify(game):
     folder = Path(game["folder"])
     steamapps = folder.parent.parent
-    if folder.parent.name == "common" and steamapps.name == "steamapps":
-        matches = []
-        for manifest in steamapps.glob("appmanifest_*.acf"):
-            try:
-                text = manifest.read_text()
-                install = re.search(r'"installdir"\s*"([^"\\]*)"', text, re.I)
-                if install and install[1] == folder.name:
-                    matches.append(int(manifest.stem.removeprefix("appmanifest_")))
-            except (OSError, ValueError):
-                pass
+    for library in ([steamapps] if folder.parent.name == "common" and steamapps.name == "steamapps" else []) + [folder.parent / WINNATIVE]:
+        matches = manifest_ids(library, folder.name)
         if matches:
             return matches[0] if len(matches) == 1 else None
     ids = set()
@@ -208,6 +213,30 @@ def watch(steam_root, listing):
         time.sleep(30)
 
 
+def installed_build(folder, appid, installdir):
+    """The build another Steam client recorded for these files, so Steam updates from it
+    instead of verifying every file."""
+    try:
+        text = (folder.parent / WINNATIVE / f"appmanifest_{appid}.acf").read_text()
+        install = re.search(r'("installdir"\s*")([^"\\]*)(")', text, re.I)
+        flags = re.search(r'"StateFlags"\s*"(\d+)"', text)
+        if (install and install[2] == folder.name and flags and flags[1] == "4"
+                and re.search(rf'"appid"\s*"{appid}"', text) and '"InstalledDepots"' in text):
+            return text[:install.start(2)] + installdir + text[install.end(2):]
+    except OSError:
+        pass
+    if not (folder / ".download_complete").is_file():
+        return None
+    try:
+        ids = json.loads((folder / ".DepotDownloader/depot.config").read_text())["installedManifestIDs"]
+        depots = sorted((int(depot), int(gid)) for depot, gid in ids.items())
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+    if not depots or not all(0 < depot < 0x80000000 and 0 < gid < 0x7FFFFFFFFFFFFFFF for depot, gid in depots):
+        return None
+    return "".join(f'        "{depot}"\n        {{\n            "manifest" "{gid}"\n        }}\n' for depot, gid in depots)
+
+
 def seed_install(steam_root, game, appid):
     steamapps = Path(steam_root) / "steamapps"
     common = steamapps / "common"
@@ -215,16 +244,24 @@ def seed_install(steam_root, game, appid):
     target = common / name
     source = Path(game["folder"])
     title = game["name"].replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
-    content = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
+    minimal = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
                + f'    "StateFlags" "4"\n    "installdir" "{name}"\n' + '}\n')
-    legacy = content.replace('    "Universe" "1"\n', '')
+    legacy = minimal.replace('    "Universe" "1"\n', '')
+    build = installed_build(source, appid, name)
+    if build is None:
+        content = minimal
+    elif build.lstrip().startswith('"AppState"'):
+        content = build
+    else:
+        content = minimal[:-2] + '    "InstalledDepots"\n    {\n' + build + '    }\n}\n'
     manifest = steamapps / f"appmanifest_{appid}.acf"
     for root in [Path(steam_root), Path("/mnt/bannerlator-sd")]:
         existing = root / "steamapps" / manifest.name
         if existing.is_file():
             if (existing == manifest and source.is_dir() and target.is_symlink()
                     and os.readlink(target) == str(source)
-                    and existing.read_text() in (legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))):
+                    and existing.read_text() in (minimal, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
+                    and existing.read_text() != content):
                 temp = manifest.with_suffix(".droiddeck")
                 temp.write_text(content)
                 os.replace(temp, manifest)

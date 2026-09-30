@@ -91,6 +91,52 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual(([self.game], {}), imports.route(self.steam, self.acct, [self.game]))
         self.assertFalse((self.steam / 'steamapps').exists())
 
+    def winnative_manifest(self, flags='4', installdir='Example'):
+        path = self.folder.parent / imports.WINNATIVE / 'appmanifest_42.acf'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('"AppState"\n{\n\t"appid"\t\t"42"\n\t"StateFlags"\t\t"%s"\n\t"installdir"\t\t"%s"\n'
+                        '\t"buildid"\t\t"7"\n\t"InstalledDepots"\n\t{\n\t\t"43"\n\t\t{\n\t\t\t"manifest"\t\t"99"\n'
+                        '\t\t\t"size"\t\t"4"\n\t\t}\n\t}\n}\n' % (flags, installdir))
+        return path
+
+    def test_winnative_manifest_carries_installed_build(self):
+        source = self.winnative_manifest()
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        text = (self.steam / 'steamapps/appmanifest_42.acf').read_text()
+        self.assertEqual(source.read_text().replace('"Example"', '"DroidDeck-42"'), text)
+
+    def test_winnative_manifest_identifies_folder(self):
+        self.winnative_manifest()
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
+            self.assertEqual(42, imports.identify(self.game))
+
+    def test_incomplete_winnative_manifest_is_ignored(self):
+        for flags, installdir in [('1026', 'Example'), ('4', 'Other')]:
+            self.winnative_manifest(flags, installdir)
+            self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
+    def test_depot_config_records_installed_depots(self):
+        config = self.folder / '.DepotDownloader/depot.config'
+        config.parent.mkdir()
+        config.write_text(json.dumps({'installedManifestIDs': {'43': 99}}))
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+        (self.folder / '.download_complete').touch()
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        text = (self.steam / 'steamapps/appmanifest_42.acf').read_text()
+        self.assertIn('"InstalledDepots"\n    {\n        "43"\n        {\n            "manifest" "99"', text)
+        self.assertTrue(text.endswith('    }\n}\n'))
+        config.write_text(json.dumps({'installedManifestIDs': {'43': 0x7FFFFFFFFFFFFFFF}}))
+        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
+    def test_bare_import_manifest_gains_installed_build(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        self.winnative_manifest()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertIn('"buildid"\t\t"7"', (self.steam / 'steamapps/appmanifest_42.acf').read_text())
+
     def test_existing_manifest_is_never_overwritten(self):
         manifest = self.steam / 'steamapps/appmanifest_42.acf'
         manifest.parent.mkdir(parents=True)
