@@ -137,6 +137,30 @@ class ImportsTest(unittest.TestCase):
         imports.route(self.steam, self.acct, [self.game])
         self.assertIn('"buildid"\t\t"7"', (self.steam / 'steamapps/appmanifest_42.acf').read_text())
 
+    def steam_fresh_install(self, downloaded='0'):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.steam / 'steamapps/appmanifest_42.acf'
+        path.write_text('"AppState"\n{\n\t"appid"\t\t"42"\n\t"StateFlags"\t\t"6"\n\t"installdir"\t\t"DroidDeck-42"\n'
+                        '\t"buildid"\t\t"0"\n\t"BytesDownloaded"\t\t"%s"\n\t"BytesStaged"\t\t"0"\n'
+                        '\t"InstalledDepots"\n\t{\n\t}\n}\n' % downloaded)
+        self.winnative_manifest()
+        return path
+
+    def test_queued_fresh_install_takes_installed_build(self):
+        path = self.steam_fresh_install()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertIn('"buildid"\t\t"7"', path.read_text())
+
+    def test_started_fresh_install_is_left_to_steam(self):
+        for downloaded, staging in [('5', False), ('0', True)]:
+            path = self.steam_fresh_install(downloaded)
+            if staging:
+                (self.steam / 'steamapps/downloading/42').mkdir(parents=True)
+            before = path.read_text()
+            imports.route(self.steam, self.acct, [self.game])
+            self.assertEqual(before, path.read_text())
+
     def test_existing_manifest_is_never_overwritten(self):
         manifest = self.steam / 'steamapps/appmanifest_42.acf'
         manifest.parent.mkdir(parents=True)

@@ -237,6 +237,14 @@ def installed_build(folder, appid, installdir):
     return "".join(f'        "{depot}"\n        {{\n            "manifest" "{gid}"\n        }}\n' for depot, gid in depots)
 
 
+def update_not_started(text, steamapps, appid, installdir):
+    fields = dict(re.findall(r'^\s*"(\w+)"\s*"([^"]*)"', text, re.M))
+    return (fields.get("installdir") == installdir and fields.get("buildid", "0") == "0"
+            and fields.get("BytesDownloaded", "0") == "0" and fields.get("BytesStaged", "0") == "0"
+            and re.search(r'"InstalledDepots"\s*\{\s*\}', text) is not None
+            and not (steamapps / "downloading" / str(appid)).exists())
+
+
 def seed_install(steam_root, game, appid):
     steamapps = Path(steam_root) / "steamapps"
     common = steamapps / "common"
@@ -260,8 +268,9 @@ def seed_install(steam_root, game, appid):
         if existing.is_file():
             if (existing == manifest and source.is_dir() and target.is_symlink()
                     and os.readlink(target) == str(source)
-                    and existing.read_text() in (minimal, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
-                    and existing.read_text() != content):
+                    and existing.read_text() != content
+                    and (existing.read_text() in (minimal, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
+                         or (build is not None and update_not_started(existing.read_text(), steamapps, appid, name)))):
                 temp = manifest.with_suffix(".droiddeck")
                 temp.write_text(content)
                 os.replace(temp, manifest)
