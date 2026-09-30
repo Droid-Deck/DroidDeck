@@ -148,7 +148,7 @@ internal fun TabStrip(
                         .then(focusRequesters?.getOrNull(i)?.let { Modifier.focusRequester(it) } ?: Modifier)
                         .clip(tabShape)
                         .background(if (on) pal.signal else if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
-                        .border(2.dp, if (!hot) Color.Transparent else if (on) colors.onBackground else pal.signal, tabShape)
+                        .glideBorder(hot, tabShape, if (on) colors.onBackground else pal.signal)
                         .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
                         .controllerConfirm(onClick = pick)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -297,7 +297,6 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val pal = LocalPalette.current
-    val edge by animateColorAsState(if (open || hot) pal.signal else pal.line2, Motion.tw(200), label = "chipEdge")
     val rot by animateFloatAsState(if (open) 180f else 0f, Motion.sp(0.6f), label = "chipCaret")
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
@@ -306,7 +305,7 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(colors.surfaceVariant)
-            .border(1.dp, edge, RoundedCornerShape(10.dp))
+            .glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, if (open) pal.signal else pal.line2)
             .alpha(if (enabled) 1f else 0.5f)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
@@ -400,7 +399,6 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val track by animateColorAsState(if (checked) pal.signal else colors.surfaceVariant, Motion.tw(180), label = "switchTrack")
-    val edge by animateColorAsState(if (hot) pal.signal else if (checked) pal.signal else pal.line2, Motion.tw(180), label = "switchEdge")
     val knob by animateFloatAsState(if (checked) 1f else 0f, Motion.sp(0.7f), label = "switchKnob")
     val flip = { onChange(!checked) }
     val shape = RoundedCornerShape(99.dp)
@@ -417,7 +415,7 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
     ) {
         Box(
             Modifier.size(width = 52.dp, height = 30.dp).clip(shape).background(track)
-                .border(if (hot) 2.dp else 1.dp, if (hot && checked) colors.onBackground else edge, shape),
+                .glideBorder(hot, shape, if (checked) colors.onBackground else pal.signal, if (checked) pal.signal else pal.line2),
         ) {
             Box(
                 Modifier.padding(4.dp).size(22.dp)

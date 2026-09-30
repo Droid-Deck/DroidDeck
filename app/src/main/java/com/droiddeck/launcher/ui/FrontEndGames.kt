@@ -220,7 +220,7 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
         modifier = Modifier.fillMaxWidth().paneItem("game:${g.appId}")
             .clip(Shape12)
             .background(if (selected) pal.signal.copy(alpha = 0.14f) else if (hovered) Color.White.copy(alpha = 0.05f) else Color.Transparent)
-            .border(2.dp, if (selected || focused) pal.signal else Color.Transparent, Shape12)
+            .glideBorder(focused, Shape12, pal.signal, if (selected) pal.signal else Color.Transparent, restWidth = 2.dp)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onSelect)
             .controllerConfirm(onClick = onLaunch)
             .padding(horizontal = 10.dp, vertical = 6.dp),

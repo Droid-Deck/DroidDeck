@@ -1,5 +1,6 @@
 package com.droiddeck.launcher
 
+import androidx.compose.foundation.layout.fillMaxSize
 import android.Manifest
 import android.app.ActivityOptions
 import android.content.Intent
@@ -341,6 +342,7 @@ class MainActivity : ComponentActivity() {
         updates.start()
         setContent {
             DroidDeckTheme(theme) {
+            com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
                 val sm = settingsMode
                 val page: (@Composable () -> Unit)? = when {
                     sm != null -> { { ModeSettingsHost(sm) } }
@@ -592,6 +594,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
         }
 
         if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }

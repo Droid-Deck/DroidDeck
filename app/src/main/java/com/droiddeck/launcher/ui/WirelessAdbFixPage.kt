@@ -381,7 +381,7 @@ internal fun AdbTextField(
                 .fillMaxWidth()
                 .height(inputHeight)
                 .background(colors.surfaceVariant, shape)
-                .border(1.dp, if (focused) palette.signal else palette.line2, shape)
+                .glideBorder(focused, shape, palette.signal, palette.line2)
                 .padding(horizontal = 10.dp),
             contentAlignment = Alignment.CenterStart,
         ) {

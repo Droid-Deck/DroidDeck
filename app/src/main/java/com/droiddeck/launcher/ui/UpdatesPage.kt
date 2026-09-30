@@ -213,7 +213,7 @@ private fun ReleaseNotes(title: String, notes: String, key: String) {
         Text(
             if (open) "Less" else "More", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
             modifier = Modifier.padding(top = 2.dp).offset(x = (-6).dp).paneItem("notes:more")
-                .clip(Shape12).border(2.dp, if (hot) pal.signal else Color.Transparent, Shape12)
+                .clip(Shape12).glideBorder(hot, Shape12, pal.signal)
                 .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = toggle)
                 .controllerConfirm(onClick = toggle)
                 .padding(horizontal = 6.dp, vertical = 4.dp),
@@ -273,13 +273,12 @@ private fun ChannelCard(
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     // Focus shows at once, as on the Components page: no ripple, no fade.
-    val edge = if (hot || selected) pal.signal else pal.line
     val fill = if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else Color.Transparent
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxWidth().paneItem("channel:$title")
-            .clip(Shape14).background(colors.surface).background(fill).border(if (hot) 2.dp else 1.dp, edge, Shape14)
+            .clip(Shape14).background(colors.surface).background(fill).glideBorder(hot, Shape14, pal.signal, if (selected) pal.signal else pal.line)
             .alpha(if (enabled) 1f else 0.55f)
             .hoverable(src)
             .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.RadioButton, onClick = onClick)
@@ -316,7 +315,7 @@ private fun TestRow(t: Release, selected: Boolean, onClick: () -> Unit) {
             .heightIn(min = 52.dp)
             .clip(Shape12)
             .background(colors.surface).background(if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else Color.Transparent)
-            .border(if (hot) 2.dp else 1.dp, if (hot || selected) pal.signal else pal.line, Shape12)
+            .glideBorder(hot, Shape12, pal.signal, if (selected) pal.signal else pal.line)
             .hoverable(src)
             .clickable(interactionSource = src, indication = null, role = Role.RadioButton, onClick = onClick)
             .controllerConfirm(onClick = onClick)

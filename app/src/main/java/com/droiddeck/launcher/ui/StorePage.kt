@@ -411,7 +411,7 @@ private fun AppTile(app: FlathubApi.AppSummary, modifier: Modifier, isFirst: Boo
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(Shape14)
             .background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
-            .border(if (hot) 2.dp else 1.dp, if (hot) pal.signal else pal.line, Shape14)
+            .glideBorder(hot, Shape14, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
@@ -449,7 +449,7 @@ private fun PillButton(label: String, selected: Boolean, onClick: () -> Unit) {
         color = if (selected) pal.onSignal else if (hot) colors.onBackground else colors.onSurfaceVariant,
         modifier = Modifier.paneItem("pill:$label").clip(shape)
             .background(if (selected) pal.signal else if (hot) pal.signal.copy(alpha = 0.16f) else colors.surfaceVariant)
-            .border(if (hot) 2.dp else 1.dp, if (hot) pal.signal else pal.line, shape)
+            .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
@@ -478,7 +478,7 @@ internal fun InstalledAppsGrid(a: FrontEndActions) {
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.weight(1f).fillMaxHeight().paneItem("tile:flatpak:${app.id}")
                                 .clip(Shape14).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
-                                .border(if (hot) 2.dp else 1.dp, if (hot) pal.signal else pal.line, Shape14)
+                                .glideBorder(hot, Shape14, pal.signal, pal.line)
                                 .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button) { a.onFlatpakApp(app.id, app.name) }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                         ) {
@@ -536,7 +536,7 @@ internal fun AppImagesSection(a: FrontEndActions, runtimeReady: Boolean) {
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.weight(1f).paneItem("tile:appimage:${item.id}").clip(Shape14)
                             .background(if (hot) pal.signal.copy(alpha = 0.10f) else Color.Transparent)
-                            .border(2.dp, if (hot) pal.signal else Color.Transparent, Shape14)
+                            .glideBorder(hot, Shape14, pal.signal)
                             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button) { a.onAppImage(item.guestDir, item.name) }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                     ) {

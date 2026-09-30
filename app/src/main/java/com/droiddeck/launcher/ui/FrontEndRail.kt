@@ -201,7 +201,6 @@ private fun RailItem(
         if (current) pal.signal.copy(alpha = 0.14f) else if (focused || hovered) Color.White.copy(alpha = 0.05f) else Color.Transparent,
         Motion.tw(220), label = "railFill",
     )
-    val ring by animateColorAsState(if (focused) pal.signal else Color.Transparent, Motion.tw(180), label = "railRing")
     val scale by animateFloatAsState(if (pressed) 0.95f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "railScale")
     Box(
         contentAlignment = Alignment.Center,
@@ -211,7 +210,7 @@ private fun RailItem(
             .size(width = if (iconOnly) 52.dp else 80.dp, height = height)
             .clip(Shape14)
             .background(fill)
-            .border(2.dp, ring, Shape14)
+            .glideBorder(focused, Shape14, pal.signal)
             .hoverable(src)
             .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .then(if (iconOnly) Modifier.semantics { contentDescription = label } else Modifier),
@@ -248,7 +247,7 @@ private fun ResumeRailItem(name: String, compact: Boolean, iconOnly: Boolean, on
             .width(if (iconOnly) 52.dp else 80.dp)
             .clip(Shape14)
             .background(pal.good.copy(alpha = if (focused || hovered) 0.20f else 0.12f))
-            .border(2.dp, if (focused) pal.signal else Color.Transparent, Shape14)
+            .glideBorder(focused, Shape14, pal.signal)
             .hoverable(src)
             .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onResume)
             .semantics { contentDescription = "Resume $name" }

@@ -92,7 +92,7 @@ fun DriverPage(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
                     .background(if (refreshHot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
-                    .border(if (refreshHot) 2.dp else 1.dp, if (refreshHot) pal.signal else pal.line, RoundedCornerShape(10.dp))
+                    .glideBorder(refreshHot, RoundedCornerShape(10.dp), pal.signal, pal.line)
                     .focusRequester(refreshFocus)
                     .hoverable(refreshSrc)
                     .clickable(interactionSource = refreshSrc, indication = null, enabled = !checking, onClick = onRefresh),
@@ -173,7 +173,7 @@ private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(3.dp).clip(shape)
             .background(if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else Color.Transparent)
-            .border(2.dp, if (hot) pal.signal else Color.Transparent, shape),
+            .glideBorder(hot, shape, pal.signal),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -209,7 +209,7 @@ private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.padding(end = 8.dp).size(40.dp).clip(RoundedCornerShape(10.dp))
                     .background(if (delHot) colors.error.copy(alpha = 0.16f) else Color.Transparent)
-                    .border(2.dp, if (delHot) colors.error else Color.Transparent, RoundedCornerShape(10.dp))
+                    .glideBorder(delHot, RoundedCornerShape(10.dp), colors.error)
                     .focusRequester(delFocus)
                     .focusProperties { left = mainFocus }
                     .hoverable(delSrc).clickable(interactionSource = delSrc, indication = null, onClick = onDelete),
@@ -229,7 +229,7 @@ internal fun FocusText(text: String, color: Color, modifier: Modifier = Modifier
         text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = color,
         modifier = modifier.clip(shape)
             .background(if (hot) color.copy(alpha = 0.14f) else Color.Transparent)
-            .border(2.dp, if (hot) color else Color.Transparent, shape)
+            .glideBorder(hot, shape, color)
             .hoverable(src).clickable(interactionSource = src, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
