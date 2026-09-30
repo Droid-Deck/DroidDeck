@@ -577,11 +577,17 @@ object SessionPrefs {
     }
 
     /**
-     * Whether a rooted device runs the session through chroot instead of proot. On by default
-     * where a root manager is present - it is the whole point of having root - and off is there
-     * for a device whose root is incomplete enough that proot is still the safer way in.
+     * Whether a rooted device runs the session through chroot instead of proot.
+     *
+     * Off by default, and deliberately: mounting and chrooting the rootfs needs the root manager's
+     * own SELinux domain, while the GPU's ioctls are refused there - measured on a Galaxy S23 with
+     * KernelSU-Next, where Turnip cannot query the kernel driver from that domain ("failed to query
+     * kernel driver version for /dev/dri/renderD0") and gamescope dies at "failed to find physical
+     * device", while the same guest under proot from the app's own domain works. Until a sepolicy
+     * rule gives one domain both, chroot is a session that starts and cannot draw, so it is opt-in
+     * and the rooted device runs proot exactly as an unrooted one does.
      */
-    fun rootSession(context: Context): Boolean = prefs(context).getBoolean("rootSession", true)
+    fun rootSession(context: Context): Boolean = prefs(context).getBoolean("rootSession", false)
 
     fun setRootSession(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("rootSession", on).apply()
