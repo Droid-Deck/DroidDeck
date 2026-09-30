@@ -25,12 +25,20 @@
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #define VERSION "1"
 
 static const char *prog = "rootrun";
+
+/*
+ * Built dynamically on purpose (tools/rootrun/build.sh). A static link emits a TLS segment at an
+ * 8-byte alignment that Bionic refuses on arm64 ("executable's TLS segment is underaligned ...
+ * needs to be at least 64"), and the linker keeps that alignment even when the program declares an
+ * aligned thread-local of its own; a dynamic link has no TLS segment at all and starts anywhere.
+ */
 
 static void warn(const char *what, const char *path) {
     fprintf(stderr, "%s: %s %s: %s\n", prog, what, path ? path : "", strerror(errno));
@@ -62,6 +70,14 @@ static int mkdir_parent_of(const char *path, mode_t mode) {
     memcpy(buf, path, n);
     buf[n] = '\0';
     return mkdir_parents(buf, mode);
+}
+
+/* One device node under the guest's /dev, for the tmpfs fallback above. */
+static void make_dev(const char *dev, const char *name, int major, int minor, mode_t mode) {
+    char path[4096];
+    snprintf(path, sizeof(path), "%s/%s", dev, name);
+    if (mknod(path, S_IFCHR | mode, makedev(major, minor)) != 0 && errno != EEXIST) warn("cannot mknod", path);
+    chmod(path, mode);
 }
 
 /* A file has to exist before it can be a bind target. */
@@ -159,12 +175,13 @@ static void usage(void) {
             "  --hostname NAME       set the guest's hostname (best effort)\n"
             "  --uid N --gid N       drop to this uid and gid before exec\n"
             "  --pidfile PATH        write this process's pid here before the exec\n"
+            "  --context SELINUX     run the guest in this SELinux context (best effort)\n"
             "  --keep-env            keep this process's environment as well\n",
             prog);
 }
 
 int main(int argc, char **argv) {
-    const char *root = NULL, *dir = "/", *hostname = NULL, *pidfile = NULL;
+    const char *root = NULL, *dir = "/", *hostname = NULL, *pidfile = NULL, *context = NULL;
     char **binds = calloc((size_t)argc, sizeof(char *));
     char **puts = calloc((size_t)argc, sizeof(char *));
     char **writes = calloc((size_t)argc, sizeof(char *));
@@ -184,6 +201,7 @@ int main(int argc, char **argv) {
         else if (strcmp(a, "--dir") == 0 && i + 1 < argc) dir = argv[++i];
         else if (strcmp(a, "--hostname") == 0 && i + 1 < argc) hostname = argv[++i];
         else if (strcmp(a, "--pidfile") == 0 && i + 1 < argc) pidfile = argv[++i];
+        else if (strcmp(a, "--context") == 0 && i + 1 < argc) context = argv[++i];
         else if (strcmp(a, "--uid") == 0 && i + 1 < argc) uid = atoi(argv[++i]);
         else if (strcmp(a, "--gid") == 0 && i + 1 < argc) gid = atoi(argv[++i]);
         else if (strcmp(a, "--keep-env") == 0) keep_env = 1;
@@ -195,8 +213,12 @@ int main(int argc, char **argv) {
     }
     if (root == NULL || i >= argc) { usage(); return 2; }
 
-    /* Leave the caller's mount namespace alone: every mount below is ours to undo, and a failure
-     * part-way through must not be visible to the app that started us. */
+    /* A namespace of our own, so every mount below belongs to this guest and is gone when it exits:
+     * in the host's namespace they would outlive the session, stack on the next one's (the second
+     * run of a session met "Device or resource busy" on its own rootfs), and leave the app's own
+     * /proc and /sys views rearranged. Root can unshare this; an unprivileged app cannot, which is
+     * the whole reason proot exists. Then nothing propagates back to the caller either. */
+    if (unshare(CLONE_NEWNS) != 0) warn("cannot unshare the mount namespace", "");
     if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) warn("cannot make mounts private", "/");
 
     /* The runtime's own filesystems, then whatever the app asked for. */
@@ -206,14 +228,36 @@ int main(int argc, char **argv) {
     snprintf(dev, sizeof(dev), "%s/dev", root);
     mount_fs("proc", proc, "proc", MS_NOSUID | MS_NODEV | MS_NOEXEC);
     mount_fs("sysfs", sys, "sysfs", MS_NOSUID | MS_NODEV | MS_NOEXEC);
-    /* devtmpfs where the kernel offers it, a bind of the host's /dev where it does not (Android
-     * mounts its own devtmpfs-like /dev and does not always export the filesystem type). */
-    if (mount_fs("tmpfs", dev, "tmpfs", MS_NOSUID | MS_STRICTATIME) == 0) {
-        mkdir_parents(dev, 0755);
-        chmod(dev, 0755);
-    } else {
-        bind_mount("/dev", dev);
+    /* The guest's /dev. devtmpfs where the kernel offers it; else the host's /dev bound in, which
+     * is what proot does and what the app-uid guest needs (/dev/null, /dev/zero, /dev/urandom,
+     * /dev/pts and the nodes the GPU and pads are reached through are all there, with the modes
+     * Android gives them); else a tmpfs with the standard nodes made by hand. An empty /dev is not
+     * an option: the session script's first line writes to /dev/null, and without it the guest dies
+     * before it starts (measured: "== gamescope:" then nothing). */
+    if (mount_fs("devtmpfs", dev, "devtmpfs", MS_NOSUID | MS_STRICTATIME) != 0) {
+        struct stat st;
+        if (stat("/dev/null", &st) != 0) {
+            if (mount_fs("tmpfs", dev, "tmpfs", MS_NOSUID | MS_STRICTATIME) == 0) {
+                mkdir_parents(dev, 0755);
+                chmod(dev, 0755);
+                make_dev(dev, "null", 1, 3, 0666);
+                make_dev(dev, "zero", 1, 5, 0666);
+                make_dev(dev, "full", 1, 7, 0666);
+                make_dev(dev, "random", 1, 8, 0666);
+                make_dev(dev, "urandom", 1, 9, 0666);
+                make_dev(dev, "tty", 5, 0, 0666);
+                make_dev(dev, "ptmx", 5, 2, 0666);
+                mount_fs("devpts", "pts", "devpts", MS_NOSUID | MS_NOEXEC);
+                char pts[4096];
+                snprintf(pts, sizeof(pts), "%s/pts", dev);
+                mount_fs("devpts", pts, "devpts", MS_NOSUID | MS_NOEXEC);
+            }
+        } else {
+            bind_mount("/dev", dev);
+        }
     }
+    /* The guest writes here from its first line. */
+    chmod(dev, 0755);
 
     for (int b = 0; b < nbind; b++) {
         char *left = NULL, *right = NULL;
@@ -270,6 +314,24 @@ int main(int argc, char **argv) {
 
     if (gid >= 0 && setgid((gid_t)gid) != 0) warn("cannot setgid", NULL);
     if (uid >= 0 && setuid((uid_t)uid) != 0) warn("cannot setuid", NULL);
+
+    /* The guest's SELinux context, written after the mounts and before the exec. Started through a
+     * root manager the runner itself is in the manager's domain (ksu), where the GPU's ioctls are
+     * denied: Turnip cannot query the kernel driver and gamescope dies at "failed to find physical
+     * device" (measured on a Galaxy S23 with KernelSU-Next). The app's own domain is where the GPU
+     * works, and where proot's guest has always run. Best effort: a policy that refuses the
+     * transition leaves the guest in the runner's domain, no worse off than without the flag. */
+    if (context != NULL) {
+        int fd = open("/proc/self/attr/exec", O_WRONLY | O_CLOEXEC);
+        if (fd < 0) {
+            warn("cannot open attr/exec for", context);
+        } else {
+            size_t len = strlen(context);
+            if (write(fd, context, len) != (ssize_t)len) warn("cannot set the guest's context to", context);
+            close(fd);
+        }
+    }
+
 
     execv(argv[i], &argv[i]);
     fprintf(stderr, "%s: cannot exec %s: %s\n", prog, argv[i], strerror(errno));
