@@ -559,6 +559,23 @@ object SessionPrefs {
         prefs(context).edit().putString("suspendPolicy.${prefMode(mode)}", normalized).apply()
     }
 
+    /**
+     * Whether a rooted device runs the session through chroot instead of proot. On by default
+     * where a root manager is present - it is the whole point of having root - and off is there
+     * for a device whose root is incomplete enough that proot is still the safer way in.
+     */
+    fun rootSession(context: Context): Boolean = prefs(context).getBoolean("rootSession", true)
+
+    fun setRootSession(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("rootSession", on).apply()
+    }
+
+    /** The last probe's answer, so a screen can show it without making a root manager prompt. */
+    fun rootAvailable(context: Context): Boolean = prefs(context).getBoolean("rootAvailable", false)
+
+    fun setRootAvailable(context: Context, available: Boolean) {
+        prefs(context).edit().putBoolean("rootAvailable", available).apply()
+    }
     // ── Game storage ────────────────────────────────────────────────────────────────────────
 
     /**

@@ -78,6 +78,67 @@ public final class LinuxRuntime {
         return dir.equals(prootBinary(context).getParentFile()) ? dir.getPath() : "";
     }
 
+    /**
+     * The rooted session's chroot runner, or null when this build carries none. It is executed
+     * from the native library directory, which is the only place an app may run a program from.
+     */
+    public static File rootRunner(Context context) {
+        File packaged = new File(context.getApplicationInfo().nativeLibraryDir, "librootrun.so");
+        return packaged.isFile() ? packaged : null;
+    }
+
+    /**
+     * The runner's command line: what to mount where, the guest's environment, and the program.
+     *
+     * The mounts are the same {@code host:guest} pairs proot is given, so a rooted session sees
+     * what an unrooted one does. The guest's own /proc, /sys and /dev are mounted by the runner
+     * rather than bound, so they are not in the list.
+     */
+    public static List<String> rootRunnerCommand(Context context, File runner, File pidFile,
+                                                 File sessionRoot, File runtimeDir,
+                                                 File externalStorage, List<String> extraBinds,
+                                                 List<String> guestEnv, List<String> guestProgram) {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(runner.getPath());
+        cmd.add("--root");
+        cmd.add(rootDir(context).getPath());
+        cmd.add("--dir");
+        cmd.add("/root");
+        cmd.add("--hostname");
+        cmd.add(SessionPrefs.guestHostname(context));
+        cmd.add("--pidfile");
+        cmd.add(pidFile.getPath());
+        cmd.add("--uid");
+        cmd.add(String.valueOf(Process.myUid()));
+        cmd.add("--gid");
+        cmd.add(String.valueOf(Process.myUid()));
+        for (String spec : binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds)) {
+            if (spec.equals("/proc") || spec.equals("/sys") || spec.equals("/dev")) continue;
+            cmd.add("--bind");
+            cmd.add(spec);
+        }
+        // The accounts the guest's own tools look the user up by, written where the guest reads them
+        // (writeAccounts writes them in the app's copy of the runtime; the guest may not see it).
+        try {
+            int uid = Process.myUid();
+            cmd.add("--write");
+            cmd.add("/etc/passwd:root:x:" + uid + ":" + uid + ":root:/root:/bin/bash");
+            cmd.add("--write");
+            cmd.add("/etc/group:root:x:" + uid + ":");
+        } catch (Throwable ignored) {
+        }
+        if (guestEnv != null) {
+            for (String line : guestEnv) {
+                if (line.indexOf('=') <= 0) continue;
+                cmd.add("--env");
+                cmd.add(line);
+            }
+        }
+        cmd.add("--");
+        cmd.addAll(guestProgram);
+        return cmd;
+    }
+
     /** The rootfs is present with gamescope and the session script the launcher hands control to. */
     public static boolean isInstalled(Context context) {
         File root = rootDir(context);
@@ -99,30 +160,16 @@ public final class LinuxRuntime {
     }
 
     /**
-     * The proot command line running {@code guestCommand} inside the rootfs. Host paths the session
-     * needs - the app's files directory for the compositor and audio sockets, external storage for
-     * the user's games - are bound at their own paths, so nothing on either side needs translating
-     * and proot never touches the fds a dma-buf travels in. Android has no /dev/shm; a directory
-     * under the cache stands in, which glibc's shm_open and Chromium's shared memory accept.
+     * The host paths the session needs inside the guest, as {@code host:guest} pairs: the app's own
+     * directories for the compositor and audio sockets, external storage for the user's games, and
+     * the device nodes the GPU and the pads live on. Bound at their own paths, so nothing on either
+     * side needs translating and proot never touches the fds a dma-buf travels in. Android has no
+     * /dev/shm; a directory under the cache stands in, which glibc's shm_open and Chromium's shared
+     * memory accept.
+     *
+     * One list, used by both ways into the guest - proot's {@code -b} and the rooted runner's
+     * {@code --bind} - so a rooted session mounts exactly what an unrooted one is given.
      */
-    public static List<String> command(Context context, File sessionRoot, File runtimeDir,
-                                       File externalStorage, List<String> guestCommand) {
-        return command(context, sessionRoot, runtimeDir, externalStorage, null, guestCommand);
-    }
-
-    /** As above, plus {@code host:guest} bind specs - the installed games handed to Steam. */
-    public static List<String> command(Context context, File sessionRoot, File runtimeDir,
-                                       File externalStorage, List<String> extraBinds,
-                                       List<String> guestCommand) {
-        File root = rootDir(context);
-        List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
-        // A session's binds are the view its programs have; a one-off command's are not recorded.
-        if (sessionRoot != null) lastBinds = binds;
-        List<String> cmd = prootPrefix(context, root, "/root");
-        for (String spec : binds) bind(cmd, spec);
-        cmd.addAll(guestCommand);
-        return cmd;
-    }
 
     /**
      * The binds of the last command built: the guest's view of the host, which the Flatpak
@@ -194,25 +241,12 @@ public final class LinuxRuntime {
         shm.mkdirs();
         bind(cmd, shm.getPath() + ":/dev/shm");
 
-        // Android denies apps these; glibc, Steam and libcap read them at startup.
+        // Android denies these; glibc, Steam and libcap read them at startup.
         File fakeProc = new File(root, "etc/bannerlator/proc");
-        // libpci picks its procfs backend on whether it can read the /proc/bus/pci directory, which
-        // the app can, then die()s - exit(1) on the calling process - on the devices file inside
-        // it, which the app cannot. Chromium loads libpci in its GPU process to name the video
-        // card, so that exit kills the process; after a few tries CEF gives up on hardware and
-        // draws the rest of the session on SwiftShader: the client's interface rendered on the
-        // CPU. An empty list is the truthful answer from in here - nothing the app can see is on
-        // a PCI bus. Created at session start rather than shipped in the rootfs so an installed
-        // runtime is fixed too, and the table's guard below binds it only when the real file
-        // cannot be read, so it can never stand in front of real data. (WinNative, maxjivi05,
-        // deff1ac6, via Bannerlator 8fb668d1: 44 -> 85 fps scrolling the Big Picture library on a
-        // OnePlus 15, GPU-process crashes 12 -> 0.)
         File pciDevices = new File(fakeProc, "pci_devices");
         if (!pciDevices.isFile()) {
             try {
-                //noinspection ResultOfMethodCallIgnored
-                pciDevices.getParentFile().mkdirs();
-                //noinspection ResultOfMethodCallIgnored
+                fakeProc.mkdirs();
                 pciDevices.createNewFile();
             } catch (java.io.IOException e) {
                 // It then fails the isFile() test below and the session runs as it did before.
@@ -247,6 +281,43 @@ public final class LinuxRuntime {
     }
 
     /**
+     * The proot command line running {@code guestCommand} inside the rootfs.
+     */
+    public static List<String> command(Context context, File sessionRoot, File runtimeDir,
+                                       File externalStorage, List<String> guestCommand) {
+        return command(context, sessionRoot, runtimeDir, externalStorage, null, guestCommand);
+    }
+
+    /** As above, plus {@code host:guest} bind specs - the installed games handed to Steam. */
+    public static List<String> command(Context context, File sessionRoot, File runtimeDir,
+                                       File externalStorage, List<String> extraBinds,
+                                       List<String> guestCommand) {
+        File root = rootDir(context);
+        List<String> cmd = new ArrayList<>();
+        cmd.add(prootBinary(context).getPath());
+        cmd.add("--kill-on-exit");
+        // Preserve the host kernel identity while giving the guest the app's branded host name.
+        cmd.add("--kernel-release=" + guestUtsname(SessionPrefs.guestHostname(context)));
+        // Android's app seccomp policy traps the whole set*id family. Xwayland's Popen() calls
+        // setgid()/setuid() before it execs xkbcomp and _exit(127)s when they fail, so without
+        // this the keymap never compiles and Xwayland dies. -i makes proot answer those calls
+        // itself while still reporting our real ids, so nothing inside sees a different user.
+        int uid = Process.myUid();
+        cmd.add("-i");
+        cmd.add(uid + ":" + uid);
+        cmd.add("-r");
+        cmd.add(root.getPath());
+        cmd.add("-w");
+        cmd.add("/root");
+        for (String spec : bindSpecs(context, sessionRoot, runtimeDir, externalStorage, extraBinds)) {
+            bind(cmd, spec);
+        }
+        List<String> specs = new ArrayList<>();
+        for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
+        return specs;
+    }
+
+    /**
      * An app process may not open {@code /dev/dri} - the nodes exist but are labelled
      * {@code graphics_device}, which stock policy grants surfaceflinger and not us - yet libdrm and
      * everything built on it identify a GPU by its render node, and gamescope refuses to offer
@@ -254,7 +325,7 @@ public final class LinuxRuntime {
      * may open) stands in: it appears as a render node with the sysfs entries libdrm reads, and our
      * Turnip build reports the same device numbers for it.
      */
-    private static void bindGpuNode(Context context, List<String> cmd) {
+    private static void bindGpuNode(Context context, List<String> specs) {
         StructStat st;
         try {
             st = Os.stat(KGSL_DEVICE);
@@ -285,9 +356,9 @@ public final class LinuxRuntime {
         } catch (IOException | ErrnoException e) {
             return;
         }
-        bind(cmd, new File(base, "sys").getPath() + ":/sys/dev/char");
-        bind(cmd, dri.getPath() + ":/dev/dri");
-        bind(cmd, KGSL_DEVICE + ":/dev/dri/" + node);
+        add(specs, new File(base, "sys").getPath() + ":/sys/dev/char");
+        add(specs, dri.getPath() + ":/dev/dri");
+        add(specs, KGSL_DEVICE + ":/dev/dri/" + node);
     }
 
     /**
@@ -298,7 +369,7 @@ public final class LinuxRuntime {
      * Android PC emulators (GameNative, Winlator forks) read them in. A value found nowhere is left
      * alone.
      */
-    private static void bindAdrenoStats(List<String> cmd) {
+    private static void bindAdrenoStats(List<String> specs) {
         String kgsl = "/sys/class/kgsl/kgsl-3d0/";
         String gpuTemp = firstReadable(kgsl + "temp", kgsl + "devfreq/temp", thermalZone("gpu"));
         String[][] stats = {
@@ -310,7 +381,7 @@ public final class LinuxRuntime {
                 {thermalZone("ddr"), "/sys/class/thermal/thermal_zone22/temp"},
         };
         for (String[] stat : stats) {
-            if (stat[0] != null) bind(cmd, stat[0] + ":" + stat[1]);
+            if (stat[0] != null) add(specs, stat[0] + ":" + stat[1]);
         }
     }
 
@@ -320,7 +391,7 @@ public final class LinuxRuntime {
      * cpuss-0, cpu-1-0, cpu0-silver-usr, apc1-cpu0-usr and the like, so those zones are shown
      * under the mainline name.
      */
-    private static void bindCpuTemps(List<String> cmd, File root) {
+    private static void bindCpuTemps(List<String> specs, File root) {
         File name = new File(root, "etc/bannerlator/cpu-thermal-type");
         try {
             if (!name.isFile()) Files.write(name.toPath(), "cpu0-thermal\n".getBytes(StandardCharsets.US_ASCII));
@@ -330,7 +401,7 @@ public final class LinuxRuntime {
         for (java.util.Map.Entry<String, File> zone : thermalZones().entrySet()) {
             String type = zone.getKey();
             if (type.contains("cpu") && !type.contains("gpu") && !type.matches("cpu\\d-(top-)?thermal")) {
-                bind(cmd, name.getPath() + ":" + new File(zone.getValue(), "type").getPath());
+                add(specs, name.getPath() + ":" + new File(zone.getValue(), "type").getPath());
             }
         }
     }
@@ -366,6 +437,12 @@ public final class LinuxRuntime {
         return byType;
     }
 
+    /** A bare {@code host:guest} spec, for the rooted runner's --bind. */
+    private static void add(List<String> specs, String spec) {
+        specs.add(spec);
+    }
+
+    /** The same spec as proot's -b argument. */
     private static void bind(List<String> cmd, String spec) {
         cmd.add("-b");
         cmd.add(spec);

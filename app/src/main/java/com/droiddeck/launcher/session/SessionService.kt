@@ -28,6 +28,7 @@ import com.droiddeck.launcher.audio.PulseAudioComponent
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.DeviceReport
 import com.droiddeck.launcher.core.HostEnvironment
+import com.droiddeck.launcher.core.RootSession
 import com.droiddeck.launcher.core.SessionLogCapture
 import com.droiddeck.launcher.core.NetworkReport
 import com.droiddeck.launcher.core.SessionPart
@@ -364,6 +365,21 @@ class SessionService : Service() {
 
         val binds = sessionBinds(controllersOn, fakeInputDir)
 
+        // The guest's environment as NAME=VALUE lines. proot takes them as arguments to the env(1)
+        // it runs; the rooted runner takes the same lines through --env. Either way the session
+        // script's own arguments are the program, which is all that is left of the list. Anything
+        // unexpected - a program with an '=' in it, an empty list - leaves the rooted path alone
+        // and starts the session under proot instead.
+        val guestEnv = guest.asSequence()
+            .dropWhile { it != "/usr/bin/env" }
+            .drop(1)
+            .dropWhile { it == "-i" }
+            .takeWhile { line -> line.contains('=') && !line.startsWith("/") }
+            .toList()
+        val guestProgram = guest.takeLast(guest.size - guestEnv.size - 2)
+        val rootRunnerUsable = guest.firstOrNull() == "/usr/bin/env" && guestProgram.isNotEmpty() &&
+            guestEnv.isNotEmpty() && guestProgram.first() == LinuxRuntime.SESSION_SCRIPT
+
         val command = LinuxRuntime.command(
             this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest,
         )
@@ -417,14 +433,47 @@ class SessionService : Service() {
         // by the teardown a second after the new one has started, and its exit used to arrive
         // here as "session ended: 137" and end the NEW session. An exit belongs to the session
         // that started it.
-        val pid = HostProcess.start(line, hostEnv.asArray(), root, { status ->
-            if (gen != sessionGen) {
-                Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
-                return@start
+        val rooted = LinuxRuntime.rootRunner(this)
+        val useRoot = rooted != null && rootRunnerUsable && RootSession.useForSession(this)
+        val guestPidFile = File(sessionRoot, "guest.pid").apply { delete() }
+        if (rooted != null && !useRoot) {
+            Log.i(TAG, "root: the session runs under proot (no root, the switch is off, or the guest command was not in the expected shape)")
+        }
+        val pid = if (useRoot) {
+            val argv = LinuxRuntime.rootRunnerCommand(
+                this, rooted!!, guestPidFile, sessionRoot, runtimeDir,
+                Environment.getExternalStorageDirectory(), binds, guestEnv, guestProgram,
+            )
+            val status = { s: Int? ->
+                if (gen != sessionGen) {
+                    Log.i(TAG, "an earlier session's process ended ($s); the current one carries on")
+                } else {
+                    Log.i(TAG, "session ended: $s")
+                    stopSession(s ?: -1)
+                }
             }
-            Log.i(TAG, "session ended: $status")
-            stopSession(status ?: -1)
-        }, null)
+            val suPid = RootSession.start(argv.toTypedArray(), null, java.util.function.Consumer { status(it) }, null)
+            if (suPid > 1) {
+                // The guest, not the root shell that started it: it wrote its pid before it chrooted.
+                val guestPid = RootSession.waitForGuestPid(guestPidFile)
+                if (guestPid > 1) {
+                    Log.i(TAG, "root: guest pid $guestPid (through su pid $suPid)")
+                    guestPid
+                } else {
+                    Log.w(TAG, "root: the guest did not report its pid; the root shell's is used")
+                    suPid
+                }
+            } else suPid
+        } else {
+            HostProcess.start(line, hostEnv.asArray(), root, { status ->
+                if (gen != sessionGen) {
+                    Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
+                    return@start
+                }
+                Log.i(TAG, "session ended: $status")
+                stopSession(status ?: -1)
+            }, null)
+        }
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while its guest was starting; taking it down")
