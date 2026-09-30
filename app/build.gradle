@@ -197,3 +197,6 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
 }
+
+// The session's own files are staged from tools/build_local.sh; this fails a build that skips it.
+apply from: 'session-assets.gradle'

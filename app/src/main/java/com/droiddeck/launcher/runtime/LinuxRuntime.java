@@ -6,6 +6,7 @@ import android.system.ErrnoException;
 import android.system.Os;
 import android.system.StructStat;
 import android.system.StructUtsname;
+import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.session.SessionPrefs;
 
 
@@ -347,7 +348,29 @@ public final class LinuxRuntime {
         File device = new File(base, "sys/" + major + ":" + minor + "/device");
         File drm = new File(device, "drm/" + node);
         try {
-            if ((!dri.isDirectory() && !dri.mkdirs()) || (!drm.isDirectory() && !drm.mkdirs())) {
+            // The tree this builds is what libdrm enumerates and what Mesa reads the node's device
+            // numbers from: /dev/dri/<node> (bound from the KGSL device), and beside it a sysfs
+            // view whose <major>:<minor>/device/drm/<node>/dev says which char device it is.
+            //
+            if ((!dri.isDirectory() && !dri.mkdirs()) || (!device.isDirectory() && !device.mkdirs())) {
+                return;
+            }
+            // Rebuild the node's directory every session, whatever is there now.
+            //
+            // It must be rebuilt rather than "created if missing": `mkdirs()` succeeds for a path
+            // that already exists, so a tree laid out wrong once - which an earlier version of this
+            // method did, mkdir'ing the node directory and writing `dev` inside it - stayed wrong
+            // for every later session, and Mesa failed with "failed to query kernel driver version
+            // for device /dev/dri/renderD0" while every log said the session had started normally
+            // (measured on a Galaxy S23).
+            //
+            // A delete that does not take (a directory owned by root, left by a session that ran
+            // through the rooted path, which starts as root) is reported and the tree is left
+            // alone: writing into a directory this app does not own fails anyway, and the caller
+            // gets a log line rather than a silent half-tree.
+            FileUtils.delete(drm);
+            if (!drm.mkdirs() && !drm.isDirectory()) {
+                android.util.Log.e("LinuxRuntime", "cannot rebuild the GPU tree at " + drm);
                 return;
             }
             new File(dri, node).createNewFile();
@@ -358,6 +381,14 @@ public final class LinuxRuntime {
             File subsystem = new File(device, "subsystem");
             if (!Files.isSymbolicLink(subsystem.toPath())) {
                 Os.symlink("/sys/bus/platform", subsystem.getPath());
+            }
+            // And prove it, because a malformed tree is invisible from here on: the guest starts,
+            // gamescope runs, and only the GPU is missing.
+            File devFile = new File(drm, "dev");
+            String written = FileUtils.readString(devFile);
+            if (!devFile.isFile() || written == null || !written.trim().equals(major + ":" + minor)) {
+                android.util.Log.e("LinuxRuntime", "GPU tree is malformed: " + devFile + " says " + written);
+                return;
             }
         } catch (IOException | ErrnoException e) {
             return;

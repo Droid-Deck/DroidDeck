@@ -1,0 +1,65 @@
+/*
+ * The session's own files are staged into the APK from app/src/main/assets/linuxfs/, which is a
+ * BUILD OUTPUT: tools/build_local.sh (and the CI workflow) cross-compile the two preloads and copy
+ * the overlay scripts, the desktop launcher and the labwc/LXQt configuration in there. Nothing in
+ * git produces it.
+ *
+ * A build that skips that step is not obviously broken - it compiles, installs, and starts a
+ * session - but the session comes up without libblsession.so, libfakeinput.so and
+ * droiddeck-desktop, so the guest loses its controller support, its DRM shim and (on a runtime
+ * with the hosted desktop) its desktop launcher. Measured on a Galaxy S23: the desktop session
+ * started pcmanfm from the runtime's own script instead of labwc + LXQt, and every process logged
+ * "ld.so: object '/usr/local/lib/libfakeinput.so' ... cannot be preloaded".
+ *
+ * So the required files are asserted here, before anything is packaged, and the message says how
+ * to produce them. Optional ones (the patched gamescope, wlroots and mangoapp, which the app only
+ * stages when the apk carries them) are reported but do not fail the build.
+ */
+def sessionAssets = [
+        // Required: the app opens each of these at session start and the guest needs them.
+        "linuxfs/libblsession.so"                              : "the SysV/DRM preload the session's /etc/ld.so.preload names",
+        "linuxfs/libfakeinput.so"                              : "the fake evdev layer the controller goes through",
+        "linuxfs/usr/local/bin/bannerlator-session"            : "the session script the launcher hands control to",
+        "linuxfs/usr/local/bin/bannerlator-steam-install"      : "the Steam client installer (steam mode)",
+        "linuxfs/usr/local/bin/bannerlator-steam-compat"       : "the Proton/compat registrar (steam mode)",
+        "linuxfs/usr/local/bin/bannerlator-seed-redists"       : "the redistributable seeder (steam mode)",
+        "linuxfs/usr/local/bin/bannerlator-pad-defaults"       : "controller defaults for a new game (run mode)",
+        "linuxfs/usr/local/bin/droiddeck-desktop"              : "the hosted desktop launcher (desktop mode)",
+        "linuxfs/etc/xdg/labwc/autostart"                      : "what the desktop starts with (desktop mode)",
+        "linuxfs/etc/xdg/labwc/rc.xml"                         : "labwc's keybinds and window rules (desktop mode)",
+        "linuxfs/etc/xdg/lxqt/panel.conf"                      : "the LXQt panel's layout (desktop mode)",
+]
+
+def optionalSessionAssets = [
+        "linuxfs/usr/local/bin/gamescope"                      : "the patched gamescope (falls back to the runtime's own)",
+        "linuxfs/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so": "the patched wlroots (falls back to the runtime's own)",
+        "linuxfs/usr/local/bin/mangoapp"                       : "Deck mode's performance overlay",
+]
+
+tasks.register("checkSessionAssets") {
+    group = "verification"
+    description = "Fails when the APK is being built without the session files staged from tools/build_local.sh."
+    def assetsDir = layout.projectDirectory.dir("src/main/assets")
+    doLast {
+        def missing = sessionAssets.findAll { !new File(assetsDir.asFile, it.key).isFile() }
+        if (!missing.isEmpty()) {
+            def lines = missing.collect { "  ${it.key}  (${it.value})" }.join("\n")
+            throw new GradleException(
+                    "The APK is missing the session's own files:\n${lines}\n\n" +
+                    "These are staged from the repo, not committed - app/src/main/assets/linuxfs/ is a build\n" +
+                    "output. Build with tools/build_local.sh (it cross-compiles the preloads and copies the\n" +
+                    "overlay in), or stage them by hand before assembling. A build without them installs and\n" +
+                    "starts sessions that have no controller support, no DRM shim and, on a runtime with the\n" +
+                    "hosted desktop, no desktop launcher.")
+        }
+        def absent = optionalSessionAssets.findAll { !new File(assetsDir.asFile, it.key).isFile() }
+        if (!absent.isEmpty()) {
+            absent.each { println "session assets: optional ${it.key} not staged - ${it.value}" }
+        }
+        println "session assets: ${sessionAssets.size()} required files present"
+    }
+}
+
+// Every variant's assets go through merge<Variant>Assets, so hooking there covers debug and release
+// without naming either.
+tasks.matching { it.name ==~ /^merge.*Assets$/ }.configureEach { dependsOn("checkSessionAssets") }
