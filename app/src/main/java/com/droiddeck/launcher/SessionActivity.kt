@@ -23,6 +23,7 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,9 +33,10 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
-import com.droiddeck.launcher.gpu.LsfgNative
+import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.input.EvdevKeys
 import com.droiddeck.launcher.input.KeyboardHost
@@ -169,7 +171,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var pcKeyboardOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
     private var fillScreen by mutableStateOf(true)
-    private var frameGenLabel by mutableStateOf("Off")
+    private var lossless by mutableStateOf(Lossless.State.NONE)
+    private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
+    }
     private var frameGenEngine by mutableStateOf(FrameGen.ENGINE_OFF)
     private var frameGenMultiplier by mutableStateOf(2)
     private var fexPreset by mutableStateOf("")
@@ -336,6 +341,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 // Opening the drawer takes the controller away from the game: release its pad.
                 androidx.compose.runtime.LaunchedEffect(drawerOpen) {
                     if (drawerOpen) {
+                        syncLossless()
                         padBridge?.releaseAll()
                         androidx.compose.runtime.withFrameNanos { }
                         val requested = sessionOverlay.requestFocus()
@@ -360,7 +366,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     hudOn = hudOn,
                     fillScreen = if (SessionState.mode == SessionService.MODE_STEAM) fillScreen else null,
                     frameGenEngine = frameGenEngine, frameGenMultiplier = frameGenMultiplier,
-                    lsfgReady = LsfgNative.isInstalled(this@SessionActivity),
+                    lossless = lossless,
                     oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
                     shapeMode = shapeMode, fexPreset = fexPreset,
@@ -373,6 +379,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         FrameGen.set(this@SessionActivity, engine, multiplier)
                         readPrefs()
                         applyFrameGen()
+                    },
+                    onImportLossless = {
+                        pickLossless.launch(InAppFilePicker.buildIntent(
+                            this@SessionActivity, listOf("dll"), getString(R.string.lsfg_pick_title)))
                     },
                     onKeyboard = { drawerOpen = false; pcKeyboardOpen = false; keyboard?.toggle() },
                     onHardwareKeyboard = { drawerOpen = false; pcKeyboardOpen = !pcKeyboardOpen },
@@ -578,7 +588,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hudOn = SessionPrefs.hudEnabled(this)
         fillScreen = SessionPrefs.forceFullscreen(this)
         touchMode = SessionPrefs.touchMode(this)
-        frameGenLabel = FrameGen.label(this)
         frameGenEngine = FrameGen.engine(this)
         frameGenMultiplier = FrameGen.multiplier(this)
         fexPreset = SessionPrefs.fexPreset(this)
@@ -884,8 +893,33 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val hz = refreshHz()
         Thread({
             val problem = FrameGen.apply(this, hz)
-            if (problem != null) runOnUiThread { Toast.makeText(this, problem, Toast.LENGTH_LONG).show() }
+            val state = Lossless.state(this)
+            runOnUiThread {
+                lossless = state
+                if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
+            }
         }, "frame-gen").start()
+    }
+
+    /** A Lossless Scaling installed or updated in Steam during the session is taken when the drawer opens. */
+    private fun syncLossless() {
+        Thread({
+            Lossless.sync(this)
+            val state = Lossless.state(this)
+            runOnUiThread { lossless = state }
+        }, "lossless-sync").start()
+    }
+
+    private fun importLossless(dll: File) {
+        Thread({
+            val message = Lossless.message(this, Lossless.import(this, dll))
+            val state = Lossless.state(this)
+            runOnUiThread {
+                lossless = state
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                if (FrameGen.engine(this) == FrameGen.ENGINE_LSFG) applyFrameGen()
+            }
+        }, "lossless-import").start()
     }
 
     // ── Session state ───────────────────────────────────────────────────────────────────────

@@ -98,17 +98,10 @@ const char* variantName(Variant v);
 // reported as valid - the translator handles it.
 DllStatus validateDll(const std::string& dllPath);
 
-// Which producer would be used for this DLL.
-Variant dllVariant(const std::string& dllPath, bool preferFp16);
-
 // Parse the DLL, produce all 25 SPIR-V modules, and write them to cachePath
 // (via temp file + rename, so a failed build cannot leave a half-written
 // cache behind). Records which producer ran in the cache header.
 DllStatus buildCache(const std::string& dllPath, const std::string& cachePath, bool preferFp16);
-
-// Is the cache current for this DLL? Compares source size + content hash.
-DllStatus cacheMatchesSource(const std::string& cachePath, const std::string& dllPath,
-                             bool& outMatches);
 
 // Load a previously built cache.
 DllStatus loadModules(const std::string& cachePath, ModuleSet& outSet);

@@ -51,6 +51,7 @@ static struct {
 
 /* ---- engine + generation ring (compositor thread) ------------------------------------ */
 static int g_engine_kind = -1;      /* kind of the running engine, -1 = none */
+static int g_engine_cache_gen = -1; /* the LSFG cache it loaded */
 static int g_engine_ok;
 /* The engine of this kind (with this cache) could not start or build its chain; not retried
  * every frame - a new engine selection or a new cache clears it. */
@@ -92,6 +93,7 @@ static int64_t now_ns(void) {
 void vkp_framegen_set_engine(int kind) {
     if (kind != VKP_FG_ENGINE_LSFG && kind != VKP_FG_ENGINE_WINFG) kind = VKP_FG_ENGINE_LSFG;
     atomic_store(&g_kind, kind);
+    atomic_store(&g_failed_kind, -1);
     atomic_store(&g_cfg_dirty, 1);
 }
 
@@ -285,7 +287,9 @@ int vkp_framegen_extra_images(void) {
 }
 
 static int ensure_engine(int kind) {
-    if (g_engine_ok && g_engine_kind == kind) return 1;
+    const int cache_gen = atomic_load(&g_cache_gen);
+    if (g_engine_ok && g_engine_kind == kind && (kind != VKP_FG_ENGINE_LSFG || g_engine_cache_gen == cache_gen))
+        return 1;
     if (start_failed_for(kind)) return 0;
     if (g_engine_ok) { destroy_ring(); fge_stop(); g_engine_ok = 0; g_engine_kind = -1; }
     char *path = NULL;
@@ -293,7 +297,7 @@ static int ensure_engine(int kind) {
     if (g_cache_path) path = strdup(g_cache_path);
     pthread_mutex_unlock(&g_lock);
     if (kind == VKP_FG_ENGINE_LSFG && !path) {
-        FGLOG("LSFG Native can't start: no shader cache (import Lossless.dll in Settings)");
+        FGLOG("LSFG Native can't start: no shader cache from Lossless.dll");
         mark_failed(kind);
         return 0;
     }
@@ -305,7 +309,7 @@ static int ensure_engine(int kind) {
         mark_failed(kind);
         return 0;
     }
-    g_engine_ok = 1; g_engine_kind = kind;
+    g_engine_ok = 1; g_engine_kind = kind; g_engine_cache_gen = cache_gen;
     atomic_store(&g_cfg_dirty, 1);
     g_built_w = g_built_h = 0;
     FGLOG("%s engine ready (%s)", fge_engine_name(kind), fge_build_info());

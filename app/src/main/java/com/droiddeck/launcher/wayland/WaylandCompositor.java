@@ -453,7 +453,7 @@ public final class WaylandCompositor {
      *  disarm. Generated frames are presented ahead of the real frame on consecutive vblanks. */
     public static native void nativeSetFrameGenArmed(boolean armed, int multiplier);
 
-    /** LSFG Native: the SPIR-V cache built from the user's Lossless.dll ({@code LsfgNative.cacheFile}). */
+    /** LSFG Native: the SPIR-V cache built from the user's Lossless.dll ({@code Lossless.cacheFile}). */
     public static native void nativeSetLsfgCachePath(String path);
 
     /** Flow scale (0.25-1.0) and the panel's real refresh rate (the pacer never generates above it). */

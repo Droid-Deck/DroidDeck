@@ -578,6 +578,24 @@ BUSCONF
       bannerlator-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
       games_watcher=$!
     fi
+    # Lossless Scaling (Steam app 993090): whether this account owns it, asked of the signed-in
+    # client once a session until the answer is yes. From then on the app offers importing
+    # Lossless.dll and passes BL_LOSSLESS_OWNED=1, so the question is never asked again.
+    if [ "${BL_LOSSLESS_OWNED:-0}" != 1 ]; then
+      (
+        owned=$HOME/.config/droiddeck/lossless-owned
+        for ((_i = 0; _i < 60; _i++)); do
+          nap 30
+          [ -e "$owned" ] && exit 0
+          answer=$(bannerlator-steam-games probe "$steam_root" 993090 2>/dev/null) || continue
+          case $answer in
+            *'"993090": true'*) mkdir -p "${owned%/*}" && : > "$owned" && echo "== Lossless Scaling: owned" ;;
+            *) echo "== Lossless Scaling: not owned by this account" ;;
+          esac
+          exit 0
+        done
+      ) &
+    fi
     echo "== steam args: ${_bl_ui[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
     # An update that cannot install asks for a restart (rc=42) every time; the count is capped so a
     # session can never again loop in silence, which reads as a menu opening and closing by itself.

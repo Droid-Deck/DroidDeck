@@ -2,6 +2,7 @@ package com.droiddeck.launcher.gpu
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.wayland.WaylandCompositor
 
 /**
@@ -9,7 +10,7 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
  *
  * Both engines generate on gamescope's final output inside our compositor, so they work for any
  * game with nothing changed in the runtime. Win-FG is our own and needs nothing; LSFG needs the
- * shader chain from the user's copy of Lossless Scaling (see [LsfgNative]). Every compositor
+ * shader chain from the user's copy of Lossless Scaling (see [Lossless]). Every compositor
  * setter is a value store on the native side, so this can be applied before the compositor is
  * up and changed live from the main screen while a session runs.
  */
@@ -39,36 +40,37 @@ object FrameGen {
             .putString("engine", engine).putInt("multiplier", multiplier).apply()
     }
 
-    /** "Off", "Win-FG 2×", "LSFG 3×" - for the main screen. */
-    fun label(context: Context): String = label(engine(context), multiplier(context))
+    /** "Off", "Win-FG 2×", "LSFG 3×". */
+    fun label(context: Context): String = label(context, engine(context), multiplier(context))
 
-    fun label(engine: String, multiplier: Int): String = when (engine) {
-        ENGINE_WINFG -> "Win-FG $multiplier×"
-        ENGINE_LSFG -> "LSFG $multiplier×"
-        else -> "Off"
+    fun label(context: Context, engine: String, multiplier: Int): String = when (engine) {
+        ENGINE_WINFG -> context.getString(R.string.frame_gen_winfg, multiplier)
+        ENGINE_LSFG -> context.getString(R.string.frame_gen_lsfg, multiplier)
+        else -> context.getString(R.string.frame_gen_off)
     }
 
     /**
      * Pushes the saved setting into the compositor. Returns a message for the user when the
-     * engine cannot run (LSFG without Lossless Scaling), or null.
+     * engine cannot run (LSFG without Lossless Scaling), or null. Blocks while a new or updated
+     * Lossless.dll is prepared.
      */
     fun apply(context: Context, refreshHz: Float): String? {
         val engine = engine(context)
         val multiplier = multiplier(context)
-        var problem: String? = null
         when (engine) {
             ENGINE_LSFG -> {
-                val status = LsfgNative.ensureCache(context)
-                if (status != LsfgNative.STATUS_OK) {
-                    problem = if (status == LsfgNative.STATUS_NOT_INSTALLED)
-                        "LSFG needs Lossless Scaling installed from the Steam client"
-                    else "LSFG: " + LsfgNative.statusName(status)
-                    Log.w(TAG, problem)
+                val status = Lossless.sync(context)
+                val cache = Lossless.cacheFile(context)
+                if (status != LsfgNative.STATUS_OK || cache == null) {
                     WaylandCompositor.nativeSetFrameGenArmed(false, 0)
+                    val problem = context.getString(
+                        if (status == LsfgNative.STATUS_NOT_INSTALLED) R.string.lsfg_problem_missing else R.string.lsfg_problem_failed,
+                    )
+                    Log.w(TAG, "$problem (status $status)")
                     return problem
                 }
                 WaylandCompositor.nativeSetFrameGenEngine(WaylandCompositor.FG_ENGINE_LSFG)
-                WaylandCompositor.nativeSetLsfgCachePath(LsfgNative.cacheFile(context).absolutePath)
+                WaylandCompositor.nativeSetLsfgCachePath(cache.absolutePath)
                 WaylandCompositor.nativeSetFrameGenTuning(FLOW_SCALE_LSFG, refreshHz)
                 WaylandCompositor.nativeSetFrameGenArmed(true, multiplier)
             }
@@ -81,7 +83,7 @@ object FrameGen {
             else -> WaylandCompositor.nativeSetFrameGenArmed(false, 0)
         }
         Log.i(TAG, "frame generation: $engine x$multiplier at ${refreshHz}Hz")
-        return problem
+        return null
     }
 
     private const val TAG = "FrameGen"

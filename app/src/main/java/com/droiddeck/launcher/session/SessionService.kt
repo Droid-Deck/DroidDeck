@@ -314,6 +314,7 @@ class SessionService : Service() {
             val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
             guest.add("BL_ADDED_GAMES=" + listing.path)
             if (OfflineMode.enabled(this)) guest.add("BL_STEAM_OFFLINE=1")
+            if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         // Where the guest leaves a request for another session (the desktop's Steam launchers).

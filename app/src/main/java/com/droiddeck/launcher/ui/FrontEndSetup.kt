@@ -59,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalInputModeManager
@@ -73,6 +74,7 @@ import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.R
 
 // The Setup page: runtime and device checks, tools, frame generation and launch settings.
 
@@ -268,7 +270,7 @@ internal fun SetupPanel(
                                     true to SessionPrefs.BACK_QAM_THEN_MENU,
                                 ), s.backActionsInverted, onPick = a.onBackActionsInverted,
                             )
-                            SettingsRow("Frame generation", "Select the frame generation mode") {
+                            SettingsRow(stringResource(R.string.frame_gen_title), stringResource(R.string.frame_gen_hint)) {
                                 Box {
                                     ValueChip(s.frameGenLabel, host.open == "fg") { host.open = if (host.open == "fg") null else "fg" }
                                     FrameGenMenu(s, a, host)
@@ -388,7 +390,7 @@ private fun ToolCard(t: ToolSpec, modifier: Modifier) {
 
 @Composable
 private fun FrameGenMenu(s: FrontEndState, a: FrontEndActions, host: MenuHost) {
-    FrameGenMenu(host, s.frameGenEngine, s.frameGenMultiplier, s.lsfgReady, a.onFrameGenPick)
+    FrameGenMenu(host, s.frameGenEngine, s.frameGenMultiplier, s.lossless, a.onFrameGenPick, a.onImportLossless)
 }
 
 /**
@@ -404,7 +406,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
         add { m -> SettingCard("Components", "FEX, DXVK, VKD3D", "card:components", m) { a.onComponents(true) } }
         add { m ->
             Box(m) {
-                SettingCard("Frame generation", s.frameGenLabel, "card:fg", Modifier.fillMaxSize()) {
+                SettingCard(stringResource(R.string.frame_gen_title), s.frameGenLabel, "card:fg", Modifier.fillMaxSize()) {
                     host.open = if (host.open == "fg") null else "fg"
                 }
                 FrameGenMenu(s, a, host)
