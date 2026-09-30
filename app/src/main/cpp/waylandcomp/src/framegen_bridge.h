@@ -34,8 +34,9 @@ enum { VKP_FG_ENGINE_LSFG = 0, VKP_FG_ENGINE_WINFG = 1 };
 
 /* ---- app controls (any thread) ------------------------------------------------------- */
 void vkp_framegen_set_engine(int kind);
-/* multiplier 2..4; armed = 0 stops generating (the ring and the engine stay for a re-arm). */
-void vkp_framegen_set_armed(int armed, int multiplier);
+/* multiplier 2..4, or target_fps > 0 for LSFG's adaptive mode (up to 4x, as the target needs);
+ * armed = 0 stops generating (the ring and the engine stay for a re-arm). */
+void vkp_framegen_set_armed(int armed, int multiplier, int target_fps);
 /* LSFG Native: the SPIR-V cache built from the user's Lossless.dll (Lossless.sync); a new path reloads the engine. */
 void vkp_framegen_set_lsfg_cache_path(const char *path);
 /* Flow scale 0.25..1.0 and the panel's real refresh rate (the pacer never generates above it). */

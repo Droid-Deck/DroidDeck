@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
@@ -14,8 +15,8 @@ import com.droiddeck.launcher.gpu.Lossless
  */
 @Composable
 internal fun FrameGenMenu(
-    host: MenuHost, engine: String, multiplier: Int, lossless: Lossless.State,
-    onPick: (engine: String, multiplier: Int) -> Unit,
+    host: MenuHost, mode: FrameGen.Mode, lossless: Lossless.State,
+    onPick: (FrameGen.Mode) -> Unit,
     onImportLossless: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -25,10 +26,16 @@ internal fun FrameGenMenu(
             lossless.owned -> stringResource(R.string.lsfg_needs_install)
             else -> stringResource(R.string.lsfg_needs_steam)
         }
-        fun pick(e: String, m: Int) { onPick(e, m); host.open = null }
-        MenuItem(stringResource(R.string.frame_gen_off), checked = engine == FrameGen.ENGINE_OFF, focusRequester = firstItemFocus) { pick(FrameGen.ENGINE_OFF, 2) }
-        for (m in 2..4) MenuItem(FrameGen.label(context, FrameGen.ENGINE_WINFG, m), checked = engine == FrameGen.ENGINE_WINFG && multiplier == m) { pick(FrameGen.ENGINE_WINFG, m) }
-        for (m in 2..4) MenuItem(FrameGen.label(context, FrameGen.ENGINE_LSFG, m), checked = engine == FrameGen.ENGINE_LSFG && multiplier == m, enabled = lossless.ready, detail = need) { pick(FrameGen.ENGINE_LSFG, m) }
+        @Composable
+        fun item(m: FrameGen.Mode, enabled: Boolean = true, detail: String? = null, focus: FocusRequester? = null) =
+            MenuItem(FrameGen.label(context, m), checked = mode == m, enabled = enabled, detail = detail, focusRequester = focus) {
+                onPick(m); host.open = null
+            }
+        item(FrameGen.Mode.OFF, focus = firstItemFocus)
+        for (m in 2..4) item(FrameGen.Mode(FrameGen.ENGINE_WINFG, m))
+        val lsfg = (2..4).map { FrameGen.Mode(FrameGen.ENGINE_LSFG, it) } +
+            FrameGen.ADAPTIVE_TARGETS.map { FrameGen.Mode(FrameGen.ENGINE_LSFG, target = it) }
+        lsfg.forEachIndexed { i, m -> item(m, enabled = lossless.ready, detail = need.takeIf { i == 0 }) }
         if (lossless.owned) {
             val using = when (lossless.source) {
                 Lossless.Source.STEAM -> stringResource(R.string.lsfg_using_steam)

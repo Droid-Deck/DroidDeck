@@ -109,6 +109,10 @@ private:
     // generation last stopped.
     bool historyFresh() const { return haveCopied_ && lastCopiedCount_ + 1 == frameCount_; }
 
+    // With a target rate the pacer plans 0..3 generations frame by frame, so the ring and the
+    // shared chain have to follow every frame it keeps warm, not just the ones that generate.
+    bool followEveryFrame() const { return warm_ && pacer_.Config().target_rate != 0; }
+
     Device      device_{};
     std::string cachePath_;
     std::unique_ptr<LsfgShaders> shaders_;

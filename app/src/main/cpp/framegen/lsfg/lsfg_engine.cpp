@@ -269,7 +269,7 @@ void Engine::process(VkCommandBuffer cmd, VkImage source, uint32_t width, uint32
     // nothing. Copy only when generating, on the one priming frame that
     // precedes generation, or while the governor is warming up towards a
     // probe - so the ring is populated by the time it is needed.
-    const bool needHistory = generations > 0 || primeHistory_
+    const bool needHistory = generations > 0 || primeHistory_ || followEveryFrame()
         || (governorEnabled_ && governor_.wantsHistory());
     if (needHistory) {
         copyPresentedFrame(cmd, source, chain_->Input(count), VkExtent2D{width, height});
@@ -284,7 +284,7 @@ void Engine::process(VkCommandBuffer cmd, VkImage source, uint32_t width, uint32
     // regardless of the game's own settings, and it fed straight back into the
     // governor: the chain made the source rate collapse, the governor saw the
     // collapse and refused to generate, and refusing did not stop the chain.
-    if (warm_ && generations > 0) chain_->DispatchShared(cmd, count);
+    if (warm_ && (generations > 0 || followEveryFrame())) chain_->DispatchShared(cmd, count);
 }
 
 void Engine::generateInto(VkCommandBuffer cmd, uint32_t generation, uint32_t targetIndex,

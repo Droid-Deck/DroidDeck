@@ -390,7 +390,7 @@ private fun ToolCard(t: ToolSpec, modifier: Modifier) {
 
 @Composable
 private fun FrameGenMenu(s: FrontEndState, a: FrontEndActions, host: MenuHost) {
-    FrameGenMenu(host, s.frameGenEngine, s.frameGenMultiplier, s.lossless, a.onFrameGenPick, a.onImportLossless)
+    FrameGenMenu(host, s.frameGen, s.lossless, a.onFrameGenPick, a.onImportLossless)
 }
 
 /**

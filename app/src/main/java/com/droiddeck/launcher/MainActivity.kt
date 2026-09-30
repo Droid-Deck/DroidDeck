@@ -358,7 +358,7 @@ class MainActivity : ComponentActivity() {
                         offlineAccount = offlineAccount, offline = offline,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
-                        frameGenEngine = FrameGen.engine(this), frameGenMultiplier = FrameGen.multiplier(this),
+                        frameGen = FrameGen.mode(this),
                         lossless = lossless,
                         pageKey = sm?.let { "settings:$it" } ?: if (showPerformance) "performance" else if (showProtons) "protons" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
                         theme = theme,
@@ -434,8 +434,8 @@ class MainActivity : ComponentActivity() {
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
-                        onFrameGenPick = { engine, multiplier ->
-                            FrameGen.set(this, engine, multiplier)
+                        onFrameGenPick = { mode ->
+                            FrameGen.set(this, mode)
                             frameGenLabel = FrameGen.label(this)
                         },
                         onImportLossless = {

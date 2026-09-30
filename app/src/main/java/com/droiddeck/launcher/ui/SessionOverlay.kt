@@ -139,8 +139,7 @@ class DrawerActions(
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
-    val frameGenEngine: String,
-    val frameGenMultiplier: Int,
+    val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
@@ -155,7 +154,7 @@ class DrawerActions(
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
-    val onFrameGenPick: (engine: String, multiplier: Int) -> Unit,
+    val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     /** The Android keyboard (text, turned into key presses). */
     val onKeyboard: () -> Unit,
@@ -326,11 +325,11 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                 chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen,
                             )
                             val fgOpen = host.open == "fg"
-                            val fgLabel = FrameGen.label(LocalContext.current, a.frameGenEngine, a.frameGenMultiplier)
+                            val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                             SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
                                 Box {
                                     ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
-                                    FrameGenMenu(host, a.frameGenEngine, a.frameGenMultiplier, a.lossless, a.onFrameGenPick, a.onImportLossless)
+                                    FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
                                 }
                             }
                         }

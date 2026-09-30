@@ -19,6 +19,7 @@ void banner_log(const char *tag, const char *fmt, ...) __attribute__((format(pri
 static _Atomic int   g_kind = VKP_FG_ENGINE_LSFG;
 static _Atomic int   g_armed;
 static _Atomic int   g_mult = 2;
+static _Atomic int   g_target;                      /* LSFG adaptive fps, 0 = fixed multiplier */
 static _Atomic int   g_model = 3;
 static _Atomic int   g_preset = 2;
 static _Atomic int   g_cfg_dirty = 1;
@@ -97,12 +98,16 @@ void vkp_framegen_set_engine(int kind) {
     atomic_store(&g_cfg_dirty, 1);
 }
 
-void vkp_framegen_set_armed(int armed, int multiplier) {
+void vkp_framegen_set_armed(int armed, int multiplier, int target_fps) {
+    if (target_fps < 0) target_fps = 0;
+    /* Adaptive sizes the ring and the swapchain for the most it may ever generate. */
+    if (target_fps) multiplier = VKP_FG_MAX_GENERATIONS + 1;
     if (multiplier < 2) multiplier = 2;
     if (multiplier > VKP_FG_MAX_GENERATIONS + 1) multiplier = VKP_FG_MAX_GENERATIONS + 1;
     if (atomic_exchange(&g_mult, multiplier) != multiplier) atomic_store(&g_cfg_dirty, 1);
+    if (atomic_exchange(&g_target, target_fps) != target_fps) atomic_store(&g_cfg_dirty, 1);
     atomic_store(&g_armed, armed ? 1 : 0);
-    LOGD("framegen: set_armed(%d, x%d)", armed, multiplier);
+    LOGD("framegen: set_armed(%d, x%d, target %d fps)", armed, multiplier, target_fps);
 }
 
 void vkp_framegen_set_lsfg_cache_path(const char *path) {
@@ -316,22 +321,32 @@ static int ensure_engine(int kind) {
     return 1;
 }
 
-static int g_logged_mult;
+/* "x3 (2 interpolated frames per game frame)" or "adaptive to 90 fps (up to 3 ...)". */
+static const char *describe_mode(char *buf, size_t n, int mult, int target) {
+    if (target) snprintf(buf, n, "adaptive to %d fps (up to %d interpolated frames per game frame)", target, mult - 1);
+    else snprintf(buf, n, "x%d (%d interpolated frame%s per game frame)", mult, mult - 1, mult == 2 ? "" : "s");
+    return buf;
+}
+
+static int g_logged_mult, g_logged_target;
 static void log_arm_transition(int armed, int kind, int mult) {
+    const int target = atomic_load(&g_target);
+    char mode[96];
     if (armed == g_was_armed) {
-        if (armed && mult != g_logged_mult) {
-            g_logged_mult = mult;
-            FGLOG("%s multiplier changed to x%d (%d interpolated frames per game frame)", fge_engine_name(kind), mult, mult - 1);
+        if (armed && (mult != g_logged_mult || target != g_logged_target)) {
+            g_logged_mult = mult; g_logged_target = target;
+            FGLOG("%s now %s", fge_engine_name(kind), describe_mode(mode, sizeof(mode), mult, target));
         }
         return;
     }
     g_was_armed = armed;
     if (armed) {
-        g_logged_mult = mult;
+        g_logged_mult = mult; g_logged_target = target;
         float flow, hz;
         pthread_mutex_lock(&g_lock); flow = g_flow; hz = g_refresh_hz; pthread_mutex_unlock(&g_lock);
-        FGLOG("%s x%d armed (flow scale %.2f, panel %.0f Hz): real frames are presented one slot late "
-              "with the interpolated frames ahead of them", fge_engine_name(kind), mult, (double)flow, (double)hz);
+        FGLOG("%s %s armed (flow scale %.2f, panel %.0f Hz): real frames are presented one slot late "
+              "with the interpolated frames ahead of them", fge_engine_name(kind),
+              describe_mode(mode, sizeof(mode), mult, target), (double)flow, (double)hz);
     } else {
         FGLOG("frame generation off (%llu frames generated this session)", (unsigned long long)g_total_generated);
         g_generating_logged = 0;
@@ -352,7 +367,8 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
     if (atomic_exchange(&g_cfg_dirty, 0)) {
         float flow, hz;
         pthread_mutex_lock(&g_lock); flow = g_flow; hz = g_refresh_hz; pthread_mutex_unlock(&g_lock);
-        fge_configure((uint32_t)mult, flow, hz, atomic_load(&g_model), atomic_load(&g_preset));
+        fge_configure((uint32_t)mult, (uint32_t)atomic_load(&g_target), flow, hz,
+                      atomic_load(&g_model), atomic_load(&g_preset));
     }
     if (!fge_prepare((uint32_t)w, (uint32_t)h, fmt)) {
         if (fmt != VK_FORMAT_R8G8B8A8_UNORM && fge_unavailable()) {
@@ -430,8 +446,9 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
                               0, 0, NULL, 0, NULL, nb, bars);
         if (!g_generating_logged) {
             g_generating_logged = 1;
-            FGLOG("generating: %s x%d at %dx%d (%u interpolated frame%s per game frame%s)",
-                  fge_engine_name(kind), mult, w, h, n_gen, n_gen == 1 ? "" : "s",
+            char mode[96];
+            FGLOG("generating: %s %s at %dx%d%s", fge_engine_name(kind),
+                  describe_mode(mode, sizeof(mode), mult, atomic_load(&g_target)), w, h,
                   fmt == VK_FORMAT_R16G16B16A16_SFLOAT ? ", FP16: the HDR picture" : "");
         }
     }

@@ -175,8 +175,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
     }
-    private var frameGenEngine by mutableStateOf(FrameGen.ENGINE_OFF)
-    private var frameGenMultiplier by mutableStateOf(2)
+    private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
@@ -365,7 +364,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     androidApps = androidApps,
                     hudOn = hudOn,
                     fillScreen = if (SessionState.mode == SessionService.MODE_STEAM) fillScreen else null,
-                    frameGenEngine = frameGenEngine, frameGenMultiplier = frameGenMultiplier,
+                    frameGen = frameGen,
                     lossless = lossless,
                     oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
@@ -375,8 +374,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     selectedSecondScreenDisplay = selectedSecondScreenDisplay,
                     onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
                     onFillScreen = { on -> SessionPrefs.setForceFullscreen(this@SessionActivity, on); fillScreen = on },
-                    onFrameGenPick = { engine, multiplier ->
-                        FrameGen.set(this@SessionActivity, engine, multiplier)
+                    onFrameGenPick = { mode ->
+                        FrameGen.set(this@SessionActivity, mode)
                         readPrefs()
                         applyFrameGen()
                     },
@@ -588,8 +587,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         hudOn = SessionPrefs.hudEnabled(this)
         fillScreen = SessionPrefs.forceFullscreen(this)
         touchMode = SessionPrefs.touchMode(this)
-        frameGenEngine = FrameGen.engine(this)
-        frameGenMultiplier = FrameGen.multiplier(this)
+        frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         oscMode = SessionPrefs.oscMode(this)

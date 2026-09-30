@@ -92,8 +92,7 @@ class FrontEndState(
     val steamGames: List<Library.SteamGame>,
     val emulators: List<Library.Emulator>,
     val running: String?,
-    val frameGenEngine: String = FrameGen.ENGINE_OFF,
-    val frameGenMultiplier: Int = 2,
+    val frameGen: FrameGen.Mode = FrameGen.Mode.OFF,
     val lossless: Lossless.State = Lossless.State.NONE,
     val pageKey: String? = null,
     val theme: String = Themes.GRAPHITE,
@@ -138,7 +137,7 @@ class FrontEndActions(
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
     val onRuntime: () -> Unit,
-    val onFrameGenPick: (engine: String, multiplier: Int) -> Unit,
+    val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onProtons: () -> Unit,
     /** The Components page: FEX / DXVK / VKD3D-Proton per Proton. */
