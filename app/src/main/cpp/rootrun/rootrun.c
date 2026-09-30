@@ -221,6 +221,7 @@ int main(int argc, char **argv) {
 
     /* The runtime's own filesystems, then whatever the app asked for. */
     char proc[4096], sys[4096], dev[4096];
+    int shm_ready = 0;
     snprintf(proc, sizeof(proc), "%s/proc", root);
     snprintf(sys, sizeof(sys), "%s/sys", root);
     snprintf(dev, sizeof(dev), "%s/dev", root);
@@ -257,9 +258,32 @@ int main(int argc, char **argv) {
     /* The guest writes here from its first line. */
     chmod(dev, 0755);
 
+    /* A real tmpfs for /dev/shm, and the app's own bind to it is skipped below.
+     *
+     * wl_shm.create_pool only accepts a descriptor whose backing store is shmem: libwayland checks
+     * that the fd is a shmem file (memfd or tmpfs) and otherwise refuses the request with "invalid
+     * arguments". The app's cache lives on f2fs, so binding that at /dev/shm had every client's
+     * pool rejected - gamescope died at "invalid arguments for wl_shm#27.create_pool" and the
+     * session never came up. proot never hit this: it binds the host's /dev, where /dev/shm is
+     * already a tmpfs. Sized in pages; tmpfs is charged only as it is used. */
+    {
+        char shm[4096];
+        snprintf(shm, sizeof(shm), "%s/dev/shm", root);
+        mkdir_parents(shm, 0755);
+        if (mount_fs("tmpfs", shm, "tmpfs", MS_NOSUID | MS_NODEV | MS_STRICTATIME) == 0) {
+            chmod(shm, 0777);
+            shm_ready = 1;
+        } else {
+            warn("cannot mount tmpfs for", shm);
+        }
+    }
+
     for (int b = 0; b < nbind; b++) {
         char *left = NULL, *right = NULL;
         if (split_pair(binds[b], &left, &right) != 0) { fprintf(stderr, "%s: bad bind %s\n", prog, binds[b]); continue; }
+        /* The tmpfs above is the shm the guest needs; binding the app's cache over it would put
+         * the session back on f2fs and break every wl_shm client. */
+        if (shm_ready && strcmp(right, "/dev/shm") == 0) continue;
         char dst[4096];
         snprintf(dst, sizeof(dst), "%s%s", root, right);
         bind_mount(left, dst);
