@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Registers the card the app installs to (bound at /mnt/bannerlator-sd) as a library folder of the
+# Registers the card the app installs to (bound at /mnt/droiddeck-sd) as a library folder of the
 # native Steam client, so they show as installed there instead of being downloaded a second time.
 #
 #   bannerlator-steam-library <steam root>
@@ -14,7 +14,7 @@ import sys
 # The app binds the storage the user chose (Steam cog -> Game storage) at this path and names it
 # in BL_LIBRARY_LABEL; nothing bound = internal only, and the entry is removed so the client does
 # not keep offering a place that is not there.
-LIBRARIES = (("/mnt/bannerlator-sd", os.environ.get("BL_LIBRARY_LABEL", "SD Card")),)
+LIBRARIES = (("/mnt/droiddeck-sd", os.environ.get("BL_LIBRARY_LABEL", "SD Card")),)
 # The client calls its own library "Local Drive (/)", which says nothing about where that is.
 # It is the phone's internal storage, so say so.
 MAIN_LABEL = "Internal Storage"
@@ -66,6 +66,26 @@ def register(steam_root, library, label):
 
 
 RETIRED = ("/mnt/bannerlator",)
+RENAMED = (("/mnt/bannerlator-sd", "/mnt/droiddeck-sd"),)
+
+
+def rename(steam_root, old, new):
+    """Moves a library registered under an earlier mount point to the current one, keeping its
+    entry (content id, app sizes) rather than registering it anew."""
+    path = os.path.join(steam_root, "steamapps", "libraryfolders.vdf")
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+    old_path = re.compile(r'("path"\s+")%s(")' % re.escape(old))
+    if not old_path.search(text):
+        return
+    if re.search(r'"path"\s+"%s"' % re.escape(new), text):
+        forget(steam_root, old)
+        return
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(old_path.sub(lambda m: m.group(1) + new + m.group(2), text))
+    print("bannerlator-steam-library: moved %s to %s" % (old, new))
 
 
 def forget(steam_root, library):
@@ -152,6 +172,8 @@ def main():
     steam_root = sys.argv[1]
     for library in RETIRED:
         forget(steam_root, library)
+    for old, new in RENAMED:
+        rename(steam_root, old, new)
     relabel(steam_root, steam_root, MAIN_LABEL)
     for library, label in LIBRARIES:
         if os.path.isdir(os.path.join(library, "steamapps")):

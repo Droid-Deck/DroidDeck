@@ -14,6 +14,8 @@ import urllib.request
 
 STATE = ".droiddeck-games.json"
 WINNATIVE = ".winnative-steam/steamapps"
+LIBRARY = "/mnt/droiddeck-sd"
+LEGACY_LIBRARY = "/mnt/bannerlator-sd"
 BASE_ID = 76561197960265728
 
 
@@ -39,6 +41,11 @@ def title_key(name):
 def edition_key(name):
     name = re.sub(r"(?i)\s+(?:windows edition|intergrade)\s*$", "", name)
     return title_key(name)
+
+
+def legacy_path(path):
+    path = str(path)
+    return LEGACY_LIBRARY + path[len(LIBRARY):] if path == LIBRARY or path.startswith(LIBRARY + "/") else path
 
 
 def source_stamp(game):
@@ -263,7 +270,12 @@ def seed_install(steam_root, game, appid):
     else:
         content = minimal[:-2] + '    "InstalledDepots"\n    {\n' + build + '    }\n}\n'
     manifest = steamapps / f"appmanifest_{appid}.acf"
-    for root in [Path(steam_root), Path("/mnt/bannerlator-sd")]:
+    if target.is_symlink() and os.readlink(target) != str(source) and os.readlink(target) == legacy_path(source):
+        relink = target.with_name(name + ".droiddeck")
+        relink.unlink(missing_ok=True)
+        relink.symlink_to(source, target_is_directory=True)
+        os.replace(relink, target)
+    for root in [Path(steam_root), Path(LIBRARY)]:
         existing = root / "steamapps" / manifest.name
         if existing.is_file():
             if (existing == manifest and source.is_dir() and target.is_symlink()
@@ -302,11 +314,13 @@ def route(steam_root, acct, games):
         owned, candidates, sources = {}, {}, {}
     shortcuts, routes = [], {}
     for game in games:
-        appid = candidates.get(game.get("folder"))
+        folder = game.get("folder", "")
+        appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)
+        recorded = sources.get(folder, sources.get(legacy_path(folder)))
         confirmed = (isinstance(appid, int) and 0 < appid < 0x80000000
                      and owned.get(str(appid)) is True and stamp is not None
-                     and sources.get(game.get("folder")) == stamp)
+                     and recorded in (stamp, [stamp[0], legacy_path(stamp[1])] + stamp[2:]))
         if confirmed:
             try:
                 if seed_install(steam_root, game, appid):

@@ -20,6 +20,7 @@ def load(name):
 
 imports = load('bannerlator-steam-games')
 shortcuts = load('bannerlator-steam-shortcuts')
+library = load('bannerlator-steam-library')
 
 
 class ImportsTest(unittest.TestCase):
@@ -161,6 +162,23 @@ class ImportsTest(unittest.TestCase):
             imports.route(self.steam, self.acct, [self.game])
             self.assertEqual(before, path.read_text())
 
+    def test_links_and_snapshots_from_the_old_mount_carry_over(self):
+        old = self.root / 'old-mount'
+        with patch.object(imports, 'LIBRARY', str(self.root / 'Games')), \
+             patch.object(imports, 'LEGACY_LIBRARY', str(old)):
+            legacy_game = dict(self.game, folder=str(old / 'Example'), exe=str(old / 'Example/Example.exe'))
+            stamp = imports.source_stamp(self.game)
+            imports.save_json(self.acct / 'config' / imports.STATE,
+                              dict(account='123', owned={'42': True}, candidates={legacy_game['folder']: 42},
+                                   sources={legacy_game['folder']: [stamp[0], legacy_game['exe']] + stamp[2:]}))
+            link = self.steam / 'steamapps/common/DroidDeck-42'
+            link.parent.mkdir(parents=True)
+            link.symlink_to(legacy_game['folder'], target_is_directory=True)
+            games, routes = imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual([], games)
+        self.assertEqual({str(self.game['appid']): 42}, routes)
+        self.assertEqual(str(self.folder), imports.os.readlink(link))
+
     def test_existing_manifest_is_never_overwritten(self):
         manifest = self.steam / 'steamapps/appmanifest_42.acf'
         manifest.parent.mkdir(parents=True)
@@ -256,6 +274,34 @@ class ImportsTest(unittest.TestCase):
         result = shortcuts.parse(path.read_bytes())['shortcuts']
         self.assertEqual([manual], list(result.values()))
         self.assertEqual({str(self.game['appid']): 42}, json.loads((path.parent / '.droiddeck-routes.json').read_text()))
+
+
+class LibraryRenameTest(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.steam = Path(temp.name)
+        self.vdf = self.steam / 'steamapps/libraryfolders.vdf'
+        self.vdf.parent.mkdir()
+
+    def entry(self, index, path):
+        return '\t"%d"\n\t{\n\t\t"path"\t\t"%s"\n\t\t"contentid"\t\t"%d"\n\t}\n' % (index, path, 7 + index)
+
+    def test_old_mount_keeps_its_entry_under_the_new_path(self):
+        self.vdf.write_text('"libraryfolders"\n{\n' + self.entry(0, '/root') + self.entry(1, '/mnt/bannerlator-sd') + '}\n')
+        with patch('builtins.print'):
+            library.rename(str(self.steam), '/mnt/bannerlator-sd', '/mnt/droiddeck-sd')
+        text = self.vdf.read_text()
+        self.assertIn('"path"\t\t"/mnt/droiddeck-sd"\n\t\t"contentid"\t\t"8"', text)
+        self.assertNotIn('bannerlator-sd', text)
+
+    def test_old_mount_is_dropped_when_new_path_is_registered(self):
+        self.vdf.write_text('"libraryfolders"\n{\n' + self.entry(0, '/mnt/droiddeck-sd') + self.entry(1, '/mnt/bannerlator-sd') + '}\n')
+        with patch('builtins.print'):
+            library.rename(str(self.steam), '/mnt/bannerlator-sd', '/mnt/droiddeck-sd')
+        text = self.vdf.read_text()
+        self.assertEqual(1, text.count('"path"'))
+        self.assertIn('/mnt/droiddeck-sd', text)
 
 
 class SteamProbeTest(unittest.TestCase):

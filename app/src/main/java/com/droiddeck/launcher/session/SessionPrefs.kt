@@ -599,7 +599,7 @@ object SessionPrefs {
     // ── Game storage ────────────────────────────────────────────────────────────────────────
 
     /**
-     * A second Steam library on this device: the folder bound at /mnt/bannerlator-sd and
+     * A second Steam library on this device: the folder bound at /mnt/droiddeck-sd and
      * registered with the client, which then asks where to install every game and shows both
      * on its Storage page. "" = automatic: the SD card when one is in the phone (the default,
      * so the choice is made inside the client like anywhere else); GAME_STORAGE_OFF = internal

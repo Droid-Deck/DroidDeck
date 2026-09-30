@@ -697,9 +697,12 @@ class SessionService : Service() {
         if (library != null) {
             val problem = GameStorage.prepare(library.path)
             if (problem == null) {
+                File(LinuxRuntime.rootDir(this), "mnt/droiddeck-sd").mkdirs()
+                binds.add("${library.path}:/mnt/droiddeck-sd")
+                // Links, prefixes and Steam entries made before the rename still name the old path.
                 File(LinuxRuntime.rootDir(this), "mnt/bannerlator-sd").mkdirs()
                 binds.add("${library.path}:/mnt/bannerlator-sd")
-                Log.i(TAG, "game storage: ${library.path} -> /mnt/bannerlator-sd (\"${library.label}\")")
+                Log.i(TAG, "game storage: ${library.path} -> /mnt/droiddeck-sd (\"${library.label}\")")
             } else {
                 Log.w(TAG, "game storage: $problem; internal only this session")
             }
