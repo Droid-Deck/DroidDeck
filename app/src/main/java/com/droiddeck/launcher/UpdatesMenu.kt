@@ -91,6 +91,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     private fun install(r: AppUpdates.Release) {
         if (stage != null) return
         val apk = r.apk ?: run { error = "This build has no download for this copy of DroidDeck"; return }
+        AppUpdates.installBlock(r)?.let { error = it; return }
         if (SessionState.running) { error = "Stop the running session first, then update"; return }
         if (!SelfInstaller.canInstall(activity)) { pending = r; askPermission = true; return }
         error = null

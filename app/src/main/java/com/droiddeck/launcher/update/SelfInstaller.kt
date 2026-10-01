@@ -4,9 +4,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.Hashes
 import java.io.File
@@ -14,6 +16,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 /**
  * Installs one of DroidDeck's own builds over itself: download into the cache, check the file
@@ -60,15 +63,61 @@ object SelfInstaller {
                     }
                 }
             }
+            if (apk.size > 0 && target.length() != apk.size) {
+                throw IOException("The download size didn't match the published APK and was discarded - try again")
+            }
             if (!apk.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
                 throw IOException("The download didn't match its checksum and was discarded - try again")
             }
+            validateDownloaded(context, target, apk)
             return target
         } catch (e: Exception) {
             FileUtils.delete(target)
             throw e
         } finally {
             c.disconnect()
+        }
+    }
+
+    /** Inspect the actual downloaded APK before giving it to Android's installer. */
+    private fun validateDownloaded(context: Context, file: File, apk: AppUpdates.Apk) {
+        if (apk.packageName != context.packageName) {
+            throw IOException("The update is for Android package ${apk.packageName}, not ${context.packageName}")
+        }
+        if (!apk.signerSha256.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true)) {
+            throw IOException("The update metadata doesn't name DroidDeck's release signing key")
+        }
+        @Suppress("DEPRECATION")
+        val flags = if (Build.VERSION.SDK_INT >= 28) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            PackageManager.GET_SIGNATURES
+        }
+        val info = context.packageManager.getPackageArchiveInfo(file.absolutePath, flags)
+            ?: throw IOException("Android couldn't read the downloaded APK")
+        if (info.packageName != context.packageName) {
+            throw IOException("The downloaded APK is for ${info.packageName}, not ${context.packageName}")
+        }
+        @Suppress("DEPRECATION")
+        val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+        if (code != apk.versionCode.toLong()) {
+            throw IOException("The downloaded APK says versionCode $code, not the published ${apk.versionCode}")
+        }
+        if (code < BuildConfig.VERSION_CODE.toLong()) {
+            throw IOException("Android won't install versionCode $code over the installed ${BuildConfig.VERSION_CODE}")
+        }
+
+        // Before Android 9 this lineage intentionally presents the public legacy test key. Android
+        // 9+ understands the v3 hand-over and must see DroidDeck's private release key as current.
+        if (Build.VERSION.SDK_INT >= 28) {
+            val signing = info.signingInfo ?: throw IOException("The downloaded APK has no signing information")
+            val digests = signing.apkContentsSigners.orEmpty().map { cert ->
+                MessageDigest.getInstance("SHA-256").digest(cert.toByteArray())
+                    .joinToString("") { "%02x".format(it) }
+            }
+            if (digests.none { it.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true) }) {
+                throw IOException("The downloaded APK isn't signed with DroidDeck's release key")
+            }
         }
     }
 

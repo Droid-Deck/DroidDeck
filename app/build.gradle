@@ -55,6 +55,8 @@ def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getO
     ?: providers.environmentVariable('GITHUB_SHA').getOrNull() ?: gitValue(['rev-parse', 'HEAD']) ?: ''
 def prNumber = (providers.environmentVariable('DROIDDECK_PR_NUMBER').getOrNull() ?: '0').with { it.isInteger() ? it : '0' }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
+// The release key's certificate: a build signed with it, from CI or a computer, updates in place.
+def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 // When the source was committed, for "built 3 hours ago": fixed per commit, so it costs no rebuilds.
 def commitTime = (gitValue(['show', '-s', '--format=%ct', 'HEAD']) ?: '0').with { it.isLong() ? it : '0' }
 // tools/release/variants.txt as "package=suffix;...", so the updater picks the apk of the package it runs as.
@@ -83,6 +85,7 @@ android {
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
+        buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
 

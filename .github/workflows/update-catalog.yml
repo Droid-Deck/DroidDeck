@@ -1,0 +1,42 @@
+name: Update app catalog
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  release:
+    types: [published, edited, deleted, unpublished]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: update-app-catalog
+  cancel-in-progress: false
+
+jobs:
+  catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Always use the current trusted generator, even when a release event points at an older tag.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+
+      - name: Regenerate catalog.json
+        env:
+          SOURCE_GITHUB_TOKEN: ${{ github.token }}
+          CI_GITHUB_TOKEN: ${{ steps.ci-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/release/update_catalog.py

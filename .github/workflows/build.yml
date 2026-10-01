@@ -400,7 +400,11 @@ jobs:
               success)
                 echo "###  Build passed"
                 echo
-                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key. A maintainer can run **PR Release Publish** from \`main\` to create an APK that installs over the release."
+                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
+                echo
+                echo "**Maintainer:** add the \`publish-test\` label to publish a release-signed tester build that installs over Stable or Preview and appears in DroidDeck's **Test builds** list. The label is removed automatically after publishing."
+                echo
+                echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
                 ;;
               failure)
                 echo "### ERROR: Build failed"
@@ -528,6 +532,8 @@ jobs:
           notes="$(cat notes-head.md)
 
           Signed build of $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA - in main, not yet in a DroidDeck release; for testing.
+          Commit: $GITHUB_SHA
+          VersionCode: $(sed -n 's/^ *versionCode \([0-9][0-9]*\)$/\1/p' app/build.gradle)
           Each apk installs over a DroidDeck release and keeps its data. \`standard\` is the normal app; the others are the same app under another package name, installed beside it.
 
           SHA-256:
@@ -589,3 +595,9 @@ jobs:
           jq -n --arg content "$content" '{content: $content, allowed_mentions: {parse: []}}' |
             curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK" -o /dev/null
           echo "Posted: $content"
+
+  catalog:
+    needs: announce
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.announce.result != 'skipped' }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit

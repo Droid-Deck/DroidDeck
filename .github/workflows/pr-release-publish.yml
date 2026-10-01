@@ -1,30 +1,39 @@
 name: PR Release Publish
-run-name: sign PR #${{ inputs.pr_number }} with the release key
+run-name: "sign PR #${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }} with the release key"
 
 on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: Open pull request
+        description: Open pull request number
         required: true
-        type: number
+        type: string
+  pull_request_target:
+    types: [labeled]
+    branches: [main]
 
 permissions:
   actions: read
   contents: read
-  pull-requests: read
+  issues: write
+  pull-requests: write
 
 concurrency:
-  group: pr-release-${{ inputs.pr_number }}
+  group: pr-release-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: false
 
 jobs:
   authorize:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request_target' && github.event.label.name == 'publish-test')
     runs-on: ubuntu-24.04
     outputs:
+      pr_number: ${{ steps.gate.outputs.pr_number }}
       run_id: ${{ steps.gate.outputs.run_id }}
       head_sha: ${{ steps.gate.outputs.head_sha }}
+      base_sha: ${{ steps.gate.outputs.base_sha }}
+      version_code: ${{ steps.gate.outputs.version_code }}
       label: ${{ steps.gate.outputs.label }}
       variants: ${{ steps.variants.outputs.list }}
     steps:
@@ -35,13 +44,23 @@ jobs:
       - name: The packages a signed build ships as
         id: variants
         run: echo "list=$(awk '!/^#/ && NF { print $1 }' tools/release/variants.txt | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
-      - name: Check the PR and build
+      - name: Check the requester, PR, and build
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTER: ${{ github.actor }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }}
         run: |
           set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid PR number '$PR_NUMBER'"; exit 1; }
+          if [ "$EVENT_NAME" = pull_request_target ]; then
+            permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$REQUESTER/permission" --jq .permission)
+            case "$permission" in
+              admin|maintain|write) ;;
+              *) echo "::error::@$REQUESTER does not have permission to publish release-signed test builds"; exit 1 ;;
+            esac
+          fi
           pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
           jq -e '.state == "open" and .draft == false and .base.ref == "main"' <<<"$pr" >/dev/null
           head=$(jq -r '.head.sha' <<<"$pr")
@@ -85,8 +104,11 @@ jobs:
             .head.sha == $head and .base.sha == $base
           ' <<<"$current" >/dev/null
           {
+            echo "pr_number=$PR_NUMBER"
             echo "run_id=$run_id"
             echo "head_sha=$head"
+            echo "base_sha=$base"
+            echo "version_code=${candidate##* }"
             echo "label=PR.$PR_NUMBER-${head:0:7}"
           } >> "$GITHUB_OUTPUT"
 
@@ -107,7 +129,8 @@ jobs:
     permissions:
       actions: read
       contents: read
-      pull-requests: read
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -119,7 +142,7 @@ jobs:
       - name: Describe the change
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
         run: |
           set -euo pipefail
           pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
@@ -143,10 +166,13 @@ jobs:
           owner: Droid-Deck
           repositories: DroidDeck-CI
       - name: Publish to DroidDeck-CI
+        id: publish
         env:
           GH_TOKEN: ${{ steps.ci-token.outputs.token }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          VERSION_CODE: ${{ needs.authorize.outputs.version_code }}
         run: |
           set -euo pipefail
           repo=Droid-Deck/DroidDeck-CI
@@ -157,6 +183,8 @@ jobs:
 
           Source: https://github.com/$GITHUB_REPOSITORY/pull/$PR_NUMBER
           Commit: $HEAD_SHA
+          Base: $BASE_SHA
+          VersionCode: $VERSION_CODE
           Each apk installs over a DroidDeck release and keeps its data. \`standard\` is the normal app; the others are the same app under another package name, installed beside it.
 
           SHA-256:
@@ -175,3 +203,80 @@ jobs:
             while IFS= read -r id; do
               gh api --method DELETE "repos/$repo/releases/assets/$id" >/dev/null
             done
+
+          published=$(gh release view "$tag" -R "$repo" --json tagName,assets)
+          jq -e --arg tag "$tag" '.tagName == $tag and (.assets | length) > 0' <<<"$published" >/dev/null
+          release="$GITHUB_SERVER_URL/$repo/releases/tag/$tag"
+          apk=$(cd signed && ls DroidDeck-*.apk | awk 'length(a) == 0 || length($0) < length(a) { a = $0 } END { print a }')
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "apk=$GITHUB_SERVER_URL/$repo/releases/download/$tag/$apk" >> "$GITHUB_OUTPUT"
+
+      - name: Clear the publish request label
+        if: ${{ github.event_name == 'pull_request_target' && steps.publish.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        run: |
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels/publish-test"
+
+      - name: Report the signed build on the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          RELEASE: ${{ steps.publish.outputs.release }}
+          APK: ${{ steps.publish.outputs.apk }}
+        run: |
+          set -euo pipefail
+          short=${HEAD_SHA:0:7}
+          mark='<!-- droiddeck-pr-release -->'
+          body=$(cat <<EOF
+          $mark
+          ## Signed test build
+
+          A release-signed build of this PR at \`$short\` is ready. It installs over Stable or Preview and keeps app data.
+
+          [Download the standard APK]($APK) · [All variants and checksums]($RELEASE)
+
+          It is also available in **DroidDeck → Updates → Test builds → PR #$PR_NUMBER**.
+
+          Pushes to this PR do not re-sign automatically. After a new green build, a maintainer can add the \`publish-test\` label again.
+          EOF
+          )
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"$mark\")) | .id" | head -1 || true)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
+          fi
+
+      - name: Post to Discord
+        if: ${{ always() && steps.publish.outcome == 'success' }}
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_BUILDS_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          RELEASE: ${{ steps.publish.outputs.release }}
+          APK: ${{ steps.publish.outputs.apk }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WEBHOOK" ]; then
+            echo "::notice::No DISCORD_BUILDS_WEBHOOK secret; nothing posted"
+            exit 0
+          fi
+          short=${HEAD_SHA:0:7}
+          title=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .title)
+          what="[#$PR_NUMBER]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PR_NUMBER): $title"
+          get=$(printf 'Download: [standard APK](<%s>) · [all variants](<%s>)' "$APK" "$RELEASE")
+          content=$(printf '**New signed PR test build** \`pr-%s\` · \`%s\`\n%s\n_Not merged — for testing._\n%s' "$PR_NUMBER" "$short" "$what" "$get")
+          jq -n --arg content "$content" '{content: $content, allowed_mentions: {parse: []}}' |
+            curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK" -o /dev/null
+          echo "Posted: $content"
+
+  catalog:
+    needs: publish
+    if: ${{ always() && needs.publish.result != 'skipped' }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit

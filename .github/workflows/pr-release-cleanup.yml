@@ -2,14 +2,16 @@ name: PR Release Cleanup
 run-name: remove PR #${{ github.event.pull_request.number }}'s test build
 
 # A merged or closed PR's test build leaves DroidDeck-CI, so the app's Updates page stops offering it
-# (a merged fix is in the next Nightly). pull_request_target for the publisher app's secrets; nothing
+# (a merged fix is in the next Preview). pull_request_target for the publisher app's secrets; nothing
 # from the PR is checked out or run.
 on:
   pull_request_target:
     types: [ closed ]
     branches: [ main ]
 
-permissions: {}
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   cleanup:
@@ -30,10 +32,18 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          tag="pr-$PR_NUMBER"
-          if gh release view "$tag" -R Droid-Deck/DroidDeck-CI >/dev/null 2>&1; then
-            gh release delete "$tag" -R Droid-Deck/DroidDeck-CI --yes --cleanup-tag
-            echo "Deleted $tag"
-          else
-            echo "No test build for PR #$PR_NUMBER"
-          fi
+          found=0
+          for tag in "pr-$PR_NUMBER" "pr-$PR_NUMBER.0"; do
+            if gh release view "$tag" -R Droid-Deck/DroidDeck-CI >/dev/null 2>&1; then
+              gh release delete "$tag" -R Droid-Deck/DroidDeck-CI --yes --cleanup-tag
+              echo "Deleted $tag"
+              found=1
+            fi
+          done
+          [ "$found" = 1 ] || echo "No test build for PR #$PR_NUMBER"
+
+  catalog:
+    needs: cleanup
+    if: ${{ always() }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit

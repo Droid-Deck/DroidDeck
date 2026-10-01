@@ -17,6 +17,7 @@ class App : Application() {
         // Before anything else touches the session prefs: a new install's first read decides it.
         com.droiddeck.launcher.session.SessionPrefs.settleDeckModeDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
+        com.droiddeck.launcher.update.AppUpdates.init(this)
         GpuClockPin.clearLeftover(this)
         BwrapSpawner.start(this)
     }
