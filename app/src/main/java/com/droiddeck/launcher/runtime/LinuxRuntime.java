@@ -300,28 +300,13 @@ public final class LinuxRuntime {
                                        File externalStorage, List<String> extraBinds,
                                        List<String> guestCommand) {
         File root = rootDir(context);
-        List<String> cmd = new ArrayList<>();
-        cmd.add(prootBinary(context).getPath());
-        cmd.add("--kill-on-exit");
-        // Preserve the host kernel identity while giving the guest the app's branded host name.
-        cmd.add("--kernel-release=" + guestUtsname(SessionPrefs.guestHostname(context)));
-        // Android's app seccomp policy traps the whole set*id family. Xwayland's Popen() calls
-        // setgid()/setuid() before it execs xkbcomp and _exit(127)s when they fail, so without
-        // this the keymap never compiles and Xwayland dies. -i makes proot answer those calls
-        // itself while still reporting our real ids, so nothing inside sees a different user.
-        int uid = Process.myUid();
-        cmd.add("-i");
-        cmd.add(uid + ":" + uid);
-        cmd.add("-r");
-        cmd.add(root.getPath());
-        cmd.add("-w");
-        cmd.add("/root");
-        for (String spec : bindSpecs(context, sessionRoot, runtimeDir, externalStorage, extraBinds)) {
-            bind(cmd, spec);
-        }
-        List<String> specs = new ArrayList<>();
-        for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
-        return specs;
+        List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
+        // A session's binds are the view its programs have; a one-off command's are not recorded.
+        if (sessionRoot != null) lastBinds = binds;
+        List<String> cmd = prootPrefix(context, root, "/root");
+        for (String spec : binds) bind(cmd, spec);
+        cmd.addAll(guestCommand);
+        return cmd;
     }
 
     /**
