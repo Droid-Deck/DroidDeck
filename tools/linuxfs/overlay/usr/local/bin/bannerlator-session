@@ -675,6 +675,35 @@ BUSCONF
         echo "$steam_channel" > "$steam_beta"
       fi
       step "starting the Steam client${BL_STEAM_UI:+ ($BL_STEAM_UI UI)}"
+      # The client's own single-instance lock, left behind when a session is killed rather than
+      # asked to exit. steamwebhelper then aborts every time it starts - "readlink(SingletonLock)
+      # failed: Permission denied", "Failed to create a ProcessSingleton for your profile
+      # directory", ContentMainRun exit 21 - and the loop below restarts it for as long as the
+      # session lasts, with nothing on screen but the loading page. Measured on the device: 167
+      # restarts in one session, and the client only came up because the lock was cleared by hand.
+      #
+      # It is stale exactly when the pid it names is gone: the name is "hostname-pid", and the
+      # client only ever writes it while running, so a lock whose pid is not alive is one nobody
+      # is holding. Only that one is removed - a live client's lock is left alone, or a second
+      # start would fight the first for the profile.
+      for _bl_lock in "$steam_root/config/htmlcache/SingletonLock" \
+                       "$steam_root/config/htmlcache/SingletonSocket" \
+                       "$steam_root/config/htmlcache/SingletonCookie"; do
+        [ -L "$_bl_lock" ] || continue
+        _bl_holder=$(readlink "$_bl_lock" 2>/dev/null) || continue
+        case $_bl_holder in
+          *-*)
+            _bl_pid=${_bl_holder##*-}
+            case $_bl_pid in
+              ''|*[!0-9]*) ;;                    # not a pid; leave it to the client
+              *) [ -d "/proc/$_bl_pid" ] || {
+                   echo "== steam: clearing the stale $(basename "$_bl_lock") ($_bl_holder)"
+                   rm -f "$_bl_lock"
+                 } ;;
+            esac
+            ;;
+        esac
+      done
       "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 \
         -cef-use-gl=angle -cef-use-angle=vulkan "$@"
