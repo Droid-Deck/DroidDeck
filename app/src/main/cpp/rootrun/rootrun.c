@@ -137,7 +137,7 @@ static int mkdir_parent_of(const char *path, mode_t mode) {
 /* Create a file that belongs to the guest, not to root.
  *
  * The runner starts as root (a root manager started it) and writes a few files on the guest's
- * behalf: the pid file, and the --put/--write targets, which include the guest's /etc/passwd and
+ * behalf: the pid file, and the --write targets, which include the guest's /etc/passwd and
  * /etc/group. Left root-owned they are files the app's own uid cannot replace, so the next session
  * - unrooted, or rooted with a different uid - writes them and silently fails. Measured on a
  * Galaxy S23: a rooted session left files in the rootfs that the app could no longer rewrite. */
@@ -192,30 +192,6 @@ static int mount_fs(const char *src, const char *dst, const char *fstype, unsign
     return 0;
 }
 
-static int copy_file(const char *src, const char *dst) {
-    int in = open(src, O_RDONLY | O_CLOEXEC);
-    if (in < 0) { warn("cannot read", src); return -1; }
-    if (mkdir_parent_of(dst, 0755) != 0) { warn("cannot create", dst); close(in); return -1; }
-    int out = open(dst, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0644);
-    if (out < 0) { warn("cannot write", dst); close(in); return -1; }
-    char buf[65536];
-    ssize_t got;
-    while ((got = read(in, buf, sizeof(buf))) > 0) {
-        ssize_t done = 0;
-        while (done < got) {
-            ssize_t wrote = write(out, buf + done, (size_t)(got - done));
-            if (wrote <= 0) { warn("cannot write", dst); close(in); close(out); return -1; }
-            done += wrote;
-        }
-    }
-    int failed = got < 0;
-    if (failed) warn("cannot read", src);
-    close(in);
-    close(out);
-    if (!failed) own_as_guest(dst);
-    return failed ? -1 : 0;
-}
-
 static int write_file(const char *dst, const char *content) {
     if (mkdir_parent_of(dst, 0755) != 0) { warn("cannot create", dst); return -1; }
     int out = open(dst, O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0644);
@@ -251,7 +227,6 @@ static void usage(void) {
             "%s " VERSION "\n"
             "usage: rootrun --root DIR [options] -- PROGRAM [ARGS...]\n"
             "  --bind SRC:DST        bind-mount SRC at DST (recursive), inside the new root\n"
-            "  --put SRC:DST         copy the file SRC to DST\n"
             "  --write DST:CONTENT   write CONTENT to the file DST\n"
             "  --env NAME=VALUE      add one variable to the guest's environment\n"
             "  --dir PATH            the guest's working directory (default /)\n"
@@ -265,14 +240,13 @@ static void usage(void) {
 int main(int argc, char **argv) {
     const char *root = NULL, *dir = "/", *hostname = NULL, *pidfile = NULL;
     char **binds = calloc((size_t)argc, sizeof(char *));
-    char **puts = calloc((size_t)argc, sizeof(char *));
     char **writes = calloc((size_t)argc, sizeof(char *));
     char **envs = calloc((size_t)argc, sizeof(char *));
-    int nbind = 0, nput = 0, nwrite = 0, nenv = 0;
+    int nbind = 0, nwrite = 0, nenv = 0;
     int uid = -1, gid = -1, keep_env = 0;
     int i = 1;
 
-    if (binds == NULL || puts == NULL || writes == NULL || envs == NULL) return 2;
+    if (binds == NULL || writes == NULL || envs == NULL) return 2;
     if (argc > 1 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) { usage(); return 2; }
     if (argc > 1 && strcmp(argv[1], "--version") == 0) { printf("%s\n", VERSION); return 0; }
 
@@ -287,7 +261,6 @@ int main(int argc, char **argv) {
         else if (strcmp(a, "--gid") == 0 && i + 1 < argc) gid = atoi(argv[++i]);
         else if (strcmp(a, "--keep-env") == 0) keep_env = 1;
         else if (strcmp(a, "--bind") == 0 && i + 1 < argc) binds[nbind++] = argv[++i];
-        else if (strcmp(a, "--put") == 0 && i + 1 < argc) puts[nput++] = argv[++i];
         else if (strcmp(a, "--write") == 0 && i + 1 < argc) writes[nwrite++] = argv[++i];
         else if (strcmp(a, "--env") == 0 && i + 1 < argc) envs[nenv++] = argv[++i];
         else { fprintf(stderr, "%s: unknown argument %s\n", prog, a); usage(); return 2; }
@@ -377,13 +350,6 @@ int main(int argc, char **argv) {
         char dst[4096];
         snprintf(dst, sizeof(dst), "%s%s", root, right);
         bind_mount(left, dst);
-    }
-    for (int p = 0; p < nput; p++) {
-        char *left = NULL, *right = NULL;
-        if (split_pair(puts[p], &left, &right) != 0) { fprintf(stderr, "%s: bad put %s\n", prog, puts[p]); continue; }
-        char dst[4096];
-        snprintf(dst, sizeof(dst), "%s%s", root, right);
-        copy_file(left, dst);
     }
     for (int w = 0; w < nwrite; w++) {
         char *left = NULL, *right = NULL;
