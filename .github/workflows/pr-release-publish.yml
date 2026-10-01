@@ -1,5 +1,5 @@
 name: PR Release Publish
-run-name: ${{ github.event_name == 'issue_comment' && format('sign PR #{0} requested by @{1}', github.event.issue.number, github.actor) || format('sign PR #{0} with the release key', inputs.pr_number) }}
+run-name: ${{ github.event_name == 'pull_request_target' && format('sign PR #{0} requested by @{1}', github.event.pull_request.number, github.actor) || format('sign PR #{0} with the release key', inputs.pr_number) }}
 
 on:
   workflow_dispatch:
@@ -8,8 +8,9 @@ on:
         description: Open pull request number
         required: true
         type: string
-  issue_comment:
-    types: [created]
+  pull_request_target:
+    types: [labeled]
+    branches: [main]
 
 permissions:
   actions: read
@@ -18,14 +19,14 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: pr-release-${{ github.event_name == 'issue_comment' && github.event.issue.number || inputs.pr_number }}
+  group: pr-release-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: false
 
 jobs:
   authorize:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && github.event.comment.body == '/publish-test')
+      (github.event_name == 'pull_request_target' && github.event.label.name == 'publish-test')
     runs-on: ubuntu-24.04
     outputs:
       pr_number: ${{ steps.gate.outputs.pr_number }}
@@ -47,11 +48,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           REQUESTER: ${{ github.actor }}
-          PR_NUMBER: ${{ github.event_name == 'issue_comment' && github.event.issue.number || inputs.pr_number }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }}
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid PR number '$PR_NUMBER'"; exit 1; }
-          if [ "$EVENT_NAME" = issue_comment ]; then
+          if [ "$EVENT_NAME" = pull_request_target ]; then
             permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$REQUESTER/permission" --jq .permission)
             case "$permission" in
               admin|maintain|write) ;;
@@ -223,7 +224,7 @@ jobs:
 
           It is also available in **DroidDeck → Updates → Test builds → PR #$PR_NUMBER**.
 
-          Pushes to this PR do not re-sign automatically. After a new green build, a maintainer can comment \`/publish-test\` again.
+          Pushes to this PR do not re-sign automatically. After a new green build, a maintainer can add the \`publish-test\` label again.
           EOF
           )
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
@@ -233,6 +234,14 @@ jobs:
           else
             gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
           fi
+
+      - name: Clear the publish request label
+        if: github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        run: |
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels/publish-test"
 
       - name: Post to Discord
         env:

@@ -389,7 +389,7 @@ jobs:
                 echo
                 echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
                 echo
-                echo "**Maintainer:** comment \`/publish-test\` on this PR to publish a release-signed tester build that installs over Stable or Nightly and appears in DroidDeck's **Test builds** list."
+                echo "**Maintainer:** add the \`publish-test\` label to publish a release-signed tester build that installs over Stable or Nightly and appears in DroidDeck's **Test builds** list. The label is removed automatically after publishing."
                 echo
                 echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
                 ;;
