@@ -154,6 +154,7 @@ object DeviceReport {
         k("Skip xalia", SessionPrefs.noXalia(context))
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
+        k("proot fast path", SessionPrefs.prootFastPath(context))
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
         k("Stretch games to fill", SessionPrefs.forceFullscreen(context))

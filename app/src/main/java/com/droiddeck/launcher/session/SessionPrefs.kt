@@ -295,6 +295,17 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootNoSeccomp", on).apply()
     }
 
+    /**
+     * Whether the session's path lookups take proot's fast path (ProotFastPath): answered inside
+     * each process instead of a round trip through the tracer. On by default; it needs proot's
+     * seccomp filter, so it is off whenever proot runs without one.
+     */
+    fun prootFastPath(context: Context): Boolean = prefs(context).getBoolean("prootFastPath", true)
+
+    fun setProotFastPath(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("prootFastPath", on).apply()
+    }
+
     const val DEFAULT_GUEST_HOSTNAME = "DroidDeck"
 
     @JvmStatic

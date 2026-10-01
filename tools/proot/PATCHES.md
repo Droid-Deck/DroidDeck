@@ -80,3 +80,15 @@ Added by DroidDeck:
   The `faccessat2` exit stop (termux 5ba8b95, for glibc's ENOSYS fallback on kernels before 5.8) and
   the `statx` one (emulation on kernels before 4.11) are dropped when the running kernel is newer.
   Host build: `ioctl` 31.6 -> 0.5 us; `stat`/`statx`/`faccessat2` about 44 -> 28 us (one stop).
+
+Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-performance.md`):
+
+- `0014-fastpath-trampoline.patch` - with `PROOT_FASTPATH`, every `SECCOMP_RET_TRACE` in the filter
+  is preceded by a check of the caller's address, and a syscall made from the fast path's trampoline
+  page (`fastpath/fastpath.c`, `0xffff00000`) runs without a stop: the tracee already translated it.
+  The check comes after the syscall-number dispatch, so untraced syscalls stay constant-ALLOW and keep
+  the kernel's seccomp action cache (checking first cost every syscall the full filter: +0.5 ms an
+  exec). `chdir`/`fchdir`, still emulated, also move the kernel's cwd to the host directory, and the
+  first tracee starts at `-w`'s, so relative lookups inside the tracee resolve where proot would.
+  SM8850 (adb shell): `stat` 25.3 -> 0.6 us, `open+close` 25.3 -> 0.9 us, ENOENT 22.9 -> 1.6 us,
+  8 threads `stat`ing 89k -> 3.6M/s; equivalence suite (`bench/equiv.py`) byte-identical to proot.

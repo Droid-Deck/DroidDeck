@@ -117,6 +117,9 @@ docker run --rm --platform linux/amd64 \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libblsession.so" tools/linuxfs/preload/*.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblsession.so"
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+            -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
         for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done
@@ -221,9 +224,13 @@ while read -r package_sha256 package_url; do
     zstd -dc "${package_archive}" | tar -xf - -C "${mango_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/mangoapp/packages.txt")
 install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
-for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1 libtracefs.so.1; do
+for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
     cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
 done
+# Ours, not the package's: GPU memory without tracefs (tools/mangoapp/libtracefs-shim.c).
+docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
+    aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
+    -o app/src/main/assets/linuxfs/usr/local/lib/mangoapp/libtracefs.so.1 tools/mangoapp/libtracefs-shim.c
 mkdir -p "${linuxfs_dir}/usr/local/bin"
 install -m644 "${repo_root}/tools/mangoapp/mangoapp" "${linuxfs_dir}/usr/local/bin/mangoapp"
 
