@@ -5,6 +5,7 @@ import android.os.Environment
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.session.SessionFiles
+import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 
@@ -16,14 +17,16 @@ object GuestCommand {
     /**
      * Runs [argv] and hands each output line to [onLine]; returns the exit status. [fakeRoot] is
      * for the package tools, which refuse any uid but 0. With [logName], everything the command
-     * says also goes to Download/DroidDeck/<logName>.log beside the session logs, so a problem can
+     * says also goes to Download/DroidDeck/tools/<logName>.log beside the session logs, so a problem can
      * be handed over like a session's. With [linkDir], hard links (which Android denies apps)
      * become symlinks to files proot keeps there (its link2symlink).
      */
     fun run(context: Context, argv: List<String>, fakeRoot: Boolean = false, logName: String? = null,
             linkDir: File? = null, onLine: (String) -> Unit): Int {
         val log = logName?.let {
-            try { File(LinuxRuntime.debugLogDir().apply { mkdirs() }, "$it.log").printWriter() } catch (e: Exception) { null }
+            try {
+                File(File(LinuxRuntime.debugLogDir(), SessionPaths.TOOLS_DIR).apply { mkdirs() }, "$it.log").printWriter()
+            } catch (e: Exception) { null }
         }
         log?.println("== ${java.util.Date()} ${argv.joinToString(" ")}")
         try {

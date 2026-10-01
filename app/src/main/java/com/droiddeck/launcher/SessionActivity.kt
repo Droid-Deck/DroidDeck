@@ -98,7 +98,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
     /** Between onResume and onPause. */
     private var resumed = false
-    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion() } }
+    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion(); openDeckRing("deck pad changed") } }
+
+    /**
+     * A Deck's controller is there from the moment it boots, and the client looks for it once, as
+     * it starts. The ring behind the Deck (libfakeinput's /dev/hidraw16) opens on the pad's first
+     * input otherwise - on a phone with nothing attached, the first touch of the on-screen
+     * controls, seconds after the client had looked, found no controller and never set the touch
+     * mode, so its interface took a finger as a mouse. Opened as soon as the session settles on a
+     * Deck instead.
+     */
+    private fun openDeckRing(why: String) {
+        val deck = SessionState.deckPad
+        val opened = if (deck) padBridge?.start() else null
+        Log.i(TAG, "deck ring ($why): deck pad $deck" + when (opened) {
+            null -> ", left for first input"
+            true -> ", ring open"
+            false -> ", ring NOT open"
+        })
+    }
 
     /** Motion is read while the session shows and only if the pad is a Deck controller - which
      *  the service can decide after this activity has resumed (SessionState.deckPadListener). */
@@ -219,15 +237,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * press, and a user without one must not be left with no way to answer Big Picture.
      */
     private val deviceListener = object : InputManager.InputDeviceListener {
-        override fun onInputDeviceAdded(deviceId: Int) = updateOnScreenControls()
-        override fun onInputDeviceRemoved(deviceId: Int) = updateOnScreenControls()
+        override fun onInputDeviceAdded(deviceId: Int) {
+            logInputDevice("connected", deviceId)
+            updateOnScreenControls()
+        }
+        override fun onInputDeviceRemoved(deviceId: Int) {
+            Log.i(TAG, "input device $deviceId disconnected")
+            updateOnScreenControls()
+        }
         override fun onInputDeviceChanged(deviceId: Int) = updateOnScreenControls()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
-            SessionEvents.begin(this, intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+            val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
+            // A Flatpak app or AppImage is named by its arguments, which the name lookup reads here.
+            SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
+            SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))
         }
         SessionState.program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
         SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
@@ -269,6 +296,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
         }
         SessionState.deckPadListener = deckPadListener
+        openDeckRing("activity created")
         // A player on the pad or the on-screen controls has no use for the mouse arrow; the next
         // touchpad or mouse move brings it back (showCursor), once the pad has been quiet a moment.
         bridge.setOnPlayerInput {
@@ -586,7 +614,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun shareCurrentSessionLogs() {
-        val folder = SessionPaths.current()
+        // Once a session has ended its folder has been handed on (SessionPaths.take), and the
+        // ended screen's Share logs is for that one.
+        val folder = SessionPaths.current() ?: SessionPaths.lastEnded()
         if (folder == null || !folder.isDirectory) {
             Toast.makeText(this, "No logs for this session.", Toast.LENGTH_LONG).show()
             return
@@ -1526,6 +1556,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     /** The mode decides which controls appear; `droiddeck-osc` in Downloads still overrides. */
+    /** Which controller the session has, so a pad report says what was plugged in and when. */
+    private fun logInputDevice(what: String, deviceId: Int) {
+        val d = InputDevice.getDevice(deviceId) ?: return
+        if (!PadBridge.isFromController(d)) return
+        Log.i(TAG, String.format(java.util.Locale.ROOT, "controller %s: \"%s\" (%04x:%04x, id %d, sources 0x%x)",
+            what, d.name, d.vendorId, d.productId, d.id, d.sources))
+    }
+
     private fun updateOnScreenControls() {
         val forced = File(Environment.getExternalStorageDirectory(), "Download/droiddeck-osc")
             .takeIf { it.isFile }

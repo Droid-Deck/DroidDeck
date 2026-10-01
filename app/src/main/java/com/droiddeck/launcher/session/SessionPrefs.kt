@@ -177,6 +177,12 @@ object SessionPrefs {
         writeForceFullscreenFlag(context)
     }
 
+    fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
+
+    fun setStretch16x9(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("stretch16x9", on).apply()
+    }
+
     /**
      * The same choice as a file the running session watches, so the drawer can change it live:
      * the session hands every change to gamescope, which reads GAMESCOPE_FORCE_WINDOWS_FULLSCREEN

@@ -23,7 +23,11 @@ import java.io.File
  * - `/sys/dev/char/240:16` - how the node's device number is looked up (in the directory the
  *   runtime already binds there for the GPU);
  * - `/run/udev/data/c240:16` - the udev database entry that marks the device initialised, without
- *   which libudev's enumeration leaves a device node out.
+ *   which libudev's enumeration leaves a device node out;
+ * - [listingDir] - stand-ins for the listings of `/sys`, `/sys/class` and `/sys/bus`. An app under
+ *   an enforcing SELinux policy (every retail phone) may not list those directories, and libudev
+ *   abandons its whole scan when it cannot, so the client never reached `hidraw`; libfakeinput
+ *   lists these to the client instead when the real listing is refused (FAKE_DECK_SYSFS_LISTING).
  *
  * Symlinks are absolute guest paths; proot resolves them inside the session.
  */
@@ -46,6 +50,9 @@ object SteamDeckPad {
         0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x81, 0x02, 0x09, 0x06, 0x09, 0x07,
         0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0,
     ).map { it.toByte() }.toByteArray()
+
+    /** Where [prepare] puts the stand-in listings; bound into the guest at the same path. */
+    fun listingDir(sessionRoot: File) = File(sessionRoot, "sys/deck/listing")
 
     /** Writes the tree and returns the `host:guest` binds for it, or none if it could not be made. */
     fun prepare(context: Context, sessionRoot: File): List<String> {
@@ -89,6 +96,11 @@ object SteamDeckPad {
 
             hidrawClass.mkdirs()
             link(File(hidrawClass, NODE), HIDRAW)
+
+            // Only the names matter: libudev reads a listing for the subsystems to descend into and
+            // then opens /sys/class/hidraw itself, which is the bind above.
+            val listing = listingDir(sessionRoot)
+            for (name in listOf("sys/bus", "sys/class", "sys/devices", "class/hidraw", "bus")) File(listing, name).mkdirs()
             // The runtime binds this directory over /sys/dev/char for the GPU (LinuxRuntime.bindGpuNode).
             link(File(context.cacheDir, "drm/sys/$MAJOR:$MINOR"), HIDRAW)
 

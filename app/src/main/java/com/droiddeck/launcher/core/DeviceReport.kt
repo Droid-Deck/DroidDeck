@@ -157,6 +157,7 @@ object DeviceReport {
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
         k("Stretch games to fill", SessionPrefs.forceFullscreen(context))
+        k("Stretch 16:9 to panel", SessionPrefs.stretch16x9(context))
         k("Client audio", if (SessionPrefs.clientDirectAudio(context)) "DirectAudio" else "classic")
         k("Microphone", SessionPrefs.micEnabled(context))
         k("On-screen controls", SessionPrefs.oscMode(context))
@@ -173,7 +174,7 @@ object DeviceReport {
 
         h("Device switch files in Download")
         for (name in listOf("droiddeck-env", "droiddeck-tu-debug", "droiddeck-driver",
-                            "droiddeck-osc", "droiddeck-no-pad", "droiddeck-pad-log",
+                            "droiddeck-osc", "droiddeck-no-pad",
                             "droiddeck-no-hud", "droiddeck-wlr-renderer")) {
             val f = File(Environment.getExternalStorageDirectory(), "Download/$name")
             if (f.isFile) k(name, FileUtils.readString(f)?.trim()?.replace('\n', ' ')?.ifEmpty { "(present, empty)" } ?: "(present)")

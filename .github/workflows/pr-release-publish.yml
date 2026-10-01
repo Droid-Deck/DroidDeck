@@ -1,5 +1,5 @@
 name: PR Release Publish
-run-name: "sign PR #${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }} with the release key"
+run-name: "sign PR #${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || inputs.pr_number }} with the release key"
 
 on:
   workflow_dispatch:
@@ -11,6 +11,11 @@ on:
   pull_request_target:
     types: [labeled]
     branches: [main]
+  # A PR from a branch of this repo is signed on its own after each green build: only people who
+  # can push here can change it. A fork's PR waits for a maintainer's publish-test label.
+  workflow_run:
+    workflows: [Build APK]
+    types: [completed]
 
 permissions:
   actions: read
@@ -19,14 +24,18 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: pr-release-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }}
+  group: pr-release-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || inputs.pr_number }}
   cancel-in-progress: false
 
 jobs:
   authorize:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request_target' && github.event.label.name == 'publish-test')
+      (github.event_name == 'pull_request_target' && github.event.label.name == 'publish-test') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.pull_requests[0] != null)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     outputs:
@@ -36,6 +45,8 @@ jobs:
       base_sha: ${{ steps.gate.outputs.base_sha }}
       version_code: ${{ steps.gate.outputs.version_code }}
       label: ${{ steps.gate.outputs.label }}
+      skip: ${{ steps.gate.outputs.skip }}
+      automatic: ${{ steps.gate.outputs.automatic }}
       variants: ${{ steps.variants.outputs.list }}
     steps:
       - uses: actions/checkout@v4
@@ -51,10 +62,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           REQUESTER: ${{ github.actor }}
-          PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || inputs.pr_number }}
+          BUILT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid PR number '$PR_NUMBER'"; exit 1; }
+          # The automatic path stands down quietly, never failing: a draft, a PR labelled
+          # no-test-build, or a build that a later push has already overtaken.
+          skip() { echo "::notice::Not publishing PR #$PR_NUMBER: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          if [ "$EVENT_NAME" = workflow_run ]; then
+            echo "automatic=true" >> "$GITHUB_OUTPUT"
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+            [ "$(jq -r .state <<<"$pr")" = open ] || skip "it is not open"
+            [ "$(jq -r .draft <<<"$pr")" = false ] || skip "it is a draft"
+            [ "$(jq -r .base.ref <<<"$pr")" = main ] || skip "it does not target main"
+            [ "$(jq -r .head.repo.full_name <<<"$pr")" = "$GITHUB_REPOSITORY" ] || skip "it comes from a fork"
+            jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$pr" >/dev/null && skip "it is labelled no-test-build"
+            [ "$(jq -r .head.sha <<<"$pr")" = "$BUILT_SHA" ] || skip "a newer push is building"
+          fi
           if [ "$EVENT_NAME" = pull_request_target ]; then
             permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$REQUESTER/permission" --jq .permission)
             case "$permission" in
@@ -138,6 +163,7 @@ jobs:
       label: ${{ needs.authorize.outputs.label }}
       artifact: droiddeck-pr-signed
     secrets: inherit
+    if: ${{ needs.authorize.outputs.skip != 'true' }}
 
   publish:
     needs: [authorize, sign]
@@ -207,9 +233,12 @@ jobs:
           \`\`\`
           $(cat signed/SHA256SUMS.txt)
           \`\`\`"
+          first=false
           if ! gh release view "$tag" -R "$repo" >/dev/null 2>&1; then
             gh release create "$tag" -R "$repo" --target main --title "PR #$PR_NUMBER" --notes "$notes" --prerelease
+            first=true
           fi
+          echo "first=$first" >> "$GITHUB_OUTPUT"
           gh release upload "$tag" signed/* -R "$repo" --clobber
           gh release edit "$tag" -R "$repo" --title "PR #$PR_NUMBER" --notes "$notes" --prerelease
           # Drop the previous build's files: anything this build did not just upload.
@@ -227,6 +256,15 @@ jobs:
           echo "release=$release" >> "$GITHUB_OUTPUT"
           echo "apk=$GITHUB_SERVER_URL/$repo/releases/download/$tag/$apk" >> "$GITHUB_OUTPUT"
 
+      - name: Whether the PR's branch is in this repo
+        id: same-repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        run: |
+          head_repo=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.repo.full_name)
+          echo "same=$([ "$head_repo" = "$GITHUB_REPOSITORY" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
       - name: Clear the publish request label
         if: ${{ github.event_name == 'pull_request_target' && steps.publish.outcome == 'success' }}
         env:
@@ -242,10 +280,16 @@ jobs:
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           RELEASE: ${{ steps.publish.outputs.release }}
           APK: ${{ steps.publish.outputs.apk }}
+          SAME_REPO: ${{ steps.same-repo.outputs.same }}
         run: |
           set -euo pipefail
           short=${HEAD_SHA:0:7}
           mark='<!-- droiddeck-pr-release -->'
+          if [ "$SAME_REPO" = true ]; then
+            NEXT='Each green build of a new push is signed and published here on its own. Label the PR `no-test-build` to stop that.'
+          else
+            NEXT='Pushes to this PR do not re-sign automatically. After a new green build, a maintainer can add the `publish-test` label again.'
+          fi
           body=$(cat <<EOF
           $mark
           ## Signed test build
@@ -256,7 +300,7 @@ jobs:
 
           It is also available in **DroidDeck → Updates → Test builds → PR #$PR_NUMBER**.
 
-          Pushes to this PR do not re-sign automatically. After a new green build, a maintainer can add the \`publish-test\` label again.
+          $NEXT
           EOF
           )
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
@@ -267,8 +311,10 @@ jobs:
             gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
           fi
 
+      # Asked for (the label, a manual run): always announced. Signed on its own after a push:
+      # only a PR's first test build is, and later ones update its release quietly.
       - name: Post to Discord
-        if: ${{ always() && steps.publish.outcome == 'success' }}
+        if: ${{ always() && steps.publish.outcome == 'success' && (needs.authorize.outputs.automatic != 'true' || steps.publish.outputs.first == 'true') }}
         env:
           WEBHOOK: ${{ secrets.DISCORD_BUILDS_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}

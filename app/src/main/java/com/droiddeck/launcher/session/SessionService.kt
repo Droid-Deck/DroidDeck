@@ -299,7 +299,7 @@ class SessionService : Service() {
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
         deckBinds = emptyList()
-        if (controllersOn) addControllerEnvironment(guest, fakeInputDir)
+        if (controllersOn) addControllerEnvironment(guest, fakeInputDir, sessionDir)
         // The desktop is wlroots (labwc). Stock wlroots allocates through gbm on a real DRM render
         // node, and ours is a KGSL stand-in - labwc died at "unable to create allocator" - so the
         // default is pixman (software, shm), where a Vulkan program cannot draw at all; those run
@@ -540,6 +540,7 @@ class SessionService : Service() {
         if (steamHere) guest.add("BL_STEAM_CHANNEL=" + SessionPrefs.steamChannel(this))
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_FORCE_FULLSCREEN=" + (if (SessionPrefs.forceFullscreen(this)) "1" else "0"))
+            guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
             SessionPrefs.writeForceFullscreenFlag(this)
         }
         // Proton's own gate for its xalia helper (its `proton` script reads this, and sets
@@ -616,7 +617,7 @@ class SessionService : Service() {
     }
 
     /** The fake evdev pads: the ring files the app writes and the identity SDL and Steam see. */
-    private fun addControllerEnvironment(guest: MutableList<String>, fakeInputDir: File) {
+    private fun addControllerEnvironment(guest: MutableList<String>, fakeInputDir: File, sessionDir: File) {
         FakeInputWriter.prepareRingSlots(fakeInputDir, 4)
         // Virtual pads a client made last session (event16 and up, and their hidden rings) are
         // not there any more; a client that crashed never took its own down.
@@ -642,11 +643,15 @@ class SessionService : Service() {
         deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!) else emptyList()
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
+        logControllersAtStart()
         if (uinput) {
             // /dev/uinput, stood in for by libfakeinput: the virtual pad Steam Input makes for a
             // game becomes a node the game reads, carrying the player's layout, as on a Deck.
             guest.add("FAKE_EVDEV_UINPUT=1")
-            if (SessionState.deckPad) guest.add("FAKE_EVDEV_DECK=1")
+            if (SessionState.deckPad) {
+                guest.add("FAKE_EVDEV_DECK=1")
+                guest.add("FAKE_DECK_SYSFS_LISTING=" + SteamDeckPad.listingDir(fakeInputDir.parentFile!!.parentFile!!).path)
+            }
         } else if (SessionState.mode == MODE_STEAM) {
             // Without it, games see the pad itself wearing Steam Input's virtual-gamepad identity -
             // for games the client starts only. Everywhere else (the desktop, a program from the
@@ -659,9 +664,11 @@ class SessionService : Service() {
         // The client reads a Deck controller through SDL's HIDAPI; a hint in the environment
         // outranks the client's own. Nothing else is shown the Deck (libfakeinput).
         if (!SessionState.deckPad) guest.add("SDL_JOYSTICK_HIDAPI=0")
-        if (File(Environment.getExternalStorageDirectory(), PAD_LOG_SWITCH).exists()) {
-            guest.add("FAKE_EVDEV_LOG=1")
-        }
+        // The guest side of the pads (libfakeinput: which pads were opened, the Deck's hidraw and why
+        // it was refused) in pad.log beside the session's other logs, so it is in every shared zip.
+        // Setup-time lines only, nothing per input event.
+        guest.add("FAKE_EVDEV_LOG=1")
+        guest.add("FAKE_EVDEV_LOG_FILE=" + File(sessionDir, "pad.log").path)
         SessionState.fakeInputDir = fakeInputDir
     }
 
@@ -1192,6 +1199,18 @@ class SessionService : Service() {
         getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, buildNotification())
     }
 
+    /** The pads attached as the session starts; the activity logs the ones that come and go after. */
+    private fun logControllersAtStart() {
+        val pads = ArrayList<String>()
+        for (id in android.view.InputDevice.getDeviceIds()) {
+            val d = android.view.InputDevice.getDevice(id) ?: continue
+            if (!com.droiddeck.launcher.input.PadBridge.isFromController(d)) continue
+            pads.add(String.format(java.util.Locale.ROOT, "\"%s\" (%04x:%04x)", d.name, d.vendorId, d.productId))
+        }
+        Log.i(TAG, "controllers at start: " + (if (pads.isEmpty()) "none" else pads.joinToString(", ")) +
+            "; presented to the guest as " + if (SessionState.deckPad) "a Steam Deck controller" else "an Xbox 360 controller")
+    }
+
     companion object {
         private const val TAG = "SessionService"
         /** proot's tracer: above everything in the guest, under the compositor thread's -8. */
@@ -1221,7 +1240,6 @@ class SessionService : Service() {
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
-        private const val PAD_LOG_SWITCH = "Download/droiddeck-pad-log"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"
         private const val NO_DECK_PAD_SWITCH = "Download/droiddeck-no-deck-pad"
         /** libfakeinput numbers the pads made through its /dev/uinput stand-in from here. */

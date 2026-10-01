@@ -66,7 +66,7 @@ object SessionArtifacts {
     fun scrubOlder(context: Context) {
         val current = SessionPaths.current()
         val dirs = LinuxRuntime.debugLogDir().listFiles { f ->
-            f.isDirectory && f.name.startsWith("session-") && f != current && !File(f, SCRUBBED_MARKER).exists()
+            SessionPaths.isSessionFolder(f) && f != current && !File(f, SCRUBBED_MARKER).exists()
         } ?: return
         if (dirs.isEmpty()) return
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
@@ -124,8 +124,8 @@ object SessionArtifacts {
     fun finishAbandoned(context: Context) {
         val parent = LinuxRuntime.debugLogDir()
         val abandoned = parent.listFiles { f ->
-            f.isDirectory && f.name.startsWith("session-") && !File(f, COMPLETE_MARKER).exists()
-        }?.sortedBy { it.name } ?: return
+            SessionPaths.isSessionFolder(f) && !File(f, COMPLETE_MARKER).exists()
+        }?.sortedWith(SessionPaths.chronological) ?: return
         if (abandoned.isEmpty()) return
         val current = SessionPaths.current()
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
@@ -155,6 +155,38 @@ object SessionArtifacts {
                 Log.w(TAG, "could not finish $dir", e)
             }
         }
+    }
+
+    /**
+     * Keeps the newest [SessionPaths.KEEP_SESSIONS] session folders and deletes the rest: a few
+     * days of testing left hundreds, and the one a report needed was lost among them. Only folders
+     * that are finished; the session in progress is never touched. Runs at app start after
+     * [finishAbandoned], on its worker thread.
+     */
+    @Synchronized
+    fun prune(context: Context) {
+        val current = SessionPaths.current()
+        val finished = SessionPaths.sessionFolders(context).filter { it != current && File(it, COMPLETE_MARKER).exists() }
+        val old = finished.dropLast(SessionPaths.KEEP_SESSIONS)
+        old.forEach { com.droiddeck.launcher.core.FileUtils.delete(it) }
+        if (old.isNotEmpty()) Log.i(TAG, "deleted ${old.size} session folder(s) past the newest ${SessionPaths.KEEP_SESSIONS}")
+    }
+
+    /**
+     * Every session folder but the one in progress, and the one-off command logs (tools/, or loose
+     * beside the folders from before it): the Setup page's Clear logs. Returns how many session
+     * folders went.
+     */
+    @Synchronized
+    fun clearAll(context: Context): Int {
+        val current = SessionPaths.current()
+        val gone = SessionPaths.sessionFolders(context).filter { it != current }
+        gone.forEach { com.droiddeck.launcher.core.FileUtils.delete(it) }
+        com.droiddeck.launcher.core.FileUtils.delete(File(LinuxRuntime.debugLogDir(), SessionPaths.TOOLS_DIR))
+        // Before tools/, those logs sat loose beside the session folders.
+        LinuxRuntime.debugLogDir().listFiles { f -> f.isFile && f.name.endsWith(".log") }?.forEach { it.delete() }
+        Log.i(TAG, "cleared ${gone.size} session folder(s)")
+        return gone.size
     }
 
     private fun now(): String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())

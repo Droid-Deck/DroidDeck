@@ -289,6 +289,7 @@ internal fun SetupPanel(
                             }
                             ToggleRow(host, "logs", "Session logs", "Saved after each session", s.logsEnabled) { a.onLogs() }
                             ActionRow("Latest session logs", "Send them with a bug report", "Share logs", a.onShareLogs)
+                            ActionRow("Saved session logs", "The newest ${com.droiddeck.launcher.session.SessionPaths.KEEP_SESSIONS} are kept", "Clear logs", a.onClearLogs)
                             ToggleRow(
                                 host, "offline", "Offline mode",
                                 s.offlineAccount?.let { "Signed in as $it" } ?: "Sign in to Steam first",

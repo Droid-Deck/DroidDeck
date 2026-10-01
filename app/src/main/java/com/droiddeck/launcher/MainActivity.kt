@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
     private var directAudio by mutableStateOf(false)
     private var clientDirectAudio by mutableStateOf(false)
     private var forceFullscreen by mutableStateOf(true)
+    private var stretch16x9 by mutableStateOf(false)
     private var launcherFullscreen by mutableStateOf(true)
     private var storeEnabled by mutableStateOf(false)
     private var mic by mutableStateOf(false)
@@ -466,6 +467,16 @@ class MainActivity : ComponentActivity() {
                                 }
                             }, "share-logs").start()
                         },
+                        onClearLogs = {
+                            Thread({
+                                val cleared = runCatching { SessionArtifacts.clearAll(this) }.getOrDefault(0)
+                                ui.post {
+                                    android.widget.Toast.makeText(this,
+                                        if (cleared == 0) "No session logs to clear." else "Cleared $cleared session log folder${if (cleared == 1) "" else "s"}.",
+                                        android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }, "clear-logs").start()
+                        },
                         onOffline = {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
                             offline = OfflineMode.enabled(this)
@@ -614,6 +625,7 @@ class MainActivity : ComponentActivity() {
         if (!SessionState.running) Thread({
             SessionArtifacts.finishAbandoned(this)
             SessionArtifacts.scrubOlder(this)
+            SessionArtifacts.prune(this)
         }, "finish-abandoned").start()
     }
 
@@ -937,6 +949,7 @@ class MainActivity : ComponentActivity() {
                 directAudio = if (mode == SessionService.MODE_STEAM) directAudio else null,
                 clientDirectAudio = clientDirectAudio,
                 forceFullscreen = if (mode == SessionService.MODE_STEAM) forceFullscreen else null,
+                stretch16x9 = if (mode == SessionService.MODE_STEAM) stretch16x9 else null,
                 mic = if (mode == SessionService.MODE_STEAM) mic else null,
                 renderer = if (mode == SessionService.MODE_DESKTOP) renderer else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
@@ -972,6 +985,7 @@ class MainActivity : ComponentActivity() {
                 onDirectAudio = { on -> SessionPrefs.setDirectAudio(this, on); directAudio = on },
                 onClientDirectAudio = { on -> SessionPrefs.setClientDirectAudio(this, on); clientDirectAudio = on },
                 onForceFullscreen = { on -> SessionPrefs.setForceFullscreen(this, on); forceFullscreen = on },
+                onStretch16x9 = { on -> SessionPrefs.setStretch16x9(this, on); stretch16x9 = on },
                 onMic = { on ->
                     SessionPrefs.setMicEnabled(this, on)
                     mic = on
@@ -1098,6 +1112,7 @@ class MainActivity : ComponentActivity() {
         directAudio = SessionPrefs.directAudio(this)
         clientDirectAudio = SessionPrefs.clientDirectAudio(this)
         forceFullscreen = SessionPrefs.forceFullscreen(this)
+        stretch16x9 = SessionPrefs.stretch16x9(this)
         mic = SessionPrefs.micEnabled(this)
         renderer = SessionPrefs.desktopRenderer(this)
         gameStorage = SessionPrefs.gameStorage(this)

@@ -140,7 +140,16 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   width=${BL_WIDTH:-1280}
   height=${BL_HEIGHT:-720}
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
+  nested=$width
+  if [ "$mode" = steam ] && [ "${BL_GAMESCOPE_STRETCH_16X9:-0}" = 1 ]; then
+    wide=$(( (height * 16 + 4) / 9 / 2 * 2 ))
+    if [ "$wide" -gt "$width" ]; then
+      nested=$wide
+      echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
+    fi
+  fi
+  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
+  [ "$nested" != "$width" ] && args+=(-S stretch)
   # -r is what gamescope advertises as the refresh rate, and what a game reads as the display's.
   # Left unset it defaults to 60, so a 120 Hz panel offers only 60 Hz in game settings. The FPS
   # limiter wins when it is on (it is a deliberate cap); otherwise use the panel's own rate.
@@ -150,6 +159,11 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(-r "$BL_REFRESH")
   fi
   [ "$mode" = steam ] && args+=(-e)
+  # Touch passes through to the client as touch until the client says otherwise, as SteamOS's
+  # gamescope-session starts it (TOUCH_MODE=4). The client sets the mode itself (STEAM_TOUCH_CLICK_MODE)
+  # only once it has a controller; until then gamescope's own default made a finger a left-click
+  # mouse, so the Steam interface took taps but would not scroll on a phone with no pad attached.
+  [ "$mode" = steam ] && args+=(--default-touch-mode 4)
   # A game that resizes its own window when it loses focus (the Steam menu opening over it) comes
   # back smaller, and gamescope draws a window that is not flagged fullscreen at its own size in
   # the top-left corner. Forcing every window to the output's size keeps it filling the screen.
@@ -429,6 +443,37 @@ case $mode in
             && echo "== resume: asked gamescope to restore the game window (app $app)"
         fi
         prev=$app
+      done
+    ) &
+    # Evidence for touch reports: the touch mode the client asks gamescope for (STEAM_TOUCH_CLICK_MODE,
+    # set once it has a controller, per focused app) and which app has focus, logged as they change.
+    # A finger that clicks but won't scroll, or touch that stops once a pad is used, shows here as
+    # the mode in force at that moment. 4 is touch passed through, 1 a left-click mouse.
+    [ -z "${BL_DESKTOP:-}" ] && (
+      # What follows "=" in an xprop line, or $2 for a property that is missing or has no value
+      # yet ("NAME(CARDINAL) =", which read leaves with nothing after the "=").
+      xprop_value() {
+        case $1 in *'not found'*|*=) echo "$2"; return ;; esac
+        local v=${1#*=}
+        v=${v# }
+        echo "${v:-$2}"
+      }
+      tmode= app=
+      xprop -spy -root STEAM_TOUCH_CLICK_MODE GAMESCOPE_FOCUSED_APP 2>/dev/null | while read -r line; do
+        case $line in
+          STEAM_TOUCH_CLICK_MODE*)
+            v=$(xprop_value "$line" unset)
+            [ "$v" = "$tmode" ] && continue
+            tmode=$v
+            echo "== touch mode: $tmode (focused app ${app:-?}) at $(date +%T)"
+            ;;
+          GAMESCOPE_FOCUSED_APP*)
+            v=$(xprop_value "$line" none)
+            [ "$v" = "$app" ] && continue
+            app=$v
+            echo "== focused app: $app (touch mode ${tmode:-unset}) at $(date +%T)"
+            ;;
+        esac
       done
     ) &
     # The library beat. Both helpers are whole programs under proot (the compat one a python

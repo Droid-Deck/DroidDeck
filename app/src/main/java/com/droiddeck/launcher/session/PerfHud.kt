@@ -21,8 +21,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * is on, what the screen is actually being shown - "60 → 118 fps" is the proof that the engine
  * is doing something, and "FG starting" or a reason is the proof that it is not.
  *
- * The base rate is counted here from the compositor's per-frame callback, so it is right with or
- * without an engine. The presented rate comes from the engine's own telemetry while it generates.
+ * The base rate is the game window's own frames, counted here from the compositor's per-frame
+ * callback with or without an engine - what Steam's overlay counts too. The presented rate comes
+ * from the engine's telemetry while it generates.
  */
 class PerfHud(context: Context) {
     /** Empty when the HUD is off or not yet started. */
@@ -99,10 +100,7 @@ class PerfHud(context: Context) {
         return when {
             problem == 1 -> context.getString(R.string.hud_fg_unsupported, name)
             problem == 2 -> context.getString(R.string.hud_fg_failed, name)
-            stats != null && stats[3] > 1f -> {
-                val source = if (stats[2] > 1f) stats[2] else base
-                String.format(Locale.US, "%s  %.0f → %.0f fps", label, source, stats[3])
-            }
+            stats != null && stats[3] > 1f -> String.format(Locale.US, "%s  %.0f → %.0f fps", label, base, stats[3])
             else -> context.getString(R.string.hud_fg_starting, label, fps(base))
         }
     }

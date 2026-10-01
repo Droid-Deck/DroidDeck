@@ -66,6 +66,16 @@ public final class PadBridge {
     private volatile Runnable onPlayerInput;
     private final java.util.concurrent.atomic.AtomicBoolean playerInputPosted = new java.util.concurrent.atomic.AtomicBoolean();
 
+    // What reached the pad over the last stats window, so a report of "the pad does nothing" or
+    // "touch and the pad don't work together" shows in the app log whether input arrived, from
+    // which device, and whether it got to the ring. Logged only for a window that had input.
+    private static final long STATS_WINDOW_MS = 10_000;
+    private int statButtons, statAxes, statOnScreen, statDropped;
+    private String statDevice;
+    private boolean statsScheduled;
+    private final java.util.Set<Integer> seenDevices = new java.util.HashSet<>();
+    private int lastDeviceId = Integer.MIN_VALUE;
+
     public PadBridge(File fakeInputDir) {
         writer = new FakeInputWriter(fakeInputDir.getAbsolutePath(), SLOT);
     }
@@ -134,6 +144,7 @@ public final class PadBridge {
     /** @return true when the event was a pad button and has been consumed. */
     public synchronized boolean onKeyEvent(KeyEvent event) {
         if (!isFromController(event.getDevice())) return false;
+        noteDevice(event.getDevice());
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_BUTTON_A: state.press(0, pressed); break;
@@ -161,6 +172,8 @@ public final class PadBridge {
             default: return false;
         }
         if (pressed) notePlayerInput();
+        statButtons++;
+        scheduleStats();
         publish();
         return true;
     }
@@ -169,6 +182,9 @@ public final class PadBridge {
     public synchronized boolean onMotionEvent(MotionEvent event) {
         if (!isFromController(event.getDevice())) return false;
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
+        noteDevice(event.getDevice());
+        statAxes++;
+        scheduleStats();
         state.leftX = axis(event, MotionEvent.AXIS_X);
         // Android's Y axis grows downwards and evdev's ABS_Y does too, so no flip here: what the
         // pad reports as "down" is what the client is told.
@@ -203,6 +219,8 @@ public final class PadBridge {
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
         mutation.accept(state);
         notePlayerInput();
+        statOnScreen++;
+        scheduleStats();
         publish();
     }
 
@@ -279,8 +297,39 @@ public final class PadBridge {
         publish();
     }
 
+    /** Per event, so the common case - the same pad as last time - is a single compare. */
+    private void noteDevice(InputDevice device) {
+        if (device.getId() == lastDeviceId) return;
+        lastDeviceId = device.getId();
+        statDevice = device.getName();
+        if (seenDevices.add(device.getId())) {
+            Log.i(TAG, String.format(java.util.Locale.ROOT, "first input from \"%s\" (%04x:%04x, id %d, sources 0x%x); ring %s, deck pad %b",
+                    device.getName(), device.getVendorId(), device.getProductId(), device.getId(), device.getSources(),
+                    open ? "open" : "not open yet", SessionState.getDeckPad()));
+        }
+    }
+
+    private void scheduleStats() {
+        if (statsScheduled) return;
+        statsScheduled = true;
+        mainHandler.postDelayed(this::logStats, STATS_WINDOW_MS);
+    }
+
+    private synchronized void logStats() {
+        statsScheduled = false;
+        Log.i(TAG, "[input] last 10 s: pad " + statButtons + " buttons, " + statAxes + " axis events"
+                + (statDevice != null ? " (\"" + statDevice + "\")" : "")
+                + ", on-screen " + statOnScreen
+                + (statDropped > 0 ? ", " + statDropped + " NOT delivered (ring closed)" : "")
+                + "; ring " + (open ? "open" : "closed") + ", deck pad " + SessionState.getDeckPad());
+        statButtons = statAxes = statOnScreen = statDropped = 0;
+    }
+
     private void publish() {
-        if (!open && !start()) return;
+        if (!open && !start()) {
+            statDropped++;
+            return;
+        }
         boolean guide = systemGuidePressed || qamChordActive;
         boolean qam = SessionState.getDeckPad() && (systemQamPressed || qamTapPressed);
         if (!guide && !qam) {

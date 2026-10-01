@@ -17,10 +17,7 @@ import java.util.zip.ZipOutputStream
  */
 object SessionLogShare {
     /** The newest session folder in either place logs are written, or null if there is none. */
-    fun latest(context: Context): File? =
-        listOf(LinuxRuntime.debugLogDir(), File(context.filesDir, "logs"))
-            .flatMap { dir -> dir.listFiles { f -> f.isDirectory && f.name.startsWith("session-") }?.toList() ?: emptyList() }
-            .maxByOrNull { it.name }
+    fun latest(context: Context): File? = SessionPaths.sessionFolders(context).lastOrNull()
 
     /** Builds the zip (blocking). Returns null when there is no session to share. */
     fun zipLatest(context: Context): File? = latest(context)?.let { zipFolder(context, it) }
@@ -36,20 +33,39 @@ object SessionLogShare {
         // session pass yet, and the redactor changes nothing in a line that is already clean.
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
         ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            files.forEach { f ->
-                z.putNextEntry(ZipEntry(folder.name + "/" + f.relativeTo(folder).path))
-                if (LogRedactor.isText(f)) {
-                    val w = z.bufferedWriter()
-                    LogRedactor.scrubTo(f, w)
-                    w.flush()
-                } else {
-                    f.inputStream().use { it.copyTo(z) }
-                }
-                z.closeEntry()
-            }
+            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f) }
+            liveSteamLogs(context, folder).forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f) }
         }
         return zip
     }
+
+    private fun addEntry(z: ZipOutputStream, name: String, f: File) {
+        z.putNextEntry(ZipEntry(name))
+        if (LogRedactor.isText(f)) {
+            val w = z.bufferedWriter()
+            LogRedactor.scrubTo(f, w)
+            w.flush()
+        } else {
+            f.inputStream().use { it.copyTo(z) }
+        }
+        z.closeEntry()
+    }
+
+    /**
+     * The client's own logs as they stand, for a session shared while it runs. The session script
+     * copies them into steam/ only as it exits, so a zip made from the drawer had none - and
+     * controller.txt (which pad the client opened, the touch mode it set) is what a controller or
+     * touch report needs most. Only for the running session: an older folder would get this
+     * session's logs. The same files the script copies; nothing holding credentials is in logs/.
+     */
+    private fun liveSteamLogs(context: Context, folder: File): List<File> {
+        if (folder != SessionPaths.current() || File(folder, "steam").exists()) return emptyList()
+        val logs = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs")
+        return logs.listFiles()?.filter { it.isFile && it.length() <= STEAM_LOG_MAX_BYTES }.orEmpty()
+    }
+
+    /** The client's content and bootstrap logs grow large over months and say nothing about a session. */
+    private const val STEAM_LOG_MAX_BYTES = 8L * 1024 * 1024
 
     fun shareIntent(context: Context, zip: File): Intent {
         val uri = FileProvider.getUriForFile(context, context.packageName + ".logs", zip)
