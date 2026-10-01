@@ -30,10 +30,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          tag="pr-$PR_NUMBER"
-          if gh release view "$tag" -R Droid-Deck/DroidDeck-CI >/dev/null 2>&1; then
-            gh release delete "$tag" -R Droid-Deck/DroidDeck-CI --yes --cleanup-tag
-            echo "Deleted $tag"
-          else
-            echo "No test build for PR #$PR_NUMBER"
-          fi
+          found=0
+          for tag in "pr-$PR_NUMBER" "pr-$PR_NUMBER.0"; do
+            if gh release view "$tag" -R Droid-Deck/DroidDeck-CI >/dev/null 2>&1; then
+              gh release delete "$tag" -R Droid-Deck/DroidDeck-CI --yes --cleanup-tag
+              echo "Deleted $tag"
+              found=1
+            fi
+          done
+          [ "$found" = 1 ] || echo "No test build for PR #$PR_NUMBER"

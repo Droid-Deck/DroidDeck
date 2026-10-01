@@ -387,7 +387,11 @@ jobs:
               success)
                 echo "###  Build passed"
                 echo
-                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key. A maintainer can run **PR Release Publish** from \`main\` to create an APK that installs over the release."
+                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
+                echo
+                echo "**Maintainer:** comment \`/publish-test\` on this PR to publish a release-signed tester build that installs over Stable or Nightly and appears in DroidDeck's **Test builds** list."
+                echo
+                echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
                 ;;
               failure)
                 echo "### ERROR: Build failed"
