@@ -178,6 +178,8 @@ internal fun PrimaryButton(
             .clip(Shape12)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
             .shine(hot, 0.45f)
+            // Off, its fill can match the surface it sits on: the outline keeps it a button.
+            .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, Shape12))
             // The grow and shine alone barely show on the light fill: outline it when a
             // controller is on it, as the other controls are.
             .glideBorder(hot, Shape12, pal.signal)

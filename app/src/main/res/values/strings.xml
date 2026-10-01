@@ -169,6 +169,9 @@
     <string name="add_app_flatpak_id">App ID</string>
     <string name="add_app_flatpak_placeholder">org.ppsspp.PPSSPP</string>
     <string name="add_app_flatpak_invalid">Not a Flathub app ID</string>
+    <string name="add_app_source">Source</string>
+    <string name="add_app_appearance">On your Desktop</string>
+    <string name="add_app_preview_name">New app</string>
     <string name="add_app_name">Name</string>
     <string name="add_app_name_placeholder">From the app</string>
     <string name="add_app_icon">Icon</string>
@@ -176,7 +179,7 @@
     <string name="add_app_choose_icon">Choose icon</string>
     <string name="add_app_clear_icon">Clear</string>
     <string name="add_app_icon_suggestions">From the repository</string>
-    <string name="add_app_icon_searching">Looking for icons in the repository…</string>
+    <string name="add_app_icon_searching">Looking for icons…</string>
     <string name="add_app_icon_reset">Default</string>
     <string name="edit_app_title">Edit %1$s</string>
     <string name="edit_app_save">Save</string>
