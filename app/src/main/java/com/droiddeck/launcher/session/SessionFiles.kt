@@ -5,6 +5,7 @@ import android.os.Environment
 import android.util.Log
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.ProotFastPath
 import java.io.File
 
 /** Everything the session needs written into the runtime before it starts. */
@@ -29,6 +30,7 @@ object SessionFiles {
             "usr/local/bin/bannerlator-game-env" to "usr/local/bin/bannerlator-game-env",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
+            "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
             "usr/local/bin/bannerlator-session" to "usr/local/bin/bannerlator-session",
             "usr/local/bin/bannerlator-steam-compat" to "usr/local/bin/bannerlator-steam-compat",
             "usr/local/bin/bannerlator-steam-install" to "usr/local/bin/bannerlator-steam-install",
@@ -152,6 +154,9 @@ object SessionFiles {
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
+        // Last, so the others' opens and stats reach it through RTLD_NEXT. It stays idle in any
+        // process its proot did not describe to it (ProotFastPath).
+        if (ProotFastPath.enabled(context)) preload.append(ProotFastPath.LIBRARY + "\n")
         val etc = File(root, "etc").apply { mkdirs() }
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())

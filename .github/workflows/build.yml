@@ -157,7 +157,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/mangoapp/*') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/mangoapp/*') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -176,6 +176,9 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libblsession.so" tools/linuxfs/preload/*.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblsession.so"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+            -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
           for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
             install -Dm644 "$script" "$D/usr/local/bin/$(basename "$script")"
           done
@@ -208,9 +211,13 @@ jobs:
             rm mango-pkgs/pkg.tar.zst
           done
           install -m644 mango-pkgs/usr/bin/mangoapp "$M/mangoapp"
-          for so in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1 libtracefs.so.1; do
+          for so in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
             cp -L "mango-pkgs/usr/lib/$so" "$M/$so"
           done
+          # Ours, not the package's: GPU memory without tracefs (tools/mangoapp/libtracefs-shim.c).
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
+            -o "$M/libtracefs.so.1" tools/mangoapp/libtracefs-shim.c
+          aarch64-linux-gnu-strip --strip-unneeded "$M/libtracefs.so.1"
           install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
           rm -rf mango-pkgs
           ls -l "$M"

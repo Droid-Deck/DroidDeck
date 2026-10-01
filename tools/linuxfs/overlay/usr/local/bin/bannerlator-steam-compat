@@ -254,7 +254,8 @@ fi
 depot=
 best=0
 for name in %s; do
-  candidate="$steam_root/steamapps/common/$name"
+ for library in "$steam_root" /mnt/droiddeck-sd; do
+  candidate="$library/steamapps/common/$name"
   [ -d "$candidate/files/bin-arm64" ] && [ -x "$candidate/proton" ] || continue
   build=0
   read -r build _ 2>/dev/null < "$candidate/version"
@@ -263,6 +264,7 @@ for name in %s; do
     depot=$candidate
     best=$build
   fi
+ done
 done
 if [ -n "$depot" ]; then
   bl_components "$depot"
@@ -595,10 +597,10 @@ def depot_build(depot):
 
 def find_source(steam_root):
     """The newest ARM64 Proton depot the client has downloaded (the one the launcher runs), or None."""
-    common = os.path.join(steam_root, "steamapps", "common")
     # bin-arm64 is what makes it the native build rather than the x86_64 one.
-    found = [os.path.join(common, name) for name in SOURCES
-             if os.path.isdir(os.path.join(common, name, "files", "bin-arm64"))]
+    found = [os.path.join(root, "steamapps", "common", name)
+             for root in (steam_root, "/mnt/droiddeck-sd") for name in SOURCES
+             if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))]
     return max(found, key=depot_build) if found else None
 
 

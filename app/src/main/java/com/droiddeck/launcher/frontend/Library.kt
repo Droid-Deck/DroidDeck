@@ -5,6 +5,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SecondaryLibrary
 import java.io.File
 
 /**
@@ -84,7 +85,11 @@ object Library {
     /** Proton keeps each game's prefix below compatdata/<appid>/pfx in a Steam library. */
     fun protonPrefix(context: Context, appId: Long, preferredLibrary: File? = null): File? {
         val ids = listOf(appId.toString(), java.lang.Integer.toString(appId.toInt())).distinct()
-        val roots = (listOfNotNull(preferredLibrary) + steamLibraries(context).map { it.first })
+        val secondary = GameStorage.effective(context)?.let { File(it.path) }
+        fun prefixRoot(root: File): File = if (secondary != null && root.canonicalPath == secondary.canonicalPath)
+            SecondaryLibrary.privateRoot(context.filesDir, root).takeIf { File(it, "steamapps/compatdata").isDirectory } ?: root
+            else root
+        val roots = (listOfNotNull(preferredLibrary) + steamLibraries(context).map { it.first }).map(::prefixRoot)
             .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
         return roots.asSequence()
             .flatMap { root -> ids.asSequence().map { id -> File(root, "steamapps/compatdata/$id/pfx") } }

@@ -40,6 +40,7 @@ fun PerformancePage(
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
     prootNoSeccomp: Boolean,
+    prootFastPath: Boolean,
     guestHostname: String,
     phantomWarning: String?,
     onClientOverride: (Boolean) -> Unit,
@@ -51,6 +52,7 @@ fun PerformancePage(
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
+    onProotFastPath: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
@@ -126,6 +128,12 @@ fun PerformancePage(
                 host, "seccomp", "Run proot without seccomp",
                 "May fix missing syscall errors on some kernels, but can reduce performance.",
                 prootNoSeccomp, onChange = onProotNoSeccomp,
+            )
+            ToggleRow(
+                host, "fastpath", "proot fast path",
+                if (prootNoSeccomp) "Needs proot's seccomp filter: off while proot runs without seccomp."
+                else "Answers file lookups inside each program instead of through proot. Faster loading and less stutter; turn off if a program cannot find its files.",
+                prootFastPath && !prootNoSeccomp, enabled = !prootNoSeccomp, onChange = onProotFastPath,
             )
         }
         SettingsGroup("Session identity") {

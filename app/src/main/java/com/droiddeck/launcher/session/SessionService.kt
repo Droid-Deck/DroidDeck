@@ -36,6 +36,7 @@ import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.input.FakeInputWriter
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.ProotFastPath
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.text.SimpleDateFormat
@@ -277,7 +278,9 @@ class SessionService : Service() {
         // The desktop's Steam launchers start the client there (bannerlator-steam-launch), through the
         // same set-up as a Steam session: it gets what the client and its games are started with.
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
-        addClientEnvironment(guest, runtimeDir, steamHere)
+        addClientEnvironment(guest, steamHere)
+        // Where the fast path's description of proot's view goes, once the binds are known.
+        val fastPathAt = guest.size
 
         val pulse = startAudio(guest, sessionDir)
 
@@ -363,6 +366,19 @@ class SessionService : Service() {
         FileUtils.clear(File(cacheDir, "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir)
+        // The fast path is told exactly the rootfs and binds proot is given (ProotFastPath).
+        val fastPathKey = if (ProotFastPath.enabled(this)) {
+            val prootBinds = LinuxRuntime.binds(
+                this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
+            )
+            val root = LinuxRuntime.rootDir(this)
+            ProotFastPath.key(root, prootBinds)?.also { key ->
+                val env = ProotFastPath.guestEnv(root, prootBinds, key)
+                guest.addAll(fastPathAt, env)
+                shellGuest.addAll(fastPathAt, env)
+                Log.i(TAG, "proot: fast path on (${prootBinds.size} binds)")
+            }
+        } else null
 
         val command = LinuxRuntime.command(
             this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest,
@@ -379,6 +395,7 @@ class SessionService : Service() {
             hostEnv["PROOT_NO_SECCOMP"] = "1"
             Log.i(TAG, "proot: seccomp acceleration off by request")
         }
+        fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> hostEnv[k] = v } }
         val prootLibs = LinuxRuntime.prootLibraryPath(this)
         if (prootLibs.isNotEmpty()) hostEnv["LD_LIBRARY_PATH"] = prootLibs
 
@@ -483,7 +500,7 @@ class SessionService : Service() {
     }
 
     /** The guest's base environment: paths, the display, the GL/Vulkan stack and the client's switches. */
-    private fun addClientEnvironment(guest: MutableList<String>, runtimeDir: File, steamHere: Boolean) {
+    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean) {
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("HOME=/root")
@@ -494,7 +511,7 @@ class SessionService : Service() {
         // Without this the session is UTC: the client's clock, its logs and every timestamp in a
         // session bundle sit hours off the device's. Bannerlator carries the same line.
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
-        guest.add("XDG_RUNTIME_DIR=" + runtimeDir.path)
+        guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")
         guest.add("GAMESCOPE_FORCE_GENERAL_QUEUE=1")
@@ -535,6 +552,10 @@ class SessionService : Service() {
         // opened once and read and written with pread/pwrite, which proot never sees. Mesa removes
         // the old folder itself once it has gone a week untouched.
         guest.add("MESA_DISK_CACHE_DATABASE=1")
+        // glibc's per-thread rseq registration is refused by Android's app seccomp policy, so
+        // every thread start paid a SIGSYS that proot answers; the malloc top pad grows the heap
+        // 16 MB at a time instead of 128 KB, and every brk(2) is a proot stop too.
+        guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
         if (SessionState.mode == MODE_STEAM) guest.add("BL_STEAMDECK=" + (if (SessionPrefs.steamDeckMode(this)) "1" else "0"))
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
         if (steamHere) guest.add("BL_STEAM_CHANNEL=" + SessionPrefs.steamChannel(this))
@@ -689,6 +710,33 @@ class SessionService : Service() {
         battery.attach(this)
         components.add(battery)
         binds.add(battery.dir.path + ":/sys/class/power_supply")
+        // The overlay's CPU and GPU temperatures and the fan, as hwmon sensors it knows by name.
+        val hwmon = HwmonComponent(File(filesDir, "session/sys/hwmon"), LinuxRuntime.rootDir(this))
+        if (hwmon.prepare()) {
+            hwmon.attach(this)
+            components.add(hwmon)
+            binds.add(hwmon.dir.path + ":/sys/class/hwmon")
+        }
+        // CPU load for everything in the session that reads /proc/stat, the overlay among them.
+        val cpuStat = CpuStatComponent(File(filesDir, "session/proc-stat"))
+        if (cpuStat.prepare()) {
+            cpuStat.attach(this)
+            components.add(cpuStat)
+            binds.add(cpuStat.file.path + ":/proc/stat")
+        }
+        // The GPU memory in use for the overlay's VRAM lines, which it would read from tracefs.
+        val gpuMem = GpuMemComponent(File(LinuxRuntime.rootDir(this), "run/droiddeck-hud/gpu-mem"), LinuxRuntime.rootDir(this))
+        if (gpuMem.prepare()) {
+            gpuMem.attach(this)
+            components.add(gpuMem)
+        }
+        // The GPU's load and temperature for the performance overlay, where KGSL's sysfs is refused.
+        val gpuStats = GpuStatsComponent(File(filesDir, "session/sys/kgsl-3d0"))
+        if (gpuStats.prepare()) {
+            gpuStats.attach(this)
+            components.add(gpuStats)
+            binds.addAll(gpuStats.binds())
+        }
         // Rumble for the on-screen pad: the fake evdev layer sends force-feedback effects to this
         // listener, which drives the phone's vibrator (see RumbleComponent).
         if (controllersOn) components.add(RumbleComponent().also { it.attach(this) })
@@ -709,11 +757,14 @@ class SessionService : Service() {
             val problem = GameStorage.prepare(library.path)
             if (problem == null) {
                 File(LinuxRuntime.rootDir(this), "mnt/droiddeck-sd").mkdirs()
-                binds.add("${library.path}:/mnt/droiddeck-sd")
                 // Links, prefixes and Steam entries made before the rename still name the old path.
                 File(LinuxRuntime.rootDir(this), "mnt/bannerlator-sd").mkdirs()
-                binds.add("${library.path}:/mnt/bannerlator-sd")
-                Log.i(TAG, "game storage: ${library.path} -> /mnt/droiddeck-sd (\"${library.label}\")")
+                try {
+                    binds.addAll(SecondaryLibrary.binds(filesDir, File(library.path)))
+                    Log.i(TAG, "game storage: ${library.path} -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
+                } catch (e: Exception) {
+                    Log.w(TAG, "game storage: private directories could not be prepared; internal only this session", e)
+                }
             } else {
                 Log.w(TAG, "game storage: $problem; internal only this session")
             }

@@ -369,6 +369,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun createSessionOverlay(): ComposeView = ComposeView(this).apply {
         isFocusable = true
         isFocusableInTouchMode = true
+        // Compose draws each control's focus ring. Android's default highlight would cover
+        // this full-screen host and remain as a white veil after the drawer closes.
+        defaultFocusHighlightEnabled = false
         setContent {
             DroidDeckTheme {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
