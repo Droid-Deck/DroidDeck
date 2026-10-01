@@ -1,7 +1,9 @@
 package com.droiddeck.launcher.runtime
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.os.StatFs
+import android.system.Os
 import android.util.Log
 import com.droiddeck.launcher.core.FileUtils
 import java.io.File
@@ -21,6 +23,7 @@ object AppImageManager {
     const val LAUNCHER = "/usr/local/bin/bannerlator-appimage-run"
     private const val ELF_AARCH64 = 183
     private const val ELF_X86_64 = 62
+    private const val SHARP_ICON = 128
 
     class Item(val id: String, val name: String, val icon: File?, val comment: String?) {
         val guestDir: String get() = "$GUEST_DIR/$id"
@@ -128,6 +131,7 @@ object AppImageManager {
     /** Extracts [file] to [dir]/app, replacing what is there only once the extraction has worked. */
     private fun extract(context: Context, dir: File, file: File, onProgress: (String) -> Unit): String? {
         val image = File(dir, "image.AppImage")
+        val links = File(dir, ".links").apply { mkdirs() }
         try {
             dir.mkdirs()
             // Copied in, not run where it lies: shared storage is mounted noexec, and proot's loader
@@ -137,18 +141,40 @@ object AppImageManager {
             image.setExecutable(true, false)
             onProgress("Extracting ${file.name}")
             val out = StringBuilder()
+            // uruntime's DwarFS images unpack into AppDir with squashfs-root a link to it, and keep
+            // one program under several names as hard links (sharun), which Android denies apps.
             val status = GuestCommand.run(context, listOf(
                 "/bin/bash", "-c",
-                "cd \"$1\" && rm -rf squashfs-root && ./image.AppImage --appimage-extract >/dev/null && rm -rf app && mv squashfs-root app",
+                "cd \"$1\" && rm -rf squashfs-root AppDir && ./image.AppImage --appimage-extract >/dev/null && " +
+                    "rm -rf app && mv \"$(readlink -f squashfs-root)\" app && rm -f squashfs-root",
                 "extract", "$GUEST_DIR/${dir.name}",
-            ), logName = "appimage-import") { line -> if (out.length < 2000) out.appendLine(line) }
+            ), logName = "appimage-import", linkDir = links) { line -> if (out.length < 2000) out.appendLine(line) }
             if (status != 0 || !File(dir, "app").isDirectory) {
-                FileUtils.delete(File(dir, "squashfs-root"))
+                listOf("squashfs-root", "AppDir").forEach { FileUtils.delete(File(dir, it)) }
                 return "The AppImage could not be extracted" + (out.lines().lastOrNull { it.isNotBlank() }?.let { ": $it" } ?: "")
             }
+            copyLinkedFiles(File(dir, "app"), links)
             return null
         } finally {
             image.delete()
+            FileUtils.delete(links)
+        }
+    }
+
+    /**
+     * Each name proot's link2symlink left for a hard link becomes a file of its own: a program run
+     * through a link would see the shared file's name, and sharun picks what to start by its own.
+     */
+    private fun copyLinkedFiles(app: File, links: File) {
+        val roots = setOf(links.path + "/", links.canonicalPath + "/")
+        app.walkTopDown().onEnter { !Files.isLink(it) }.forEach { f ->
+            if (!Files.isLink(f)) return@forEach
+            val target = runCatching { Os.readlink(f.path) }.getOrNull() ?: return@forEach
+            if (roots.none { target.startsWith(it) }) return@forEach
+            val data = f.toPath().toRealPath()
+            java.nio.file.Files.delete(f.toPath())
+            java.nio.file.Files.copy(data, f.toPath())
+            if (java.nio.file.Files.isExecutable(data)) f.setExecutable(true, false)
         }
     }
 
@@ -165,18 +191,29 @@ object AppImageManager {
         restoreIcon(dir)
     }
 
-    /** The image's own icon as [dir]'s: the one its entry names, beside it or anywhere in its icon theme, else .DirIcon. */
+    /**
+     * The image's own icon as [dir]'s: of the files its entry names, beside it or anywhere in its
+     * icon theme, a PNG of at least [SHARP_ICON] px, else the SVG, else the largest PNG; .DirIcon
+     * without any.
+     */
     internal fun restoreIcon(dir: File) {
         val app = File(dir, "app")
         val entry = app.listFiles { f -> f.isFile && f.name.endsWith(".desktop") }?.firstOrNull()
         val iconName = entry?.let { FileUtils.readString(it) }?.let { desktopKey(it, "Icon") }
-        val candidates = listOfNotNull(
-            iconName?.let { File(app, "$it.png") },
-            iconName?.let { n -> app.walkTopDown().maxDepth(8).filter { it.isFile && it.name == "$n.png" }.maxByOrNull { it.length() } },
-            File(app, ".DirIcon"),
-        )
+        val named = iconName?.let { n ->
+            app.walkTopDown().maxDepth(8).filter { it.isFile && (it.name == "$n.png" || it.name == "$n.svg") }.toList()
+        }.orEmpty()
+        val png = named.filter(::isPng).maxByOrNull(::pngSide)
+        val svg = named.firstOrNull { it.name.endsWith(".svg") }
+        val pick = png?.takeIf { pngSide(it) >= SHARP_ICON } ?: svg ?: png ?: File(app, ".DirIcon").takeIf { it.isFile }
         val icon = File(dir, "icon.png")
-        candidates.firstOrNull { it.isFile && isPng(it) }?.copyTo(icon, overwrite = true) ?: icon.delete()
+        if (pick == null || !UserApps.saveIcon(pick, icon)) icon.delete()
+    }
+
+    private fun pngSide(f: File): Int {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(f.path, bounds)
+        return minOf(bounds.outWidth, bounds.outHeight)
     }
 
     private fun isPng(f: File): Boolean = try {

@@ -3,11 +3,13 @@ package com.droiddeck.launcher.runtime
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
 import android.system.Os
 import android.util.Log
+import com.caverock.androidsvg.SVG
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
@@ -254,25 +256,48 @@ object UserApps {
         }
     }
 
-    /** The picked image as the app's icon: a PNG no larger than [ICON_SIZE] on a side. */
+    /** [source] (PNG, JPEG, WebP or SVG) as the app's icon: a PNG no larger than [ICON_SIZE] on a side. */
     internal fun saveIcon(source: File, target: File): Boolean {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(source.path, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return false
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= ICON_SIZE) sample *= 2
-        val decoded = BitmapFactory.decodeFile(source.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return false
-        val scale = ICON_SIZE.toFloat() / maxOf(decoded.width, decoded.height)
-        val bitmap = if (scale < 1f) Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt().coerceAtLeast(1), (decoded.height * scale).toInt().coerceAtLeast(1), true) else decoded
+        val bitmap = (if (isSvg(source)) renderSvg(source) else decodeScaled(source)) ?: return false
         return try {
             target.parentFile?.mkdirs()
             target.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         } catch (e: Exception) {
             Log.w(TAG, "icon ${source.path}", e); false
         } finally {
-            if (bitmap !== decoded) bitmap.recycle()
-            decoded.recycle()
+            bitmap.recycle()
         }
+    }
+
+    private fun decodeScaled(source: File): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(source.path, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= ICON_SIZE) sample *= 2
+        val decoded = BitmapFactory.decodeFile(source.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
+        val scale = ICON_SIZE.toFloat() / maxOf(decoded.width, decoded.height)
+        if (scale >= 1f) return decoded
+        val scaled = Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt().coerceAtLeast(1), (decoded.height * scale).toInt().coerceAtLeast(1), true)
+        if (scaled !== decoded) decoded.recycle()
+        return scaled
+    }
+
+    private fun isSvg(f: File): Boolean = try {
+        f.inputStream().use { val head = ByteArray(1024); val n = it.read(head); n > 0 && String(head, 0, n).contains("<svg") }
+    } catch (e: Exception) { false }
+
+    /** An SVG drawn at [ICON_SIZE], centred in its own proportions. */
+    private fun renderSvg(source: File): Bitmap? = try {
+        val svg = source.inputStream().use { SVG.getFromInputStream(it) }
+        if (svg.documentViewBox == null && svg.documentWidth > 0 && svg.documentHeight > 0) {
+            svg.setDocumentViewBox(0f, 0f, svg.documentWidth, svg.documentHeight)
+        }
+        svg.setDocumentWidth("100%")
+        svg.setDocumentHeight("100%")
+        Bitmap.createBitmap(ICON_SIZE, ICON_SIZE, Bitmap.Config.ARGB_8888).also { svg.renderToCanvas(Canvas(it)) }
+    } catch (e: Exception) {
+        Log.w(TAG, "svg ${source.path}", e); null
     }
 
     /** "owner/repo" from what was typed: any link into the repository, its clone address, or the short form. */

@@ -89,7 +89,7 @@ object FlatpakManager {
     /** Runs [argv] in the runtime, its output also in Download/DroidDeck/flatpak-<verb>.log. */
     private fun runGuest(context: Context, argv: List<String>, fakeRoot: Boolean, onLine: (String) -> Unit): Int {
         val name = "flatpak-" + (argv.getOrNull(2)?.takeIf { argv.getOrNull(1) == HELPER } ?: "setup")
-        return GuestCommand.run(context, argv, fakeRoot, name, onLine)
+        return GuestCommand.run(context, argv, fakeRoot, name, onLine = onLine)
     }
 
     private inline fun <T> exclusive(what: String, block: () -> T): T? {
