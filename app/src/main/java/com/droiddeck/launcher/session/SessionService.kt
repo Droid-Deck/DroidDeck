@@ -897,6 +897,7 @@ class SessionService : Service() {
 
     private fun killStragglers() {
         val me = android.os.Process.myPid()
+        val myUid = android.os.Process.myUid()
         val procs = File("/proc").listFiles { f -> f.name.all { it.isDigit() } } ?: return
         var killed = 0
         for (proc in procs) {
@@ -912,6 +913,61 @@ class SessionService : Service() {
             killed++
         }
         if (killed > 0) Log.w(TAG, "killed $killed leftover process(es) of a previous session")
+        reapForeignStragglers(myUid)
+    }
+
+    /**
+     * Kills session processes left by an earlier install, which this uid cannot signal.
+     *
+     * A reinstall gives the app a new uid (u0_a76 -> u0_a260 on the device this was found on), and
+     * Android does not kill the old install's processes when it replaces the package: a session
+     * script from the previous uid keeps running, invisible to the launcher and to the Activity
+     * Manager, writing into the rootfs the two installs share. Everything it creates belongs to a
+     * uid the app no longer is - Steam's own files included - so the next session cannot rewrite
+     * them and the client dies seconds in, right after gamescope comes up.
+     *
+     * /proc/<pid> of another uid's process is not even readable from here, so the list has to come
+     * from the root manager. Only processes whose command line names this app's own session (see
+     * [STRAGGLERS]) are signalled, and only when they are not already ours. Best effort: without a
+     * root manager there is nothing to reap with, and the session runs as it would have.
+     */
+    private fun reapForeignStragglers(myUid: Int) {
+        val rooted = try {
+            RootSession.isAvailable(this)
+        } catch (e: Exception) {
+            false
+        }
+        if (!rooted) return
+        // uid:pid:cmdline, so a process that exits between the listing and the kill is skipped.
+        val listing = StringBuilder()
+        val status = RootSession.run(arrayOf(
+            "sh", "-c",
+            "for p in /proc/[0-9]*; do " +
+                "u=\$(awk '/^Uid:/{print \$2}' \$p/status 2>/dev/null); " +
+                "c=\$(tr '\\0' ' ' < \$p/cmdline 2>/dev/null); " +
+                "[ -n \"\$u\" ] && [ -n \"\$c\" ] && echo \"\$u:\${p#/proc/}:\$c\"; " +
+            "done",
+        ), null, { line -> listing.append(line).append('\n') }, REAP_LIST_MS)
+        if (status != 0) {
+            Log.w(TAG, "could not list the session's processes to reap (status $status)")
+            return
+        }
+        var killed = 0
+        for (line in listing.lineSequence()) {
+            val first = line.indexOf(':')
+            val second = line.indexOf(':', first + 1)
+            if (first <= 0 || second <= first) continue
+            val uid = line.substring(0, first).trim().toIntOrNull() ?: continue
+            val pid = line.substring(first + 1, second).trim().toIntOrNull() ?: continue
+            val cmdline = line.substring(second + 1)
+            if (uid == myUid) continue                 // ours, and already handled above
+            if (pid == android.os.Process.myPid()) continue
+            if (STRAGGLERS.none { cmdline.contains(it) }) continue
+            RootSession.run(arrayOf("kill", "-9", pid.toString()), null, null, REAP_KILL_MS)
+            killed++
+            Log.w(TAG, "killed a leftover session process from an earlier install (uid $uid, pid $pid)")
+        }
+        if (killed > 0) Log.w(TAG, "reaped $killed leftover process(es) from an earlier install")
     }
 
     /**
@@ -1264,6 +1320,9 @@ class SessionService : Service() {
             "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
         /** How long proot gets to run its own cleanup before it is killed outright. */
         private const val GRACE_MS = 1200L
+        /** Listing every process through the root manager, and killing one, before a session starts. */
+        private const val REAP_LIST_MS = 5_000L
+        private const val REAP_KILL_MS = 3_000L
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
