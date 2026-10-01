@@ -114,9 +114,8 @@ class FrontEndState(
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
     val showPhantomGate: Boolean = false,
     val launcherFullscreen: Boolean = true,
-    /** Beta features the user turns on in Setup: the Flathub Store and AppImage import. */
+    /** The Flathub Store, a beta the user turns on in Setup. */
     val storeEnabled: Boolean = false,
-    val appImagesEnabled: Boolean = false,
     /** The Updates page: DroidDeck's own builds and the channel followed. */
     val updates: UpdatesState = UpdatesState(),
 )
@@ -129,9 +128,8 @@ class FrontEndActions(
     val onEmulator: (Library.Emulator) -> Unit,
     /** A Flatpak app by id and name, from the Store. */
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
-    /** Pick an AppImage to import; open an imported one by its directory and name. */
-    val onImportAppImage: () -> Unit = {},
-    val onAppImage: (String, String) -> Unit = { _, _ -> },
+    /** An app added on the Desktop page. */
+    val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
     val onSteamSettings: () -> Unit,
@@ -158,7 +156,6 @@ class FrontEndActions(
     val onTheme: (String) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onStoreEnabled: (Boolean) -> Unit = {},
-    val onAppImagesEnabled: (Boolean) -> Unit = {},
     val onHomeApp: () -> Unit = {},
     val onHomeScreen: (Boolean) -> Unit = {},
     val onAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit = { _, _ -> },
@@ -356,13 +353,13 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
     }
     BackHandler(enabled = !processSettingsPageVisible && s.pageKey != null && page != null) { a.onPageBack() }
-    // Back (and B) from a ROM or an emulator steps out one level, as its "‹" link does, instead
-    // of leaving the app: a ROM -> its emulator, an emulator -> Desktop.
+    // Back (and B) from a ROM, an emulator or an added app steps out one level, as its "‹" link
+    // does, instead of leaving the app: a ROM -> its emulator, the others -> Desktop.
     BackHandler(
         enabled = !processSettingsPageVisible && (s.pageKey == null || page == null) &&
-            (selected.startsWith("emu:") || selected.startsWith("rom:")),
+            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:")),
     ) {
-        selected = if (selected.startsWith("emu:")) "desktop" else "emu:" + selected.removePrefix("rom:").substringBefore(':')
+        selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     // The Store turned off in Setup takes its page with it.
@@ -378,7 +375,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         s.pageKey?.startsWith("settings:steam") == true -> "steam"
         s.pageKey?.startsWith("settings:") == true -> "desktop"
         selected.startsWith("app:") -> "games"
-        selected.startsWith("emu:") || selected.startsWith("rom:") -> "desktop"
+        selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") -> "desktop"
         else -> s.pageKey ?: selected
     }
     // Bumped each time a rail item is picked, so a controller moves on into the new page.
@@ -529,7 +526,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     val hasBackTarget = (s.pageKey != null && page != null) ||
         ((s.pageKey == null || page == null) &&
-            (selected.startsWith("emu:") || selected.startsWith("rom:")))
+            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:")))
     // At the top of a section, Back goes to the rail - the launcher itself is never backed out of.
     BackHandler(enabled = !processSettingsPageVisible && !hasBackTarget) {
         if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)

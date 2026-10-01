@@ -428,7 +428,7 @@ private fun AppTile(app: FlathubApi.AppSummary, modifier: Modifier, isFirst: Boo
 
 /** An app's icon from Flathub (a URL) or from its installed files; a placeholder until it loads. */
 @Composable
-private fun AppIcon(model: Any?, name: String, size: Int) {
+internal fun AppIcon(model: Any?, name: String, size: Int) {
     val colors = MaterialTheme.colorScheme
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size.dp).clip(RoundedCornerShape((size / 5).dp)).background(if (model == null) colors.surfaceVariant else Color.Transparent)) {
         if (model == null) Icon(Icons.Outlined.Apps, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size((size / 2).dp))
@@ -454,103 +454,4 @@ private fun PillButton(label: String, selected: Boolean, onClick: () -> Unit) {
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 9.dp),
     )
-}
-
-/** The apps installed from the Store, as launch tiles - on the Desktop page beside the emulators. */
-@Composable
-internal fun InstalledAppsGrid(a: FrontEndActions) {
-    val ctx = LocalContext.current
-    LaunchedEffect(Unit) { StoreState.refresh(ctx) }
-    val apps = StoreState.installed
-    if (apps.isEmpty()) return
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val columns = if (LocalNarrowPane.current) 1 else 3
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        SectionTitle("Apps from the Store", apps.size.toString())
-        apps.chunked(columns).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                row.forEach { app ->
-                    key(app.id) {
-                        val src = remember { MutableInteractionSource() }
-                        val hot = rememberHot(src)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.weight(1f).fillMaxHeight().paneItem("tile:flatpak:${app.id}")
-                                .clip(Shape14).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
-                                .glideBorder(hot, Shape14, pal.signal, pal.line)
-                                .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button) { a.onFlatpakApp(app.id, app.name) }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                        ) {
-                            AppIcon(app.icon ?: StoreState.details[app.id]?.icon ?: FlathubApi.iconUrl(app.id), app.name, 44)
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(app.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(app.summary ?: "Flatpak", fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-/**
- * The user's own AppImages on the Desktop page: an Add button, each one to open, and Remove
- * (pressed twice, like the store's). The picker, the check and the extraction live elsewhere
- * (MainActivity, AppImageManager); this only shows them.
- */
-@Composable
-internal fun AppImagesSection(a: FrontEndActions, runtimeReady: Boolean) {
-    val ctx = LocalContext.current
-    LaunchedEffect(Unit) { com.droiddeck.launcher.store.AppImageState.refresh(ctx) }
-    val state = com.droiddeck.launcher.store.AppImageState
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        SectionTitle("AppImages", state.items.size.takeIf { it > 0 }?.toString())
-        Actions {
-            SecondaryButton(if (state.importing != null) "Importing…" else "Add AppImage", enabled = runtimeReady && state.importing == null) { a.onImportAppImage() }
-            if (!runtimeReady) ActionChip("Runtime required", ok = false)
-        }
-        state.importing?.let { name ->
-            Text("$name · ${state.stage ?: "Starting…"}", fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
-        }
-        state.lastError?.let { Note(it) }
-        if (state.items.isEmpty() && state.importing == null && state.lastError == null) {
-            Note("Add an ARM64 (aarch64) AppImage from your storage. It is unpacked into the Linux runtime once, then opens full screen from here or from the desktop's menu.")
-        }
-        state.items.forEach { item ->
-            key(item.id) {
-                var confirm by remember(item.id) { mutableStateOf(false) }
-                LaunchedEffect(confirm) { if (confirm) { kotlinx.coroutines.delay(4000); confirm = false } }
-                val src = remember { MutableInteractionSource() }
-                val hot = rememberHot(src)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14).padding(end = 12.dp),
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.weight(1f).paneItem("tile:appimage:${item.id}").clip(Shape14)
-                            .background(if (hot) pal.signal.copy(alpha = 0.10f) else Color.Transparent)
-                            .glideBorder(hot, Shape14, pal.signal)
-                            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button) { a.onAppImage(item.guestDir, item.name) }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                    ) {
-                        AppIcon(item.icon, item.name, 44)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(item.comment ?: "AppImage", fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    SecondaryButton(if (confirm) "Press again to remove" else "Remove", compact = true) {
-                        if (confirm) { confirm = false; com.droiddeck.launcher.store.AppImageState.remove(ctx, item.id) } else confirm = true
-                    }
-                }
-            }
-        }
-    }
 }

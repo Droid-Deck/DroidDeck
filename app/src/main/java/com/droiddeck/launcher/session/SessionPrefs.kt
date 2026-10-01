@@ -30,18 +30,11 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
-    /** The Flathub Store (beta): its rail item and the Store's apps on the Desktop page. Off by default. */
+    /** The Flathub Store (beta): its rail item. Off by default. */
     fun storeEnabled(context: Context): Boolean = prefs(context).getBoolean("storeEnabled", false)
 
     fun setStoreEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("storeEnabled", on).apply()
-    }
-
-    /** AppImage import (beta): the AppImages section on the Desktop page. Off by default. */
-    fun appImagesEnabled(context: Context): Boolean = prefs(context).getBoolean("appImagesEnabled", false)
-
-    fun setAppImagesEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("appImagesEnabled", on).apply()
     }
 
     /**

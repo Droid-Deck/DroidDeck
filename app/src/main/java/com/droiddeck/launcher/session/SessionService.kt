@@ -724,6 +724,8 @@ class SessionService : Service() {
                 Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
             }
         }
+        // Folders of added scripts outside internal storage, where their links point.
+        binds.addAll(com.droiddeck.launcher.runtime.UserApps.binds(this))
         val roms = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }?.let { File(it) }
         if (roms != null && roms.isDirectory && roms.canRead()) {
             File(home, "ROMs").mkdirs()

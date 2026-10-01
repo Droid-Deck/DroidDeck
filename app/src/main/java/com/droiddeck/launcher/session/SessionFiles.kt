@@ -49,6 +49,7 @@ object SessionFiles {
             "usr/local/bin/bannerlator-flatpak-run" to "usr/local/bin/bannerlator-flatpak-run",
             // The user's own AppImages, extracted at import (AppImageManager).
             "usr/local/bin/bannerlator-appimage-run" to "usr/local/bin/bannerlator-appimage-run",
+            "usr/local/bin/bannerlator-script-run" to "usr/local/bin/bannerlator-script-run",
             // The SteamOS helpers the client calls in Deck mode: the two Armada found it needs, plus
             // the three under /usr/bin, all no-ops that answer "nothing to do" (see each file).
             "usr/bin/steamos-update" to "usr/bin/steamos-update",

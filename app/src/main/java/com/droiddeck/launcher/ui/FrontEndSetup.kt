@@ -332,12 +332,6 @@ internal fun SetupPanel(
                                 else "Off: install Linux apps and games from Flathub with Flatpak",
                                 s.storeEnabled,
                             ) { a.onStoreEnabled(it) }
-                            ToggleRow(
-                                host, "appimages-enabled", "AppImages",
-                                if (s.appImagesEnabled) "Add AppImage is on the Desktop page. ARM64 (aarch64) AppImages only"
-                                else "Off: import ARM64 AppImages from your storage",
-                                s.appImagesEnabled,
-                            ) { a.onAppImagesEnabled(it) }
                         }
                     }
                 }

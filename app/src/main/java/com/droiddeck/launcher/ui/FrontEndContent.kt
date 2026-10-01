@@ -26,6 +26,7 @@ import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +40,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DesktopWindows
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -68,7 +77,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.HomeApp
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.runtime.UserApps
+import com.droiddeck.launcher.store.UserAppsState
 import java.io.File
 
 // The front end's right-hand pane and the page it shows: backdrop, desktop card and emulators.
@@ -191,22 +203,33 @@ private fun Content(
             selected == "desktop" -> {
                 val installed = s.emulators.filter { it.installed }
                 val available = s.emulators.filter { !it.installed }
+                val ctx = LocalContext.current
+                LaunchedEffect(Unit) { UserAppsState.refresh(ctx) }
+                val apps = UserAppsState.items
+                var adding by rememberSaveable { mutableStateOf(false) }
                 Rise(0) {
                     PageHeader("Desktop") {
                         if (s.desktopInstalled) Chip("● Desktop installed", ok = true) else Chip("Installs on first open", ok = false)
                     }
                 }
                 Rise(2) { DesktopCard(s, a) }
-                if (installed.isNotEmpty()) {
-                    Rise(3) { SectionTitle("Emulators", "${installed.size} installed") }
-                    Rise(4) { EmulatorGrid(installed, first = true, onSelect = onSelect) }
+                Rise(3) { SectionTitle(stringResource(R.string.user_apps_section), (installed.size + apps.size).takeIf { it > 0 }?.toString()) }
+                Rise(4) {
+                    LauncherGrid(
+                        installed.map { GridItem.Emu(it) } + apps.map { GridItem.User(it) } + GridItem.Add,
+                        first = true, onSelect = onSelect, onAdd = { adding = true },
+                    )
                 }
-                if (s.storeEnabled) Rise(5) { InstalledAppsGrid(a) }
-                if (s.appImagesEnabled) Rise(5) { AppImagesSection(a, s.ready) }
+                if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(5) { UserAppsProgress() }
                 if (available.isNotEmpty()) {
                     Rise(5) { SectionTitle("Available to install", available.size.toString()) }
-                    Rise(6) { EmulatorGrid(available, first = installed.isEmpty(), onSelect = onSelect) }
+                    Rise(6) { LauncherGrid(available.map { GridItem.Emu(it) }, first = false, onSelect = onSelect) }
                 }
+                if (adding) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
+            }
+            selected.startsWith("user:") -> {
+                val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
+                if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
             }
             selected.startsWith("emu:") -> {
                 val e = s.emulators.firstOrNull { "emu:${it.id}" == selected }
@@ -365,19 +388,199 @@ private fun DesktopCard(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-/** Emulators as wide tiles - three across, or a list on a narrow page. */
+/** What the Desktop page's grids hold: emulators, the user's own apps, and Add at the end. */
+private sealed class GridItem(val key: String) {
+    class Emu(val e: Library.Emulator) : GridItem("emu:${e.id}")
+    class User(val app: UserApps.App) : GridItem("user:${app.key}")
+    data object Add : GridItem("add")
+}
+
+/** Wide tiles - three across, or a list on a narrow page. */
 @Composable
-private fun EmulatorGrid(emulators: List<Library.Emulator>, first: Boolean, onSelect: (String) -> Unit) {
+private fun LauncherGrid(items: List<GridItem>, first: Boolean, onSelect: (String) -> Unit, onAdd: () -> Unit = {}) {
     val columns = if (LocalNarrowPane.current) 1 else 3
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)) {
-        emulators.chunked(columns).forEachIndexed { r, row ->
+        items.chunked(columns).forEachIndexed { r, row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                row.forEachIndexed { i, e ->
-                    key(e.id) {
-                        EmulatorTile(e, Modifier.weight(1f).fillMaxHeight(), isFirst = first && r == 0 && i == 0) { onSelect("emu:${e.id}") }
+                row.forEachIndexed { i, item ->
+                    key(item.key) {
+                        val m = Modifier.weight(1f).fillMaxHeight()
+                        val isFirst = first && r == 0 && i == 0
+                        when (item) {
+                            is GridItem.Emu -> EmulatorTile(item.e, m, isFirst) { onSelect(item.key) }
+                            is GridItem.User -> UserAppTile(item.app, m, isFirst) { onSelect(item.key) }
+                            GridItem.Add -> AddTile(m, isFirst, onAdd)
+                        }
                     }
                 }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** A grid tile's frame: the emulator tiles' look, focus glide and press. */
+@Composable
+private fun TileFrame(id: String, modifier: Modifier, isFirst: Boolean, filled: Boolean, onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "tileScale")
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier.paneItem("tile:$id").then(if (isFirst) Modifier.firstTile() else Modifier)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(Shape14)
+            .background(if (hot) pal.signal.copy(alpha = 0.10f) else if (filled) colors.surface else Color.Transparent)
+            .glideBorder(hot, Shape14, pal.signal, pal.line)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) { content() }
+}
+
+@Composable
+private fun TileText(title: String, detail: String, modifier: Modifier) {
+    val colors = MaterialTheme.colorScheme
+    Column(modifier = modifier) {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(detail, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+internal fun UserApps.Kind.label() = when (this) {
+    UserApps.Kind.SCRIPT -> R.string.user_apps_kind_script
+    UserApps.Kind.APPIMAGE -> R.string.user_apps_kind_appimage
+    UserApps.Kind.FLATPAK -> R.string.user_apps_kind_flatpak
+}
+
+/** An added app's icon: its own, or the kind's when it has none. */
+@Composable
+private fun UserAppIcon(app: UserApps.App, size: Int) {
+    if (app.icon != null) AppIcon(app.icon, app.name, size)
+    else Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(size.dp).clip(RoundedCornerShape((size / 5).dp)).background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Icon(
+            if (app.kind == UserApps.Kind.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps, null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size((size / 2).dp),
+        )
+    }
+}
+
+@Composable
+private fun UserAppTile(app: UserApps.App, modifier: Modifier, isFirst: Boolean, onClick: () -> Unit) =
+    TileFrame("user:${app.key}", modifier, isFirst, filled = true, onClick = onClick) {
+        UserAppIcon(app, 44)
+        TileText(app.name, stringResource(app.kind.label()), Modifier.weight(1f))
+    }
+
+/** The grid's last tile: opens the Add dialog. */
+@Composable
+private fun AddTile(modifier: Modifier, isFirst: Boolean, onClick: () -> Unit) {
+    val pal = LocalPalette.current
+    TileFrame("add", modifier, isFirst, filled = false, onClick = onClick) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(44.dp).clip(Shape12).background(pal.signal.copy(alpha = 0.12f)).border(1.dp, pal.signal.copy(alpha = 0.35f), Shape12),
+        ) { Icon(Icons.Filled.Add, null, tint = pal.signal, modifier = Modifier.size(24.dp)) }
+        TileText(stringResource(R.string.user_apps_add), stringResource(R.string.user_apps_add_detail), Modifier.weight(1f))
+    }
+}
+
+/** The add or remove under way, or why the last one failed. */
+@Composable
+private fun UserAppsProgress() {
+    val colors = MaterialTheme.colorScheme
+    val working = UserAppsState.working
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        if (working != null) {
+            val stage = UserAppsState.stage ?: stringResource(R.string.user_apps_starting)
+            val percent = UserAppsState.percent
+            Text(
+                if (percent >= 0) stringResource(R.string.user_apps_progress_percent, working, stage, percent) else stringResource(R.string.user_apps_progress, working, stage),
+                fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (percent >= 0) LinearProgressIndicator(progress = { percent / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp))
+            else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
+        } else UserAppsState.lastError?.let { Note(it) }
+    }
+}
+
+/** An added app's page: open it, change its name and icon, update one added from GitHub, or remove it (pressed twice). */
+@Composable
+private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions, onSelect: (String) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val ctx = LocalContext.current
+    val narrow = LocalNarrowPane.current
+    var confirm by remember(app.key) { mutableStateOf(false) }
+    var editing by rememberSaveable(app.key) { mutableStateOf(false) }
+    LaunchedEffect(confirm) { if (confirm) { kotlinx.coroutines.delay(4000); confirm = false } }
+    Rise(0) { BackLink(stringResource(R.string.user_apps_back)) { onSelect("desktop") } }
+    Rise(1) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(top = 12.dp, bottom = 12.dp),
+        ) {
+            UserAppIcon(app, 52)
+            Column {
+                Text(app.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                Text(
+                    app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label()),
+                    fontSize = 14.sp, color = colors.onSurfaceVariant,
+                )
+            }
+        }
+    }
+    Rise(3) {
+        Actions {
+            PrimaryButton(stringResource(R.string.user_apps_open, app.name), enabled = !s.busy, main = true) { a.onUserApp(app) }
+            BusyChip(s)
+            SecondaryButton(stringResource(R.string.user_apps_edit), enabled = UserAppsState.working == null) { editing = true }
+            if (app.repo != null) UpdateButton(app, s)
+            SecondaryButton(
+                stringResource(if (confirm) R.string.user_apps_remove_confirm else R.string.user_apps_remove),
+                enabled = !s.sessionRunning && UserAppsState.working == null,
+            ) {
+                if (!confirm) confirm = true
+                else { confirm = false; UserAppsState.remove(ctx, app); onSelect("desktop") }
+            }
+            if (s.sessionRunning) ActionChip(stringResource(R.string.user_apps_stop_session), ok = false)
+        }
+    }
+    if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(4) { UserAppsProgress() }
+    if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon -> UserAppsState.edit(ctx, app, name, icon) }
+    val detail = app.detail
+    if (detail != null) Rise(4) {
+        Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Note(
+                if (app.kind != UserApps.Kind.SCRIPT) detail
+                else stringResource(if (app.copied) R.string.user_apps_script_copied else R.string.user_apps_script_linked, detail),
+            )
+        }
+    }
+}
+
+/** Looks up a newer release of an app added from GitHub, then installs it. */
+@Composable
+private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
+    val ctx = LocalContext.current
+    val idle = UserAppsState.working == null && UserAppsState.checking == null
+    when (val found = UserAppsState.updates[app.key]) {
+        is UserApps.UpdateCheck.Available -> SecondaryButton(
+            stringResource(R.string.user_apps_update_to, found.release.tag), enabled = idle && !s.sessionRunning,
+        ) { UserAppsState.update(ctx, app, found.release) }
+        else -> {
+            SecondaryButton(
+                stringResource(if (UserAppsState.checking == app.key) R.string.user_apps_checking_updates else R.string.user_apps_check_updates),
+                enabled = idle,
+            ) { UserAppsState.checkUpdate(ctx, app) }
+            when (found) {
+                is UserApps.UpdateCheck.Current -> ActionChip(stringResource(R.string.user_apps_up_to_date, found.tag), ok = true)
+                is UserApps.UpdateCheck.Failed -> ActionChip(found.message, ok = false)
+                else -> {}
             }
         }
     }
@@ -391,22 +594,9 @@ private fun EmulatorGrid(emulators: List<Library.Emulator>, first: Boolean, onSe
 private fun EmulatorTile(e: Library.Emulator, modifier: Modifier, isFirst: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "emuScale")
     val system = e.system.replaceFirstChar { it.uppercase() }
     val detail = if (e.installed && e.id != "retroarch") "$system · ${e.games.size} game${if (e.games.size == 1) "" else "s"}" else system
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = modifier.paneItem("tile:emu:${e.id}").then(if (isFirst) Modifier.firstTile() else Modifier)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(Shape14)
-            .background(if (hot) pal.signal.copy(alpha = 0.10f) else if (e.installed) colors.surface else Color.Transparent)
-            .glideBorder(hot, Shape14, pal.signal, pal.line)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
+    TileFrame("emu:${e.id}", modifier, isFirst, filled = e.installed, onClick = onClick) {
         Image(painterResource(e.iconRes), contentDescription = null, modifier = Modifier.size(if (e.installed) 44.dp else 36.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(e.name, fontSize = if (e.installed) 15.sp else 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
