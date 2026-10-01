@@ -213,17 +213,21 @@ private fun Content(
                     }
                 }
                 Rise(2) { DesktopCard(s, a) }
-                Rise(3) { SectionTitle(stringResource(R.string.user_apps_section), (installed.size + apps.size).takeIf { it > 0 }?.toString()) }
-                Rise(4) {
-                    LauncherGrid(
-                        installed.map { GridItem.Emu(it) } + apps.map { GridItem.User(it) } + GridItem.Add,
-                        first = true, onSelect = onSelect, onAdd = { adding = true },
-                    )
+                // Add closes the last grid: the installable emulators, or the installed ones once none are left.
+                val ready = installed.map { GridItem.Emu(it) } + apps.map { GridItem.User(it) }
+                val addAfterReady = available.isEmpty()
+                if (ready.isNotEmpty() || addAfterReady) {
+                    Rise(3) { SectionTitle(stringResource(R.string.user_apps_section), ready.size.takeIf { it > 0 }?.toString()) }
+                    Rise(4) {
+                        LauncherGrid(if (addAfterReady) ready + GridItem.Add else ready, first = true, onSelect = onSelect, onAdd = { adding = true })
+                    }
                 }
                 if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(5) { UserAppsProgress() }
-                if (available.isNotEmpty()) {
+                if (!addAfterReady) {
                     Rise(5) { SectionTitle("Available to install", available.size.toString()) }
-                    Rise(6) { LauncherGrid(available.map { GridItem.Emu(it) }, first = false, onSelect = onSelect) }
+                    Rise(6) {
+                        LauncherGrid(available.map { GridItem.Emu(it) } + GridItem.Add, first = ready.isEmpty(), onSelect = onSelect, onAdd = { adding = true })
+                    }
                 }
                 if (adding) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
             }
