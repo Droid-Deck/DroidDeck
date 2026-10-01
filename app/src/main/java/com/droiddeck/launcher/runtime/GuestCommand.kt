@@ -47,7 +47,7 @@ object GuestCommand {
             .forEach { cmd.add("-b"); cmd.add(it) }
         cmd += listOf(
             "/usr/bin/env", "-i", "HOME=/root", "USER=root", "LANG=C.UTF-8",
-            "PATH=/usr/local/bin:/usr/bin:/bin", "XDG_RUNTIME_DIR=${runtimeDir.path}",
+            "PATH=/usr/local/bin:/usr/bin:/bin", "XDG_RUNTIME_DIR=${LinuxRuntime.GUEST_RUNTIME_DIR}",
             "XDG_DATA_HOME=/root/.local/share", "FLATPAK_BWRAP=${FlatpakManager.BWRAP}",
             "XDG_DATA_DIRS=/root/.local/share/flatpak/exports/share:/usr/local/share:/usr/share",
         )

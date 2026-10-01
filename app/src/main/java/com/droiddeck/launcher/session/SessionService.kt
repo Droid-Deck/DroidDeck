@@ -277,7 +277,7 @@ class SessionService : Service() {
         // The desktop's Steam launchers start the client there (bannerlator-steam-launch), through the
         // same set-up as a Steam session: it gets what the client and its games are started with.
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
-        addClientEnvironment(guest, runtimeDir, steamHere)
+        addClientEnvironment(guest, steamHere)
 
         val pulse = startAudio(guest, sessionDir)
 
@@ -483,7 +483,7 @@ class SessionService : Service() {
     }
 
     /** The guest's base environment: paths, the display, the GL/Vulkan stack and the client's switches. */
-    private fun addClientEnvironment(guest: MutableList<String>, runtimeDir: File, steamHere: Boolean) {
+    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean) {
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("HOME=/root")
@@ -494,7 +494,7 @@ class SessionService : Service() {
         // Without this the session is UTC: the client's clock, its logs and every timestamp in a
         // session bundle sit hours off the device's. Bannerlator carries the same line.
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
-        guest.add("XDG_RUNTIME_DIR=" + runtimeDir.path)
+        guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")
         guest.add("GAMESCOPE_FORCE_GENERAL_QUEUE=1")
@@ -689,6 +689,33 @@ class SessionService : Service() {
         battery.attach(this)
         components.add(battery)
         binds.add(battery.dir.path + ":/sys/class/power_supply")
+        // The overlay's CPU and GPU temperatures and the fan, as hwmon sensors it knows by name.
+        val hwmon = HwmonComponent(File(filesDir, "session/sys/hwmon"), LinuxRuntime.rootDir(this))
+        if (hwmon.prepare()) {
+            hwmon.attach(this)
+            components.add(hwmon)
+            binds.add(hwmon.dir.path + ":/sys/class/hwmon")
+        }
+        // CPU load for everything in the session that reads /proc/stat, the overlay among them.
+        val cpuStat = CpuStatComponent(File(filesDir, "session/proc-stat"))
+        if (cpuStat.prepare()) {
+            cpuStat.attach(this)
+            components.add(cpuStat)
+            binds.add(cpuStat.file.path + ":/proc/stat")
+        }
+        // The GPU memory in use for the overlay's VRAM lines, which it would read from tracefs.
+        val gpuMem = GpuMemComponent(File(LinuxRuntime.rootDir(this), "run/droiddeck-hud/gpu-mem"), LinuxRuntime.rootDir(this))
+        if (gpuMem.prepare()) {
+            gpuMem.attach(this)
+            components.add(gpuMem)
+        }
+        // The GPU's load and temperature for the performance overlay, where KGSL's sysfs is refused.
+        val gpuStats = GpuStatsComponent(File(filesDir, "session/sys/kgsl-3d0"))
+        if (gpuStats.prepare()) {
+            gpuStats.attach(this)
+            components.add(gpuStats)
+            binds.addAll(gpuStats.binds())
+        }
         // Rumble for the on-screen pad: the fake evdev layer sends force-feedback effects to this
         // listener, which drives the phone's vibrator (see RumbleComponent).
         if (controllersOn) components.add(RumbleComponent().also { it.attach(this) })
