@@ -96,7 +96,15 @@ static void block_memfd_create(void) {
 }
 
 
-/* Every component of path, path included, as directories. */
+static void own_as_guest(const char *path);
+
+/* Every component of path, path included, as directories.
+ *
+ * What this creates belongs to the guest, not to root. The bind targets it makes - the app's own
+ * directories, placed under the rootfs so proot and the runner can bind them at their own paths -
+ * are directories the guest then has to write into, and left root-owned they are exactly the
+ * "files in the rootfs the app can no longer rewrite" the chown below exists for. Only a directory
+ * this call created is chowned: one that was already there keeps its owner. */
 static int mkdir_parents(const char *path, mode_t mode) {
     char buf[4096];
     size_t n = strlen(path);
@@ -105,10 +113,12 @@ static int mkdir_parents(const char *path, mode_t mode) {
     for (char *p = buf + 1; *p; p++) {
         if (*p != '/') continue;
         *p = '\0';
-        if (mkdir(buf, mode) != 0 && errno != EEXIST) return -1;
+        if (mkdir(buf, mode) == 0) own_as_guest(buf);
+        else if (errno != EEXIST) return -1;
         *p = '/';
     }
-    if (mkdir(buf, mode) != 0 && errno != EEXIST) return -1;
+    if (mkdir(buf, mode) == 0) own_as_guest(buf);
+    else if (errno != EEXIST) return -1;
     return 0;
 }
 
@@ -149,12 +159,14 @@ static void make_dev(const char *dev, const char *name, int major, int minor, mo
     chmod(path, mode);
 }
 
-/* A file has to exist before it can be a bind target. */
+/* A file has to exist before it can be a bind target. As above, one this call creates belongs to the
+ * guest; one that was already there is left alone. O_EXCL is what tells the two apart. */
 static int touch(const char *path) {
     if (mkdir_parent_of(path, 0755) != 0) return -1;
-    int fd = open(path, O_CREAT | O_WRONLY | O_CLOEXEC, 0644);
-    if (fd < 0) return -1;
+    int fd = open(path, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, 0644);
+    if (fd < 0) return errno == EEXIST ? 0 : -1;
     close(fd);
+    own_as_guest(path);
     return 0;
 }
 
