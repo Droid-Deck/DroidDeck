@@ -134,6 +134,7 @@ class MainActivity : ComponentActivity() {
     private var tuSysmem by mutableStateOf(false)
     private var zinkLazy by mutableStateOf(false)
     private var noXalia by mutableStateOf(true)
+    private var fastSync by mutableStateOf(true)
     private var gamescopeRealtime by mutableStateOf(false)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
@@ -1043,6 +1044,7 @@ class MainActivity : ComponentActivity() {
             cores = CpuCores.all.map { c -> CoreRow(c, "cpu$c" + (CpuCores.maxGhz(c)?.let { String.format(java.util.Locale.US, " · %.1f GHz", it) } ?: "")) },
             clientOverride = clientOverride, clientCores = clientCores, gameCores = gameCores,
             tuSysmem = tuSysmem, zinkLazy = zinkLazy, glThread = glThread, noGlError = noGlError, noXalia = noXalia,
+            fastSync = fastSync,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, guestHostname = guestHostname, phantomWarning = phantomWarning,
@@ -1052,6 +1054,7 @@ class MainActivity : ComponentActivity() {
             onGlThread = { on -> SessionPrefs.setGlThread(this, on); glThread = on },
             onNoGlError = { on -> SessionPrefs.setNoGlError(this, on); noGlError = on },
             onNoXalia = { on -> SessionPrefs.setNoXalia(this, on); noXalia = on },
+            onFastSync = { on -> SessionPrefs.setFastSync(this, on); fastSync = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
@@ -1174,6 +1177,7 @@ class MainActivity : ComponentActivity() {
         tuSysmem = SessionPrefs.tuSysmem(this)
         zinkLazy = SessionPrefs.zinkLazy(this)
         noXalia = SessionPrefs.noXalia(this)
+        fastSync = SessionPrefs.fastSync(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)

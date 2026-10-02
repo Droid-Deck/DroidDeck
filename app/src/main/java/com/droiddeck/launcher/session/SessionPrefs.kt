@@ -267,6 +267,12 @@ object SessionPrefs {
      * Bannerlator's session: the compositor's queue preempting the game's buys nothing on a device
      * whose GPU is waiting on the CPU.
      */
+    fun fastSync(context: Context): Boolean = prefs(context).getBoolean("fastSync", true)
+
+    fun setFastSync(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("fastSync", on).apply()
+    }
+
     fun gamescopeRealtime(context: Context): Boolean = prefs(context).getBoolean("gamescopeRealtime", false)
 
     fun setGamescopeRealtime(context: Context, on: Boolean) {

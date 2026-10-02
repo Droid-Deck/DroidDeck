@@ -152,6 +152,7 @@ object DeviceReport {
         k("Steam controller", SessionPrefs.steamController(context))
         k("FEX preset", SessionPrefs.fexPreset(context).ifEmpty { "FEX defaults" })
         k("Skip xalia", SessionPrefs.noXalia(context))
+        k("Fast sync (ntsync)", SessionPrefs.fastSync(context))
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
         k("proot fast path", SessionPrefs.prootFastPath(context))

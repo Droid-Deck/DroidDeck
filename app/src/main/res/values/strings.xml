@@ -74,6 +74,7 @@
     <string name="game_env_vkd3d_config">VKD3D options for D3D12. nodxr disables ray tracing; use only for a game that needs it.</string>
     <string name="game_env_proton_log">Set to 1 for a Proton diagnostic log. Logging can reduce performance and use storage.</string>
     <string name="game_env_wined3d">Set to 1 to use OpenGL-based WineD3D instead of DXVK for D3D9–11 compatibility testing.</string>
+    <string name="game_env_no_ntsync">Set to 1 to turn fast sync (ntsync) off for this game; it falls back to wineserver.</string>
     <string name="game_env_xalia">Set to 0 to disable Proton’s gamepad-navigation helper for this game.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>
@@ -404,6 +405,8 @@
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Faster for Steam and most games. Required on Adreno 710/720/722.</string>
     <string name="perf_xalia">Skip Steam\'s xalia helper</string>
+    <string name="perf_fastsync">Fast sync (ntsync)</string>
+    <string name="perf_fastsync_hint">Games\' Windows threads wait on each other without a round trip through wineserver, as a Linux PC with the ntsync driver does. Works with Proton Experimental ARM64, GE-Proton and proton-cachyos. Applies next session.</string>
     <string name="perf_xalia_hint">Disables Proton\'s gamepad navigation helper, which costs CPU in every game.</string>
     <string name="perf_seccomp">Run proot without seccomp</string>
     <string name="perf_seccomp_hint">May fix missing-syscall errors on some kernels. Can reduce performance.</string>

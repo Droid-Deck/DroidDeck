@@ -73,6 +73,7 @@
     <string name="game_env_vkd3d_config">Opciones de VKD3D para D3D12. nodxr desactiva el trazado de rayos; úsalo solo en un juego que lo necesite.</string>
     <string name="game_env_proton_log">Pon 1 para obtener un registro de diagnóstico de Proton. El registro puede reducir el rendimiento y usar almacenamiento.</string>
     <string name="game_env_wined3d">Pon 1 para usar WineD3D basado en OpenGL en lugar de DXVK, para pruebas de compatibilidad con D3D9–11.</string>
+    <string name="game_env_no_ntsync">Pon 1 para desactivar la sincronización rápida (ntsync) en este juego; vuelve a usar wineserver.</string>
     <string name="game_env_xalia">Pon 0 para desactivar el asistente de navegación con mando de Proton en este juego.</string>
     <string name="game_env_hud">Overlay de DXVK para D3D9–11. fps muestra la tasa de fotogramas; sin definir la oculta.</string>
     <string name="game_env_dxvk_config">Ajustes de DXVK separados por punto y coma. Las versiones recientes usan dxvk.maxFrameRate para limitar fotogramas; para el uso normal prefiere el límite de fotogramas de la sesión.</string>
@@ -380,6 +381,8 @@
     <string name="perf_sysmem">Turnip: renderizado sysmem</string>
     <string name="perf_sysmem_hint">Más rápido para Steam y la mayoría de juegos. Obligatorio en Adreno 710/720/722.</string>
     <string name="perf_xalia">Omitir el asistente xalia de Steam</string>
+    <string name="perf_fastsync">Sincronización rápida (ntsync)</string>
+    <string name="perf_fastsync_hint">Los hilos de Windows de los juegos se esperan entre sí sin pasar por wineserver, como en un PC Linux con el controlador ntsync. Funciona con Proton Experimental ARM64, GE-Proton y proton-cachyos. Se aplica en la próxima sesión.</string>
     <string name="perf_xalia_hint">Desactiva el asistente de navegación con mando de Proton, que consume CPU en cada juego.</string>
     <string name="perf_seccomp">Ejecutar proot sin seccomp</string>
     <string name="perf_seccomp_hint">Puede corregir errores de syscalls ausentes en algunos kernels. Puede reducir el rendimiento.</string>

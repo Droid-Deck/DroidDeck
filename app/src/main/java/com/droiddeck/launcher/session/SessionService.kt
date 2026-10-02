@@ -568,6 +568,7 @@ class SessionService : Service() {
         // XALIA_SUPPORTED_ONLY itself otherwise). Skipped by default: under FEX it costs every game
         // a slice of a core for gamepad navigation the session already has.
         if (SessionPrefs.noXalia(this)) guest.add("PROTON_USE_XALIA=0")
+        guest.add("BL_NTSYNC=" + (if (SessionPrefs.fastSync(this)) "1" else "0"))
         // gamescope's realtime Vulkan queues (the session script turns this into
         // GAMESCOPE_FORCE_VULKAN_REALTIME); off unless the user turns it on.
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
