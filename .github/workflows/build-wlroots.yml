@@ -43,4 +43,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "${{ inputs.tag }}" --title "${{ inputs.tag }}" --notes "wlroots 0.20.2 with tools/wlroots/patches (Vulkan DMA-BUF allocator for non-DRM GPU nodes); staged by the apk at /usr/local/lib/droiddeck-wlroots for the desktop's GPU renderers. sha256 $(cut -d' ' -f1 wlroots.tzst.sha256)" wlroots.tzst wlroots.tzst.sha256 || gh release upload "${{ inputs.tag }}" wlroots.tzst wlroots.tzst.sha256 --clobber
+          gh release create "${{ inputs.tag }}" --latest=false --prerelease=false --title "${{ inputs.tag }}" --notes "wlroots 0.20.2 with tools/wlroots/patches (Vulkan DMA-BUF allocator for non-DRM GPU nodes); staged by the apk at /usr/local/lib/droiddeck-wlroots for the desktop's GPU renderers. sha256 $(cut -d' ' -f1 wlroots.tzst.sha256)" wlroots.tzst wlroots.tzst.sha256 || gh release upload "${{ inputs.tag }}" wlroots.tzst wlroots.tzst.sha256 --clobber
+          # A component the apk fetches by tag, never something users install: it must not
+          # become the repo's Latest release or appear as a pre-release, also when re-uploaded.
+          gh release edit "${{ inputs.tag }}" --latest=false --prerelease=false

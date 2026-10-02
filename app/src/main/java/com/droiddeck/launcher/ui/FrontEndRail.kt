@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -36,7 +38,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
@@ -55,8 +56,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -77,42 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.core.PhantomProcessLimit
 
-// The front end's side rail: the page list, the resume entry and the controller hints under it.
-
-/** What the pad's face buttons do here, along the bottom edge as on a console. */
-@Composable
-internal fun ControllerHints(select: String = "Select", tabs: Boolean = false) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.End),
-            modifier = Modifier.fillMaxWidth().height(34.dp).background(colors.surface).padding(horizontal = 20.dp),
-        ) {
-            if (tabs) HintGlyph("LB RB", "Tabs")
-            HintGlyph("A", select)
-            HintGlyph("B", "Back")
-        }
-    }
-}
-
-@Composable
-private fun HintGlyph(button: String, action: String) {
-    val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        // Face buttons are round; bumpers are a wider keycap.
-        val shape = if (button.length == 1) CircleShape else RoundedCornerShape(6.dp)
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.height(20.dp).widthIn(min = 20.dp).clip(shape).background(colors.onBackground).padding(horizontal = if (button.length == 1) 0.dp else 6.dp),
-        ) {
-            Text(button, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.background)
-        }
-        Text(action, fontSize = 13.sp, color = colors.onSurfaceVariant)
-    }
-}
+// The front end's side rail: the page list and the resume entry under it.
 
 internal val AttentionAmber = Color(0xFFFFB547)
 
@@ -144,24 +109,24 @@ internal fun SideRail(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         ) {
-            RailItem("Steam", Icons.Outlined.SportsEsports, "steam", selected == "steam", compact, iconOnly, fit, onFocus = { onFocusSelect("steam") }) { onSelect("steam") }
+            RailItem(stringResource(R.string.rail_steam), Icons.Outlined.SportsEsports, "steam", selected == "steam", compact, iconOnly, fit, onFocus = { onFocusSelect("steam") }) { onSelect("steam") }
             // Always there, so the items below it never move; an empty library says how to fill it.
-            RailItem("Games", Icons.Outlined.VideoLibrary, "games", selected == "games", compact, iconOnly, fit, onFocus = { onFocusSelect("games") }) { onSelect("games") }
-            RailItem("Desktop", Icons.Outlined.DesktopWindows, "desktop", selected == "desktop", compact, iconOnly, fit, onFocus = { onFocusSelect("desktop") }) { onSelect("desktop") }
-            if (s.storeEnabled) RailItem("Store", Icons.Outlined.Storefront, "store", selected == "store", compact, iconOnly, fit, onFocus = { onFocusSelect("store") }) { onSelect("store") }
-            RailItem("Components", Icons.Outlined.Layers, "components", selected == "components", compact, iconOnly, fit, onFocus = { onFocusSelect("components") }) { onSelect("components") }
+            RailItem(stringResource(R.string.rail_games), Icons.Outlined.VideoLibrary, "games", selected == "games", compact, iconOnly, fit, onFocus = { onFocusSelect("games") }) { onSelect("games") }
+            RailItem(stringResource(R.string.rail_desktop), Icons.Outlined.DesktopWindows, "desktop", selected == "desktop", compact, iconOnly, fit, onFocus = { onFocusSelect("desktop") }) { onSelect("desktop") }
+            if (s.storeEnabled) RailItem(stringResource(R.string.rail_store), Icons.Outlined.Storefront, "store", selected == "store", compact, iconOnly, fit, onFocus = { onFocusSelect("store") }) { onSelect("store") }
+            RailItem(stringResource(R.string.rail_components), Icons.Outlined.Layers, "components", selected == "components", compact, iconOnly, fit, onFocus = { onFocusSelect("components") }) { onSelect("components") }
             // Home mode's extra section goes last, so it shifts nothing above it.
-            if (s.isHomeApp) RailItem("Apps", Icons.Outlined.Apps, "android-apps", selected == "android-apps", compact, iconOnly, fit, onFocus = { onFocusSelect("android-apps") }) { onSelect("android-apps") }
-            RailItem("Setup", Icons.Outlined.Tune, "setup", selected == "setup", compact, iconOnly, fit, badge = setupNeedsAttention, onFocus = { onFocusSelect("setup") }) { onSelect("setup") }
-            RailItem("Updates", Icons.Outlined.SystemUpdate, "updates", selected == "updates", compact, iconOnly, fit, badge = s.updates.hasUpdate, onFocus = { onFocusSelect("updates") }) { onSelect("updates") }
+            if (s.isHomeApp) RailItem(stringResource(R.string.rail_apps), Icons.Outlined.Apps, "android-apps", selected == "android-apps", compact, iconOnly, fit, onFocus = { onFocusSelect("android-apps") }) { onSelect("android-apps") }
+            RailItem(stringResource(R.string.rail_setup), Icons.Outlined.Tune, "setup", selected == "setup", compact, iconOnly, fit, badge = setupNeedsAttention, onFocus = { onFocusSelect("setup") }) { onSelect("setup") }
+            RailItem(stringResource(R.string.rail_updates), Icons.Outlined.SystemUpdate, "updates", selected == "updates", compact, iconOnly, fit, badge = s.updates.hasUpdate, onFocus = { onFocusSelect("updates") }) { onSelect("updates") }
         }
         }
-        AnimatedVisibility(s.busy, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AnimatedVisibility(s.busy, enter = expandVertically(Motion.sp(1f)) + fadeIn(Motion.sp(1f)), exit = shrinkVertically(Motion.sp(1f)) + fadeOut(Motion.sp(1f))) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 8.dp)) {
                 val barWidth = if (iconOnly) 44.dp else 60.dp
                 if (s.percent >= 0) LinearProgressIndicator(progress = { s.percent / 100f }, modifier = Modifier.width(barWidth))
                 else LinearProgressIndicator(modifier = Modifier.width(barWidth))
-                Text(if (s.percent >= 0) "${s.percent}%" else if (iconOnly) "…" else "Working", fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                Text(if (s.percent >= 0) stringResource(R.string.rail_percent, s.percent) else if (iconOnly) "…" else stringResource(R.string.setup_check_busy), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
         }
         var lastRunning by remember { mutableStateOf("") }
@@ -235,8 +200,9 @@ private fun ResumeRailItem(name: String, compact: Boolean, iconOnly: Boolean, on
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     val hovered by src.collectIsHoveredAsState()
+    val resumeDescription = stringResource(R.string.rail_resume_named, name)
     val pulse = rememberInfiniteTransition(label = "pulse")
-    val ringScale by pulse.animateFloat(0.4f, 1.6f, infiniteRepeatable(tween(Motion.ms(1600).coerceAtLeast(1), easing = Motion.Ease), RepeatMode.Restart), label = "ring")
+    val ringScale by pulse.animateFloat(0.4f, 1.6f, infiniteRepeatable(tween(1600, easing = Motion.Ease), RepeatMode.Restart), label = "ring")
     // Animations off: the live dot alone, no pulsing ring.
     val still = Motion.scale == 0f
     Column(
@@ -250,7 +216,7 @@ private fun ResumeRailItem(name: String, compact: Boolean, iconOnly: Boolean, on
             .glideBorder(focused, Shape14, pal.signal)
             .hoverable(src)
             .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onResume)
-            .semantics { contentDescription = "Resume $name" }
+            .semantics { contentDescription = resumeDescription }
             .padding(vertical = if (iconOnly) 15.dp else if (compact) 6.dp else 9.dp, horizontal = 4.dp),
     ) {
         Box(modifier = Modifier.size(14.dp), contentAlignment = Alignment.Center) {
@@ -259,7 +225,7 @@ private fun ResumeRailItem(name: String, compact: Boolean, iconOnly: Boolean, on
         }
         // Icons only: the live dot alone says something is running; its description says what.
         if (!iconOnly) {
-            Text("Resume", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, softWrap = false)
+            Text(stringResource(R.string.resume_session), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, softWrap = false)
             Text(name, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }

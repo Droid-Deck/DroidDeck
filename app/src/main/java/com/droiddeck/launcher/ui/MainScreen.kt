@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -25,17 +27,17 @@ fun ChooseAppDisplayDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Launch ${app.label}") },
+        title = { Text(stringResource(R.string.main_launch_named, app.label)) },
         text = {
             Text(
-                secondaryDisplay?.let { "Choose a screen. Secondary: ${it.label}." }
-                    ?: "The secondary display is no longer available.",
+                secondaryDisplay?.let { stringResource(R.string.main_choose_screen, it.label) }
+                    ?: stringResource(R.string.main_secondary_gone),
             )
         },
-        confirmButton = { TextButton(onClick = onPrimary) { Text("Primary screen") } },
+        confirmButton = { TextButton(onClick = onPrimary) { Text(stringResource(R.string.main_primary)) } },
         dismissButton = {
             TextButton(onClick = onSecondary, enabled = secondaryDisplay != null) {
-                Text("Secondary screen")
+                Text(stringResource(R.string.main_secondary))
             }
         },
     )
@@ -48,6 +50,6 @@ fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () ->
         title = { Text(title) },
         text = { Text(text) },
         confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }) { Text(confirm) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

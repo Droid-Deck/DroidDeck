@@ -79,8 +79,8 @@ android {
         // file out of its own data directory, and this app's entire job is to exec a rootfs:
         // proot, gamescope, the Steam client and everything it launches all live under files/.
         targetSdkVersion 28
-        versionCode 9
-        versionName "0.2.0"
+        versionCode 10
+        versionName "0.3.0"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -190,6 +190,7 @@ dependencies {
     // copies on. Same versions as Bannerlator so the screen stays a straight copy.
     implementation 'androidx.compose.material:material-icons-extended'
     implementation 'io.coil-kt:coil-compose:2.6.0'
+    implementation 'com.caverock:androidsvg-aar:1.4'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     // ADB-over-Wi-Fi pairing and authenticated shell client. Users still approve pairing from
     // Android's Wireless debugging screen; DroidDeck only runs its one fixed setting command.

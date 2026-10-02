@@ -62,3 +62,59 @@ jobs:
       label: ${{ inputs.version }}
       artifact: droiddeck-release
     secrets: inherit
+
+  # The release is made here, from the apks this run signed, so it traces back to its Build APK run.
+  publish:
+    name: publish the release
+    needs: [find, sign]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: droiddeck-release-*
+          merge-multiple: true
+          path: out
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          BUILD_RUN: ${{ needs.find.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          notes="docs/releases/$VERSION.md"
+          [ -f "$notes" ] || { echo "::error::$notes is missing: add the release notes first"; exit 1; }
+          if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::release $VERSION already exists"; exit 1
+          fi
+          # The notes' first line is the title; media paths become raw URLs at this release's tag.
+          title=$(sed -n '1s/^# *//p' "$notes")
+          [ -n "$title" ] || title="DroidDeck $VERSION"
+          raw="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$VERSION/docs/releases/media/"
+          {
+            sed '1{/^# /d;}' "$notes" | sed -E "s#(\]\(|src=\")media/#\1$raw#g"
+            echo
+            echo "---"
+            echo
+            echo "Built by [Build APK run $BUILD_RUN]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN) from \`$GITHUB_SHA\`, signed and published by [Release APKs run $GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+          } > "$RUNNER_TEMP/body.md"
+          ( cd out && cat SHA256SUMS-*.txt | sort -k2 > SHA256SUMS.txt && rm SHA256SUMS-*.txt && cat SHA256SUMS.txt )
+          gh release create "$VERSION" -R "$GITHUB_REPOSITORY" out/*.apk out/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "$title" --notes-file "$RUNNER_TEMP/body.md" --latest
+          echo "Published [$title]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$VERSION)" >> "$GITHUB_STEP_SUMMARY"
+
+  # A release made with this run's token fires no release event, so the in-app catalog is refreshed here.
+  catalog:
+    needs: publish
+    uses: ./.github/workflows/update-catalog.yml
+    permissions:
+      contents: read
+      pull-requests: read
+    secrets: inherit

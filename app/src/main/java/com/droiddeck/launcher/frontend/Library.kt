@@ -172,11 +172,12 @@ object Library {
 
     /** The emulator's name for a program path from the rail ("ARMSX2"), or null. */
     fun nameForProgram(program: String?): String? =
-        if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER) {
+        if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER ||
+            program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
             com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
         } else specs.firstOrNull { it.program == program }?.name
 
-    /** Flatpak apps' and AppImages' names by id or directory, as launched: the session only knows that. */
+    /** Added apps' names by Flatpak id or directory, as launched: the session only knows that. */
     val flatpakNames = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /**

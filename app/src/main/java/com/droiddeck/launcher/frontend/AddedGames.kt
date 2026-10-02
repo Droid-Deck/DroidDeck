@@ -96,10 +96,32 @@ object AddedGames {
         )
         for (dir in folders.distinctBy { it.absolutePath }) {
             if (!dir.isDirectory) { Log.w(TAG, "$dir is not a folder; skipped"); continue }
-            for (folder in dir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()) scanGame(context, folder, out)
+            val steamInstalls = steamInstallDirs(dir)
+            for (folder in dir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()) {
+                if (folder.name.lowercase() in steamInstalls) continue
+                scanGame(context, folder, out)
+            }
         }
         return out.distinctBy { it.folder.canonicalPath }
     }
+
+    /**
+     * The folders under a library's steamapps/common that a manifest beside it already claims.
+     * Steam lists those itself, so a shortcut would only add a non-Steam copy of the game. Steam
+     * may lowercase installdir on Android's case-insensitive storage, so names compare lowercased.
+     */
+    internal fun steamInstallDirs(dir: File): Set<String> {
+        val steamapps = dir.parentFile?.takeIf { dir.name == "common" && it.name == "steamapps" } ?: return emptySet()
+        return steamapps.listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }
+            .orEmpty()
+            .mapNotNull { manifest ->
+                runCatching { INSTALL_DIR.find(manifest.readText())?.groupValues?.get(1)?.trim()?.lowercase() }.getOrNull()
+            }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
+
+    private val INSTALL_DIR = Regex("\"installdir\"\\s*\"([^\"]*)\"", RegexOption.IGNORE_CASE)
 
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>) {
         run {

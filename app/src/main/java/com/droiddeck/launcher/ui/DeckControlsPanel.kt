@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
@@ -36,7 +37,7 @@ class DeckControlsPanel(
     private val onSteamMenu: () -> Unit,
     private val onQam: () -> Unit,
 ) : LinearLayout(context) {
-    private enum class Tab(val label: String) { GRIPS("Grips"), LEFT("Left pad"), RIGHT("Right pad"), BOTH("Both") }
+    private enum class Tab(val label: Int) { GRIPS(R.string.deck_tab_grips), LEFT(R.string.deck_tab_left), RIGHT(R.string.deck_tab_right), BOTH(R.string.deck_tab_both) }
 
     private val content = FrameLayout(context)
     private val tabViews = HashMap<Tab, TextView>()
@@ -58,14 +59,14 @@ class DeckControlsPanel(
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(12), dp(10), dp(12), dp(6))
-        addView(roundButton("×", "Close second-screen controls", onClose))
+        addView(roundButton("×", context.getString(R.string.deck_close), onClose))
         val tabs = LinearLayout(context).apply {
             orientation = HORIZONTAL
             background = outline(CORNER_PILL, SURFACE)
             setPadding(dp(4), dp(4), dp(4), dp(4))
             for (tab in Tab.values()) {
                 val view = TextView(context).apply {
-                    text = tab.label
+                    text = context.getString(tab.label)
                     textSize = 14f
                     typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                     gravity = Gravity.CENTER
@@ -81,9 +82,9 @@ class DeckControlsPanel(
             addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44), Gravity.CENTER))
         }
         addView(centre, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        addView(roundButton("STEAM", "Open Steam menu", onSteamMenu, wide = true))
+        addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
         addView(space(dp(8)))
-        addView(roundButton("•••", "Open Quick Access Menu", onQam, wide = true))
+        addView(roundButton("•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
     }
 
     private fun select(tab: Tab) {
@@ -114,9 +115,9 @@ class DeckControlsPanel(
             addView(upper, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f).apply { bottomMargin = dp(6) })
             addView(lower, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = dp(6) })
         }
-        addView(column(GripButton(context, "L4", "Left · upper", DeckControls.L4), GripButton(context, "L5", "Left · lower", DeckControls.L5)),
+        addView(column(GripButton(context, "L4", context.getString(R.string.deck_left_upper), DeckControls.L4), GripButton(context, "L5", context.getString(R.string.deck_left_lower), DeckControls.L5)),
             LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply { rightMargin = dp(6) })
-        addView(column(GripButton(context, "R4", "Right · upper", DeckControls.R4), GripButton(context, "R5", "Right · lower", DeckControls.R5)),
+        addView(column(GripButton(context, "R4", context.getString(R.string.deck_right_upper), DeckControls.R4), GripButton(context, "R5", context.getString(R.string.deck_right_lower), DeckControls.R5)),
             LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply { leftMargin = dp(6) })
     }
 
@@ -255,7 +256,7 @@ class DeckControlsPanel(
         HoldButton(context, label, caption, { DeckControls.setGrip(bit, it) })
 
     private class ClickBar(context: Context, right: Boolean) :
-        HoldButton(context, "Click", if (right) "Right trackpad" else "Left trackpad", { DeckControls.setClick(right, it) })
+        HoldButton(context, context.getString(R.string.deck_click), if (right) context.getString(R.string.deck_right_trackpad) else context.getString(R.string.deck_left_trackpad), { DeckControls.setClick(right, it) })
 
     /**
      * One trackpad: where the first finger is, as the Deck reports it (-1..1, y up), and a click
@@ -282,7 +283,7 @@ class DeckControlsPanel(
             canvas.drawLine(cx, cy - reach, cx, cy + reach, guide)
             captionPaint.textSize = 12 * density
             captionPaint.color = if (touching) ACCENT else TEXT_DIM
-            canvas.drawText(if (right) "RIGHT TRACKPAD" else "LEFT TRACKPAD", cx, 28 * density, captionPaint)
+            canvas.drawText((if (right) context.getString(R.string.deck_right_trackpad) else context.getString(R.string.deck_left_trackpad)).uppercase(), cx, 28 * density, captionPaint)
             if (touching) {
                 val radius = 56 * density
                 glow.shader = RadialGradient(fingerX, fingerY, radius, ACCENT_GLOW, Color.TRANSPARENT, Shader.TileMode.CLAMP)

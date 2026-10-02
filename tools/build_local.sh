@@ -117,6 +117,9 @@ docker run --rm --platform linux/amd64 \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libblsession.so" tools/linuxfs/preload/*.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblsession.so"
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+            -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
         for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done

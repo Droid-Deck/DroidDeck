@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -57,7 +59,9 @@ private const val WALL_MIN_GAMES = 4
  */
 @Composable
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
-    val games = remember(s.steamGames) { s.steamGames.sortedByDescending { it.lastPlayed } }
+    // A fixed order, ties included: the wall places each game by its position, so an order that
+    // came out differently from one read of the library to the next moved every capsule.
+    val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -94,7 +98,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "Steam", fontSize = if (narrow) 34.sp else 44.sp, lineHeight = if (narrow) 40.sp else 50.sp,
+                    stringResource(R.string.rail_steam), fontSize = if (narrow) 34.sp else 44.sp, lineHeight = if (narrow) 40.sp else 50.sp,
                     fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
                 )
                 // Said only when something stands between Play and Steam; a ready runtime needs no words.
@@ -103,7 +107,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             Spacer(Modifier.height(18.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 // Enabled without a runtime: the session's loading screen installs it first.
-                PrimaryButton("Play Steam", enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, onClick = a.onPlay)
+                PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, onClick = a.onPlay)
                 Cog(size = 54.dp, onClick = a.onSteamSettings)
             }
         }

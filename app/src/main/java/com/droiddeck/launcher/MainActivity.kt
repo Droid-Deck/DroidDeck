@@ -137,6 +137,7 @@ class MainActivity : ComponentActivity() {
     private var gamescopeRealtime by mutableStateOf(false)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
+    private var prootFastPath by mutableStateOf(true)
     private var guestHostname by mutableStateOf(SessionPrefs.DEFAULT_GUEST_HOSTNAME)
     private var phantomWarning by mutableStateOf<String?>(null)
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
@@ -147,7 +148,6 @@ class MainActivity : ComponentActivity() {
     private var stretch16x9 by mutableStateOf(false)
     private var launcherFullscreen by mutableStateOf(true)
     private var storeEnabled by mutableStateOf(false)
-    private var appImagesEnabled by mutableStateOf(false)
     private var mic by mutableStateOf(false)
 
     // The app's own picker (files/), once per kind of pick: the two driver lists validate
@@ -246,9 +246,6 @@ class MainActivity : ComponentActivity() {
     private var addedGamesArt by mutableStateOf(true)
     @Volatile private var artFetchRunning = false
     private var addedGames by mutableStateOf<List<com.droiddeck.launcher.ui.AddedGameRow>>(emptyList())
-    private val pickAppImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { com.droiddeck.launcher.store.AppImageState.import(this, it) }
-    }
     private val pickRomsDir = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path ->
             SessionPrefs.setRomsDir(this, path)
@@ -340,10 +337,11 @@ class MainActivity : ComponentActivity() {
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
         theme = SessionPrefs.theme(this)
+        // Last start's game list, so the Steam wall is up on the first frame; refresh() replaces it.
+        steamGames = com.droiddeck.launcher.frontend.LibraryCache.load(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         storeEnabled = SessionPrefs.storeEnabled(this)
-        appImagesEnabled = SessionPrefs.appImagesEnabled(this)
         applyLauncherFullscreen()
         updates.start()
         setContent {
@@ -391,7 +389,6 @@ class MainActivity : ComponentActivity() {
                         showPhantomGate = showPhantomGate,
                         launcherFullscreen = launcherFullscreen,
                         storeEnabled = storeEnabled,
-                        appImagesEnabled = appImagesEnabled,
                     ),
                     FrontEndActions(
                         onPlay = { startSteamSession() },
@@ -411,18 +408,15 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
                         },
                         onEmulator = { e -> launchProgram(e.program) },
-                        // A Flatpak app from the store, full screen under gamescope like an emulator.
-                        onImportAppImage = {
-                            pickAppImage.launch(InAppFilePicker.buildIntent(this, listOf("appimage"), "Choose an AppImage"))
-                        },
-                        // An imported AppImage, full screen under gamescope like an emulator.
-                        onAppImage = { dir, name ->
-                            Library.flatpakNames[dir] = name
+                        // An app added on the Desktop page, full screen under gamescope like an emulator.
+                        onUserApp = { app ->
+                            app.args.firstOrNull()?.let { Library.flatpakNames[it] = app.name }
                             startActivity(Intent(this, SessionActivity::class.java)
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                                .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER)
-                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, arrayOf(dir)))
+                                .putExtra(SessionService.EXTRA_PROGRAM, app.program)
+                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
                         },
+                        // A Flatpak app from the store, full screen under gamescope like an emulator.
                         onFlatpakApp = { id, name ->
                             Library.flatpakNames[id] = name
                             startActivity(Intent(this, SessionActivity::class.java)
@@ -498,7 +492,6 @@ class MainActivity : ComponentActivity() {
                             applyLauncherFullscreen()
                         },
                         onStoreEnabled = { on -> SessionPrefs.setStoreEnabled(this, on); storeEnabled = on },
-                        onAppImagesEnabled = { on -> SessionPrefs.setAppImagesEnabled(this, on); appImagesEnabled = on },
                         onHomeApp = { manageHomeApp() },
                         onHomeScreen = { on ->
                             HomeApp.setHomeScreenEnabled(this, on)
@@ -1052,7 +1045,7 @@ class MainActivity : ComponentActivity() {
             tuSysmem = tuSysmem, zinkLazy = zinkLazy, glThread = glThread, noGlError = noGlError, noXalia = noXalia,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
-            prootNoSeccomp = prootNoSeccomp, guestHostname = guestHostname, phantomWarning = phantomWarning,
+            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
             onTuSysmem = { on -> SessionPrefs.setTuSysmem(this, on); tuSysmem = on },
             onZinkLazy = { on -> SessionPrefs.setZinkLazy(this, on); zinkLazy = on },
@@ -1062,6 +1055,7 @@ class MainActivity : ComponentActivity() {
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
+            onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
             onGuestHostname = { name -> SessionPrefs.setGuestHostname(this, name) },
             onClientCore = { core, on ->
                 clientCores = if (on) clientCores + core else clientCores - core
@@ -1076,10 +1070,20 @@ class MainActivity : ComponentActivity() {
     }
 
     /** The added games as the settings page lists them; a scan of the folder, on this thread (one level, small). */
+    /** The added games for the session settings: a folder walk, so off the main thread. */
     private fun refreshAddedGames() {
-        addedGames = com.droiddeck.launcher.frontend.AddedGames.scan(this).map { g ->
-            com.droiddeck.launcher.ui.AddedGameRow(g.folder.path, g.folderName(), g.exe.path, g.exe.name, g.candidates.map { c -> c.path to c.name }.distinctBy { it.first })
-        }
+        Thread({
+            val games = scanAddedGames()
+            ui.post { addedGames = games; fetchAddedGameArt() }
+        }, "added-games").start()
+    }
+
+    /** Walks the added-games folders, which can sit on slow shared storage or an SD card. */
+    private fun scanAddedGames() = com.droiddeck.launcher.frontend.AddedGames.scan(this).map { g ->
+        com.droiddeck.launcher.ui.AddedGameRow(g.folder.path, g.folderName(), g.exe.path, g.exe.name, g.candidates.map { c -> c.path to c.name }.distinctBy { it.first })
+    }
+
+    private fun fetchAddedGameArt() {
         // Art the games do not have yet, from Steam's store, off the main thread; the rail
         // redraws when something arrives.
         if (SessionPrefs.addedGamesArt(this) && !artFetchRunning) {
@@ -1100,7 +1104,6 @@ class MainActivity : ComponentActivity() {
         showProtons = false
         showComponents = false
         showMapping = false
-        drivers.refreshDrivers()
         resolutionCap = SessionPrefs.resolutionCap(this, mode)
         customResolution = SessionPrefs.customResolution(this, mode)
         fexPreset = SessionPrefs.fexPreset(this)
@@ -1110,7 +1113,6 @@ class MainActivity : ComponentActivity() {
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         addedGamesDirs = SessionPrefs.addedGamesDirs(this)
-        refreshAddedGames()
         shapeMode = SessionPrefs.shapeMode(this)
         hdrOn = SessionPrefs.hdr(this, mode)
         fpsLimit = SessionPrefs.fpsLimit(this, mode)
@@ -1126,13 +1128,26 @@ class MainActivity : ComponentActivity() {
         mic = SessionPrefs.micEnabled(this)
         renderer = SessionPrefs.desktopRenderer(this)
         gameStorage = SessionPrefs.gameStorage(this)
-        storageOptions = GameStorage.options(this).map { it.label to it.path }
-        if (mode == SessionService.MODE_STEAM) {
-            decky.deckyInstalled = DeckyManager.installed(this)
-            decky.deckySupervisor = DeckyManager.supervisorEnabled(this)
-            decky.refreshDecky()
-        }
         settingsMode = mode
+        // The page opens at once, on what was last read; the slow part (driver files, a walk of the
+        // added-games folders, the storage volumes) lands while it animates in.
+        Thread({
+            drivers.refreshDrivers()
+            val games = scanAddedGames()
+            val storage = GameStorage.options(this).map { it.label to it.path }
+            val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
+            val deckySupervisor = mode == SessionService.MODE_STEAM && DeckyManager.supervisorEnabled(this)
+            ui.post {
+                addedGames = games
+                storageOptions = storage
+                if (mode == SessionService.MODE_STEAM) {
+                    decky.deckyInstalled = deckyInstalled
+                    decky.deckySupervisor = deckySupervisor
+                    decky.refreshDecky()
+                }
+                fetchAddedGameArt()
+            }
+        }, "mode-settings").start()
     }
 
     /** A second Steam library, proven writable first; "" = internal only. */
@@ -1162,6 +1177,7 @@ class MainActivity : ComponentActivity() {
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
+        prootFastPath = SessionPrefs.prootFastPath(this)
         guestHostname = SessionPrefs.guestHostname(this)
         refreshPhantomStatus()
     }
@@ -1184,6 +1200,9 @@ class MainActivity : ComponentActivity() {
         } else null
         // The libraries, off the main thread: manifests and a folder scan.
         Thread({
+            // One update with the whole list: the wall places games by their position in it, so a
+            // partial list first would shuffle every capsule when the rest arrived. LibraryCache
+            // covers the wait.
             val games = if (ready) Library.steamGames(this) + com.droiddeck.launcher.frontend.AddedGames.scan(this).map { g ->
                 com.droiddeck.launcher.frontend.AddedGameArt.resolve(this, g).let { art ->
                     Library.SteamGame(
@@ -1194,7 +1213,9 @@ class MainActivity : ComponentActivity() {
                 }
             } else emptyList()
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
-            ui.post { steamGames = games.distinctBy { it.gameId }; emulatorList = emus }
+            val all = games.distinctBy { it.gameId }
+            if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all)
+            ui.post { steamGames = all; emulatorList = emus }
             // Box art for the games that have none, fetched after the list is up; the list is
             // rebuilt once if any was found.
             if (!OfflineMode.enabled(this) && CoverArt.fetchMissing(this, emus.flatMap { it.games })) {

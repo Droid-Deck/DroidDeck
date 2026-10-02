@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -157,11 +159,11 @@ fun PcKeyboard(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(24.dp)) {
-                    Text("PC keyboard", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
+                    Text(stringResource(R.string.drawer_pc_keyboard), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
                     Spacer(Modifier.weight(1f))
-                    HeaderButton("Android keyboard", onAndroidKeyboard)
+                    HeaderButton(stringResource(R.string.pckb_android), onAndroidKeyboard)
                     Spacer(Modifier.width(8.dp))
-                    HeaderButton("Hide  ✕", onClose)
+                    HeaderButton(stringResource(R.string.pckb_hide), onClose)
                 }
                 ROWS.forEachIndexed { r, row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.fillMaxWidth().height(rowHeight)) {

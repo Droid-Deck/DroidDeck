@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -89,22 +91,22 @@ fun WirelessAdbFixPage(
                 } else {
                     step = 1
                     busy = true
-                    message = "Paired. Finding the Wireless debugging port…"
+                    message = context.getString(R.string.wadb_finding_port)
                     onFindConnectPort(endpoint.host) { discoveredPort ->
                         if (discoveredPort == null) {
                             connectionAddress = formatAddressHost(endpoint.host) + ":"
                             busy = false
-                            message = "Paired. Enter the port from Settings."
+                            message = context.getString(R.string.wadb_enter_port)
                         } else {
                             connectionAddress = formatAdbAddress(endpoint.host, discoveredPort)
-                            message = "Device found. Applying the setting…"
+                            message = context.getString(R.string.wadb_applying)
                             onApply(endpoint.host, discoveredPort, desiredEnabled) { applyError ->
                                 busy = false
                                 if (applyError == null) {
                                     step = 2
                                     message = null
                                 } else {
-                                    message = "Could not apply automatically. Check the address below and retry. $applyError"
+                                    message = context.getString(R.string.wadb_apply_failed, applyError)
                                     messageIsError = true
                                 }
                             }
@@ -172,22 +174,22 @@ fun WirelessAdbFixPage(
         SettingsPage(
             host = rememberMenuHost(),
             title = when {
-                compactSplit && step < 2 -> "Wireless debugging"
-                step == 2 -> "Child-process limit updated"
-                else -> "Change the child-process limit"
+                compactSplit && step < 2 -> stringResource(R.string.wadb_title_wireless)
+                step == 2 -> stringResource(R.string.wadb_title_done)
+                else -> stringResource(R.string.wadb_title)
             },
-            eyebrow = "Setup",
+            eyebrow = stringResource(R.string.setup_title),
             lede = when {
-                compactSplit && step == 0 -> "If the option is missing, pair over Wireless debugging."
-                compactSplit && step == 1 -> "Paired. Check IP address & Port in Wireless debugging."
-                compactSplit -> "The child-process limit was updated."
-                step == 0 -> "Use step 2 if Developer options has no child-process setting. In Android Settings, open Developer options → Wireless debugging → Pair device with pairing code."
-                step == 1 -> "Paired. Use the address below; update it from Wireless debugging → IP address & Port if needed."
-                else -> "The child-process limit was updated over Wireless debugging."
+                compactSplit && step == 0 -> stringResource(R.string.wadb_lede_compact0)
+                compactSplit && step == 1 -> stringResource(R.string.wadb_lede_compact1)
+                compactSplit -> stringResource(R.string.wadb_lede_done)
+                step == 0 -> stringResource(R.string.wadb_lede0)
+                step == 1 -> stringResource(R.string.wadb_lede1)
+                else -> stringResource(R.string.wadb_lede_done_long)
             },
             onBack = { if (!busy) onBack() },
             action = if (compactSplit && step < 2) {
-                { SecondaryButton("Developer options", compact = true, enabled = !busy, onClick = onOpenDeveloperOptions) }
+                { SecondaryButton(stringResource(R.string.setup_dev_options), compact = true, enabled = !busy, onClick = onOpenDeveloperOptions) }
             } else null,
             scrollContent = !compactSplit,
             compactLayout = compactSplit,
@@ -199,14 +201,14 @@ fun WirelessAdbFixPage(
                         modifier = Modifier.widthIn(max = 680.dp).fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        SettingsGroup("Child-process limit", compact = compactSplit) {
+                        SettingsGroup(stringResource(R.string.setup_limit), compact = compactSplit) {
                             Text(
-                                "Android confirmed the limit is ${if (desiredEnabled) "on" else "off"}.",
+                                if (desiredEnabled) stringResource(R.string.wadb_confirmed_on) else stringResource(R.string.wadb_confirmed_off),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(14.dp),
                             )
                         }
-                        PrimaryButton("Done", enabled = !busy, onClick = onBack)
+                        PrimaryButton(stringResource(R.string.setup_check_done), enabled = !busy, onClick = onBack)
                     }
                 } else if (compactSplit) {
                     Column(
@@ -267,7 +269,7 @@ private fun WirelessStepForm(
     onPairAgain: () -> Unit,
 ) {
     if (step == 0) {
-        SettingsGroup("2 · Pair Wireless debugging", compact = compact) {
+        SettingsGroup(stringResource(R.string.wadb_pair_group), compact = compact) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = if (compact) 8.dp else 12.dp, vertical = if (compact) 6.dp else 12.dp),
                 verticalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 6.dp),
@@ -275,7 +277,7 @@ private fun WirelessStepForm(
                 AdbTextField(
                     value = pairingAddress,
                     onValueChange = onPairingAddressChange,
-                    label = "Pairing pop-up IP address & Port",
+                    label = stringResource(R.string.wadb_pair_address),
                     placeholder = "192.168.1.42:37123",
                     keyboardType = KeyboardType.Ascii,
                     imeAction = ImeAction.Next,
@@ -291,8 +293,8 @@ private fun WirelessStepForm(
                     AdbTextField(
                         value = pairingCode,
                         onValueChange = onPairingCodeChange,
-                        label = "Pairing code (PIN)",
-                        placeholder = "6 digits",
+                        label = stringResource(R.string.wadb_pin),
+                        placeholder = stringResource(R.string.wadb_pin_placeholder),
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Done,
                         compact = compact,
@@ -302,13 +304,13 @@ private fun WirelessStepForm(
                         },
                         modifier = Modifier.weight(1f),
                     )
-                    PrimaryButton("Pair", compact = compact, enabled = !busy && canPair, onClick = onPair)
+                    PrimaryButton(stringResource(R.string.wadb_pair), compact = compact, enabled = !busy && canPair, onClick = onPair)
                 }
                 StatusMessage(busy, message, isError = messageIsError)
             }
         }
     } else {
-        SettingsGroup("2 · Apply over Wireless debugging", compact = compact) {
+        SettingsGroup(stringResource(R.string.wadb_apply_group), compact = compact) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = if (compact) 8.dp else 12.dp, vertical = if (compact) 6.dp else 12.dp),
                 verticalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 6.dp),
@@ -316,7 +318,7 @@ private fun WirelessStepForm(
                 AdbTextField(
                     value = connectionAddress,
                     onValueChange = onConnectionAddressChange,
-                    label = "Connection IP address & Port",
+                    label = stringResource(R.string.wadb_connect_address),
                     placeholder = "192.168.1.42:45678",
                     keyboardType = KeyboardType.Ascii,
                     imeAction = ImeAction.Done,
@@ -330,9 +332,9 @@ private fun WirelessStepForm(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     StatusMessage(busy, message, Modifier.weight(1f), isError = messageIsError)
-                    SecondaryButton("Pair again", compact = compact, enabled = !busy, onClick = onPairAgain)
+                    SecondaryButton(stringResource(R.string.wadb_pair_again), compact = compact, enabled = !busy, onClick = onPairAgain)
                     PrimaryButton(
-                        if (desiredEnabled) "Turn limit on" else "Turn limit off",
+                        if (desiredEnabled) stringResource(R.string.setup_limit_turn_on) else stringResource(R.string.wadb_turn_off),
                         compact = compact,
                         enabled = !busy && parseAdbAddress(connectionAddress) != null,
                         onClick = onApply,
@@ -453,16 +455,16 @@ private fun FallbackOrder(
     busy: Boolean,
     onOpenDeveloperOptions: () -> Unit,
 ) {
-    SettingsGroup("Other ways to change it") {
+    SettingsGroup(stringResource(R.string.wadb_other_ways)) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text("1 · Developer options (try first)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
-            Text("Set “Restrict child processes” ${if (desiredEnabled) "on" else "off"}.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            SecondaryButton("Open Developer options", enabled = !busy, onClick = onOpenDeveloperOptions)
-            Text("3 · Computer ADB (last resort)", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
-            Text("Only if Wireless debugging is unavailable.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.wadb_dev_try_first), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+            Text(if (desiredEnabled) stringResource(R.string.wadb_restrict_on) else stringResource(R.string.wadb_restrict_off), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SecondaryButton(stringResource(R.string.gate_open_dev), enabled = !busy, onClick = onOpenDeveloperOptions)
+            Text(stringResource(R.string.wadb_computer_last), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+            Text(stringResource(R.string.wadb_only_if), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 PhantomProcessLimit.adbCommand(desiredEnabled),
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -474,7 +476,7 @@ private fun FallbackOrder(
 
 @Composable
 private fun CompactComputerFallback(desiredEnabled: Boolean) {
-    SettingsGroup("3 · Computer ADB last resort", compact = true) {
+    SettingsGroup(stringResource(R.string.wadb_computer_group), compact = true) {
         Text(
             PhantomProcessLimit.adbCommand(desiredEnabled),
             style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
@@ -489,7 +491,7 @@ private fun StatusMessage(busy: Boolean, message: String?, modifier: Modifier = 
     if (busy) {
         Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            Text(message ?: "Working…", style = MaterialTheme.typography.bodySmall)
+            Text(message ?: stringResource(R.string.common_working), style = MaterialTheme.typography.bodySmall)
         }
     } else {
         message?.let {

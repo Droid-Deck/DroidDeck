@@ -1,5 +1,8 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.LocalContext
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -114,16 +117,18 @@ fun ComponentsPage(
     var confirmTitle by remember { mutableStateOf("") }
     var about by remember { mutableStateOf(false) }
     var protonMenu by remember { mutableStateOf(false) }
-    fun ask(title: String, body: String, action: () -> Unit) { confirmTitle = title; confirm = body to action }
+    var confirmVerb by remember { mutableStateOf(R.string.comp_swap) }
+    val ctx = LocalContext.current
+    fun ask(title: String, body: String, verb: Int, action: () -> Unit) { confirmTitle = title; confirmVerb = verb; confirm = body to action }
     // The GPU drivers tab's Advanced pages: one driver list on its own, full page.
     var driverPage by remember { mutableStateOf<String?>(null) }
     val gpuTab = comp == GPU_TAB
     when (driverPage) {
         "rt" -> {
             DriverPage(
-                title = "Runtime driver", hint = "Steam, its games and the desktop draw with it. Applies next session.",
+                title = stringResource(R.string.comp_runtime_driver), hint = stringResource(R.string.comp_runtime_driver_hint),
                 rows = gpu.linuxRows, selected = gpu.linuxSelected, downloads = gpu.linuxDownloads,
-                status = gpu.releaseStatus, checking = gpu.checking, importLabel = "Import Turnip zip…", canRestore = false,
+                status = gpu.releaseStatus, checking = gpu.checking, importLabel = stringResource(R.string.comp_import_turnip), canRestore = false,
                 onSelect = gpuActions.onSelectLinux, onDelete = gpuActions.onRemoveLinux, onRefresh = gpuActions.onRefresh,
                 onDownload = gpuActions.onDownloadDriver, onImport = gpuActions.onImportLinux, onRestore = {}, onBack = { driverPage = null },
             )
@@ -131,9 +136,9 @@ fun ComponentsPage(
         }
         "panel" -> {
             DriverPage(
-                title = "Display driver", hint = "Puts frames on the screen in both modes. Restart the app to apply.",
+                title = stringResource(R.string.comp_display_driver), hint = stringResource(R.string.comp_display_driver_hint),
                 rows = gpu.androidRows, selected = gpu.androidSelected, downloads = gpu.androidDownloads,
-                status = gpu.releaseStatus, checking = gpu.checking, importLabel = "Import an AdrenoTools zip…",
+                status = gpu.releaseStatus, checking = gpu.checking, importLabel = stringResource(R.string.comp_import_adrenotools),
                 canRestore = gpu.canRestoreBundled,
                 onSelect = gpuActions.onSelectAndroid, onDelete = gpuActions.onRemoveAndroid, onRefresh = gpuActions.onRefresh,
                 onDownload = gpuActions.onDownloadDriver, onImport = gpuActions.onImportAndroid, onRestore = gpuActions.onRestoreBundled,
@@ -146,14 +151,14 @@ fun ComponentsPage(
     val views = snapshot?.protons ?: emptyList()
     val view = views.firstOrNull { it.proton.id == protonId } ?: views.firstOrNull()
     val label = ComponentsManager.LABEL[comp] ?: comp
-    val checked = if (catalogAt > 0) DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(catalogAt * 1000)) else "never"
-    val nightlies = if (gpuTab) gpu.releaseStatus else if (busy != null) "$busy…" else "Nightlies checked $checked"
+    val checked = if (catalogAt > 0) DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(catalogAt * 1000)) else stringResource(R.string.comp_never)
+    val nightlies = if (gpuTab) gpu.releaseStatus else if (busy != null) "$busy…" else stringResource(R.string.comp_nightlies_checked, checked)
 
     Column(Modifier.fillMaxSize().padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)) {
         // ---- title, and the one thing that goes online -----------------------------------------
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             Text(
-                "Components", fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
+                stringResource(R.string.comp_title), fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
                 maxLines = 1,
             )
             // The status gives way to the title, not the other way round.
@@ -161,9 +166,9 @@ fun ComponentsPage(
                 nightlies, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(1f),
             ) else Spacer(Modifier.weight(1f))
-            if (!gpuTab) ToolIcon(Icons.Outlined.Info, "About Components") { about = true }
-            if (gpuTab) ToolIcon(Icons.Outlined.Refresh, "Check for new drivers", busy = gpu.checking, enabled = !gpu.checking && gpu.busy == null, onClick = gpuActions.onRefresh)
-            else ToolIcon(Icons.Outlined.Refresh, "Check the Nightlies for new packages", busy = checking, enabled = !checking, onClick = onRefresh)
+            if (!gpuTab) ToolIcon(Icons.Outlined.Info, stringResource(R.string.comp_about)) { about = true }
+            if (gpuTab) ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_drivers), busy = gpu.checking, enabled = !gpu.checking && gpu.busy == null, onClick = gpuActions.onRefresh)
+            else ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_nightlies), busy = checking, enabled = !checking, onClick = onRefresh)
         }
         if (narrow) Text(nightlies, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
@@ -175,26 +180,27 @@ fun ComponentsPage(
         ) {
             if (view != null && !gpuTab) Box {
                 ValueChip(view.proton.name, protonMenu, modifier = Modifier.widthIn(max = 300.dp).heightIn(min = 44.dp)) { protonMenu = !protonMenu }
-                AnchoredMenu(protonMenu, onDismiss = { protonMenu = false }, title = "Proton",
-                    note = "Valve's own Proton is replaced when Steam updates it; its originals are kept per build.") { first ->
+                AnchoredMenu(protonMenu, onDismiss = { protonMenu = false }, title = stringResource(R.string.comp_proton),
+                    note = stringResource(R.string.comp_proton_note)) { first ->
                     views.forEachIndexed { i, v ->
                         val swaps = v.components.values.count { it.activeFile != null }
                         MenuItem(
                             v.proton.name, checked = v.proton.id == view.proton.id,
-                            detail = v.proton.version + (if (swaps > 0) " · $swaps swapped" else " · all original") + (if (v.inUseByGame) " · game running" else ""),
+                            detail = (if (swaps > 0) stringResource(R.string.comp_swapped, v.proton.version, swaps) else stringResource(R.string.comp_all_original, v.proton.version))
+                                .let { if (v.inUseByGame) stringResource(R.string.comp_game_running_suffix, it) else it },
                             focusRequester = if (i == 0) first else null,
                         ) { onProton(v.proton.id); protonMenu = false }
                     }
                 }
             }
             val tabs = listOf(GPU_TAB) + comps
-            TabStrip(tabs.map { ComponentsManager.LABEL[it] ?: "GPU drivers" }, tabs.indexOf(comp).coerceAtLeast(0), { onComp(tabs[it]) })
+            TabStrip(tabs.map { ComponentsManager.LABEL[it] ?: stringResource(R.string.comp_gpu_drivers) }, tabs.indexOf(comp).coerceAtLeast(0), { onComp(tabs[it]) })
         }
 
         // ---- what is in use -----------------------------------------------------------------------
         if (view != null && !gpuTab) {
             val st = view.components.getValue(comp)
-            val fixedAt = if (view.reappliedAt > 0) " · re-applied at launch " + DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(view.reappliedAt * 1000)) else ""
+            val reappliedAt = if (view.reappliedAt > 0) DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(view.reappliedAt * 1000)) else null
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(12.dp)).background(colors.surface)
@@ -202,12 +208,13 @@ fun ComponentsPage(
             ) {
                 Box(Modifier.size(8.dp).background(if (st.queued != null) Color(0xFFFFB86B) else pal.good, CircleShape))
                 Text(
-                    (if (st.queued != null) "Next: ${st.queued} · after the game closes" else "$label in use: ${st.inUse}") + fixedAt,
+                    (if (st.queued != null) stringResource(R.string.comp_next_queued, st.queued) else stringResource(R.string.comp_in_use, label, st.inUse))
+                        .let { if (reappliedAt != null) stringResource(R.string.comp_reapplied, it, reappliedAt) else it },
                     fontSize = 14.sp, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
-                if (st.queued != null) FocusText("Cancel", pal.signal, onClick = onCancelQueued)
+                if (st.queued != null) FocusText(stringResource(R.string.common_cancel), pal.signal, onClick = onCancelQueued)
                 else if (!narrow) Text(
-                    if (view.inUseByGame) "Waits until the game closes" else "Changes apply the next time a game starts",
+                    if (view.inUseByGame) stringResource(R.string.comp_waits) else stringResource(R.string.comp_applies_next_game),
                     fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1,
                 )
             }
@@ -218,16 +225,16 @@ fun ComponentsPage(
             gpuTab -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
                 GpuDriversPanel(gpu, gpuActions) { driverPage = it }
                 Row(modifier = Modifier.padding(top = 14.dp)) {
-                    SmallButton("Import .zip", onClick = gpuActions.onImportZip)
+                    SmallButton(stringResource(R.string.comp_import_zip), onClick = gpuActions.onImportZip)
                 }
             }
             snapshot == null -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
                 CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(12.dp))
-                Text("Reading the Protons…", fontSize = 14.sp, color = colors.onSurfaceVariant)
+                Text(stringResource(R.string.comp_reading), fontSize = 14.sp, color = colors.onSurfaceVariant)
             }
             view == null -> Text(
-                "No Proton is installed in the Linux runtime yet. Start the Steam client once so it downloads its ARM64 Proton, or add GE-Proton / CachyOS from Setup.",
+                stringResource(R.string.comp_no_proton),
                 fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(vertical = 16.dp),
             )
             else -> {
@@ -240,12 +247,12 @@ fun ComponentsPage(
                 val rows = originals.map { o ->
                     val isCurrent = o.protonVersion == build
                     InstalledItem(
-                        "Original · ${o.protonVersion}",
-                        o.label.substringAfterLast(" · ", "").ifEmpty { o.label } + if (isCurrent) " · this build" else " · earlier build",
+                        stringResource(R.string.comp_original, o.protonVersion),
+                        o.label.substringAfterLast(" · ", "").ifEmpty { o.label }.let { if (isCurrent) stringResource(R.string.comp_this_build, it) else stringResource(R.string.comp_earlier_build, it) },
                         "ORIGINAL", activeIsOriginal && isCurrent, !isCurrent, null, o.protonVersion,
                     )
                 } + stored.map { s ->
-                    InstalledItem(s.version, String.format("%.1f MB", s.size / 1048576.0), "STORED", s.file == st.activeFile, true, s.file, null)
+                    InstalledItem(s.version, stringResource(R.string.common_size_mb, s.size / 1048576.0), "STORED", s.file == st.activeFile, true, s.file, null)
                 }
                 val storedNames = snapshot.packages.map { it.file }.toSet()
                 val available = catalog.filter { it.comp == comp && ComponentsManager.safeName(it.file) !in storedNames }
@@ -255,9 +262,9 @@ fun ComponentsPage(
                 }
 
                 val installed: @Composable () -> Unit = {
-                    SettingsGroup("Installed · ${rows.size}") {
+                    SettingsGroup(stringResource(R.string.comp_installed_count, rows.size)) {
                         if (rows.isEmpty()) Text(
-                            "Nothing stored for $label yet. This Proton's own files are saved as its original when the page opens.",
+                            stringResource(R.string.comp_nothing_stored, label),
                             fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                         )
                         rows.forEachIndexed { i, item ->
@@ -265,22 +272,22 @@ fun ComponentsPage(
                                 item, modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
                                 onSelect = {
                                     if (item.selected) return@InstalledLine
-                                    val waits = if (view.inUseByGame) " A game is running on this Proton, so it waits until the game closes." else " It applies the next time a game starts."
-                                    if (item.file != null) ask("Swap $label?", "Put ${item.name} into ${p.name}? Its shipped files stay saved as an original bundle.$waits") { onSwap(item.file) }
-                                    else ask("Restore $label?", "Put the ${item.protonVersion} original back into ${p.name}?$waits") { onRestore(item.protonVersion!!) }
+                                    val waits = if (view.inUseByGame) ctx.getString(R.string.comp_waits_long) else ctx.getString(R.string.comp_applies_long)
+                                    if (item.file != null) ask(ctx.getString(R.string.comp_swap_title, label), ctx.getString(R.string.comp_swap_body, item.name, p.name, waits), R.string.comp_swap) { onSwap(item.file) }
+                                    else ask(ctx.getString(R.string.comp_restore_title, label), ctx.getString(R.string.comp_restore_body, item.protonVersion, p.name, waits), R.string.common_restore) { onRestore(item.protonVersion!!) }
                                 },
                                 onDelete = {
-                                    if (item.file != null) ask("Delete ${item.name}?", "Its package file is removed from the app. You can download it again any time.") { onDeletePackage(item.file) }
-                                    else ask("Delete this original?", "The ${item.protonVersion} original of $label belongs to an earlier build of ${p.name}. The installed build's original is always kept.") { onDeleteOriginal(item.protonVersion!!) }
+                                    if (item.file != null) ask(ctx.getString(R.string.common_delete_named, item.name) + "?", ctx.getString(R.string.comp_delete_package_body), R.string.common_delete) { onDeletePackage(item.file) }
+                                    else ask(ctx.getString(R.string.comp_delete_original_title), ctx.getString(R.string.comp_delete_original_body, item.protonVersion, p.name), R.string.common_delete) { onDeleteOriginal(item.protonVersion!!) }
                                 },
                             )
                         }
                     }
                 }
                 val nightly: @Composable () -> Unit = {
-                    SettingsGroup("On the Nightlies · ${available.size}") {
+                    SettingsGroup(stringResource(R.string.comp_nightlies_count, available.size)) {
                         if (available.isEmpty()) Text(
-                            if (catalogAt == 0L) "Refresh to list the packages on the Nightlies." else "Nothing new since the last check.",
+                            if (catalogAt == 0L) stringResource(R.string.comp_refresh_to_list) else stringResource(R.string.comp_nothing_new),
                             fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                         )
                         available.forEach { d -> AvailableLine(d, downloads[d.file], enabled = busy == null) { onDownload(d) } }
@@ -293,9 +300,9 @@ fun ComponentsPage(
                         Column(Modifier.weight(1f)) { nightly() }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 14.dp)) {
-                        SmallButton("Import .wcp", onClick = onImport)
-                        if (!activeIsOriginal && originals.any { it.protonVersion == build }) FocusText("Restore this Proton's original", pal.signal) {
-                            ask("Restore $label?", "Put ${p.name}'s original $label back?") { onRestore(build) }
+                        SmallButton(stringResource(R.string.comp_import_wcp), onClick = onImport)
+                        if (!activeIsOriginal && originals.any { it.protonVersion == build }) FocusText(stringResource(R.string.comp_restore_original), pal.signal) {
+                            ask(ctx.getString(R.string.comp_restore_title, label), ctx.getString(R.string.comp_restore_original_body, p.name, label), R.string.common_restore) { onRestore(build) }
                         }
                     }
                 }
@@ -305,17 +312,14 @@ fun ComponentsPage(
 
     if (about) AlertDialog(
         onDismissRequest = { about = false },
-        title = { Text("Components") },
+        title = { Text(stringResource(R.string.comp_title)) },
         text = {
             Text(
-                "FEX, DXVK and VKD3D-Proton for each Proton the Steam client runs games with.\n\n" +
-                    "Tap an installed row to swap it in; it applies the next time a game starts. If a game is running on that Proton, the swap waits until it closes.\n\n" +
-                    "Your choices are also checked right before every game launch: if anything changed a Proton's files (Steam's start-up tests, for one), they are put back first, and the page says \"re-applied at launch\".\n\n" +
-                    "Each Proton build's own files are kept as its original, so a Steam update never loses them. Packages come from the Nightlies \"-Linux\" releases (refresh) or Import .wcp.",
+                stringResource(R.string.comp_about_text),
                 fontSize = 14.sp,
             )
         },
-        confirmButton = { FocusText("OK", pal.signal) { about = false } },
+        confirmButton = { FocusText(stringResource(R.string.common_ok), pal.signal) { about = false } },
     )
     confirm?.let { (body, action) ->
         AlertDialog(
@@ -324,13 +328,13 @@ fun ComponentsPage(
             text = { Text(body, fontSize = 14.sp) },
             // Opens on Cancel, so a stray A press on a controller never swaps or deletes anything.
             confirmButton = {
-                val del = confirmTitle.startsWith("Delete")
-                FocusText(if (del) "Delete" else if (confirmTitle.startsWith("Restore")) "Restore" else "Swap", if (del) colors.error else pal.signal) { confirm = null; action() }
+                val del = confirmVerb == R.string.common_delete
+                FocusText(stringResource(confirmVerb), if (del) colors.error else pal.signal) { confirm = null; action() }
             },
             dismissButton = {
                 val cancelFocus = remember { FocusRequester() }
                 LaunchedEffect(Unit) { runCatching { cancelFocus.requestFocus() } }
-                FocusText("Cancel", colors.onBackground, modifier = Modifier.focusRequester(cancelFocus)) { confirm = null }
+                FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancelFocus)) { confirm = null }
             },
         )
     }
@@ -392,7 +396,13 @@ private fun Tag(text: String) {
         else -> colors.onSurfaceVariant to Color.White.copy(alpha = 0.07f)
     }
     Text(
-        text.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1,
+        when (text) {
+            "ORIGINAL" -> stringResource(R.string.comp_tag_original)
+            "IN USE" -> stringResource(R.string.comp_tag_in_use)
+            "NEW" -> stringResource(R.string.comp_tag_new)
+            "STORED" -> stringResource(R.string.comp_tag_stored)
+            else -> text.lowercase().replaceFirstChar { it.uppercase() }
+        }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1,
         modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 7.dp, vertical = 1.dp),
     )
 }
@@ -443,7 +453,7 @@ private fun InstalledLine(item: InstalledItem, modifier: Modifier = Modifier, on
                     .glideBorder(delHot, ROW_SHAPE, colors.error)
                     .hoverable(delSrc).clickable(interactionSource = delSrc, indication = null, onClick = onDelete)
                     .controllerConfirm(onClick = onDelete),
-            ) { Icon(Icons.Outlined.Delete, contentDescription = "Delete ${item.name}", tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
+            ) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.common_delete_named, item.name), tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
         }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
@@ -460,11 +470,11 @@ private fun AvailableLine(d: CatalogItem, progress: Int?, enabled: Boolean, onDo
         Column(Modifier.weight(1f)) {
             Text(d.file.removeSuffix(".wcp"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "${d.release} · " + String.format("%.1f MB", d.size / 1048576.0), fontSize = 13.sp, color = colors.onSurfaceVariant,
+                "${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0), fontSize = 13.sp, color = colors.onSurfaceVariant,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
             )
         }
-        if (progress == null) SmallButton("Download", enabled = enabled, accent = true, onClick = onDownload)
+        if (progress == null) SmallButton(stringResource(R.string.common_download), enabled = enabled, accent = true, onClick = onDownload)
         else Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(96.dp)) {
             Text(if (progress < 0) "…" else "$progress%", fontSize = 13.sp, color = colors.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
