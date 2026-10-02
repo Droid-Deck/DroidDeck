@@ -1,8 +1,21 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.runtime.CompositionLocalProvider
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -85,6 +98,7 @@ import java.io.File
 
 // The front end's right-hand pane and the page it shows: backdrop, desktop card and emulators.
 
+@OptIn(androidx.compose.animation.ExperimentalAnimationApi::class)
 @Composable
 internal fun Pane(
     s: FrontEndState, selected: String, a: FrontEndActions, page: (@Composable () -> Unit)?, modifier: Modifier,
@@ -101,18 +115,58 @@ internal fun Pane(
             else -> null
         }
         Backdrop(backdropArt)
+        val pal = LocalPalette.current
+        // Pages keep drawing while they leave, so one can fold away instead of blinking out.
+        val pages = remember { HashMap<String, @Composable () -> Unit>() }
+        // Pages opened from a control (the cog), with where that control sat, in this pane's coordinates.
+        val origins = remember { HashMap<String, Origin>() }
+        val paneAt = remember { arrayOf(Offset.Zero) }
+        val livePage by rememberUpdatedState(s.pageKey)
+        // Picking another game changes the detail beside the list, not the whole page.
+        val target = if (page != null && s.pageKey != null) s.pageKey else if (selected.startsWith("app:")) "games" else selected
+        // The game the Games page shows. It must outlive the selection: while the page animates out,
+        // drawing it with what is selected now (another rail item) turned it into a copy of that page.
+        val gameShown = remember { arrayOf("games") }
+        if (selected == "games" || selected.startsWith("app:")) gameShown[0] = selected
+        if (page != null && s.pageKey != null) {
+            pages[s.pageKey] = page
+            if (s.pageKey !in origins) PageOrigin.take()?.let { origins[s.pageKey] = it.translate(-paneAt[0]) }
+        }
         AnimatedContent(
-            // Picking another game changes the detail beside the list, not the whole page.
-            targetState = if (page != null && s.pageKey != null) s.pageKey else if (selected.startsWith("app:")) "games" else selected,
+            targetState = target,
+            modifier = Modifier.onGloballyPositioned { paneAt[0] = it.positionInRoot() },
             transitionSpec = {
-                (fadeIn(Motion.tw(300, 80)) + slideInVertically(Motion.tw(420, 80)) { it / 24 })
-                    .togetherWith(fadeOut(Motion.tw(170)) + slideOutVertically(Motion.tw(170)) { -it / 40 })
-                    .apply { targetContentZIndex = 1f }
+                when {
+                    // Into a page from its control: the control floods the pane (PageFlood) as it sinks back.
+                    targetState in origins -> (fadeIn(Motion.tw(120)))
+                        .togetherWith(fadeOut(Motion.tw(320, 80)) + scaleOut(Motion.tw(480), targetScale = 0.95f))
+                        .apply { targetContentZIndex = 1f }
+                    // Back out of it: the flood draws back into the control as the pane comes forward again.
+                    initialState in origins -> (fadeIn(Motion.tw(300, 100)) + scaleIn(Motion.tw(460, 40), initialScale = 0.95f))
+                        .togetherWith(ExitTransition.None)
+                        .apply { targetContentZIndex = -1f }
+                    else -> (fadeIn(Motion.tw(300, 80)) + slideInVertically(Motion.tw(420, 80)) { it / 24 })
+                        .togetherWith(fadeOut(Motion.tw(170)) + slideOutVertically(Motion.tw(170)) { -it / 40 })
+                        .apply { targetContentZIndex = 1f }
+                }
             },
             label = "pane",
         ) { key ->
-            if (page != null && key == s.pageKey) page()
-            else Content(s, if (key == "games") selected else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb)
+            val shown = if (page != null && key == s.pageKey) page else pages[key]
+            if (shown != null) {
+                DisposableEffect(key) { onDispose { if (key != livePage) { pages.remove(key); origins.remove(key) } } }
+                val from = origins[key]
+                if (from == null) shown()
+                else {
+                    // Keeps a leaving page on screen while its flood draws back into the control.
+                    transition.animateFloat(
+                        transitionSpec = { if (targetState == EnterExitState.PostExit) tween(PAGE_RETURN_MS) else snap() },
+                        label = "pageReturn",
+                    ) { if (it == EnterExitState.PostExit) 1f else 0f }
+                    PageFlood(from, leaving = transition.targetState == EnterExitState.PostExit) { shown() }
+                }
+            }
+            else Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb)
         }
       }
     }
@@ -185,8 +239,8 @@ private fun Content(
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
         when {
             selected == "android-apps" && s.isHomeApp -> {
-                Rise(0) { PageHeader("Android apps") { Chip("${s.androidApps.size} apps", ok = false) } }
-                if (s.androidApps.isEmpty()) Rise(3) { Note("No launchable Android apps found.") }
+                Rise(0) { PageHeader(stringResource(R.string.content_android_apps)) { Chip(stringResource(R.string.content_apps_count, s.androidApps.size), ok = false) } }
+                if (s.androidApps.isEmpty()) Rise(3) { Note(stringResource(R.string.content_no_android_apps)) }
                 else Rise(3, Modifier.fillMaxWidth()) {
                     ArtGrid(s.androidApps.map { app ->
                         Tile(
@@ -208,8 +262,8 @@ private fun Content(
                 val apps = UserAppsState.items
                 var adding by rememberSaveable { mutableStateOf(false) }
                 Rise(0) {
-                    PageHeader("Desktop") {
-                        if (s.desktopInstalled) Chip("● Desktop installed", ok = true) else Chip("Installs on first open", ok = false)
+                    PageHeader(stringResource(R.string.drawer_desktop)) {
+                        if (s.desktopInstalled) Chip(stringResource(R.string.content_desktop_installed), ok = true) else Chip(stringResource(R.string.content_desktop_first_open), ok = false)
                     }
                 }
                 Rise(2) { DesktopCard(s, a) }
@@ -224,7 +278,7 @@ private fun Content(
                 }
                 if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(5) { UserAppsProgress() }
                 if (!addAfterReady) {
-                    Rise(5) { SectionTitle("Available to install", available.size.toString()) }
+                    Rise(5) { SectionTitle(stringResource(R.string.content_available), available.size.toString()) }
                     Rise(6) {
                         LauncherGrid(available.map { GridItem.Emu(it) } + GridItem.Add, first = ready.isEmpty(), onSelect = onSelect, onAdd = { adding = true })
                     }
@@ -237,11 +291,11 @@ private fun Content(
             }
             selected.startsWith("emu:") -> {
                 val e = s.emulators.firstOrNull { "emu:${it.id}" == selected }
-                if (e == null) Note("Not installed.") else {
+                if (e == null) Note(stringResource(R.string.content_not_installed)) else {
                     val pkgId = Library.packageId(e.id)
                     val pkg = pkgId?.let { id -> s.packages?.firstOrNull { it.id == id } }
                     Rise(0) {
-                        BackLink("Desktop") { onSelect("desktop") }
+                        BackLink(stringResource(R.string.drawer_desktop)) { onSelect("desktop") }
                     }
                     Rise(1) {
                         Row(
@@ -252,7 +306,7 @@ private fun Content(
                             Column {
                                 Text(e.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                                 Text(
-                                    e.system.replaceFirstChar { it.uppercase() } + if (e.installed) "" else " · not installed",
+                                    e.system.replaceFirstChar { it.uppercase() }.let { if (e.installed) it else stringResource(R.string.content_not_installed_suffix, it) },
                                     fontSize = 14.sp, color = colors.onSurfaceVariant,
                                 )
                             }
@@ -261,21 +315,21 @@ private fun Content(
                     if (e.installed) {
                         Rise(3) {
                             Actions {
-                                PrimaryButton("Open ${e.name}", enabled = !s.busy, main = true) { a.onEmulator(e) }
+                                PrimaryButton(stringResource(R.string.content_open_named, e.name), enabled = !s.busy, main = true) { a.onEmulator(e) }
                                 BusyChip(s)
-                                SecondaryButton("ROMs folder", onClick = a.onRoms)
+                                SecondaryButton(stringResource(R.string.setup_tool_roms), onClick = a.onRoms)
                                 if (pkg != null) SecondaryButton(
-                                    if (pkg.kind == "appimage") "Remove" else "Hide",
+                                    if (pkg.kind == "appimage") stringResource(R.string.store_remove) else stringResource(R.string.common_hide),
                                     enabled = s.packageBusyId == null && !s.sessionRunning,
                                 ) { a.onRemovePackage(pkg.id) }
                             }
                         }
-                        Rise(4) { SectionTitle("Games", e.games.size.toString()) }
+                        Rise(4) { SectionTitle(stringResource(R.string.content_games), e.games.size.toString()) }
                         if (e.games.isEmpty()) Rise(5) {
                             Note(
-                                if (s.romsDir == null) "Choose a ROMs folder."
-                                else if (e.id == "retroarch") "Browse to /root/ROMs in RetroArch."
-                                else "Add ${e.system} games to ROMs/${e.system.substringBefore(' ')}.",
+                                if (s.romsDir == null) stringResource(R.string.content_choose_roms)
+                                else if (e.id == "retroarch") stringResource(R.string.content_retroarch_roms)
+                                else stringResource(R.string.content_add_roms, e.system, e.system.substringBefore(' ')),
                             )
                         }
                         else Rise(5, Modifier.fillMaxWidth()) {
@@ -285,46 +339,46 @@ private fun Content(
                         if (pkg != null) Rise(2) {
                             Actions {
                                 PrimaryButton(
-                                    if (s.packageBusyId == pkg.id) "Installing…" else "Install ${e.name}",
+                                    if (s.packageBusyId == pkg.id) stringResource(R.string.store_installing) else stringResource(R.string.content_install_named, e.name),
                                     enabled = s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning,
                                 ) { a.onInstallPackage(pkg.id) }
-                                if (s.sessionRunning) ActionChip("Stop session to install", ok = false)
-                                else if (!s.ready) ActionChip("Runtime required", ok = false)
+                                if (s.sessionRunning) ActionChip(stringResource(R.string.content_stop_to_install), ok = false)
+                                else if (!s.ready) ActionChip(stringResource(R.string.content_runtime_required), ok = false)
                             }
                         }
                         Rise(3) {
                             Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
                                 Note(when {
-                                    s.packageCatalogLoading -> "Loading install details…"
-                                    pkg == null -> "Install details are unavailable right now. Try again when the package catalog is reachable."
-                                    !s.ready -> "Install the Linux runtime from Setup before installing desktop apps."
-                                    s.sessionRunning -> "Stop the active session before installing desktop apps."
+                                    s.packageCatalogLoading -> stringResource(R.string.content_loading_details)
+                                    pkg == null -> stringResource(R.string.content_details_unavailable)
+                                    !s.ready -> stringResource(R.string.content_needs_runtime)
+                                    s.sessionRunning -> stringResource(R.string.content_stop_first)
                                     pkg.notes.isNotBlank() -> pkg.notes
-                                    else -> "Install ${e.name} into the Linux desktop runtime."
+                                    else -> stringResource(R.string.content_install_into, e.name)
                                 })
                             }
                         }
                         if (s.packageBusyId == pkg?.id) Rise(4) {
                             val stage = s.packageStage
                             Text(
-                                if (stage != null && s.packagePercent >= 0) "$stage · ${s.packagePercent}%" else stage ?: "Starting…",
+                                if (stage != null && s.packagePercent >= 0) stringResource(R.string.store_busy_percent_short, stage, s.packagePercent) else stage ?: stringResource(R.string.store_starting),
                                 fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp),
                             )
                             if (s.packagePercent >= 0) LinearProgressIndicator(progress = { s.packagePercent / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp))
                             else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
                         }
-                        if (pkg?.kind == "tar") Rise(5) { Note("Hiding this package takes it off Desktop; its files stay in the Linux runtime.") }
+                        if (pkg?.kind == "tar") Rise(5) { Note(stringResource(R.string.content_hide_note)) }
                     }
                 }
             }
             selected.startsWith("rom:") -> {
                 val pair = romFor(s, selected)
-                if (pair == null) Note("That game is gone from the ROMs folder.") else {
+                if (pair == null) Note(stringResource(R.string.content_rom_gone)) else {
                     val (e, g) = pair
                     Rise(0) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             BackLink(e.name) { onSelect("emu:${e.id}") }
-                            Eyebrow("Desktop · ${e.system}")
+                            Eyebrow(stringResource(R.string.content_desktop_system, e.system))
                         }
                     }
                     Rise(1) { Title(g.name) }
@@ -335,7 +389,7 @@ private fun Content(
                                 Spacer(Modifier.height(14.dp))
                                 Actions {
                                     Image(painterResource(e.iconRes), null, modifier = Modifier.size(40.dp))
-                                    PrimaryButton("Launch in ${e.name}", enabled = !s.busy, main = true) { a.onRom(g) }
+                                    PrimaryButton(stringResource(R.string.content_launch_in, e.name), enabled = !s.busy, main = true) { a.onRom(g) }
                                     if (s.busy) BusyChip(s) else ActionChip(g.hostPath.extension.uppercase().ifEmpty { "folder" }, ok = false)
                                 }
                             }
@@ -344,7 +398,7 @@ private fun Content(
                     }
                     val others = e.games.filter { it !== g }
                     if (others.isNotEmpty()) {
-                        Rise(3) { SectionTitle("Also in ${e.name}", null) }
+                        Rise(3) { SectionTitle(stringResource(R.string.content_also_in, e.name), null) }
                         Rise(4, Modifier.fillMaxWidth()) {
                             ArtGrid(others.map { x ->
                                 val index = e.games.indexOf(x)
@@ -354,7 +408,7 @@ private fun Content(
                     }
                 }
             }
-            else -> Note("That page is gone. Pick a section on the left.")
+            else -> Note(stringResource(R.string.content_page_gone))
         }
     }
 }
@@ -368,7 +422,7 @@ private fun DesktopCard(s: FrontEndState, a: FrontEndActions) {
     val actions: @Composable () -> Unit = {
         Actions {
             // Enabled without a runtime or the desktop: the session's loading screen installs them first.
-            PrimaryButton(if (s.desktopInstalled) "Open desktop" else "Install & open desktop", enabled = !s.busy, main = true, onClick = a.onDesktop)
+            PrimaryButton(if (s.desktopInstalled) stringResource(R.string.content_open_desktop) else stringResource(R.string.content_install_open_desktop), enabled = !s.busy, main = true, onClick = a.onDesktop)
             Cog(onClick = a.onDesktopSettings)
             BusyChip(s)
         }
@@ -383,8 +437,8 @@ private fun DesktopCard(s: FrontEndState, a: FrontEndActions) {
                 modifier = Modifier.size(52.dp).clip(Shape14).background(colors.surfaceVariant).border(1.dp, pal.line2, Shape14),
             ) { Icon(Icons.Outlined.DesktopWindows, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(26.dp)) }
             Column(modifier = Modifier.weight(1f)) {
-                Text("Linux desktop", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-                Text("LXQt, Firefox and your emulators", fontSize = 14.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.content_linux_desktop), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                Text(stringResource(R.string.content_linux_desktop_hint), fontSize = 14.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (!narrow) actions()
         }
@@ -599,7 +653,7 @@ private fun EmulatorTile(e: Library.Emulator, modifier: Modifier, isFirst: Boole
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val system = e.system.replaceFirstChar { it.uppercase() }
-    val detail = if (e.installed && e.id != "retroarch") "$system · ${e.games.size} game${if (e.games.size == 1) "" else "s"}" else system
+    val detail = if (e.installed && e.id != "retroarch") "$system · " + pluralStringResource(R.plurals.mode_added_count, e.games.size, e.games.size) else system
     TileFrame("emu:${e.id}", modifier, isFirst, filled = e.installed, onClick = onClick) {
         Image(painterResource(e.iconRes), contentDescription = null, modifier = Modifier.size(if (e.installed) 44.dp else 36.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -607,7 +661,7 @@ private fun EmulatorTile(e: Library.Emulator, modifier: Modifier, isFirst: Boole
             Text(detail, fontSize = if (e.installed) 13.sp else 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (!e.installed) Text(
-            "Install", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
+            stringResource(R.string.setup_install), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, pal.line2, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }

@@ -46,6 +46,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Icon
@@ -271,7 +272,7 @@ internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (St
 
 /** Open from the first frame; [onDismiss] once the closing animation has run. */
 @Composable
-private fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolean> {
+internal fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolean> {
     val shown = remember { MutableTransitionState(false).apply { targetState = true } }
     LaunchedEffect(shown.currentState, shown.isIdle) { if (shown.isIdle && !shown.currentState && !shown.targetState) onDismiss() }
     return shown
@@ -282,11 +283,13 @@ private fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolean
  * like the app's menus, rises above the keyboard, and closes on a tap outside or B.
  */
 @Composable
-private fun AppDialog(
+internal fun AppDialog(
     shown: MutableTransitionState<Boolean>, close: () -> Unit, label: String, wide: Boolean,
     modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
+    // The page's ring stays out of sight behind it.
+    VeilRing()
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
       // The page's focus memory stays the page's: nothing in here is a place to come back to.
       CompositionLocalProvider(LocalFrontFocus provides null) {
@@ -327,7 +330,7 @@ private fun AppDialog(
 
 /** The eyebrow and title, with [trailing] (the tabs) beside them when there is room, else under them. */
 @Composable
-private fun DialogHeader(eyebrow: String, title: String, trailing: (@Composable () -> Unit)? = null) {
+internal fun DialogHeader(eyebrow: String, title: String, trailing: (@Composable () -> Unit)? = null) {
     val heading = @Composable {
         Column {
             Eyebrow(eyebrow)
@@ -380,7 +383,7 @@ private fun Panel(title: String, content: @Composable ColumnScope.() -> Unit) {
 
 /** Why the main button is off (or nothing), then Cancel and the main button, at the card's foot. */
 @Composable
-private fun DialogFooter(note: String?, confirm: String, enabled: Boolean, onCancel: () -> Unit, onConfirm: () -> Unit) {
+internal fun DialogFooter(note: String?, confirm: String, enabled: Boolean, onCancel: () -> Unit, onConfirm: () -> Unit) {
     val lineColor = LocalPalette.current.line
     Rise(2) {
         Row(
@@ -395,7 +398,7 @@ private fun DialogFooter(note: String?, confirm: String, enabled: Boolean, onCan
 }
 
 @Composable
-private fun Small(text: String, error: Boolean = false) =
+internal fun Small(text: String, error: Boolean = false) =
     Text(text, fontSize = 12.sp, lineHeight = 16.sp, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
 
 private fun hideKeyboard(view: View) {
@@ -489,10 +492,17 @@ private fun SuggestedIcon(url: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.size(44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(colors.surface)
-            .glideBorder(hot || selected, Shape12, pal.signal, pal.line2)
+            .glideBorder(hot, Shape12, pal.signal, pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick),
-    ) { AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(true).build(), contentDescription = stringResource(R.string.add_app_icon), contentScale = ContentScale.Fit, modifier = Modifier.size(34.dp)) }
+    ) {
+        AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(true).build(), contentDescription = stringResource(R.string.add_app_icon), contentScale = ContentScale.Fit, modifier = Modifier.size(34.dp))
+        // The chosen one is ticked; the ring stays with focus.
+        if (selected) Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(14.dp).clip(androidx.compose.foundation.shape.CircleShape).background(pal.signal),
+        ) { Icon(Icons.Filled.Check, contentDescription = null, tint = pal.onSignal, modifier = Modifier.size(10.dp)) }
+    }
 }
 
 /** The chosen file, or none yet, laid out like the app's text fields, with the button that picks it. */

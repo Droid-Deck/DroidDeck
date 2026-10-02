@@ -357,21 +357,20 @@ object SessionPrefs {
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
 
-    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On for new installs (settleDeckModeDefault). */
+    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On by default (settleDeckModeDefault). */
     fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", true)
     fun setSteamDeckMode(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamDeckMode", on).apply() }
 
     /**
-     * Deck mode became the default for new installs; an install from before keeps what it ran with
-     * (off), so an update never changes its interface or restarts the client on its own. Run once at
-     * process start, before anything reads or writes these prefs: a new install has neither prefs
-     * nor a runtime yet. The answer is written down, so it is decided once.
+     * Deck mode is the default: every install, new or from before, is moved to it once. An install
+     * from before 0.3.0 had off written down for it whether or not anyone chose it, so the move
+     * can't tell a choice from that default and moves everyone; turning it off afterwards sticks.
+     * Run once at process start, before anything reads or writes these prefs.
      */
     fun settleDeckModeDefault(context: Context) {
         val p = prefs(context)
-        if (p.contains("steamDeckMode")) return
-        val existing = p.all.isNotEmpty() || java.io.File(context.filesDir, "linuxfs").exists()
-        p.edit().putBoolean("steamDeckMode", !existing).apply()
+        if (p.getBoolean("deckModeMoved", false)) return
+        p.edit().putBoolean("steamDeckMode", true).putBoolean("deckModeMoved", true).apply()
     }
 
     /**

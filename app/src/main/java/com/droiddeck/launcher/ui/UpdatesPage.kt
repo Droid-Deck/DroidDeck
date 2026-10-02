@@ -1,5 +1,8 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -94,18 +97,18 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val me = remember { AppUpdates.installed() }
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier) {
-        PageHeader("Updates") {
+        PageHeader(stringResource(R.string.upd_title)) {
             // The build that is running, beside the title where it is always in view.
             Text(
-                "DroidDeck ${me.version} · ${s.buildLabel}", fontSize = 12.5.sp, color = colors.onSurfaceVariant,
+                stringResource(R.string.upd_build, me.version, s.buildLabel), fontSize = 12.5.sp, color = colors.onSurfaceVariant,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(top = 6.dp),
             )
             val checked = u.catalog?.checkedAt?.takeIf { it > 0 }
             if (!LocalNarrowPane.current) Text(
-                if (u.checking) "Checking…" else if (checked != null) "Checked ${ago(checked)}" else "Not checked yet",
+                if (u.checking) stringResource(R.string.common_checking) else if (checked != null) stringResource(R.string.upd_checked, ago(checked)) else stringResource(R.string.upd_not_checked),
                 fontSize = 13.sp, color = colors.onSurfaceVariant,
             )
-            ToolIcon(Icons.Outlined.Refresh, "Check for updates", busy = u.checking, enabled = !u.checking && u.stage == null, onClick = ua.onCheck)
+            ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.store_check_updates), busy = u.checking, enabled = !u.checking && u.stage == null, onClick = ua.onCheck)
         }
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
             // Landscape has the width for channels and status side by side; a narrow pane stacks them.
@@ -126,15 +129,14 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     }
     if (u.askPermission) AlertDialog(
         onDismissRequest = ua.onDismissPermission,
-        title = { Text("Let DroidDeck update itself") },
+        title = { Text(stringResource(R.string.upd_perm_title)) },
         text = {
             Text(
-                "Android asks once before an app may install updates. On the next screen, turn on " +
-                    "\"Allow from this source\", then come back - the update carries on by itself.",
+                stringResource(R.string.upd_perm_text),
             )
         },
-        confirmButton = { TextButton(onClick = ua.onAllowInstalls) { Text("Open settings") } },
-        dismissButton = { TextButton(onClick = ua.onDismissPermission) { Text("Not now") } },
+        confirmButton = { TextButton(onClick = ua.onAllowInstalls) { Text(stringResource(R.string.upd_open_settings)) } },
+        dismissButton = { TextButton(onClick = ua.onDismissPermission) { Text(stringResource(R.string.upd_not_now)) } },
     )
 }
 
@@ -151,16 +153,17 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
     val installBlock = release?.let { AppUpdates.installBlock(it, me) }
     class Look(val tint: Color, val status: String, val headline: String, val detail: String?)
     val look = when {
-        !me.updatable -> Look(colors.onSurfaceVariant, "Signed differently", "Can't update in place",
-            "This copy isn't signed with DroidDeck's release key, so Android won't install the builds here over it. Uninstall it to switch.")
-        catalog == null -> Look(colors.onSurfaceVariant, if (u.checking) "Checking…" else "Not checked yet", "Updates", null)
-        offer == Offer.UPDATE -> Look(AttentionAmber, "Update available", newBuild(u.follow, release!!), null)
-        offer == Offer.SWITCH -> Look(pal.signal, "Ready to switch", newBuild(u.follow, release!!), null)
-        offer == Offer.AHEAD -> Look(pal.signal, "Ahead of Stable", "You're ahead of Stable",
-            "This build is newer than the last Stable release. You'll move onto Stable with its next one.")
-        offer == Offer.GONE -> Look(AttentionAmber, "Test ended", "This test has ended",
-            "Its fix was merged or dropped. Follow Preview to keep getting the newest fixes.")
-        else -> Look(pal.good, "Up to date", "You have the latest $name", null)
+        !me.updatable -> Look(colors.onSurfaceVariant, stringResource(R.string.upd_signed_status), stringResource(R.string.upd_signed_headline),
+            stringResource(R.string.upd_signed_detail))
+        catalog == null -> Look(colors.onSurfaceVariant, if (u.checking) stringResource(R.string.common_checking) else stringResource(R.string.upd_not_checked), stringResource(R.string.upd_title), null)
+        offered && installBlock != null -> Look(colors.onSurfaceVariant, stringResource(R.string.upd_blocked_status), newBuild(u.follow, release!!), null)
+        offer == Offer.UPDATE -> Look(AttentionAmber, stringResource(R.string.upd_available), newBuild(u.follow, release!!), null)
+        offer == Offer.SWITCH -> Look(pal.signal, stringResource(R.string.upd_switch), newBuild(u.follow, release!!), null)
+        offer == Offer.AHEAD -> Look(pal.signal, stringResource(R.string.upd_ahead_status), stringResource(R.string.upd_ahead_headline),
+            stringResource(R.string.upd_ahead_detail))
+        offer == Offer.GONE -> Look(AttentionAmber, stringResource(R.string.upd_gone_status), stringResource(R.string.upd_gone_headline),
+            stringResource(R.string.upd_gone_detail))
+        else -> Look(pal.good, stringResource(R.string.upd_current_status), stringResource(R.string.upd_current_headline, name), null)
     }
     Column(
         modifier = Modifier.fillMaxWidth().clip(Shape16).background(colors.surface).border(1.dp, pal.line, Shape16).padding(18.dp),
@@ -168,14 +171,14 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Box(Modifier.size(7.dp).clip(CircleShape).background(look.tint))
             Text(look.status, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = look.tint)
-            if (offered) Text("· ${ago(release!!.publishedAt)}", fontSize = 13.sp, color = colors.onSurfaceVariant)
+            if (offered) Text(stringResource(R.string.upd_dot_ago, ago(release!!.publishedAt)), fontSize = 13.sp, color = colors.onSurfaceVariant)
         }
         Text(look.headline, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.padding(top = 4.dp))
         if (offered) {
             ReleaseNotes(changeTitle(release!!.title.ifBlank { release.tag }), release.summary, release.tag)
         }
         if (look.detail != null) Text(look.detail, fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
-        if (installBlock != null && (offered || offer == Offer.AHEAD)) {
+        if (installBlock != null && offered) {
             Text(installBlock, fontSize = 13.sp, color = AttentionAmber, modifier = Modifier.padding(top = 10.dp))
         }
         if (u.error != null) Text(u.error, fontSize = 13.sp, color = pal.error, modifier = Modifier.padding(top = 12.dp))
@@ -184,19 +187,20 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         Box(Modifier.padding(top = 14.dp)) {
             when {
                 u.stage != null -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (u.percent >= 0) "${u.stage}… ${u.percent}%" else "${u.stage}…", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                    Text(if (u.percent >= 0) stringResource(R.string.upd_stage_percent, u.stage, u.percent) else stringResource(R.string.upd_stage, u.stage), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
                     if (u.percent >= 0) LinearProgressIndicator(progress = { u.percent / 100f }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))
                     else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))
                 }
-                offer == Offer.UPDATE -> PrimaryButton("Update$button", enabled = installable, main = true) { ua.onInstall(release!!) }
-                offer == Offer.SWITCH -> PrimaryButton("Install$button", enabled = installable, main = true) { ua.onInstall(release!!) }
+                offered && installBlock != null -> Unit
+                offer == Offer.UPDATE -> PrimaryButton(stringResource(R.string.upd_update_button, button), enabled = installable, main = true) { ua.onInstall(release!!) }
+                offer == Offer.SWITCH -> PrimaryButton(stringResource(R.string.upd_install_button, button), enabled = installable, main = true) { ua.onInstall(release!!) }
                 offer == Offer.AHEAD && installBlock == null ->
-                    SecondaryButton("Install Stable ${release?.version.orEmpty()} anyway", enabled = installable) { ua.onInstall(release!!) }
-                offer == Offer.GONE -> PrimaryButton("Follow Preview", main = true) { ua.onFollow(Follow(Channel.NIGHTLY)) }
+                    SecondaryButton(stringResource(R.string.upd_install_anyway, release?.version.orEmpty()), enabled = installable) { ua.onInstall(release!!) }
+                offer == Offer.GONE -> PrimaryButton(stringResource(R.string.upd_follow_preview), main = true) { ua.onFollow(Follow(Channel.NIGHTLY)) }
             }
         }
         if (s.sessionRunning && (offered || offer == Offer.AHEAD)) {
-            Text("Stop the running session to update.", fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+            Text(stringResource(R.string.upd_stop_session), fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
@@ -221,7 +225,7 @@ private fun ReleaseNotes(title: String, notes: String, key: String) {
         val hot = rememberHot(src)
         val toggle = { open = !open }
         Text(
-            if (open) "Less" else "More", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
+            if (open) stringResource(R.string.upd_less) else stringResource(R.string.upd_more), fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
             modifier = Modifier.padding(top = 2.dp).offset(x = (-6).dp).paneItem("notes:more")
                 .clip(Shape12).glideBorder(hot, Shape12, pal.signal)
                 .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = toggle)
@@ -232,23 +236,25 @@ private fun ReleaseNotes(title: String, notes: String, key: String) {
 }
 
 /** The headline for a build on offer: "DroidDeck 0.3.0", "New Preview build", "PR #93 test build". */
+@Composable
 private fun newBuild(f: Follow, r: Release) = when (f.channel) {
-    Channel.STABLE -> "DroidDeck ${r.version ?: r.tag}"
-    Channel.NIGHTLY -> "New Preview build"
-    Channel.TEST -> "PR #${r.pr} test build"
+    Channel.STABLE -> stringResource(R.string.upd_new_stable, r.version ?: r.tag)
+    Channel.NIGHTLY -> stringResource(R.string.upd_new_preview)
+    Channel.TEST -> stringResource(R.string.upd_new_test, r.pr)
 }
 
 /** A PR title as a sentence: "fix(steam): keep the client alive" -> "Keep the client alive". */
 private fun changeTitle(t: String): String =
     t.replace(Regex("""^[a-z]+(\([^)]*\))?!?:\s*"""), "").replaceFirstChar { it.uppercase() }
 
-private fun megabytes(bytes: Long) = "${(bytes + 524_288) / 1_048_576} MB"
+@Composable
+private fun megabytes(bytes: Long) = stringResource(R.string.upd_mb, ((bytes + 524_288) / 1_048_576).toInt())
 
 /** The three channels as cards to pick from; Test builds opens its list of PRs under it. */
 @Composable
 private fun ChannelLabel() {
     Text(
-        "UPDATE CHANNEL", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+        stringResource(R.string.upd_channel), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 2.dp, top = 2.dp, bottom = 10.dp),
     )
 }
@@ -260,19 +266,19 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
     val tests = catalog?.tests.orEmpty()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ChannelCard(
-            Icons.Outlined.Verified, "Stable", "Tested releases, for most people",
-            catalog?.stable?.let { "${it.version ?: it.tag} · ${ago(it.publishedAt)}" }, u.follow.channel == Channel.STABLE,
+            Icons.Outlined.Verified, stringResource(R.string.upd_stable), stringResource(R.string.upd_stable_hint),
+            catalog?.stable?.let { stringResource(R.string.upd_version_ago, it.version ?: it.tag, ago(it.publishedAt)) }, u.follow.channel == Channel.STABLE,
         ) { ua.onFollow(Follow(Channel.STABLE)) }
         ChannelCard(
-            Icons.Outlined.Bolt, "Preview", "Newest main-branch fixes, before Stable",
+            Icons.Outlined.Bolt, stringResource(R.string.upd_preview), stringResource(R.string.upd_preview_hint),
             catalog?.preview?.let { ago(it.publishedAt) }, u.follow.channel == Channel.NIGHTLY,
         ) { ua.onFollow(Follow(Channel.NIGHTLY)) }
         ChannelCard(
-            Icons.Outlined.Science, "Test builds", "Try a fix before it's released",
-            when (tests.size) { 0 -> "None right now"; 1 -> "1 to try"; else -> "${tests.size} to try" },
+            Icons.Outlined.Science, stringResource(R.string.upd_tests), stringResource(R.string.upd_tests_hint),
+            if (tests.isEmpty()) stringResource(R.string.upd_tests_none) else pluralStringResource(R.plurals.upd_tests_count, tests.size, tests.size),
             u.follow.channel == Channel.TEST, enabled = tests.isNotEmpty() || u.follow.channel == Channel.TEST,
         ) { tests.firstOrNull()?.let { ua.onFollow(Follow(Channel.TEST, it.pr)) } }
-        AnimatedVisibility(u.follow.channel == Channel.TEST && tests.isNotEmpty(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AnimatedVisibility(u.follow.channel == Channel.TEST && tests.isNotEmpty(), enter = expandVertically(Motion.sp(1f)) + fadeIn(Motion.sp(1f)), exit = shrinkVertically(Motion.sp(1f)) + fadeOut(Motion.sp(1f))) {
             Column(Modifier.padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 tests.forEach { t -> TestRow(t, u.follow.pr == t.pr) { ua.onFollow(Follow(Channel.TEST, t.pr)) } }
             }
@@ -289,13 +295,14 @@ private fun ChannelCard(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    // Focus shows at once, as on the Components page: no ripple, no fade.
-    val fill = if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else Color.Transparent
+    // Focus shows at once, as on the Components page: no ripple, no fade. Selection is the radio
+    // dot, never a ring of its own: the ring is only ever focus.
+    val fill = if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxWidth().paneItem("channel:$title")
-            .clip(Shape14).background(colors.surface).background(fill).glideBorder(hot, Shape14, pal.signal, if (selected) pal.signal else pal.line)
+            .clip(Shape14).background(colors.surface).background(fill).glideBorder(hot, Shape14, pal.signal, pal.line)
             .alpha(if (enabled) 1f else 0.55f)
             .hoverable(src)
             .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.RadioButton, onClick = onClick)
@@ -312,9 +319,16 @@ private fun ChannelCard(
             }
             Text(hint, fontSize = 12.5.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(22.dp).clip(CircleShape).border(2.dp, if (selected) pal.signal else pal.line2, CircleShape)) {
-            if (selected) Box(Modifier.size(11.dp).clip(CircleShape).background(pal.signal))
-        }
+        RadioDot(selected)
+    }
+}
+
+/** The one mark of a chosen option: a filled dot in a ring, beside it. */
+@Composable
+private fun RadioDot(selected: Boolean, size: androidx.compose.ui.unit.Dp = 22.dp) {
+    val pal = LocalPalette.current
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size).clip(CircleShape).border(2.dp, if (selected) pal.signal else pal.line2, CircleShape)) {
+        if (selected) Box(Modifier.size(size / 2).clip(CircleShape).background(pal.signal))
     }
 }
 
@@ -331,8 +345,8 @@ private fun TestRow(t: Release, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().paneItem("test:${t.pr}")
             .heightIn(min = 52.dp)
             .clip(Shape12)
-            .background(colors.surface).background(if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else Color.Transparent)
-            .glideBorder(hot, Shape12, pal.signal, if (selected) pal.signal else pal.line)
+            .background(colors.surface).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
+            .glideBorder(hot, Shape12, pal.signal, pal.line)
             .hoverable(src)
             .clickable(interactionSource = src, indication = null, role = Role.RadioButton, onClick = onClick)
             .controllerConfirm(onClick = onClick)
@@ -340,21 +354,24 @@ private fun TestRow(t: Release, selected: Boolean, onClick: () -> Unit) {
     ) {
         Text("#${t.pr}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (selected) pal.signal else colors.onSurfaceVariant)
         Column(Modifier.weight(1f)) {
-            Text(t.title.ifBlank { "PR #${t.pr}" }, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (t.apk == null) "Not built for this copy of DroidDeck" else "Updated ${ago(t.publishedAt)}", fontSize = 12.sp, color = colors.onSurfaceVariant)
+            Text(t.title.ifBlank { stringResource(R.string.upd_pr, t.pr) }, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (t.apk == null) stringResource(R.string.upd_not_built) else stringResource(R.string.upd_updated, ago(t.publishedAt)), fontSize = 12.sp, color = colors.onSurfaceVariant)
         }
+        RadioDot(selected, 20.dp)
     }
 }
 
+@Composable
 private fun channelName(f: Follow) = when (f.channel) {
-    Channel.STABLE -> "Stable"
-    Channel.NIGHTLY -> "Preview"
-    Channel.TEST -> "the PR #${f.pr} test"
+    Channel.STABLE -> stringResource(R.string.upd_stable)
+    Channel.NIGHTLY -> stringResource(R.string.upd_preview)
+    Channel.TEST -> stringResource(R.string.upd_test_name, f.pr)
 }
 
+@Composable
 private fun ago(millis: Long): String {
-    if (millis <= 0) return "a while ago"
-    if (System.currentTimeMillis() - millis in 0 until 60_000) return "just now"
+    if (millis <= 0) return stringResource(R.string.upd_while_ago)
+    if (System.currentTimeMillis() - millis in 0 until 60_000) return stringResource(R.string.upd_just_now)
     return android.text.format.DateUtils.getRelativeTimeSpanString(
         millis, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS,
     ).toString()

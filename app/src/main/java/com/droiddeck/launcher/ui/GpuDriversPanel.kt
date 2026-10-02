@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -120,29 +122,28 @@ internal fun GpuDriversPanel(s: GpuDriversState, a: GpuDriversActions, onAdvance
         DeviceCard(s)
         if (!s.unsupported) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ModeCard(Icons.Outlined.AutoAwesome, "Auto", "The best pair for this GPU, kept up to date", s.auto, Modifier.weight(1f)) { a.onAuto(true) }
-                ModeCard(Icons.Outlined.Tune, "Manual", "Pick a pair yourself", !s.auto, Modifier.weight(1f)) { a.onAuto(false) }
+                ModeCard(Icons.Outlined.AutoAwesome, stringResource(R.string.common_auto), stringResource(R.string.gpu_auto_hint), s.auto, Modifier.weight(1f)) { a.onAuto(true) }
+                ModeCard(Icons.Outlined.Tune, stringResource(R.string.mode_suspend_manual), stringResource(R.string.gpu_manual_hint), !s.auto, Modifier.weight(1f)) { a.onAuto(false) }
             }
             if (s.auto) AutoCard(s)
             else {
                 val shown = s.pairs.filter { it.suits || showAll }
                 if (shown.isEmpty()) Text(
-                    if (s.checking) "Checking for drivers…" else "No drivers listed yet. Tap refresh to look for them.",
+                    if (s.checking) stringResource(R.string.gpu_checking) else stringResource(R.string.gpu_none_listed),
                     fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp),
                 )
                 for (p in shown) PairLine(p, s.busy == p.key, s.percent, enabled = s.busy == null) { a.onPair(p.key) }
                 if (s.pairs.any { !it.suits }) FocusText(
-                    if (showAll) "Hide drivers for other GPUs" else "Show drivers for other GPUs", pal.signal,
+                    if (showAll) stringResource(R.string.gpu_hide_other) else stringResource(R.string.gpu_show_other), pal.signal,
                 ) { showAll = !showAll }
             }
         }
-        SettingsGroup("Advanced") {
-            val together = s.activeBundle?.let { "Set together with the %s driver: $it carries both." }
-            SettingsRow("Runtime driver", together?.format("display") ?: "Games and the desktop draw with it.") {
-                DriverDropdown(s.linuxRows, s.linuxSelected, "Runtime default", a.onSelectLinux) { onAdvanced("rt") }
+        SettingsGroup(stringResource(R.string.gpu_advanced)) {
+            SettingsRow(stringResource(R.string.comp_runtime_driver), s.activeBundle?.let { stringResource(R.string.gpu_set_with_display, it) } ?: stringResource(R.string.gpu_runtime_hint)) {
+                DriverDropdown(s.linuxRows, s.linuxSelected, stringResource(R.string.gpu_runtime_default), a.onSelectLinux) { onAdvanced("rt") }
             }
-            SettingsRow("Display driver", together?.format("runtime") ?: "Puts frames on the screen. Changes apply after DroidDeck restarts.") {
-                DriverDropdown(s.androidRows, s.androidSelected, "Auto - picked by GPU", a.onSelectAndroid) { onAdvanced("panel") }
+            SettingsRow(stringResource(R.string.comp_display_driver), s.activeBundle?.let { stringResource(R.string.gpu_set_with_runtime, it) } ?: stringResource(R.string.gpu_display_hint)) {
+                DriverDropdown(s.androidRows, s.androidSelected, stringResource(R.string.gpu_auto_by_gpu), a.onSelectAndroid) { onAdvanced("panel") }
             }
         }
     }
@@ -174,7 +175,7 @@ private fun DriverDropdown(rows: List<DriverRow>, selected: String, fallback: St
                 onClick = { open = false; if (row.id != selected) onSelect(row.id) },
             )
             HorizontalDivider(color = pal.line)
-            DropdownMenuItem(text = { Text("Download, import or delete…", fontSize = 14.sp, color = pal.signal) }, onClick = { open = false; onManage() })
+            DropdownMenuItem(text = { Text(stringResource(R.string.gpu_manage), fontSize = 14.sp, color = pal.signal) }, onClick = { open = false; onManage() })
         }
     }
 }
@@ -217,14 +218,14 @@ private fun AutoCard(s: GpuDriversState) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14).padding(14.dp),
     ) {
-        Text("IN USE", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = colors.onSurfaceVariant)
+        Text(stringResource(R.string.gpu_in_use_caps), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = colors.onSurfaceVariant)
         Text(
-            active?.let { "${it.name} ${it.version}" } ?: s.activeBundle ?: "The drivers built into DroidDeck",
+            active?.let { "${it.name} ${it.version}" } ?: s.activeBundle ?: stringResource(R.string.gpu_builtin),
             fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
         )
         Text(
-            if (active != null || s.activeBundle != null) "Runtime and display drivers set together as a matched pair."
-            else recommended?.let { "Recommended for this GPU: ${it.name}." } ?: "Tap refresh to look for drivers for this GPU.",
+            if (active != null || s.activeBundle != null) stringResource(R.string.gpu_matched_pair)
+            else recommended?.let { stringResource(R.string.gpu_recommended_for, it.name) } ?: stringResource(R.string.gpu_refresh_hint),
             fontSize = 13.sp, color = colors.onSurfaceVariant,
         )
         if (s.busy != null) {
@@ -243,12 +244,13 @@ private fun ModeCard(icon: ImageVector, title: String, hint: String, selected: B
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    val fill = if (hot) pal.signal.copy(alpha = 0.14f) else if (selected) pal.signal.copy(alpha = 0.08f) else Color.Transparent
+    // Selection is the radio; the ring is only ever focus.
+    val fill = if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = modifier.paneItem("gpu-mode:$title").heightIn(min = 56.dp)
             .clip(Shape14).background(colors.surface).background(fill)
-            .border(if (hot) 2.dp else 1.dp, if (hot || selected) pal.signal else pal.line, Shape14)
+            .glideBorder(hot, Shape14, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.RadioButton, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -269,12 +271,12 @@ private fun PairLine(p: PairRow, busy: Boolean, percent: Int, enabled: Boolean, 
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     val usable = enabled && p.complete && !p.active
-    val fill = if (hot) pal.signal.copy(alpha = 0.14f) else if (p.active) pal.signal.copy(alpha = 0.08f) else Color.Transparent
+    val fill = if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth().paneItem("pair:${p.key}").heightIn(min = 56.dp)
             .clip(Shape12).background(colors.surface).background(fill)
-            .border(if (hot) 2.dp else 1.dp, if (hot || p.active) pal.signal else pal.line, Shape12)
+            .glideBorder(hot, Shape12, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = null, enabled = usable, role = Role.RadioButton, onClick = onClick)
             .controllerConfirm(enabled = usable, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -284,7 +286,7 @@ private fun PairLine(p: PairRow, busy: Boolean, percent: Int, enabled: Boolean, 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(p.name, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (p.recommended) Text(
-                    "RECOMMENDED", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = pal.good,
+                    stringResource(R.string.gpu_recommended_caps), fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = pal.good,
                     modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(pal.good.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
@@ -295,10 +297,10 @@ private fun PairLine(p: PairRow, busy: Boolean, percent: Int, enabled: Boolean, 
                 Text(if (percent >= 0) "$percent%" else "…", fontSize = 12.sp, color = colors.onSurfaceVariant)
                 LinearProgressIndicator(progress = { percent.coerceAtLeast(0) / 100f }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
             }
-            p.active -> Text("In use", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = pal.signal)
-            !p.complete -> Text("Unavailable", fontSize = 13.sp, color = colors.onSurfaceVariant)
-            p.installed -> Text("Use", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-            else -> Text("Download", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+            p.active -> Text(stringResource(R.string.comp_tag_in_use), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = pal.signal)
+            !p.complete -> Text(stringResource(R.string.gpu_unavailable), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            p.installed -> Text(stringResource(R.string.common_use), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+            else -> Text(stringResource(R.string.common_download), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
         }
     }
 }

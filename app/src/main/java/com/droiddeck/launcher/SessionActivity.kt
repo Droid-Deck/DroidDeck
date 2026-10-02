@@ -181,6 +181,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var quitFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
     /** Left behind that flood: the front end opens on its blue, so no sink of our own. */
     private var quitFlooded = false
+    /** Leaving behind a flood spreading out of the throbber (FloodSpread); see finish(). */
+    private var leaving by mutableStateOf(false)
+    /** Close without the leaving flood: a retry opens a fresh session at once. */
+    private var closeAtOnce = false
     /** The drawer's Components tab: the Protons as last read (ComponentsManager). */
     private var drawerComponents by mutableStateOf<ComponentsManager.Snapshot?>(null)
     private var drawerPage by mutableIntStateOf(0)
@@ -500,6 +504,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     title = pausedTitle(),
                     onResume = { SessionService.resume(this@SessionActivity) },
                 )
+                if (leaving) com.droiddeck.launcher.ui.FloodSpread(
+                    com.droiddeck.launcher.ui.LocalPalette.current.signal,
+                    ball = if (loading.visible) com.droiddeck.launcher.ui.ThrobberSpot.ball else null,
+                ) { completeLeave() }
                 quitFrom?.let { from ->
                     val error = androidx.compose.material3.MaterialTheme.colorScheme.error
                     com.droiddeck.launcher.ui.LaunchFlood(
@@ -1062,6 +1070,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** The same start again, in a fresh activity: the ended one keeps no session to reuse. */
     private fun retrySession() {
         val again = Intent(intent)
+        closeAtOnce = true
         finish()
         startActivity(again)
     }
@@ -1735,14 +1744,41 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         finish()
     }
 
-    /** Leaving the session sinks its surface back down onto the front end. */
+    /**
+     * Every way out on screen (backing out of the loading screen, closing the ended screen, the
+     * session ending) leaves as a session arrives, in reverse: the blue spreads out of the
+     * throbber's ball, or the middle of the screen once a game is up, and the front end opens on it
+     * and draws it back into the button the session came from. Off screen, or with animations
+     * off, it just closes.
+     */
     override fun finish() {
+        if (!quitFlooded && !closeAtOnce && com.droiddeck.launcher.ui.Motion.scale != 0f &&
+            lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+            if (!leaving) {
+                leaving = true
+                // Should the flood never get its frames, the session still closes.
+                uiHandler.postDelayed({ completeLeave() }, LEAVE_TIMEOUT_MS)
+            }
+            return
+        }
         super.finish()
         if (quitFlooded) overridePendingTransition(0, 0)
         else overridePendingTransition(R.anim.session_hold, R.anim.session_sink)
     }
 
+    /** The screen is all blue: close onto the front end, which opens on the same blue. */
+    private fun completeLeave() {
+        if (isFinishing) return
+        val signal = com.droiddeck.launcher.ui.Themes.byId(SessionPrefs.theme(this)).signal
+        com.droiddeck.launcher.ui.QuitFlood.mark(signal.toArgb())
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(signal.toArgb()))
+        quitFlooded = true
+        finish()
+    }
+
     companion object {
+        /** How long the leaving flood may take before the session closes without it. */
+        private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TAG = "SessionActivity"
         private const val UNBUFFERED_SOURCES = InputDevice.SOURCE_CLASS_JOYSTICK or InputDevice.SOURCE_CLASS_TRACKBALL or InputDevice.SOURCE_CLASS_POSITION
         private const val CURSOR_PAD_HOLD_MS = 1200L

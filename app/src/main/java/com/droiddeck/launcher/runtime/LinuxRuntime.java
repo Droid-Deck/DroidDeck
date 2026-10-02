@@ -367,9 +367,7 @@ public final class LinuxRuntime {
      * Valve's mangoapp (Deck mode's performance overlay) reads an Adreno GPU's load, clock and
      * temperatures from where they are on Valve's own hardware; every Adreno under Android keeps
      * them in KGSL's sysfs, readable by the app, though which files a kernel has differs between
-     * Snapdragon generations - so each value takes the first source that exists, the order other
-     * Android PC emulators (GameNative, Winlator forks) read them in. A value found nowhere is left
-     * alone.
+     * Snapdragon generations.
      */
     private static void bindAdrenoStats(List<String> cmd, List<String> extraBinds) {
         String kgsl = "/sys/class/kgsl/kgsl-3d0/";

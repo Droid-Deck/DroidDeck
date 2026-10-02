@@ -14,9 +14,7 @@ import java.io.RandomAccessFile
  * not on one that is missing, which it skips. An enforcing SELinux policy (every retail phone)
  * refuses apps some or all of KGSL's sysfs, each vendor differently, so mangoapp died on start and
  * the session ran with no overlay. Where any of the three is refused, a directory of our own is
- * bound there instead, each value fed twice a second from the first source this device lets the
- * app read - the places other Android overlays (GameNative, WinNative, Bannerlator) read an
- * Adreno's numbers from, across Snapdragon generations and vendor kernels. A value with no
+ * bound there instead. A value with no
  * readable source is left out, and the overlay shows no line for it. Where all three are
  * readable, nothing is done.
  *

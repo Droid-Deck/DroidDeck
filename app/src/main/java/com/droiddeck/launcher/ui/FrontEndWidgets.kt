@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.focus.focusRequester
@@ -41,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -227,11 +230,19 @@ internal fun Cog(size: androidx.compose.ui.unit.Dp = 48.dp, onClick: () -> Unit)
     val colors = MaterialTheme.colorScheme
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    val rot by animateFloatAsState(if (hot) 90f else 0f, Motion.sp(0.55f), label = "cog")
+    // A press spins it on a half turn as the page it opens blooms out of it (PageOrigin).
+    var spins by remember { mutableIntStateOf(0) }
+    val rot by animateFloatAsState((if (hot) 90f else 0f) + spins * 180f, Motion.sp(0.55f), label = "cog")
     val pal = LocalPalette.current
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val cornerPx = with(androidx.compose.ui.platform.LocalDensity.current) { (if (size > 48.dp) 14.dp else 12.dp).toPx() }
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem("cog").downToFirstTile().size(size).clip(if (size > 48.dp) Shape14 else Shape12).background(Color.White.copy(alpha = 0.03f)).glideBorder(hot, if (size > 48.dp) Shape14 else Shape12, pal.signal, pal.line2)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick),
-    ) { Icon(Icons.Filled.Settings, "Settings", tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(if (size > 48.dp) 20.dp else 18.dp).rotate(rot)) }
+        modifier = Modifier.paneItem("cog").downToFirstTile().size(size).onGloballyPositioned { placed[0] = it }.clip(if (size > 48.dp) Shape14 else Shape12).background(Color.White.copy(alpha = 0.03f)).glideBorder(hot, if (size > 48.dp) Shape14 else Shape12, pal.signal, pal.line2)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current) {
+                placed[0]?.takeIf { it.isAttached }?.let { PageOrigin.mark(Origin(it.boundsInRoot(), cornerPx)) }
+                spins++
+                onClick()
+            },
+    ) { Icon(Icons.Filled.Settings, stringResource(R.string.drawer_page_settings), tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(if (size > 48.dp) 20.dp else 18.dp).rotate(rot)) }
 }

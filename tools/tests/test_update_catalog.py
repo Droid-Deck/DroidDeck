@@ -7,6 +7,7 @@ from tools.release.update_catalog import (
     parse_variants,
     published_millis,
     release_body_value,
+    stable_app_release,
 )
 
 
@@ -85,6 +86,19 @@ pubg com.tencent.ig -pubg
             published_millis(release),
             published_millis(release, prefer_updated=True),
         )
+
+    def test_stable_is_the_newest_app_release_not_github_latest(self):
+        def release(tag, at, *assets, **flags):
+            return {"tag_name": tag, "published_at": at, "assets": [{"name": a} for a in assets], **flags}
+        releases = [
+            release("gamescope-3.16.29-p5", "2026-10-01T18:53:08Z", "gamescope.tzst"),
+            release("0.3.0", "2026-09-30T00:00:00Z", "DroidDeck-0.3.0.apk", prerelease=True),
+            release("0.2.1", "2026-09-29T00:00:00Z", "DroidDeck-0.2.1.apk", draft=True),
+            release("0.2.0", "2026-09-28T03:20:01Z", "DroidDeck-0.2.0-pubg.apk", "DroidDeck-0.2.0.apk"),
+            release("0.1.6", "2026-09-01T00:00:00Z", "DroidDeck-0.1.6.apk"),
+        ]
+        self.assertEqual("0.2.0", stable_app_release(releases)["tag_name"])
+        self.assertIsNone(stable_app_release(releases[:1]))
 
 
 if __name__ == "__main__":

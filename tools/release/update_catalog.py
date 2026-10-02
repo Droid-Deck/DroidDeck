@@ -243,13 +243,19 @@ def main_commit(release: dict) -> str | None:
     return match.group(1) if match else None
 
 
+def stable_app_release(releases: list[dict]) -> dict | None:
+    """The newest published app release. The repo also publishes gamescope and wlroots
+    releases that GitHub may mark latest, so an app release is one shipping DroidDeck-<tag>.apk."""
+    apps = [
+        r for r in releases
+        if not r.get("draft") and not r.get("prerelease")
+        and any(a.get("name") == f"DroidDeck-{r.get('tag_name')}.apk" for a in r.get("assets") or [])
+    ]
+    return max(apps, key=lambda r: r.get("published_at") or r.get("created_at") or "", default=None)
+
+
 def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str) -> dict:
-    try:
-        stable_release = source.get(f"/repos/{source_repo}/releases/latest")
-    except ApiError as e:
-        if e.status != 404:
-            raise
-        stable_release = None
+    stable_release = stable_app_release(source.get(f"/repos/{source_repo}/releases?per_page=100"))
 
     stable = None
     if stable_release:
