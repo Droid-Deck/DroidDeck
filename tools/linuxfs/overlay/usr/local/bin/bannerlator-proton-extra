@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # Installs a third-party Proton build into the client's compatibilitytools.d, so it appears in the
-# Compatibility dropdown beside Bannerlator Proton (ARM64) and can be picked per game.
+# Compatibility dropdown beside our own Proton ARM64 and can be picked per game.
 #
 #   bannerlator-proton-extra <steam root> ge [--tag GE-Proton11-7]
 #   bannerlator-proton-extra <steam root> cachyos [--tag cachyos-11.0-20260703-slr]
@@ -16,7 +16,7 @@
 # What it cannot use is their toolmanifest. Like Valve's ARM64 depot they declare
 # require_tool_appid, which makes Steam stack pressure-vessel underneath - and pressure-vessel
 # needs unprivileged user namespaces, which an Android app does not get. Patching that out is
-# bannerlator-steam-compat's job (adopt_extras); this script only puts the tree in place and then
+# steam-compatibility's job (adopt_extras); this script only puts the tree in place and then
 # calls it, so an install is usable without restarting the client.
 import hashlib
 import json
@@ -210,7 +210,7 @@ def main():
 
     # Patches out require_tool_appid and wraps the entry point, which is what makes it launchable
     # here. Doing it now means the client picks the tool up on its next restart with no extra step.
-    subprocess.call(["bannerlator-steam-compat", steam_root])
+    subprocess.call(["steam-compatibility", steam_root])
 
 
 if __name__ == "__main__":

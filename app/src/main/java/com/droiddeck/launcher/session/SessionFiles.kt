@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.os.Environment
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
@@ -32,7 +33,7 @@ object SessionFiles {
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
             "usr/local/bin/bannerlator-session" to "usr/local/bin/bannerlator-session",
-            "usr/local/bin/bannerlator-steam-compat" to "usr/local/bin/bannerlator-steam-compat",
+            "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/bannerlator-steam-install" to "usr/local/bin/bannerlator-steam-install",
             "usr/local/bin/bannerlator-steam-library" to "usr/local/bin/bannerlator-steam-library",
             "usr/local/bin/bannerlator-seed-redists" to "usr/local/bin/bannerlator-seed-redists",
@@ -122,6 +123,7 @@ object SessionFiles {
             }
             if (!installed) Log.e(TAG, "$relative NOT staged")
         }
+        File(root, "usr/local/bin/bannerlator-steam-compat").delete()
         // The DirectAudio driver for games under Proton: the glibc build of winedirectaudio, which
         // the Proton wrappers add to WINEDLLPATH when the session asks for it (BL_DIRECTAUDIO).
         // Staged like the scripts, so a driver fix reaches an installed runtime without re-hosting.
@@ -163,6 +165,9 @@ object SessionFiles {
             || !staged.renameTo(File(etc, "ld.so.preload"))) {
             staged.delete()
             Log.e(TAG, "could not write ld.so.preload")
+        }
+        if (!FileUtils.writeString(File(etc, "steam-compatibility-label"), context.getString(R.string.steam_compat_label))) {
+            Log.e(TAG, "could not write steam-compatibility-label")
         }
 
         val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")

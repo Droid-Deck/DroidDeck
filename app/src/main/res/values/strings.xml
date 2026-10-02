@@ -190,4 +190,7 @@
     <string name="add_app_cancel">Cancel</string>
     <string name="add_app_runtime_required">Install the Linux runtime from Setup first.</string>
     <string name="add_app_busy">Wait for %1$s to finish.</string>
+    <string name="steam_compat_label">Compatible</string>
+    <string name="proton_compatible_note">Builds marked “%1$s” in Steam’s Compatibility menu have DroidDeck’s prefix fixes and start games here. The default is Proton Experimental ARM64 (%1$s), or Proton 11.0 ARM64 (%1$s) once that newer build is installed. Valve’s own Proton entries without the mark cannot start a game on this device.</string>
+    <string name="proton_installed">Installed %1$s · %2$s</string>
 </resources>

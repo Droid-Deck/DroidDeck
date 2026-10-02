@@ -316,7 +316,7 @@ case $mode in
     step "registering the app's game library with Steam"
     bannerlator-steam-library "$steam_root" || true
     step "setting up the ARM64 Proton compatibility tool"
-    bannerlator-steam-compat "$steam_root" || true
+    steam-compatibility "$steam_root" || true
     # The user's own games, as non-Steam shortcuts under that tool; the list is written by the app
     # each session (empty = the app's earlier entries are removed, the client's own are kept).
     if [ -n "${BL_ADDED_GAMES:-}" ]; then
@@ -345,7 +345,7 @@ case $mode in
           # StateFlags 4 = fully installed; a moment more for the client to finish its bookkeeping.
           if grep -q '"StateFlags"[[:space:]]*"4"' "$_bl_acf" 2>/dev/null; then
             sleep 10
-            bannerlator-steam-compat "$steam_root" >/dev/null 2>&1 || true
+            steam-compatibility "$steam_root" >/dev/null 2>&1 || true
             step "compatibility layer installed: restarting the Steam client once"
             : > "$HOME/.bl-restart-once"
             "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
@@ -505,7 +505,7 @@ case $mode in
         bannerlator-seed-redists "$steam_root" >/dev/null 2>&1 || true
         if compat_due; then
           : > "$compat_stamp"
-          bannerlator-steam-compat "$steam_root" >/dev/null 2>&1 || true
+          steam-compatibility "$steam_root" >/dev/null 2>&1 || true
         fi
       done
     ) &

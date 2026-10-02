@@ -101,7 +101,7 @@ object ComponentsManager {
     private fun stateFile(context: Context) = File(dataDir(context), "state.json")
     private fun catalogFile(context: Context) = File(dataDir(context), "catalog.json")
     /**
-     * Inside the Linux runtime, read by the Proton launch wrappers (bannerlator-steam-compat's
+     * Inside the Linux runtime, read by the Proton launch wrappers (steam-compatibility's
      * bl_components) before every game launch: desired.tsv + an unpacked copy of each package in use.
      */
     private const val LAUNCH_DIR = "root/.local/share/bannerlator-components"

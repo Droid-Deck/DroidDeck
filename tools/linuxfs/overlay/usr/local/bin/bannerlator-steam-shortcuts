@@ -234,13 +234,14 @@ def main():
     # Each added game runs under the ARM64 Proton: the compat registrar's own mapping writer.
     try:
         # No .py suffix on the registrar, so the loader has to be named.
-        compat_path = "/usr/local/bin/bannerlator-steam-compat"
+        compat_path = "/usr/local/bin/steam-compatibility"
         spec = importlib.util.spec_from_file_location("compat", compat_path, loader=importlib.machinery.SourceFileLoader("compat", compat_path))
         compat = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(compat)
         cfg = os.path.join(steam_root, "config", "config.vdf")
         if os.path.isfile(cfg) and (ours or routes):
-            compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe")] + [str(appid) for appid in set(routes.values())])
+            compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe")] + [str(appid) for appid in set(routes.values())],
+                                    protect=compat.adopt_extras(os.path.join(steam_root, "compatibilitytools.d")))
             print("bannerlator-steam-shortcuts: mapped them to %s" % compat.TOOL)
     except Exception as e:  # noqa: BLE001 - the games still show; the client falls back to the default tool
         print("bannerlator-steam-shortcuts: compat mapping skipped (%s)" % e)

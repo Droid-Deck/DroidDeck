@@ -9,7 +9,7 @@ import unittest
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 MODULE = runpy.run_path(str(BIN / "bannerlator-game-env"))
-COMPAT = runpy.run_path(str(BIN / "bannerlator-steam-compat"))
+COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
 
 
 class GameEnvironmentTest(unittest.TestCase):
@@ -68,7 +68,7 @@ class GameEnvironmentTest(unittest.TestCase):
                 proton.write_text("#!/usr/bin/python3\nimport json, os, sys\nprint(json.dumps([os.environ['CUSTOM'], sys.argv[1:]]))\nsys.exit(7)\n")
                 proton.chmod(0o755)
             (extra / "toolmanifest.vdf").write_text('"manifest" { "commandline" "/proton %verb%" }')
-            COMPAT["build_tool"](str(tools / COMPAT["TOOL"]))
+            COMPAT["build_tool"](str(tools / COMPAT["TOOL"]), str(depot))
             COMPAT["adopt_extras"](str(tools))
             config = home / ".config/droiddeck/game-environment.json"
             config.parent.mkdir(parents=True)
@@ -81,6 +81,67 @@ class GameEnvironmentTest(unittest.TestCase):
                     text=True, capture_output=True)
                 self.assertEqual(result.returncode, 7, result.stderr)
                 self.assertEqual(json.loads(result.stdout), ["specific", ["waitforexitandrun", "game with spaces.exe"]])
+
+    def test_default_is_compatible_tool_and_labels_mark_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            label = home / "label"
+            label.write_text("Compatible\n")
+            COMPAT["display_name"].__globals__["LABEL_FILE"] = str(label)
+            tools = home / "compatibilitytools.d"
+            extra = tools / "proton-cachyos-11"
+            extra.mkdir(parents=True)
+            (extra / "proton").write_text("")
+            (extra / "toolmanifest.vdf").write_text('"manifest" { "commandline" "/proton %verb%" }')
+            vdf = tools / COMPAT["TOOL"] / "compatibilitytool.vdf"
+            COMPAT["build_tool"](str(tools / COMPAT["TOOL"]), None)
+            self.assertIn('"display_name" "Proton ARM64 (Compatible)"', vdf.read_text())
+            for source in COMPAT["SOURCES"]:
+                COMPAT["build_tool"](str(tools / COMPAT["TOOL"]), str(home / "steamapps/common" / source))
+                self.assertIn('"display_name" "%s ARM64 (Compatible)"' % source.replace(" (ARM64)", ""), vdf.read_text())
+            protect = COMPAT["adopt_extras"](str(tools))
+            self.assertIn('"display_name" "proton-cachyos-11 (Compatible)"', (extra / "compatibilitytool.vdf").read_text())
+            config = home / "config.vdf"
+            mapping = "".join('"%s" { "name" "%s" "config" "" "priority" "%s" }' % entry for entry in (
+                ("0", "GE-Proton10-25", "75"), ("42", "proton_experimental_arm64", "250"), ("43", "proton-cachyos-11", "250")))
+            config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }' % mapping)
+            COMPAT["register_default"](str(config), ["44"], protect=protect)
+            tokens = COMPAT["tokenize"](config.read_text())
+            names = {tokens[i - 1].strip('"'): tokens[i + 2].strip('"') for i in range(1, len(tokens) - 2) if tokens[i] == "{" and tokens[i + 1] == '"name"'}
+            self.assertEqual(names, {"0": COMPAT["TOOL"], "42": COMPAT["TOOL"], "43": "proton-cachyos-11", "44": COMPAT["TOOL"]})
+
+    def test_existing_install_moves_to_new_tool_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            (home / "label").write_text("Compatible\n")
+            COMPAT["main"].__globals__["LABEL_FILE"] = str(home / "label")
+            steam = home / "Steam"
+            depot = steam / "steamapps/common" / COMPAT["SOURCES"][0]
+            (depot / "files/bin-arm64").mkdir(parents=True)
+            (steam / "steamapps/appmanifest_42.acf").write_text("")
+            legacy = steam / "compatibilitytools.d" / COMPAT["LEGACY_TOOL"]
+            legacy.mkdir(parents=True)
+            for name in COMPAT["OWN_FILES"]:
+                (legacy / name).write_text("old")
+            (steam / "config").mkdir()
+            config = steam / "config/config.vdf"
+            mapping = "".join('"%s" { "name" "%s" "config" "" "priority" "%s" }' % (app, COMPAT["LEGACY_TOOL"], priority)
+                              for app, priority in (("0", "75"), ("42", "250")))
+            config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }' % mapping)
+            argv = sys.argv
+            try:
+                sys.argv = ["steam-compatibility", str(steam)]
+                COMPAT["main"]()
+                migrated = config.read_text()
+                COMPAT["main"]()
+            finally:
+                sys.argv = argv
+            self.assertFalse(legacy.exists())
+            self.assertIn('"display_name" "Proton Experimental ARM64 (Compatible)"',
+                          (steam / "compatibilitytools.d" / COMPAT["TOOL"] / "compatibilitytool.vdf").read_text())
+            self.assertNotIn(COMPAT["LEGACY_TOOL"], migrated)
+            self.assertEqual(migrated.count('"%s"' % COMPAT["TOOL"]), 2)
+            self.assertEqual(config.read_text(), migrated)
 
     def test_both_proton_wrappers_call_environment_launcher(self):
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):

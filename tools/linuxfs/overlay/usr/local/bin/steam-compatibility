@@ -3,7 +3,7 @@
 # for Windows titles (CompatToolMapping "0" in config.vdf) when the user has not chosen one. Run
 # before the client starts; it rewrites config.vdf on exit.
 #
-#   bannerlator-steam-compat <steam root>
+#   steam-compatibility <steam root>
 #
 # Valve ships a native aarch64 Proton (arm64ec Wine with FEX as the x86 layer) as an ordinary depot,
 # which is exactly what this runtime wants. Its toolmanifest declares require_tool_appid 4185400 -
@@ -20,10 +20,9 @@ import re
 import shutil
 import sys
 
-TOOL = "bannerlator-proton-arm64"
-# Valve's own ARM64 Proton, by the name the client registers it under. Used only to bootstrap a
-# fresh install: naming it is what makes the client offer it and fetch the depot.
-SEED_TOOL = "proton-experimental-arm64"
+TOOL = "droiddeck-proton-arm64"
+LEGACY_TOOL = "bannerlator-proton-arm64"
+LABEL_FILE = "/etc/steam-compatibility-label"
 # The ARM64 Proton depot the client downloads for itself, as a compatibility-tool appid.
 # The session asks the client to install it on the command line the first time (steam://install),
 # so a new client has it before a Windows title is first launched. It is deliberately NOT named as
@@ -54,7 +53,7 @@ COMPAT_TOOL_VDF = """"compatibilitytools"
 		"%s"
 		{
 			"install_path" "."
-			"display_name" "Bannerlator Proton (ARM64)"
+			"display_name" "%s"
 			"from_oslist" "windows"
 			"to_oslist" "linux"
 		}
@@ -228,7 +227,7 @@ bl_directaudio() {
 # survives the client updating or replacing it. Proton takes its base directory from
 # dirname(sys.argv[0]) without resolving it, so it is run from the depot itself.
 LAUNCHER_SH = """#!/bin/bash
-# Bannerlator Proton (ARM64): runs the ARM64 Proton the Steam client downloaded, without the
+# DroidDeck's Proton ARM64: runs the ARM64 Proton the Steam client downloaded, without the
 # Steam Linux Runtime container its own manifest asks for (no user namespaces on Android).
 verb=$1; shift
 steam_root=${STEAM_COMPAT_CLIENT_INSTALL_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/Steam}
@@ -330,7 +329,7 @@ EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
 		"%s"
 		{
 			"install_path" "."
-			"display_name" "%s (Bannerlator)"
+			"display_name" "%s"
 			"from_oslist" "windows"
 			"to_oslist" "linux"
 		}
@@ -430,6 +429,15 @@ def write_changed(path, text, mode=None):
     return not same
 
 
+def display_name(base):
+    try:
+        with open(LABEL_FILE, encoding="utf-8") as f:
+            label = f.read().strip().replace('"', "'").replace("\\", "")
+    except OSError:
+        label = ""
+    return "%s (%s)" % (base, label) if label else base
+
+
 def first_key(path, section):
     """The single key naming a block inside `section`, or None. Used to keep a third-party tool's
     own internal name, so a mapping the user already made against it keeps working."""
@@ -492,7 +500,7 @@ def adopt_extras(tools):
         if not entry_point or entry_point == EXTRA_WRAPPER:
             entry_point = "proton"
         if not os.path.exists(os.path.join(tool_dir, entry_point)):
-            print("bannerlator-steam-compat: %s has no %s; left alone" % (entry, entry_point))
+            print("steam-compatibility: %s has no %s; left alone" % (entry, entry_point))
             continue
         compat_vdf = os.path.join(tool_dir, "compatibilitytool.vdf")
         name = first_key(compat_vdf, ["compatibilitytools", "compat_tools"]) or entry
@@ -506,9 +514,9 @@ def adopt_extras(tools):
                     + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
             write_changed(wrapper, body, 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
-            write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, entry))
+            write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, display_name(entry)))
         except OSError as e:
-            print("bannerlator-steam-compat: could not adopt %s (%s)" % (entry, e))
+            print("steam-compatibility: could not adopt %s (%s)" % (entry, e))
             continue
         adopted[name] = entry
     return adopted
@@ -545,9 +553,9 @@ def installed_apps(steam_root):
     return sorted(apps, key=int)
 
 
-def register_default(config_path, apps=(), name=None, protect=()):
-    """Writes the mapping. `name` defaults to our own tool; the first-run seed passes Valve's."""
-    tool = name or TOOL
+def register_default(config_path, apps=(), protect=()):
+    """Writes the mapping: the "0" default is always our tool, per-app picks of `protect` stay."""
+    tool = TOOL
     # Tool names the user may deliberately have chosen (see adopt_extras); never repointed.
     keep = {n.lower() for n in protect}
     with open(config_path, encoding="utf-8", errors="replace") as f:
@@ -566,11 +574,17 @@ def register_default(config_path, apps=(), name=None, protect=()):
         # Repoint every per-app entry the client aimed at a Proton it cannot actually start.
         for i in range(mapping, block_end(tokens, mapping)):
             named = tokens[i + 1].strip('"').lower()
-            if (tokens[i] == '"name"' and named.startswith("proton")
+            if (tokens[i] == '"name"' and (named.startswith("proton") or named == LEGACY_TOOL)
                     and named != tool.lower() and named not in keep):
                 tokens[i + 1] = '"%s"' % tool
-        if find_block(tokens[mapping + 1:], ["0"]) is None:
+        default = find_block(tokens[mapping + 1:], ["0"])
+        if default is None:
             tokens[mapping + 1:mapping + 1] = entry
+        else:
+            default += mapping + 1
+            for i in range(default, block_end(tokens, default)):
+                if tokens[i] == '"name"':
+                    tokens[i + 1] = '"%s"' % tool
         # The "0" default only decides how a title is installed, so it settles new downloads and
         # leaves anything already installed as a Linux build running as one. An entry per installed
         # app is what the client's own Compatibility checkbox writes, and is what makes it switch.
@@ -604,8 +618,8 @@ def find_source(steam_root):
     return max(found, key=depot_build) if found else None
 
 
-def build_tool(tool_dir):
-    """Our own manifests and the launcher. The depot is found at launch time, not here."""
+def build_tool(tool_dir, depot):
+    """Our own manifests and the launcher, named after `depot`. The depot is run at launch time."""
     if os.path.islink(tool_dir):
         os.unlink(tool_dir)
     elif os.path.isdir(tool_dir) and set(os.listdir(tool_dir)) - set(OWN_FILES):
@@ -614,7 +628,8 @@ def build_tool(tool_dir):
         shutil.rmtree(tool_dir)
     os.makedirs(tool_dir, exist_ok=True)
     write_changed(os.path.join(tool_dir, "toolmanifest.vdf"), TOOL_MANIFEST_VDF)
-    write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), COMPAT_TOOL_VDF % TOOL)
+    write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), COMPAT_TOOL_VDF % (TOOL, display_name(
+        os.path.basename(depot).replace(" (ARM64)", " ARM64") if depot else "Proton ARM64")))
     write_changed(os.path.join(tool_dir, LAUNCHER), LAUNCHER_SH, 0o755)
 
 
@@ -622,19 +637,24 @@ def main():
     steam_root = sys.argv[1]
     tools = os.path.join(steam_root, "compatibilitytools.d")
     os.makedirs(tools, exist_ok=True)
-    build_tool(os.path.join(tools, TOOL))
+    legacy = os.path.join(tools, LEGACY_TOOL)
+    if os.path.islink(legacy):
+        os.unlink(legacy)
+    elif os.path.isdir(legacy):
+        shutil.rmtree(legacy)
+    depot = find_source(steam_root)
+    build_tool(os.path.join(tools, TOOL), depot)
     extras = adopt_extras(tools)
     for name, directory in sorted(extras.items()):
-        print("bannerlator-steam-compat: adopted %s as %s" % (directory, name))
-    depot = find_source(steam_root)
-    print("bannerlator-steam-compat: registered %s (%s)" % (
+        print("steam-compatibility: adopted %s as %s" % (directory, name))
+    print("steam-compatibility: registered %s (%s)" % (
         TOOL, "depot %s present" % os.path.basename(depot) if depot else
         "no ARM64 Proton depot yet; the session asks the client to fetch it"))
     config = os.path.join(steam_root, "config", "config.vdf")
     if os.path.isfile(config):
         apps = installed_apps(steam_root)
         register_default(config, apps, protect=extras)
-        print("bannerlator-steam-compat: default and %d installed title(s) set to %s" % (len(apps), TOOL))
+        print("steam-compatibility: default and %d installed title(s) set to %s" % (len(apps), TOOL))
 
 
 if __name__ == "__main__":

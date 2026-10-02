@@ -11,8 +11,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.droiddeck.launcher.R
 
 class ProtonRow(val id: String, val name: String, val installed: String?, val queued: Boolean)
 
@@ -46,12 +48,17 @@ fun ProtonPage(
             "Stop the active session before installing or removing a compatibility tool.",
             fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
         )
+        val compatible = stringResource(R.string.steam_compat_label)
+        Text(
+            stringResource(R.string.proton_compatible_note, compatible),
+            fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
+        )
         SettingsGroup("Available builds") {
             for (row in rows) {
                 SettingsRow(
                     row.name,
                     when {
-                        row.installed != null -> "Installed ${row.installed}"
+                        row.installed != null -> stringResource(R.string.proton_installed, row.installed, compatible)
                         row.queued -> "Pending from an earlier request"
                         else -> "Not installed"
                     },
