@@ -47,5 +47,10 @@ library list, before anything is published.
   Steam Input, not the X keyboard. The pointer warps gamescope makes as input moves to Steam and
   back are skipped around it, since the game - still taking input - saw them as a mouse jump.
 
+- `0114-steam-window-follows-scaler.patch` - this app: gamescope always fits the Steam client's own
+  window, whatever scaler was asked for, so with the 16:9 stretch on a panel narrower than 16:9 Big
+  Picture kept its bars while games filled the screen. `GAMESCOPE_STEAM_FOLLOWS_SCALER=1` (set by the
+  session script while the stretch is in use) lets the client's window take the wanted scaler too.
+
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.

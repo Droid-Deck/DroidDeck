@@ -269,7 +269,7 @@
     <string name="mode_fill">Estirar juegos para llenar la pantalla</string>
     <string name="mode_fill_hint">Mantiene a pantalla completa los juegos que se redimensionan solos. Desactívalo si un juego se ve pequeño. Se aplica en la próxima sesión.</string>
     <string name="mode_stretch169">Estirar juegos 16:9</string>
-    <string name="mode_stretch169_hint">En pantallas más cuadradas que 16:9, estira los juegos para llenar en lugar de mostrar barras. Se aplica en la próxima sesión.</string>
+    <string name="mode_stretch169_hint">En pantallas más cuadradas que 16:9, estira los juegos y el cliente de Steam para llenar en lugar de mostrar barras. Se aplica en la próxima sesión.</string>
     <string name="mode_audio">Audio</string>
     <string name="mode_directaudio">DirectAudio para juegos</string>
     <string name="mode_directaudio_hint">Evita PulseAudio para menor latencia.</string>

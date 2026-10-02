@@ -282,7 +282,7 @@
     <string name="mode_fill">Stretch games to fill the screen</string>
     <string name="mode_fill_hint">Keeps self-resizing games full screen. Turn off if a game shows up small. Applies next session.</string>
     <string name="mode_stretch169">Stretch 16:9 games</string>
-    <string name="mode_stretch169_hint">On screens squarer than 16:9, stretches games to fill instead of showing bars. Applies next session.</string>
+    <string name="mode_stretch169_hint">On screens squarer than 16:9, stretches games and the Steam client to fill instead of showing bars. Applies next session.</string>
     <string name="mode_audio">Audio</string>
     <string name="mode_directaudio">DirectAudio for games</string>
     <string name="mode_directaudio_hint">Bypasses PulseAudio for lower latency.</string>

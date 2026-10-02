@@ -1,0 +1,41 @@
+From: DroidDeck
+Subject: [PATCH] main: let the Steam client's window follow the wanted scaler on request
+
+GetUpscaleSettings() always fits the Steam client's window (FIT, LINEAR), whatever scaler was
+asked for with -S or GAMESCOPE_NEW_SCALING_SCALER, so on a panel narrower than the client's
+16:9 Big Picture keeps its bars while games are stretched. With GAMESCOPE_STEAM_FOLLOWS_SCALER=1
+in the environment the client's window takes the wanted scaler too (the filter stays LINEAR).
+Unset, nothing changes.
+
+--- a/src/main.hpp
++++ b/src/main.hpp
+@@ -95,12 +95,16 @@
+ 
+ // XXX(misyl): This is bad! We shouldnt change the upscaler like this at all!!!
+ // We should move this to business logic in paint_window or something!
+-static constexpr UpscaleSettings_t GetUpscaleSettings(
++inline bool g_bSteamFollowsScaler = false;
++
++static inline UpscaleSettings_t GetUpscaleSettings(
+     bool bFocusIsSteam,
+     GamescopeUpscaleFilter eWantedFilter,
+     GamescopeUpscaleScaler eWantedScaler,
+     int nWantedSharpness )
+ {
++    if ( bFocusIsSteam && g_bSteamFollowsScaler )
++        return UpscaleSettings_t{ GamescopeUpscaleFilter::LINEAR, eWantedScaler, nWantedSharpness };
+     if ( bFocusIsSteam )
+         return UpscaleSettings_t{ GamescopeUpscaleFilter::LINEAR, GamescopeUpscaleScaler::FIT, nWantedSharpness };
+ 
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -717,6 +717,9 @@
+ 	g_argc = argc;
+ 	g_argv = argv;
+ 
++	if ( const char *pszFollows = getenv( "GAMESCOPE_STEAM_FOLLOWS_SCALER" ) )
++		g_bSteamFollowsScaler = !strcmp( pszFollows, "1" );
++
+ 	// Force disable this horrible broken layer.
+ 	setenv("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1", 1);
+ 

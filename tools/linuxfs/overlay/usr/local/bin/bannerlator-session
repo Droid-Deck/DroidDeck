@@ -150,6 +150,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
   [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
+  [ "${BL_STRETCHED:-0}" = 1 ] && export GAMESCOPE_STEAM_FOLLOWS_SCALER=1
   # -r is what gamescope advertises as the refresh rate, and what a game reads as the display's.
   # Left unset it defaults to 60, so a 120 Hz panel offers only 60 Hz in game settings. The FPS
   # limiter wins when it is on (it is a deliberate cap); otherwise use the panel's own rate.
