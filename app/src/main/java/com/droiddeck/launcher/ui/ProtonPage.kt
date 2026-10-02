@@ -13,10 +13,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.droiddeck.launcher.R
 
 class ProtonRow(val id: String, val name: String, val installed: String?, val queued: Boolean)
 
