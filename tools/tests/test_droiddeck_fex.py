@@ -221,6 +221,7 @@ class PrepareTest(FexTestCase):
         self.assertIsNone(fex)
         self.assertIn("FEX (Steam app 3127680)", said)
         self.assertIn("Steam Linux Runtime 3.0", said)
+        self.assertTrue(said.startswith("droiddeck-fex: x86 Linux programs need "))
         self.assertTrue((self.home / ".config/droiddeck/fex-wanted").is_file())
         status = json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())
         self.assertFalse(status["ready"])
@@ -237,6 +238,37 @@ class PrepareTest(FexTestCase):
         self.assertEqual((status["ready"], status["runtime"], status["thunks"]), (True, str(platform), True))
         self.assertFalse((self.home / ".config/droiddeck/fex-wanted").exists())
         self.assertEqual(self.quiet(FEX["prepare"])[1], "")
+
+    def test_status_refreshes_what_the_app_reads_once_steam_installed_fex(self):
+        with mock.patch.dict(G, {"steam_running": lambda: False}):
+            self.quiet(FEX["prepare"])
+        status_file = self.home / ".local/share/droiddeck-fex/status.json"
+        self.assertFalse(json.loads(status_file.read_text())["ready"])
+        self.fex_tool()
+        self.runtime()
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(0, FEX["main"](["status"]))
+        self.assertTrue(json.loads(out.getvalue())["ready"])
+        self.assertTrue(json.loads(status_file.read_text())["ready"])
+
+    def test_fex_is_found_at_the_tool_root_too(self):
+        tool = self.steam / "steamapps/common/FEX-Emu"
+        self.write(tool / "bin/FEX", elf(183), 0o755)
+        self.write(tool / "bin/FEXServer", elf(183), 0o755)
+        self.write(self.steam / "steamapps/appmanifest_3127680.acf", '"AppState" { "installdir" "FEX-Emu" }')
+        fex = FEX["fex_install"]()
+        self.assertEqual((fex["bin"], fex["server"], fex["portable"]), (str(tool / "bin/FEX"), str(tool / "bin/FEXServer"), True))
+
+    def test_an_installed_tool_without_fex_says_what_it_holds(self):
+        tool = self.steam / "steamapps/common/FEX-Emu"
+        self.write(tool / "toolmanifest.vdf", "")
+        self.write(self.steam / "steamapps/appmanifest_3127680.acf", '"AppState" { "installdir" "FEX-Emu" }')
+        with mock.patch.dict(G, {"steam_running": lambda: False}), mock.patch("shutil.which", return_value=None), \
+                mock.patch("os.access", lambda path, mode: False):
+            fex, said = self.quiet(FEX["prepare"])
+        self.assertIsNone(fex)
+        self.assertIn("holds no FEX or FEXInterpreter", said)
+        self.assertIn("toolmanifest.vdf", said)
 
     def test_a_missing_server_is_not_ready(self):
         self.fex_tool(server=False)

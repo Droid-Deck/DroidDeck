@@ -132,7 +132,7 @@ def fex_install():
     prefixes = []
     tool = app_dir(FEX_APPID)
     if tool:
-        prefixes.append((os.path.join(tool, "usr"), True))
+        prefixes += [(os.path.join(tool, sub), True) for sub in ("usr", "", "files/usr", "files")]
     prefixes.append(("/usr", False))
     for prefix, portable in prefixes:
         binary = next((os.path.join(prefix, "bin", name) for name in ("FEX", "FEXInterpreter")
@@ -312,6 +312,10 @@ def prepare():
         status = describe(fex, platform)
         if not status["ready"]:
             missing = []
+            tool = app_dir(FEX_APPID)
+            if not fex and tool:
+                say("FEX is installed at %s but holds no FEX or FEXInterpreter in usr/bin, bin or files; it has: %s"
+                    % (tool, ", ".join(sorted(os.listdir(tool))[:20])))
             if not fex:
                 missing.append("FEX (Steam app %s)" % FEX_APPID)
             elif not fex["server"]:
@@ -572,7 +576,9 @@ def main(argv):
     if action == "prepare":
         return 0 if prepare() else 1
     if action == "status":
-        status = describe(fex_install(), runtime_platform())
+        with locked():
+            status = describe(fex_install(), runtime_platform())
+            write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
         print(json.dumps(status, indent=2))
         return 0 if status["ready"] else 1
     say("unknown action %s" % action)

@@ -1099,8 +1099,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "session-end-hint").start()
     }
 
-    private fun showEnded(status: Int, hint: String?) {
-        if (status == 0) {
+    private fun showEnded(status: Int, hint: EndHint?) {
+        if (status == 0 && hint?.evenOnSuccess != true) {
             finish()
             return
         }
@@ -1111,7 +1111,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             else -> "Steam"
         }
         loading.showEnded(
-            hint ?: "$what stopped unexpectedly. Share the logs with a bug report, or try again.",
+            hint?.text ?: "$what stopped unexpectedly. Share the logs with a bug report, or try again.",
             "Exit status $status · ${SessionState.logFile?.path ?: "no log"}",
         )
         focusEndedScreen()
@@ -1139,10 +1139,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * FEX) on some devices (a Fold 5, twice). The switch that answers it is in Performance, and a
      * user who never opens the log would not know.
      */
-    private fun sessionEndHint(log: File?): String? {
+    private class EndHint(val text: String, val evenOnSuccess: Boolean = false)
+
+    private fun sessionEndHint(log: File?): EndHint? {
         if (log == null || !log.isFile) return null
         return try {
             var enosys = 0
+            var fexMissing = false
             // The tail is where a dying session says why; 512 KB covers the storm without reading a 1 GB log.
             val size = log.length()
             java.io.RandomAccessFile(log, "r").use { f ->
@@ -1152,11 +1155,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 f.readFully(bytes)
                 String(bytes, Charsets.ISO_8859_1).lineSequence().forEach { line ->
                     if (line.contains("Function not implemented")) enosys++
+                    if (line.contains(FEX_MISSING)) fexMissing = true
                 }
             }
-            if (enosys >= 8) {
-                "The log shows $enosys \"Function not implemented\" errors: proot's seccomp acceleration is failing a helper on this device. " +
-                    "Try Performance \u2192 \"Run proot without seccomp\" (or \"Skip Steam's xalia helper\") and start again."
+            if (fexMissing) {
+                val what = com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_end_program)
+                EndHint(getString(R.string.session_end_fex_missing, what), evenOnSuccess = true)
+            } else if (enosys >= 8) {
+                EndHint("The log shows $enosys \"Function not implemented\" errors: proot's seccomp acceleration is failing a helper on this device. " +
+                    "Try Performance \u2192 \"Run proot without seccomp\" (or \"Skip Steam's xalia helper\") and start again.")
             } else null
         } catch (e: Exception) {
             null
@@ -1932,6 +1939,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         /** How long the leaving flood may take before the session closes without it. */
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TAG = "SessionActivity"
+        private const val FEX_MISSING = "droiddeck-fex: x86 Linux programs need"
         private const val UNBUFFERED_SOURCES = InputDevice.SOURCE_CLASS_JOYSTICK or InputDevice.SOURCE_CLASS_TRACKBALL or InputDevice.SOURCE_CLASS_POSITION
         private const val CURSOR_PAD_HOLD_MS = 1200L
         private const val DRAWER_HAT_THRESHOLD = 0.5f

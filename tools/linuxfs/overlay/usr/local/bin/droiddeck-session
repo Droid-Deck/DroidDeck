@@ -22,7 +22,7 @@ if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   # A guest looping on an error writes gigabytes in minutes (an Xwayland proot had lost track of
   # managed 9 GB of one line in 19 min): the log keeps its first BL_LOG_CAP bytes and the rest is
   # drained, not refused - a writer that filled it must not die of SIGPIPE.
-  exec > >({ head -c "${BL_LOG_CAP:-268435456}" >>"$BL_LOG"; cat >/dev/null; }) 2>&1
+  exec > >({ dd of="$BL_LOG" oflag=append conv=notrunc iflag=count_bytes count="${BL_LOG_CAP:-268435456}" bs=65536 status=none; cat >/dev/null; }) 2>&1
   echo "== droiddeck-session $(date) mode=$mode $*"
   echo "== uid=$(id -u) size=${BL_WIDTH:-?}x${BL_HEIGHT:-?} fps=${BL_FPS:-0} icd=${VK_ICD_FILENAMES:-none}"
   echo "== gamescope: $(gamescope --version 2>&1 | head -1) at $(command -v gamescope)"
@@ -777,6 +777,9 @@ BUSCONF
       rc=$?
       echo "== steam exited rc=$rc"
       collect_steam_logs
+      if [ -f "$HOME/.config/droiddeck/fex-wanted" ] && [ -x /usr/local/bin/droiddeck-fex ]; then
+        /usr/local/bin/droiddeck-fex status >/dev/null 2>&1 || true
+      fi
       if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
         droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
       fi
