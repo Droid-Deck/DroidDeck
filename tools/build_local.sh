@@ -120,7 +120,7 @@ docker run --rm --platform linux/amd64 \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
-        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-* tools/linuxfs/overlay/usr/local/bin/droiddeck-esync tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
+        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-* tools/linuxfs/overlay/usr/local/bin/droiddeck-esync tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done
         for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do

@@ -156,6 +156,7 @@ object DeviceReport {
         k("droiddeck-esync", SessionPrefs.syncFallback(context))
         EsyncPacks.status(LinuxRuntime.rootDir(context)).let { k("droiddeck-esync packs", "${it.installed} installed, ${it.wanted} wanted") }
         k("droiddeck-ntsync", SessionPrefs.fastSync(context))
+        k("droiddeck-fsync first", SessionPrefs.fsyncFirst(context))
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
         k("proot fast path", SessionPrefs.prootFastPath(context))

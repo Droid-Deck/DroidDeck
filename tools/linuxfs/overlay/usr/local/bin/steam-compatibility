@@ -15,6 +15,7 @@
 # nothing is copied and Steam still updates the real depot, but with a toolmanifest that leaves out
 # require_tool_appid. Proton takes its base directory from dirname(sys.argv[0]) without resolving
 # it, so it reads files/ through those symlinks and runs directly on this rootfs.
+import json
 import os
 import re
 import runpy
@@ -22,6 +23,7 @@ import shutil
 import sys
 
 TOOL = "droiddeck-proton-arm64"
+TOOL_11 = "droiddeck-proton-11-arm64"
 LEGACY_TOOL = "bannerlator-proton-arm64"
 LABEL_FILE = "/etc/steam-compatibility-label"
 # The ARM64 Proton depot the client downloads for itself, as a compatibility-tool appid.
@@ -40,6 +42,8 @@ LIBRARY = "/mnt/bannerlator"  # the card library is LIBRARY + "-sd"; internal st
 # unmistakable at a glance, or a user picks a neighbour and gets a launch that fails silently.
 # Newest first: whichever the client has downloaded is used.
 SOURCES = ("Proton Experimental (ARM64)", "Proton 11.0 (ARM64)")
+OWN_TOOLS = ((TOOL, SOURCES), (TOOL_11, ("Proton 11.0 (ARM64)",)))
+COMPAT_DIR = os.path.join(os.environ.get("HOME", "/root"), ".local", "share", "droiddeck-compat")
 # Written by us; everything else in the depot is symlinked through.
 OWN_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", "bannerlator-proton")
 # The client assigns a Proton to a Windows title by itself, as a per-app CompatToolMapping entry at
@@ -208,10 +212,21 @@ bl_directaudio() {
   # mmdevapi only tries the drivers named in the registry; its built-in list is pulse, alsa, oss and
   # coreaudio and knows nothing about this one. The key is appended to the prefix's user.reg rather
   # than written with `wine reg`, which would start a wineserver here just to set one value.
-  reg="${STEAM_COMPAT_DATA_PATH:-}/pfx/user.reg"
+  pfx="${STEAM_COMPAT_DATA_PATH:-}/pfx"
+  reg="$pfx/user.reg"
   if [ -f "$reg" ]; then
-    if ! grep -q '"Audio"="directaudio"' "$reg" 2>/dev/null; then
-      printf '\n[Software\\\\Wine\\\\Drivers] %s\n"Audio"="directaudio"\n' "$(date +%s)" >> "$reg"
+    for pair in system32:aarch64-windows syswow64:i386-windows; do
+      dir="$pfx/drive_c/windows/${pair%%:*}"
+      src="$BL_DIRECTAUDIO/lib/wine/${pair#*:}/winedirectaudio.drv"
+      if [ -d "$dir" ] && [ -f "$src" ] && [ "$(readlink "$dir/winedirectaudio.drv" 2>/dev/null)" != "$src" ]; then
+        ln -sfn "$src" "$dir/winedirectaudio.drv.bl-new" && mv -f "$dir/winedirectaudio.drv.bl-new" "$dir/winedirectaudio.drv"
+      fi
+    done
+    key='[Software\\\\Wine\\\\Drivers]'
+    if [ "$(readlink "$pfx/drive_c/windows/system32/winedirectaudio.drv" 2>/dev/null)" != "$BL_DIRECTAUDIO/lib/wine/aarch64-windows/winedirectaudio.drv" ]; then
+      echo "bannerlator-proton: DirectAudio could not be placed in the prefix; Proton's own audio stays" >&2
+    elif ! BL_KEY="$key" awk 'index($0, "[") == 1 { inside = index($0, ENVIRON["BL_KEY"] " ") == 1 } inside && index($0, "\\"Audio\\"=") == 1 { last = $0 } END { exit last != "\\"Audio\\"=\\"directaudio,pulse\\"" }' "$reg" 2>/dev/null; then
+      printf '\\n%s %s\\n"Audio"="directaudio,pulse"\\n' "$key" "$(date +%s)" >> "$reg"
       echo "bannerlator-proton: DirectAudio selected in the prefix" >&2
     fi
   else
@@ -250,11 +265,11 @@ for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
     esac
   fi
 done
-# The newest of the ARM64 depots the client has, by the build number that opens each one's version
-# file: taking the first one found ran a stale Experimental over a newer 11.0. (WinNative.)
+# The depot this tool is named after, newest across the libraries that hold it; the others in the
+# list stand in only when it is missing.
 depot=
-best=0
 for name in %s; do
+ best=0
  for library in "$steam_root" /mnt/droiddeck-sd; do
   candidate="$library/steamapps/common/$name"
   [ -d "$candidate/files/bin-arm64" ] && [ -x "$candidate/proton" ] || continue
@@ -266,6 +281,7 @@ for name in %s; do
     best=$build
   fi
  done
+ [ -n "$depot" ] && break
 done
 if [ -n "$depot" ]; then
   bl_components "$depot"
@@ -277,13 +293,20 @@ if [ -n "$depot" ]; then
 fi
 echo "bannerlator-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
 exit 1
-""" % " ".join('"%s"' % n for n in SOURCES)
-# Spliced in after the formatting above, never through it: the function body contains ${major%%.*}
-# and a % format would eat that into a single %, leaving a shell expansion that silently does
-# something else.
-LAUNCHER_SH = LAUNCHER_SH.replace(
-    "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-    + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+"""
+LAUNCHER_TEMPLATE = LAUNCHER_SH
+
+
+def launcher_sh(sources=SOURCES):
+    # Spliced in after the formatting, never through it: the function body contains ${major%%.*}
+    # and a % format would eat that into a single %, leaving a shell expansion that silently does
+    # something else.
+    return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
+        "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
+        + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+
+
+LAUNCHER_SH = launcher_sh()
 
 # A third-party Proton dropped into compatibilitytools.d - GE-Proton, proton-cachyos, anything of
 # that shape - is adopted rather than used as shipped, for the same two reasons Valve's ARM64 depot
@@ -485,7 +508,7 @@ def adopt_extras(tools):
     except OSError:
         return adopted
     for entry in entries:
-        if entry == TOOL or entry.startswith("."):
+        if entry in dict(OWN_TOOLS) or entry.startswith("."):
             continue
         tool_dir = os.path.join(tools, entry)
         manifest = os.path.join(tool_dir, "toolmanifest.vdf")
@@ -556,50 +579,243 @@ def installed_apps(steam_root):
     return sorted(apps, key=int)
 
 
-def register_default(config_path, apps=(), protect=()):
-    """Writes the mapping: the "0" default is always our tool, per-app picks of `protect` stay."""
-    tool = TOOL
-    # Tool names the user may deliberately have chosen (see adopt_extras); never repointed.
-    keep = {n.lower() for n in protect}
-    with open(config_path, encoding="utf-8", errors="replace") as f:
-        original = f.read()
-    tokens = tokenize(original)
+def read_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            value = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def write_json(path, value):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return write_changed(path, json.dumps(value, indent=1, sort_keys=True) + "\n")
+
+
+class locked:
+    def __init__(self, directory=None):
+        self.path = os.path.join(directory or COMPAT_DIR, "lock")
+
+    def __enter__(self):
+        import fcntl
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(self.fd, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        os.close(self.fd)
+
+
+def state_path(name, directory=None):
+    return os.path.join(directory or COMPAT_DIR, name)
+
+
+def unrunnable(name, runnable):
+    low = name.lower()
+    return low not in runnable and (low.startswith("proton") or low == LEGACY_TOOL or low.startswith("droiddeck-proton"))
+
+
+def app_order(app):
+    return (len(app), app)
+
+
+def plan_mapping(current, installed, runnable, default, auto):
+    runnable = {n.lower() for n in runnable}
+    installed = set(installed)
+    changes, kept = {}, {}
+    if current.get("0", "") != default:
+        changes["0"] = default
+    for app in sorted((set(current) | installed | set(auto)) - {"0"}, key=app_order):
+        name = current.get(app, "")
+        mine = auto.get(app)
+        if name and not unrunnable(name, runnable) and (mine is None or name != mine):
+            continue
+        if not name and app not in installed:
+            continue
+        if name != default:
+            changes[app] = default
+        kept[app] = default
+    return changes, kept
+
+
+def followers(state, current):
+    if "auto" in state:
+        return state["auto"]
+    return {app: name for app, name in current.items() if app != "0" and name == TOOL}
+
+
+def tool_entry(name, display, path, valve):
+    return {"name": name, "display": display, "dir": os.path.basename(path) if path else "", "valve": valve}
+
+
+def tool_catalog(steam_root, extras=None):
+    tools = os.path.join(steam_root, "compatibilitytools.d")
+    catalog = []
+    for name, sources in OWN_TOOLS:
+        depot = find_source(steam_root, sources)
+        if depot is None and name != TOOL:
+            continue
+        catalog.append(tool_entry(name, display_name(
+            os.path.basename(depot).replace(" (ARM64)", " ARM64") if depot else "Proton ARM64"), depot, True))
+    if extras is None:
+        extras = {}
+        try:
+            entries = sorted(os.listdir(tools))
+        except OSError:
+            entries = []
+        for entry in entries:
+            tool_dir = os.path.join(tools, entry)
+            if entry in dict(OWN_TOOLS) or not os.path.isfile(os.path.join(tool_dir, EXTRA_WRAPPER)):
+                continue
+            extras[first_key(os.path.join(tool_dir, "compatibilitytool.vdf"), ["compatibilitytools", "compat_tools"]) or entry] = entry
+    for name, entry in sorted(extras.items()):
+        catalog.append(tool_entry(name, display_name(entry), os.path.join(tools, entry), False))
+    return catalog
+
+
+def requested_tool(request, catalog):
+    name = request.get("name")
+    if isinstance(name, str) and any(t["name"] == name for t in catalog):
+        return name
+    for tool in catalog:
+        if tool["dir"] and tool["dir"] == request.get("dir") and tool["valve"] == bool(request.get("valve")):
+            return tool["name"]
+    return None
+
+
+def now_ms():
+    import time
+    return int(time.time() * 1000)
+
+
+def choose_default(steam_default, state, request, catalog, adopt_steam=True, apply_request=True, now=None):
+    state = dict(state)
+    names = [t["name"] for t in catalog]
+    seq = request.get("seq")
+    seq = seq if isinstance(seq, int) else 0
+    if apply_request and seq > int(state.get("applied", 0) or 0):
+        wanted = requested_tool(request, catalog)
+        state["applied"] = seq
+        if wanted:
+            if wanted != state.get("default"):
+                state.update(default=wanted, seq=now or now_ms(), source="app")
+        else:
+            print("steam-compatibility: the app asked for %s, which is not installed; kept %s" % (
+                request.get("name") or request.get("dir"), state.get("default") or TOOL))
+    elif adopt_steam and steam_default in names and steam_default != state.get("default"):
+        state.update(default=steam_default, seq=now or now_ms(), source="steam")
+    if state.get("default") not in names:
+        state["default"] = TOOL
+    return state["default"], state
+
+
+def mapping_block(tokens):
     steam = find_block(tokens, ["InstallConfigStore", "Software", "Valve", "Steam"])
     if steam is None:
-        return
+        return None
     mapping = find_block(tokens[steam + 1:], ["CompatToolMapping"])
-    entry = ['"0"', "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"75"', "}"]
     if mapping is None:
         end = block_end(tokens, steam)
-        tokens[end:end] = ['"CompatToolMapping"', "{"] + entry + ["}"]
-    else:
-        mapping += steam + 1
-        # Repoint every per-app entry the client aimed at a Proton it cannot actually start.
-        for i in range(mapping, block_end(tokens, mapping)):
-            named = tokens[i + 1].strip('"').lower()
-            if (tokens[i] == '"name"' and (named.startswith("proton") or named == LEGACY_TOOL)
-                    and named != tool.lower() and named not in keep):
-                tokens[i + 1] = '"%s"' % tool
-        default = find_block(tokens[mapping + 1:], ["0"])
-        if default is None:
-            tokens[mapping + 1:mapping + 1] = entry
+        tokens[end:end] = ['"CompatToolMapping"', "{", "}"]
+        return end + 1
+    return mapping + steam + 1
+
+
+def read_mapping(tokens, mapping):
+    current = {}
+    end = block_end(tokens, mapping)
+    i = mapping + 1
+    while i < end:
+        if i + 1 < end and tokens[i + 1] == "{":
+            close = block_end(tokens, i + 1)
+            name = ""
+            for j in range(i + 2, close - 1):
+                if tokens[j] == '"name"':
+                    name = tokens[j + 1].strip('"')
+                    break
+            current[tokens[i].strip('"')] = name
+            i = close + 1
         else:
-            default += mapping + 1
-            for i in range(default, block_end(tokens, default)):
-                if tokens[i] == '"name"':
-                    tokens[i + 1] = '"%s"' % tool
-        # The "0" default only decides how a title is installed, so it settles new downloads and
-        # leaves anything already installed as a Linux build running as one. An entry per installed
-        # app is what the client's own Compatibility checkbox writes, and is what makes it switch.
-        for app in apps:
-            if find_block(tokens[mapping + 1:], [app]) is not None:
-                continue
-            tokens[mapping + 1:mapping + 1] = [
-                '"%s"' % app, "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"250"', "}"]
-    # Nothing to change is the usual case on the session's beat: the client's own file is left alone.
-    text = serialize(tokens)
-    if text != serialize(tokenize(original)):
-        write_changed(config_path, text)
+            i += 2
+    return current
+
+
+def set_mapping(tokens, mapping, app, tool):
+    block = find_block(tokens[mapping + 1:], [app])
+    if block is None:
+        tokens[mapping + 1:mapping + 1] = [
+            '"%s"' % app, "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"75"' if app == "0" else '"250"', "}"]
+        return
+    block += mapping + 1
+    end = block_end(tokens, block)
+    for i in range(block + 1, end):
+        if tokens[i] == '"name"':
+            tokens[i + 1] = '"%s"' % tool
+            return
+    tokens[block + 1:block + 1] = ['"name"', '"%s"' % tool]
+
+
+def steam_running():
+    try:
+        pids = [p for p in os.listdir("/proc") if p.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open("/proc/%s/cmdline" % pid, "rb") as f:
+                argv0 = f.read().split(b"\0", 1)[0]
+        except OSError:
+            continue
+        if argv0.endswith(b"steamrtarm64/steam"):
+            return True
+    return False
+
+
+def live_helper_running(directory=None):
+    try:
+        with open(state_path("live.pid", directory)) as f:
+            pid = int(f.read().split()[0])
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError, IndexError):
+        return False
+
+
+def register_default(config_path, apps=(), protect=(), default=None, catalog=None, directory=None, settle=False):
+    """Writes the mapping: the "0" default and every title that follows it (see plan_mapping).
+    With settle, the default itself is decided first (see choose_default): before the client
+    starts, config.vdf holds what the client last kept, menu changes included."""
+    with locked(directory):
+        state = read_json(state_path("state.json", directory))
+        with open(config_path, encoding="utf-8", errors="replace") as f:
+            original = f.read()
+        tokens = tokenize(original)
+        mapping = mapping_block(tokens)
+        if mapping is None:
+            return state.get("default") or TOOL
+        current = read_mapping(tokens, mapping)
+        if catalog is None:
+            catalog = tool_catalog(os.path.dirname(os.path.dirname(os.path.abspath(config_path))),
+                                   dict(protect) if isinstance(protect, dict) else {name: name for name in protect})
+        names = [t["name"] for t in catalog]
+        if default is None:
+            if settle:
+                default, state = choose_default(current.get("0", ""), state, read_json(state_path("request.json", directory)), catalog)
+            else:
+                default = state.get("default") if state.get("default") in names else TOOL
+        changes, auto = plan_mapping(current, apps, names, default, followers(state, current))
+        for app, tool in changes.items():
+            set_mapping(tokens, mapping, app, tool)
+        text = serialize(tokens)
+        if text != serialize(tokenize(original)):
+            write_changed(config_path, text)
+        state["auto"] = auto
+        state["tools"] = catalog
+        state.setdefault("default", default)
+        write_json(state_path("state.json", directory), state)
+    return default
 
 
 def depot_build(depot):
@@ -612,16 +828,17 @@ def depot_build(depot):
     return int(first[0]) if first and first[0].isdigit() else 0
 
 
-def find_source(steam_root):
-    """The newest ARM64 Proton depot the client has downloaded (the one the launcher runs), or None."""
-    # bin-arm64 is what makes it the native build rather than the x86_64 one.
-    found = [os.path.join(root, "steamapps", "common", name)
-             for root in (steam_root, "/mnt/droiddeck-sd") for name in SOURCES
-             if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))]
-    return max(found, key=depot_build) if found else None
+def find_source(steam_root, sources=SOURCES):
+    """The first of `sources` the client has downloaded, newest across the libraries holding it."""
+    for name in sources:
+        found = [os.path.join(root, "steamapps", "common", name) for root in (steam_root, "/mnt/droiddeck-sd")
+                 if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))]
+        if found:
+            return max(found, key=depot_build)
+    return None
 
 
-def build_tool(tool_dir, depot):
+def build_tool(tool_dir, depot, sources=SOURCES, name=TOOL):
     """Our own manifests and the launcher, named after `depot`. The depot is run at launch time."""
     if os.path.islink(tool_dir):
         os.unlink(tool_dir)
@@ -631,9 +848,14 @@ def build_tool(tool_dir, depot):
         shutil.rmtree(tool_dir)
     os.makedirs(tool_dir, exist_ok=True)
     write_changed(os.path.join(tool_dir, "toolmanifest.vdf"), TOOL_MANIFEST_VDF)
-    write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), COMPAT_TOOL_VDF % (TOOL, display_name(
+    write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), COMPAT_TOOL_VDF % (name, display_name(
         os.path.basename(depot).replace(" (ARM64)", " ARM64") if depot else "Proton ARM64")))
-    write_changed(os.path.join(tool_dir, LAUNCHER), LAUNCHER_SH, 0o755)
+    write_changed(os.path.join(tool_dir, LAUNCHER), launcher_sh(sources), 0o755)
+
+
+def remove_tool(tool_dir):
+    if os.path.isdir(tool_dir) and not os.path.islink(tool_dir) and not set(os.listdir(tool_dir)) - set(OWN_FILES):
+        shutil.rmtree(tool_dir)
 
 
 def main():
@@ -645,19 +867,30 @@ def main():
         os.unlink(legacy)
     elif os.path.isdir(legacy):
         shutil.rmtree(legacy)
-    depot = find_source(steam_root)
-    build_tool(os.path.join(tools, TOOL), depot)
+    for name, sources in OWN_TOOLS:
+        depot = find_source(steam_root, sources)
+        if depot is None and name != TOOL:
+            remove_tool(os.path.join(tools, name))
+            continue
+        build_tool(os.path.join(tools, name), depot, sources, name)
+        print("steam-compatibility: registered %s (%s)" % (
+            name, "depot %s present" % os.path.basename(depot) if depot else
+            "no ARM64 Proton depot yet; the session asks the client to fetch it"))
     extras = adopt_extras(tools)
     for name, directory in sorted(extras.items()):
         print("steam-compatibility: adopted %s as %s" % (directory, name))
-    print("steam-compatibility: registered %s (%s)" % (
-        TOOL, "depot %s present" % os.path.basename(depot) if depot else
-        "no ARM64 Proton depot yet; the session asks the client to fetch it"))
+    catalog = tool_catalog(steam_root, extras)
     config = os.path.join(steam_root, "config", "config.vdf")
-    if os.path.isfile(config):
+    if live_helper_running():
+        with locked():
+            state = read_json(state_path("state.json"))
+            state["tools"] = catalog
+            write_json(state_path("state.json"), state)
+        print("steam-compatibility: the live helper keeps the client's mapping; tools listed")
+    elif os.path.isfile(config):
         apps = installed_apps(steam_root)
-        register_default(config, apps, protect=extras)
-        print("steam-compatibility: default and %d installed title(s) set to %s" % (len(apps), TOOL))
+        default = register_default(config, apps, protect=extras, catalog=catalog, settle=not steam_running())
+        print("steam-compatibility: default and %d installed title(s) set to %s" % (len(apps), default))
     sync = os.path.join(os.path.dirname(os.path.realpath(__file__)), "droiddeck-esync")
     if os.path.isfile(sync):
         try:

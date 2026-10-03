@@ -1,0 +1,490 @@
+#!/usr/bin/python3
+import base64
+import ctypes
+import json
+import os
+import runpy
+import select
+import signal
+import socket
+import struct
+import sys
+import time
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+COMPAT = runpy.run_path(os.path.join(HERE, "steam-compatibility"))
+BINDING = "droiddeckCompatChanged"
+INSTALL_JS = r"""
+(() => {
+  if (window.__droiddeckCompat) return "present";
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const varint = (value, out) => { let n = BigInt(value); do { let b = Number(n & 0x7fn); n >>= 7n; if (n) b |= 0x80; out.push(b); } while (n); };
+  const key = (field, wire, out) => varint(field * 8 + wire, out);
+  const str = (field, s, out) => { const b = enc.encode(s); key(field, 2, out); varint(b.length, out); for (const x of b) out.push(x); };
+  const uint = (field, v, out) => { key(field, 0, out); varint(v, out); };
+  const fixed64 = (field, v, out) => { key(field, 1, out); let n = BigInt(v); for (let i = 0; i < 8; i++) { out.push(Number(n & 0xffn)); n >>= 8n; } };
+  const parse = (bytes) => {
+    const fields = {};
+    let i = 0;
+    const read = () => { let r = 0n, s = 0n, b; do { b = bytes[i++]; r |= BigInt(b & 0x7f) << s; s += 7n; } while (b & 0x80); return r; };
+    while (i < bytes.length) {
+      const k = Number(read()), field = k >> 3, wire = k & 7;
+      let v;
+      if (wire === 0) v = read();
+      else if (wire === 1) { v = 0n; for (let j = 0; j < 8; j++) v |= BigInt(bytes[i + j]) << BigInt(8 * j); i += 8; }
+      else if (wire === 2) { const n = Number(read()); v = bytes.subarray(i, i + n); i += n; }
+      else if (wire === 5) { v = bytes.subarray(i, i + 4); i += 4; }
+      else throw new Error("unexpected wire type " + wire);
+      (fields[field] = fields[field] || []).push(v);
+    }
+    return fields;
+  };
+  const text = (f, n) => f[n] ? dec.decode(f[n][0]) : "";
+  const self = { seq: 0, pending: new Map(), ws: null, opening: null, changes: 0 };
+  const frame = (method, body, auth) => {
+    const h = [];
+    fixed64(10, ++self.seq, h);
+    str(12, method, h);
+    if (auth) str(40, auth, h);
+    const out = new Uint8Array(8 + h.length + body.length);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, (0x80000000 | 146) >>> 0, true);
+    view.setUint32(4, h.length, true);
+    out.set(h, 8);
+    out.set(body, 8 + h.length);
+    return [self.seq, out];
+  };
+  const onMessage = (event) => {
+    const bytes = new Uint8Array(event.data);
+    const length = new DataView(event.data).getUint32(4, true);
+    const header = parse(bytes.subarray(8, 8 + length));
+    const target = header[11] ? Number(header[11][0] & 0xffffffffn) : -1;
+    if (self.pending.has(target)) {
+      const done = self.pending.get(target);
+      self.pending.delete(target);
+      const result = header[13] ? Number(header[13][0]) : 2;
+      done(result === 1 ? { ok: true, body: parse(bytes.subarray(8 + length)) } : { ok: false, eresult: result, error: text(header, 14) });
+      return;
+    }
+    if (text(header, 12).startsWith("CompatManager.NotifyStateChanged")) {
+      self.changes++;
+      if (typeof window.__BINDING__ === "function") window.__BINDING__(String(self.changes));
+    }
+  };
+  const send = (method, body, auth) => new Promise((resolve, reject) => {
+    const [id, out] = frame(method, Uint8Array.from(body), auth);
+    const timer = setTimeout(() => { self.pending.delete(id); reject(new Error(method + " timed out")); }, 10000);
+    self.pending.set(id, (r) => { clearTimeout(timer); resolve(r); });
+    self.ws.send(out);
+  });
+  const open = async () => {
+    const info = await SteamClient.WebUITransport.GetTransportInfo();
+    const ws = new WebSocket("ws://127.0.0.1:" + info.portClientdll + "/transportsocket/");
+    ws.binaryType = "arraybuffer";
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = () => reject(new Error("the client's transport refused the connection")); });
+    ws.onmessage = onMessage;
+    ws.onclose = () => {
+      if (self.ws === ws) self.ws = null;
+      for (const done of self.pending.values()) done({ ok: false, eresult: 0, error: "connection closed" });
+      self.pending.clear();
+    };
+    self.ws = ws;
+    const body = [];
+    str(1, info.authKeyClientdll, body);
+    const r = await send("TransportAuth.Authenticate#1", body, info.authKeyClientdll);
+    if (!r.ok) { ws.close(); throw new Error("the client's transport refused authentication (" + r.eresult + ")"); }
+  };
+  const ready = async () => {
+    if (self.ws && self.ws.readyState === 1) return;
+    if (!self.opening) self.opening = open().finally(() => { self.opening = null; });
+    await self.opening;
+  };
+  self.get = async (appid) => {
+    await ready();
+    const body = [];
+    uint(1, appid, body);
+    const r = await send("CompatManager.GetCompatTools#1", body);
+    if (!r.ok) throw new Error("GetCompatTools " + appid + " failed (" + r.eresult + " " + r.error + ")");
+    return { selected: text(r.body, 3), fallback: text(r.body, 4), tools: (r.body[1] || []).map((t) => text(parse(t), 1)) };
+  };
+  self.set = async (appid, name) => {
+    await ready();
+    const body = [];
+    uint(1, appid, body);
+    str(2, name, body);
+    const r = await send("CompatManager.SpecifyCompatTool#1", body);
+    if (!r.ok) throw new Error("SpecifyCompatTool " + appid + " " + name + " failed (" + r.eresult + " " + r.error + ")");
+    return true;
+  };
+  self.many = async (apps) => {
+    const out = {};
+    for (const app of apps) out[app] = (await self.get(Number(app))).selected;
+    return out;
+  };
+  window.__droiddeckCompat = self;
+  return "installed";
+})()
+""".replace("__BINDING__", BINDING)
+
+
+class Closed(Exception):
+    pass
+
+
+def say(message):
+    print("droiddeck-steam-compat: %s" % message, flush=True)
+
+
+def connect(port, timeout=5):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        sock.bind(("127.0.0.1", 0))
+        sock.connect(("127.0.0.1", port))
+    except OSError:
+        sock.close()
+        raise
+    return sock
+
+
+def http_get(port, path):
+    sock = connect(port)
+    try:
+        sock.sendall(("GET %s HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nConnection: close\r\n\r\n" % (path, port)).encode())
+        data = b""
+        length = None
+        while length is None or len(data) < length:
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+            if length is None and b"\r\n\r\n" in data:
+                head, _, rest = data.partition(b"\r\n\r\n")
+                for line in head.split(b"\r\n")[1:]:
+                    name, _, value = line.partition(b":")
+                    if name.strip().lower() == b"content-length":
+                        length = int(value.strip())
+                if length is None:
+                    length = float("inf")
+                data = rest
+                if not head.startswith(b"HTTP/1.1 200"):
+                    raise OSError("devtools answered %r" % head[:40])
+    finally:
+        sock.close()
+    return json.loads(data.decode("utf-8", "replace"))
+
+
+class WebSocket:
+    def __init__(self, port, path):
+        self.sock = connect(port)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.sock.sendall(("GET %s HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                           "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (path, port, key)).encode())
+        self.buffer = b""
+        while b"\r\n\r\n" not in self.buffer:
+            self.fill()
+        head, _, self.buffer = self.buffer.partition(b"\r\n\r\n")
+        if not head.startswith(b"HTTP/1.1 101"):
+            raise OSError("devtools refused the websocket: %r" % head[:60])
+        self.sock.settimeout(None)
+
+    def fileno(self):
+        return self.sock.fileno()
+
+    def fill(self):
+        chunk = self.sock.recv(65536)
+        if not chunk:
+            raise Closed("devtools closed the connection")
+        self.buffer += chunk
+
+    def take(self, n):
+        while len(self.buffer) < n:
+            self.fill()
+        data, self.buffer = self.buffer[:n], self.buffer[n:]
+        return data
+
+    def send(self, text, opcode=1):
+        payload = text.encode() if isinstance(text, str) else text
+        mask = os.urandom(4)
+        n = len(payload)
+        if n < 126:
+            head = struct.pack("!BB", 0x80 | opcode, 0x80 | n)
+        elif n < 65536:
+            head = struct.pack("!BBH", 0x80 | opcode, 0xFE, n)
+        else:
+            head = struct.pack("!BBQ", 0x80 | opcode, 0xFF, n)
+        self.sock.sendall(head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
+
+    def pending(self):
+        return len(self.buffer) > 0
+
+    def recv(self):
+        message = b""
+        while True:
+            first, second = self.take(2)
+            n = second & 0x7F
+            if n == 126:
+                n = struct.unpack("!H", self.take(2))[0]
+            elif n == 127:
+                n = struct.unpack("!Q", self.take(8))[0]
+            mask = self.take(4) if second & 0x80 else None
+            payload = self.take(n)
+            if mask:
+                payload = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+            opcode = first & 0x0F
+            if opcode == 8:
+                raise Closed("devtools closed the websocket")
+            if opcode == 9:
+                self.send(payload, 10)
+                continue
+            if opcode == 10:
+                continue
+            message += payload
+            if first & 0x80:
+                return message.decode("utf-8", "replace")
+
+    def close(self):
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+
+class Page:
+    def __init__(self, port, path):
+        self.ws = WebSocket(port, path)
+        self.next_id = 0
+        self.events = []
+
+    def call(self, method, params=None, timeout=30):
+        self.next_id += 1
+        mine = self.next_id
+        self.ws.send(json.dumps({"id": mine, "method": method, "params": params or {}}))
+        deadline = time.monotonic() + timeout
+        while True:
+            if not self.ws.pending():
+                left = deadline - time.monotonic()
+                if left <= 0 or not select.select([self.ws], [], [], left)[0]:
+                    raise TimeoutError("%s timed out" % method)
+            message = json.loads(self.ws.recv())
+            if message.get("id") == mine:
+                if "error" in message:
+                    raise RuntimeError("%s: %s" % (method, message["error"].get("message")))
+                return message.get("result", {})
+            if "method" in message:
+                self.events.append(message)
+
+    def evaluate(self, expression, timeout=30):
+        result = self.call("Runtime.evaluate", {"expression": expression, "awaitPromise": True, "returnByValue": True}, timeout)
+        if "exceptionDetails" in result:
+            details = result["exceptionDetails"]
+            raise RuntimeError((details.get("exception") or {}).get("description") or details.get("text") or "script failed")
+        return result.get("result", {}).get("value")
+
+    def compat(self, call):
+        return self.evaluate("%s;\nwindow.__droiddeckCompat.%s" % (INSTALL_JS, call))
+
+    def drain(self):
+        while True:
+            if not self.ws.pending() and not select.select([self.ws], [], [], 0)[0]:
+                break
+            message = json.loads(self.ws.recv())
+            if "method" in message:
+                self.events.append(message)
+        events, self.events = self.events, []
+        return events
+
+
+def shared_context(port):
+    for target in http_get(port, "/json/list"):
+        if target.get("title") == "SharedJSContext" and target.get("webSocketDebuggerUrl"):
+            path = target["webSocketDebuggerUrl"].split("/", 3)[3]
+            return "/" + path
+    return None
+
+
+class Watcher:
+    MASK = 0x00000008 | 0x00000080 | 0x00000100 | 0x00000200
+
+    def __init__(self, files):
+        self.files = files
+        self.fd = -1
+        try:
+            libc = ctypes.CDLL(None, use_errno=True)
+            fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+            dirs = sorted({os.path.dirname(f) for f in files if os.path.isdir(os.path.dirname(f))})
+            if fd >= 0 and dirs and all(libc.inotify_add_watch(fd, d.encode(), self.MASK) >= 0 for d in dirs):
+                self.fd = fd
+            elif fd >= 0:
+                os.close(fd)
+        except (OSError, AttributeError):
+            self.fd = -1
+        self.stamp = self.snapshot()
+
+    def snapshot(self):
+        stamp = []
+        for f in self.files:
+            for p in (f, os.path.dirname(f)):
+                try:
+                    stamp.append(os.stat(p).st_mtime_ns)
+                except OSError:
+                    stamp.append(0)
+        return stamp
+
+    def fileno(self):
+        return self.fd
+
+    def changed(self):
+        if self.fd < 0:
+            stamp = self.snapshot()
+            moved, self.stamp = stamp != self.stamp, stamp
+            return moved
+        names = set()
+        try:
+            while True:
+                data = os.read(self.fd, 65536)
+                if not data:
+                    break
+                at = 0
+                while at + 16 <= len(data):
+                    _, _, _, size = struct.unpack_from("iIII", data, at)
+                    names.add(data[at + 16:at + 16 + size].split(b"\0", 1)[0].decode("utf-8", "replace"))
+                    at += 16 + size
+        except BlockingIOError:
+            pass
+        wanted = {os.path.basename(f) for f in self.files}
+        return any(n in wanted or n.startswith("appmanifest_") for n in names)
+
+
+class Helper:
+    def __init__(self, steam_root, port):
+        self.steam_root = steam_root
+        self.port = port
+        self.page = None
+        self.known = set()
+        self.installed = None
+
+    def attach(self):
+        path = shared_context(self.port)
+        if path is None:
+            raise LookupError("no SharedJSContext yet")
+        page = Page(self.port, path)
+        try:
+            if page.evaluate("typeof SteamClient === 'object' && typeof SteamClient.WebUITransport === 'object'") is not True:
+                raise LookupError("SteamClient is not ready")
+            page.call("Runtime.addBinding", {"name": BINDING})
+            page.compat("get(0)")
+        except Exception:
+            page.ws.close()
+            raise
+        self.page = page
+        return True
+
+    def reconcile(self):
+        page = self.page
+        with COMPAT["locked"]():
+            state_file = COMPAT["state_path"]("state.json")
+            state = COMPAT["read_json"](state_file)
+            request = COMPAT["read_json"](COMPAT["state_path"]("request.json"))
+            catalog = COMPAT["tool_catalog"](self.steam_root)
+            top = page.compat("get(0)")
+            self.known = set(top["tools"])
+            live = [t for t in catalog if t["name"] in self.known]
+            wanted = COMPAT["requested_tool"](request, catalog)
+            newer = isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
+            waiting = newer and wanted is not None and wanted not in self.known
+            default, state = COMPAT["choose_default"](top["selected"], state, request, live, apply_request=not waiting)
+            installed = COMPAT["installed_apps"](self.steam_root)
+            self.installed = installed
+            apps = sorted(set(installed) | set(state.get("auto", {})), key=COMPAT["app_order"])
+            current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
+            current["0"] = top["selected"]
+            changes, auto = COMPAT["plan_mapping"](current, installed, [t["name"] for t in live], default, COMPAT["followers"](state, current))
+            for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
+                page.compat("set(%d, %s)" % (int(app), json.dumps(tool)))
+                say("%s -> %s" % ("default" if app == "0" else "app %s" % app, tool))
+            state.update(auto=auto, tools=catalog, live=True)
+            if waiting:
+                state["pending"] = wanted
+                say("%s is new to the running client; it applies when Steam next starts" % wanted)
+            else:
+                state.pop("pending", None)
+            COMPAT["write_json"](state_file, state)
+
+    def request_waiting(self):
+        request = COMPAT["read_json"](COMPAT["state_path"]("request.json"))
+        state = COMPAT["read_json"](COMPAT["state_path"]("state.json"))
+        return isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
+
+    def serve(self, watcher):
+        with open(COMPAT["state_path"]("live.pid"), "w") as f:
+            f.write("%d\n" % os.getpid())
+        say("attached to the client on port %d" % self.port)
+        self.reconcile()
+        while True:
+            sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
+            ready = [self.page.ws] if self.page.ws.pending() else select.select(sources, [], [], 30 if watcher.fileno() >= 0 else 2)[0]
+            due = False
+            if self.page.ws in ready:
+                due = any(e.get("method") == "Runtime.bindingCalled" and e.get("params", {}).get("name") == BINDING
+                          for e in self.page.drain())
+            if (watcher in ready or watcher.fileno() < 0) and watcher.changed():
+                due = self.installed != COMPAT["installed_apps"](self.steam_root) or self.request_waiting()
+            if due:
+                time.sleep(0.3)
+                if watcher.fileno() >= 0 and select.select([watcher], [], [], 0)[0]:
+                    watcher.changed()
+                self.page.drain()
+                self.reconcile()
+
+
+def detach():
+    try:
+        os.unlink(COMPAT["state_path"]("live.pid"))
+    except OSError:
+        pass
+    with COMPAT["locked"]():
+        state_file = COMPAT["state_path"]("state.json")
+        state = COMPAT["read_json"](state_file)
+        if state.get("live"):
+            state["live"] = False
+            COMPAT["write_json"](state_file, state)
+
+
+def main():
+    steam_root = sys.argv[1]
+    try:
+        port = int(os.environ.get("BL_CDP_PORT", ""))
+    except ValueError:
+        say("no devtools port for this session; the client's mapping is kept through config.vdf")
+        return 0
+    os.makedirs(COMPAT["COMPAT_DIR"], exist_ok=True)
+    watcher = Watcher([COMPAT["state_path"]("request.json")] + [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
+    helper = Helper(steam_root, port)
+    failures = 0
+    last = None
+    while True:
+        try:
+            helper.attach()
+            failures = 0
+            last = None
+            helper.serve(watcher)
+        except Exception as e:
+            if helper.page is not None:
+                say("lost the client (%s); reattaching" % e)
+                helper.page.ws.close()
+                helper.page = None
+                detach()
+            elif str(e) != last:
+                say("waiting for the client (%s)" % e)
+            last = str(e)
+            failures += 1
+        time.sleep(min(2 * max(failures, 1), 10))
+
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    try:
+        sys.exit(main())
+    finally:
+        detach()

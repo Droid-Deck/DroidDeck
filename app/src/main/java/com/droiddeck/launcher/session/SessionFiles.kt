@@ -30,6 +30,7 @@ object SessionFiles {
         val files = arrayOf(
             "usr/local/bin/bannerlator-game-env" to "usr/local/bin/bannerlator-game-env",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
+            "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",

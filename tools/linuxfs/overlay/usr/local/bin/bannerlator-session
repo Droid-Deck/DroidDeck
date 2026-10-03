@@ -616,6 +616,20 @@ BUSCONF
         echo "== Decky: installed loader architecture is unsupported by this guest; not starting"
       fi
     fi
+    _bl_cdp=()
+    if [ -f "$steam_root/.cef-enable-remote-debugging" ]; then
+      export BL_CDP_PORT=8080
+    else
+      export BL_CDP_PORT=$((20000 + RANDOM % 30000))
+      _bl_cdp=(-cef-enable-debugging -devtools-port "$BL_CDP_PORT")
+    fi
+    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ]; then
+      echo "== steam: devtools port $BL_CDP_PORT left open for the x86_64 Decky loader"
+    else
+      export BL_CDP_GUARD=$BL_CDP_PORT
+      echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
+    fi
+    droiddeck-steam-compat "$steam_root" 2>&1 &
     # The client exits 42 when it has updated itself and wants a fresh start (steam.sh does this).
     # BL_STEAM_UI=desktop = the client's desktop UI (a window, the library as a list), which the
     # desktop's launchers ask for; gamescope shows one window at a time and the game takes over.
@@ -680,7 +694,7 @@ BUSCONF
         done
       ) &
     fi
-    echo "== steam args: ${_bl_ui[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
+    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
     # An update that cannot install asks for a restart (rc=42) every time; the count is capped so a
     # session can never again loop in silence, which reads as a menu opening and closing by itself.
     steam_updates=0
@@ -708,7 +722,7 @@ BUSCONF
         echo "$steam_channel" > "$steam_beta"
       fi
       step "starting the Steam client${BL_STEAM_UI:+ ($BL_STEAM_UI UI)}"
-      "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" -clientbeta "$steam_channel" \
+      "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 \
         -cef-use-gl=angle -cef-use-angle=vulkan "$@"
       rc=$?

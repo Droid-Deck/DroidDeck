@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
     private var noXalia by mutableStateOf(true)
     private var fastSync by mutableStateOf(false)
     private var syncFallback by mutableStateOf(true)
+    private var fsyncFirst by mutableStateOf(false)
     private var gamescopeRealtime by mutableStateOf(false)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
@@ -699,9 +700,10 @@ class MainActivity : ComponentActivity() {
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
             if (applied.isNotEmpty()) ui.post {
                 android.widget.Toast.makeText(this, "Applied: " + applied.joinToString(", "), android.widget.Toast.LENGTH_LONG).show()
-                if (showComponents) components.refreshComponents()
             }
+            ui.post { if (showComponents) components.refreshComponents() }
         }, "components-queue").start()
+        else if (showComponents) components.refreshComponents()
         oscMode = SessionPrefs.oscMode(this)
         refreshController()
         refreshHomeAppState()
@@ -852,7 +854,7 @@ class MainActivity : ComponentActivity() {
             busy = components.compBusy,
             downloads = components.compDownloads,
             requestInitialFocus = focusComponentsContent,
-            onProton = { components.compProton = it },
+            onProton = { components.chooseProton(it) },
             onComp = { components.compComp = it },
             onSwap = { file -> components.compProton?.let { pid -> components.componentAction("Swapping") { ComponentsManager.swap(this, pid, file) } } },
             onRestore = { version -> components.compProton?.let { pid -> components.componentAction("Restoring") { ComponentsManager.restore(this, pid, components.compComp, version) } } },
@@ -1047,6 +1049,7 @@ class MainActivity : ComponentActivity() {
             tuSysmem = tuSysmem, zinkLazy = zinkLazy, glThread = glThread, noGlError = noGlError, noXalia = noXalia,
             fastSync = fastSync,
             syncFallback = syncFallback,
+            fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, guestHostname = guestHostname, phantomWarning = phantomWarning,
@@ -1058,6 +1061,7 @@ class MainActivity : ComponentActivity() {
             onNoXalia = { on -> SessionPrefs.setNoXalia(this, on); noXalia = on },
             onFastSync = { on -> SessionPrefs.setFastSync(this, on); fastSync = on },
             onSyncFallback = { on -> SessionPrefs.setSyncFallback(this, on); syncFallback = on },
+            onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
@@ -1182,6 +1186,7 @@ class MainActivity : ComponentActivity() {
         noXalia = SessionPrefs.noXalia(this)
         fastSync = SessionPrefs.fastSync(this)
         syncFallback = SessionPrefs.syncFallback(this)
+        fsyncFirst = SessionPrefs.fsyncFirst(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)

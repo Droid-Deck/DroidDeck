@@ -41,6 +41,7 @@ fun PerformancePage(
     noXalia: Boolean,
     fastSync: Boolean,
     syncFallback: Boolean,
+    fsyncFirst: Boolean,
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
     prootNoSeccomp: Boolean,
@@ -55,6 +56,7 @@ fun PerformancePage(
     onNoXalia: (Boolean) -> Unit,
     onFastSync: (Boolean) -> Unit,
     onSyncFallback: (Boolean) -> Unit,
+    onFsyncFirst: (Boolean) -> Unit,
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
@@ -134,6 +136,11 @@ fun PerformancePage(
                 host, "syncfallback", stringResource(R.string.perf_esync),
                 stringResource(R.string.perf_esync_hint),
                 syncFallback, onChange = onSyncFallback,
+            )
+            ToggleRow(
+                host, "fsyncfirst", stringResource(R.string.perf_fsync),
+                stringResource(R.string.perf_fsync_hint),
+                fsyncFirst, onChange = onFsyncFirst,
             )
             ToggleRow(
                 host, "fastsync", stringResource(R.string.perf_fastsync),

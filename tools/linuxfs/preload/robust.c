@@ -20,6 +20,8 @@
 
 static long (*real_syscall)(long, ...);
 
+int bl_fsync_syscall(long number, const long *args, long *ret) __attribute__((visibility("hidden")));
+
 static struct robust_list_head *thread_robust_head(void) {
   pthread_mutexattr_t attr;
   pthread_mutex_t mutex;
@@ -71,6 +73,10 @@ long syscall(long number, ...) {
     *(struct robust_list_head **)args[1] = head;
     *(size_t *)args[2] = sizeof(*head);
     return 0;
+  }
+  long handled;
+  if (bl_fsync_syscall(number, args, &handled)) {
+    return handled;
   }
   if (!real_syscall) {
     real_syscall = (long (*)(long, ...)) dlsym(RTLD_NEXT, "syscall");
