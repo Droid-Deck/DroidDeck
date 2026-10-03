@@ -308,6 +308,8 @@
     <string name="mode_storage_folder">Folder: %1$s</string>
     <string name="mode_second_library">Second library</string>
     <string name="mode_storage_note">Games that stream assets from SD or shared storage may stutter.</string>
+    <string name="mode_storage_diagnostics">Storage diagnostics</string>
+    <string name="mode_storage_diagnostics_hint">Record allocation results and sampled storage timings in Share logs. May slow installs while enabled. Applies next session.</string>
     <string name="mode_choose_folder">Choose a folder…</string>
     <string name="mode_renderer">Renderer</string>
     <string name="mode_desktop_renderer">Desktop renderer</string>
