@@ -437,6 +437,14 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("logs", on).apply()
     }
 
+    /** Steam storage-call diagnostics are opt-in because they add timing work to file operations. */
+    fun storageDiagnosticsEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("storageDiagnostics", false)
+
+    fun setStorageDiagnosticsEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("storageDiagnostics", on).apply()
+    }
+
     // ── Per-mode display ────────────────────────────────────────────────────────────────────
 
     /**

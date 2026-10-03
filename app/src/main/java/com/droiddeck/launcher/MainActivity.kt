@@ -313,6 +313,7 @@ class MainActivity : ComponentActivity() {
     private var backActionsInverted by mutableStateOf(false)
     private var renderer by mutableStateOf("vulkan")
     private var gameStorage by mutableStateOf("")
+    private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<Pair<String, String>>>(emptyList())
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
@@ -1074,6 +1075,7 @@ class MainActivity : ComponentActivity() {
                 renderer = if (mode == SessionService.MODE_DESKTOP) renderer else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
+                storageDiagnostics = mode == SessionService.MODE_STEAM && storageDiagnostics,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
                 steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
@@ -1141,6 +1143,10 @@ class MainActivity : ComponentActivity() {
                 onGameStorage = { path, label -> setGameStorage(path, label) },
                 onPickGameStorageFolder = {
                     pickGameStorage.launch(InAppFilePicker.buildDirIntent(this, "Choose the game storage folder", gameStorage.ifEmpty { null }))
+                },
+                onStorageDiagnostics = { on ->
+                    SessionPrefs.setStorageDiagnosticsEnabled(this, on)
+                    storageDiagnostics = on
                 },
                 onFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
                 onSteamChannel = { id -> SessionPrefs.setSteamChannel(this, id); steamChannel = id },
@@ -1270,6 +1276,7 @@ class MainActivity : ComponentActivity() {
         refreshWifiDiscovery()
         renderer = SessionPrefs.desktopRenderer(this)
         gameStorage = SessionPrefs.gameStorage(this)
+        storageDiagnostics = SessionPrefs.storageDiagnosticsEnabled(this)
         settingsMode = mode
         // The page opens at once, on what was last read; the slow part (driver files, a walk of the
         // added-games folders, the storage volumes) lands while it animates in.

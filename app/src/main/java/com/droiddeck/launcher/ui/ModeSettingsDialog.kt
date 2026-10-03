@@ -68,6 +68,8 @@ class ModeSettings(
     val renderer: String?,
     val gameStorage: String? = null,
     val storageOptions: List<Pair<String, String>> = emptyList(),
+    /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
+    val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
     /** Steam only: games are stretched to fill the screen (null = not a Steam page). */
     val forceFullscreen: Boolean? = null,
@@ -127,6 +129,7 @@ class ModeSettingsActions(
     val onRenderer: (String) -> Unit,
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
+    val onStorageDiagnostics: (Boolean) -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
     val onForceFullscreen: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
@@ -451,6 +454,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     }
                 }
             }
+            ToggleRow(
+                host, "storageDiagnostics", stringResource(R.string.mode_storage_diagnostics),
+                stringResource(R.string.mode_storage_diagnostics_hint), s.storageDiagnostics,
+                onChange = a.onStorageDiagnostics,
+            )
         }
         if (!steam && s.renderer != null) SettingsGroup(stringResource(R.string.mode_renderer)) {
             ChoiceRow(
