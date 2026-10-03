@@ -3,7 +3,11 @@
 # for Windows titles (CompatToolMapping "0" in config.vdf) when the user has not chosen one. Run
 # before the client starts; it rewrites config.vdf on exit.
 #
-#   bannerlator-steam-compat <steam root>
+#   bannerlator-steam-compat [--live] <steam root>
+#
+# --live is the session's beat, with the client running. The client settles a title's tool when it
+# installs it and keeps it in memory for the rest of its run, so a mapping repointed now takes only
+# once the client starts again: --live leaves RESTART_MARKER for the session to restart it.
 #
 # Valve ships a native aarch64 Proton (arm64ec Wine with FEX as the x86 layer) as an ordinary depot,
 # which is exactly what this runtime wants. Its toolmanifest declares require_tool_appid 4185400 -
@@ -32,6 +36,9 @@ SEED_TOOL = "proton-experimental-arm64"
 # does not give - the launch would be wrapped in it and die before this tool ever ran.
 PROTON_ARM64_APPID = "4427310"
 LAUNCHER = "bannerlator-proton"
+# Left by --live when a title's mapping changed under the running client; bannerlator-session
+# restarts the client once nothing would be lost by it, and removes the marker.
+RESTART_MARKER = ".bl-compat-restart"
 # The extra Steam library the app mounts the installed games into (see bannerlator-steam-library).
 # installed_apps() scans it too; it lives only in the sibling script, so define it here as well.
 LIBRARY = "/mnt/bannerlator"  # the card library is LIBRARY + "-sd"; internal storage is steam_root itself
@@ -546,16 +553,18 @@ def installed_apps(steam_root):
 
 
 def register_default(config_path, apps=(), name=None, protect=()):
-    """Writes the mapping. `name` defaults to our own tool; the first-run seed passes Valve's."""
+    """Writes the mapping. `name` defaults to our own tool; the first-run seed passes Valve's.
+    Returns the app ids whose own entry was repointed or added - the "0" default is not one."""
     tool = name or TOOL
     # Tool names the user may deliberately have chosen (see adopt_extras); never repointed.
     keep = {n.lower() for n in protect}
+    changed = set()
     with open(config_path, encoding="utf-8", errors="replace") as f:
         original = f.read()
     tokens = tokenize(original)
     steam = find_block(tokens, ["InstallConfigStore", "Software", "Valve", "Steam"])
     if steam is None:
-        return
+        return changed
     mapping = find_block(tokens[steam + 1:], ["CompatToolMapping"])
     entry = ['"0"', "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"75"', "}"]
     if mapping is None:
@@ -564,11 +573,20 @@ def register_default(config_path, apps=(), name=None, protect=()):
     else:
         mapping += steam + 1
         # Repoint every per-app entry the client aimed at a Proton it cannot actually start.
-        for i in range(mapping, block_end(tokens, mapping)):
-            named = tokens[i + 1].strip('"').lower()
-            if (tokens[i] == '"name"' and named.startswith("proton")
-                    and named != tool.lower() and named not in keep):
-                tokens[i + 1] = '"%s"' % tool
+        depth, app = 0, None
+        for i in range(mapping + 1, block_end(tokens, mapping)):
+            if tokens[i] == "{":
+                depth += 1
+            elif tokens[i] == "}":
+                depth -= 1
+            elif depth == 0 and tokens[i + 1] == "{":
+                app = tokens[i].strip('"')
+            elif depth == 1 and tokens[i] == '"name"':
+                named = tokens[i + 1].strip('"').lower()
+                if named.startswith("proton") and named != tool.lower() and named not in keep:
+                    tokens[i + 1] = '"%s"' % tool
+                    if app != "0":
+                        changed.add(app)
         if find_block(tokens[mapping + 1:], ["0"]) is None:
             tokens[mapping + 1:mapping + 1] = entry
         # The "0" default only decides how a title is installed, so it settles new downloads and
@@ -579,10 +597,12 @@ def register_default(config_path, apps=(), name=None, protect=()):
                 continue
             tokens[mapping + 1:mapping + 1] = [
                 '"%s"' % app, "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"250"', "}"]
+            changed.add(app)
     # Nothing to change is the usual case on the session's beat: the client's own file is left alone.
     text = serialize(tokens)
     if text != serialize(tokenize(original)):
         write_changed(config_path, text)
+    return changed
 
 
 def depot_build(depot):
@@ -619,7 +639,9 @@ def build_tool(tool_dir):
 
 
 def main():
-    steam_root = sys.argv[1]
+    args = sys.argv[1:]
+    live = args[:1] == ["--live"]
+    steam_root = args[-1]
     tools = os.path.join(steam_root, "compatibilitytools.d")
     os.makedirs(tools, exist_ok=True)
     build_tool(os.path.join(tools, TOOL))
@@ -633,8 +655,12 @@ def main():
     config = os.path.join(steam_root, "config", "config.vdf")
     if os.path.isfile(config):
         apps = installed_apps(steam_root)
-        register_default(config, apps, protect=extras)
+        changed = register_default(config, apps, protect=extras)
         print("bannerlator-steam-compat: default and %d installed title(s) set to %s" % (len(apps), TOOL))
+        if live and changed:
+            open(os.path.join(os.environ.get("HOME", "/root"), RESTART_MARKER), "w").close()
+            print("bannerlator-steam-compat: %s repointed under the running client; it restarts to take them"
+                  % ", ".join(sorted(changed)))
 
 
 if __name__ == "__main__":
