@@ -149,7 +149,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
     fi
   fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
-  [ "$nested" != "$width" ] && args+=(-S stretch)
+  [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
   # -r is what gamescope advertises as the refresh rate, and what a game reads as the display's.
   # Left unset it defaults to 60, so a 120 Hz panel offers only 60 Hz in game settings. The FPS
   # limiter wins when it is on (it is a deliberate cap); otherwise use the panel's own rate.
@@ -433,6 +433,19 @@ case $mode in
         fi
       done
     ) &
+    # With the 16:9 stretch on, the client's own scaler must not undo it: in Deck mode it sets
+    # GAMESCOPE_NEW_SCALING_SCALER to Auto (0), which fits the 16:9 picture with bars and outranks -S.
+    # Auto is put back to Stretch (4); a mode picked in the QAM (Integer, Fit, Fill) is kept.
+    [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STRETCHED:-0}" = 1 ] && (
+      while :; do
+        nap 1
+        cur=$(xprop -root GAMESCOPE_NEW_SCALING_SCALER 2>/dev/null) || continue
+        case $cur in *" = "*) cur=${cur##* = } ;; *) cur=0 ;; esac
+        [ "$cur" = 0 ] || continue
+        xprop -root -f GAMESCOPE_NEW_SCALING_SCALER 32c -set GAMESCOPE_NEW_SCALING_SCALER 4 2>/dev/null \
+          && echo "== stretch 16:9 to panel: the client's scaler was Auto, set to Stretch"
+      done
+    ) &
     # Resume from the Steam menu. The menu is an overlay that takes input, and a fullscreen game that
     # loses input minimizes itself; gamescope only takes a window out of that state when the focused
     # window changes, which the menu never does, so the game stayed minimized after Resume (a black
@@ -651,6 +664,8 @@ BUSCONF
       _bl_ui+=(-steamdeck -steamos3)
       # The QAM's Scaling Filter lists NVIDIA Image Scaling only when told gamescope has it (it does).
       export STEAM_GAMESCOPE_NIS_SUPPORTED=1
+      # And shows its Scaling Mode and Scaling Filter only when told gamescope takes them.
+      export STEAM_GAMESCOPE_FANCY_SCALING_SUPPORT=1
       echo "== steam: Deck mode on (-steamdeck -steamos3)"
     fi
     # What a killed session leaves behind. Android ends sessions without warning (backgrounding, the
