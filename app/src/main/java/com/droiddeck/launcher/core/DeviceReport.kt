@@ -150,6 +150,8 @@ object DeviceReport {
         k("No GL error checks", SessionPrefs.noGlError(context))
         k("Steam Deck mode", SessionPrefs.steamDeckMode(context))
         k("Steam controller", SessionPrefs.steamController(context))
+        k("Upscaler", (SessionPrefs.upscalerChoices.firstOrNull { it.first == SessionPrefs.upscaler(context) }?.second ?: "Off") +
+            " (sharpness ${SessionPrefs.upscaleSharpness(context)}%)")
         k("FEX preset", SessionPrefs.fexPreset(context).ifEmpty { "FEX defaults" })
         k("Skip xalia", SessionPrefs.noXalia(context))
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))

@@ -220,6 +220,19 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("mic", on).apply()
     }
 
+    /** Optional SSID reporting and scans. A Location grant alone never opts the user in. */
+    fun wifiDiscoveryEnabled(context: Context): Boolean = prefs(context).getBoolean("wifiDiscovery", false)
+
+    fun setWifiDiscoveryEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("wifiDiscovery", on).apply()
+    }
+
+    fun wifiDiscoveryAsked(context: Context): Boolean = prefs(context).getBoolean("wifiDiscoveryAsked", false)
+
+    fun setWifiDiscoveryAsked(context: Context) {
+        prefs(context).edit().putBoolean("wifiDiscoveryAsked", true).apply()
+    }
+
     /**
      * Whether the client's own core pick is overridden. When on, BL_CLIENT_CPUS is sent even when
      * it names every core - unlike a game mask, the point here is to undo a pin Steam applies to
@@ -587,6 +600,26 @@ object SessionPrefs {
     }
 
     val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
+
+    val upscalerChoices = listOf(
+        0 to "Off", 4 to "AMD FSR 1", 3 to "Snapdragon GSR", 8 to "Snapdragon GSR (quality)",
+        7 to "NVIDIA NIS", 6 to "Sharpen only",
+    )
+
+    fun upscaler(context: Context): Int =
+        prefs(context).getInt("upscaler", 0).takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+
+    fun setUpscaler(context: Context, mode: Int) {
+        prefs(context).edit().putInt("upscaler", mode).apply()
+    }
+
+    val upscaleSharpnessChoices = listOf(0 to "0%", 25 to "25%", 50 to "50%", 75 to "75%", 100 to "100%")
+
+    fun upscaleSharpness(context: Context): Int = prefs(context).getInt("upscaleSharpness", 75).coerceIn(0, 100)
+
+    fun setUpscaleSharpness(context: Context, pct: Int) {
+        prefs(context).edit().putInt("upscaleSharpness", pct.coerceIn(0, 100)).apply()
+    }
 
     /**
      * The mode whose per-mode settings apply: a program run under gamescope (MODE_RUN) is a

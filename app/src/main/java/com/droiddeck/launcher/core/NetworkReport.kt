@@ -14,10 +14,8 @@ import java.net.Inet6Address
  * `network.txt`: what the session was given to work with, for the reports that say "the client
  * thinks WiFi is off" or "Firefox cannot resolve anything".
  *
- * The runtime has no NetworkManager, so the client's own network panel is blind by design and says
- * so in ways that read like a fault. What actually matters is further down: whether the phone had
- * a validated link, which DNS servers the app wrote into the runtime's `resolv.conf`, and whether
- * the session can reach a name and an address at all.
+ * The runtime's NetworkManager bridge reports Android's active link. Include whether the phone
+ * had a validated link and which DNS servers the app wrote into the runtime's `resolv.conf`.
  *
  * **No network names.** The SSID is identifying and is deliberately not collected; the transport
  * type, the addresses' families and the DNS servers are what a diagnosis needs.
@@ -100,7 +98,7 @@ object NetworkReport {
         }
         append("\nproot makes no network namespace, so the session uses the phone's connection\n")
         append("directly: IPv4 and IPv6 both pass through, and there is nothing to forward.\n")
-        append("The Steam client's own network panel drives NetworkManager over D-Bus, which this\n")
-        append("runtime does not have - \"wifi is off\" there is cosmetic and not evidence.\n")
+        append("Steam reads Android's transport, connectivity and metering through the runtime's\n")
+        append("NetworkManager D-Bus bridge. Android settings manage Wi-Fi and cellular connections.\n")
     }
 }
