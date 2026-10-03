@@ -44,13 +44,18 @@ case $qt in wayland|xcb) ;; *) qt=auto ;; esac
 wayland=${GAMESCOPE_WAYLAND_DISPLAY:-${WAYLAND_DISPLAY:-}}
 if [ "$qt" = auto ] && [ -n "$wayland" ]; then
   bundled=$(find "$APPDIR" -maxdepth 6 \( -name 'libQt6Quick.so.6*' -o -name libvulkan.so.1 -o -name 'libqwayland*.so' \) -printf '%f\n' 2>/dev/null)
-  if grep -q '^libQt6Quick\.so\.6' <<<"$bundled" && grep -qx libvulkan.so.1 <<<"$bundled" && grep -q '^libqwayland' <<<"$bundled"; then
-    qt=wayland
+  if grep -q '^libQt6Quick\.so\.6' <<<"$bundled"; then
+    if grep -q '^libqwayland' <<<"$bundled" \
+       && { grep -qx libvulkan.so.1 <<<"$bundled" || grep -qs QVulkanInstance "$APPDIR"/usr/bin/* "$APPDIR"/bin/*; }; then
+      qt=wayland
+    else
+      echo "== appimage: Qt Quick without Vulkan or Qt's Wayland plugin stays on X11 ($(tr '\n' ' ' <<<"$bundled"))"
+    fi
   fi
 fi
 if [ "$qt" = wayland ] && [ -n "$wayland" ]; then
   export QT_QPA_PLATFORM='wayland;xcb' WAYLAND_DISPLAY=$wayland SDL_VIDEODRIVER=wayland XDG_SESSION_TYPE=wayland
-  [ "$wayland" = "${GAMESCOPE_WAYLAND_DISPLAY:-}" ] && export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+  [ "$wayland" = "${GAMESCOPE_WAYLAND_DISPLAY:-}" ] && export QT_WAYLAND_DISABLE_WINDOWDECORATION=1 DISABLE_GAMESCOPE_WSI=1
 elif [ "$qt" = xcb ] && [ -n "${DISPLAY:-}" ]; then
   export QT_QPA_PLATFORM=xcb
 fi

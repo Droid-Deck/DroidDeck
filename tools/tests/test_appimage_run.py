@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 RUN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-appimage-run"
-KEYS = ("QT_QPA_PLATFORM", "WAYLAND_DISPLAY", "SDL_VIDEODRIVER", "XDG_SESSION_TYPE", "QT_WAYLAND_DISABLE_WINDOWDECORATION")
+KEYS = ("QT_QPA_PLATFORM", "WAYLAND_DISPLAY", "SDL_VIDEODRIVER", "XDG_SESSION_TYPE", "QT_WAYLAND_DISABLE_WINDOWDECORATION", "DISABLE_GAMESCOPE_WSI")
 QUICK = ("usr/lib/libQt6Quick.so.6", "usr/lib/libvulkan.so.1", "usr/plugins/platforms/libqwayland-generic.so")
 RUN_MODE = {"GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0", "WAYLAND_DISPLAY": "gamescope-0", "DISPLAY": ":0",
             "QT_QPA_PLATFORM": "xcb", "SDL_VIDEODRIVER": "x11", "XDG_SESSION_TYPE": "x11"}
@@ -47,7 +47,17 @@ class AppImageRunTest(unittest.TestCase):
         self.assertEqual("wayland", env["SDL_VIDEODRIVER"])
         self.assertEqual("wayland", env["XDG_SESSION_TYPE"])
         self.assertEqual("1", env["QT_WAYLAND_DISABLE_WINDOWDECORATION"])
+        self.assertEqual("1", env["DISABLE_GAMESCOPE_WSI"])
         self.assertIn("Qt wayland (wayland;xcb)", log)
+
+    def test_a_quick_app_that_loads_vulkan_itself_is_found_by_its_binary(self):
+        self.bundle(QUICK[0], QUICK[2])
+        binary = self.dir / "app/usr/bin/opennow-qt"
+        binary.parent.mkdir(parents=True, exist_ok=True)
+        binary.write_bytes(b"\x7fELF\0_ZN7QWindow17setVulkanInstanceEP15QVulkanInstance\0")
+        env, _ = self.launch(RUN_MODE)
+        self.assertEqual("wayland;xcb", env["QT_QPA_PLATFORM"])
+        self.assertEqual("1", env["DISABLE_GAMESCOPE_WSI"])
 
     def test_other_apps_stay_on_xwayland(self):
         self.bundle("usr/lib/libQt6Widgets.so.6", "usr/lib/libvulkan.so.1", "usr/plugins/platforms/libqxcb.so")
@@ -55,11 +65,13 @@ class AppImageRunTest(unittest.TestCase):
         self.assertEqual("xcb", env["QT_QPA_PLATFORM"])
         self.assertEqual("x11", env["SDL_VIDEODRIVER"])
         self.assertEqual("unset", env["QT_WAYLAND_DISABLE_WINDOWDECORATION"])
+        self.assertEqual("unset", env["DISABLE_GAMESCOPE_WSI"])
 
     def test_a_quick_app_without_the_wayland_plugin_stays_on_xwayland(self):
         self.bundle(*QUICK[:2])
-        env, _ = self.launch(RUN_MODE)
+        env, log = self.launch(RUN_MODE)
         self.assertEqual("xcb", env["QT_QPA_PLATFORM"])
+        self.assertIn("stays on X11", log)
 
     def test_the_desktop_keeps_its_decorations(self):
         self.bundle(*QUICK)
@@ -68,6 +80,7 @@ class AppImageRunTest(unittest.TestCase):
         self.assertEqual("wayland-1", env["WAYLAND_DISPLAY"])
         self.assertEqual("wayland", env["SDL_VIDEODRIVER"])
         self.assertEqual("unset", env["QT_WAYLAND_DISABLE_WINDOWDECORATION"])
+        self.assertEqual("unset", env["DISABLE_GAMESCOPE_WSI"])
 
     def test_the_per_app_choice_wins(self):
         self.bundle(*QUICK)
