@@ -293,6 +293,7 @@ object ComponentsManager {
                 }
             }
             require(File(staged, "files").isDirectory) { "${wcp.name} has no files/" }
+            if (comp == "fex") FEX_FILES.filter { it.endsWith(".so") && !File(staged, it).isFile }.forEach { File(dir, it).delete() }
             COMP_DIR[comp]?.let { compDir ->
                 for (arch in PE_ARCHES) {
                     val target = File(dir, "$compDir/$arch")
