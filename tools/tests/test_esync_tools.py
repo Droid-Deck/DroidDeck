@@ -771,7 +771,7 @@ class DiscoverTest(unittest.TestCase):
         self.assertNotIn("GE-Proton10-30", stdout)
         self.assertNotIn("GE-Proton11-4", stdout)
         lines = self.output.read_text().splitlines()
-        self.assertEqual(lines, [f"matrix={json.dumps(matrix, sort_keys=True, separators=(',', ':'))}", "count=3"])
+        self.assertEqual(lines, [f"matrix={json.dumps(matrix, sort_keys=True, separators=(',', ':'))}", "count=3", "unindexed=0"])
 
     def test_a_new_patch_rev_rebuilds(self):
         bumped = json.loads(json.dumps(self.FLAVORS))
@@ -795,7 +795,7 @@ class DiscoverTest(unittest.TestCase):
         code, stdout, stderr = self.discover(ref="GE-Proton11-6")
         self.assertEqual(code, 0, stderr)
         self.assertEqual(json.loads(stdout)["include"], [])
-        self.assertTrue(self.output.read_text().endswith("count=0\n"))
+        self.assertTrue(self.output.read_text().endswith("count=0\nunindexed=0\n"))
         code, _, stderr = self.discover(ref="GE-Proton11-5")
         self.assertEqual(code, 1)
         self.assertIn("no build is tagged GE-Proton11-5", stderr)
@@ -940,9 +940,10 @@ class DiscoverTest(unittest.TestCase):
         responses = {
             f"{base}/tags/droiddeck-esync-ge": completed([], stdout=json.dumps({"id": 20, "assets": []})),
             f"{base}/20/assets?per_page=100": completed([], stdout=json.dumps([
-                {"id": 1, "name": "ge-a-r1-000000000000.failed", "updated_at": "2026-10-01T12:00:00Z"},
+                {"id": 1, "name": "ge-a-r1-000000000000.failed", "updated_at": "2026-10-02T01:00:00Z"},
                 {"id": 2, "name": "ge-b-r1-000000000000.failed", "updated_at": "2026-09-20T12:00:00Z"},
-                {"id": 3, "name": "ge-c-r1-000000000000.failed", "created_at": "2026-09-30T00:00:00Z"},
+                {"id": 3, "name": "ge-c-r1-000000000000.failed", "created_at": "2026-10-01T18:00:00Z"},
+                {"id": 6, "name": "ge-e-r1-000000000000.failed", "updated_at": "2026-10-01T11:00:00Z"},
                 {"id": 4, "name": "ge-d-r1-000000000000.failed", "updated_at": "not a time"},
                 {"id": 5, "name": "ge-GE-Proton11-7-1-aaaaaaaaaaaa-r1.json", "updated_at": "2026-10-01T12:00:00Z"}])),
         }
@@ -970,6 +971,85 @@ class DiscoverTest(unittest.TestCase):
         self.assertEqual(stdout, f"valve\t{discover.failure_marker(rows[1])}\n")
         with self.assertRaises(discover.PackError):
             discover.failed_builds({}, artifacts)
+
+    STEAM = (
+        "Connecting anonymously to Steam Public...\x1b[0mOK\n"
+        "\x1b[0mAppID : 4427310, change number : 1/1, last change : Fri Oct  2 22:56:30 2026 \n"
+        '"4427310"\n{\n\t"common"\n\t{\n\t\t"name"\t\t"Proton Experimental (ARM64)"\n\t}\n\t"depots"\n\t{\n'
+        '\t\t"4427311"\n\t\t{\n\t\t\t"manifests"\n\t\t\t{\n\t\t\t\t"public"\n\t\t\t\t{\n\t\t\t\t\t"gid"\t\t"{gid}"\n'
+        '\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\t"branches"\n\t\t{\n\t\t\t"public"\n\t\t\t{\n\t\t\t\t"buildid"\t\t"{build}"\n'
+        '\t\t\t\t"timebuildupdated"\t\t"1790839953"\n\t\t\t}\n\t\t\t"beta"\n\t\t\t{\n\t\t\t\t"buildid"\t\t"99"\n\t\t\t}\n'
+        '\t\t}\n\t}\n}\n'
+        "AppID : 4628740, change number : 2/2, last change : Fri Sep  4 14:18:22 2026 \n"
+        '"4628740"\n{\n\t"depots"\n\t{\n\t\t"branches"\n\t\t{\n\t\t\t"public"\n\t\t\t{\n\t\t\t\t"buildid"\t\t"25118360"\n'
+        '\t\t\t}\n\t\t}\n\t}\n}\n'
+    )
+
+    def steam_text(self, build="25646942", gid="1476754387216214045"):
+        return self.STEAM.replace("{build}", build).replace("{gid}", gid)
+
+    def watch(self, *extra):
+        argv = ["--flavors", str(self.flavors_file), "watch", "--out", str(self.tmp / "state.json"), *extra]
+        with mock.patch.object(discover.subprocess, "run", side_effect=self.gh):
+            return run_main(discover.main, argv, {"GITHUB_OUTPUT": str(self.output)})
+
+    def test_steam_app_info(self):
+        builds = discover.steam_builds(self.steam_text(), ["4427310", "4628740"])
+        self.assertEqual(builds, {"4427310": {"buildid": "25646942", "built": "1790839953", "manifests": ["1476754387216214045"]},
+                                  "4628740": {"buildid": "25118360", "built": "", "manifests": []}})
+        self.assertEqual(discover.steam_builds(self.steam_text(), ["4628740"]).keys(), {"4628740"})
+        self.assertEqual(discover.steam_builds("Connecting anonymously...\nERROR! timed out\n", ["4427310"]), {})
+        with self.assertRaises(discover.PackError):
+            discover.vdf('"a"\n{\n"b" "c"\n')
+        self.assertEqual(discover.steam_apps(discover.load_flavors(self.flavors_file)), ["4427310", "4628740"])
+
+    def test_watch_reports_only_what_changed(self):
+        info = self.tmp / "steam.txt"
+        info.write_text(self.steam_text())
+        code, stdout, stderr = self.watch("--steam-info", str(info))
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(stdout.split(), ["ge", "valve"])
+        self.assertTrue(self.output.read_text().endswith("changed=ge valve\n"))
+        state = json.loads((self.tmp / "state.json").read_text())
+        self.assertEqual(state["format"], 1)
+        self.assertEqual(state["flavors"]["valve"]["builds"], ["experimental-11.0-20260910b", "experimental-11.0-20260917b",
+                                                              "proton-11.0-10", "proton-11.0-2b"])
+        self.assertEqual(state["flavors"]["valve"]["steam"]["4427310"]["buildid"], "25646942")
+        self.assertEqual(state["flavors"]["ge"]["builds"], ["GE-Proton11-6 GE-Proton11-6-aarch64.tar.gz",
+                                                           "GE-Proton11-7 GE-Proton11-7-aarch64.tar.xz"])
+        previous = self.tmp / "previous.json"
+        shutil.copy(self.tmp / "state.json", previous)
+        self.output.write_text("")
+        code, stdout, stderr = self.watch("--state", str(previous), "--steam-info", str(info))
+        self.assertEqual((code, stdout.split(), self.output.read_text()), (0, [], "changed=\n"), stderr)
+        code, stdout, stderr = self.watch("--state", str(previous))
+        self.assertEqual((code, stdout.split()), (0, []), stderr)
+        self.assertEqual(json.loads((self.tmp / "state.json").read_text())["flavors"]["valve"]["steam"],
+                         json.loads(previous.read_text())["flavors"]["valve"]["steam"])
+        code, stdout, stderr = self.watch("--state", str(previous), "--steam-info", str(self.tmp / "missing.txt"))
+        self.assertEqual((code, stdout.split()), (0, []), stderr)
+        self.assertIn("watching the source tags only", stderr)
+        info.write_text(self.steam_text(build="25700000", gid="1"))
+        code, stdout, stderr = self.watch("--state", str(previous), "--steam-info", str(info))
+        self.assertEqual((code, stdout.split()), (0, ["valve"]), stderr)
+        self.assertIn("Steam app 4427310 moved from build 25646942 to 25700000", stderr)
+        self.RELEASES = [release("GE-Proton11-8", "2026-10-01T00:00:00Z", "GE-Proton11-8-aarch64.tar.gz"), *self.RELEASES]
+        code, stdout, stderr = self.watch("--state", str(previous))
+        self.assertEqual((code, stdout.split()), (0, ["ge"]), stderr)
+        self.assertIn("ge: GE-Proton11-8 GE-Proton11-8-aarch64.tar.gz", stderr)
+        previous.write_text("not json")
+        code, stdout, stderr = self.watch("--state", str(previous))
+        self.assertEqual((code, stdout.split()), (0, ["ge", "valve"]), stderr)
+
+    def test_watch_notices_a_patch_change(self):
+        code, _, stderr = self.watch()
+        self.assertEqual(code, 0, stderr)
+        previous = self.tmp / "previous.json"
+        shutil.copy(self.tmp / "state.json", previous)
+        with mock.patch.object(discover, "patch_digest", return_value="f" * 64):
+            code, stdout, stderr = self.watch("--state", str(previous))
+        self.assertEqual((code, stdout.split()), (0, ["ge", "valve"]), stderr)
+        self.assertIn("the patch series or rev changed", stderr)
 
     def test_json_stream(self):
         self.assertEqual(discover.json_values('[1, 2]\n[3]\n'), [[1, 2], [3]])
@@ -1065,7 +1145,7 @@ class ShippedFilesTest(unittest.TestCase):
             self.skipTest("PyYAML is not installed")
         packs = yaml.safe_load((WORKFLOWS / "build-droiddeck-esync-packs.yml").read_text())
         triggers = packs.get("on", packs.get(True))
-        self.assertEqual(triggers["schedule"], [{"cron": "17 */6 * * *"}])
+        self.assertEqual(triggers["schedule"], [{"cron": "17 5 * * *"}])
         self.assertEqual(triggers["push"]["branches"], ["main"])
         self.assertEqual(set(triggers["workflow_dispatch"]["inputs"]), {"flavor", "ref", "publish"})
         self.assertEqual(packs["permissions"], {"contents": "write"})
@@ -1102,6 +1182,32 @@ class ShippedFilesTest(unittest.TestCase):
         self.assertIn("--previous-sig", index_text)
         self.assertNotIn("GITHUB_SERVER_URL", index_text)
         self.assertNotIn("grep -qxF", index_text)
+        self.assertIn("needs.discover.outputs.unindexed != '0'", jobs["index"]["if"])
+        self.assertIn("needs.discover.outputs.count != '0'", jobs["index"]["if"])
+        steps = {step.get("name"): step for step in jobs["build"]["steps"]}
+        smoke = steps["Smoke-test the pack on the release it was made for"]
+        self.assertEqual(smoke["if"], "matrix.asset != ''")
+        self.assertIn("tools/droiddeck-esync/smoke-test.sh", smoke["run"])
+        self.assertIn("3) echo \"::warning::", smoke["run"])
+        watch = yaml.safe_load((WORKFLOWS / "watch-proton-releases.yml").read_text())
+        triggers = watch.get("on", watch.get(True))
+        self.assertEqual(triggers["schedule"], [{"cron": "*/20 * * * *"}])
+        self.assertIn("workflow_dispatch", triggers)
+        self.assertEqual(watch["permissions"], {"contents": "write", "actions": "write"})
+        self.assertEqual(watch["concurrency"], {"group": "watch-proton-releases", "cancel-in-progress": False})
+        job = watch["jobs"]["watch"]
+        self.assertIn("github.repository == 'Droid-Deck/DroidDeck'", job["if"])
+        steps = {step.get("name"): step for step in job["steps"]}
+        self.assertIn("+login anonymous", steps["Read the Proton builds Steam ships"]["run"])
+        self.assertIn("discover.py steam-apps", steps["Read the Proton builds Steam ships"]["run"])
+        self.assertIn("discover.py watch", steps["Compare with the last run"]["run"])
+        start = steps["Start the pack builds"]
+        self.assertEqual(start["if"], "steps.watch.outputs.changed != ''")
+        self.assertIn("gh workflow run build-droiddeck-esync-packs.yml", start["run"])
+        self.assertIn("-f publish=true", start["run"])
+        names = [step.get("name") for step in job["steps"]]
+        self.assertLess(names.index("Start the pack builds"), names.index("Save the watch state"))
+        self.assertIn("watch-state.json --clobber", steps["Save the watch state"]["run"])
         apk = yaml.safe_load((WORKFLOWS / "build.yml").read_text())
         steps = {step.get("name"): step for step in apk["jobs"]["build"]["steps"]}
         bundle = steps["Bundle the droiddeck-esync packs"]

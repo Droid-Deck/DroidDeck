@@ -2,7 +2,7 @@ name: Build droiddeck-esync packs
 
 on:
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17 5 * * *'
   push:
     branches: [ main ]
     paths:
@@ -44,6 +44,7 @@ jobs:
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
       count: ${{ steps.discover.outputs.count }}
+      unindexed: ${{ steps.discover.outputs.unindexed }}
       publish: ${{ steps.discover.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
@@ -119,8 +120,7 @@ jobs:
           rm -rf stock-download stock
           mkdir -p stock-download stock
           gh release download "$TAG" -R "$REPO" -p "$ASSET" -D stock-download
-          tar -xf "stock-download/$ASSET" -C stock --no-wildcards-match-slash --wildcards \
-            '*/version' '*/files/lib/wine/aarch64-unix/ntdll.so' '*/files/bin-arm64/wineserver'
+          tar -xf "stock-download/$ASSET" -C stock
           rm -rf stock-download
           mapfile -t tops < <(find stock -mindepth 1 -maxdepth 1 -type d)
           if [ "${#tops[@]}" != 1 ]; then
@@ -262,6 +262,23 @@ jobs:
           echo "Pack \`$id\` from $FLAVOR $TAG" >> "$GITHUB_STEP_SUMMARY"
           ls -l out
 
+      - name: Smoke-test the pack on the release it was made for
+        if: matrix.asset != ''
+        run: |
+          set -euo pipefail
+          id=$(basename out/*.tzst .tzst)
+          docker run --rm -v "$PWD:/work" -w /work "$SDK_IMAGE" \
+            /opt/llvm-mingw/bin/aarch64-w64-mingw32-clang -O2 -o esstress.exe tools/droiddeck-esync/tests/esstress.c
+          set +e
+          bash tools/droiddeck-esync/smoke-test.sh "$STOCK_DIR" "out/$id.tzst" esstress.exe smoke
+          status=$?
+          set -e
+          case $status in
+            0) echo "Smoke test passed for \`$id\`" >> "$GITHUB_STEP_SUMMARY" ;;
+            3) echo "::warning::stock $TAG does not run on this runner, so $id could not be smoke-tested" ;;
+            *) echo "::error::$id failed the smoke test on $TAG"; exit 1 ;;
+          esac
+
       - uses: actions/upload-artifact@v4
         with:
           name: droiddeck-esync-pack-${{ matrix.key }}
@@ -275,6 +292,7 @@ jobs:
           path: |
             prep.log
             build/work-*/*.log
+            smoke/*.log
           if-no-files-found: ignore
 
   publish:
@@ -336,13 +354,13 @@ jobs:
             fi
             echo "$RUN_URL" > "failed/$marker"
             gh release upload "$tag" -R "$GITHUB_REPOSITORY" "failed/$marker" --clobber
-            echo "::warning::$marker: no pack was made; discovery skips this build for 7 days unless rev or the patch series changes"
+            echo "::warning::$marker: no pack was made; discovery skips this build for a day unless rev or the patch series changes"
           done 3< failed.tsv
 
   index:
     name: Sign the index
     needs: [ discover, build, publish ]
-    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.publish == 'true' }}
+    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.publish == 'true' && (needs.discover.outputs.count != '0' || needs.discover.outputs.unindexed != '0') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: droiddeck-esync-signing

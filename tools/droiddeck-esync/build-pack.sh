@@ -28,7 +28,7 @@ prepare() {
     local p found=0
     for p in "$patches"/*.patch; do
       [ -f "$p" ] || continue
-      patch -d "$s" -p1 --forward --no-backup-if-mismatch -s < "$p"
+      patch -d "$s" -p1 --forward --fuzz=0 --no-backup-if-mismatch -s < "$p"
       found=1
     done
     [ "$found" = 1 ] || { echo "no patches in $patches" >&2; exit 1; }

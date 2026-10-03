@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -24,7 +25,10 @@ CLONES = ("shallow", "treeless")
 PACK_REV = re.compile(r"-r([0-9]+)$")
 ARTIFACT_PREFIX = "droiddeck-esync-pack-"
 FAILED = ".failed"
-RETRY_AFTER = timedelta(days=7)
+RETRY_AFTER = timedelta(days=1)
+VDF_TOKEN = re.compile(r'"((?:[^"\\]|\\.)*)"|([{}])')
+APP_HEADER = re.compile(r"^AppID : ([0-9]+),", re.M)
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 def gh(*args: str) -> subprocess.CompletedProcess:
@@ -288,6 +292,92 @@ def discover(flavors: dict, selected: str, ref: str, index: dict, revoked: set[s
     return entries
 
 
+def vdf(text: str) -> dict:
+    stack = [{}]
+    key = None
+    for match in VDF_TOKEN.finditer(text):
+        word, brace = match.group(1), match.group(2)
+        if brace == "{":
+            if key is None:
+                raise PackError("app info: a block has no name")
+            child = {}
+            stack[-1][key] = child
+            stack.append(child)
+            key = None
+        elif brace == "}":
+            if len(stack) == 1:
+                raise PackError("app info: unbalanced braces")
+            stack.pop()
+            key = None
+        elif key is None:
+            key = word
+        else:
+            stack[-1][key] = word
+            key = None
+    if len(stack) != 1:
+        raise PackError("app info: unbalanced braces")
+    return stack[0]
+
+
+def steam_builds(text: str, apps: list[str]) -> dict[str, dict]:
+    found = {}
+    text = ANSI.sub("", text)
+    starts = [(m.start(), m.group(1)) for m in APP_HEADER.finditer(text)]
+    for number, (start, app) in enumerate(starts):
+        end = starts[number + 1][0] if number + 1 < len(starts) else len(text)
+        if app not in apps:
+            continue
+        body = text[text.find("\n", start) + 1:end]
+        info = vdf(body).get(app)
+        depots = info.get("depots") if isinstance(info, dict) else None
+        public = depots.get("branches", {}).get("public") if isinstance(depots, dict) else None
+        if not isinstance(public, dict) or not str(public.get("buildid", "")).isdigit():
+            continue
+        manifests = sorted(depot["manifests"]["public"]["gid"] for name, depot in depots.items()
+                           if name.isdigit() and isinstance(depot, dict) and isinstance(depot.get("manifests"), dict)
+                           and isinstance(depot["manifests"].get("public"), dict) and depot["manifests"]["public"].get("gid"))
+        found[app] = {"buildid": public["buildid"], "built": public.get("timebuildupdated", ""), "manifests": manifests}
+    return found
+
+
+def steam_apps(flavors: dict) -> list[str]:
+    return sorted({family["depot_app"] for cfg in flavors["flavors"].values() if cfg["list"] == "tags"
+                   for family in cfg["families"].values() if family.get("depot_app")})
+
+
+def watch(flavors: dict, previous: dict, steam: dict[str, dict] | None) -> tuple[dict, list[str], list[str]]:
+    state = {}
+    changed = []
+    notes = []
+    for flavor in sorted(flavors["flavors"]):
+        cfg = flavors["flavors"][flavor]
+        found = tag_candidates(flavor, cfg, "") if cfg["list"] == "tags" else release_candidates(flavor, cfg, "")
+        builds = sorted(f"{entry['tag']} {entry['asset']}".strip() for entry in found)
+        ships = {}
+        if cfg["list"] == "tags" and steam is not None:
+            for family in cfg["families"].values():
+                app = family.get("depot_app")
+                if app and app in steam:
+                    ships[app] = steam[app]
+        old = previous.get(flavor) if isinstance(previous.get(flavor), dict) else {}
+        if steam is None and isinstance(old.get("steam"), dict):
+            ships = old["steam"]
+        mark = {"builds": builds, "rev": cfg["rev"], "series": cfg["series"], "patch": patch_digest(PATCHES / cfg["series"])}
+        fingerprint = hashlib.sha256(json.dumps(mark, sort_keys=True).encode()).hexdigest()
+        state[flavor] = {**mark, "fingerprint": fingerprint, "steam": ships}
+        if old.get("fingerprint") != fingerprint:
+            changed.append(flavor)
+            fresh = sorted(set(builds) - set(old.get("builds") or []))
+            notes.append(f"{flavor}: {', '.join(fresh) if fresh else 'the patch series or rev changed'}")
+        for app, ship in sorted(ships.items()):
+            before = (old.get("steam") or {}).get(app) if isinstance(old.get("steam"), dict) else None
+            if isinstance(before, dict) and before.get("buildid") != ship.get("buildid"):
+                notes.append(f"{flavor}: Steam app {app} moved from build {before.get('buildid')} to {ship.get('buildid')}")
+                if flavor not in changed:
+                    changed.append(flavor)
+    return state, changed, notes
+
+
 def asset_text(repo: str, asset_id, what: str) -> str:
     result = gh("api", "-H", "Accept: application/octet-stream", f"repos/{repo}/releases/assets/{asset_id}")
     if result.returncode != 0:
@@ -414,12 +504,12 @@ def artifact_packs(matrix: dict, directory: Path) -> list[tuple[str, Path, str]]
     return found
 
 
-def emit(entries: list[dict]) -> None:
+def emit(entries: list[dict], unindexed: int = 0) -> None:
     matrix = json.dumps({"include": entries}, sort_keys=True, separators=(",", ":"))
     path = os.environ.get("GITHUB_OUTPUT")
     if path:
         with open(path, "a") as stream:
-            stream.write(f"matrix={matrix}\ncount={len(entries)}\n")
+            stream.write(f"matrix={matrix}\ncount={len(entries)}\nunindexed={unindexed}\n")
     print(matrix)
 
 
@@ -485,6 +575,11 @@ def main(argv: list[str] | None = None) -> int:
     failures = commands.add_parser("failures")
     failures.add_argument("--matrix", required=True)
     failures.add_argument("directory")
+    commands.add_parser("steam-apps")
+    watching = commands.add_parser("watch")
+    watching.add_argument("--state", default="")
+    watching.add_argument("--steam-info", default="")
+    watching.add_argument("--out", required=True)
     args = parser.parse_args(argv)
     try:
         flavors = load_flavors(Path(args.flavors))
@@ -500,9 +595,39 @@ def main(argv: list[str] | None = None) -> int:
             for flavor, marker in failed_builds(json.loads(args.matrix), Path(args.directory)):
                 print(f"{flavor}\t{marker}")
             return 0
+        if args.command == "steam-apps":
+            print(" ".join(steam_apps(flavors)))
+            return 0
+        if args.command == "watch":
+            previous = {}
+            if args.state and Path(args.state).is_file():
+                try:
+                    previous = json.loads(Path(args.state).read_text())
+                except ValueError:
+                    print("discover: the previous watch state is not JSON; every flavor counts as changed", file=sys.stderr)
+                previous = previous.get("flavors", {}) if isinstance(previous, dict) and previous.get("format") == 1 else {}
+            steam = None
+            if args.steam_info:
+                try:
+                    steam = steam_builds(Path(args.steam_info).read_text(errors="replace"), steam_apps(flavors))
+                except (OSError, PackError) as e:
+                    print(f"discover: Steam app info unusable ({e}); watching the source tags only", file=sys.stderr)
+                if steam is not None and len(steam) != len(steam_apps(flavors)):
+                    print(f"discover: Steam app info covers {sorted(steam)} of {steam_apps(flavors)}", file=sys.stderr)
+            state, changed, notes = watch(flavors, previous, steam)
+            Path(args.out).write_text(json.dumps({"format": 1, "flavors": state}, indent=1, sort_keys=True) + "\n")
+            for note in notes:
+                print(f"discover: {note}", file=sys.stderr)
+            path = os.environ.get("GITHUB_OUTPUT")
+            if path:
+                with open(path, "a") as stream:
+                    stream.write(f"changed={' '.join(changed)}\n")
+            print(" ".join(changed))
+            return 0
         if args.index and args.index_release:
             raise PackError("pass --index or --index-release, not both")
         failed = frozenset()
+        unindexed = 0
         if args.index:
             path = Path(args.index)
             index = json.loads(path.read_text()) if path.exists() else {}
@@ -511,12 +636,14 @@ def main(argv: list[str] | None = None) -> int:
                 raise PackError(f"{args.repo!r} is not owner/name")
             index = release_index(args.repo, args.index_release)
             listed = index.get("packs") if isinstance(index, dict) and isinstance(index.get("packs"), list) else []
-            index = {"packs": [*listed, *published(args.repo, flavors, args.flavor, index)]}
+            waiting = published(args.repo, flavors, args.flavor, index)
+            unindexed = len(waiting)
+            index = {"packs": [*listed, *waiting]}
             failed = recent_failures(args.repo, flavors, args.flavor, datetime.now(timezone.utc))
         else:
             index = {}
         revoked = read_revoked(Path(args.revoked)) if args.revoked else set()
-        emit(discover(flavors, args.flavor, args.ref.strip(), index, revoked, failed))
+        emit(discover(flavors, args.flavor, args.ref.strip(), index, revoked, failed), unindexed)
     except (PackError, OSError, ValueError) as e:
         print(f"discover: {e}", file=sys.stderr)
         return 1
