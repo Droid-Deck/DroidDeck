@@ -33,6 +33,7 @@ import com.droiddeck.launcher.core.NetworkReport
 import com.droiddeck.launcher.core.SessionPart
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.HostProcess
+import com.droiddeck.launcher.frontend.GameLaunchLink
 import com.droiddeck.launcher.input.FakeInputWriter
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -78,6 +79,12 @@ class SessionService : Service() {
     private var steamSleepToken: String? = null
     private var suspendOperationPending = false
     private var suspendAttemptFailed = false
+    /** One validated game request waiting for this Steam session to reach a usable state. */
+    private var pendingSteamGameId: String? = null
+    private var pendingSteamGameGeneration = -1
+    private val flushSteamGame = object : Runnable {
+        override fun run() = flushQueuedSteamGame()
+    }
     private var screenReceiverRegistered = false
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -107,6 +114,10 @@ class SessionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_LAUNCH_GAME -> {
+                queueSteamGame(intent.getStringExtra(EXTRA_GAME_ID))
+                return START_NOT_STICKY
+            }
             ACTION_TRACK_AUXILIARY -> {
                 val pid = intent.getIntExtra(EXTRA_AUXILIARY_PID, -1)
                 val started = if (pid > 1) readStat(pid)?.second else null
@@ -161,12 +172,7 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_RESUME -> {
-                activityVisible = true
-                screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
-                manualPauseRequested = false
-                completeSteamSleep()
-                suspendAttemptFailed = false
-                updateSuspendPolicy()
+                resumeSession()
                 return START_NOT_STICKY
             }
         }
@@ -207,6 +213,8 @@ class SessionService : Service() {
         // replaces can report its own exit in the gap between the two, and that exit must not
         // be taken as this one's.
         val gen = ++sessionGen
+        cancelQueuedSteamGame(clearMailbox = false)
+        clearSteamGameMailbox()
         acquireLocks()
         Thread({
             // A tree the last session left behind (the app was killed or crashed, so its teardown
@@ -884,6 +892,79 @@ class SessionService : Service() {
         return !File("/proc/$pid").exists()
     }
 
+    private fun queueSteamGame(gameId: String?) {
+        if (!GameLaunchLink.validId(gameId.orEmpty()) || !SessionState.running ||
+            SessionState.mode != MODE_STEAM || SessionState.stopRequested) {
+            Log.w(TAG, "ignored game launch outside a running Steam session")
+            return
+        }
+        val accepted = gameId!!
+        if (pendingSteamGameId != null) Log.i(TAG, "replacing a queued game launch with $accepted")
+        pendingSteamGameId = accepted
+        pendingSteamGameGeneration = sessionGen
+        if (SessionState.suspended) resumeSession()
+        mainHandler.removeCallbacks(flushSteamGame)
+        mainHandler.post(flushSteamGame)
+    }
+
+    private fun flushQueuedSteamGame() {
+        val gameId = pendingSteamGameId ?: return
+        val gen = pendingSteamGameGeneration
+        if (gen != sessionGen || !SessionState.running || SessionState.stopRequested ||
+            SessionState.mode != MODE_STEAM || !GameLaunchLink.validId(gameId)) {
+            cancelQueuedSteamGame()
+            return
+        }
+        if (SessionState.suspended) {
+            resumeSession()
+            mainHandler.postDelayed(flushSteamGame, GAME_LAUNCH_RETRY_MS)
+            return
+        }
+        if (SessionState.phase != SessionPhase.READY) {
+            mainHandler.postDelayed(flushSteamGame, GAME_LAUNCH_RETRY_MS)
+            return
+        }
+
+        val directory = LinuxRuntime.sessionRoot(this)
+        val staged = File(directory, STEAM_GAME_REQUEST + ".tmp")
+        val request = File(directory, STEAM_GAME_REQUEST)
+        val written = runCatching {
+            directory.mkdirs()
+            staged.writeText("$gameId\n")
+            check(staged.renameTo(request)) { "could not publish Steam game request" }
+        }.onFailure { Log.w(TAG, "could not queue Steam game $gameId", it) }.isSuccess
+        if (!written) {
+            mainHandler.postDelayed(flushSteamGame, GAME_LAUNCH_RETRY_MS)
+            return
+        }
+        pendingSteamGameId = null
+        pendingSteamGameGeneration = -1
+        SessionEvents.record("steam.game_launch_requested", mapOf("gameId" to gameId, "generation" to gen))
+        Log.i(TAG, "queued Steam game $gameId for the running client")
+    }
+
+    private fun resumeSession() {
+        activityVisible = true
+        screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
+        manualPauseRequested = false
+        completeSteamSleep()
+        suspendAttemptFailed = false
+        updateSuspendPolicy()
+    }
+
+    private fun cancelQueuedSteamGame(clearMailbox: Boolean = true) {
+        mainHandler.removeCallbacks(flushSteamGame)
+        pendingSteamGameId = null
+        pendingSteamGameGeneration = -1
+        if (clearMailbox) clearSteamGameMailbox()
+    }
+
+    private fun clearSteamGameMailbox() {
+        val directory = LinuxRuntime.sessionRoot(this)
+        File(directory, STEAM_GAME_REQUEST).delete()
+        File(directory, STEAM_GAME_REQUEST + ".tmp").delete()
+    }
+
     /**
      * proot's --kill-on-exit takes its tracees down, but a session that died from the inside
      * (the client asserting, Xwayland going) leaves gamescopereaper and the session script
@@ -1119,6 +1200,7 @@ class SessionService : Service() {
     }
 
     private fun stopSession(status: Int) {
+        cancelQueuedSteamGame()
         synchronized(stopLock) {
             if (!SessionState.running) return
             SessionState.running = false
@@ -1325,6 +1407,7 @@ class SessionService : Service() {
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
         const val ACTION_RESUME = "com.droiddeck.launcher.RESUME_SESSION"
+        const val ACTION_LAUNCH_GAME = "com.droiddeck.launcher.LAUNCH_STEAM_GAME"
         const val ACTION_HOME_GUIDE = "com.droiddeck.launcher.HOME_GUIDE"
         const val ACTION_AGENT_START = "com.droiddeck.launcher.AGENT_START"
         private const val ACTION_SUSPEND_POLICY_CHANGED = "com.droiddeck.launcher.SUSPEND_POLICY_CHANGED"
@@ -1341,6 +1424,8 @@ class SessionService : Service() {
         private const val GRACE_MS = 1200L
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L
+        private const val GAME_LAUNCH_RETRY_MS = 250L
+        private const val STEAM_GAME_REQUEST = "steam-game"
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"
         private const val NO_DECK_PAD_SWITCH = "Download/droiddeck-no-deck-pad"
@@ -1359,6 +1444,7 @@ class SessionService : Service() {
          *  MODE_DESKTOP: "desktop" = open Steam's desktop client in the desktop once it is up. */
         const val EXTRA_STEAM_UI = "steamUi"
         const val EXTRA_STEAM_URL = "steamUrl"
+        const val EXTRA_GAME_ID = "gameId"
 
         fun start(
             context: Context, mode: String = MODE_STEAM, program: String? = null,
@@ -1390,6 +1476,20 @@ class SessionService : Service() {
         fun resume(context: Context) {
             if (!SessionState.running) return
             context.startService(Intent(context, SessionService::class.java).setAction(ACTION_RESUME))
+        }
+
+        /** Route a validated decimal Steam game id through the current guest session. */
+        fun launchGame(context: Context, gameId: String): Boolean {
+            if (!GameLaunchLink.validId(gameId) || !SessionState.running ||
+                SessionState.mode != MODE_STEAM || SessionState.stopRequested) return false
+            return runCatching {
+                context.startService(
+                    Intent(context, SessionService::class.java)
+                        .setAction(ACTION_LAUNCH_GAME)
+                        .putExtra(EXTRA_GAME_ID, gameId),
+                )
+                true
+            }.getOrDefault(false)
         }
 
         fun suspendPolicyChanged(context: Context) {

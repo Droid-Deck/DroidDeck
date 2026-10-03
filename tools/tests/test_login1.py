@@ -108,6 +108,15 @@ class SleepHandshakeTest(unittest.TestCase):
         self.wait_for(lambda: self.signals == [True, False])
         self.assertFalse(self.preparing())
 
+    def test_suspend_after_service_was_frozen(self):
+        os.kill(self.process.pid, signal.SIGSTOP)
+        time.sleep(0.1)
+        os.kill(self.process.pid, signal.SIGCONT)
+        token = self.suspend()
+        self.state(token, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+        self.assertFalse(self.preparing())
+
     def test_failed_pause_recovers_and_duplicate_is_rejected(self):
         token = self.suspend()
         with self.assertRaises(GLib.Error):

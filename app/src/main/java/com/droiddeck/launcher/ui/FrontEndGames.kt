@@ -69,8 +69,8 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     if (current == null) {
         Column(modifier = modifier.padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)) {
             Rise(0) { PageHeader(stringResource(R.string.content_games)) }
-            Rise(1) { Note(stringResource(R.string.games_empty)) }
-            Rise(2) {
+            Rise(1) { Note(stringResource(if (s.shortcutPicker && s.shortcutLibraryScanning) R.string.game_shortcut_scanning else R.string.games_empty)) }
+            if (!s.shortcutPicker) Rise(2) {
                 Actions { PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp), onClick = a.onPlay) }
             }
         }
@@ -116,7 +116,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
 @Composable
 private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActions) {
     Actions {
-        PrimaryButton(stringResource(R.string.games_launch), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { a.onSteamGame(g) }
+        PrimaryButton(stringResource(if (s.shortcutPicker) R.string.game_shortcut_choose else R.string.games_launch), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { a.onSteamGame(g) }
         g.gameFiles?.takeIf { it.isDirectory }?.let { dir ->
             SecondaryButton(stringResource(R.string.games_files), compact = true) { a.onBrowseFiles(dir) }
         }
@@ -125,7 +125,24 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
             // Only games added to the library; Steam titles keep their saves with Steam Cloud.
             if (g.library == Library.ADDED) ManageSaves(g, dir, a)
         }
+        if (!s.shortcutPicker) GameShortcutMenu(g, a)
         BusyChip(s)
+    }
+}
+
+@Composable
+private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
+    var open by remember(g.gameId) { androidx.compose.runtime.mutableStateOf(false) }
+    Box {
+        SecondaryButton(stringResource(R.string.game_shortcut), compact = true) { open = !open }
+        AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_shortcut)) { first ->
+            MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = first) {
+                open = false; a.onGameShortcut(g)
+            }
+            MenuItem(stringResource(R.string.game_link_copy), checked = false) {
+                open = false; a.onCopyGameLink(g)
+            }
+        }
     }
 }
 
