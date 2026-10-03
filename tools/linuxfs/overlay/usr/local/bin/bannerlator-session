@@ -704,7 +704,7 @@ BUSCONF
     steam_updates=0
     rm -f "$HOME/.bl-stop-requested"
     if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -d "$BL_LAUNCH_DIR" ]; then
-      rm -f "$BL_LAUNCH_DIR/steam-stop"
+      rm -f "$BL_LAUNCH_DIR/steam-stop" "$BL_LAUNCH_DIR/steam-game" "$BL_LAUNCH_DIR/steam-game.tmp"
       (
         while :; do
           if [ -e "$BL_LAUNCH_DIR/steam-stop" ]; then
@@ -713,6 +713,24 @@ BUSCONF
             echo "== steam: the app asked for a clean exit"
             "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
             exit 0
+          fi
+          if [ -f "$BL_LAUNCH_DIR/steam-game" ]; then
+            game_id=$(cat "$BL_LAUNCH_DIR/steam-game" 2>/dev/null)
+            rm -f "$BL_LAUNCH_DIR/steam-game"
+            case $game_id in
+              ''|0*|*[!0-9]*) echo "== steam: ignored invalid game launch request" ;;
+              *)
+                game_id_length=${#game_id}
+                if [ "$game_id_length" -lt 20 ] || {
+                  [ "$game_id_length" -eq 20 ] && [[ "$game_id" < "18446744073709551616" ]];
+                }; then
+                  echo "== steam: launching requested game $game_id in the running client"
+                  "$steam_root/steamrtarm64/steam" "steam://rungameid/$game_id" >/dev/null 2>&1 &
+                else
+                  echo "== steam: ignored out-of-range game launch request"
+                fi
+                ;;
+            esac
           fi
           nap 0.5
         done

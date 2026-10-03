@@ -274,10 +274,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))
         }
-        SessionState.program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
-        SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
-        SessionState.steamUi = intent.getStringExtra(SessionService.EXTRA_STEAM_UI)
-        SessionState.steamUrl = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
+        if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
+            SessionState.program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
+            SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
+            SessionState.steamUi = intent.getStringExtra(SessionService.EXTRA_STEAM_UI)
+            SessionState.steamUrl = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
+        }
         if (intent.action == SessionService.ACTION_AGENT_START) {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
         }
