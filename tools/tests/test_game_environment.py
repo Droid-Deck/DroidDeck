@@ -20,6 +20,43 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(env["REMOVE"], "inherited")
         self.assertEqual(MODULE["apply_config"](env, config, "43")["CUSTOM"], "shared")
 
+    def test_engine_fixes_follow_the_games_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "Godot Game"
+            (game / "data_game_windows_x86_64").mkdir(parents=True)
+            for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll", "data_game_windows_x86_64/coreclr.dll"):
+                (game / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(game / "Game.exe"), [])
+            self.assertEqual(env["FEX_TSOENABLED"], "1")
+            self.assertEqual(env["FEX_MULTIBLOCK"], "0")
+            self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
+            self.assertEqual(extra, ["--rendering-driver", "vulkan"])
+            self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
+            other = Path(tmp) / "Other"
+            other.mkdir()
+            (other / "Other.exe").touch()
+            self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
+
+    def test_a_new_fix_only_needs_registering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "Game.exe").touch()
+            (Path(tmp) / "engine.dll").touch()
+            check = lambda game: ({"ENGINE": "1"}, ["--flag"], "engine") if "engine.dll" in game.files else None
+            MODULE["FIXES"].append(check)
+            try:
+                self.assertEqual(MODULE["engine_fixes"](str(Path(tmp) / "Game.exe"), []), ({"ENGINE": "1"}, ["--flag"], ["engine"]))
+            finally:
+                MODULE["FIXES"].remove(check)
+
+    def test_engine_fixes_sit_between_shared_and_game_profiles(self):
+        env = {"WINEDLLOVERRIDES": "dxgi=n"}
+        fixes = {"FEX_MULTIBLOCK": "0", "WINEDLLOVERRIDES": "libsentry=d"}
+        config = {"version": 1, "shared": {"FEX_MULTIBLOCK": "1"}, "games": {"42": {"FEX_TSOENABLED": "0"}}}
+        result = MODULE["apply_config"](env, config, "42", {**fixes, "FEX_TSOENABLED": "1"})
+        self.assertEqual(result["FEX_MULTIBLOCK"], "0")
+        self.assertEqual(result["FEX_TSOENABLED"], "0")
+        self.assertEqual(result["WINEDLLOVERRIDES"], "dxgi=n;libsentry=d")
+
     def test_invalid_configuration_is_atomic(self):
         env = {"ORIGINAL": "unchanged"}
         for entries in ({"A": "ok", "BAD=KEY": "x"}, {"A": "bad\0value"}, {"A": 1}):
