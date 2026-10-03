@@ -55,7 +55,6 @@ class LoginManager:
                              GLib.Variant("(sa{sv}as)", (INTERFACE, {
                                  "PreparingForSleep": GLib.Variant("b", sleeping),
                              }, [])))
-        self.bus.flush_sync(None)
         print("== login1: " + ("pausing the session" if sleeping else "session resumed"), flush=True)
 
     def method(self, connection, sender, path, interface, name, args, reply):
@@ -67,11 +66,19 @@ class LoginManager:
                 return
             self.pending = uuid.uuid4().hex
             self.notify(True)
-            # Complete the D-Bus call before the host can freeze this service and
-            # its caller. Publishing on the next main-loop turn avoids that race.
             reply.return_value(None)
-            self.bus.flush_sync(None)
-            GLib.idle_add(self.publish)
+            # Flush the signal and method reply without blocking this D-Bus callback. Once both are
+            # on the wire, publishing the request lets the host safely freeze this service.
+            self.bus.flush_async(None, self.publish_after_flush, None)
+
+    def publish_after_flush(self, connection, result, _data):
+        try:
+            connection.flush_finish(result)
+        except GLib.Error as error:
+            print("== login1: cannot complete suspend handshake: " + str(error), file=sys.stderr)
+            self.resume()
+            return
+        self.publish()
 
     def publish(self):
         try:
