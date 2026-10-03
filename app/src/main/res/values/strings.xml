@@ -788,6 +788,7 @@
     <string name="content_linux_desktop">Linux desktop</string>
     <string name="content_linux_desktop_hint">LXQt, Firefox and your emulators</string>
     <string name="games_empty">Games you install in Steam show up here after the session.</string>
+    <string name="steam_empty_hint">Games you install in Steam will fill this wall.</string>
     <string name="games_play_steam">Play Steam</string>
     <string name="games_launch_settings">Launch settings</string>
     <string name="games_launch">Launch</string>

@@ -735,6 +735,7 @@
     <string name="content_linux_desktop">Escritorio de Linux</string>
     <string name="content_linux_desktop_hint">LXQt, Firefox y tus emuladores</string>
     <string name="games_empty">Los juegos que instales en Steam aparecen aquí después de la sesión.</string>
+    <string name="steam_empty_hint">Los juegos que instales en Steam llenarán esta pared.</string>
     <string name="games_play_steam">Jugar en Steam</string>
     <string name="games_launch_settings">Ajustes de inicio</string>
     <string name="games_launch">Iniciar</string>
