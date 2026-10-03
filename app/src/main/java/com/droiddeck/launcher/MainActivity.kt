@@ -1009,6 +1009,7 @@ class MainActivity : ComponentActivity() {
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
+                syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
                 mangoapp = mangoapp,
@@ -1077,6 +1078,12 @@ class MainActivity : ComponentActivity() {
                     pickGameStorage.launch(InAppFilePicker.buildDirIntent(this, "Choose the game storage folder", gameStorage.ifEmpty { null }))
                 },
                 onFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
+                onSyncBackend = { id ->
+                    SessionPrefs.setSyncBackend(this, id)
+                    fastSync = SessionPrefs.fastSync(this)
+                    fsyncFirst = SessionPrefs.fsyncFirst(this)
+                    syncFallback = SessionPrefs.syncFallback(this)
+                },
                 onSteamChannel = { id -> SessionPrefs.setSteamChannel(this, id); steamChannel = id },
                 onSteamDeckMode = { on ->
                     SessionPrefs.setSteamDeckMode(this, on)
@@ -1186,6 +1193,9 @@ class MainActivity : ComponentActivity() {
         resolutionCap = SessionPrefs.resolutionCap(this, mode)
         customResolution = SessionPrefs.customResolution(this, mode)
         fexPreset = SessionPrefs.fexPreset(this)
+        fastSync = SessionPrefs.fastSync(this)
+        fsyncFirst = SessionPrefs.fsyncFirst(this)
+        syncFallback = SessionPrefs.syncFallback(this)
         steamChannel = SessionPrefs.steamChannel(this)
         steamDeckMode = SessionPrefs.steamDeckMode(this)
         mangoapp = SessionPrefs.mangoapp(this)

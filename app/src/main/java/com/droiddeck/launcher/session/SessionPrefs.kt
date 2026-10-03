@@ -286,6 +286,33 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("fsyncFirst", on).apply()
     }
 
+    const val SYNC_ESYNC = "esync"
+    const val SYNC_NTSYNC = "ntsync"
+    const val SYNC_FSYNC = "fsync"
+
+    /**
+     * The sync Proton games use, as the three switches above decide it: droiddeck-ntsync wins
+     * while it is on, then droiddeck-fsync first, otherwise droiddeck-esync. "" while sync is off.
+     */
+    fun syncBackend(context: Context): String = syncBackendOf(fastSync(context), fsyncFirst(context), syncFallback(context))
+
+    fun syncBackendOf(fastSync: Boolean, fsyncFirst: Boolean, syncFallback: Boolean): String = when {
+        fastSync -> SYNC_NTSYNC
+        fsyncFirst -> SYNC_FSYNC
+        syncFallback -> SYNC_ESYNC
+        else -> ""
+    }
+
+    /** Picks one sync for Proton games and turns sync on; the switches change together, in one write. */
+    fun setSyncBackend(context: Context, backend: String) {
+        require(backend == SYNC_ESYNC || backend == SYNC_NTSYNC || backend == SYNC_FSYNC) { "unknown sync $backend" }
+        prefs(context).edit()
+            .putBoolean("fastSync", backend == SYNC_NTSYNC)
+            .putBoolean("fsyncFirst", backend == SYNC_FSYNC)
+            .putBoolean("syncFallback", true)
+            .apply()
+    }
+
     fun syncFallback(context: Context): Boolean = prefs(context).getBoolean("syncFallback", true)
 
     fun setSyncFallback(context: Context, on: Boolean) {

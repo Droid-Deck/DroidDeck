@@ -82,6 +82,12 @@
     <string name="game_env_dxvk_config">Ajustes de DXVK separados por punto y coma. Las versiones recientes usan dxvk.maxFrameRate para limitar fotogramas; para el uso normal prefiere el límite de fotogramas de la sesión.</string>
     <string name="game_env_vkd3d_limit">Límite de fotogramas de D3D12. 0 desactiva el límite.</string>
     <string name="game_env_glthread">Subprocesos de OpenGL de Mesa. true puede ayudar a juegos OpenGL limitados por la CPU; pruébalo en cada juego.</string>
+    <string name="sync_backend_title">Sincronización de Wine</string>
+    <string name="sync_backend_hint">Cómo esperan unos a otros los hilos de Windows de los juegos. esync es la opción predeterminada; ntsync es experimental. Se aplica en la próxima sesión.</string>
+    <string name="sync_backend_off">Desactivada en Rendimiento, así que los juegos esperan a través de wineserver. Elige una para volver a activarla. Se aplica en la próxima sesión.</string>
+    <string name="sync_backend_esync">esync</string>
+    <string name="sync_backend_ntsync">ntsync</string>
+    <string name="sync_backend_fsync">fsync</string>
     <string name="fex_preset_title">Ajuste preestablecido de FEX</string>
     <string name="fex_next_launch">Se aplica al iniciar el próximo juego.</string>
     <string name="game_settings_title">Juegos</string>
