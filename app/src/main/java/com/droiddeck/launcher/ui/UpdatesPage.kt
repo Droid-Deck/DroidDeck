@@ -202,6 +202,9 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         if (s.sessionRunning && (offered || offer == Offer.AHEAD)) {
             Text(stringResource(R.string.upd_stop_session), fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
+        if (u.follow.channel == Channel.NIGHTLY) {
+            PreviewHistory(catalog, me)
+        }
     }
 }
 
@@ -281,6 +284,63 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
         AnimatedVisibility(u.follow.channel == Channel.TEST && tests.isNotEmpty(), enter = expandVertically(Motion.sp(1f)) + fadeIn(Motion.sp(1f)), exit = shrinkVertically(Motion.sp(1f)) + fadeOut(Motion.sp(1f))) {
             Column(Modifier.padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 tests.forEach { t -> TestRow(t, u.follow.pr == t.pr) { ua.onFollow(Follow(Channel.TEST, t.pr)) } }
+            }
+        }
+    }
+}
+
+/** Read-only Preview history below the status card action; only the latest build is installable. */
+@Composable
+private fun PreviewHistory(catalog: AppUpdates.Catalog?, me: AppUpdates.Installed) {
+    val history = catalog?.let { AppUpdates.previewHistory(it, me) } ?: return
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val key = catalog?.recentPreviews?.firstOrNull()?.commit
+    var expanded by rememberSaveable(key) { mutableStateOf(false) }
+    val heading = when (history.kind) {
+        AppUpdates.PreviewHistoryKind.CURRENT -> stringResource(R.string.upd_preview_current)
+        AppUpdates.PreviewHistoryKind.BEHIND -> pluralStringResource(
+            R.plurals.upd_preview_behind, history.buildsBehind, history.buildsBehind,
+        )
+        AppUpdates.PreviewHistoryKind.RECENT -> pluralStringResource(
+            R.plurals.upd_preview_recent, history.changes.size, history.changes.size,
+        )
+    }
+    Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+        Text(heading, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant)
+        if (history.changes.isNotEmpty()) {
+            val visible = if (expanded) history.changes else history.changes.take(3)
+            Column(Modifier.padding(top = 3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                visible.forEach { change ->
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                changeTitle(change.title.ifBlank { change.commit.take(7) }),
+                                fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                            )
+                            Text(ago(change.publishedAt), fontSize = 11.sp, color = colors.onSurfaceVariant)
+                        }
+                        if (change.summary.isNotBlank()) Text(
+                            change.summary, fontSize = 11.5.sp, color = colors.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            if (history.changes.size > 3 || expanded) {
+                val src = remember { MutableInteractionSource() }
+                val hot = rememberHot(src)
+                val toggle = { expanded = !expanded }
+                Text(
+                    if (expanded) stringResource(R.string.upd_less) else stringResource(R.string.upd_more),
+                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
+                    modifier = Modifier.padding(top = 1.dp).offset(x = (-6).dp).paneItem("preview:history:more")
+                        .clip(Shape12).glideBorder(hot, Shape12, pal.signal)
+                        .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = toggle)
+                        .controllerConfirm(onClick = toggle)
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                )
             }
         }
     }

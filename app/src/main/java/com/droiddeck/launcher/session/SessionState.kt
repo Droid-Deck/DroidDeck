@@ -47,6 +47,7 @@ object SessionState {
     @Volatile
     var running = false
     var suspended by mutableStateOf(false)
+    @Volatile var pipActive = false
     /** MODE_RUN: the program inside the runtime the session was started for. */
     @Volatile
     var program: String? = null

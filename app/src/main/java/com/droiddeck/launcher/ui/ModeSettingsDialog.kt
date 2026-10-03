@@ -58,6 +58,8 @@ class ModeSettings(
     val upscaleSharpness: Int = 75,
     val touchMode: String,
     val suspendPolicy: String,
+    val pipSupported: Boolean = false,
+    val pipAutoEnter: Boolean = false,
     /** Steam only. */
     val oscMode: String?,
     /** Steam only: whether single and double Back actions are swapped. */
@@ -121,6 +123,7 @@ class ModeSettingsActions(
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
+    val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
@@ -273,6 +276,10 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 note = stringResource(R.string.mode_suspend_note),
                 onPick = a.onSuspendPolicy,
             )
+        }
+        if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
+            ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
+                s.pipAutoEnter, onChange = a.onPipAutoEnter)
         }
         if (steam) SettingsGroup(stringResource(R.string.mode_startup)) {
             ToggleRow(

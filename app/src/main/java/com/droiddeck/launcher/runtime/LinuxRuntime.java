@@ -229,6 +229,17 @@ public final class LinuxRuntime {
                 // It then fails the isFile() test below and the session runs as it did before.
             }
         }
+        // protonfixes, which GE-Proton and proton-cachyos run before every game, opens this to
+        // check the esync file limit and dies on the PermissionError, so no game starts with them.
+        // The value is the 64-bit kernel default.
+        File fileMax = new File(fakeProc, "file-max");
+        if (!fileMax.isFile()) {
+            try {
+                Files.write(fileMax.toPath(), "9223372036854775807\n".getBytes(StandardCharsets.US_ASCII));
+            } catch (IOException e) {
+                // Left unbound, as above.
+            }
+        }
         String[][] procFiles = {
                 {"pci_devices", "/proc/bus/pci/devices"},
                 {"stat", "/proc/stat"},
@@ -239,6 +250,7 @@ public final class LinuxRuntime {
                 {"cap_last_cap", "/proc/sys/kernel/cap_last_cap"},
                 {"overflowuid", "/proc/sys/kernel/overflowuid"},
                 {"overflowgid", "/proc/sys/kernel/overflowgid"},
+                {"file-max", "/proc/sys/fs/file-max"},
         };
         for (String[] entry : procFiles) {
             File fake = new File(fakeProc, entry[0]);

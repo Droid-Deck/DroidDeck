@@ -679,6 +679,7 @@
     <string name="upd_version_ago">%1$s · %2$s</string>
     <string name="upd_preview">Preview</string>
     <string name="upd_preview_hint">Newest fixes, before Stable</string>
+    <string name="upd_preview_current">Up to date</string>
     <string name="upd_tests">Test builds</string>
     <string name="upd_tests_hint">Try a fix before it\'s released</string>
     <string name="upd_tests_none">None right now</string>
@@ -691,6 +692,14 @@
     <plurals name="upd_tests_count">
         <item quantity="one">%1$d to try</item>
         <item quantity="other">%1$d to try</item>
+    </plurals>
+    <plurals name="upd_preview_behind">
+        <item quantity="one">Changes since your build · %1$d build behind</item>
+        <item quantity="other">Changes since your build · %1$d builds behind</item>
+    </plurals>
+    <plurals name="upd_preview_recent">
+        <item quantity="one">Recent changes · %1$d build</item>
+        <item quantity="other">Recent changes · %1$d builds</item>
     </plurals>
     <string name="gate_title">One Android setting to change</string>
     <string name="gate_eyebrow">Steam</string>
@@ -941,4 +950,21 @@
     <string name="game_env_change_title">Change variable</string>
     <string name="game_env_restore_default">Back to default</string>
     <string name="game_env_eyebrow">Proton games</string>
+    <string name="pip_title">Picture in picture</string>
+    <string name="pip_auto">Automatically enter PiP</string>
+    <string name="pip_suspended">Suspended</string>
+    <string name="pip_not_ready">Picture in picture is available once the session is ready.</string>
+    <string name="pip_permission">Allow picture in picture for DroidDeck in Android settings.</string>
+    <string name="pip_unavailable">Android could not open picture in picture.</string>
+    <string name="game_shortcut">Shortcut</string>
+    <string name="game_shortcut_add">Add to home screen</string>
+    <string name="game_shortcut_choose">Choose game</string>
+    <string name="game_shortcut_scanning">Scanning installed games…</string>
+    <string name="game_link_copy">Copy launch link</string>
+    <string name="game_link_copied">Launch link copied</string>
+    <string name="game_shortcut_unsupported">This launcher cannot add shortcuts. Use Copy launch link instead.</string>
+    <string name="game_link_invalid">Invalid game launch link.</string>
+    <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
+    <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
+    <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
 </resources>

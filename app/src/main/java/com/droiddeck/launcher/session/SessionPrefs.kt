@@ -673,6 +673,12 @@ object SessionPrefs {
      */
     fun prefMode(mode: String): String = if (mode == SessionService.MODE_RUN) SessionService.MODE_STEAM else mode
 
+    fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", false)
+
+    fun setPipAutoEnter(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
+    }
+
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
             ?.takeIf { it == SUSPEND_AUTO || it == SUSPEND_MANUAL || it == SUSPEND_NEVER }

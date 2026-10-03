@@ -96,6 +96,8 @@ class FrontEndState(
     val running: String?,
     val frameGen: FrameGen.Mode = FrameGen.Mode.OFF,
     val lossless: Lossless.State = Lossless.State.NONE,
+    val shortcutPicker: Boolean = false,
+    val shortcutLibraryScanning: Boolean = false,
     val pageKey: String? = null,
     val theme: String = Themes.GRAPHITE,
     val isHomeApp: Boolean = false,
@@ -126,6 +128,8 @@ class FrontEndActions(
     val onPlay: () -> Unit,
     val onPlayDesktopUi: () -> Unit,
     val onSteamGame: (Library.SteamGame) -> Unit,
+    val onGameShortcut: (Library.SteamGame) -> Unit = {},
+    val onCopyGameLink: (Library.SteamGame) -> Unit = {},
     val onDesktop: () -> Unit,
     val onEmulator: (Library.Emulator) -> Unit,
     /** A Flatpak app by id and name, from the Store. */
@@ -331,7 +335,8 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
-    var selected by rememberSaveable { mutableStateOf("steam") }
+    var selected by rememberSaveable { mutableStateOf(if (s.shortcutPicker) "games" else "steam") }
+    LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }

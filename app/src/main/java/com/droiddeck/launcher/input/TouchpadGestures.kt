@@ -66,6 +66,17 @@ class TouchpadGestures(
         listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
     }
 
+    fun cancel() {
+        handler.removeCallbacks(longPress)
+        if (dragging) listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
+        dragging = false
+        held = false
+        holdDrag = false
+        anchorId = -1
+        moverId = -1
+        lastTapAt = 0L
+    }
+
     fun place(px: Float, py: Float) {
         x = px.coerceIn(bounds.left, bounds.right)
         y = py.coerceIn(bounds.top, bounds.bottom)

@@ -23,7 +23,10 @@ object Library {
         val appId: Int, val name: String, val art: File?, val library: String, val gameId: Long = appId.toLong(),
         val hero: File? = null, val lastPlayed: Long = 0L,
         val gameFiles: File? = null, val protonPrefix: File? = null,
-    )
+    ) {
+        /** Decimal form used by Steam links and Android shortcuts, including unsigned shortcut ids. */
+        val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
+    }
     /** The [SteamGame.library] of a game added to the library rather than installed by Steam. */
     const val ADDED = "added"
 

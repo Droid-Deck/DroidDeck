@@ -627,6 +627,7 @@
     <string name="upd_channel">CANAL DE ACTUALIZACIÓN</string>
     <string name="upd_stable_hint">Versiones probadas, para la mayoría</string>
     <string name="upd_preview_hint">Las correcciones más recientes, antes que Stable</string>
+    <string name="upd_preview_current">Al día</string>
     <string name="upd_tests">Versiones de prueba</string>
     <string name="upd_tests_hint">Prueba una corrección antes de su publicación</string>
     <string name="upd_tests_none">Ninguna por ahora</string>
@@ -638,6 +639,14 @@
     <plurals name="upd_tests_count">
         <item quantity="one">%1$d para probar</item>
         <item quantity="other">%1$d para probar</item>
+    </plurals>
+    <plurals name="upd_preview_behind">
+        <item quantity="one">Cambios desde tu versión · %1$d versión atrás</item>
+        <item quantity="other">Cambios desde tu versión · %1$d versiones atrás</item>
+    </plurals>
+    <plurals name="upd_preview_recent">
+        <item quantity="one">Cambios recientes · %1$d versión</item>
+        <item quantity="other">Cambios recientes · %1$d versiones</item>
     </plurals>
     <string name="gate_title">Un ajuste de Android por cambiar</string>
     <string name="gate_lede">Android detiene las apps que inician muchos procesos en segundo plano, y Steam inicia decenas. Hasta que esto cambie, los juegos se cierran sin mostrar ningún error.</string>

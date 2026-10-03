@@ -73,6 +73,7 @@ class AgentBridgeProvider : ContentProvider() {
             .put("steamUi", SessionState.steamUi ?: JSONObject.NULL)
             .put("steamUrl", SessionState.steamUrl ?: JSONObject.NULL)
             .put("suspended", SessionState.suspended)
+            .put("pip", SessionState.pipActive)
             .put("firstFrame", SessionState.firstFrameSeen)
             .put("output", JSONArray().put(SessionState.outputSize.first).put(SessionState.outputSize.second))
             .put("refreshHz", SessionState.refreshHz.toDouble())

@@ -200,6 +200,10 @@ class DrawerActions(
     val onSecondScreenDisplay: (Int) -> Unit,
     val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
     val onBackground: () -> Unit,
+    val pipSupported: Boolean = false,
+    val pipAutoEnter: Boolean = false,
+    val onPip: () -> Unit = {},
+    val onPipAutoEnter: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     /** Stop with the dialog's button's bounds on screen, for the flood to grow out of; null falls back to [onStop]. */
@@ -472,7 +476,14 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                     }
                                 }
                             }
+                            if (a.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
+                                ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
+                                    a.pipAutoEnter, onChange = a.onPipAutoEnter)
+                            }
                             Spacer(Modifier.height(18.dp))
+                            if (a.pipSupported) DrawerOutlineButton(stringResource(R.string.pip_title), modifier = focus.track(page, "pip")) {
+                                host.open = null; a.onPip()
+                            }
                             if (!a.isHomeApp) DrawerOutlineButton(stringResource(R.string.drawer_background), modifier = focus.track(page, "background")) {
                                 host.open = null; a.onBackground()
                             }

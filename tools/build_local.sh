@@ -14,6 +14,12 @@ fi
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
 java_dir=${JAVA_HOME:-"/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"}
 image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v2}
+build_variant=${DROIDDECK_BUILD_VARIANT:-release}
+case "$build_variant" in
+    debug) gradle_task=assembleDebug ;;
+    release) gradle_task=assembleRelease ;;
+    *) echo "DROIDDECK_BUILD_VARIANT must be debug or release" >&2; exit 1 ;;
+esac
 
 if [[ ! -x "${sdk_dir}/platform-tools/adb" ]]; then
     echo "Android SDK not found at ${sdk_dir}; set ANDROID_HOME or ANDROID_SDK_ROOT." >&2
@@ -316,11 +322,11 @@ bundle_replaced=1
 mv "${staging_dir}/pulseaudio.tzst" "${bundle_asset}"
 
 cd "${repo_root}"
-./gradlew assembleRelease --console=plain -PndkVersion="${ndk_version}"
+./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}"
 cp -p "${bundle_backup}" "${bundle_asset}"
 bundle_replaced=0
 
-apk="${repo_root}/app/build/outputs/apk/release/app-release.apk"
+apk="${repo_root}/app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 audio_check="${staging_dir}/audio-check"
 mkdir -p "${audio_check}"
 unzip -p "${apk}" assets/pulseaudio.tzst | zstd -dc | tar -xf - -C "${audio_check}"
@@ -334,10 +340,10 @@ for audio_file in \
     fi
 done
 
-docker run --rm --platform linux/amd64 -v "${repo_root}:/src:ro" -w /src "${image_name}" \
+docker run --rm --platform linux/amd64 -e build_variant="${build_variant}" -v "${repo_root}:/src:ro" -w /src "${image_name}" \
     bash -lc '
         set -euo pipefail
-        apk=app/build/outputs/apk/release/app-release.apk
+        apk=app/build/outputs/apk/${build_variant}/app-${build_variant}.apk
         work=$(mktemp -d)
         unzip -q "$apk" "lib/arm64-v8a/*" -d "$work"
         cd "$work/lib/arm64-v8a"
