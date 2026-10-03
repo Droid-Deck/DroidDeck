@@ -146,6 +146,7 @@ class ModeSettingsActions(
     val onDeckyCheck: () -> Unit = {},
     val onDeckyEnabled: (Boolean) -> Unit = {},
     val onDeckyUninstall: () -> Unit = {},
+    val onPickDeckyPluginZip: () -> Unit = {},
     val onDismiss: () -> Unit,
 )
 
@@ -321,6 +322,16 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     checked = s.deckyEnabled,
                     onCheckedChange = a.onDeckyEnabled,
                     enabled = !s.deckySessionRunning && s.deckyStage == null,
+                )
+            }
+            SettingsRow(
+                "Plugins",
+                "Install a plugin ZIP for the next Steam session.",
+            ) {
+                SecondaryButton(
+                    if (s.deckyStage?.startsWith("Downloading plugin binary") == true) "Downloading…" else "Install from ZIP",
+                    enabled = s.deckyInstalled != null && s.deckyStage == null && !s.deckySessionRunning,
+                    onClick = a.onPickDeckyPluginZip,
                 )
             }
             if (s.deckyStage != null && s.deckyPercent >= 0) {
