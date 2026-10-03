@@ -69,7 +69,7 @@ class ModeSettings(
     val gameStorage: String? = null,
     val storageOptions: List<Pair<String, String>> = emptyList(),
     val fexPreset: String? = null,
-    /** Steam only: SessionPrefs.SYNC_* chosen for Proton games, "" while sync is off; null outside Steam. */
+    /** Steam only: SessionPrefs.SYNC_* chosen for Proton games; null outside Steam. */
     val syncBackend: String? = null,
     /** Steam only: games are stretched to fill the screen (null = not a Steam page). */
     val forceFullscreen: Boolean? = null,
@@ -400,15 +400,16 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
         if (steam && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
             if (s.syncBackend != null) SettingsRow(
                 stringResource(R.string.sync_backend_title),
-                stringResource(if (s.syncBackend.isEmpty()) R.string.sync_backend_off else R.string.sync_backend_hint),
+                stringResource(R.string.sync_backend_hint),
             ) {
                 SegmentedTabs(
                     listOf(
-                        SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
                         SessionPrefs.SYNC_NTSYNC to stringResource(R.string.sync_backend_ntsync),
                         SessionPrefs.SYNC_FSYNC to stringResource(R.string.sync_backend_fsync),
+                        SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
+                        SessionPrefs.SYNC_WINESERVER to stringResource(R.string.sync_backend_wineserver),
                     ),
-                    s.syncBackend.ifEmpty { null },
+                    s.syncBackend,
                 ) { id -> host.open = null; a.onSyncBackend(id) }
             }
             ChoiceRow(

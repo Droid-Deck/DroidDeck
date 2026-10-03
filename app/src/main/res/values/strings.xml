@@ -84,11 +84,11 @@
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
     <string name="sync_backend_title">Wine sync</string>
-    <string name="sync_backend_hint">How games\' Windows threads wait on each other. fsync is the default; ntsync is experimental. Applies next session.</string>
-    <string name="sync_backend_off">Off in Performance, so games wait through wineserver. Pick one to turn it back on. Applies next session.</string>
+    <string name="sync_backend_hint">How games\' Windows threads wait on each other. fsync is the default; ntsync is experimental; wineserver turns in-process sync off and routes every wait through wineserver. Applies next session.</string>
     <string name="sync_backend_esync">esync</string>
     <string name="sync_backend_ntsync">ntsync</string>
     <string name="sync_backend_fsync">fsync</string>
+    <string name="sync_backend_wineserver">wineserver</string>
     <string name="fex_preset_title">FEX preset</string>
     <string name="fex_next_launch">Applies on the next game launch.</string>
     <string name="game_settings_title">Games</string>

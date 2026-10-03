@@ -38,6 +38,7 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -575,45 +576,47 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
     val index = options.indexOfFirst { it.first == selected }
     val shape = RoundedCornerShape(12.dp)
     val pillShape = RoundedCornerShape(9.dp)
-    val segment = 88.dp
-    val slide by animateDpAsState(segment * index.coerceAtLeast(0), Motion.sp(0.75f), label = "tabPill")
-    val shown by animateFloatAsState(if (index >= 0) 1f else 0f, Motion.tw(180), label = "tabPillShown")
-    Box(
-        modifier = modifier
-            .height(48.dp).width(segment * options.size + 8.dp)
-            .clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
-            .padding(4.dp),
-    ) {
+    BoxWithConstraints(modifier) {
+        val segment = minOf(92.dp, (maxWidth - 8.dp) / options.size)
+        val slide by animateDpAsState(segment * index.coerceAtLeast(0), Motion.sp(0.75f), label = "tabPill")
+        val shown by animateFloatAsState(if (index >= 0) 1f else 0f, Motion.tw(180), label = "tabPillShown")
         Box(
-            Modifier.offset(x = slide).width(segment).fillMaxHeight()
-                .graphicsLayer { alpha = shown }
-                .clip(pillShape).background(pal.signal),
-        )
-        Row {
-            options.forEachIndexed { i, (value, label) ->
-                val src = remember { MutableInteractionSource() }
-                val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
-                val chosen = i == index
-                val ink by animateColorAsState(
-                    when {
-                        chosen -> pal.onSignal
-                        hot -> colors.onBackground
-                        else -> colors.onSurfaceVariant
-                    },
-                    Motion.tw(220), label = "tabInk",
-                )
-                val pick = { onPick(value) }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.width(segment).fillMaxHeight()
-                        .clip(pillShape)
-                        .glideBorder(hot, pillShape, if (chosen) pal.onSignal else pal.signal)
-                        .semantics { role = Role.Tab; this.selected = chosen }
-                        .hoverable(src)
-                        .clickable(interactionSource = src, indication = LocalIndication.current, onClick = pick)
-                        .controllerConfirm(onClick = pick),
-                ) {
-                    Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ink, maxLines = 1)
+            modifier = Modifier
+                .height(48.dp).width(segment * options.size + 8.dp)
+                .clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
+                .padding(4.dp),
+        ) {
+            Box(
+                Modifier.offset(x = slide).width(segment).fillMaxHeight()
+                    .graphicsLayer { alpha = shown }
+                    .clip(pillShape).background(pal.signal),
+            )
+            Row {
+                options.forEachIndexed { i, (value, label) ->
+                    val src = remember { MutableInteractionSource() }
+                    val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
+                    val chosen = i == index
+                    val ink by animateColorAsState(
+                        when {
+                            chosen -> pal.onSignal
+                            hot -> colors.onBackground
+                            else -> colors.onSurfaceVariant
+                        },
+                        Motion.tw(220), label = "tabInk",
+                    )
+                    val pick = { onPick(value) }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.width(segment).fillMaxHeight()
+                            .clip(pillShape)
+                            .glideBorder(hot, pillShape, if (chosen) pal.onSignal else pal.signal)
+                            .semantics { role = Role.Tab; this.selected = chosen }
+                            .hoverable(src)
+                            .clickable(interactionSource = src, indication = LocalIndication.current, onClick = pick)
+                            .controllerConfirm(onClick = pick),
+                    ) {
+                        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ink, maxLines = 1, softWrap = false)
+                    }
                 }
             }
         }
