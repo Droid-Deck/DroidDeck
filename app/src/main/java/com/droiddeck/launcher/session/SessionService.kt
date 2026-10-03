@@ -430,6 +430,8 @@ class SessionService : Service() {
             it.replace("\\", "\\\\").replace(" ", "\\ ")
         }
         watchLaunchRequests(sessionRoot)
+        watchSyncWanted(root)
+        EsyncPacks.fetchInBackground(this, root)
         // One session replacing another (the desktop's Steam launchers): the old proot is killed
         // by the teardown a second after the new one has started, and its exit used to arrive
         // here as "session ended: 137" and end the NEW session. An exit belongs to the session
@@ -448,6 +450,8 @@ class SessionService : Service() {
             if (gen == sessionGen) {
                 launchWatcher?.stopWatching()
                 launchWatcher = null
+                syncWatcher?.stopWatching()
+                syncWatcher = null
                 components.reversed().forEach { runCatching { it.stop() } }
                 components.clear()
             }
@@ -568,7 +572,8 @@ class SessionService : Service() {
         // XALIA_SUPPORTED_ONLY itself otherwise). Skipped by default: under FEX it costs every game
         // a slice of a core for gamepad navigation the session already has.
         if (SessionPrefs.noXalia(this)) guest.add("PROTON_USE_XALIA=0")
-        guest.add("BL_NTSYNC=" + (if (SessionPrefs.fastSync(this)) "1" else "0"))
+        guest.add("BL_SYNC=" + (if (SessionPrefs.fastSync(this)) "1" else "0"))
+        guest.add("BL_SYNC_FALLBACK=" + (if (SessionPrefs.syncFallback(this)) "1" else "0"))
         // gamescope's realtime Vulkan queues (the session script turns this into
         // GAMESCOPE_FORCE_VULKAN_REALTIME); off unless the user turns it on.
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
@@ -970,6 +975,24 @@ class SessionService : Service() {
         launchWatcher = watcher
     }
 
+    @Volatile private var syncWatcher: android.os.FileObserver? = null
+
+    private fun watchSyncWanted(root: File) {
+        syncWatcher?.stopWatching()
+        syncWatcher = null
+        val store = EsyncPacks.store(root)
+        if (!store.isDirectory) return
+        @Suppress("DEPRECATION")
+        val watcher = object : android.os.FileObserver(store.path, CLOSE_WRITE or MOVED_TO) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path != "wanted.tsv") return
+                EsyncPacks.fetchInBackground(this@SessionService, root)
+            }
+        }
+        watcher.startWatching()
+        syncWatcher = watcher
+    }
+
     private fun updateSuspendPolicy() {
         if (!SessionState.running) return
         if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && (!activityVisible || !screenOn)) {
@@ -1081,6 +1104,8 @@ class SessionService : Service() {
         suspendOperationPending = false
         launchWatcher?.stopWatching()
         launchWatcher = null
+        syncWatcher?.stopWatching()
+        syncWatcher = null
         // proot's --kill-on-exit takes the guest tree down only if proot gets to run it, and
         // SIGKILL never lets it. A SIGKILLed proot left its tracees alive with no tracer: every
         // seccomp-trapped syscall then failed with ENOSYS, they spun on retries at a full core

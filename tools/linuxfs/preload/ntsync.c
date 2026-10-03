@@ -1,3 +1,5 @@
+/* droiddeck-ntsync: a userspace implementation of the /dev/ntsync interface for kernels without the driver.
+ * Credit: ntsync, the kernel driver and its Wine client, by Elizabeth Figura. */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
@@ -185,7 +187,7 @@ static int (*ns_real_close)(int);
 
 static int ns_on(void) {
   if (ns_state < 0) {
-    const char *e = getenv("BL_NTSYNC");
+    const char *e = getenv("BL_SYNC");
     ns_state = e && e[0] == '1';
   }
   return ns_state;
@@ -569,7 +571,7 @@ static int ns_attach(struct ns_dev *d) {
   if (slot >= 0) __atomic_store_n(&h->procs[slot].pid, pid, __ATOMIC_RELEASE);
   ns_unlock(&h->proc_lock);
   errno = saved;
-  d->proc = slot;
+  __atomic_store_n(&d->proc, slot, __ATOMIC_RELEASE);
   return slot;
 }
 
@@ -764,6 +766,7 @@ static uint64_t ns_lookup(int fd) {
 }
 
 static int ns_ready(struct ns_dev *d) {
+  if (__atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE) && __atomic_load_n(&d->proc, __ATOMIC_ACQUIRE) >= 0) return 1;
   pthread_mutex_lock(&ns_mx);
   int ok = ns_table() && ns_attach(d) >= 0;
   pthread_mutex_unlock(&ns_mx);
@@ -883,6 +886,12 @@ out:
   return fd;
 }
 
+static int ns_expired(const struct ns_wait_args *args) {
+  struct timespec now;
+  if (clock_gettime((args->flags & NS_WAIT_REALTIME) ? CLOCK_REALTIME : CLOCK_MONOTONIC, &now)) return 0;
+  return (uint64_t)now.tv_sec * 1000000000ull + (uint64_t)now.tv_nsec >= args->timeout;
+}
+
 static int ns_sleep(struct ns_q *q, const struct ns_wait_args *args) {
   struct timespec ts, *tsp = NULL;
   int op = FUTEX_WAIT_BITSET | ((args->flags & NS_WAIT_REALTIME) ? FUTEX_CLOCK_REALTIME : 0);
@@ -892,6 +901,7 @@ static int ns_sleep(struct ns_q *q, const struct ns_wait_args *args) {
     tsp = &ts;
   }
   while (__atomic_load_n(&q->signaled, __ATOMIC_ACQUIRE) == -1) {
+    if (tsp && ns_expired(args)) return ETIMEDOUT;
     if (ns_futex(&q->signaled, op, (uint32_t)-1, tsp, FUTEX_BITSET_MATCH_ANY) == -1) {
       if (errno == ETIMEDOUT) return ETIMEDOUT;
       if (errno == EINTR) return EINTR;
@@ -1185,7 +1195,7 @@ int bl_ntsync_open(const char *path, int flags) {
   if (!path || strcmp(path, "/dev/ntsync") != 0 || !ns_on()) return -2;
   int fd = (int)syscall(SYS_openat, AT_FDCWD, path, flags, 0);
   if (fd >= 0) return fd;
-  fd = memfd_create("ntsync", (flags & O_CLOEXEC) ? MFD_CLOEXEC : 0);
+  fd = memfd_create("droiddeck-ntsync", (flags & O_CLOEXEC) ? MFD_CLOEXEC : 0);
   if (fd < 0) return -1;
   uint32_t tag = 0;
   for (int tries = 0; tries < 64 && (!tag || ns_find(tag)); tries++) {

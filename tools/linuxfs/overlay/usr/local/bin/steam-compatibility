@@ -17,6 +17,7 @@
 # it, so it reads files/ through those symlinks and runs directly on this rootfs.
 import os
 import re
+import runpy
 import shutil
 import sys
 
@@ -241,13 +242,14 @@ steam_root=${STEAM_COMPAT_CLIENT_INSTALL_PATH:-${XDG_DATA_HOME:-$HOME/.local/sha
 # Naming the interposer first in LD_PRELOAD puts it back in front and the overlay loads as Valve
 # intends. That matters beyond the overlay itself: every deviation from the launch Valve ships is a
 # difference this runtime would otherwise have to justify.
-fake=/usr/local/lib/libfakeinput.so
-if [ -f "$fake" ]; then
-  case ":${LD_PRELOAD:-}:" in
-    *":$fake:"*) ;;
-    *) LD_PRELOAD="$fake${LD_PRELOAD:+:$LD_PRELOAD}"; export LD_PRELOAD ;;
-  esac
-fi
+for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
+  if [ -f "$fake" ]; then
+    case ":${LD_PRELOAD:-}:" in
+      *":$fake:"*) ;;
+      *) LD_PRELOAD="$fake${LD_PRELOAD:+:$LD_PRELOAD}"; export LD_PRELOAD ;;
+    esac
+  fi
+done
 # The newest of the ARM64 depots the client has, by the build number that opens each one's version
 # file: taking the first one found ran a stale Experimental over a newer 11.0. (WinNative.)
 depot=
@@ -306,13 +308,14 @@ here=$(dirname "$0")
 # See bannerlator-proton: the interposer goes first in LD_PRELOAD rather than the overlay being
 # removed, because glibc reads LD_PRELOAD before /etc/ld.so.preload and the overlay was simply
 # ahead of it on /dev/input.
-fake=/usr/local/lib/libfakeinput.so
-if [ -f "$fake" ]; then
-  case ":${LD_PRELOAD:-}:" in
-    *":$fake:"*) ;;
-    *) LD_PRELOAD="$fake${LD_PRELOAD:+:$LD_PRELOAD}"; export LD_PRELOAD ;;
-  esac
-fi
+for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
+  if [ -f "$fake" ]; then
+    case ":${LD_PRELOAD:-}:" in
+      *":$fake:"*) ;;
+      *) LD_PRELOAD="$fake${LD_PRELOAD:+:$LD_PRELOAD}"; export LD_PRELOAD ;;
+    esac
+  fi
+done
 bl_components "$here"
 bl_directaudio "$here"
 bl_game_cpus
@@ -655,6 +658,14 @@ def main():
         apps = installed_apps(steam_root)
         register_default(config, apps, protect=extras)
         print("steam-compatibility: default and %d installed title(s) set to %s" % (len(apps), TOOL))
+    sync = os.path.join(os.path.dirname(os.path.realpath(__file__)), "droiddeck-esync")
+    if os.path.isfile(sync):
+        try:
+            summary = runpy.run_path(sync)["reconcile"](steam_root, os.environ)
+        except Exception as e:
+            summary = "droiddeck-esync: reconcile failed (%s)" % e
+        if summary:
+            print("steam-compatibility: %s" % summary)
 
 
 if __name__ == "__main__":

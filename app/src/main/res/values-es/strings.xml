@@ -73,7 +73,8 @@
     <string name="game_env_vkd3d_config">Opciones de VKD3D para D3D12. nodxr desactiva el trazado de rayos; úsalo solo en un juego que lo necesite.</string>
     <string name="game_env_proton_log">Pon 1 para obtener un registro de diagnóstico de Proton. El registro puede reducir el rendimiento y usar almacenamiento.</string>
     <string name="game_env_wined3d">Pon 1 para usar WineD3D basado en OpenGL en lugar de DXVK, para pruebas de compatibilidad con D3D9–11.</string>
-    <string name="game_env_no_ntsync">Pon 1 para desactivar la sincronización rápida (ntsync) en este juego; vuelve a usar wineserver.</string>
+    <string name="game_env_no_ntsync">Pon 1 para que este juego no use ntsync (droiddeck-ntsync o un controlador del kernel); usa droiddeck-esync si hay un paquete y, si no, wineserver.</string>
+    <string name="game_env_no_esync">Pon 1 para desactivar droiddeck-esync en este juego; vuelve a usar wineserver.</string>
     <string name="game_env_xalia">Pon 0 para desactivar el asistente de navegación con mando de Proton en este juego.</string>
     <string name="game_env_hud">Overlay de DXVK para D3D9–11. fps muestra la tasa de fotogramas; sin definir la oculta.</string>
     <string name="game_env_dxvk_config">Ajustes de DXVK separados por punto y coma. Las versiones recientes usan dxvk.maxFrameRate para limitar fotogramas; para el uso normal prefiere el límite de fotogramas de la sesión.</string>
@@ -320,6 +321,9 @@
     <string name="comp_swapped">%1$s · %2$d reemplazados</string>
     <string name="comp_all_original">%1$s · todos originales</string>
     <string name="comp_game_running_suffix">%1$s · juego en ejecución</string>
+    <string name="comp_esync_pack">%1$s · paquete droiddeck-esync</string>
+    <string name="comp_esync_wanted">%1$s · aún sin paquete droiddeck-esync</string>
+    <string name="comp_esync_builtin">%1$s · esync integrado, no necesita paquete</string>
     <string name="comp_gpu_drivers">Controladores de GPU</string>
     <string name="comp_reapplied">%1$s · reaplicado al iniciar %2$s</string>
     <string name="comp_next_queued">Siguiente: %1$s · cuando se cierre el juego</string>
@@ -381,8 +385,10 @@
     <string name="perf_sysmem">Turnip: renderizado sysmem</string>
     <string name="perf_sysmem_hint">Más rápido para Steam y la mayoría de juegos. Obligatorio en Adreno 710/720/722.</string>
     <string name="perf_xalia">Omitir el asistente xalia de Steam</string>
-    <string name="perf_fastsync">Sincronización rápida (ntsync)</string>
-    <string name="perf_fastsync_hint">Los hilos de Windows de los juegos se esperan entre sí sin pasar por wineserver, como en un PC Linux con el controlador ntsync. Funciona con Proton Experimental ARM64, GE-Proton y proton-cachyos. Se aplica en la próxima sesión.</string>
+    <string name="perf_fastsync">droiddeck-ntsync (experimental)</string>
+    <string name="perf_fastsync_hint">Un sustituto en espacio de usuario del controlador ntsync de Linux, para pruebas. Mientras está activado, Proton lo usa en lugar de droiddeck-esync. Funciona con Proton Experimental ARM64, GE-Proton y proton-cachyos. Se aplica en la próxima sesión.</string>
+    <string name="perf_esync">droiddeck-esync</string>
+    <string name="perf_esync_hint">Los hilos de Windows de los juegos se esperan entre sí mediante eventfd y memoria compartida, sin pasar por wineserver. Necesita un paquete droiddeck-esync para esa versión de Proton; los paquetes se descargan automáticamente. Se aplica en la próxima sesión.</string>
     <string name="perf_xalia_hint">Desactiva el asistente de navegación con mando de Proton, que consume CPU en cada juego.</string>
     <string name="perf_seccomp">Ejecutar proot sin seccomp</string>
     <string name="perf_seccomp_hint">Puede corregir errores de syscalls ausentes en algunos kernels. Puede reducir el rendimiento.</string>

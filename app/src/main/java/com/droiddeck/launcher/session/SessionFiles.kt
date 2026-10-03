@@ -29,6 +29,7 @@ object SessionFiles {
         GameEnvironmentStore.publish(context)
         val files = arrayOf(
             "usr/local/bin/bannerlator-game-env" to "usr/local/bin/bannerlator-game-env",
+            "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
@@ -124,6 +125,7 @@ object SessionFiles {
             if (!installed) Log.e(TAG, "$relative NOT staged")
         }
         File(root, "usr/local/bin/bannerlator-steam-compat").delete()
+        EsyncPacks.stageBundled(context, root)
         // The DirectAudio driver for games under Proton: the glibc build of winedirectaudio, which
         // the Proton wrappers add to WINEDLLPATH when the session asks for it (BL_DIRECTAUDIO).
         // Staged like the scripts, so a driver fix reaches an installed runtime without re-hosting.

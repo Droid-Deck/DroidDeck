@@ -148,6 +148,26 @@ class GameEnvironmentTest(unittest.TestCase):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
             self.assertIn('exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env', script)
 
+    def test_wrappers_preload_the_session_library_before_the_input_shim(self):
+        overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("libblsession.so", "libfakeinput.so"):
+                (Path(tmp) / name).write_bytes(b"")
+            for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
+                start = script.index("for fake in ")
+                block = script[start:script.index("\ndone\n", start) + 6].replace("/usr/local/lib/", tmp + "/")
+                for inherited, expected in (
+                        (None, ["libblsession.so", "libfakeinput.so"]),
+                        (overlay, ["libblsession.so", "libfakeinput.so", overlay]),
+                        (tmp + "/libfakeinput.so:" + overlay, ["libblsession.so", "libfakeinput.so", overlay]),
+                        (tmp + "/libblsession.so:" + tmp + "/libfakeinput.so", ["libblsession.so", "libfakeinput.so"])):
+                    env = {"PATH": os.defpath}
+                    if inherited is not None:
+                        env["LD_PRELOAD"] = inherited
+                    out = subprocess.run(["bash", "-c", block + 'printf %s "$LD_PRELOAD"'], env=env,
+                                         capture_output=True, text=True, check=True).stdout
+                    self.assertEqual([entry.replace(tmp + "/", "") for entry in out.split(":")], expected, inherited)
+
 
 if __name__ == "__main__":
     unittest.main()

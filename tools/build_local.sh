@@ -33,9 +33,9 @@ for tool in curl tar zstd shasum unzip; do
         exit 1
     fi
 done
-if [[ -f "${repo_root}/tools/gamescope/release.env" || -f "${repo_root}/tools/wlroots/release.env" ]] \
-        && ! command -v gh >/dev/null 2>&1; then
-    echo "GitHub CLI is required to download the pinned Gamescope and wlroots release assets." >&2
+if [[ -f "${repo_root}/tools/gamescope/release.env" || -f "${repo_root}/tools/wlroots/release.env" \
+        || -f "${repo_root}/tools/droiddeck-esync/release.env" ]] && ! command -v gh >/dev/null 2>&1; then
+    echo "GitHub CLI is required to download the pinned Gamescope, wlroots and droiddeck-esync release assets." >&2
     exit 1
 fi
 
@@ -120,7 +120,7 @@ docker run --rm --platform linux/amd64 \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
-        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
+        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-* tools/linuxfs/overlay/usr/local/bin/droiddeck-esync tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done
         for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
@@ -212,6 +212,27 @@ if [[ -f "${repo_root}/tools/wlroots/release.env" ]]; then
         bash -c 'gh release download "$0" -R "$1" -p wlroots.tzst -O "$out"' "${WLROOTS_TAG}" "${github_repo}")
     zstd -dc "${wlroots_archive}" | tar -xf - -C "${linuxfs_dir}"
     test -f "${linuxfs_dir}/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so"
+fi
+
+sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
+if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
+    . "${repo_root}/tools/droiddeck-esync/release.env"
+    sync_archive=$(cached "${SYNC_BUNDLE_SHA256}" "${SYNC_BUNDLE_ASSET}" \
+        bash -c 'gh release download "$0" -R Droid-Deck/DroidDeck -p "$1" -O "$out"' "${SYNC_BUNDLE_TAG}" "${SYNC_BUNDLE_ASSET}")
+    rm -rf "${sync_assets}"
+    mkdir -p "${sync_assets}"
+    zstd -dc "${sync_archive}" | tar -xf - -C "${sync_assets}"
+    test -f "${sync_assets}/index.json"
+    test -f "${sync_assets}/index.json.sig"
+    while read -r id _; do
+        case "${id}" in ''|'#'*) continue ;; esac
+        if [[ -e "${sync_assets}/packs/${id}.tzst" ]]; then
+            echo "${SYNC_BUNDLE_ASSET} carries revoked pack ${id}; it is left out of the APK" >&2
+            rm -f "${sync_assets}/packs/${id}.tzst"
+        fi
+    done < "${repo_root}/tools/droiddeck-esync/revoked.txt"
+elif [[ -d "${sync_assets}" ]]; then
+    echo "No tools/droiddeck-esync/release.env: the APK bundles the droiddeck-esync packs already in ${sync_assets}." >&2
 fi
 
 mango_dir="${linuxfs_dir}/usr/local/lib/mangoapp"

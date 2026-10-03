@@ -2,8 +2,12 @@
 import json
 import os
 import re
+import runpy
 import sys
 from pathlib import Path
+
+SYNC_KEYS = ("BL_SYNC_FALLBACK", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 
 
 def game_id(env):
@@ -37,22 +41,63 @@ def apply_config(env, config, app_id):
     return result
 
 
+def sync_config(config, app_id):
+    games = config.get("games", {})
+    return {
+        "version": config.get("version"),
+        "shared": {name: value for name, value in config.get("shared", {}).items() if name in SYNC_KEYS},
+        "games": {app_id: {name: value for name, value in games.get(app_id, {}).items() if name in SYNC_KEYS}},
+    }
+
+
+def select_sync(command, env):
+    try:
+        sync = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-esync"))
+        chosen, chosen_env = sync["select"](command, env)
+        if chosen and all(isinstance(value, str) for value in chosen) and isinstance(chosen_env, dict):
+            return list(chosen), dict(chosen_env)
+    except Exception as error:
+        print("bannerlator-game-env: sync selection failed (%s); stock launch" % error, file=sys.stderr)
+    return command, env
+
+
+def without_pack(chosen_env, env):
+    result = dict(chosen_env)
+    for name in PACK_KEYS:
+        if name in env:
+            result[name] = env[name]
+        else:
+            result.pop(name, None)
+    return result
+
+
 def main():
     command = sys.argv[1:]
     if not command:
         return 2
     env = os.environ.copy()
     app_id = game_id(env)
-    if len(command) > 1 and command[1] == "waitforexitandrun" and app_id:
+    if app_id:
         path = Path.home() / ".config/droiddeck/game-environment.json"
         try:
             with path.open(encoding="utf-8") as source:
-                env = apply_config(env, json.load(source), app_id)
+                config = json.load(source)
+            if len(command) > 1 and command[1] == "waitforexitandrun":
+                env = apply_config(env, config, app_id)
+            else:
+                env = apply_config(env, sync_config(config, app_id), app_id)
         except FileNotFoundError:
             pass
         except (OSError, ValueError, TypeError, AttributeError):
             print("bannerlator-game-env: invalid configuration; using inherited environment", file=sys.stderr)
-    os.execvpe(command[0], command, env)
+    launch, launch_env = select_sync(command, env)
+    if launch[0] != command[0]:
+        try:
+            os.execvpe(launch[0], launch, launch_env)
+        except OSError as error:
+            print("bannerlator-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
+            launch, launch_env = command, without_pack(launch_env, env)
+    os.execvpe(launch[0], launch, launch_env)
 
 
 if __name__ == "__main__":

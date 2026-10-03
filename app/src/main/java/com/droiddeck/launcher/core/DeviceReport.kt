@@ -12,6 +12,7 @@ import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import com.droiddeck.launcher.session.EsyncPacks
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -152,7 +153,9 @@ object DeviceReport {
         k("Steam controller", SessionPrefs.steamController(context))
         k("FEX preset", SessionPrefs.fexPreset(context).ifEmpty { "FEX defaults" })
         k("Skip xalia", SessionPrefs.noXalia(context))
-        k("Fast sync (ntsync)", SessionPrefs.fastSync(context))
+        k("droiddeck-esync", SessionPrefs.syncFallback(context))
+        EsyncPacks.status(LinuxRuntime.rootDir(context)).let { k("droiddeck-esync packs", "${it.installed} installed, ${it.wanted} wanted") }
+        k("droiddeck-ntsync", SessionPrefs.fastSync(context))
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
         k("proot fast path", SessionPrefs.prootFastPath(context))

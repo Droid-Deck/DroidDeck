@@ -261,18 +261,24 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("noXalia", on).apply()
     }
 
+    fun fastSync(context: Context): Boolean = prefs(context).getBoolean("fastSync", false)
+
+    fun setFastSync(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("fastSync", on).apply()
+    }
+
+    fun syncFallback(context: Context): Boolean = prefs(context).getBoolean("syncFallback", true)
+
+    fun setSyncFallback(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("syncFallback", on).apply()
+    }
+
     /**
      * Whether gamescope asks for realtime-priority Vulkan queues (GAMESCOPE_FORCE_VULKAN_REALTIME=1,
      * which the app's gamescope build honours without CAP_SYS_NICE). Off by default, as in
      * Bannerlator's session: the compositor's queue preempting the game's buys nothing on a device
      * whose GPU is waiting on the CPU.
      */
-    fun fastSync(context: Context): Boolean = prefs(context).getBoolean("fastSync", true)
-
-    fun setFastSync(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("fastSync", on).apply()
-    }
-
     fun gamescopeRealtime(context: Context): Boolean = prefs(context).getBoolean("gamescopeRealtime", false)
 
     fun setGamescopeRealtime(context: Context, on: Boolean) {

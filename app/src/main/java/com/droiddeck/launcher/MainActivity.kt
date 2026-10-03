@@ -134,7 +134,8 @@ class MainActivity : ComponentActivity() {
     private var tuSysmem by mutableStateOf(false)
     private var zinkLazy by mutableStateOf(false)
     private var noXalia by mutableStateOf(true)
-    private var fastSync by mutableStateOf(true)
+    private var fastSync by mutableStateOf(false)
+    private var syncFallback by mutableStateOf(true)
     private var gamescopeRealtime by mutableStateOf(false)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
@@ -1045,6 +1046,7 @@ class MainActivity : ComponentActivity() {
             clientOverride = clientOverride, clientCores = clientCores, gameCores = gameCores,
             tuSysmem = tuSysmem, zinkLazy = zinkLazy, glThread = glThread, noGlError = noGlError, noXalia = noXalia,
             fastSync = fastSync,
+            syncFallback = syncFallback,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, guestHostname = guestHostname, phantomWarning = phantomWarning,
@@ -1055,6 +1057,7 @@ class MainActivity : ComponentActivity() {
             onNoGlError = { on -> SessionPrefs.setNoGlError(this, on); noGlError = on },
             onNoXalia = { on -> SessionPrefs.setNoXalia(this, on); noXalia = on },
             onFastSync = { on -> SessionPrefs.setFastSync(this, on); fastSync = on },
+            onSyncFallback = { on -> SessionPrefs.setSyncFallback(this, on); syncFallback = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
@@ -1178,6 +1181,7 @@ class MainActivity : ComponentActivity() {
         zinkLazy = SessionPrefs.zinkLazy(this)
         noXalia = SessionPrefs.noXalia(this)
         fastSync = SessionPrefs.fastSync(this)
+        syncFallback = SessionPrefs.syncFallback(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)

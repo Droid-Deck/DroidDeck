@@ -16,6 +16,7 @@ object GameEnvironmentOptions {
         Option("PROTON_USE_WINED3D", "1", R.string.game_env_wined3d, Type.TOGGLE, listOf("0", "1")),
         Option("PROTON_USE_XALIA", "0", R.string.game_env_xalia, Type.TOGGLE, listOf("0", "1")),
         Option("PROTON_NO_NTSYNC", "1", R.string.game_env_no_ntsync, Type.TOGGLE, listOf("0", "1")),
+        Option("PROTON_NO_ESYNC", "1", R.string.game_env_no_esync, Type.TOGGLE, listOf("0", "1")),
         Option("DXVK_HUD", "fps", R.string.game_env_hud, Type.MULTIPLE, listOf("scale=0.5", "scale=0.7", "opacity=0.5", "opacity=0.7", "devinfo", "fps", "frametimes", "submissions", "drawcalls", "pipelines", "descriptors", "memory", "gpuload", "version", "api", "cs", "compiler", "samplers")),
         Option("DXVK_CONFIG", "dxvk.maxFrameRate = 60", R.string.game_env_dxvk_config, Type.TEXT),
         Option("VKD3D_FRAME_RATE", "60", R.string.game_env_vkd3d_limit, Type.NUMBER),

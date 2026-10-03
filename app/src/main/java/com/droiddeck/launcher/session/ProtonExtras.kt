@@ -155,6 +155,14 @@ object ProtonExtras {
             else {
                 archive.delete()
                 unqueue(context, tool)
+                if (EsyncPacks.enabled(context)) {
+                    onProgress("Fetching droiddeck-esync pack", -1)
+                    try {
+                        EsyncPacks.fetchWanted(context, root, onProgress)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "sync pack for ${tool.name}", t)
+                    }
+                }
                 null
             }
         } catch (e: Exception) {

@@ -42,6 +42,12 @@ collect_steam_logs() {
   [ -f "$HOME/.steam/steam/logs/steamwebhelper.log" ] && cp "$HOME/.steam/steam/logs/steamwebhelper.log" "$BL_DEBUG_DIR/steam/" 2>/dev/null
   # NOT copied, ever: loginusers.vdf, config.vdf and the ssfn* files, which hold the credentials
   # themselves rather than a mention of them.
+  local sync_store=$HOME/.local/share/droiddeck-esync sync_file
+  if [ -d "$sync_store" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-esync" 2>/dev/null; then
+    for sync_file in launches.log tools.tsv wanted.tsv; do
+      [ -f "$sync_store/$sync_file" ] && cp "$sync_store/$sync_file" "$BL_DEBUG_DIR/droiddeck-esync/" 2>/dev/null
+    done
+  fi
   echo "== steam logs copied to $BL_DEBUG_DIR/steam"
 }
 # A session that is killed never reaches the copy below, and those are the sessions worth reading.
