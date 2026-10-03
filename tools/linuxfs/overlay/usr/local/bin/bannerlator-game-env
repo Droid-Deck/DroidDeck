@@ -50,26 +50,66 @@ def game_files(exe):
     return names
 
 
+class Game:
+    """What a fix gets to look at: the executable, its launch arguments and the files beside it."""
+
+    def __init__(self, exe, args):
+        self.exe = exe
+        self.args = args
+        self.stem = os.path.splitext(os.path.basename(exe))[0].lower()
+        self.files = game_files(exe)
+
+    def has_arg(self, name):
+        return any(a == name or a.startswith(name + "=") for a in self.args)
+
+
+# Each fix looks at a Game and returns (environment, extra arguments, note) for the games it
+# applies to, or None. Adding one is writing a function and decorating it.
+FIXES = []
+
+
+def fix(function):
+    FIXES.append(function)
+    return function
+
+
+def is_godot(game):
+    return game.stem + ".pck" in game.files or "godotsharp.dll" in game.files
+
+
+@fix
+def dotnet_memory_ordering(game):
+    if "coreclr.dll" in game.files:
+        return DOTNET_FEX, [], ".NET runtime: FEX with full TSO and without multiblock"
+
+
+@fix
+def godot_vulkan(game):
+    # Godot 4 on Direct3D 12 through VKD3D-Proton fails to create its swap chain and runs behind a
+    # black window; its own Vulkan renderer draws.
+    if is_godot(game) and not game.has_arg("--rendering-driver"):
+        return {}, ["--rendering-driver", "vulkan"], "Godot: Vulkan renderer"
+
+
+@fix
+def godot_sentry(game):
+    # The Sentry GDExtension's native crash handler takes the .NET runtime down under FEX. Godot
+    # loads it on demand and carries on without it.
+    sentry = sorted(n[:-4] for n in game.files if n.startswith("libsentry.windows.") and n.endswith(".dll"))
+    if is_godot(game) and sentry:
+        return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
+
+
 def engine_fixes(exe, args):
     """Environment and extra arguments a game needs because of what it is built with."""
-    names = game_files(exe)
+    game = Game(exe, args)
     env, extra, notes = {}, [], []
-    if "coreclr.dll" in names:
-        env.update(DOTNET_FEX)
-        notes.append(".NET runtime: FEX with full TSO and without multiblock")
-    stem = os.path.splitext(os.path.basename(exe))[0].lower()
-    if stem + ".pck" in names or "godotsharp.dll" in names:
-        # Godot 4 on Direct3D 12 through VKD3D-Proton fails to create its swap chain and runs
-        # behind a black window; its own Vulkan renderer draws.
-        if not any(a == "--rendering-driver" or a.startswith("--rendering-driver=") for a in args):
-            extra += ["--rendering-driver", "vulkan"]
-            notes.append("Godot: Vulkan renderer")
-        # The Sentry GDExtension's native crash handler takes the .NET runtime down under FEX.
-        # Godot loads it on demand and carries on without it.
-        sentry = sorted(n[:-4] for n in names if n.startswith("libsentry.windows.") and n.endswith(".dll"))
-        if sentry:
-            env["WINEDLLOVERRIDES"] = ";".join(n + "=d" for n in sentry)
-            notes.append("Godot: Sentry crash handler off")
+    for check in FIXES:
+        found = check(game)
+        if found:
+            env.update(found[0])
+            extra += found[1]
+            notes.append(found[2])
     return env, extra, notes
 
 

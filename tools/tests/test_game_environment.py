@@ -37,6 +37,17 @@ class GameEnvironmentTest(unittest.TestCase):
             (other / "Other.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other.exe"), []), ({}, [], []))
 
+    def test_a_new_fix_only_needs_registering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "Game.exe").touch()
+            (Path(tmp) / "engine.dll").touch()
+            check = lambda game: ({"ENGINE": "1"}, ["--flag"], "engine") if "engine.dll" in game.files else None
+            MODULE["FIXES"].append(check)
+            try:
+                self.assertEqual(MODULE["engine_fixes"](str(Path(tmp) / "Game.exe"), []), ({"ENGINE": "1"}, ["--flag"], ["engine"]))
+            finally:
+                MODULE["FIXES"].remove(check)
+
     def test_engine_fixes_sit_between_shared_and_game_profiles(self):
         env = {"WINEDLLOVERRIDES": "dxgi=n"}
         fixes = {"FEX_MULTIBLOCK": "0", "WINEDLLOVERRIDES": "libsentry=d"}
