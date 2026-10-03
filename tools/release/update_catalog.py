@@ -229,6 +229,50 @@ def release_entry(
     }
 
 
+def preview_history_entry(release: dict, preview: dict, variants: list[tuple[str, str]]):
+    """Return compact history metadata for one complete, signed main build."""
+    tag = release.get("tag_name") or ""
+    tag_match = MAIN_TAG.fullmatch(tag)
+    commit = (preview.get("commit") or "").lower()
+    expected_packages = {package for package, _ in variants}
+    apks = preview.get("apks") or {}
+    if (
+        release.get("draft")
+        or not release.get("prerelease")
+        or not tag_match
+        or not re.fullmatch(r"[0-9a-f]{40}", commit)
+        or not commit.startswith(tag_match.group(1))
+        or set(apks) != expected_packages
+        or any(
+            not SHA256.fullmatch((apk.get("sha256") or "").lower())
+            or not SHA256.fullmatch((apk.get("signerSha256") or "").lower())
+            for apk in apks.values()
+        )
+    ):
+        return None
+    return {
+        "commit": commit,
+        "title": preview["title"],
+        "summary": preview["summary"][:400],
+        "publishedAt": preview["publishedAt"],
+    }
+
+
+def recent_previews(entries: list[dict], limit: int = 10) -> list[dict]:
+    """Keep the newest distinct Preview commits, newest first."""
+    result = []
+    seen = set()
+    for entry in sorted(entries, key=lambda item: item["publishedAt"], reverse=True):
+        commit = entry["commit"].lower()
+        if commit in seen:
+            continue
+        seen.add(commit)
+        result.append({**entry, "commit": commit})
+        if len(result) >= limit:
+            break
+    return result
+
+
 def release_body_value(body: str, key: str):
     match = re.search(rf"(?mi)^\s*{re.escape(key)}:\s*`?([^\s`]+)", body or "")
     return match.group(1) if match else None
@@ -276,6 +320,7 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str) ->
 
     releases = ci.get(f"/repos/{ci_repo}/releases?per_page=100")
     previews = []
+    preview_history = []
     tests = []
     for release in releases:
         if release.get("draft"):
@@ -291,9 +336,11 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str) ->
             except ApiError:
                 continue
             title, summary = ci_description(release)
-            previews.append(
-                release_entry(release, commit, 0, None, code, variants, signer, title, summary)
-            )
+            preview = release_entry(release, commit, 0, None, code, variants, signer, title, summary)
+            previews.append(preview)
+            history_entry = preview_history_entry(release, preview, variants)
+            if history_entry:
+                preview_history.append(history_entry)
             continue
 
         pr_match = PR_TAG.fullmatch(tag)
@@ -356,6 +403,7 @@ def build_catalog(source: GitHub, ci: GitHub, source_repo: str, ci_repo: str) ->
         "generatedAt": int(time.time() * 1000),
         "stable": stable,
         "preview": previews[0] if previews else None,
+        "recentPreviews": recent_previews(preview_history),
         "tests": tests,
     }
 
