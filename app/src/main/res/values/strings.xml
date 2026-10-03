@@ -77,7 +77,7 @@
     <string name="game_env_no_ntsync">Set to 1 to keep this game off ntsync (droiddeck-ntsync or a kernel driver); it uses droiddeck-esync where a pack exists, otherwise droiddeck-fsync.</string>
     <string name="game_env_no_esync">Set to 1 to turn droiddeck-esync off for this game; it uses droiddeck-fsync instead, or droiddeck-ntsync where fsync is off too.</string>
     <string name="game_env_no_fsync">Set to 1 to keep this game off droiddeck-fsync; it uses droiddeck-esync where a pack exists, otherwise droiddeck-ntsync.</string>
-    <string name="game_env_fsync_first">Set to 1 to run this game on droiddeck-fsync ahead of droiddeck-esync, or 0 to keep it on droiddeck-esync.</string>
+    <string name="game_env_fsync_first">Set to 1 to run this game on droiddeck-fsync, or 0 to put droiddeck-esync first where a pack fits its Proton.</string>
     <string name="game_env_xalia">Set to 0 to disable Proton’s gamepad-navigation helper for this game.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>

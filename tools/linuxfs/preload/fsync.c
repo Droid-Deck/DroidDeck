@@ -93,6 +93,7 @@ static __thread uint32_t fs_tid;
 static __thread uint32_t fs_nap_key;
 static __thread uint32_t fs_nap_n;
 static __thread uint64_t fs_nap_ns;
+static __thread sigset_t fs_fork_mask;
 
 static long (*fs_real_syscall)(long, ...);
 static int (*fs_real_shm_open)(const char *, int, mode_t);
@@ -316,7 +317,19 @@ static void fs_key_init(void) {
   pthread_key_create(&fs_key, fs_thread_gone);
 }
 
+static void fs_fork_prepare(void) {
+  fs_block(&fs_fork_mask);
+  pthread_mutex_lock(&fs_mx);
+}
+
+static void fs_fork_parent(void) {
+  pthread_mutex_unlock(&fs_mx);
+  pthread_sigmask(SIG_SETMASK, &fs_fork_mask, NULL);
+}
+
 static void fs_child(void) {
+  pthread_mutex_init(&fs_mx, NULL);
+  pthread_sigmask(SIG_SETMASK, &fs_fork_mask, NULL);
   fs_pid = 0;
   fs_tid = 0;
   fs_busy = 0;
@@ -330,7 +343,7 @@ __attribute__((constructor)) static void fs_init(void) {
   if (!fs_real_mmap) fs_real_mmap = (void *(*)(void *, size_t, int, int, int, off_t))dlsym(RTLD_NEXT, "mmap");
   if (!fs_real_mmap64) fs_real_mmap64 = (void *(*)(void *, size_t, int, int, int, off64_t))dlsym(RTLD_NEXT, "mmap64");
   if (!fs_real_munmap) fs_real_munmap = (int (*)(void *, size_t))dlsym(RTLD_NEXT, "munmap");
-  if (fs_on()) pthread_atfork(NULL, NULL, fs_child);
+  if (fs_on()) pthread_atfork(fs_fork_prepare, fs_fork_parent, fs_child);
 }
 
 static int32_t fs_take(int *temp) {
@@ -453,6 +466,7 @@ static long fs_waitv(const struct fs_waitv *v, uint32_t n, uint32_t flags, const
       err = errno;
   }
   fs_unregister((uint32_t)s, keys, n);
+  if (err && __atomic_exchange_n(&sl->futex, 1, __ATOMIC_ACQ_REL)) err = 0;
   fs_give(s, temp);
   if (err == ETIMEDOUT && napping) {
     fs_nap_key = keys[0];
@@ -497,6 +511,12 @@ static long fs_wake(uint32_t key, int n) {
     }
   }
   return woken;
+}
+
+void bl_fsync_fds_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
+void bl_fsync_fds_closed(unsigned int first, unsigned int last) {
+  int fd = __atomic_load_n(&fs_fd, __ATOMIC_ACQUIRE);
+  if (fd >= 0 && (unsigned int)fd >= first && (unsigned int)fd <= last) __atomic_store_n(&fs_fd, -1, __ATOMIC_RELEASE);
 }
 
 int bl_fsync_syscall(long number, const long *args, long *ret) __attribute__((visibility("hidden")));

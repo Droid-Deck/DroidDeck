@@ -182,9 +182,9 @@ Checked against bionic `android16-release`:
 |---|---|---|
 | `rseq`, `set_robust_list` | **blocked** | glibc, at the start of every thread, while all signals are blocked |
 | `faccessat2` | **blocked** | glibc's `faccessat()`, which tries it on **every** call before falling back, so 2 round trips (`access()` calls the plain `faccessat` syscall directly) |
-| `fchmodat2`, `openat2` | **blocked** | newer glibc, Flatpak/libglnx |
+| `fchmodat2`, `openat2` | **blocked** | newer glibc, Flatpak/libglnx, FEX's rootfs lookups (`libblsession.so` turns `openat2` into `openat`) |
 | `setuid`, `setgid` and the rest of the family | **blocked** | Xwayland (hence `-i`) |
-| `futex_waitv`, `io_uring_*`, `landlock_*` | **blocked** | Proton's fsync, some engines |
+| `futex_waitv`, `io_uring_*`, `landlock_*` | **blocked** | Proton's fsync (droiddeck-fsync answers `futex_waitv` in `libblsession.so`), some engines |
 | `clone3` | blocked before Android 15 | glibc `pthread_create` |
 | `close_range` | blocked on Android 12 | |
 | `statx`, `process_vm_readv`/`writev`, `memfd_create`, `pidfd_*`, `seccomp` | allowed | |
@@ -227,7 +227,8 @@ call can be answered in-process with the 0014 design.
 2. **Hybrid by process (Steam in proot, game on glibc, or the reverse).** The game side is the
    *harder* half. Wine re-execs itself and `wineserver`, which hits `PT_INTERP`. Its server
    directory is hard-coded under `/tmp`, and Proton's esync and fsync use `shm_open` (`/dev/shm`)
-   and `futex_waitv`, which is blocked. A game's steady state is already mostly untraced, so the
+   and `futex_waitv`, which is blocked (droiddeck-fsync emulates it in the session preload, which a
+   glibc-side game would have to load too). A game's steady state is already mostly untraced, so the
    gain is in loading. Not worth it before the fast path.
 3. **Seccomp user-notification instead of ptrace.** It measures the same as ptrace, and it can't
    rewrite arguments, so every call would have to be emulated. No.

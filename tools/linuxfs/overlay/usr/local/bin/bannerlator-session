@@ -44,7 +44,7 @@ collect_steam_logs() {
   # themselves rather than a mention of them.
   local sync_store=$HOME/.local/share/droiddeck-esync sync_file
   if [ -d "$sync_store" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-esync" 2>/dev/null; then
-    for sync_file in launches.log tools.tsv wanted.tsv; do
+    for sync_file in launches.log tools.tsv wanted.tsv prefixes.json; do
       [ -f "$sync_store/$sync_file" ] && cp "$sync_store/$sync_file" "$BL_DEBUG_DIR/droiddeck-esync/" 2>/dev/null
     done
   fi

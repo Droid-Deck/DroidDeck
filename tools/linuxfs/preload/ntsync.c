@@ -1249,7 +1249,10 @@ ssize_t recvmsg(int fd, struct msghdr *msg, int flags) {
   return r;
 }
 
+void bl_fsync_fds_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
+
 int close(int fd) {
+  if (fd >= 0) bl_fsync_fds_closed((unsigned int)fd, (unsigned int)fd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && fd >= 0 && fd < NS_FDS && __atomic_load_n(&t[fd], __ATOMIC_ACQUIRE)) ns_forget(fd);
   return ns_close_fd(fd);
@@ -1258,6 +1261,7 @@ int close(int fd) {
 int dup2(int oldfd, int newfd) {
   static int (*real)(int, int);
   if (!real) real = (int (*)(int, int))dlsym(RTLD_NEXT, "dup2");
+  if (oldfd != newfd && newfd >= 0) bl_fsync_fds_closed((unsigned int)newfd, (unsigned int)newfd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && oldfd != newfd && newfd >= 0 && newfd < NS_FDS && __atomic_load_n(&t[newfd], __ATOMIC_ACQUIRE)) ns_forget(newfd);
   return real(oldfd, newfd);
@@ -1266,6 +1270,7 @@ int dup2(int oldfd, int newfd) {
 int dup3(int oldfd, int newfd, int flags) {
   static int (*real)(int, int, int);
   if (!real) real = (int (*)(int, int, int))dlsym(RTLD_NEXT, "dup3");
+  if (oldfd != newfd && newfd >= 0) bl_fsync_fds_closed((unsigned int)newfd, (unsigned int)newfd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && oldfd != newfd && newfd >= 0 && newfd < NS_FDS && __atomic_load_n(&t[newfd], __ATOMIC_ACQUIRE)) ns_forget(newfd);
   return real(oldfd, newfd, flags);
@@ -1281,7 +1286,10 @@ static void ns_forget_range(unsigned int first, unsigned int last) {
 int close_range(unsigned int first, unsigned int last, int flags) {
   static int (*real)(unsigned int, unsigned int, int);
   if (!real) real = (int (*)(unsigned int, unsigned int, int))dlsym(RTLD_NEXT, "close_range");
-  if (!(flags & CLOSE_RANGE_CLOEXEC)) ns_forget_range(first, last);
+  if (!(flags & CLOSE_RANGE_CLOEXEC)) {
+    bl_fsync_fds_closed(first, last);
+    ns_forget_range(first, last);
+  }
   if (!real) {
     errno = ENOSYS;
     return -1;
@@ -1292,7 +1300,10 @@ int close_range(unsigned int first, unsigned int last, int flags) {
 void closefrom(int lowfd) {
   static void (*real)(int);
   if (!real) real = (void (*)(int))dlsym(RTLD_NEXT, "closefrom");
-  if (lowfd >= 0) ns_forget_range((unsigned int)lowfd, ~0u);
+  if (lowfd >= 0) {
+    bl_fsync_fds_closed((unsigned int)lowfd, ~0u);
+    ns_forget_range((unsigned int)lowfd, ~0u);
+  }
   if (real) real(lowfd);
 }
 

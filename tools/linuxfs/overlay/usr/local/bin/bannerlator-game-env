@@ -6,7 +6,7 @@ import runpy
 import sys
 from pathlib import Path
 
-SYNC_KEYS = ("BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+SYNC_KEYS = ("BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 
 
@@ -50,15 +50,33 @@ def sync_config(config, app_id):
     }
 
 
-def select_sync(command, env):
+def load_sync():
     try:
-        sync = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-esync"))
+        return runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-esync"))
+    except Exception as error:
+        print("bannerlator-game-env: sync selection failed (%s); stock launch" % error, file=sys.stderr)
+        return None
+
+
+def select_sync(command, env, sync=None):
+    try:
+        sync = sync if sync is not None else load_sync()
+        if sync is None:
+            return command, env
         chosen, chosen_env = sync["select"](command, env)
         if chosen and all(isinstance(value, str) for value in chosen) and isinstance(chosen_env, dict):
             return list(chosen), dict(chosen_env)
     except Exception as error:
         print("bannerlator-game-env: sync selection failed (%s); stock launch" % error, file=sys.stderr)
     return command, env
+
+
+def record_stock(sync, command, env):
+    try:
+        if sync is not None and "record" in sync:
+            sync["record"](command, env)
+    except Exception as error:
+        print("bannerlator-game-env: stock launch not recorded (%s)" % error, file=sys.stderr)
 
 
 def without_pack(chosen_env, env):
@@ -90,13 +108,15 @@ def main():
             pass
         except (OSError, ValueError, TypeError, AttributeError):
             print("bannerlator-game-env: invalid configuration; using inherited environment", file=sys.stderr)
-    launch, launch_env = select_sync(command, env)
+    sync = load_sync()
+    launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
         try:
             os.execvpe(launch[0], launch, launch_env)
         except OSError as error:
             print("bannerlator-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
+            record_stock(sync, launch, launch_env)
     os.execvpe(launch[0], launch, launch_env)
 
 

@@ -1,22 +1,26 @@
 # droiddeck-esync packs
 
-DroidDeck gives Proton three in-process sync backends:
+DroidDeck gives Proton three in-process sync backends, picked with the Wine sync tabs in the
+Steam settings' Games group: ntsync, fsync (the default), esync and wineserver. The wineserver tab
+sets `PROTON_NO_ESYNC=1`, `PROTON_NO_FSYNC=1` and `PROTON_NO_NTSYNC=1` (unless a game's own
+environment sets them), so every sync object goes through the server.
 
-- droiddeck-esync, the default: eventfd and shared memory sync. Stock Wine 11 / Proton 11 builds
+- droiddeck-esync: eventfd and shared memory sync. Stock Wine 11 / Proton 11 builds
   have no eventfd-based sync, so the patch series under `patches/<series>` adds it to wineserver
   and the unix side of ntdll. A Proton build without a pack (a release newer than the published
   packs, or one whose pack failed to install) runs stock with droiddeck-fsync standing in, or
   droiddeck-ntsync where fsync is off for the game (`PROTON_NO_FSYNC=1`, or one of the games
   Proton itself keeps off fsync and esync), so it still gets in-process sync; `PROTON_NO_NTSYNC=1`
-  as well leaves it on wineserver-only sync. Turning the droiddeck-esync toggle off turns the
-  stand-ins off too.
+  as well leaves it on wineserver-only sync. A Proton with esync built in (GE, cachyos) runs its
+  own esync, and a game that turns esync off moves to droiddeck-fsync or droiddeck-ntsync there
+  too.
 - droiddeck-fsync: Proton's own fsync on the stock binaries. fsync waits with `futex_waitv(2)`,
   which the app sandbox refuses, so `libblsession.so` (`BL_FSYNC=1`) answers that system call in
   userspace: every waiter registers the futexes it waits on in a shared table next to the fsync
   shared memory and sleeps on a futex of its own, and every `FUTEX_WAKE` on the fsync shared memory
   wakes the waiters registered on that word. No pack is involved, so it keeps working the moment
-  Steam updates Proton. The "droiddeck-fsync first" toggle (`BL_FSYNC_FIRST=1`, also per game)
-  puts it ahead of droiddeck-esync; otherwise it stands in where no pack fits, and it also takes
+  Steam updates Proton. It is the default (the fsync tab, `BL_FSYNC_FIRST=1`, also per game),
+  ahead of droiddeck-esync; on the esync tab it stands in where no pack fits, and it also takes
   over for a game whose environment turns esync off (`PROTON_NO_ESYNC=1`, `WINEESYNC=0`, or too
   few file descriptors); where fsync is off as well, such a game gets droiddeck-ntsync, with the
   pack's wineserver when a pack fits. A launch into a prefix whose wineserver is still running
@@ -25,10 +29,11 @@ DroidDeck gives Proton three in-process sync backends:
   a wait-all on a mutex abandoned by a dead thread is not satisfied, a pending user APC is
   delivered ahead of an object that is already signaled, a mutex owned by a process killed with
   `TerminateProcess` is not abandoned, and `PulseEvent` can miss a waiter that has not run yet.
-- droiddeck-ntsync, off by default: a userspace implementation of the `/dev/ntsync` interface in
+- droiddeck-ntsync: a userspace implementation of the `/dev/ntsync` interface in
   `libblsession.so` (`BL_SYNC=1`), which stock Proton 11 builds use as they would the kernel
-  driver. It is the "droiddeck-ntsync (experimental)" toggle; while it is on, droiddeck-esync and
-  droiddeck-fsync are not used.
+  driver. It is the ntsync tab. A pack still supplies the binaries when one fits, and its
+  wineserver then picks ntsync over esync; a Proton whose wineserver has no ntsync client (no
+  `/dev/ntsync` in it) gets droiddeck-fsync instead.
 
 wineserver picks the backend at startup: `PROTON_NO_NTSYNC` unset -> `/dev/ntsync`
 (droiddeck-ntsync, or a kernel driver the device provides) -> fsync (droiddeck-fsync, or a kernel

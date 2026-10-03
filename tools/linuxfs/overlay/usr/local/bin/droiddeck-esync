@@ -29,6 +29,8 @@ STORE = ".local/share/droiddeck-esync"
 STORE_LOCK = "store.lock"
 BUILTIN_MARKER = b"esync: up and running"
 FSYNC_MARKER = b"fsync: up and running"
+NTSYNC_MARKER = b"/dev/ntsync"
+WINESERVER_ONLY = ("PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC")
 NOSYNC_APPS = frozenset(("2630", "1060210", "414740", "201510", "1233880"))
 SOURCES = ("Proton Experimental (ARM64)", "Proton 11.0 (ARM64)")
 SD_LIBRARY = "/mnt/droiddeck-sd"
@@ -174,7 +176,7 @@ def stat_key(info):
 
 def digest(path):
     sha = hashlib.sha256()
-    found = {BUILTIN_MARKER: False, FSYNC_MARKER: False}
+    found = {BUILTIN_MARKER: False, FSYNC_MARKER: False, NTSYNC_MARKER: False}
     tail = b""
     keep = max(len(marker) for marker in found) - 1
     with open(path, "rb") as source:
@@ -186,12 +188,12 @@ def digest(path):
                 found[marker] = found[marker] or marker in window
             tail = window[-keep:]
         after = stat_key(os.fstat(source.fileno()))
-    return sha.hexdigest(), found[BUILTIN_MARKER], found[FSYNC_MARKER], before if before == after else None
+    return sha.hexdigest(), found[BUILTIN_MARKER], found[FSYNC_MARKER], found[NTSYNC_MARKER], before if before == after else None
 
 
 def parse_cache(text):
     rows = {}
-    for fields in parse_tsv(text, 10):
+    for fields in parse_tsv(text, 11):
         if not SHA256.fullmatch(fields[6]):
             continue
         try:
@@ -199,12 +201,14 @@ def parse_cache(text):
         except ValueError:
             continue
         rows.pop(fields[0], None)
-        rows[fields[0]] = {"key": key, "sha": fields[6], "builtin": fields[7] == "1", "exports": fields[8], "fsync": fields[9] == "1"}
+        rows[fields[0]] = {"key": key, "sha": fields[6], "builtin": fields[7] == "1", "exports": fields[8], "fsync": fields[9] == "1",
+                           "ntsync": fields[10] == "1"}
     return rows
 
 
 def format_cache(items):
-    return tsv([real] + list(row["key"]) + [row["sha"], "1" if row["builtin"] else "0", row["exports"], "1" if row["fsync"] else "0"]
+    return tsv([real] + list(row["key"]) + [row["sha"], "1" if row["builtin"] else "0", row["exports"], "1" if row["fsync"] else "0",
+                                            "1" if row["ntsync"] else "0"]
                for real, row in items)
 
 
@@ -219,8 +223,8 @@ class HashCache:
         key = stat_key(os.stat(real))
         row = self.rows.get(real)
         if row is None or row["key"] != key:
-            sha, builtin, fsync, stable = digest(real)
-            row = {"key": stable, "sha": sha, "builtin": builtin, "exports": "", "fsync": fsync}
+            sha, builtin, fsync, ntsync, stable = digest(real)
+            row = {"key": stable, "sha": sha, "builtin": builtin, "exports": "", "fsync": fsync, "ntsync": ntsync}
             if stable is not None:
                 self.rows[real] = row
                 self.changed.add(real)
@@ -287,7 +291,8 @@ def measure(tool_dir, cache=None):
     server = cache.lookup(os.path.join(tool, WINESERVER))
     line = version_line(tool)
     return Measured({"tool": tool, "stock": os.path.realpath(tool), "ntdll": ntdll["sha"], "wineserver": server["sha"],
-                     "builtin": server["builtin"], "fsync": server["fsync"], "version_line": line, "token": version_token(line)},
+                     "builtin": server["builtin"], "fsync": server["fsync"], "ntsync": server["ntsync"], "version_line": line,
+                     "token": version_token(line)},
                     lambda: cache.lookup(os.path.join(tool, NTDLL), True)["exports"])
 
 
@@ -706,7 +711,17 @@ def select(command, env):
         return chosen
     except Exception as error:
         say("droiddeck-esync: skipped (%s); stock binaries" % error)
+        record(result[0], result[1])
         return result
+
+
+def record(command, env):
+    try:
+        root = store_root(env)
+        if root is not None and command:
+            remember(os.fspath(root), env, os.path.dirname(command[0]) or ".", (list(command), dict(env)))
+    except Exception as error:
+        say("droiddeck-esync: sync choice not recorded (%s)" % error)
 
 
 def prefix_of(env):
@@ -794,7 +809,9 @@ def describe(env):
         return "droiddeck-fsync"
     if env.get("BL_SYNC_PACK") and truthy(env.get("WINEESYNC")):
         return "droiddeck-esync"
-    return "wineserver"
+    if all(truthy(env.get(name)) for name in WINESERVER_ONLY):
+        return "wineserver"
+    return "Proton's own sync"
 
 
 def fsync_ready(env, measured):
@@ -818,6 +835,9 @@ def stand_in(root, command, env, tool, reason, measured=None):
     command, env = list(command), dict(env)
     if truthy(env.get("PROTON_NO_NTSYNC")):
         say("droiddeck-esync: %s; stock binaries" % reason)
+    elif measured is not None and not measured["ntsync"]:
+        env["BL_SYNC"] = "0"
+        say("droiddeck-esync: %s; stock binaries (this Wine has no ntsync)" % reason)
     else:
         env["BL_SYNC"] = "1"
         say("droiddeck-esync: %s; stock binaries with droiddeck-ntsync" % reason)
@@ -832,31 +852,54 @@ def esync_unwanted(env):
     return truthy(env.get("PROTON_NO_ESYNC")) or env.get("WINEESYNC") == "0" or listed or starved
 
 
+def wineserver_only(env):
+    env = dict(env)
+    for name in WINESERVER_ONLY:
+        env.setdefault(name, "1")
+    if truthy(env["PROTON_NO_ESYNC"]):
+        env["WINEESYNC"] = "0"
+    if truthy(env["PROTON_NO_FSYNC"]):
+        env["WINEFSYNC"] = "0"
+    if truthy(env["PROTON_NO_NTSYNC"]):
+        env["BL_SYNC"] = "0"
+    return env
+
+
 def choose(root, command, env, tool, stock):
     name = os.path.basename(tool.rstrip("/")) or tool
     wants_fsync = env.get("BL_FSYNC_FIRST") == "1"
     if "BL_FSYNC" in env:
         env["BL_FSYNC"] = "0"
         stock = (stock[0], dict(stock[1], BL_FSYNC="0"))
-    if env.get("BL_SYNC_FALLBACK") != "1" and not wants_fsync:
-        say("droiddeck-esync: off")
-        log_launch(root, command, env, tool, None)
+    if env.get("BL_SYNC_FALLBACK") != "1" and not wants_fsync and env.get("BL_SYNC") != "1":
+        stock = (stock[0], wineserver_only(stock[1]))
+        say("droiddeck-esync: off; wineserver sync only")
+        log_launch(root, stock[0], stock[1], tool, None)
         return stock
     cache = HashCache(root)
     try:
         measured = measure(tool, cache)
+        if env.get("BL_SYNC") == "1" and not measured["ntsync"]:
+            env["BL_SYNC"] = "0"
+            stock = (stock[0], dict(stock[1], BL_SYNC="0"))
+            wants_fsync = True
+            say("droiddeck-ntsync: %s has no ntsync; trying droiddeck-fsync" % name)
         if wants_fsync and fsync_ready(env, measured):
             return with_fsync(root, command, env, tool, "chosen for %s" % name)
         if env.get("BL_SYNC_FALLBACK") != "1":
             say("droiddeck-esync: off")
             log_launch(root, command, env, tool, None)
             return stock
+        if esync_unwanted(env) and fsync_ready(env, measured):
+            return with_fsync(root, command, env, tool, "esync is off for this game")
         if measured["builtin"]:
+            if esync_unwanted(env):
+                env["PROTON_NO_ESYNC"] = "1"
+                env["WINEESYNC"] = "0"
+                return stand_in(root, command, env, tool, "esync is off for this game on %s" % name, measured)
             say("droiddeck-esync: %s has esync built in" % name)
             log_launch(root, command, env, tool, None)
             return stock
-        if esync_unwanted(env) and fsync_ready(env, measured):
-            return with_fsync(root, command, env, tool, "esync is off for this game")
         pack = find_pack(load_packs(root), measured)
         if pack is None:
             want(root, measured)
@@ -873,7 +916,7 @@ def choose(root, command, env, tool, stock):
     if esync_unwanted(env):
         env["WINEESYNC"] = "0"
         env["PROTON_NO_ESYNC"] = "1"
-        if not truthy(env.get("PROTON_NO_NTSYNC")):
+        if not truthy(env.get("PROTON_NO_NTSYNC")) and measured["ntsync"]:
             env["BL_SYNC"] = "1"
     elif not env.get("WINEESYNC"):
         env["WINEESYNC"] = "1"
