@@ -27,8 +27,8 @@ IP6 = ROOT + "/IP6Config/1"
 AP = ROOT + "/AccessPoint/1"
 PROFILE = SETTINGS + "/1"
 UUID = "b1d0c8e4-57f0-4c0e-9d60-77696e6e6174"
-SNAPSHOT = Path("/etc/bannerlator-network.json")
-SCAN_REQUEST = Path("/etc/bannerlator-wifi-scan-request")
+SNAPSHOT = Path("/etc/droiddeck-network.json")
+SCAN_REQUEST = Path("/etc/droiddeck-wifi-scan-request")
 OBJECT_MANAGER = "org.freedesktop.DBus.ObjectManager"
 PROPERTIES = "org.freedesktop.DBus.Properties"
 

@@ -33,8 +33,9 @@ LABEL_FILE = "/etc/steam-compatibility-label"
 # requires 4185400, the arm64 Steam Linux Runtime, whose container needs user namespaces Android
 # does not give - the launch would be wrapped in it and die before this tool ever ran.
 PROTON_ARM64_APPID = "4427310"
-LAUNCHER = "bannerlator-proton"
-# The extra Steam library the app mounts the installed games into (see bannerlator-steam-library).
+LAUNCHER = "droiddeck-proton"
+LEGACY_LAUNCHER = "bannerlator-proton"
+# The extra Steam library the app mounts the installed games into (see droiddeck-steam-library).
 # installed_apps() scans it too; it lives only in the sibling script, so define it here as well.
 LIBRARY = "/mnt/droiddeck"  # the card library is LIBRARY + "-sd"; internal storage is steam_root itself
 # The client lists its own "Proton Experimental (ARM64)" and "Proton 11.0 (ARM64)" in the same
@@ -52,7 +53,7 @@ FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID)
 PLAYABLE_TYPES = frozenset(("game", "demo", "application", "beta"))
 COMPAT_DIR = os.path.join(os.environ.get("HOME", "/root"), ".local", "share", "droiddeck-compat")
 # Written by us; everything else in the depot is symlinked through.
-OWN_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", "bannerlator-proton")
+OWN_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", LAUNCHER)
 # The client assigns a Proton to a Windows title by itself, as a per-app CompatToolMapping entry at
 # priority 250 - which outranks the "0" default, so setting that default alone changes nothing. Every
 # Proton it can pick is one this runtime cannot start: the ARM64 ones want pressure-vessel (see
@@ -97,7 +98,7 @@ TOOL_MANIFEST_VDF = """"manifest"
 BL_COMPONENTS_SETUP = """
 bl_components() {
   base=$1
-  cm_dir="${HOME:-/root}/.local/share/bannerlator-components"
+  cm_dir="${HOME:-/root}/.local/share/droiddeck-components"
   cm_list="$cm_dir/desired.tsv"
   # A real game launch only: the verb the client starts a game with and the game's own prefix. Every
   # other run - above all the client's own probes right after login, which all share compatdata/0 -
@@ -119,7 +120,7 @@ bl_components() {
     f="$base/$rel"
     if [ -f "$f" ] && [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$sum" ]; then continue; fi
     if [ ! -f "$src" ]; then
-      echo "bannerlator-proton: components: $comp source missing ($src), left as it is" >&2
+      echo "droiddeck-proton: components: $comp source missing ($src), left as it is" >&2
       continue
     fi
     mkdir -p "$(dirname "$f")"
@@ -127,9 +128,9 @@ bl_components() {
     case "$rel" in *.so) chmod 755 "$f" ;; *) chmod 644 "$f" ;; esac
     cm_fixed=$((cm_fixed + 1))
   done < "$cm_list"
-  [ "$cm_checked" -gt 0 ] && echo "bannerlator-proton: components: checked $cm_checked file(s) in $cm_tool for app $cm_app" >&2
+  [ "$cm_checked" -gt 0 ] && echo "droiddeck-proton: components: checked $cm_checked file(s) in $cm_tool for app $cm_app" >&2
   if [ "$cm_fixed" -gt 0 ]; then
-    echo "bannerlator-proton: components: re-applied $cm_fixed of $cm_checked file(s) in $cm_tool before this launch" >&2
+    echo "droiddeck-proton: components: re-applied $cm_fixed of $cm_checked file(s) in $cm_tool before this launch" >&2
     printf '%s\\t%s\\t%s\\n' "$(date +%s)" "$cm_tool" "$cm_fixed" >> "$cm_dir/reapplied.log"
   fi
 }
@@ -148,7 +149,7 @@ bl_game_cpus() {
   # exec'd through taskset rather than set afterwards: a mask applied to a pid races the process
   # into spawning its own threads, and this way every thread inherits it from the first instruction.
   BL_TASKSET="taskset -c $BL_GAME_CPUS"
-  echo "bannerlator-proton: game cores $BL_GAME_CPUS" >&2
+  echo "droiddeck-proton: game cores $BL_GAME_CPUS" >&2
 }
 """
 
@@ -190,13 +191,13 @@ bl_idtech3() {
   esac
   case " $* " in
     *r_fullscreen*|*r_mode*|*r_customwidth*|*r_customheight*)
-      echo "bannerlator-proton: Quake-engine title; its launch options set the video mode, left as they are" >&2
+      echo "droiddeck-proton: Quake-engine title; its launch options set the video mode, left as they are" >&2
       return 0 ;;
   esac
   w=${BL_WIDTH:-1280}
   h=${BL_HEIGHT:-720}
   BL_EXTRA_ARGS=(+set r_fullscreen 0 +set r_mode -1 +set r_customwidth "$w" +set r_customheight "$h")
-  echo "bannerlator-proton: Quake-engine title: windowed at ${w}x${h}" >&2
+  echo "droiddeck-proton: Quake-engine title: windowed at ${w}x${h}" >&2
 }
 """
 
@@ -209,7 +210,7 @@ bl_directaudio() {
   major=${version#wine-}
   major=${major%%.*}
   if [ "$major" != "11" ]; then
-    echo "bannerlator-proton: DirectAudio left off - it is built for Wine 11 and this Proton is '${version:-unknown}'. Pairing them would be silent rather than broken, so it is not worth guessing." >&2
+    echo "droiddeck-proton: DirectAudio left off - it is built for Wine 11 and this Proton is '${version:-unknown}'. Pairing them would be silent rather than broken, so it is not worth guessing." >&2
     return 0
   fi
   # Wine appends the per-architecture subdirectory to each entry, so the directory holding
@@ -231,18 +232,18 @@ bl_directaudio() {
     done
     key='[Software\\\\Wine\\\\Drivers]'
     if [ "$(readlink "$pfx/drive_c/windows/system32/winedirectaudio.drv" 2>/dev/null)" != "$BL_DIRECTAUDIO/lib/wine/aarch64-windows/winedirectaudio.drv" ]; then
-      echo "bannerlator-proton: DirectAudio could not be placed in the prefix; Proton's own audio stays" >&2
+      echo "droiddeck-proton: DirectAudio could not be placed in the prefix; Proton's own audio stays" >&2
     elif ! BL_KEY="$key" awk 'index($0, "[") == 1 { inside = index($0, ENVIRON["BL_KEY"] " ") == 1 } inside && index($0, "\\"Audio\\"=") == 1 { last = $0 } END { exit last != "\\"Audio\\"=\\"directaudio,pulse\\"" }' "$reg" 2>/dev/null; then
       printf '\\n%s %s\\n"Audio"="directaudio,pulse"\\n' "$key" "$(date +%s)" >> "$reg"
-      echo "bannerlator-proton: DirectAudio selected in the prefix" >&2
+      echo "droiddeck-proton: DirectAudio selected in the prefix" >&2
     fi
   else
     # A prefix that does not exist yet is created by Proton moments from now, after this runs, so
     # the key lands on the NEXT launch of that game. Said out loud because silent audio on a first
     # launch would otherwise look like a fault.
-    echo "bannerlator-proton: no prefix yet - DirectAudio takes effect the next time this game starts" >&2
+    echo "droiddeck-proton: no prefix yet - DirectAudio takes effect the next time this game starts" >&2
   fi
-  echo "bannerlator-proton: DirectAudio ready (Wine $major)" >&2
+  echo "droiddeck-proton: DirectAudio ready (Wine $major)" >&2
 }
 """
 
@@ -296,9 +297,9 @@ if [ -n "$depot" ]; then
   bl_game_cpus
   bl_idtech3 "$@"
   bl_libpath
-  exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+  exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 fi
-echo "bannerlator-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
+echo "droiddeck-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
 exit 1
 """
 LAUNCHER_TEMPLATE = LAUNCHER_SH
@@ -319,7 +320,10 @@ LAUNCHER_SH = launcher_sh()
 # that shape - is adopted rather than used as shipped, for the same two reasons Valve's ARM64 depot
 # is: its manifest declares require_tool_appid, and the client's overlay library has to come out of
 # LD_PRELOAD. Its own entry point is left untouched and called through this wrapper.
-EXTRA_WRAPPER = "bannerlator-proton-wrap"
+EXTRA_WRAPPER = "droiddeck-proton-wrap"
+LEGACY_EXTRA_WRAPPER = "bannerlator-proton-wrap"
+ORIGINAL_SUFFIX = ".droiddeck-orig"
+LEGACY_ORIGINAL_SUFFIX = ".bannerlator-orig"
 EXTRA_MANIFEST_VDF = """"manifest"
 {
 	"version" "2"
@@ -330,12 +334,12 @@ EXTRA_MANIFEST_VDF = """"manifest"
 """ % EXTRA_WRAPPER
 # %s is the tool's own entry point, read out of the manifest it shipped with.
 EXTRA_WRAPPER_SH = """#!/bin/bash
-# Bannerlator: runs a Proton installed into compatibilitytools.d without the Steam Linux Runtime
+# DroidDeck: runs a Proton installed into compatibilitytools.d without the Steam Linux Runtime
 # container its own manifest asks for - pressure-vessel needs unprivileged user namespaces, which
 # an Android app does not get, and the launch dies before Proton is reached.
 verb=$1; shift
 here=$(dirname "$0")
-# See bannerlator-proton: the interposer goes first in LD_PRELOAD rather than the overlay being
+# See droiddeck-proton: the interposer goes first in LD_PRELOAD rather than the overlay being
 # removed, because glibc reads LD_PRELOAD before /etc/ld.so.preload and the overlay was simply
 # ahead of it on /dev/input.
 for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
@@ -353,7 +357,7 @@ bl_idtech3 "$@"
 bl_libpath
 # Proton takes its base directory from dirname(sys.argv[0]) without resolving it, so it has to be
 # started from its own tree.
-exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 """
 EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
 {
@@ -481,7 +485,7 @@ def write_changed(path, text, mode=None):
     except OSError:
         same = False
     if not same:
-        tmp = path + ".bannerlator"
+        tmp = path + ".droiddeck"
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(text)
         if mode is not None:
@@ -553,14 +557,20 @@ def adopt_extras(tools):
             continue
         # The shipped manifest is kept, once, and stays the source of the entry point: re-running
         # must not read back our own rewritten commandline and wrap the wrapper.
-        original = manifest + ".bannerlator-orig"
+        original = manifest + ORIGINAL_SUFFIX
+        legacy = manifest + LEGACY_ORIGINAL_SUFFIX
+        if not os.path.isfile(original) and os.path.isfile(legacy):
+            try:
+                os.replace(legacy, original)
+            except OSError:
+                continue
         if not os.path.isfile(original):
             try:
                 shutil.copy2(manifest, original)
             except OSError:
                 continue
         entry_point = manifest_entry_point(original)
-        if not entry_point or entry_point == EXTRA_WRAPPER:
+        if not entry_point or entry_point in (EXTRA_WRAPPER, LEGACY_EXTRA_WRAPPER):
             entry_point = "proton"
         if not os.path.exists(os.path.join(tool_dir, entry_point)):
             print("steam-compatibility: %s has no %s; left alone" % (entry, entry_point))
@@ -578,6 +588,9 @@ def adopt_extras(tools):
             write_changed(wrapper, body, 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
             write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, display_name(entry)))
+            legacy_wrapper = os.path.join(tool_dir, LEGACY_EXTRA_WRAPPER)
+            if os.path.isfile(legacy_wrapper):
+                os.unlink(legacy_wrapper)
         except OSError as e:
             print("steam-compatibility: could not adopt %s (%s)" % (entry, e))
             continue
@@ -842,7 +855,7 @@ def tool_catalog(steam_root, extras=None):
             entries = []
         for entry in entries:
             tool_dir = os.path.join(tools, entry)
-            if entry in dict(OWN_TOOLS) or not os.path.isfile(os.path.join(tool_dir, EXTRA_WRAPPER)):
+            if entry in dict(OWN_TOOLS) or not any(os.path.isfile(os.path.join(tool_dir, w)) for w in (EXTRA_WRAPPER, LEGACY_EXTRA_WRAPPER)):
                 continue
             extras[first_key(os.path.join(tool_dir, "compatibilitytool.vdf"), ["compatibilitytools", "compat_tools"]) or entry] = entry
     for name, entry in sorted(extras.items()):
@@ -1041,7 +1054,7 @@ def build_fex_tool(tool_dir):
 
 
 def remove_tool(tool_dir):
-    if os.path.isdir(tool_dir) and not os.path.islink(tool_dir) and not set(os.listdir(tool_dir)) - set(OWN_FILES):
+    if os.path.isdir(tool_dir) and not os.path.islink(tool_dir) and not set(os.listdir(tool_dir)) - set(OWN_FILES) - {LEGACY_LAUNCHER}:
         shutil.rmtree(tool_dir)
 
 

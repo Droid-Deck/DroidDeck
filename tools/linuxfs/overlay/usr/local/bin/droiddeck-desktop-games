@@ -4,7 +4,7 @@
 # the app - so an entry of ours exists only for a game the client wrote none for. Plus two links in
 # the home folder to the game files. Run at every desktop start; stale entries go.
 #
-#   bannerlator-desktop-games [steam root]
+#   droiddeck-desktop-games [steam root]
 import os
 import re
 import sys
@@ -90,7 +90,7 @@ def write_entries():
         safe = name.replace("\n", " ").strip() or str(appid)
         body = (
             "[Desktop Entry]\nType=Application\nName=%s\nComment=Steam game %d - opens in Steam under gamescope\n"
-            "Exec=/usr/local/bin/bannerlator-steam-launch desktop %d\nIcon=%s\nTerminal=false\n"
+            "Exec=/usr/local/bin/droiddeck-steam-launch desktop %d\nIcon=%s\nTerminal=false\n"
             "Categories=Game;\nX-DroidDeck-AppId=%d\n" % (safe, appid, appid, icon_for(appid), appid)
         )
         path = os.path.join(APPS_DIR, "%s%d.desktop" % (PREFIX, appid))
@@ -123,7 +123,7 @@ def link_libraries():
 def main():
     wanted = write_entries()
     link_libraries()
-    print("bannerlator-desktop-games: %d entr%s of ours, %d the client's" % (
+    print("droiddeck-desktop-games: %d entr%s of ours, %d the client's" % (
         len(wanted), "y" if len(wanted) == 1 else "ies", len(client_entries())))
 
 

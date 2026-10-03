@@ -8,7 +8,7 @@
  * address ioctl, and every table under /proc/net. Wine builds its adapter, address, route and
  * neighbour tables from exactly those, so a game saw a machine with no adapter, no address, no
  * gateway and no MAC, and one that checks its adapters before going online waited for good.
- * The app knows the real link from ConnectivityManager and writes it to /etc/bannerlator-net;
+ * The app knows the real link from ConnectivityManager and writes it to /etc/droiddeck-net;
  * whatever the kernel refuses is answered from that file. Anything the kernel does answer wins.
  */
 #define _GNU_SOURCE 1
@@ -30,7 +30,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define LINK_FILE "/etc/bannerlator-net"
+#define LINK_FILE "/etc/droiddeck-net"
 #define LO_NAME "lo"
 #define LO_INDEX 1
 #define LO_MTU 65536
@@ -468,7 +468,7 @@ static const char *denied_table(const char *path) {
 static FILE *synthesize(const char *table) {
     struct link link;
     if (!load_link(&link)) return NULL;
-    int fd = memfd_create("bannerlator-net", MFD_CLOEXEC);
+    int fd = memfd_create("droiddeck-net", MFD_CLOEXEC);
     if (fd < 0) return NULL;
     FILE *out = fdopen(fd, "w+");
     if (out == NULL) {

@@ -126,7 +126,7 @@ class LoginManager:
 def main():
     directory = os.environ.get("BL_LAUNCH_DIR")
     if not directory or not Path(directory).is_dir():
-        sys.exit("bannerlator-login1: no DroidDeck session directory")
+        sys.exit("droiddeck-login1: no DroidDeck session directory")
     ready = Path(directory) / "steam-sleep-ready"
     ready.unlink(missing_ok=True)
     loop = GLib.MainLoop()

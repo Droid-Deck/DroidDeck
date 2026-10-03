@@ -4,6 +4,7 @@ import com.droiddeck.launcher.core.Hashes
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.github.luben.zstd.ZstdInputStream
 import com.github.luben.zstd.ZstdOutputStream
@@ -105,8 +106,22 @@ object ComponentsManager {
      * Inside the Linux runtime, read by the Proton launch wrappers (steam-compatibility's
      * bl_components) before every game launch: desired.tsv + an unpacked copy of each package in use.
      */
-    private const val LAUNCH_DIR = "root/.local/share/bannerlator-components"
-    private fun launchDir(context: Context) = File(root(context), LAUNCH_DIR)
+    private const val LAUNCH_DIR = "root/.local/share/droiddeck-components"
+    private const val LEGACY_LAUNCH_DIR = "root/.local/share/bannerlator-components"
+    private fun launchDir(context: Context): File {
+        migrateLaunchDir(context)
+        return File(root(context), LAUNCH_DIR)
+    }
+
+    fun migrateLaunchDir(context: Context) = synchronized(lock) {
+        val legacy = File(root(context), LEGACY_LAUNCH_DIR)
+        val dir = File(root(context), LAUNCH_DIR)
+        if (!legacy.isDirectory || dir.exists() || !legacy.renameTo(dir)) return@synchronized
+        val desired = File(dir, "desired.tsv")
+        val text = FileUtils.readString(desired) ?: return@synchronized
+        val staged = File(dir, "desired.tsv.staged")
+        if (!FileUtils.writeString(staged, text.replace("/$LEGACY_LAUNCH_DIR/", "/$LAUNCH_DIR/")) || !staged.renameTo(desired)) staged.delete()
+    }
 
     fun safeName(s: String): String = s.replace(Regex("[^A-Za-z0-9._+-]+"), "_").trim('_').ifEmpty { "unnamed" }
 

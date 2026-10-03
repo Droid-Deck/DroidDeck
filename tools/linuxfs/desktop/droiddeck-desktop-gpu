@@ -18,7 +18,7 @@ LOCAL_DIR = "/usr/local/share/applications"
 FLATPAK_DIR = os.path.join(HOME, ".local/share/flatpak/exports/share/applications")
 USER_DIR = os.path.join(HOME, ".local/share/applications")
 MARK = "X-DroidDeck-GPU=1"
-# The client and its games already hand themselves to the app (bannerlator-steam-launch).
+# The client and its games already hand themselves to the app (droiddeck-steam-launch).
 SKIP = re.compile(r"^(steam|droiddeck-game-|droiddeck-steam|steamdeck-)", re.I)
 
 
@@ -45,7 +45,7 @@ def gpu_exec(exec_line):
     """The Exec that runs a program on the GPU; a Flatpak app goes through its launcher, which
     keeps it on gamescope's X server instead of the desktop's Wayland socket."""
     if exec_line.startswith("/usr/bin/flatpak run ") or exec_line.startswith("flatpak run "):
-        exec_line = "/usr/local/bin/bannerlator-flatpak-run " + exec_line.split(" run ", 1)[1]
+        exec_line = "/usr/local/bin/droiddeck-flatpak-run " + exec_line.split(" run ", 1)[1]
     return "droiddeck-gpu " + exec_line
 
 

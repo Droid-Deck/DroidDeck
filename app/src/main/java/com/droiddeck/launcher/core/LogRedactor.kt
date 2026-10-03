@@ -18,7 +18,7 @@ package com.droiddeck.launcher.core
  *
  * The device's OWN addresses are not kept: the client's IPv6 check logs "external address <ours>"
  * about twenty times a session, and a public IPv6 address is the user's. [learnOwnAddresses] reads
- * the link the session was given (etc/bannerlator-net) and every address on the same /64 - privacy
+ * the link the session was given (etc/droiddeck-net) and every address on the same /64 - privacy
  * addresses rotate inside it - or an own public IPv4 is replaced wherever it appears. Likewise every
  * Steam account and persona name on the device ([learnAccounts]), for users who sign in with an
  * account name rather than an email.
@@ -95,7 +95,7 @@ object LogRedactor {
 
     /** Everything the session's runtime can tell about whose logs these are: addresses and accounts. */
     fun learnFromRuntime(root: java.io.File) {
-        learnOwnAddresses(java.io.File(root, "etc/bannerlator-net"))
+        learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
         learnAccounts(java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"))
     }
 

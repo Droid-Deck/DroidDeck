@@ -212,7 +212,7 @@ class SessionService : Service() {
         }
         // Another Steam client on the device signs ours out seconds after every login; the one that
         // does it here runs from boot without being opened. Only the Steam session signs in.
-        // The desktop too: its Steam launchers run the client right there (bannerlator-steam-launch).
+        // The desktop too: its Steam launchers run the client right there (droiddeck-steam-launch).
         if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) RivalClients.stopBeforeSession(this)
         SessionState.firstFrameSeen = false
         SessionState.guestPid = -1
@@ -297,7 +297,7 @@ class SessionService : Service() {
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
-        // The desktop's Steam launchers start the client there (bannerlator-steam-launch), through the
+        // The desktop's Steam launchers start the client there (droiddeck-steam-launch), through the
         // same set-up as a Steam session: it gets what the client and its games are started with.
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
         addClientEnvironment(guest, steamHere)
@@ -336,7 +336,7 @@ class SessionService : Service() {
             guest.add("BL_WLR_RENDERER=" + (override?.takeIf { it.isNotEmpty() } ?: SessionPrefs.desktopRenderer(this)))
         }
         // The user's own games, for the runtime's shortcuts writer to put in the client's library
-        // before the client starts (see frontend/AddedGames and bannerlator-steam-shortcuts).
+        // before the client starts (see frontend/AddedGames and droiddeck-steam-shortcuts).
         if (steamHere) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
             val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
@@ -347,7 +347,7 @@ class SessionService : Service() {
         }
         // Where the guest leaves a request for another session (the desktop's Steam launchers).
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
-        // The second library's name, for bannerlator-steam-library; the bind itself is made below.
+        // The second library's name, for droiddeck-steam-library; the bind itself is made below.
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
         // The desktop asked for with Steam in it (the front end's "Steam Desktop UI", Big Picture's
@@ -780,7 +780,7 @@ class SessionService : Service() {
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")
         // A second Steam library: the storage chosen in the Steam cog, at the path the runtime's
-        // bannerlator-steam-library registers with the client. Nothing bound = the script removes
+        // droiddeck-steam-library registers with the client. Nothing bound = the script removes
         // the entry, so the client never offers a place that is not there.
         val library = GameStorage.effective(this)
         if (library != null) {
@@ -1462,7 +1462,7 @@ class SessionService : Service() {
         private const val ACTION_AUXILIARY_EXITED = "com.droiddeck.launcher.AUXILIARY_EXITED"
         private const val EXTRA_AUXILIARY_PID = "auxiliaryPid"
         /** Command lines that can only belong to a session of ours. */
-        private val STRAGGLERS = listOf("bannerlator-session", "gamescope", "Xwayland", "steamrtarm64",
+        private val STRAGGLERS = listOf("droiddeck-session", "gamescope", "Xwayland", "steamrtarm64",
             "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
         /** How long proot gets to run its own cleanup before it is killed outright. */
         private const val GRACE_MS = 1200L

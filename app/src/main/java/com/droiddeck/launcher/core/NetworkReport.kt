@@ -91,9 +91,9 @@ object NetworkReport {
         } else {
             append("etc/resolv.conf does not exist yet - written when the session's link is published.\n")
         }
-        val netdev = File(LinuxRuntime.rootDir(context), "etc/bannerlator-net")
+        val netdev = File(LinuxRuntime.rootDir(context), "etc/droiddeck-net")
         if (netdev.isFile) {
-            append("\netc/bannerlator-net (the link as the session sees it):\n")
+            append("\netc/droiddeck-net (the link as the session sees it):\n")
             FileUtils.readString(netdev)?.lines()?.forEach { append("    ").append(it).append('\n') }
         }
         append("\nproot makes no network namespace, so the session uses the phone's connection\n")

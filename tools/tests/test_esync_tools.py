@@ -1215,9 +1215,10 @@ class ShippedFilesTest(unittest.TestCase):
         self.assertIn("tools/droiddeck-esync/release.env", bundle["run"])
         self.assertIn("-R Droid-Deck/DroidDeck", bundle["run"])
         self.assertIn("sha256sum -c -", bundle["run"])
-        stage = next(step for step in apk["jobs"]["build"]["steps"] if "overlay/usr/local/bin/bannerlator-*" in step.get("run", ""))
-        self.assertIn("tools/linuxfs/overlay/usr/local/bin/droiddeck-esync", stage["run"])
-        self.assertIn("tools/linuxfs/overlay/usr/local/bin/droiddeck-esync", (ROOT / "tools/build_local.sh").read_text())
+        stage = next(step for step in apk["jobs"]["build"]["steps"] if "overlay/usr/local/bin/droiddeck-*" in step.get("run", ""))
+        self.assertTrue((ROOT / "tools/linuxfs/overlay/usr/local/bin/droiddeck-esync").is_file())
+        self.assertIn("tools/linuxfs/overlay/usr/local/bin/droiddeck-* ", stage["run"])
+        self.assertIn("tools/linuxfs/overlay/usr/local/bin/droiddeck-* ", (ROOT / "tools/build_local.sh").read_text())
 
 
 if __name__ == "__main__":

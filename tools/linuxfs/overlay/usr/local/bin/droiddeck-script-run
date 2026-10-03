@@ -1,11 +1,11 @@
 #!/bin/bash
 # A script added on the Desktop page (UserApps), run from its own folder:
-#   bannerlator-script-run /opt/droiddeck-apps/<id> [args...]
+#   droiddeck-script-run /opt/droiddeck-apps/<id> [args...]
 set -u
-dir=${1:?usage: bannerlator-script-run <added app directory> [args...]}
+dir=${1:?usage: droiddeck-script-run <added app directory> [args...]}
 shift
-entry=$(cat "$dir/entry" 2>/dev/null) || { echo "bannerlator-script-run: $dir has no entry" >&2; exit 127; }
-cd -P "$dir/files" 2>/dev/null || { echo "bannerlator-script-run: $dir/files is missing; add the script again" >&2; exit 127; }
+entry=$(cat "$dir/entry" 2>/dev/null) || { echo "droiddeck-script-run: $dir has no entry" >&2; exit 127; }
+cd -P "$dir/files" 2>/dev/null || { echo "droiddeck-script-run: $dir/files is missing; add the script again" >&2; exit 127; }
 folder=$PWD
 # Shared storage is noexec, so the script is handed to its interpreter rather than executed.
 first=

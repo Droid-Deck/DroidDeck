@@ -13,14 +13,14 @@ import java.io.RandomAccessFile
  * AppImages the user brings: picked from storage, checked, and extracted once into the runtime at
  * /opt/appimages/user/<id>/app. proot has no FUSE to mount an image, and extracting it at every
  * start would cost its whole size in /tmp each time. Each one gets a menu entry on the Linux
- * desktop, and the front end starts it under gamescope through bannerlator-appimage-run.
+ * desktop, and the front end starts it under gamescope through droiddeck-appimage-run.
  *
  * <id>/name holds the name to show, <id>/icon.png the icon when the image has a PNG one.
  */
 object AppImageManager {
     private const val TAG = "AppImageManager"
     const val GUEST_DIR = "/opt/appimages/user"
-    const val LAUNCHER = "/usr/local/bin/bannerlator-appimage-run"
+    const val LAUNCHER = "/usr/local/bin/droiddeck-appimage-run"
     private const val SHARP_ICON = 128
 
     class Item(val id: String, val name: String, val icon: File?, val comment: String?) {

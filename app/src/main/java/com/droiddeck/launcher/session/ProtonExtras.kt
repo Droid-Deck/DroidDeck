@@ -131,7 +131,7 @@ object ProtonExtras {
             val guest = listOf(
                 "/usr/bin/env", "-i", "HOME=/root", "USER=root", "PATH=/usr/local/bin:/usr/bin:/bin",
                 "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share",
-                "/usr/local/bin/bannerlator-proton-extra", "/root/.local/share/Steam", archive.absolutePath,
+                "/usr/local/bin/droiddeck-proton-extra", "/root/.local/share/Steam", archive.absolutePath,
             )
             val command = LinuxRuntime.command(context, null, runtimeDir, null, guest)
             val process = ProcessBuilder(command)

@@ -129,7 +129,7 @@ docker run --rm --platform linux/amd64 \
         mkdir -p "$d/usr/local/bin"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
-        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-* tools/linuxfs/overlay/usr/local/bin/droiddeck-esync tools/linuxfs/overlay/usr/local/bin/droiddeck-fex tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
+        for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done
         for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
@@ -166,8 +166,8 @@ docker run --rm --platform linux/amd64 \
                 exit 1
             }
         done
-        test -f "$d/usr/local/bin/bannerlator-session"
-        test -f "$d/usr/local/bin/bannerlator-proton-extra"
+        test -f "$d/usr/local/bin/droiddeck-session"
+        test -f "$d/usr/local/bin/droiddeck-proton-extra"
     '
 
 docker run --rm --platform linux/amd64 \

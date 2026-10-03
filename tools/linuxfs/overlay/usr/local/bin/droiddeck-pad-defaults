@@ -17,7 +17,7 @@ def seed(path, text, what, done="Player 1 on the controller"):
     with open(path + ".tmp", "w", encoding="utf-8") as f:
         f.write(text)
     os.replace(path + ".tmp", path)
-    print(f"bannerlator-pad-defaults: {what}: {done} ({path})")
+    print(f"droiddeck-pad-defaults: {what}: {done} ({path})")
     return True
 
 
@@ -97,7 +97,7 @@ def rpcs3_shader_mode():
         with open(cfg + ".tmp", "w", encoding="utf-8") as f:
             f.write(text)
         os.replace(cfg + ".tmp", cfg)
-        print(f"bannerlator-pad-defaults: RPCS3: shader mode {RPCS3_RECOMPILER} ({cfg})")
+        print(f"droiddeck-pad-defaults: RPCS3: shader mode {RPCS3_RECOMPILER} ({cfg})")
     open(marker, "w").close()
 
 
@@ -144,7 +144,7 @@ def patch_ini_section(path, section, body, what, needle="SDL-", require=None, do
     with open(path + ".tmp", "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     os.replace(path + ".tmp", path)
-    print(f"bannerlator-pad-defaults: {what}: {done} ({path})")
+    print(f"droiddeck-pad-defaults: {what}: {done} ({path})")
 
 
 # DuckStation: SDL-<n>/<name>, axes signed (src/util/sdl_input_source.cpp); Pad1 keys from
@@ -285,12 +285,12 @@ def duckstation():
     # One set up by an earlier build still has its first-time setup pending, in the way of a game.
     if ini_get(ini, "Main", "SetupWizardIncomplete") == "true":
         ini_set(ini, "Main", "SetupWizardIncomplete", "false")
-        print("bannerlator-pad-defaults: DuckStation: first-time setup already done here")
+        print("droiddeck-pad-defaults: DuckStation: first-time setup already done here")
     # Keeping the screen awake goes through org.freedesktop.ScreenSaver, which nothing in the session
     # provides (Android decides when the screen sleeps): DuckStation only warns it failed, every game.
     if (ini_get(ini, "Main", "InhibitScreensaver") or "true") == "true":
         ini_set(ini, "Main", "InhibitScreensaver", "false")
-        print("bannerlator-pad-defaults: DuckStation: no screensaver inhibit (no such service here)")
+        print("droiddeck-pad-defaults: DuckStation: no screensaver inhibit (no such service here)")
     # Once, for a DuckStation set up before this: its own empty BIOS folder moves to the ROMs folder,
     # and Automatic becomes Vulkan. A later choice in DuckStation's settings is kept.
     marker = os.path.join(os.path.dirname(ini), ".droiddeck-setup")
@@ -300,10 +300,10 @@ def duckstation():
     own = current if os.path.isabs(current) else os.path.join(os.path.dirname(ini), current)
     if not (os.path.isdir(own) and os.listdir(own)):
         ini_set(ini, "BIOS", "SearchDirectory", bios_folder(ps1))
-        print(f"bannerlator-pad-defaults: DuckStation: BIOS from {bios_folder(ps1)}")
+        print(f"droiddeck-pad-defaults: DuckStation: BIOS from {bios_folder(ps1)}")
     if (ini_get(ini, "GPU", "Renderer") or "Automatic") == "Automatic":
         ini_set(ini, "GPU", "Renderer", "Vulkan")
-        print("bannerlator-pad-defaults: DuckStation: renderer Vulkan")
+        print("droiddeck-pad-defaults: DuckStation: renderer Vulkan")
     open(marker, "w").close()
 
 
@@ -451,7 +451,7 @@ def armsx2():
             src = os.path.join(old, sub)
             if os.path.isdir(src):
                 shutil.copytree(src, os.path.join(root, sub), dirs_exist_ok=True)
-        print(f"bannerlator-pad-defaults: ARMSX2: settings and memory cards copied from PCSX2 ({root})")
+        print(f"droiddeck-pad-defaults: ARMSX2: settings and memory cards copied from PCSX2 ({root})")
     elif not os.path.isfile(ini):
         # A new player: everything ARMSX2's first-time setup asks is answered here - the BIOS
         # folder in the ROMs folder, the ps2 folder as its game list, the controller on Player 1 -
@@ -482,7 +482,7 @@ def armsx2():
                       require="SettingsVersion", done="games listed from the ROMs folder")
     if ini_get(ini, "UI", "SetupWizardIncomplete") == "true":
         ini_set(ini, "UI", "SetupWizardIncomplete", "false")
-        print("bannerlator-pad-defaults: ARMSX2: first-time setup already done here")
+        print("droiddeck-pad-defaults: ARMSX2: first-time setup already done here")
     armsx2_bios(ini)
 
 
@@ -507,7 +507,7 @@ def armsx2_bios(ini):
     us = [f for f in dumps if any(t in f.lower() for t in ("usa", "(us)", "(us,", "ntsc-u"))]
     pick = (us or dumps)[0]
     ini_set(ini, "Filenames", "BIOS", pick)
-    print(f"bannerlator-pad-defaults: ARMSX2: BIOS {pick}")
+    print(f"droiddeck-pad-defaults: ARMSX2: BIOS {pick}")
 
 
 # Dolphin (PC) has no controller menu, so the guide button is its Toggle Fullscreen hotkey: out of full
@@ -596,7 +596,7 @@ def dolphin_data():
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
         src = os.path.join(work, "squashfs-root/usr/share/dolphin-emu")
         if not os.path.isfile(os.path.join(src, "Sys/GC/font_western.bin")):
-            print("bannerlator-pad-defaults: Dolphin: could not unpack its data from the AppImage")
+            print("droiddeck-pad-defaults: Dolphin: could not unpack its data from the AppImage")
             return
         new = DOLPHIN_DATA + ".new"
         shutil.rmtree(new, ignore_errors=True)
@@ -605,9 +605,9 @@ def dolphin_data():
             f.write(stamp)
         shutil.rmtree(DOLPHIN_DATA, ignore_errors=True)
         os.rename(new, DOLPHIN_DATA)
-        print("bannerlator-pad-defaults: Dolphin: its data (fonts, per-game fixes) in " + DOLPHIN_DATA)
+        print("droiddeck-pad-defaults: Dolphin: its data (fonts, per-game fixes) in " + DOLPHIN_DATA)
     except (OSError, subprocess.SubprocessError) as e:
-        print("bannerlator-pad-defaults: Dolphin: unpacking its data failed: %s" % e)
+        print("droiddeck-pad-defaults: Dolphin: unpacking its data failed: %s" % e)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -622,7 +622,7 @@ def dolphin():
     wii_pad = os.path.join(d, "WiimoteNew.ini")
     if ini_get(wii_pad, "Wiimote1", "Buttons/Home") == "`Guide`":
         ini_set(wii_pad, "Wiimote1", "Buttons/Home", "`Shoulder R`")
-        print("bannerlator-pad-defaults: Dolphin (Wii): Home on the right shoulder button (guide = Dolphin's window)")
+        print("droiddeck-pad-defaults: Dolphin (Wii): Home on the right shoulder button (guide = Dolphin's window)")
     hotkeys = os.path.join(d, "Hotkeys.ini")
     if not os.path.isfile(hotkeys):
         seed(hotkeys, DOLPHIN_HOTKEYS, "Dolphin", "the guide button shows Dolphin's window (Toggle Fullscreen)")
@@ -631,7 +631,7 @@ def dolphin():
         if current is not None and DOLPHIN_GUIDE not in current:
             ini_set(hotkeys, "Hotkeys", "General/Toggle Fullscreen",
                     (current + " | " if current else "") + DOLPHIN_GUIDE)
-            print("bannerlator-pad-defaults: Dolphin: the guide button shows Dolphin's window (Toggle Fullscreen)")
+            print("droiddeck-pad-defaults: Dolphin: the guide button shows Dolphin's window (Toggle Fullscreen)")
     # Games from the ROMs folder's gamecube and wii folders, subfolders included; Vulkan; no
     # NKit warning (it will not let a game start until a box is ticked - games run either way,
     # the warning is about loading times, netplay and save states); no statistics question.
@@ -647,7 +647,7 @@ def dolphin():
                     "[Core]\nGFXBackend = Vulkan\n"
                     "[General]\nISOPaths = 2\nISOPath0 = %s\nISOPath1 = %s\nRecursiveISOPaths = True\n"
                     "[Interface]\nSkipNKitWarning = True\n" % (gc, wii))
-        print("bannerlator-pad-defaults: Dolphin: first-time setup (Vulkan, games from %s and %s)" % (gc, wii))
+        print("droiddeck-pad-defaults: Dolphin: first-time setup (Vulkan, games from %s and %s)" % (gc, wii))
         return
     try:
         count = int(ini_get(ini, "General", "ISOPaths") or "0")
@@ -679,7 +679,7 @@ def dolphin():
         ini_set(ini, "General", "RecursiveISOPaths", "True")
         changed.append("subfolders")
     if changed:
-        print("bannerlator-pad-defaults: Dolphin: games from " + ", ".join(changed))
+        print("droiddeck-pad-defaults: Dolphin: games from " + ", ".join(changed))
     # Once, for a Dolphin set up before this: Vulkan unless it was chosen already, and the NKit box.
     marker = os.path.join(d, ".droiddeck-setup")
     if os.path.exists(marker):
@@ -691,7 +691,7 @@ def dolphin():
         ini_set(ini, "Analytics", "Enabled", "False")
         ini_set(ini, "Analytics", "PermissionAsked", "True")
     open(marker, "w").close()
-    print("bannerlator-pad-defaults: Dolphin: Vulkan, no NKit warning")
+    print("droiddeck-pad-defaults: Dolphin: Vulkan, no NKit warning")
 
 
 # Cemu: an SDLController profile for the GamePad. The uuid is "<index>_<SDL GUID>" and SDL's GUID
@@ -954,7 +954,7 @@ def melonds():
         with open(path + ".tmp", "w", encoding="utf-8") as f:
             f.write("\n".join(lines).rstrip("\n") + "\n")
         os.replace(path + ".tmp", path)
-        print(f"bannerlator-pad-defaults: melonDS: {'; '.join(done)} ({path})")
+        print(f"droiddeck-pad-defaults: melonDS: {'; '.join(done)} ({path})")
 
 
 # PPSSPP (SDL): its pad defaults leave the shoulders, the right stick and the triggers unbound on
@@ -1041,7 +1041,7 @@ def retroarch():
         with open(cfg + ".tmp", "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
         os.replace(cfg + ".tmp", cfg)
-        print(f"bannerlator-pad-defaults: RetroArch: joypad driver udev -> sdl2 ({cfg})")
+        print(f"droiddeck-pad-defaults: RetroArch: joypad driver udev -> sdl2 ({cfg})")
 
 
 # yuzu and its forks: Player 1 in [Controls] of <name>/qt-config.ini, which each writes at its first
@@ -1090,11 +1090,11 @@ def switch_emulators():
             f.write("\n".join(lines) + "\n")
         os.replace(cfg + ".tmp", cfg)
         open(marker, "w").close()
-        print(f"bannerlator-pad-defaults: {name}: Player 1 on the controller ({cfg})")
+        print(f"droiddeck-pad-defaults: {name}: Player 1 on the controller ({cfg})")
 
 
 for step in (rpcs3, duckstation, pcsx2, armsx2, dolphin, cemu, melonds, ppsspp, retroarch, switch_emulators):
     try:
         step()
     except Exception as e:
-        print(f"bannerlator-pad-defaults: {step.__name__}: {e}")
+        print(f"droiddeck-pad-defaults: {step.__name__}: {e}")

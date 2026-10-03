@@ -20,8 +20,8 @@
 #include "lsfg/lsfg_vkd.h"
 #include "winfg/winfg_engine.h"
 
-#define ELOG(...) __android_log_print(ANDROID_LOG_INFO, "BannerWayland", "framegen: " __VA_ARGS__)
-#define ELOGE(...) __android_log_print(ANDROID_LOG_ERROR, "BannerWayland", "framegen: " __VA_ARGS__)
+#define ELOG(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", "framegen: " __VA_ARGS__)
+#define ELOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", "framegen: " __VA_ARGS__)
 
 namespace {
 

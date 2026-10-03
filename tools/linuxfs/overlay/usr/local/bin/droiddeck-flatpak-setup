@@ -9,7 +9,7 @@
 # few packages Flatpak needs on top of this image, verifying each against the Arch Linux ARM
 # keyring, and they are unpacked here without hooks or scripts, like the desktop package itself.
 #
-#   bannerlator-flatpak-setup        install or repair; prints "== STEP ..." milestones
+#   droiddeck-flatpak-setup        install or repair; prints "== STEP ..." milestones
 set -u
 export LANG=C.UTF-8
 step() { echo "== STEP $*"; }
@@ -17,7 +17,7 @@ fail() { echo "== FAIL $*"; exit 1; }
 
 # Flatpak, the libraries it and appstream add to this image, and the D-Bus proxy flatpak run puts
 # between an app and the session bus. bubblewrap is not among them: Android gives an app no user
-# namespaces, and bannerlator-bwrap stands in for it (FLATPAK_BWRAP).
+# namespaces, and droiddeck-bwrap stands in for it (FLATPAK_BWRAP).
 PACKAGES="flatpak ostree appstream libxmlb libmalcontent libfyaml accountsservice composefs xdg-dbus-proxy"
 # Libraries Flatpak and the store's helper also need, which the Desktop package brings but a
 # runtime without it may lack: each is fetched only when its file is not already there.
@@ -97,7 +97,7 @@ python3 -c 'import gi; gi.require_version("Flatpak", "1.0"); from gi.repository 
   || fail "the store helper cannot load libflatpak from Python"
 
 step "Adding Flathub"
-export FLATPAK_BWRAP=/usr/local/bin/bannerlator-bwrap
+export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
 # Flathub's descriptor - its URL and the key its commits are signed with - is carried here rather
 # than fetched: adding the remote then needs no network, and a descriptor that did not arrive
 # whole cannot be what failed. Flathub's own copy: https://dl.flathub.org/repo/flathub.flatpakrepo

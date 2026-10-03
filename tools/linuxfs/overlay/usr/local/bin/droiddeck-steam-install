@@ -5,7 +5,11 @@ set -eu
 cdn=https://client-update.fastly.steamstatic.com
 manifest=steam_client_publicbeta_linuxarm64
 steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
-stamp=$steam_root/package/bannerlator-installed
+stamp=$steam_root/package/droiddeck-installed
+legacy_stamp=$steam_root/package/bannerlator-installed
+if [ -f "$legacy_stamp" ] && [ ! -f "$stamp" ]; then
+  mv -f "$legacy_stamp" "$stamp" || true
+fi
 [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
 
 work=$(mktemp -d)
@@ -19,7 +23,7 @@ awk -F'"' '
   $2 == "sha2" { sha[block] = $4 }
   END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b] }
 ' "$work/manifest" | sort > "$work/parts"
-[ -s "$work/parts" ] || { echo "bannerlator-steam-install: no client components in $manifest" >&2; exit 1; }
+[ -s "$work/parts" ] || { echo "droiddeck-steam-install: no client components in $manifest" >&2; exit 1; }
 total=$(grep -c . "$work/parts" 2>/dev/null || echo 0)
 
 mkdir -p "$steam_root/package"

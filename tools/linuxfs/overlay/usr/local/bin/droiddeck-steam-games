@@ -239,13 +239,13 @@ def watch(steam_root, listing):
             status = last_status
         if pending and pending != requested and not game_running() and downloads_idle(steam_root):
             requested = pending
-            print("bannerlator-steam-games: restarting the client once to import %s" % pending, flush=True)
+            print("droiddeck-steam-games: restarting the client once to import %s" % pending, flush=True)
             try:
                 request_restart(steam_root)
             except (OSError, subprocess.TimeoutExpired) as error:
-                print("bannerlator-steam-games: restart unavailable: %s" % error, flush=True)
+                print("droiddeck-steam-games: restart unavailable: %s" % error, flush=True)
         if status != last_status:
-            print("bannerlator-steam-games: " + status, flush=True)
+            print("droiddeck-steam-games: " + status, flush=True)
             last_status = status
         time.sleep(30)
 
@@ -357,7 +357,7 @@ def route(steam_root, acct, games):
                     routes[str(game["appid"])] = appid
                     continue
             except OSError as error:
-                print(f"bannerlator-steam-games: import unavailable ({error})")
+                print(f"droiddeck-steam-games: import unavailable ({error})")
         shortcuts.append(game)
     save_json(Path(acct) / "config/.droiddeck-routes.json", routes)
     return shortcuts, routes

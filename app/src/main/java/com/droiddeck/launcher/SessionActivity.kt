@@ -888,7 +888,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val on = wanted && probe.reason == null
             SessionState.hdr = on
             if (on) {
-                try { android.system.Os.setenv("BANNER_WAYLAND_HDR", "1", true) } catch (e: Exception) { Log.w(TAG, "BANNER_WAYLAND_HDR", e) }
+                try { android.system.Os.setenv("DROIDDECK_WAYLAND_HDR", "1", true) } catch (e: Exception) { Log.w(TAG, "DROIDDECK_WAYLAND_HDR", e) }
                 WaylandCompositor.nativeSetZeroCopy(true)
             }
             WaylandCompositor.nativeSetHdrRequest(

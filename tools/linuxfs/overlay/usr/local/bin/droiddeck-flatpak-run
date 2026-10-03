@@ -1,8 +1,8 @@
 #!/bin/bash
 # A Flatpak app from the front end, full screen under gamescope like an emulator:
-#   bannerlator-flatpak-run <app-id> [args...]
+#   droiddeck-flatpak-run <app-id> [args...]
 set -u
-export FLATPAK_BWRAP=/usr/local/bin/bannerlator-bwrap
+export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
 case ":${XDG_DATA_DIRS:-}:" in
   *"/flatpak/exports/share:"*) ;;
   *) export XDG_DATA_DIRS=$HOME/.local/share/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share} ;;

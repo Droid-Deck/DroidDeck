@@ -2,7 +2,7 @@
 # Registers the card the app installs to (bound at /mnt/droiddeck-sd) as a library folder of the
 # native Steam client, so they show as installed there instead of being downloaded a second time.
 #
-#   bannerlator-steam-library <steam root>
+#   droiddeck-steam-library <steam root>
 #
 # Ported from WinNative's gamescope runtime (GPL-3.0).
 import os
@@ -61,7 +61,7 @@ def register(steam_root, library, label):
     os.makedirs(steamapps_dir, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
-    print("bannerlator-steam-library: registered %s with %d game(s)" % (library, len(apps)))
+    print("droiddeck-steam-library: registered %s with %d game(s)" % (library, len(apps)))
     return len(apps)
 
 
@@ -85,7 +85,7 @@ def rename(steam_root, old, new):
         return
     with open(path, "w", encoding="utf-8") as f:
         f.write(old_path.sub(lambda m: m.group(1) + new + m.group(2), text))
-    print("bannerlator-steam-library: moved %s to %s" % (old, new))
+    print("droiddeck-steam-library: moved %s to %s" % (old, new))
 
 
 def forget(steam_root, library):
@@ -115,7 +115,7 @@ def forget(steam_root, library):
     if text != "\n".join(lines):
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
-        print("bannerlator-steam-library: forgot %s" % library)
+        print("droiddeck-steam-library: forgot %s" % library)
 
 
 def relabel(steam_root, target, label):
@@ -151,7 +151,7 @@ def relabel(steam_root, target, label):
     if changed:
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(out))
-        print("bannerlator-steam-library: labelled %s %r" % (target, label))
+        print("droiddeck-steam-library: labelled %s %r" % (target, label))
     # A library also carries its own libraryfolder.vdf, and the client takes the label from there
     # back into the list above - so editing the list alone is undone on the next start. The
     # client's own library has no such file, which is why that one kept the new name and the card
@@ -165,7 +165,7 @@ def relabel(steam_root, target, label):
     if new != text:
         with open(marker, "w", encoding="utf-8") as f:
             f.write(new)
-        print("bannerlator-steam-library: labelled %s in its own marker too" % target)
+        print("droiddeck-steam-library: labelled %s in its own marker too" % target)
 
 
 def main():

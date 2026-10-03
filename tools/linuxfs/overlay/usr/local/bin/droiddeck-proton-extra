@@ -2,11 +2,11 @@
 # Installs a third-party Proton build into the client's compatibilitytools.d, so it appears in the
 # Compatibility dropdown beside our own Proton ARM64 and can be picked per game.
 #
-#   bannerlator-proton-extra <steam root> ge [--tag GE-Proton11-7]
-#   bannerlator-proton-extra <steam root> cachyos [--tag cachyos-11.0-20260703-slr]
-#   bannerlator-proton-extra <steam root> <url of an aarch64 tarball>
-#   bannerlator-proton-extra <steam root> /path/to/an/aarch64/tarball
-#   bannerlator-proton-extra <steam root> --list          what is installed now
+#   droiddeck-proton-extra <steam root> ge [--tag GE-Proton11-7]
+#   droiddeck-proton-extra <steam root> cachyos [--tag cachyos-11.0-20260703-slr]
+#   droiddeck-proton-extra <steam root> <url of an aarch64 tarball>
+#   droiddeck-proton-extra <steam root> /path/to/an/aarch64/tarball
+#   droiddeck-proton-extra <steam root> --list          what is installed now
 #
 # Both projects publish native ARM64 builds - GloriousEggroll as "*-aarch64.tar.gz", CachyOS as
 # "*-arm64.tar.xz" - and both are ordinary Proton trees: a python entry point beside a files/
@@ -36,14 +36,14 @@ SOURCES = {
     "ge": ("GloriousEggroll/proton-ge-custom", re.compile(r"aarch64\.tar\.(gz|xz)$")),
     "cachyos": ("CachyOS/proton-cachyos", re.compile(r"arm64\.tar\.(gz|xz)$")),
 }
-USER_AGENT = "bannerlator-proton-extra"
+USER_AGENT = "droiddeck-proton-extra"
 # Room for the tarball and the tree it unpacks to. GE-Proton's aarch64 build is ~650 MB packed and
 # unpacks to about three times that; refusing early beats a half-written tool directory.
 NEED_BYTES = 4 * 1024 * 1024 * 1024
 
 
 def log(*args):
-    print("bannerlator-proton-extra:", *args, flush=True)
+    print("droiddeck-proton-extra:", *args, flush=True)
 
 
 def fetch_json(url):
@@ -77,7 +77,7 @@ def release_asset(source, tag):
             sums = [u for n, u in assets.items()
                     if n.startswith(name.split(".tar")[0]) and "sha512" in n]
             return tag, assets[name], (sums[0] if sums else None)
-    raise SystemExit("bannerlator-proton-extra: %s has no ARM64 asset" % tag)
+    raise SystemExit("droiddeck-proton-extra: %s has no ARM64 asset" % tag)
 
 
 def download(url, path):
@@ -88,7 +88,7 @@ def download(url, path):
         "curl", "-fL", "--retry", "5", "--retry-delay", "3", "--retry-connrefused",
         "-C", "-", "-A", USER_AGENT, "-o", path, url])
     if rc != 0:
-        raise SystemExit("bannerlator-proton-extra: download failed (curl %d)" % rc)
+        raise SystemExit("droiddeck-proton-extra: download failed (curl %d)" % rc)
     log("downloaded %.0f MB" % (os.path.getsize(path) / 1048576.0))
 
 
@@ -109,7 +109,7 @@ def verify(path, sums_url):
             h.update(chunk)
     if h.hexdigest() != want:
         os.unlink(path)
-        raise SystemExit("bannerlator-proton-extra: checksum mismatch; the download was deleted")
+        raise SystemExit("droiddeck-proton-extra: checksum mismatch; the download was deleted")
     log("checksum ok")
 
 
@@ -118,7 +118,7 @@ def extract(tarball, into):
     log("unpacking (a few minutes; nothing is shown while tar runs)")
     rc = subprocess.call(["tar", "-xf", tarball, "-C", into])
     if rc != 0:
-        raise SystemExit("bannerlator-proton-extra: tar failed (%d)" % rc)
+        raise SystemExit("droiddeck-proton-extra: tar failed (%d)" % rc)
     # A Proton tarball holds one top-level directory. Take whichever entry has the entry point so a
     # stray ._ file or a nested layout does not decide it.
     entries = [e for e in sorted(os.listdir(into)) if not e.startswith(".")]
@@ -128,7 +128,7 @@ def extract(tarball, into):
             return path
     if len(entries) == 1 and os.path.isdir(os.path.join(into, entries[0])):
         return os.path.join(into, entries[0])
-    raise SystemExit("bannerlator-proton-extra: no Proton tree in the archive")
+    raise SystemExit("droiddeck-proton-extra: no Proton tree in the archive")
 
 
 def installed(tools):
@@ -144,7 +144,7 @@ def installed(tools):
 def main():
     argv = sys.argv[1:]
     if not argv:
-        raise SystemExit(__doc__ or "usage: bannerlator-proton-extra <steam root> ge|cachyos|<url>")
+        raise SystemExit(__doc__ or "usage: droiddeck-proton-extra <steam root> ge|cachyos|<url>")
     steam_root = argv.pop(0)
     tools = os.path.join(steam_root, "compatibilitytools.d")
     os.makedirs(tools, exist_ok=True)
@@ -167,7 +167,7 @@ def main():
     if what in SOURCES:
         tag, url, sums = release_asset(what, tag) if tag else pick_asset(what)
         if not url:
-            raise SystemExit("bannerlator-proton-extra: no ARM64 build published for %s" % what)
+            raise SystemExit("droiddeck-proton-extra: no ARM64 build published for %s" % what)
         log("%s -> %s" % (what, tag))
     elif what.startswith("http"):
         url, sums = what, None
@@ -176,14 +176,15 @@ def main():
         log("using %s" % what)
     else:
         raise SystemExit(
-            "bannerlator-proton-extra: expected ge, cachyos, a URL or a tarball path, got %r" % what)
+            "droiddeck-proton-extra: expected ge, cachyos, a URL or a tarball path, got %r" % what)
 
     free = shutil.disk_usage(tools).free
     if free < NEED_BYTES:
-        raise SystemExit("bannerlator-proton-extra: needs about %d GB free, has %.1f GB" % (
+        raise SystemExit("droiddeck-proton-extra: needs about %d GB free, has %.1f GB" % (
             NEED_BYTES // (1024 ** 3), free / float(1024 ** 3)))
 
-    staging = os.path.join(tools, ".bannerlator-download")
+    shutil.rmtree(os.path.join(tools, ".bannerlator-download"), ignore_errors=True)
+    staging = os.path.join(tools, ".droiddeck-download")
     os.makedirs(staging, exist_ok=True)
     if local:
         tarball = local

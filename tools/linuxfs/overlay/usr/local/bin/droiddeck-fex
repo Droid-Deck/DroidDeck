@@ -431,7 +431,7 @@ def launch(command, env, mode, decide=None):
 
 def game_environment(env):
     try:
-        game_env = runpy.run_path(os.path.join(BIN_DIR, "bannerlator-game-env"))
+        game_env = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env"))
         app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
         if not app:
             return env

@@ -4,7 +4,7 @@ import java.io.File
 
 /**
  * Whether Deck mode's performance overlay is on screen. The client sets its level by rewriting
- * mangoapp's config (bannerlator-session makes it, `/tmp/mangohud.*`), and `no_display` is the
+ * mangoapp's config (droiddeck-session makes it, `/tmp/mangohud.*`), and `no_display` is the
  * level that hides it. The feeds whose reads cost something - the fan's tachometer busy-waits in
  * the kernel, GPU memory walks every process's mappings - only run while it shows.
  */

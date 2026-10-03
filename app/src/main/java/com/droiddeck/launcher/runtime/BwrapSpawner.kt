@@ -19,7 +19,7 @@ import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Flatpak's sandboxes, started for the runtime's bwrap stand-in (bannerlator-bwrap).
+ * Flatpak's sandboxes, started for the runtime's bwrap stand-in (droiddeck-bwrap).
  *
  * A Flatpak app runs with its runtime as /usr and itself as /app, which bwrap arranges with mount
  * namespaces Android gives no app. proot can show the same picture, and started here - beside the

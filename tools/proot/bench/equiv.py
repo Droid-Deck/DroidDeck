@@ -2,7 +2,7 @@ import os, sys
 paths = ["/etc/os-release", "/root/abs-link", "/root/to-bind", "/root/to-bind/inbind.txt", "/root/rel-to-bind",
          "/root/rel-to-bind/inbind.txt", "/root/dotdot", "/root/dotdot/libc.so.6", "/root/dangling", "/root/loop",
          "/usr/lib/../lib/libc.so.6", "/usr//lib/./libc.so.6", "/lib", "/lib/libc.so.6", "/bin/env", "/nope", "/nope/x",
-         "/etc/os-release/x", "/mnt/droiddeck-sd", "/mnt/droiddeck-sd/inbind.txt", "/mnt/droiddeck-sd/../bannerlator",
+         "/etc/os-release/x", "/mnt/droiddeck-sd", "/mnt/droiddeck-sd/inbind.txt", "/mnt/droiddeck-sd/../droiddeck",
          "/dev/null", "/dev/shm", "/dev/shm/inbind.txt", "/dev/random", "/proc/self/exe", "/proc/version", "/proc",
          "/sys/class/thermal/thermal_zone28/temp", "/sdcard", "/", "/tmp", "/root/in-root-abs-dir/os-release",
          "/data/local/tmp/dd/tmp/inbind.txt", "/data/local/tmp/dd/mini/etc/os-release", "/root/to-bind/missing/x", "/root/to-bind/inbind.txt/x", "/usr/lib/nope/deeper/x.so", "/mnt/droiddeck-sd/nope/x", "/root/dangling/x", "/root/abs-link/x", "/nope/a/b/c", "/sdcard/nope/x"]

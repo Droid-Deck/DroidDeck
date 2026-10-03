@@ -41,9 +41,9 @@ fastest correct setup is. Everything below was measured on a Snapdragon 8 Elite 
 
 ```
 SessionService ─HostProcess─▶ libproot.so (ONE tracer process, nice -6 after 2 s)
-  └─ /usr/bin/env -i … bannerlator-session steam
-       └─ gamescope ─▶ bannerlator-session (BL_INSIDE) ─▶ steamrtarm64/steam (+ steamwebhelper/CEF tree)
-            └─ reaper ─▶ bannerlator-game-env ─▶ bannerlator-proton ─▶ Valve ARM64 Proton (python)
+  └─ /usr/bin/env -i … droiddeck-session steam
+       └─ gamescope ─▶ droiddeck-session (BL_INSIDE) ─▶ steamrtarm64/steam (+ steamwebhelper/CEF tree)
+            └─ reaper ─▶ droiddeck-game-env ─▶ droiddeck-proton ─▶ Valve ARM64 Proton (python)
                  └─ wine (arm64ec, FEX loaded in-process as a DLL) ─▶ wineserver, game.exe, …
 ```
 

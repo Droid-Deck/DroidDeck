@@ -62,7 +62,7 @@ Windows/Wine graphics helper also maps the selected feature level to
 
 DroidDeck instead publishes an atomic JSON snapshot at
 `/root/.config/droiddeck/game-environment.json`. Both its Valve ARM64 Proton
-wrapper and adopted third-party Proton wrappers execute `bannerlator-game-env`,
+wrapper and adopted third-party Proton wrappers execute `droiddeck-game-env`,
 which reads that snapshot for each real game launch and uses `execvpe` to start
 Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. Malformed
 configuration falls back to the inherited environment without evaluating its

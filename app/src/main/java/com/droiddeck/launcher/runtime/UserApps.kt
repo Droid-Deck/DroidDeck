@@ -31,7 +31,7 @@ import java.io.RandomAccessFile
 object UserApps {
     private const val TAG = "UserApps"
     const val GUEST_DIR = "/opt/droiddeck-apps"
-    const val SCRIPT_LAUNCHER = "/usr/local/bin/bannerlator-script-run"
+    const val SCRIPT_LAUNCHER = "/usr/local/bin/droiddeck-script-run"
     private const val FLATPAK_OVERRIDES = ".flatpak"
     private const val ICON_SIZE = 256
     private const val ELF_SCAN_LIMIT = 4000

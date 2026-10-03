@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
-MODULE = runpy.run_path(str(BIN / "bannerlator-game-env"))
+MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
 COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
 STATE = tempfile.TemporaryDirectory()
 COMPAT["main"].__globals__["COMPAT_DIR"] = STATE.name
@@ -57,14 +57,14 @@ class GameEnvironmentTest(unittest.TestCase):
             env = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": "/compatdata/42"}
             for value in ("first value", "$(touch " + str(home / "injected") + "); 'literal'=value"):
                 config.write_text(json.dumps({"version": 1, "shared": {"CUSTOM": value}}))
-                result = subprocess.check_output([sys.executable, str(BIN / "bannerlator-game-env"), str(probe), "waitforexitandrun", "path with spaces", "a=b"], env=env, text=True)
+                result = subprocess.check_output([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", "path with spaces", "a=b"], env=env, text=True)
                 self.assertEqual(json.loads(result), [value, ["waitforexitandrun", "path with spaces", "a=b"]])
             self.assertFalse((home / "injected").exists())
             for verb, prefix in (("run", "/compatdata/42"), ("waitforexitandrun", "/compatdata/0")):
-                output = subprocess.check_output([sys.executable, str(BIN / "bannerlator-game-env"), str(probe), verb], env={**env, "STEAM_COMPAT_DATA_PATH": prefix, "CUSTOM": "original"}, text=True)
+                output = subprocess.check_output([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), verb], env={**env, "STEAM_COMPAT_DATA_PATH": prefix, "CUSTOM": "original"}, text=True)
                 self.assertEqual(json.loads(output)[0], "original")
             config.write_text("{broken")
-            result = subprocess.run([sys.executable, str(BIN / "bannerlator-game-env"), str(probe), "waitforexitandrun"], env={**env, "CUSTOM": "original"}, text=True, capture_output=True, check=True)
+            result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"], env={**env, "CUSTOM": "original"}, text=True, capture_output=True, check=True)
             self.assertEqual(json.loads(result.stdout)[0], "original")
 
     def test_generated_valve_and_third_party_launchers_apply_configuration(self):
@@ -88,7 +88,7 @@ class GameEnvironmentTest(unittest.TestCase):
             config.write_text(json.dumps({"version": 1, "shared": {"CUSTOM": "shared"}, "games": {"42": {"CUSTOM": "specific"}}}))
             wrappers = (tools / COMPAT["TOOL"] / COMPAT["LAUNCHER"], extra / COMPAT["EXTRA_WRAPPER"])
             for wrapper in wrappers:
-                wrapper.write_text(wrapper.read_text().replace("/usr/local/bin/bannerlator-game-env", str(BIN / "bannerlator-game-env")))
+                wrapper.write_text(wrapper.read_text().replace("/usr/local/bin/droiddeck-game-env", str(BIN / "droiddeck-game-env")))
                 result = subprocess.run([str(wrapper), "waitforexitandrun", "game with spaces.exe"],
                     env={"PATH": os.defpath, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(steam)},
                     text=True, capture_output=True)
@@ -156,10 +156,42 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(migrated.count('"%s"' % COMPAT["TOOL"]), 2)
             self.assertEqual(config.read_text(), migrated)
 
+    def test_launchers_and_adopted_protons_from_before_the_rename_move_over(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            (home / "label").write_text("Compatible\n")
+            COMPAT["main"].__globals__["LABEL_FILE"] = str(home / "label")
+            tools = home / "compatibilitytools.d"
+            own = tools / COMPAT["TOOL"]
+            own.mkdir(parents=True)
+            for name in ("toolmanifest.vdf", "compatibilitytool.vdf", COMPAT["LEGACY_LAUNCHER"]):
+                (own / name).write_text("old")
+            spare = tools / COMPAT["TOOL_11"]
+            spare.mkdir()
+            for name in ("toolmanifest.vdf", "compatibilitytool.vdf", COMPAT["LEGACY_LAUNCHER"]):
+                (spare / name).write_text("old")
+            extra = tools / "GE-Proton11-7"
+            extra.mkdir()
+            (extra / "proton").write_text("")
+            (extra / "toolmanifest.vdf").write_text('"manifest" { "commandline" "/%s %%verb%%" }' % COMPAT["LEGACY_EXTRA_WRAPPER"])
+            (extra / ("toolmanifest.vdf" + COMPAT["LEGACY_ORIGINAL_SUFFIX"])).write_text('"manifest" { "commandline" "/proton %verb%" }')
+            (extra / COMPAT["LEGACY_EXTRA_WRAPPER"]).write_text("old")
+            COMPAT["build_tool"](str(own), None)
+            COMPAT["remove_tool"](str(spare))
+            self.assertEqual(COMPAT["adopt_extras"](str(tools)), {"GE-Proton11-7": "GE-Proton11-7"})
+            self.assertEqual(sorted(os.listdir(own)), sorted(COMPAT["OWN_FILES"]))
+            self.assertFalse(spare.exists())
+            self.assertEqual(sorted(os.listdir(extra)), sorted(["proton", "toolmanifest.vdf", "compatibilitytool.vdf",
+                                                                 COMPAT["EXTRA_WRAPPER"], "toolmanifest.vdf" + COMPAT["ORIGINAL_SUFFIX"]]))
+            self.assertIn("/%s %%verb%%" % COMPAT["EXTRA_WRAPPER"], (extra / "toolmanifest.vdf").read_text())
+            self.assertIn('"/proton %verb%"', (extra / ("toolmanifest.vdf" + COMPAT["ORIGINAL_SUFFIX"])).read_text())
+            self.assertIn('"$here/proton"', (extra / COMPAT["EXTRA_WRAPPER"]).read_text())
+            self.assertIn("GE-Proton11-7", [entry["name"] for entry in COMPAT["tool_catalog"](str(home), None)])
+
     def test_both_proton_wrappers_call_environment_launcher(self):
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-            self.assertIn('exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env', script)
+            self.assertIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
 
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
         overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"

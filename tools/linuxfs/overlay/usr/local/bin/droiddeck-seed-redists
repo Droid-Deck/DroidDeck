@@ -81,7 +81,11 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
            "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
            /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg; do
   [ -f "$reg" ] || continue
-  seeded=$(dirname "$reg")/.bannerlator-redists
+  seeded=$(dirname "$reg")/.droiddeck-redists
+  legacy=$(dirname "$reg")/.bannerlator-redists
+  if [ -f "$legacy" ] && [ ! -f "$seeded" ]; then
+    mv -f "$legacy" "$seeded"
+  fi
   [ "$(cat "$seeded" 2>/dev/null)" = "$stamp" ] && continue
   dated=$(mktemp) || continue
   touch -r "$reg" "$dated"

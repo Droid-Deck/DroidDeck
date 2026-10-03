@@ -3,10 +3,10 @@
 # reaches the front end as numbers rather than a terminal's redrawn bar. Per-user installation,
 # Flathub as the remote, this device's architecture.
 #
-#   bannerlator-flatpak install <app-id>      the app and whatever runtimes it needs
-#   bannerlator-flatpak uninstall <app-id>    the app, then runtimes nothing uses any more
-#   bannerlator-flatpak update [<app-id>]     one app, or everything with an update
-#   bannerlator-flatpak updates               what has one (a "updates" line)
+#   droiddeck-flatpak install <app-id>      the app and whatever runtimes it needs
+#   droiddeck-flatpak uninstall <app-id>    the app, then runtimes nothing uses any more
+#   droiddeck-flatpak update [<app-id>]     one app, or everything with an update
+#   droiddeck-flatpak updates               what has one (a "updates" line)
 #
 # Lines: {"e":"op","i":1,"n":3,"kind":"install","ref":"..."} as each step starts,
 # {"e":"progress","i":1,"n":3,"percent":45,"status":"..."} while it runs,
@@ -15,7 +15,7 @@ import json
 import os
 import sys
 
-os.environ.setdefault("FLATPAK_BWRAP", "/usr/local/bin/bannerlator-bwrap")
+os.environ.setdefault("FLATPAK_BWRAP", "/usr/local/bin/droiddeck-bwrap")
 
 import gi  # noqa: E402
 
@@ -216,7 +216,7 @@ def updates():
 
 def main():
     if len(sys.argv) < 2:
-        sys.stderr.write(__doc__ or "usage: bannerlator-flatpak install|uninstall|update|updates [app-id]\n")
+        sys.stderr.write(__doc__ or "usage: droiddeck-flatpak install|uninstall|update|updates [app-id]\n")
         return 2
     cmd, args = sys.argv[1], sys.argv[2:]
     if cmd in ("install", "update"):
@@ -229,7 +229,7 @@ def main():
         return update(args[0] if args else None)
     if cmd == "updates":
         return updates()
-    sys.stderr.write("usage: bannerlator-flatpak install|uninstall|update|updates [app-id]\n")
+    sys.stderr.write("usage: droiddeck-flatpak install|uninstall|update|updates [app-id]\n")
     return 2
 
 

@@ -182,7 +182,7 @@ jobs:
           mkdir -p "$D/usr/local/bin"
           aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
-          for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-* tools/linuxfs/overlay/usr/local/bin/droiddeck-esync tools/linuxfs/overlay/usr/local/bin/droiddeck-fex tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
+          for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
             install -Dm644 "$script" "$D/usr/local/bin/$(basename "$script")"
           done
           for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
@@ -338,8 +338,8 @@ jobs:
           for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap; do
             grep -qx "$sym" <<<"$SESSION" || { echo "::error::libblsession.so does not export $sym"; exit 1; }
           done
-          test -f "$D/usr/local/bin/bannerlator-session"
-          test -f "$D/usr/local/bin/bannerlator-proton-extra"
+          test -f "$D/usr/local/bin/droiddeck-session"
+          test -f "$D/usr/local/bin/droiddeck-proton-extra"
 
       - name: Cache the CMake build tree
         uses: actions/cache@v4

@@ -77,8 +77,10 @@ def make_tool(parent, name, line=VALVE_LINE, salt=b"", builtin=False, ge=False, 
     (tool / "proton").chmod(0o755)
     if decorated:
         (tool / "toolmanifest.vdf").write_text(MANIFEST)
+        (tool / "toolmanifest.vdf.droiddeck-orig").write_text(MANIFEST)
         (tool / "toolmanifest.vdf.bannerlator-orig").write_text(MANIFEST)
         (tool / "compatibilitytool.vdf").write_text("compat")
+        (tool / "droiddeck-proton-wrap").write_text("wrap")
         (tool / "bannerlator-proton-wrap").write_text("wrap")
     return tool
 
@@ -208,7 +210,8 @@ class ShadowTest(SyncTestCase):
         for rel in ("dist.lock", "files/steampipe_fixups_mtime"):
             self.assertEqual(os.readlink(dist / rel), str(launched / rel))
             self.assertFalse((tool / rel).exists())
-        for name in ("toolmanifest.vdf", "compatibilitytool.vdf", "bannerlator-proton-wrap", "toolmanifest.vdf.bannerlator-orig"):
+        for name in ("toolmanifest.vdf", "compatibilitytool.vdf", "droiddeck-proton-wrap", "toolmanifest.vdf.droiddeck-orig",
+                     "bannerlator-proton-wrap", "toolmanifest.vdf.bannerlator-orig"):
             self.assertFalse(os.path.lexists(dist / name), name)
         pack_dir = root / "packs" / pack["id"]
         for rel in (NTDLL, WINESERVER):
@@ -929,7 +932,7 @@ class LauncherTest(SyncTestCase):
                "BL_SYNC_MIN_NOFILE": "1"}
 
         def launch(verb):
-            output = subprocess.run([sys.executable, str(BIN / "bannerlator-game-env"), str(tool / "proton"), verb, "a b"],
+            output = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(tool / "proton"), verb, "a b"],
                                     env=env, capture_output=True, text=True, check=True).stdout
             return json.loads(output)
 
@@ -949,7 +952,7 @@ class LauncherTest(SyncTestCase):
         tool = make_tool(self.tools, "Proton Experimental (ARM64)")
         pack = make_pack(self.store(), tool, "valve-experimental-r1")
         dist = self.dist_of(pack["id"], tool)
-        game_env = runpy.run_path(str(BIN / "bannerlator-game-env"))
+        game_env = runpy.run_path(str(BIN / "droiddeck-game-env"))
         command = [str(tool / "proton"), "waitforexitandrun", "game.exe"]
         env = self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="1", WINEESYNC="1")
         calls = []
@@ -960,7 +963,7 @@ class LauncherTest(SyncTestCase):
                 raise PermissionError("denied")
             raise SystemExit(0)
 
-        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(sys, "argv", ["bannerlator-game-env"] + command), \
+        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(sys, "argv", ["droiddeck-game-env"] + command), \
                 mock.patch("os.execvpe", execvpe), contextlib.redirect_stderr(io.StringIO()) as said:
             with self.assertRaises(SystemExit):
                 game_env["main"]()
@@ -984,7 +987,7 @@ class LauncherTest(SyncTestCase):
         env = {"PATH": os.defpath, "HOME": str(self.home), "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
                "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(steam), "BL_SYNC_FALLBACK": "1", "BL_SYNC_MIN_NOFILE": "1"}
         for tool, wrapper in wrappers.items():
-            wrapper.write_text(wrapper.read_text().replace("/usr/local/bin/bannerlator-game-env", str(BIN / "bannerlator-game-env")))
+            wrapper.write_text(wrapper.read_text().replace("/usr/local/bin/droiddeck-game-env", str(BIN / "droiddeck-game-env")))
             dist = self.dist_of(packs[tool]["id"], tool)
             result = subprocess.run([str(wrapper), "waitforexitandrun", "game with spaces.exe"], env=env, text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -993,13 +996,14 @@ class LauncherTest(SyncTestCase):
             self.assertEqual((seen["BL_SYNC_PACK"], seen["WINESERVER"], seen["WINEESYNC"]),
                              (packs[tool]["id"], str(dist / WINESERVER), "1"))
             self.assertIn("droiddeck-esync: pack %s" % packs[tool]["id"], result.stderr)
-            for name in ("bannerlator-proton-wrap", "toolmanifest.vdf", "compatibilitytool.vdf", "toolmanifest.vdf.bannerlator-orig"):
+            for name in ("droiddeck-proton-wrap", "toolmanifest.vdf", "compatibilitytool.vdf", "toolmanifest.vdf.droiddeck-orig",
+                         "bannerlator-proton-wrap", "toolmanifest.vdf.bannerlator-orig"):
                 self.assertFalse(os.path.lexists(dist / name), name)
             result = subprocess.run([str(wrapper), "waitforexitandrun"], env={**env, "BL_SYNC_FALLBACK": "0"}, text=True, capture_output=True)
             self.assertEqual(json.loads(result.stdout)[0], str(tool / "proton"), result.stderr)
 
     def test_session_collects_sync_tables(self):
-        script = (BIN / "bannerlator-session").read_text()
+        script = (BIN / "droiddeck-session").read_text()
         start = script.index("collect_steam_logs() {")
         function = script[start:script.index("\n}\n", start) + 3]
         debug = self.tmp / "debug"

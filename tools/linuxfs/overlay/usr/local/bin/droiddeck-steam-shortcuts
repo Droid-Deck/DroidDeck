@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Import added games while Steam is closed, preserving user-created shortcuts.
 
-Usage: bannerlator-steam-shortcuts <steam_root> <added-games.json>
+Usage: droiddeck-steam-shortcuts <steam_root> <added-games.json>
 """
 import importlib.machinery
 import importlib.util
@@ -163,7 +163,7 @@ def install_art(acct, games):
                 os.replace(dst + ".tmp", dst)
                 copied += 1
             except OSError as e:
-                print("bannerlator-steam-shortcuts: could not copy art %s (%s)" % (name, e))
+                print("droiddeck-steam-shortcuts: could not copy art %s (%s)" % (name, e))
     for name in list(manifest):
         if name not in wanted:
             try:
@@ -173,7 +173,7 @@ def install_art(acct, games):
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(wanted, f)
     if copied:
-        print("bannerlator-steam-shortcuts: %d piece(s) of art placed" % copied)
+        print("droiddeck-steam-shortcuts: %d piece(s) of art placed" % copied)
 
 
 def main():
@@ -185,11 +185,11 @@ def main():
         with open(listing, encoding="utf-8") as f:
             games = json.load(f)
     except (OSError, ValueError) as e:
-        print("bannerlator-steam-shortcuts: no list (%s)" % e)
+        print("droiddeck-steam-shortcuts: no list (%s)" % e)
         return 0
     acct = account_dir(steam_root)
     if not acct:
-        print("bannerlator-steam-shortcuts: no signed-in account yet; nothing written")
+        print("droiddeck-steam-shortcuts: no signed-in account yet; nothing written")
         return 0
     config = os.path.join(acct, "config")
     os.makedirs(config, exist_ok=True)
@@ -200,9 +200,9 @@ def main():
             with open(path, "rb") as f:
                 existing = parse(f.read()).get("shortcuts", {})
         except (ValueError, IndexError, struct.error) as e:
-            print("bannerlator-steam-shortcuts: could not read the existing file (%s); keeping it unchanged" % e)
+            print("droiddeck-steam-shortcuts: could not read the existing file (%s); keeping it unchanged" % e)
             return 1
-    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bannerlator-steam-games")
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "droiddeck-steam-games")
     loader = importlib.machinery.SourceFileLoader("steam_games", helper)
     spec = importlib.util.spec_from_loader(loader.name, loader)
     routing = importlib.util.module_from_spec(spec)
@@ -225,11 +225,11 @@ def main():
             entry["LaunchOptions"] = previous["LaunchOptions"]
         ours.append(entry)
     entries = {str(i): v for i, v in enumerate(kept + ours)}
-    tmp = path + ".bannerlator"
+    tmp = path + ".droiddeck"
     with open(tmp, "wb") as f:
         f.write(write({"shortcuts": entries}))
     os.replace(tmp, path)
-    print("bannerlator-steam-shortcuts: %d added game(s) written, %d of the client's own kept" % (len(ours), len(kept)))
+    print("droiddeck-steam-shortcuts: %d added game(s) written, %d of the client's own kept" % (len(ours), len(kept)))
     install_art(acct, [g for g in games if g.get("exe") and g.get("name")])
     # Each added game runs under the ARM64 Proton: the compat registrar's own mapping writer.
     try:
@@ -242,9 +242,9 @@ def main():
         if os.path.isfile(cfg) and (ours or routes):
             compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe")] + [str(appid) for appid in set(routes.values())],
                                     protect=compat.adopt_extras(os.path.join(steam_root, "compatibilitytools.d")))
-            print("bannerlator-steam-shortcuts: mapped them to %s" % compat.TOOL)
+            print("droiddeck-steam-shortcuts: mapped them to %s" % compat.TOOL)
     except Exception as e:  # noqa: BLE001 - the games still show; the client falls back to the default tool
-        print("bannerlator-steam-shortcuts: compat mapping skipped (%s)" % e)
+        print("droiddeck-steam-shortcuts: compat mapping skipped (%s)" % e)
     return 0
 
 

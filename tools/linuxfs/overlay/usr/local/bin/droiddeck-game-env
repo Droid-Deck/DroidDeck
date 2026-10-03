@@ -54,7 +54,7 @@ def load_sync():
     try:
         return runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-esync"))
     except Exception as error:
-        print("bannerlator-game-env: sync selection failed (%s); stock launch" % error, file=sys.stderr)
+        print("droiddeck-game-env: sync selection failed (%s); stock launch" % error, file=sys.stderr)
         return None
 
 
@@ -67,7 +67,7 @@ def select_sync(command, env, sync=None):
         if chosen and all(isinstance(value, str) for value in chosen) and isinstance(chosen_env, dict):
             return list(chosen), dict(chosen_env)
     except Exception as error:
-        print("bannerlator-game-env: sync selection failed (%s); stock launch" % error, file=sys.stderr)
+        print("droiddeck-game-env: sync selection failed (%s); stock launch" % error, file=sys.stderr)
     return command, env
 
 
@@ -76,7 +76,7 @@ def record_stock(sync, command, env):
         if sync is not None and "record" in sync:
             sync["record"](command, env)
     except Exception as error:
-        print("bannerlator-game-env: stock launch not recorded (%s)" % error, file=sys.stderr)
+        print("droiddeck-game-env: stock launch not recorded (%s)" % error, file=sys.stderr)
 
 
 def without_pack(chosen_env, env):
@@ -107,14 +107,14 @@ def main():
         except FileNotFoundError:
             pass
         except (OSError, ValueError, TypeError, AttributeError):
-            print("bannerlator-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
         try:
             os.execvpe(launch[0], launch, launch_env)
         except OSError as error:
-            print("bannerlator-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
+            print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
     os.execvpe(launch[0], launch, launch_env)

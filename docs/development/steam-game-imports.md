@@ -4,7 +4,7 @@ Second Library still registers the selected Steam library. It now also scans Win
 executables in its immediate game subfolders and `steamapps/common`, using the same
 importer as Added Games. Existing Steam manifests are preserved.
 
-`bannerlator-steam-games watch` runs beside the client. It identifies a game by an
+`droiddeck-steam-games watch` runs beside the client. It identifies a game by an
 existing manifest's install directory, a `steam_appid.txt` beside the game or selected
 executable, or a unique normalized title from Steam's store search with an explicit
 country. Matching also accepts the terminal Windows Edition and INTERGRADE suffixes;
