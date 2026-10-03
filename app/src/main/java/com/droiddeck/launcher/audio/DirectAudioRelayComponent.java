@@ -26,7 +26,7 @@ import java.util.ArrayList;
  *
  * <p>Started before the client, because the driver asks once whether a helper is there, when Wine
  * picks an audio driver, and reports itself unavailable if not. Ported from Bannerlator (GPL-3.0);
- * the relay source is pinned under tools/directaudio-relay and built with the app.
+ * the helper binary is the one built by The412Banner/directaudio's relay workflow.
  */
 public class DirectAudioRelayComponent extends SessionPart {
     private static final String TAG = "DirectAudioRelay";
@@ -39,11 +39,9 @@ public class DirectAudioRelayComponent extends SessionPart {
     /** Null when the microphone was not asked for; the helper then opens no input stream. */
     private final File micFifoPath;
     private volatile int pid = -1;
-    private final File muteFile;
 
     public DirectAudioRelayComponent(File socketPath, File micFifoPath) {
         this.socketPath = socketPath;
-        this.muteFile = new File(socketPath.getParentFile(), "output-mute");
         this.micFifoPath = micFifoPath;
     }
 
@@ -69,12 +67,6 @@ public class DirectAudioRelayComponent extends SessionPart {
         // helper would fail to bind onto it.
         //noinspection ResultOfMethodCallIgnored
         socketPath.delete();
-        try (java.io.FileOutputStream out = new java.io.FileOutputStream(muteFile)) {
-            out.write(0);
-        } catch (java.io.IOException e) {
-            Log.w(TAG, "could not create output mute flag", e);
-            return;
-        }
 
         // PulseAudio's pipe module insists on creating the pipe itself and fails if one is already
         // there. The helper creates one too when the path is missing, and it starts a few
@@ -101,7 +93,7 @@ public class DirectAudioRelayComponent extends SessionPart {
         command.append(" --socket ").append(socketPath.getAbsolutePath());
         // Diagnostics into the session's audio.log: every 1000 callbacks the device buffer,
         // Android's own xrun count and the ring's fill, plus every buffer change.
-        command.append(" --log --mute-file ").append(muteFile.getAbsolutePath());
+        command.append(" --log");
         if (micFifoPath != null) {
             // The helper creates the pipe if it is not there. PulseAudio is told the same path and
             // reads from the other end of it.
@@ -138,26 +130,6 @@ public class DirectAudioRelayComponent extends SessionPart {
             // orphan, unlike the proot tree.
             Process.killProcess(pid);
             pid = -1;
-        }
-    }
-
-    public Boolean getOutputMuted() {
-        if (pid <= 1) return null;
-        try (java.io.RandomAccessFile file = new java.io.RandomAccessFile(muteFile, "r")) {
-            return file.readUnsignedByte() != 0;
-        } catch (java.io.IOException e) { return null; }
-    }
-
-    /** Write in place: truncating or replacing this file would invalidate the relay's mapping. */
-    public boolean setOutputMuted(boolean muted) {
-        if (pid <= 1 || !muteFile.isFile()) return false;
-        try (java.io.RandomAccessFile file = new java.io.RandomAccessFile(muteFile, "rw")) {
-            if (file.length() != 1) return false;
-            file.write(muted ? 1 : 0);
-            return true;
-        } catch (java.io.IOException e) {
-            Log.w(TAG, "could not change output mute", e);
-            return false;
         }
     }
 

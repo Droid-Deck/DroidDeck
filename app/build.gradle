@@ -201,15 +201,3 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
 }
-
-// Rebuild the host audio helper from its pinned source for both local and CI APKs.
-def relayNdk = android.ndkDirectory.absolutePath
-tasks.register('buildDirectAudioRelay', Exec) {
-    inputs.dir(rootProject.file('tools/directaudio-relay'))
-    inputs.property('ndkVersion', android.ndkVersion)
-    outputs.file(file('src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so'))
-    environment 'NDK', relayNdk
-    commandLine rootProject.file('tools/directaudio-relay/build.sh').absolutePath,
-        file('src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so').absolutePath
-}
-tasks.named('preBuild').configure { dependsOn 'buildDirectAudioRelay' }
