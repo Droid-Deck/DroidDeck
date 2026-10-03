@@ -98,7 +98,7 @@ static long (*fs_real_syscall)(long, ...);
 static int (*fs_real_shm_open)(const char *, int, mode_t);
 static int (*fs_real_shm_unlink)(const char *);
 static void *(*fs_real_mmap)(void *, size_t, int, int, int, off_t);
-static void *(*fs_real_mmap64)(void *, size_t, int, int, int, off_t);
+static void *(*fs_real_mmap64)(void *, size_t, int, int, int, off64_t);
 static int (*fs_real_munmap)(void *, size_t);
 
 static int fs_on(void) {
@@ -328,7 +328,7 @@ static void fs_child(void) {
 
 __attribute__((constructor)) static void fs_init(void) {
   if (!fs_real_mmap) fs_real_mmap = (void *(*)(void *, size_t, int, int, int, off_t))dlsym(RTLD_NEXT, "mmap");
-  if (!fs_real_mmap64) fs_real_mmap64 = (void *(*)(void *, size_t, int, int, int, off_t))dlsym(RTLD_NEXT, "mmap64");
+  if (!fs_real_mmap64) fs_real_mmap64 = (void *(*)(void *, size_t, int, int, int, off64_t))dlsym(RTLD_NEXT, "mmap64");
   if (!fs_real_munmap) fs_real_munmap = (int (*)(void *, size_t))dlsym(RTLD_NEXT, "munmap");
   if (fs_on()) pthread_atfork(NULL, NULL, fs_child);
 }
@@ -607,9 +607,9 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
   return p;
 }
 
-void *mmap64(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
+void *mmap64(void *addr, size_t len, int prot, int flags, int fd, off64_t off) {
   void *p;
-  if (!fs_real_mmap64) fs_real_mmap64 = (void *(*)(void *, size_t, int, int, int, off_t))dlsym(RTLD_NEXT, "mmap64");
+  if (!fs_real_mmap64) fs_real_mmap64 = (void *(*)(void *, size_t, int, int, int, off64_t))dlsym(RTLD_NEXT, "mmap64");
   p = fs_real_mmap64(addr, len, prot, flags, fd, off);
   if (p != MAP_FAILED && __builtin_expect(fs_fd >= 0, 0)) fs_track(p, len, flags, fd, off);
   return p;

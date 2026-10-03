@@ -36,13 +36,20 @@ PROTON_ARM64_APPID = "4427310"
 LAUNCHER = "bannerlator-proton"
 # The extra Steam library the app mounts the installed games into (see bannerlator-steam-library).
 # installed_apps() scans it too; it lives only in the sibling script, so define it here as well.
-LIBRARY = "/mnt/bannerlator"  # the card library is LIBRARY + "-sd"; internal storage is steam_root itself
+LIBRARY = "/mnt/droiddeck"  # the card library is LIBRARY + "-sd"; internal storage is steam_root itself
 # The client lists its own "Proton Experimental (ARM64)" and "Proton 11.0 (ARM64)" in the same
 # Compatibility dropdown, and those are the two that cannot start a game here. Ours has to be
 # unmistakable at a glance, or a user picks a neighbour and gets a launch that fails silently.
 # Newest first: whichever the client has downloaded is used.
 SOURCES = ("Proton Experimental (ARM64)", "Proton 11.0 (ARM64)")
 OWN_TOOLS = ((TOOL, SOURCES), (TOOL_11, ("Proton 11.0 (ARM64)",)))
+FEX_TOOL = "droiddeck-fex"
+FEX_LAUNCHER = "droiddeck-fex-tool"
+FEX_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", FEX_LAUNCHER)
+FEX_APPID = "3127680"
+SNIPER_APPID = "1628350"
+FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID)
+PLAYABLE_TYPES = frozenset(("game", "demo", "application", "beta"))
 COMPAT_DIR = os.path.join(os.environ.get("HOME", "/root"), ".local", "share", "droiddeck-compat")
 # Written by us; everything else in the depot is symlinked through.
 OWN_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", "bannerlator-proton")
@@ -364,6 +371,36 @@ EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
 """
 
 
+FEX_COMPAT_TOOL_VDF = """"compatibilitytools"
+{
+	"compat_tools"
+	{
+		"%s"
+		{
+			"install_path" "."
+			"display_name" "%s"
+			"from_oslist" "linux"
+			"to_oslist" "linux"
+		}
+	}
+}
+"""
+FEX_MANIFEST_VDF = """"manifest"
+{
+	"version" "2"
+	"commandline" "/%s %%verb%%"
+	"use_tool_subprocess_reaper" "1"
+}
+""" % FEX_LAUNCHER
+FEX_LAUNCHER_SH = """#!/bin/bash
+verb=$1; shift
+case $verb in
+  getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
+esac
+exec /usr/local/bin/droiddeck-fex steam "$verb" "$@"
+"""
+
+
 TOKEN = re.compile(r'\s*(?:"((?:[^"\\]|\\.)*)"|([{}])|//[^\n]*)')
 
 
@@ -508,7 +545,7 @@ def adopt_extras(tools):
     except OSError:
         return adopted
     for entry in entries:
-        if entry in dict(OWN_TOOLS) or entry.startswith("."):
+        if entry in dict(OWN_TOOLS) or entry == FEX_TOOL or entry.startswith("."):
             continue
         tool_dir = os.path.join(tools, entry)
         manifest = os.path.join(tool_dir, "toolmanifest.vdf")
@@ -554,6 +591,7 @@ NOT_GAMES = frozenset((
     "228980",    # Steamworks Common Redistributables
     "1070560",   # Steam Linux Runtime 1.0 (scout)
     "1391110",   # Steam Linux Runtime 2.0 (soldier)
+    "1628350",   # Steam Linux Runtime 3.0 (sniper)
     "1493710",   # Proton Experimental
     "3127680",   # FEX
     "4183110",   # Steam Linux Runtime 4.0
@@ -577,6 +615,140 @@ def installed_apps(steam_root):
             if m and m.group(1) not in NOT_GAMES:
                 apps.add(m.group(1))
     return sorted(apps, key=int)
+
+
+APPINFO_CACHE = {}
+
+
+def appinfo_platforms(path, wanted):
+    import struct
+    try:
+        stamp = os.stat(path).st_mtime_ns
+    except OSError:
+        return {}
+    cached = APPINFO_CACHE.get(path)
+    if cached and cached[0] == stamp and wanted <= cached[1].keys() | cached[2]:
+        return {app: cached[1][app] for app in wanted if app in cached[1]}
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return {}
+    if len(data) < 8:
+        return {}
+    magic = struct.unpack_from("<I", data, 0)[0]
+    if magic not in (0x07564427, 0x07564428, 0x07564429):
+        return {}
+    offset = 8
+    strings = None
+    if magic == 0x07564429:
+        table = struct.unpack_from("<q", data, offset)[0]
+        offset += 8
+        count = struct.unpack_from("<I", data, table)[0]
+        position = table + 4
+        strings = []
+        for _ in range(count):
+            end = data.index(b"\0", position)
+            strings.append(data[position:end].decode("utf-8", "replace"))
+            position = end + 1
+    header = 4 + 4 + 8 + 20 + 4 + (20 if magic >= 0x07564428 else 0)
+
+    def section(position):
+        result = {}
+        while True:
+            kind = data[position]
+            position += 1
+            if kind == 8:
+                return result, position
+            if strings is not None:
+                key = strings[struct.unpack_from("<I", data, position)[0]]
+                position += 4
+            else:
+                end = data.index(b"\0", position)
+                key = data[position:end].decode("utf-8", "replace")
+                position = end + 1
+            if kind == 0:
+                result[key], position = section(position)
+            elif kind == 1:
+                end = data.index(b"\0", position)
+                result[key] = data[position:end].decode("utf-8", "replace")
+                position = end + 1
+            elif kind == 2:
+                result[key] = struct.unpack_from("<i", data, position)[0]
+                position += 4
+            elif kind == 7:
+                result[key] = struct.unpack_from("<Q", data, position)[0]
+                position += 8
+            else:
+                raise ValueError("unknown appinfo field type %d" % kind)
+
+    found = {}
+    try:
+        while offset + 8 <= len(data):
+            app, size = struct.unpack_from("<II", data, offset)
+            if app == 0:
+                break
+            start = offset + 8
+            offset = start + size
+            if str(app) not in wanted:
+                continue
+            info = section(start + header)[0].get("appinfo", {})
+            common = info.get("common", {}) if isinstance(info, dict) else {}
+            oslist = {part.strip().lower() for part in str(common.get("oslist", "")).split(",") if part.strip()}
+            found[str(app)] = (oslist, str(common.get("osarch", "")).lower(), str(common.get("type", "")).lower())
+    except (ValueError, IndexError, struct.error):
+        return {}
+    APPINFO_CACHE[path] = (stamp, found, set(wanted))
+    return {app: found[app] for app in wanted if app in found}
+
+
+def native_targets(steam_root, apps):
+    wanted = {str(app) for app in apps if str(app) not in NOT_GAMES}
+    if not wanted:
+        return {}
+    targets = {}
+    for app, (oslist, osarch, kind) in appinfo_platforms(os.path.join(steam_root, "appcache", "appinfo.vdf"), wanted).items():
+        if kind not in PLAYABLE_TYPES or "windows" in oslist or "linux" not in oslist:
+            continue
+        if "arm64" in osarch or "aarch64" in osarch:
+            continue
+        targets[app] = FEX_TOOL
+    return targets
+
+
+def linux_runtime_tool(name):
+    low = name.lower()
+    return low == "fex" or low.startswith("steamlinuxruntime")
+
+
+def fex_missing(steam_root):
+    missing = []
+    for app in FEX_DEPENDENCIES:
+        if not any(os.path.isfile(os.path.join(library, "steamapps", "appmanifest_%s.acf" % app))
+                   for library in (steam_root, LIBRARY + "-sd")):
+            missing.append(app)
+    return missing
+
+
+def fex_wanted_marker():
+    return os.path.join(os.environ.get("HOME", "/root"), ".config", "droiddeck", "fex-wanted")
+
+
+def request_fex(steam_root, asked):
+    import subprocess
+    client = os.path.join(steam_root, "steamrtarm64", "steam")
+    requested = []
+    for app in fex_missing(steam_root):
+        if app in asked or not os.access(client, os.X_OK):
+            continue
+        asked.add(app)
+        try:
+            subprocess.Popen([client, "steam://install/%s" % app], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+            requested.append(app)
+        except OSError:
+            pass
+    return requested
 
 
 def read_json(path):
@@ -621,22 +793,25 @@ def app_order(app):
     return (len(app), app)
 
 
-def plan_mapping(current, installed, runnable, default, auto):
+def plan_mapping(current, installed, runnable, default, auto, native=None):
     runnable = {n.lower() for n in runnable}
     installed = set(installed)
+    native = native or {}
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
     for app in sorted((set(current) | installed | set(auto)) - {"0"}, key=app_order):
         name = current.get(app, "")
         mine = auto.get(app)
-        if name and not unrunnable(name, runnable) and (mine is None or name != mine):
+        target = native.get(app, default)
+        stale = unrunnable(name, runnable) or (app in native and linux_runtime_tool(name))
+        if name and not stale and (mine is None or name != mine):
             continue
         if not name and app not in installed:
             continue
-        if name != default:
-            changes[app] = default
-        kept[app] = default
+        if name != target:
+            changes[app] = target
+        kept[app] = target
     return changes, kept
 
 
@@ -805,7 +980,8 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
                 default, state = choose_default(current.get("0", ""), state, read_json(state_path("request.json", directory)), catalog)
             else:
                 default = state.get("default") if state.get("default") in names else TOOL
-        changes, auto = plan_mapping(current, apps, names, default, followers(state, current))
+        steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
+        changes, auto = plan_mapping(current, apps, names, default, followers(state, current), native_targets(steam_root, apps))
         for app, tool in changes.items():
             set_mapping(tokens, mapping, app, tool)
         text = serialize(tokens)
@@ -853,6 +1029,17 @@ def build_tool(tool_dir, depot, sources=SOURCES, name=TOOL):
     write_changed(os.path.join(tool_dir, LAUNCHER), launcher_sh(sources), 0o755)
 
 
+def build_fex_tool(tool_dir):
+    if os.path.islink(tool_dir):
+        os.unlink(tool_dir)
+    elif os.path.isdir(tool_dir) and set(os.listdir(tool_dir)) - set(FEX_FILES):
+        shutil.rmtree(tool_dir)
+    os.makedirs(tool_dir, exist_ok=True)
+    write_changed(os.path.join(tool_dir, "toolmanifest.vdf"), FEX_MANIFEST_VDF)
+    write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), FEX_COMPAT_TOOL_VDF % (FEX_TOOL, display_name("Linux x86 (FEX)")))
+    write_changed(os.path.join(tool_dir, FEX_LAUNCHER), FEX_LAUNCHER_SH, 0o755)
+
+
 def remove_tool(tool_dir):
     if os.path.isdir(tool_dir) and not os.path.islink(tool_dir) and not set(os.listdir(tool_dir)) - set(OWN_FILES):
         shutil.rmtree(tool_dir)
@@ -876,6 +1063,8 @@ def main():
         print("steam-compatibility: registered %s (%s)" % (
             name, "depot %s present" % os.path.basename(depot) if depot else
             "no ARM64 Proton depot yet; the session asks the client to fetch it"))
+    build_fex_tool(os.path.join(tools, FEX_TOOL))
+    print("steam-compatibility: registered %s" % FEX_TOOL)
     extras = adopt_extras(tools)
     for name, directory in sorted(extras.items()):
         print("steam-compatibility: adopted %s as %s" % (directory, name))

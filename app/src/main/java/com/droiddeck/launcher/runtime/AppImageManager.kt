@@ -21,8 +21,6 @@ object AppImageManager {
     private const val TAG = "AppImageManager"
     const val GUEST_DIR = "/opt/appimages/user"
     const val LAUNCHER = "/usr/local/bin/bannerlator-appimage-run"
-    private const val ELF_AARCH64 = 183
-    private const val ELF_X86_64 = 62
     private const val SHARP_ICON = 128
 
     class Item(val id: String, val name: String, val icon: File?, val comment: String?) {
@@ -59,9 +57,8 @@ object AppImageManager {
         }
         val machine = (head[18].toInt() and 0xff) or ((head[19].toInt() and 0xff) shl 8)
         return when {
-            machine == ELF_X86_64 -> "This AppImage is built for x86_64 PCs. DroidDeck runs ARM64 (aarch64) AppImages - look for an \"aarch64\" or \"arm64\" download."
-            machine != ELF_AARCH64 -> "This AppImage is not built for ARM64 (aarch64)"
-            head[8] != 'A'.code.toByte() || head[9] != 'I'.code.toByte() -> "This is an ARM64 program but not an AppImage"
+            machine != LinuxFex.ELF_AARCH64 && !LinuxFex.isX86(machine) -> "This AppImage is built for neither ARM64 (aarch64) nor x86 PCs"
+            head[8] != 'A'.code.toByte() || head[9] != 'I'.code.toByte() -> "This is a Linux program but not an AppImage"
             head[10].toInt() != 2 -> "Only type 2 AppImages can be imported (this one is type ${head[10].toInt()})"
             else -> null
         }
@@ -96,6 +93,7 @@ object AppImageManager {
         val dir = File(base, idFor(name ?: file.name, base.list()?.toSet() ?: emptySet()))
         try {
             extract(context, dir, file, onProgress)?.let { FileUtils.delete(dir); return it }
+            LinuxFex.writeArch(dir, LinuxFex.elfMachine(file))
             describe(dir, file)
             if (name != null) FileUtils.writeString(File(dir, "name"), name)
             if (icon != null && !UserApps.saveIcon(icon, File(dir, "icon.png"))) Log.w(TAG, "icon ${icon.path} could not be read")
@@ -119,6 +117,7 @@ object AppImageManager {
         }
         return try {
             extract(context, dir, file, onProgress) ?: run {
+                LinuxFex.writeArch(dir, LinuxFex.elfMachine(file))
                 meta.forEach { (k, v) -> FileUtils.writeString(File(dir, k), v) }
                 null
             }
@@ -140,12 +139,13 @@ object AppImageManager {
             file.inputStream().use { input -> image.outputStream().use { FileUtils.copy(input, it) } }
             image.setExecutable(true, false)
             onProgress("Extracting ${file.name}")
+            val unpack = if (LinuxFex.isX86(LinuxFex.elfMachine(image))) "${LinuxFex.TOOL} extract ./image.AppImage" else "./image.AppImage --appimage-extract"
             val out = StringBuilder()
             // uruntime's DwarFS images unpack into AppDir with squashfs-root a link to it, and keep
             // one program under several names as hard links (sharun), which Android denies apps.
             val status = GuestCommand.run(context, listOf(
                 "/bin/bash", "-c",
-                "cd \"$1\" && rm -rf squashfs-root AppDir && ./image.AppImage --appimage-extract >/dev/null && " +
+                "cd \"$1\" && rm -rf squashfs-root AppDir && $unpack >/dev/null && " +
                     "rm -rf app && mv \"$(readlink -f squashfs-root)\" app && rm -f squashfs-root",
                 "extract", "$GUEST_DIR/${dir.name}",
             ), logName = "appimage-import", linkDir = links) { line -> if (out.length < 2000) out.appendLine(line) }

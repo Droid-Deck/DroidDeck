@@ -140,7 +140,7 @@
     <string name="user_apps_failed">Adding the app failed</string>
     <string name="user_apps_github_checking">Looking for a release of %1$s</string>
     <string name="user_apps_github_unreachable">Could not read the releases of %1$s</string>
-    <string name="user_apps_github_no_appimage">No release of %1$s has an ARM64 AppImage</string>
+    <string name="user_apps_github_no_appimage">No release of %1$s has an ARM64 or x86_64 AppImage</string>
     <string name="user_apps_downloading">Downloading %1$s</string>
     <string name="user_apps_download_failed">Download failed</string>
     <string name="user_apps_update_failed">Updating the app failed</string>
@@ -159,8 +159,14 @@
     <string name="add_app_tab_github">GitHub</string>
     <string name="add_app_tab_flatpak">Flatpak</string>
     <string name="add_app_script_hint">A .sh file. It runs from its own folder, full screen under gamescope.</string>
-    <string name="add_app_appimage_hint">An ARM64 (aarch64) AppImage. It is unpacked into the Linux runtime once.</string>
-    <string name="add_app_github_hint">Installs the ARM64 AppImage from the repository\'s newest release.</string>
+    <string name="add_app_appimage_hint">An ARM64 (aarch64) AppImage, or an x86_64 one that runs through FEX. It is unpacked into the Linux runtime once.</string>
+    <string name="add_app_github_hint">Installs the ARM64 AppImage from the repository\'s newest release, or its x86_64 one through FEX.</string>
+    <string name="app_fex_title">Use FEX</string>
+    <string name="app_fex_auto">Auto</string>
+    <string name="app_fex_on">On</string>
+    <string name="app_fex_off">Off</string>
+    <string name="app_fex_hint">FEX runs x86 Linux programs on this ARM64 device. Auto uses it when the program is built for x86.</string>
+    <string name="app_fex_x86">%1$s through FEX</string>
     <string name="add_app_flatpak_hint">A Flathub app ID or its Flathub page. Flatpak is set up first if it is not yet.</string>
     <string name="add_app_file">File</string>
     <string name="add_app_no_file">No file chosen</string>

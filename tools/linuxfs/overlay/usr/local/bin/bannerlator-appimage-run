@@ -39,17 +39,27 @@ if [ -e "$APPDIR/chrome-sandbox" ] || compgen -G "$APPDIR/*/chrome-sandbox" >/de
     flags+=(--ozone-platform=x11)
   fi
 fi
-echo "== appimage $ARGV0 ($APPDIR) ${flags[*]}"
+fex=$(cat "$dir/fex" 2>/dev/null)
+case $fex in on|off) ;; *) fex=auto ;; esac
+run=("$APPDIR/AppRun")
+if [ -x /usr/local/bin/droiddeck-fex ]; then
+  case $fex:$(cat "$dir/arch" 2>/dev/null) in
+    auto:x86_64|auto:i386) run=(/usr/local/bin/droiddeck-fex run --mode on -- "$APPDIR/AppRun") ;;
+    auto:arm64) ;;
+    *) run=(/usr/local/bin/droiddeck-fex run --mode "$fex" --for "$APPDIR" -- "$APPDIR/AppRun") ;;
+  esac
+fi
+echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex"
 cd "$APPDIR" || exit 1
 # Apps expect a session bus; Electron's main process traps (SIGTRAP) on an address it cannot
 # parse. A run mode has none, so one is started for the app, as for Flatpak apps.
 case ${DBUS_SESSION_BUS_ADDRESS:-} in
-  unix:*) "$APPDIR/AppRun" "${flags[@]}" "$@" ;;
+  unix:*) "${run[@]}" "${flags[@]}" "$@" ;;
   *) unset DBUS_SESSION_BUS_ADDRESS
      if command -v dbus-run-session >/dev/null 2>&1; then
-       dbus-run-session -- "$APPDIR/AppRun" "${flags[@]}" "$@"
+       dbus-run-session -- "${run[@]}" "${flags[@]}" "$@"
      else
-       "$APPDIR/AppRun" "${flags[@]}" "$@"
+       "${run[@]}" "${flags[@]}" "$@"
      fi ;;
 esac
 rc=$?
@@ -58,10 +68,18 @@ rc=$?
 # session ends with this script, and takes the rest with it - so it waits while anything running
 # from the image is still up.
 image_running() {
-  local p exe
+  local p exe arg cwd
   for p in /proc/[0-9]*; do
     exe=$(readlink "$p/exe" 2>/dev/null) || continue
     case $exe in "$APPDIR"/*) return 0 ;; esac
+    case $exe in
+      */FEX|*/FEXInterpreter)
+        arg=$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n 2p)
+        cwd=$(readlink "$p/cwd" 2>/dev/null)
+        case $arg in "$APPDIR"/*) return 0 ;; esac
+        case $cwd in "$APPDIR"|"$APPDIR"/*) return 0 ;; esac
+        ;;
+    esac
   done
   return 1
 }

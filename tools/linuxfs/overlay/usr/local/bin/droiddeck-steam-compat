@@ -363,6 +363,7 @@ class Helper:
         self.page = None
         self.known = set()
         self.installed = None
+        self.fex_asked = set()
 
     def attach(self):
         path = shared_context(self.port)
@@ -399,7 +400,8 @@ class Helper:
             apps = sorted(set(installed) | set(state.get("auto", {})), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
             current["0"] = top["selected"]
-            changes, auto = COMPAT["plan_mapping"](current, installed, [t["name"] for t in live], default, COMPAT["followers"](state, current))
+            native = COMPAT["native_targets"](self.steam_root, installed)
+            changes, auto = COMPAT["plan_mapping"](current, installed, [t["name"] for t in live], default, COMPAT["followers"](state, current), native)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool)))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app, tool))
@@ -410,6 +412,9 @@ class Helper:
             else:
                 state.pop("pending", None)
             COMPAT["write_json"](state_file, state)
+        if native or os.path.exists(COMPAT["fex_wanted_marker"]()):
+            for app in COMPAT["request_fex"](self.steam_root, self.fex_asked):
+                say("asked the client to install %s for x86 Linux titles and programs" % app)
 
     def request_waiting(self):
         request = COMPAT["read_json"](COMPAT["state_path"]("request.json"))

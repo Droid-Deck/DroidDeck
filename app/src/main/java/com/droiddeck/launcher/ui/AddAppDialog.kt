@@ -91,6 +91,7 @@ import coil.request.ImageRequest
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.files.InAppFilePicker
+import com.droiddeck.launcher.runtime.LinuxFex
 import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.store.UserAppsState
 import kotlinx.coroutines.Dispatchers
@@ -230,12 +231,14 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
  * back to the default, else a picked file or a suggestion.
  */
 @Composable
-internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (String, String?) -> Unit) {
+internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (String, String?, String?) -> Unit) {
     val ctx = LocalContext.current
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     var name by rememberSaveable(app.key) { mutableStateOf(app.name) }
     var icon by rememberSaveable(app.key) { mutableStateOf<String?>(null) }
+    var fex by rememberSaveable(app.key) { mutableStateOf(app.fex) }
+    val fexChoice = app.kind != UserApps.Kind.FLATPAK
     val pickIcon = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { icon = it.path }
     }
@@ -245,7 +248,7 @@ internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (St
         else -> iconModel(i)
     }
     val busy = UserAppsState.working
-    val changed = name.trim() != app.name || icon != null
+    val changed = name.trim() != app.name || icon != null || fex != app.fex
     AppDialog(shown, close, "editApp", wide = false) {
         DialogHeader(stringResource(app.kind.label()), stringResource(R.string.edit_app_title, app.name))
         Rise(1) {
@@ -260,13 +263,25 @@ internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (St
                     clear = if (preview == null) null else R.string.add_app_icon_reset to { icon = "" },
                 )
                 app.repo?.let { repo -> IconSuggestions(repo, icon) { icon = it } }
+                if (fexChoice) {
+                    Text(stringResource(R.string.app_fex_title).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SegmentedTabs(
+                        listOf(
+                            LinuxFex.AUTO to stringResource(R.string.app_fex_auto),
+                            LinuxFex.ON to stringResource(R.string.app_fex_on),
+                            LinuxFex.OFF to stringResource(R.string.app_fex_off),
+                        ),
+                        fex,
+                    ) { fex = it }
+                    Text(stringResource(R.string.app_fex_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         DialogFooter(
             busy?.let { stringResource(R.string.add_app_busy, it) },
             stringResource(R.string.edit_app_save), name.isNotBlank() && changed && busy == null,
             onCancel = close,
-        ) { onSave(name.trim(), icon); close() }
+        ) { onSave(name.trim(), icon, fex.takeIf { fexChoice && it != app.fex }); close() }
     }
 }
 

@@ -586,7 +586,8 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             Column {
                 Text(app.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Text(
-                    app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label()),
+                    (app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label())) +
+                        (if (app.arch == "x86_64" || app.arch == "i386") " · " + stringResource(R.string.app_fex_x86, app.arch) else ""),
                     fontSize = 14.sp, color = colors.onSurfaceVariant,
                 )
             }
@@ -609,7 +610,7 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
         }
     }
     if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(4) { UserAppsProgress() }
-    if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon -> UserAppsState.edit(ctx, app, name, icon) }
+    if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon, fex -> UserAppsState.edit(ctx, app, name, icon, fex) }
     val detail = app.detail
     if (detail != null) Rise(4) {
         Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {

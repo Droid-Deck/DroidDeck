@@ -13,23 +13,37 @@ IFS= read -r first < "$entry"
 first=${first%$'\r'}
 interp=(/bin/bash)
 case $first in '#!'*) read -r -a interp <<< "${first#'#!'}" ;; esac
-echo "== script $entry in $folder (${interp[*]})"
+fex=$(cat "$dir/fex" 2>/dev/null)
+case $fex in on|off) ;; *) fex=auto ;; esac
+run=("${interp[@]}" "./$entry")
+if [ -x /usr/local/bin/droiddeck-fex ]; then
+  run=(/usr/local/bin/droiddeck-fex run --mode "$fex" --for "$folder" -- "${interp[@]}" "./$entry")
+fi
+echo "== script $entry in $folder (${interp[*]}, FEX $fex)"
 case ${DBUS_SESSION_BUS_ADDRESS:-} in
-  unix:*) "${interp[@]}" "./$entry" "$@" ;;
+  unix:*) "${run[@]}" "$@" ;;
   *) unset DBUS_SESSION_BUS_ADDRESS
      if command -v dbus-run-session >/dev/null 2>&1; then
-       dbus-run-session -- "${interp[@]}" "./$entry" "$@"
+       dbus-run-session -- "${run[@]}" "$@"
      else
-       "${interp[@]}" "./$entry" "$@"
+       "${run[@]}" "$@"
      fi ;;
 esac
 rc=$?
 # A launcher script often starts the game and returns; the session lasts while it runs.
 running() {
-  local p exe
+  local p exe arg cwd
   for p in /proc/[0-9]*; do
     exe=$(readlink "$p/exe" 2>/dev/null) || continue
     case $exe in "$folder"/*) return 0 ;; esac
+    case $exe in
+      */FEX|*/FEXInterpreter)
+        arg=$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n 2p)
+        cwd=$(readlink "$p/cwd" 2>/dev/null)
+        case $arg in "$folder"/*) return 0 ;; esac
+        case $cwd in "$folder"|"$folder"/*) return 0 ;; esac
+        ;;
+    esac
   done
   return 1
 }

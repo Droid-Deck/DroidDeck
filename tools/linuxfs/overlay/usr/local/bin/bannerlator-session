@@ -48,6 +48,10 @@ collect_steam_logs() {
       [ -f "$sync_store/$sync_file" ] && cp "$sync_store/$sync_file" "$BL_DEBUG_DIR/droiddeck-esync/" 2>/dev/null
     done
   fi
+  local fex_state=$HOME/.local/share/droiddeck-fex
+  if [ -d "$fex_state" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-fex" 2>/dev/null; then
+    cp "$fex_state/status.json" "$fex_state/config/Config.json" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
+  fi
   echo "== steam logs copied to $BL_DEBUG_DIR/steam"
 }
 # A session that is killed never reaches the copy below, and those are the sessions worth reading.
@@ -242,18 +246,27 @@ case $mode in
     fi
     # Player 1 on the controller in an emulator that has no profile of its own yet.
     python3 /usr/local/bin/bannerlator-pad-defaults 2>&1 || true
+    fex=()
+    if [ -x /usr/local/bin/droiddeck-fex ]; then
+      case $(od -An -tu2 -j18 -N2 "$target" 2>/dev/null | tr -d ' ') in
+        3|62) fex=(/usr/local/bin/droiddeck-fex run --mode on --) ;;
+      esac
+    fi
     case ${target,,} in
       *.appimage)
         export APPIMAGE_EXTRACT_AND_RUN=1
         chmod +x "$target" 2>/dev/null
-        exec "$target" "$@"
+        exec "${fex[@]}" "$target" "$@"
         ;;
       *.sh)
+        if [ -x /usr/local/bin/droiddeck-fex ]; then
+          exec /usr/local/bin/droiddeck-fex run --for "$target" -- bash "$target" "$@"
+        fi
         exec bash "$target" "$@"
         ;;
       *)
         chmod +x "$target" 2>/dev/null
-        cd "$(dirname "$target")" && exec "$target" "$@"
+        cd "$(dirname "$target")" && exec "${fex[@]}" "$target" "$@"
         ;;
     esac
     ;;
@@ -598,26 +611,20 @@ BUSCONF
     export STEAM_RUNTIME=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     export SDL_VIDEO_X11_DGAMOUSE=0
-    # Native-Linux x86 games go through Valve's FEX compat tool, which runs FEX with FEX_PORTABLE=1
-    # - that makes FEX look for its config next to the binary, while the tool writes one into the
-    # app's compatdata instead. FEX therefore starts with no rootfs, every x86_64 library lookup
-    # falls through to the host, and the guest shell dies on libreadline before the game is reached.
-    # FEX_ROOTFS names it outright and is read whatever the config situation.
-    [ -d /usr/share/guestos/fex-mesa ] && export FEX_ROOTFS=/usr/share/guestos/fex-mesa
     # Decky is optional and session scoped: the app's marker opts in, and this supervisor is
     # reaped with the client session. Native ARM64 runs directly. A legacy x86_64 asset is used
-    # only when its recorded architecture and this guest's existing FEX installation agree.
+    # only when its recorded architecture says so and droiddeck-fex has FEX and its runtime ready.
     decky_loader=$HOME/homebrew/services/PluginLoader
     if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
       decky_arch=$(cat "$HOME/homebrew/services/.droiddeck-decky-arch" 2>/dev/null || echo unknown)
-      if [ "$decky_arch" = arm64 ] || { [ "$decky_arch" = x86_64 ] && [ -x /usr/bin/FEX ] && [ -n "${FEX_ROOTFS:-}" ]; }; then
+      if [ "$decky_arch" = arm64 ] || { [ "$decky_arch" = x86_64 ] && /usr/local/bin/droiddeck-fex prepare >/dev/null; }; then
         (
           decky_child=
           decky_stop() { [ -z "$decky_child" ] || kill "$decky_child" 2>/dev/null; [ -z "$decky_child" ] || wait "$decky_child" 2>/dev/null; exit 0; }
           trap decky_stop TERM INT HUP
           decky_exits=0
           while :; do
-            if [ "$decky_arch" = x86_64 ]; then /usr/bin/FEX "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
+            if [ "$decky_arch" = x86_64 ]; then /usr/local/bin/droiddeck-fex run --mode on -- "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
             else "$decky_loader" >>"$HOME/homebrew/services/PluginLoader.log" 2>&1 &
             fi
             decky_child=$!

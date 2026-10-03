@@ -53,6 +53,7 @@ object UserApps {
         val key: String, val kind: Kind, val name: String, val icon: Any?, val detail: String?,
         val program: String, val args: List<String>, val copied: Boolean = false,
         val repo: String? = null, val version: String? = null,
+        val fex: String = LinuxFex.AUTO, val arch: String? = null,
     )
 
     class Release(val tag: String, val published: String, val asset: String, val url: String)
@@ -89,6 +90,7 @@ object UserApps {
                 "script:${dir.name}", Kind.SCRIPT, readName(dir) ?: dir.name, File(dir, "icon.png").takeIf { it.isFile },
                 FileUtils.readString(File(dir, "source"))?.trim(), SCRIPT_LAUNCHER, listOf("$GUEST_DIR/${dir.name}"),
                 copied = !java.nio.file.Files.isSymbolicLink(File(dir, "files").toPath()),
+                fex = LinuxFex.mode(dir),
             )
         }.orEmpty()
         val images = AppImageManager.list(context).map { item ->
@@ -96,6 +98,7 @@ object UserApps {
             App(
                 "appimage:${item.id}", Kind.APPIMAGE, item.name, item.icon, item.comment, AppImageManager.LAUNCHER, listOf(item.guestDir),
                 repo = FileUtils.readString(File(dir, GITHUB_REPO))?.trim(), version = FileUtils.readString(File(dir, GITHUB_TAG))?.trim(),
+                fex = LinuxFex.mode(dir), arch = FileUtils.readString(File(dir, "arch"))?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
         val flatpaks = FlatpakManager.installedApps(context).map { app ->
@@ -140,7 +143,7 @@ object UserApps {
      * Renames [app] and sets its icon: [icon] a path or URL, "" for its default, null to keep it.
      * The Linux desktop's menu entry follows.
      */
-    fun edit(context: Context, app: App, name: String, icon: String?): String? {
+    fun edit(context: Context, app: App, name: String, icon: String?, fex: String? = null): String? {
         val id = app.key.substringAfter(':')
         if (id.isEmpty() || '/' in id || id.startsWith(".")) return null
         val dir = when (app.kind) {
@@ -155,6 +158,7 @@ object UserApps {
             icon.isEmpty() -> if (app.kind == Kind.APPIMAGE) AppImageManager.restoreIcon(dir) else target.delete()
             else -> withIcon(context, icon) { file -> if (file == null || !saveIcon(file, target)) return context.getString(R.string.user_apps_icon_failed) }
         }
+        if (fex != null && app.kind != Kind.FLATPAK && !LinuxFex.setMode(dir, fex)) return context.getString(R.string.user_apps_failed)
         when (app.kind) {
             Kind.SCRIPT -> writeScriptEntry(context, dir)
             Kind.APPIMAGE -> AppImageManager.writeMenuEntry(context, dir)
@@ -310,14 +314,18 @@ object UserApps {
         return if (repo.isEmpty() || repo == "." || repo == "..") null else "${m.groupValues[1]}/$repo"
     }
 
-    /** The ARM64 AppImage among a release's files: named for aarch64/arm64, else for no other CPU. */
+    /**
+     * The AppImage among a release's files: named for aarch64/arm64, else for no other CPU, else the
+     * x86_64 one, which runs through FEX.
+     */
     internal fun pickAsset(names: List<String>): String? {
         val images = names.filter { it.endsWith(".appimage", ignoreCase = true) }
         return images.firstOrNull { Regex("aarch64|arm64", RegexOption.IGNORE_CASE).containsMatchIn(it) }
             ?: images.firstOrNull { !Regex("x86_64|x86-64|amd64|x64|i[36]86|armhf|armv7", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+            ?: images.firstOrNull { Regex("x86_64|x86-64|amd64|x64", RegexOption.IGNORE_CASE).containsMatchIn(it) }
     }
 
-    /** The newest release of [repo] with an ARM64 AppImage, preferring full releases; else what went wrong. */
+    /** The newest release of [repo] with an AppImage this device runs, preferring full releases; else what went wrong. */
     private fun latestRelease(context: Context, repo: String): Pair<Release?, String?> {
         val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases?per_page=15")
         val releases = body?.let { runCatching { JSONArray(it) }.getOrNull() }

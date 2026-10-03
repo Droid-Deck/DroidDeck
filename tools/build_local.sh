@@ -123,7 +123,7 @@ docker run --rm --platform linux/amd64 \
         mkdir -p "$d/usr/local/bin"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
-        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-* tools/linuxfs/overlay/usr/local/bin/droiddeck-esync tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
+        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-* tools/linuxfs/overlay/usr/local/bin/droiddeck-esync tools/linuxfs/overlay/usr/local/bin/droiddeck-fex tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done
         for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
@@ -162,6 +162,16 @@ docker run --rm --platform linux/amd64 \
         done
         test -f "$d/usr/local/bin/bannerlator-session"
         test -f "$d/usr/local/bin/bannerlator-proton-extra"
+    '
+
+docker run --rm --platform linux/amd64 \
+    -v "${repo_root}:/src" -w /src debian:bullseye bash -c '
+        set -euo pipefail
+        printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+        apt-get -o Acquire::Check-Valid-Until=false update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+        tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
+        chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
     '
 
 github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
