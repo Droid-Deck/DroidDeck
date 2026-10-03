@@ -73,6 +73,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
             if (!s.shortcutPicker) Rise(2) {
                 Actions { PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp), onClick = a.onPlay) }
             }
+            GameFileFolderActions(s, a)
         }
         return
     }
@@ -90,6 +91,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
             }
             Rise(1) { SectionTitle(stringResource(R.string.games_launch_settings), null) }
             Rise(2) { LaunchSettings(s, a, host) }
+            Rise(3) { GameFileFolderActions(s, a) }
         }
         return
     }
@@ -108,6 +110,24 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
             }
             SectionTitle(stringResource(R.string.games_launch_settings), null)
             LaunchSettings(s, a, host)
+            GameFileFolderActions(s, a)
+        }
+    }
+}
+
+@Composable
+private fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions) {
+    if (s.shortcutPicker) return
+    var open by remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box(Modifier.padding(top = 12.dp)) {
+        SecondaryButton(stringResource(R.string.game_frontend_files), compact = true) { open = !open }
+        AnchoredMenu(open, onDismiss = { open = false }, title = s.gameSyncFolder ?: stringResource(R.string.game_frontend_files)) { first ->
+            MenuItem(stringResource(R.string.game_file_sync), checked = false, focusRequester = first) {
+                open = false; a.onSyncGameFiles()
+            }
+            if (s.gameSyncFolder != null) MenuItem(stringResource(R.string.game_file_stop_sync), checked = false) {
+                open = false; a.onStopGameFileSync()
+            }
         }
     }
 }
@@ -138,6 +158,9 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
         AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_shortcut)) { first ->
             MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = first) {
                 open = false; a.onGameShortcut(g)
+            }
+            MenuItem(stringResource(R.string.game_file_export), checked = false) {
+                open = false; a.onExportGameFile(g)
             }
             MenuItem(stringResource(R.string.game_link_copy), checked = false) {
                 open = false; a.onCopyGameLink(g)

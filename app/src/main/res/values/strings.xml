@@ -935,4 +935,10 @@
     <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
     <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
     <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
+    <string name="game_file_export">Export game file</string>
+    <string name="game_file_sync">Sync all game files to folder</string>
+    <string name="game_file_stop_sync">Stop syncing game files</string>
+    <string name="game_file_folder">Choose a folder for frontend game files</string>
+    <string name="game_file_exported">Game files saved to %1$s</string>
+    <string name="game_frontend_files">Frontend files</string>
 </resources>

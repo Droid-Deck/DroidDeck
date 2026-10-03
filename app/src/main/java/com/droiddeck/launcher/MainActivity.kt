@@ -379,6 +379,18 @@ class MainActivity : ComponentActivity() {
     private var shortcutLibraryScanning by mutableStateOf(false)
     @Volatile private var libraryScanGeneration = 0
     private var pendingGameLink: String? = null
+    private var gameSyncFolder by mutableStateOf<String?>(null)
+    private fun pickGameExport(game: Library.SteamGame?) {
+        onSavePicked = { folder ->
+            saveAction(getString(R.string.game_frontend_files)) {
+                if (game != null) com.droiddeck.launcher.frontend.GameFiles.export(folder, game)
+                else com.droiddeck.launcher.frontend.GameFileSync.enable(this, folder)
+                ui.post { gameSyncFolder = com.droiddeck.launcher.frontend.GameFileSync.folder(this) }
+                getString(R.string.game_file_exported, folder.path)
+            }
+        }
+        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
+    }
 
     private fun readGameIntent(request: Intent) {
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
@@ -387,10 +399,20 @@ class MainActivity : ComponentActivity() {
             steamGames = emptyList()
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
-        pendingGameLink = if (request.action == Intent.ACTION_VIEW)
-            com.droiddeck.launcher.frontend.GameLaunchLink.parse(request.dataString) else null
-        if (request.action == Intent.ACTION_VIEW && pendingGameLink == null) {
-            android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
+        pendingGameLink = null
+        if (request.action == Intent.ACTION_VIEW) {
+            val copy = Intent(request)
+            Thread({
+                val id = com.droiddeck.launcher.frontend.GameFiles.readIntent(this, copy)
+                ui.post {
+                    if (intent === request && !isDestroyed) {
+                        pendingGameLink = id
+                        if (id == null) {
+                            android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
+                        } else refresh()
+                    }
+                }
+            }, "game-launch-file").start()
         }
     }
 
@@ -439,6 +461,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         readGameIntent(intent)
+        gameSyncFolder = com.droiddeck.launcher.frontend.GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
         theme = SessionPrefs.theme(this)
@@ -467,6 +490,7 @@ class MainActivity : ComponentActivity() {
                         installed = installed, ready = ready, available = available?.version,
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
+                        gameSyncFolder = gameSyncFolder,
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled,
                         offlineAccount = offlineAccount, offline = offline,
@@ -508,6 +532,14 @@ class MainActivity : ComponentActivity() {
                         },
                         onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else launchGame(g) },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
+                        onExportGameFile = { g -> pickGameExport(g) },
+                        onSyncGameFiles = { pickGameExport(null) },
+                        onStopGameFileSync = {
+                            Thread({
+                                com.droiddeck.launcher.frontend.GameFileSync.disable(this)
+                                ui.post { gameSyncFolder = null }
+                            }, "game-file-stop-sync").start()
+                        },
                         onCopyGameLink = { g ->
                             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(
                                 ClipData.newPlainText(g.name, com.droiddeck.launcher.frontend.GameLaunchLink.uri(g.gameIdString)))
@@ -1353,15 +1385,7 @@ class MainActivity : ComponentActivity() {
             // One update with the whole list: the wall places games by their position in it, so a
             // partial list first would shuffle every capsule when the rest arrived. LibraryCache
             // covers the wait.
-            val games = if (ready) Library.steamGames(this) + com.droiddeck.launcher.frontend.AddedGames.scan(this).map { g ->
-                com.droiddeck.launcher.frontend.AddedGameArt.resolve(this, g).let { art ->
-                    Library.SteamGame(
-                        g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, Library.ADDED, g.gameId,
-                        hero = art.hero ?: art.header, gameFiles = g.folder,
-                        protonPrefix = Library.protonPrefix(this, g.steamAppId?.toLong() ?: g.appId),
-                    )
-                }
-            } else emptyList()
+            val games = if (ready) Library.launchableGames(this) else emptyList()
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             val all = games.distinctBy { it.gameId }
             if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all)
