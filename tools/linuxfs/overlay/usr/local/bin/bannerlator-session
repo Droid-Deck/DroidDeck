@@ -491,10 +491,33 @@ case $mode in
     # reads from has changed since its last run - a new manifest, a new depot or tool, the client
     # rewriting config.vdf - which [ -nt ] answers without starting anything, and once a minute
     # regardless.
+    # A title the client installs while it runs gets one of Valve's Protons, which cannot start here
+    # (pressure-vessel, no user namespaces): the game closes the moment it opens. The compat pass
+    # repoints it on disk, but the client keeps its own choice in memory until it starts again, so
+    # it is restarted once - when no game is up and no download would be cut - and capped, like
+    # the update restarts, in case the client ever stops reading the mapping back.
     (
       beat=0
       compat_stamp=$HOME/.bl-compat-beat
-      rm -f "$compat_stamp"
+      compat_marker=$HOME/.bl-compat-restart
+      compat_restarts=0
+      rm -f "$compat_stamp" "$compat_marker"
+      compat_restart() {
+        local d c
+        [ -e "$compat_marker" ] && [ "$compat_restarts" -lt 3 ] || return 0
+        for d in /proc/[0-9]*; do
+          read -r c 2>/dev/null < "$d/comm" || continue
+          [ "$c" = wineserver ] && return 0
+        done
+        for d in "$steam_root/steamapps/downloading"/* /mnt/droiddeck-sd/steamapps/downloading/*; do
+          [ -e "$d" ] && return 0
+        done
+        rm -f "$compat_marker"
+        compat_restarts=$((compat_restarts + 1))
+        step "a new title was given the ARM64 Proton: restarting the Steam client once"
+        : > "$HOME/.bl-restart-once"
+        "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
+      }
       compat_due() {
         local d
         [ -e "$compat_stamp" ] && [ "$((beat % 12))" -ne 0 ] || return 0
@@ -511,8 +534,9 @@ case $mode in
         bannerlator-seed-redists "$steam_root" >/dev/null 2>&1 || true
         if compat_due; then
           : > "$compat_stamp"
-          bannerlator-steam-compat "$steam_root" >/dev/null 2>&1 || true
+          bannerlator-steam-compat --live "$steam_root" >/dev/null 2>&1 || true
         fi
+        compat_restart
       done
     ) &
     # Debug aid while the runtime is being brought up: an app id dropped in ~/.bl-autolaunch is
@@ -739,10 +763,14 @@ BUSCONF
         rm -f "$HOME/.bl-stop-requested" "$HOME/.bl-restart-once"
         break
       fi
-      # The session asked for this exit (the ARM64 Proton landed): start again, without the URL
-      # arguments, which were acted on. Not counted against the update cap.
+      # The session asked for this exit (the ARM64 Proton landed, or a new title was repointed at
+      # it): start again, without the URL arguments, which were acted on. Not counted against the
+      # update cap. The client saves config.vdf from memory as it exits, which can put back the
+      # Proton it had chosen, so the mapping is written again before it reads it.
       if [ -f "$HOME/.bl-restart-once" ]; then
         echo "== steam: restarting once so the new compatibility layer is in the client's lists"
+        rm -f "$HOME/.bl-compat-restart"
+        bannerlator-steam-compat "$steam_root" || true
         set --
         continue
       fi
