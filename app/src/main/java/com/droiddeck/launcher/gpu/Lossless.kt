@@ -167,6 +167,8 @@ object Lossless {
     private fun steamDll(context: Context): File? {
         val libraries = listOfNotNull(
             File(LinuxRuntime.rootDir(context), "root/.local/share/Steam"),
+            // The x86-64 client keeps its own library (bannerlator-steam-x64).
+            File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/.local/share/Steam"),
             GameStorage.effective(context)?.path?.let(::File),
         ) + SessionPrefs.addedGamesDirs(context).map(::File)
         return libraries.map { File(it, STEAM_DLL) }.filter { it.isFile }.maxByOrNull { it.lastModified() }

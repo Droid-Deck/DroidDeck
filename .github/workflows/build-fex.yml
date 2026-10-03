@@ -1,0 +1,57 @@
+name: Build FEX (x86-64 Steam client experiment)
+
+# FEX built for the runtime in an Arch Linux ARM container on an arm64 runner (tools/fex), for the
+# opt-in x86-64 Steam client (bannerlator-steam-x64). Published as a release asset that script
+# fetches; the runtime image and the default arm64 client are untouched.
+on:
+  push:
+    paths:
+      - 'tools/fex/**'
+      - '.github/workflows/build-fex.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish as (e.g. fex-2609-r1); empty = artifact only'
+        required: false
+        default: ''
+      thunks:
+        description: 'Build the host thunks (Vulkan/GL/X11/... to the runtime arm64 libraries)'
+        required: false
+        default: 'false'
+      cxxflags:
+        description: 'Extra CXXFLAGS for a diagnostic build (e.g. -DDEBUG_STRACE); never published with a tag'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build in Arch Linux ARM
+        run: |
+          set -euo pipefail
+          docker run --rm -e FEX_EXTRA_CXXFLAGS="${{ inputs.cxxflags }}" -e FEX_THUNKS="${{ inputs.thunks == 'true' && '1' || '0' }}" -v "$PWD:/work" -w /work menci/archlinuxarm:base-devel bash tools/fex/build-in-arch.sh
+          sudo chown -R "$(id -u):$(id -g)" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fex
+          path: |
+            fex.tzst
+            fex.tzst.sha256
+            fex-needed.txt
+            fex-files.txt
+      - name: Publish
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != '' && inputs.cxxflags == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${{ inputs.tag }}" --latest=false --prerelease=false --title "${{ inputs.tag }}" --notes "FEX for the runtime (tools/fex/build-in-arch.sh); fetched by bannerlator-steam-x64. sha256 $(cut -d' ' -f1 fex.tzst.sha256)" fex.tzst fex.tzst.sha256 || gh release upload "${{ inputs.tag }}" fex.tzst fex.tzst.sha256 --clobber
+          # A component the apk fetches by tag, never something users install: it must not
+          # become the repo's Latest release or appear as a pre-release, also when re-uploaded.
+          gh release edit "${{ inputs.tag }}" --latest=false --prerelease=false

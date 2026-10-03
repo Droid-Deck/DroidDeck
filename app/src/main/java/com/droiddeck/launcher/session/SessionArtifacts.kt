@@ -45,6 +45,7 @@ object SessionArtifacts {
             }
             LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
             copySteamLogs(context, dir)
+            VacDiagnostics.collect(context, dir)
             // A session the system killed leaves its trace here and nowhere else.
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
             scrubFolder(dir)
@@ -145,6 +146,7 @@ object SessionArtifacts {
                 )
                 if (newest) {
                     copySteamLogs(context, dir)
+                    VacDiagnostics.collect(context, dir)
                 }
                 SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
                 SessionEvents.record("session.artifacts_recovered", mapOf("newest" to newest), dir)

@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PRELOAD_CACHE_VERSION: v2
+  PRELOAD_CACHE_VERSION: v5
 
 jobs:
   build:
@@ -176,6 +176,17 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libblsession.so" tools/linuxfs/preload/*.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblsession.so"
+          # The same session shim for x86-64 programs under FEX (bannerlator-steam-x64): the x86
+          # Steam client needs its System V semaphores just as the arm64 one does. Native gcc on
+          # this runner; Ubuntu 24.04's glibc is the one in FEX's Ubuntu 24.04 rootfs.
+          gcc -shared -fPIC -O2 -Wall -pthread \
+            -o "$D/libblsession-x86_64.so" tools/linuxfs/preload/*.c -ldl
+          strip --strip-unneeded "$D/libblsession-x86_64.so"
+          # And the controller reader: the session's pads reach x86-64 programs the same way.
+          g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
+            -pthread -std=c++17 -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL \
+            -o "$D/libfakeinput-x86_64.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
+          strip --strip-unneeded "$D/libfakeinput-x86_64.so"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
@@ -232,7 +243,15 @@ jobs:
           install -Dm644 tools/linuxfs/desktop/panel.conf "$D/etc/xdg/lxqt/panel.conf"
           install -Dm644 tools/linuxfs/desktop/firefox-droiddeck.js "$D/usr/lib/firefox/defaults/pref/droiddeck.js"
           ls -lR "$D"
-
+          # And for 32-bit x86 programs (Left 4 Dead 2 and the other Source games are i386). Last:
+          # gcc-multilib conflicts with the aarch64 cross compiler and removes it.
+          sudo apt-get install -y -qq gcc-multilib g++-multilib >/dev/null
+          gcc -m32 -shared -fPIC -O2 -Wall -pthread \
+            -o "$D/libblsession-i386.so" tools/linuxfs/preload/*.c -ldl
+          g++ -m32 -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
+            -pthread -std=c++17 -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL \
+            -o "$D/libfakeinput-i386.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
+          strip --strip-unneeded "$D/libblsession-i386.so" "$D/libfakeinput-i386.so"
       - name: Cache PulseAudio 13.0 source
         id: pa-src
         uses: actions/cache@v4

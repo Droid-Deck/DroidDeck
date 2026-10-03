@@ -299,6 +299,7 @@ class MainActivity : ComponentActivity() {
     private var customResolution by mutableStateOf<Pair<Int, Int>?>(null)
     private var fexPreset by mutableStateOf("")
     private var steamChannel by mutableStateOf("publicbeta")
+    private var steamClientArch by mutableStateOf("arm64")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
     private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
@@ -322,6 +323,7 @@ class MainActivity : ComponentActivity() {
     private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
+    private var vacDiagnostics by mutableStateOf(false)
     private var showRoms by mutableStateOf(false)
     private var homeAppSelected by mutableStateOf(false)
     private var homeScreenEnabled by mutableStateOf(false)
@@ -406,7 +408,7 @@ class MainActivity : ComponentActivity() {
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled,
                         offlineAccount = offlineAccount, offline = offline,
-                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
+                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, vacDiagnostics = vacDiagnostics,
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -503,6 +505,10 @@ class MainActivity : ComponentActivity() {
                         onLogs = {
                             SessionPrefs.setLogsEnabled(this, !SessionPrefs.logsEnabled(this))
                             logsEnabled = SessionPrefs.logsEnabled(this)
+                        },
+                        onVacDiagnostics = {
+                            SessionPrefs.setVacDiagnostics(this, !SessionPrefs.vacDiagnostics(this))
+                            vacDiagnostics = SessionPrefs.vacDiagnostics(this)
                         },
                         onShareLogs = {
                             Thread({
@@ -1006,6 +1012,7 @@ class MainActivity : ComponentActivity() {
                 storageOptions = storageOptions,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
                 steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
+                steamClientArch = if (mode == SessionService.MODE_STEAM) steamClientArch else null,
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
@@ -1074,6 +1081,7 @@ class MainActivity : ComponentActivity() {
                 },
                 onFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
                 onSteamChannel = { id -> SessionPrefs.setSteamChannel(this, id); steamChannel = id },
+                onSteamClientArch = { id -> SessionPrefs.setSteamClientArch(this, id); steamClientArch = id },
                 onSteamDeckMode = { on ->
                     SessionPrefs.setSteamDeckMode(this, on)
                     steamDeckMode = on
@@ -1177,6 +1185,7 @@ class MainActivity : ComponentActivity() {
         customResolution = SessionPrefs.customResolution(this, mode)
         fexPreset = SessionPrefs.fexPreset(this)
         steamChannel = SessionPrefs.steamChannel(this)
+        steamClientArch = SessionPrefs.steamClientArch(this)
         steamDeckMode = SessionPrefs.steamDeckMode(this)
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
@@ -1264,6 +1273,7 @@ class MainActivity : ComponentActivity() {
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
+        vacDiagnostics = SessionPrefs.vacDiagnostics(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {
             SessionService.MODE_DESKTOP -> "Desktop"
             SessionService.MODE_RUN -> Library.nameForProgram(SessionState.program)

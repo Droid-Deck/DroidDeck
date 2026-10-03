@@ -437,6 +437,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("logs", on).apply()
     }
 
+    /**
+     * VAC diagnostics (see [VacDiagnostics]): Source-engine games launched with -condebug and their
+     * console plus the client's VAC lines summarised into vac.txt. Off by default: it changes a
+     * game's command line.
+     */
+    fun vacDiagnostics(context: Context): Boolean =
+        prefs(context).getBoolean("vac_diagnostics", false)
+
+    fun setVacDiagnostics(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vac_diagnostics", on).apply()
+    }
+
     // ── Per-mode display ────────────────────────────────────────────────────────────────────
 
     /**
@@ -484,6 +496,17 @@ object SessionPrefs {
 
     fun setSteamChannel(context: Context, id: String) {
         prefs(context).edit().putString("steamChannel", id).apply()
+    }
+
+    /**
+     * Which Steam client a Steam session runs: "arm64" (Valve's native ARM64 client, the default) or
+     * "x86_64" (Valve's x86-64 client under FEX, bannerlator-steam-x64 - experimental, for what the
+     * arm64 client cannot do: it never runs VAC). Each has its own sign-in and library.
+     */
+    fun steamClientArch(context: Context): String = prefs(context).getString("steamClientArch", null) ?: "arm64"
+
+    fun setSteamClientArch(context: Context, id: String) {
+        prefs(context).edit().putString("steamClientArch", id).apply()
     }
 
     /** Whether opening DroidDeck starts a Steam session instead of showing the front end. */

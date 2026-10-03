@@ -21,6 +21,9 @@ import shutil
 import sys
 
 TOOL = "bannerlator-proton-arm64"
+# The x86-64 client (bannerlator-steam-x64) runs the arm64 Protons through wrappers of its own, named
+# *-a64, and passes the one to map titles to here; its own config and shortcuts take that name.
+TOOL = os.environ.get("BL_COMPAT_TOOL") or TOOL
 # Valve's own ARM64 Proton, by the name the client registers it under. Used only to bootstrap a
 # fresh install: naming it is what makes the client offer it and fetch the depot.
 SEED_TOOL = "proton-experimental-arm64"
@@ -189,6 +192,37 @@ bl_idtech3() {
 }
 """
 
+# VAC diagnostics (the app's Setup page): a Source-engine game says whether it started VAC-secure
+# only in its own console, and writes that console to <mod>/console.log only with -condebug. Armed
+# per session by the app (~/.droiddeck-vac-diagnostics); each launch is noted for its summary.
+# Nothing else about the launch changes - this only asks the game to keep its own log.
+BL_VACDIAG_SETUP = """
+bl_vacdiag() {
+  [ -f "${HOME:-/root}/.droiddeck-vac-diagnostics" ] || return 0
+  [ "${verb:-}" = waitforexitandrun ] || return 0
+  local exe= a dir added=no app=${SteamAppId:-${STEAM_COMPAT_APP_ID:-0}}
+  for a in "$@"; do case $a in *.exe|*.EXE) exe=$a ;; esac; done
+  [ -n "$exe" ] || return 0
+  dir=$(dirname "$exe")
+  # Source: <game>/<mod>/gameinfo.txt beside the exe. Source 2: <game>/game/bin/win64/<exe> with
+  # <game>/game/<mod>/gameinfo.gi.
+  if ls "$dir"/*/gameinfo.txt >/dev/null 2>&1 || ls "$dir"/../../*/gameinfo.gi >/dev/null 2>&1; then
+    case " $* " in
+      *" -condebug "*) echo "bannerlator-proton: vac-diag: app $app already has -condebug" >&2 ;;
+      *) BL_EXTRA_ARGS+=(-condebug); added=yes
+         echo "bannerlator-proton: vac-diag: app $app is a Source title; launched with -condebug" >&2 ;;
+    esac
+  else
+    added=not-source
+    echo "bannerlator-proton: vac-diag: app $app is not a Source title; it keeps no console log to read" >&2
+  fi
+  case " $* " in
+    *" -insecure "*) echo "bannerlator-proton: vac-diag: app $app has -insecure in its launch options - it can never be VAC-secure this way" >&2 ;;
+  esac
+  printf '%s\tapp %s\tcondebug %s\t%s\n' "$(date +%s)" "$app" "$added" "${exe##*/}" >> "${HOME:-/root}/.droiddeck-vac-launches"
+}
+"""
+
 BL_DIRECTAUDIO_SETUP = """
 bl_directaudio() {
   base=$1
@@ -271,6 +305,7 @@ if [ -n "$depot" ]; then
   bl_directaudio "$depot"
   bl_game_cpus
   bl_idtech3 "$@"
+  bl_vacdiag "$@"
   bl_libpath
   exec ${BL_TASKSET:-} /usr/local/bin/bannerlator-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 fi
@@ -282,7 +317,7 @@ exit 1
 # something else.
 LAUNCHER_SH = LAUNCHER_SH.replace(
     "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-    + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+    + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
 
 # A third-party Proton dropped into compatibilitytools.d - GE-Proton, proton-cachyos, anything of
 # that shape - is adopted rather than used as shipped, for the same two reasons Valve's ARM64 depot
@@ -318,6 +353,7 @@ bl_components "$here"
 bl_directaudio "$here"
 bl_game_cpus
 bl_idtech3 "$@"
+bl_vacdiag "$@"
 bl_libpath
 # Proton takes its base directory from dirname(sys.argv[0]) without resolving it, so it has to be
 # started from its own tree.
@@ -503,7 +539,7 @@ def adopt_extras(tools):
             body = (EXTRA_WRAPPER_SH % entry_point).replace(
                     'here=$(dirname "$0")',
                     'here=$(dirname "$0")\n' + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-                    + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+                    + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
             write_changed(wrapper, body, 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
             write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, entry))
@@ -545,17 +581,40 @@ def installed_apps(steam_root):
     return sorted(apps, key=int)
 
 
-def register_default(config_path, apps=(), name=None, protect=()):
-    """Writes the mapping. `name` defaults to our own tool; the first-run seed passes Valve's."""
+def local_tools(steam_root):
+    """The names of the compatibility tools installed in steam_root/compatibilitytools.d."""
+    names = set()
+    tools = os.path.join(steam_root, "compatibilitytools.d")
+    try:
+        entries = os.listdir(tools)
+    except OSError:
+        return names
+    for entry in entries:
+        try:
+            with open(os.path.join(tools, entry, "compatibilitytool.vdf"), encoding="utf-8", errors="replace") as f:
+                m = re.search(r'"compat_tools"\s*\{\s*"([^"]+)"', f.read())
+        except OSError:
+            continue
+        if m:
+            names.add(m.group(1).lower())
+    return names
+
+
+def register_default(config_path, apps=(), name=None, protect=(), repointed=None):
+    """Writes the mapping. `name` defaults to our own tool; the first-run seed passes Valve's.
+    Returns the app ids given a per-app entry by this call."""
     tool = name or TOOL
-    # Tool names the user may deliberately have chosen (see adopt_extras); never repointed.
-    keep = {n.lower() for n in protect}
+    # Tool names the user may deliberately have chosen (see adopt_extras); never repointed. Every
+    # tool in this client's own compatibilitytools.d is one: the x86-64 client's arm64 wrappers
+    # include proton-cachyos-*-a64, which starts with "proton" like Valve's own.
+    keep = {n.lower() for n in protect} | local_tools(os.path.dirname(os.path.dirname(config_path)))
     with open(config_path, encoding="utf-8", errors="replace") as f:
         original = f.read()
     tokens = tokenize(original)
     steam = find_block(tokens, ["InstallConfigStore", "Software", "Valve", "Steam"])
     if steam is None:
-        return
+        return []
+    added = []
     mapping = find_block(tokens[steam + 1:], ["CompatToolMapping"])
     entry = ['"0"', "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"75"', "}"]
     if mapping is None:
@@ -569,6 +628,9 @@ def register_default(config_path, apps=(), name=None, protect=()):
             if (tokens[i] == '"name"' and named.startswith("proton")
                     and named != tool.lower() and named not in keep):
                 tokens[i + 1] = '"%s"' % tool
+                # The app the entry belongs to ("<appid>" { "name" ... }), for a caller that asks.
+                if repointed is not None and i >= 2 and tokens[i - 1] == "{" and tokens[i - 2] != '"0"':
+                    repointed.append(tokens[i - 2].strip('"'))
         if find_block(tokens[mapping + 1:], ["0"]) is None:
             tokens[mapping + 1:mapping + 1] = entry
         # The "0" default only decides how a title is installed, so it settles new downloads and
@@ -579,10 +641,12 @@ def register_default(config_path, apps=(), name=None, protect=()):
                 continue
             tokens[mapping + 1:mapping + 1] = [
                 '"%s"' % app, "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"250"', "}"]
+            added.append(app)
     # Nothing to change is the usual case on the session's beat: the client's own file is left alone.
     text = serialize(tokens)
     if text != serialize(tokenize(original)):
         write_changed(config_path, text)
+    return added
 
 
 def depot_build(depot):
@@ -620,6 +684,22 @@ def build_tool(tool_dir):
 
 def main():
     steam_root = sys.argv[1]
+    if "--x64" in sys.argv[2:]:
+        # The x86-64 client: its tools are wrappers bannerlator-steam-x64 makes and its Linux titles
+        # run as Linux builds (FEX), so only the per-app entries the client aimed at a Proton it
+        # cannot start are repointed, to BL_COMPAT_TOOL.
+        config = os.path.join(steam_root, "config", "config.vdf")
+        if os.path.isfile(config):
+            moved = []
+            register_default(config, repointed=moved)
+            print("bannerlator-steam-compat: x86-64 client's Proton entries point at %s" % TOOL)
+            # As for the arm64 client (below): an entry changed while the client runs counts from
+            # its next start, so the session restarts it once the title has installed.
+            if moved and "--live" in sys.argv[2:]:
+                with open(os.path.join(os.path.expanduser("~"), ".bl-compat-pending"), "a") as f:
+                    f.write("".join("%s\n" % a for a in moved))
+                print("bannerlator-steam-compat: repointed while the client runs: %s" % " ".join(moved))
+        return
     tools = os.path.join(steam_root, "compatibilitytools.d")
     os.makedirs(tools, exist_ok=True)
     build_tool(os.path.join(tools, TOOL))
@@ -633,8 +713,18 @@ def main():
     config = os.path.join(steam_root, "config", "config.vdf")
     if os.path.isfile(config):
         apps = installed_apps(steam_root)
-        register_default(config, apps, protect=extras)
+        added = register_default(config, apps, protect=extras)
         print("bannerlator-steam-compat: default and %d installed title(s) set to %s" % (len(apps), TOOL))
+        # The client reads config.vdf once, as it starts, and keeps its own decisions in memory for
+        # the rest of its run: a title installed while it runs gets the client's own pick (native
+        # for a Linux build, which then waits for Steam Linux Runtime + FEX it can never run here;
+        # proton-stable for a Windows one), and the entry written here only counts from the next
+        # start. Run from the session's beat (--live), the new entries are noted for the session,
+        # which restarts the client once the install has settled (bannerlator-session).
+        if added and "--live" in sys.argv[2:]:
+            with open(os.path.join(os.path.expanduser("~"), ".bl-compat-pending"), "a") as f:
+                f.write("".join("%s\n" % a for a in added))
+            print("bannerlator-steam-compat: mapped while the client runs: %s" % " ".join(added))
 
 
 if __name__ == "__main__":

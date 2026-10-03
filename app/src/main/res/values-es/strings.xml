@@ -256,6 +256,10 @@
     <string name="mode_branch_public">Beta pública</string>
     <string name="mode_branch_deck_beta">Beta pública de Steam Deck</string>
     <string name="mode_branch_note">El modo Deck siempre usa la beta pública de Steam Deck.</string>
+    <string name="mode_client_arch">Cliente de Steam</string>
+    <string name="mode_client_arch_hint">Se aplica en la próxima sesión. El cliente x86-64 se ejecuta con FEX, con su propio inicio de sesión y biblioteca, y dibuja su interfaz sin la GPU.</string>
+    <string name="mode_client_arch_arm64">ARM64 (recomendado)</string>
+    <string name="mode_client_arch_x64">x86-64 (FEX, experimental)</string>
     <string name="mode_added_games">Juegos añadidos</string>
     <string name="mode_added_none">no hay carpetas de juegos con un .exe</string>
     <string name="mode_games_folder">Carpeta de juegos</string>
@@ -483,6 +487,8 @@
     <string name="setup_session">Sesión</string>
     <string name="setup_logs">Registros de sesión</string>
     <string name="setup_logs_hint">Se guardan tras cada sesión</string>
+    <string name="setup_vac_diag">Diagnóstico de VAC</string>
+    <string name="setup_vac_diag_hint">Los juegos Source registran su consola (-condebug); vac.txt en los registros dice si es seguro o no</string>
     <string name="setup_latest_logs">Últimos registros de sesión</string>
     <string name="setup_saved_logs">Registros de sesión guardados</string>
     <string name="setup_saved_logs_hint">Conserva los %1$d más recientes</string>

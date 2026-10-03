@@ -137,10 +137,37 @@ static int traced_by_match(const char *key) {
   return found;
 }
 
+/*
+ * FEX (the x86-64 Steam client's translator) loads this library into its own process. Its 32-bit
+ * mode does not survive that: every i386 program died with SIGILL, FEX's fatal trap, at start. So
+ * in FEX, only stay on when the program it is about to run (argv[1]) is a 64-bit ELF; a 32-bit
+ * one, a script, or anything that cannot be read gets the real calls, as before.
+ */
+static int fex_runs_32bit(void) {
+  if (strcmp(program_invocation_short_name, "FEX") != 0 && strcmp(program_invocation_short_name, "FEXInterpreter") != 0)
+    return 0;
+  char args[PATH_MAX + 64];
+  long fd = syscall(SYS_openat, AT_FDCWD, "/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return 1;
+  long n = syscall(SYS_read, fd, args, sizeof args - 1);
+  syscall(SYS_close, fd);
+  if (n <= 0) return 1;
+  args[n] = 0;
+  const char *prog = args + strlen(args) + 1;
+  if (prog >= args + n || !*prog) return 1;
+  unsigned char ident[5];
+  fd = syscall(SYS_openat, AT_FDCWD, prog, O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return 1;
+  n = syscall(SYS_read, fd, ident, sizeof ident);
+  syscall(SYS_close, fd);
+  return !(n == 5 && memcmp(ident, "\x7f" "ELF", 4) == 0 && ident[4] == 2 /* ELFCLASS64 */);
+}
+
 static void fp_init(void) {
   const char *r = getenv("PROOT_FP_ROOT"), *b = getenv("PROOT_FP_BINDS"), *t = getenv("PROOT_FP_TTL_MS");
   const char *key = getenv("PROOT_FP_KEY");
   if (!r || !*r || !key || !*key || getenv("PROOT_FP_OFF")) return;
+  if (fex_runs_32bit()) return;
   void *p = mmap((void *)FP_STUB_ADDR, FP_STUB_SIZE, PROT_READ | PROT_WRITE,
                  MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
   if (p != (void *)FP_STUB_ADDR) {

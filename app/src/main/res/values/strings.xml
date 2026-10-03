@@ -269,6 +269,10 @@
     <string name="mode_branch_public">Public beta</string>
     <string name="mode_branch_deck_beta">Steam Deck public beta</string>
     <string name="mode_branch_note">Deck mode always uses Steam Deck public beta.</string>
+    <string name="mode_client_arch">Steam client</string>
+    <string name="mode_client_arch_hint">Applies next session. The x86-64 client runs under FEX with its own sign-in and library, and draws its interface without the GPU.</string>
+    <string name="mode_client_arch_arm64">ARM64 (recommended)</string>
+    <string name="mode_client_arch_x64">x86-64 (FEX, experimental)</string>
     <string name="mode_added_games">Added games</string>
     <string name="mode_added_none">no game folders with a .exe found</string>
     <string name="mode_games_folder">Games folder</string>
@@ -517,6 +521,8 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Session logs</string>
     <string name="setup_logs_hint">Saved after each session</string>
+    <string name="setup_vac_diag">VAC diagnostics</string>
+    <string name="setup_vac_diag_hint">Source games log their console (-condebug); vac.txt in the session logs says secure or insecure</string>
     <string name="setup_latest_logs">Latest session logs</string>
     <string name="setup_saved_logs">Saved session logs</string>
     <string name="setup_saved_logs_hint">Keeps the newest %1$d</string>

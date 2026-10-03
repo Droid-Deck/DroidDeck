@@ -119,6 +119,17 @@ export BL_DESKTOP=1
 ln -sf /usr/local/bin/bannerlator-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
 ln -sf /usr/local/bin/bannerlator-steam-shim /usr/local/bin/steam 2>/dev/null
 python3 /usr/local/bin/bannerlator-desktop-games 2>&1 | sed 's/^/[games] /'
+# EXPERIMENT: Valve's x86-64 client under FEX (bannerlator-steam-x64), in a terminal so its
+# first-run downloads show. Not a Game entry, so droiddeck-desktop-gpu leaves its Exec alone.
+cat > /usr/share/applications/droiddeck-steam-x64.desktop <<'ENTRY'
+[Desktop Entry]
+Type=Application
+Name=Steam x86-64 (FEX, experimental)
+Comment=Valve's x86-64 Linux client under FEX, in its own home with its own login
+Exec=qterminal -e /usr/local/bin/bannerlator-steam-x64
+Icon=steam
+Categories=System;
+ENTRY
 # Player 1 on the controller in every emulator that has no profile of its own yet - now, and again
 # every half minute: an emulator started for the first time writes its own config, which is then
 # given the controller for its next start without waiting for the next desktop.
