@@ -24,6 +24,7 @@ WANTED = os.path.join(HOME, ".config", "droiddeck", "fex-wanted")
 GAME_ENVIRONMENT = os.path.join(HOME, ".config", "droiddeck", "game-environment.json")
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 PRELOADS = "/usr/local/lib/droiddeck-fex"
+URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
 SNIPER_APPID = "1628350"
@@ -459,28 +460,60 @@ def appimage_offset(path):
     return shoff + shentsize * shnum
 
 
+def clear_extracted():
+    for stale in ("squashfs-root", "AppDir"):
+        if os.path.islink(stale):
+            os.unlink(stale)
+        else:
+            shutil.rmtree(stale, ignore_errors=True)
+
+
+def extracted():
+    if os.path.isdir("AppDir") and not os.path.lexists("squashfs-root"):
+        os.symlink("AppDir", "squashfs-root")
+    return os.path.isdir("squashfs-root")
+
+
+def want_fex():
+    with locked():
+        status = describe(fex_install(), runtime_platform())
+        if not status["ready"]:
+            request_install()
+            write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
+
+
 def extract(image):
     image = os.path.abspath(image)
-    for stale in ("squashfs-root", "AppDir"):
-        shutil.rmtree(stale, ignore_errors=True)
-    fex = prepare() if elf_arch(image) in X86.values() else None
+    clear_extracted()
+    x86 = elf_arch(image) in X86.values()
+    if os.access(URUNTIME, os.X_OK):
+        status = subprocess.call([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL,
+                                 env=dict(os.environ, TARGET_APPIMAGE=image))
+        if status == 0 and extracted():
+            if x86:
+                want_fex()
+            return 0
+        say("uruntime could not extract it (status %d)" % status)
+        clear_extracted()
+    fex = prepare() if x86 else None
     if fex is not None:
         status = subprocess.call([fex["bin"], image, "--appimage-extract"], stdout=subprocess.DEVNULL,
                                  env=guest_environment(fex, dict(os.environ)))
-        if status == 0 and os.path.lexists("squashfs-root"):
+        if status == 0 and extracted():
             return 0
         say("the image's own runtime could not extract it under FEX (status %d)" % status)
     unsquashfs = shutil.which("unsquashfs")
     if unsquashfs:
-        for stale in ("squashfs-root", "AppDir"):
-            shutil.rmtree(stale, ignore_errors=True)
+        clear_extracted()
         status = subprocess.call([unsquashfs, "-q", "-n", "-o", str(appimage_offset(image)), "-d", "squashfs-root", image],
                                  stdout=subprocess.DEVNULL)
         if status == 0:
+            if x86:
+                want_fex()
             return 0
         say("unsquashfs could not extract it (status %d)" % status)
     elif fex is None:
-        say("this AppImage needs FEX to unpack and no unsquashfs is installed")
+        say("this AppImage could not be unpacked here: no AppImage runtime for ARM64, no FEX yet and no unsquashfs")
     return 1
 
 

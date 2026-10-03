@@ -139,13 +139,14 @@ object AppImageManager {
             file.inputStream().use { input -> image.outputStream().use { FileUtils.copy(input, it) } }
             image.setExecutable(true, false)
             onProgress("Extracting ${file.name}")
-            val unpack = if (LinuxFex.isX86(LinuxFex.elfMachine(image))) "${LinuxFex.TOOL} extract ./image.AppImage" else "./image.AppImage --appimage-extract"
+            val unpack = if (LinuxFex.isX86(LinuxFex.elfMachine(image))) "${LinuxFex.TOOL} extract ./image.AppImage"
+                else "./image.AppImage --appimage-extract || { rm -rf squashfs-root AppDir; ${LinuxFex.TOOL} extract ./image.AppImage; }"
             val out = StringBuilder()
             // uruntime's DwarFS images unpack into AppDir with squashfs-root a link to it, and keep
             // one program under several names as hard links (sharun), which Android denies apps.
             val status = GuestCommand.run(context, listOf(
                 "/bin/bash", "-c",
-                "cd \"$1\" && rm -rf squashfs-root AppDir && $unpack >/dev/null && " +
+                "cd \"$1\" && rm -rf squashfs-root AppDir && { $unpack; } >/dev/null && " +
                     "rm -rf app && mv \"$(readlink -f squashfs-root)\" app && rm -f squashfs-root",
                 "extract", "$GUEST_DIR/${dir.name}",
             ), logName = "appimage-import", linkDir = links) { line -> if (out.length < 2000) out.appendLine(line) }

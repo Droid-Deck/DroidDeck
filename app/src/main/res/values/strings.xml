@@ -167,6 +167,7 @@
     <string name="app_fex_off">Off</string>
     <string name="app_fex_hint">FEX runs x86 Linux programs on this ARM64 device. Auto uses it when the program is built for x86.</string>
     <string name="app_fex_x86">%1$s through FEX</string>
+    <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
     <string name="add_app_flatpak_hint">A Flathub app ID or its Flathub page. Flatpak is set up first if it is not yet.</string>
     <string name="add_app_file">File</string>
     <string name="add_app_no_file">No file chosen</string>

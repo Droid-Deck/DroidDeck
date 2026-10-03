@@ -157,7 +157,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/clipboard/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/mangoapp/*') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/clipboard/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -204,6 +204,12 @@ jobs:
             test -f "$D/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so"
             rm wlroots.tzst
           fi
+          . tools/linuxfs/uruntime.env
+          curl -fsSL --retry 3 -o uruntime "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}"
+          echo "${URUNTIME_SHA256}  uruntime" | sha256sum -c -
+          install -Dm644 uruntime "$D/usr/local/lib/droiddeck/uruntime"
+          install -Dm644 tools/linuxfs/licenses/uruntime-LICENSE "$D/usr/local/share/licenses/uruntime/LICENSE"
+          rm uruntime
           M="$D/usr/local/lib/mangoapp"
           mkdir -p "$M" mango-pkgs
           grep -v '^#' tools/mangoapp/packages.txt | while read -r sum url; do

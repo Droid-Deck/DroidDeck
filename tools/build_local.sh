@@ -233,6 +233,12 @@ if [[ -f "${repo_root}/tools/wlroots/release.env" ]]; then
     test -f "${linuxfs_dir}/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so"
 fi
 
+. "${repo_root}/tools/linuxfs/uruntime.env"
+uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
+    bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
+install -Dm644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
+install -Dm644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
+
 sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
 if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
     . "${repo_root}/tools/droiddeck-esync/release.env"

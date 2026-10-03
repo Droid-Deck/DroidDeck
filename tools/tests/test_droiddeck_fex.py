@@ -247,6 +247,48 @@ class PrepareTest(FexTestCase):
         self.assertIn("FEXServer beside", said)
 
 
+class ExtractTest(FexTestCase):
+    def setUp(self):
+        super().setUp()
+        self.work = self.tmp / "work"
+        self.work.mkdir()
+        self.image = self.write(self.work / "image.AppImage", elf(62) + b"payload", 0o755)
+        chdir = contextlib.chdir(self.work)
+        chdir.__enter__()
+        self.addCleanup(chdir.__exit__, None, None, None)
+
+    def uruntime(self, body):
+        return str(self.write(self.tmp / "uruntime", "#!/bin/sh\n" + body, 0o755))
+
+    def test_uruntime_unpacks_an_x86_image_without_fex(self):
+        tool = self.uruntime('[ "$1" = --appimage-extract ] && [ "$TARGET_APPIMAGE" = "%s" ] || exit 9\nmkdir -p AppDir && touch AppDir/AppRun\n' % self.image)
+        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual((status, said), (0, ""))
+        self.assertEqual(os.readlink("squashfs-root"), "AppDir")
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+        self.assertTrue((self.home / ".config/droiddeck/fex-wanted").is_file())
+        self.assertFalse(json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())["ready"])
+
+    def test_an_arm64_image_does_not_ask_for_fex(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        tool = self.uruntime("mkdir -p squashfs-root\n")
+        with mock.patch.dict(G, {"URUNTIME": tool}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual((status, said), (0, ""))
+        self.assertFalse((self.home / ".config/droiddeck/fex-wanted").exists())
+
+    def test_nothing_to_unpack_with_says_so(self):
+        tool = self.uruntime("mkdir -p squashfs-root\nexit 1\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "fex_install": lambda: None, "steam_running": lambda: False}), \
+                mock.patch("shutil.which", return_value=None):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 1)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertIn("no AppImage runtime for ARM64, no FEX yet and no unsquashfs", said)
+        self.assertFalse(os.path.lexists("squashfs-root"))
+
+
 class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):
         arm = self.write(self.tmp / "arm.so", elf(183))
