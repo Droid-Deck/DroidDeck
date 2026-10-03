@@ -375,13 +375,75 @@ class MainActivity : ComponentActivity() {
         overridePendingTransition(0, 0)
     }
 
+    private var shortcutPicker by mutableStateOf(false)
+    private var shortcutLibraryScanning by mutableStateOf(false)
+    @Volatile private var libraryScanGeneration = 0
+    private var pendingGameLink: String? = null
+
+    private fun readGameIntent(request: Intent) {
+        shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
+        if (shortcutPicker) {
+            // The shortcut picker must only offer games from the scan started for this request.
+            steamGames = emptyList()
+            shortcutLibraryScanning = true
+        } else shortcutLibraryScanning = false
+        pendingGameLink = if (request.action == Intent.ACTION_VIEW)
+            com.droiddeck.launcher.frontend.GameLaunchLink.parse(request.dataString) else null
+        if (request.action == Intent.ACTION_VIEW && pendingGameLink == null) {
+            android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun launchGame(game: Library.SteamGame): Boolean {
+        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+            android.widget.Toast.makeText(this, "Wait for the install to finish before launching a game", android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
+        if (SessionState.running) {
+            if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
+                android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                return true
+            }
+            if (!SessionService.launchGame(this, game.gameIdString)) {
+                android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
+                return false
+            }
+            startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            return true
+        }
+        return startSession(Intent(this, SessionActivity::class.java)
+                .putExtra(SessionService.EXTRA_STEAM_URL,
+                com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString)), steamSession = true)
+    }
+
+    private fun handleGameLink(games: List<Library.SteamGame>) {
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
+        val id = pendingGameLink ?: return
+        val game = games.firstOrNull { it.gameIdString == id }
+        if (game == null) {
+            pendingGameLink = null
+            intent.data = null
+            android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
+        } else if (launchGame(game)) {
+            pendingGameLink = null
+            intent.data = null
+        }
+    }
+
+    private fun chooseGameShortcut(game: Library.SteamGame) {
+        setResult(RESULT_OK, com.droiddeck.launcher.frontend.GameShortcuts.result(this, game))
+        finish()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        readGameIntent(intent)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
         theme = SessionPrefs.theme(this)
         // Last start's game list, so the Steam wall is up on the first frame; refresh() replaces it.
-        steamGames = com.droiddeck.launcher.frontend.LibraryCache.load(this)
+        steamGames = if (shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.LibraryCache.load(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         storeEnabled = SessionPrefs.storeEnabled(this)
@@ -403,6 +465,8 @@ class MainActivity : ComponentActivity() {
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version,
+                        shortcutPicker = shortcutPicker,
+                        shortcutLibraryScanning = shortcutLibraryScanning,
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled,
                         offlineAccount = offlineAccount, offline = offline,
@@ -442,9 +506,12 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
                                 .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
                         },
-                        onSteamGame = { g ->
-                            startSession(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_STEAM_URL, "steam://rungameid/${g.gameId}"), steamSession = true)
+                        onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else launchGame(g) },
+                        onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
+                        onCopyGameLink = { g ->
+                            (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(
+                                ClipData.newPlainText(g.name, com.droiddeck.launcher.frontend.GameLaunchLink.uri(g.gameIdString)))
+                            android.widget.Toast.makeText(this, R.string.game_link_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
                         onDesktop = {
                             startSession(Intent(this, SessionActivity::class.java)
@@ -678,10 +745,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        readGameIntent(intent)
+        refresh()
         startSteamAtStartupIfEnabled()
     }
 
     private fun startSteamAtStartupIfEnabled() {
+        if (intent.action != Intent.ACTION_MAIN) return
         if (SessionPrefs.runSteamAtStartup(this) && !isFinishing && !isDestroyed) startSteamSession()
     }
 
@@ -1271,6 +1341,8 @@ class MainActivity : ComponentActivity() {
             else -> "Steam"
         } else null
         // The libraries, off the main thread: manifests and a folder scan.
+        val scanGeneration = ++libraryScanGeneration
+        if (shortcutPicker) shortcutLibraryScanning = true
         Thread({
             // One update with the whole list: the wall places games by their position in it, so a
             // partial list first would shuffle every capsule when the rest arrived. LibraryCache
@@ -1287,7 +1359,14 @@ class MainActivity : ComponentActivity() {
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             val all = games.distinctBy { it.gameId }
             if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all)
-            ui.post { steamGames = all; emulatorList = emus }
+            ui.post {
+                if (scanGeneration == libraryScanGeneration) {
+                    steamGames = all
+                    emulatorList = emus
+                    shortcutLibraryScanning = false
+                    handleGameLink(all)
+                }
+            }
             // Box art for the games that have none, fetched after the list is up; the list is
             // rebuilt once if any was found.
             if (!OfflineMode.enabled(this) && CoverArt.fetchMissing(this, emus.flatMap { it.games })) {
@@ -1317,15 +1396,16 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Starts a session; with no runtime on a non-Adreno, the same warning Setup gives comes first, before any download. */
-    private fun startSession(intent: Intent, steamSession: Boolean = false) {
+    private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             showPhantomGate = true
-            return
+            return false
         }
         val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.adreno()
-        if (warn && available != null) showNonAdreno = available
-        else startActivity(intent)
+        if (warn && available != null) { showNonAdreno = available; return false }
+        startActivity(intent)
+        return true
     }
 
     private fun refreshPhantomStatus() {

@@ -6,6 +6,8 @@ from tools.release.update_catalog import (
     parse_gradle,
     parse_variants,
     published_millis,
+    preview_history_entry,
+    recent_previews,
     release_body_value,
     stable_app_release,
 )
@@ -86,6 +88,53 @@ pubg com.tencent.ig -pubg
             published_millis(release),
             published_millis(release, prefer_updated=True),
         )
+
+    def test_preview_history_keeps_only_complete_signed_main_releases(self):
+        variants = [("com.droiddeck.launcher", ""), ("com.example.variant", "-variant")]
+        commit = "a" * 40
+        entry = {
+            "commit": commit,
+            "title": "Fix Steam resume",
+            "summary": "Steam stays open after resuming.",
+            "publishedAt": 123,
+            "apks": {
+                package: {"sha256": "a" * 64, "signerSha256": "b" * 64}
+                for package, _ in variants
+            },
+        }
+        release = {"tag_name": "main-aaaaaaa", "draft": False, "prerelease": True}
+        self.assertEqual(
+            {
+                "commit": commit,
+                "title": "Fix Steam resume",
+                "summary": "Steam stays open after resuming.",
+                "publishedAt": 123,
+            },
+            preview_history_entry(release, entry, variants),
+        )
+
+        for invalid_release in (
+            {**release, "draft": True},
+            {**release, "prerelease": False},
+            {**release, "tag_name": "pr-42"},
+        ):
+            self.assertIsNone(preview_history_entry(invalid_release, entry, variants))
+        self.assertIsNone(preview_history_entry(release, {**entry, "commit": "a" * 12}, variants))
+        self.assertIsNone(preview_history_entry(release, {**entry, "apks": {"com.droiddeck.launcher": {}}}, variants))
+        unsigned = {**entry, "apks": {package: {"sha256": "a" * 64} for package, _ in variants}}
+        self.assertIsNone(preview_history_entry(release, unsigned, variants))
+
+    def test_preview_history_is_newest_first_deduplicated_and_limited(self):
+        entries = [
+            {"commit": f"{i:040x}", "title": str(i), "summary": "", "publishedAt": i}
+            for i in range(12)
+        ]
+        entries.append({**entries[-1], "title": "duplicate", "publishedAt": 99})
+        recent = recent_previews(entries)
+        self.assertEqual(10, len(recent))
+        self.assertEqual("duplicate", recent[0]["title"])
+        self.assertEqual("000000000000000000000000000000000000000a", recent[1]["commit"])
+        self.assertEqual(1, len([item for item in recent if item["commit"].endswith("000b")]))
 
     def test_stable_is_the_newest_app_release_not_github_latest(self):
         def release(tag, at, *assets, **flags):

@@ -54,11 +54,19 @@ object AppUpdates {
         val apk: Apk?,
     )
 
+    class PreviewChange(
+        val commit: String,
+        val title: String,
+        val summary: String,
+        val publishedAt: Long,
+    )
+
     class Catalog(
         val stable: Release?,
         val preview: Release?,
         val tests: List<Release>,
         val checkedAt: Long,
+        val recentPreviews: List<PreviewChange> = emptyList(),
     )
 
     class Installed(
@@ -68,6 +76,15 @@ object AppUpdates {
         val versionCode: Int,
         val updatable: Boolean,
         val committedAt: Long = 0L,
+        val ciBuild: Boolean = BuildConfig.CI_BUILD,
+    )
+
+    enum class PreviewHistoryKind { CURRENT, BEHIND, RECENT }
+
+    class PreviewHistory(
+        val kind: PreviewHistoryKind,
+        val buildsBehind: Int,
+        val changes: List<PreviewChange>,
     )
 
     enum class Offer {
@@ -146,6 +163,37 @@ object AppUpdates {
             r.commit.startsWith(me.commit, ignoreCase = true)
     }
 
+    /** Recent Preview changes relative to a CI-installed commit, when its position is known. */
+    fun previewHistory(catalog: Catalog, me: Installed = installed()): PreviewHistory? {
+        if (!me.ciBuild || catalog.recentPreviews.isEmpty()) return null
+        val stable = catalog.stable
+        if (
+            me.pr != 0 || stable?.let { isRunning(it, me) } == true ||
+            stable?.version?.let { compareVersions(me.version, it) <= 0 } == true
+        ) {
+            return PreviewHistory(PreviewHistoryKind.RECENT, 0, catalog.recentPreviews)
+        }
+
+        val matching = catalog.recentPreviews.indices.filter {
+            matchesInstalledCommit(catalog.recentPreviews[it].commit, me.commit)
+        }
+        if (matching.size != 1) {
+            return PreviewHistory(PreviewHistoryKind.RECENT, 0, catalog.recentPreviews)
+        }
+        val index = matching.single()
+        return if (index == 0) {
+            PreviewHistory(PreviewHistoryKind.CURRENT, 0, emptyList())
+        } else {
+            PreviewHistory(PreviewHistoryKind.BEHIND, index, catalog.recentPreviews.take(index))
+        }
+    }
+
+    private fun matchesInstalledCommit(published: String, installed: String): Boolean {
+        if (!Regex("^[0-9a-fA-F]{7,40}$").matches(installed)) return false
+        return published.equals(installed, ignoreCase = true) ||
+            (installed.length < 40 && published.startsWith(installed, ignoreCase = true))
+    }
+
     /** Why Android cannot install this published build over [me], before downloading anything. */
     fun installBlock(r: Release, me: Installed = installed()): String? = when {
         r.apk == null -> "This build has no download for this copy of DroidDeck."
@@ -218,6 +266,7 @@ object AppUpdates {
             )
         }
         val tests = root.optJSONArray("tests") ?: JSONArray()
+        val recentPreviews = root.optJSONArray("recentPreviews") ?: JSONArray()
         return Catalog(
             root.optJSONObject("stable")?.let { readPublishedRelease(it, packageName) },
             root.optJSONObject("preview")?.let { readPublishedRelease(it, packageName) },
@@ -226,7 +275,18 @@ object AppUpdates {
                 .filter { it.pr > 0 }
                 .sortedByDescending { it.publishedAt },
             checkedAt,
+            (0 until recentPreviews.length())
+                .mapNotNull { recentPreviews.optJSONObject(it)?.let(::readPublishedPreviewChange) }
+                .sortedByDescending { it.publishedAt }
+                .distinctBy { it.commit.lowercase() }
+                .take(10),
         )
+    }
+
+    private fun readPublishedPreviewChange(o: JSONObject): PreviewChange? {
+        val commit = o.optString("commit")
+        if (!Regex("^[0-9a-fA-F]{40}$").matches(commit)) return null
+        return PreviewChange(commit.lowercase(), o.optString("title"), o.optString("summary"), o.optLong("publishedAt"))
     }
 
     private fun readPublishedRelease(o: JSONObject, packageName: String): Release {
@@ -358,21 +418,40 @@ object AppUpdates {
         },
     )
 
-    private fun writeCatalog(c: Catalog): JSONObject = JSONObject()
+    internal fun writeCatalog(c: Catalog): JSONObject = JSONObject()
         .put("stable", c.stable?.let(::writeRelease))
         .put("preview", c.preview?.let(::writeRelease))
         .put("tests", JSONArray().apply { c.tests.forEach { put(writeRelease(it)) } })
+        .put("recentPreviews", JSONArray().apply { c.recentPreviews.forEach { put(writePreviewChange(it)) } })
         .put("checkedAt", c.checkedAt)
 
-    private fun readCachedCatalog(o: JSONObject): Catalog {
+    private fun writePreviewChange(c: PreviewChange): JSONObject = JSONObject()
+        .put("commit", c.commit)
+        .put("title", c.title)
+        .put("summary", c.summary)
+        .put("publishedAt", c.publishedAt)
+
+    internal fun readCachedCatalog(o: JSONObject): Catalog {
         val tests = o.optJSONArray("tests") ?: JSONArray()
         val preview = o.optJSONObject("preview") ?: o.optJSONObject("nightly")
+        val recentPreviews = o.optJSONArray("recentPreviews") ?: JSONArray()
         return Catalog(
             o.optJSONObject("stable")?.let(::readCachedRelease),
             preview?.let(::readCachedRelease),
             (0 until tests.length()).map { readCachedRelease(tests.getJSONObject(it)) },
             o.optLong("checkedAt"),
+            (0 until recentPreviews.length())
+                .mapNotNull { recentPreviews.optJSONObject(it)?.let(::readCachedPreviewChange) }
+                .sortedByDescending { it.publishedAt }
+                .distinctBy { it.commit.lowercase() }
+                .take(10),
         )
+    }
+
+    private fun readCachedPreviewChange(o: JSONObject): PreviewChange? {
+        val commit = o.optString("commit")
+        if (!Regex("^[0-9a-fA-F]{40}$").matches(commit)) return null
+        return PreviewChange(commit.lowercase(), o.optString("title"), o.optString("summary"), o.optLong("publishedAt"))
     }
 
     private fun prefs(context: Context) =
