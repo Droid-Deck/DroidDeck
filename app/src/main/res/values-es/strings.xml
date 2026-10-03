@@ -76,14 +76,14 @@
     <string name="game_env_no_ntsync">Pon 1 para que este juego no use ntsync (droiddeck-ntsync o un controlador del kernel); usa droiddeck-esync si hay un paquete y, si no, droiddeck-fsync.</string>
     <string name="game_env_no_esync">Pon 1 para desactivar droiddeck-esync en este juego; usa droiddeck-fsync en su lugar, o droiddeck-ntsync si fsync también está desactivado.</string>
     <string name="game_env_no_fsync">Pon 1 para que este juego no use droiddeck-fsync; usa droiddeck-esync si hay un paquete y, si no, droiddeck-ntsync.</string>
-    <string name="game_env_fsync_first">Pon 1 para que este juego use droiddeck-fsync antes que droiddeck-esync.</string>
+    <string name="game_env_fsync_first">Pon 1 para que este juego use droiddeck-fsync antes que droiddeck-esync, o 0 para dejarlo en droiddeck-esync.</string>
     <string name="game_env_xalia">Pon 0 para desactivar el asistente de navegación con mando de Proton en este juego.</string>
     <string name="game_env_hud">Overlay de DXVK para D3D9–11. fps muestra la tasa de fotogramas; sin definir la oculta.</string>
     <string name="game_env_dxvk_config">Ajustes de DXVK separados por punto y coma. Las versiones recientes usan dxvk.maxFrameRate para limitar fotogramas; para el uso normal prefiere el límite de fotogramas de la sesión.</string>
     <string name="game_env_vkd3d_limit">Límite de fotogramas de D3D12. 0 desactiva el límite.</string>
     <string name="game_env_glthread">Subprocesos de OpenGL de Mesa. true puede ayudar a juegos OpenGL limitados por la CPU; pruébalo en cada juego.</string>
     <string name="sync_backend_title">Sincronización de Wine</string>
-    <string name="sync_backend_hint">Cómo esperan unos a otros los hilos de Windows de los juegos. esync es la opción predeterminada; ntsync es experimental. Se aplica en la próxima sesión.</string>
+    <string name="sync_backend_hint">Cómo esperan unos a otros los hilos de Windows de los juegos. fsync es la opción predeterminada; ntsync es experimental. Se aplica en la próxima sesión.</string>
     <string name="sync_backend_off">Desactivada en Rendimiento, así que los juegos esperan a través de wineserver. Elige una para volver a activarla. Se aplica en la próxima sesión.</string>
     <string name="sync_backend_esync">esync</string>
     <string name="sync_backend_ntsync">ntsync</string>
