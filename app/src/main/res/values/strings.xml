@@ -84,7 +84,7 @@
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
     <string name="sync_backend_title">Wine sync</string>
-    <string name="sync_backend_hint">How games\' Windows threads wait on each other. fsync is the default; ntsync is experimental; wineserver turns in-process sync off and routes every wait through wineserver. Applies next session.</string>
+    <string name="sync_backend_hint">How games keep their threads in step. Applies next session.</string>
     <string name="sync_backend_esync">esync</string>
     <string name="sync_backend_ntsync">ntsync</string>
     <string name="sync_backend_fsync">fsync</string>
