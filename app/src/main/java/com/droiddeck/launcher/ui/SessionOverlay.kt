@@ -171,6 +171,8 @@ class DrawerActions(
     val fexPreset: String,
     /** Steam only: games stretched to the screen's size, changed live (null = not Steam). */
     val fillScreen: Boolean? = null,
+    val upscaler: Int = 0,
+    val upscaleSharpness: Int = 75,
     val secondScreenMode: SecondScreenMode,
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
@@ -192,6 +194,8 @@ class DrawerActions(
     val onShape: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
     val onFillScreen: (Boolean) -> Unit = {},
+    val onUpscaler: (Int) -> Unit = {},
+    val onUpscaleSharpness: (Int) -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
     val onSecondScreenDisplay: (Int) -> Unit,
     val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
@@ -359,6 +363,12 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                 host, "fill", stringResource(R.string.drawer_fill), null, a.fillScreen,
                                 chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen,
                             )
+                            ChoiceRow(host, "upscaler", "Upscaler", null,
+                                SessionPrefs.upscalerChoices, a.upscaler,
+                                chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
+                            ChoiceRow(host, "upscale-sharpness", "Upscaler sharpness", null,
+                                SessionPrefs.upscaleSharpnessChoices, a.upscaleSharpness, enabled = a.upscaler != 0,
+                                chipModifier = focus.track(page, "upscale-sharpness"), onPick = a.onUpscaleSharpness)
                             val fgOpen = host.open == "fg"
                             val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                             SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
