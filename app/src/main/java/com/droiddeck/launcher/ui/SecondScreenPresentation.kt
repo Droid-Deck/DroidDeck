@@ -100,7 +100,10 @@ class SecondScreenPresentation(
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyImmersiveMode()
+        if (hasFocus) {
+            applyImmersiveMode()
+            sessionActivity.refreshClipboard()
+        }
     }
 
     private fun renderMode() {

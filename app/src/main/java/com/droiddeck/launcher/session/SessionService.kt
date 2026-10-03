@@ -74,6 +74,8 @@ class SessionService : Service() {
     private var activityVisible = true
     private var screenOn = true
     private var manualPauseRequested = false
+    /** An explicit Steam sleep request is independent of the background policy. */
+    private var steamSleepToken: String? = null
     private var suspendOperationPending = false
     private var suspendAttemptFailed = false
     private var screenReceiverRegistered = false
@@ -84,6 +86,7 @@ class SessionService : Service() {
                 Intent.ACTION_SCREEN_ON -> screenOn = true
                 else -> return
             }
+            if (screenOn) resumeSteamSleepOnReturn()
             suspendAttemptFailed = false
             updateSuspendPolicy()
         }
@@ -139,6 +142,7 @@ class SessionService : Service() {
             }
             ACTION_ACTIVITY_VISIBLE -> {
                 activityVisible = true
+                resumeSteamSleepOnReturn()
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
                 return START_NOT_STICKY
@@ -160,6 +164,7 @@ class SessionService : Service() {
                 activityVisible = true
                 screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
                 manualPauseRequested = false
+                completeSteamSleep()
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
                 return START_NOT_STICKY
@@ -177,6 +182,7 @@ class SessionService : Service() {
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
         manualPauseRequested = false
+        steamSleepToken = null
         suspendOperationPending = false
         suspendAttemptFailed = false
         suspendController = null
@@ -518,6 +524,7 @@ class SessionService : Service() {
         guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")
+        guest.add("BL_ANDROID_CLIPBOARD=" + File(filesDir, "session/android-clipboard").path)
         guest.add("GAMESCOPE_FORCE_GENERAL_QUEUE=1")
         // Steam's CEF needs GL and the rootfs ships no native GL driver: route it through Zink.
         guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
@@ -944,9 +951,26 @@ class SessionService : Service() {
 
     private fun watchLaunchRequests(dir: File) {
         launchWatcher?.stopWatching()
+        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready").forEach { File(dir, it).delete() }
+        val gen = sessionGen
         @Suppress("DEPRECATION")
         val watcher = object : android.os.FileObserver(dir.path, CLOSE_WRITE or MOVED_TO) {
             override fun onEvent(event: Int, path: String?) {
+                if (path == "steam-sleep") {
+                    val request = File(dir, path)
+                    val token = runCatching { request.readText().trim() }.getOrNull() ?: return
+                    request.delete()
+                    if (!token.matches(Regex("[a-f0-9]{32}"))) return
+                    mainHandler.post {
+                        if (gen != sessionGen || !SessionState.running) return@post
+                        steamSleepToken = token
+                        writeSteamSleepState(token, "paused")
+                        suspendAttemptFailed = false
+                        Log.i(TAG, "Steam requested session sleep")
+                        updateSuspendPolicy()
+                    }
+                    return
+                }
                 if (path != "steam-launch") return
                 val file = File(dir, path)
                 val text = try { file.readText() } catch (e: Exception) { return }
@@ -999,18 +1023,23 @@ class SessionService : Service() {
         if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && (!activityVisible || !screenOn)) {
             manualPauseRequested = true
         }
-        val shouldSuspend = when (suspendPolicy) {
+        val shouldSuspend = steamSleepToken != null || when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO -> !activityVisible || !screenOn
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
             else -> false
         }
         val controller = suspendController ?: return
         if (suspendOperationPending || suspendAttemptFailed || shouldSuspend == SessionState.suspended) return
+        val gen = sessionGen
         suspendOperationPending = true
+        SessionEvents.record(if (shouldSuspend) "session.suspend_requested" else "session.resume_requested", mapOf(
+            "policy" to suspendPolicy, "activityVisible" to activityVisible,
+            "screenOn" to screenOn, "steamSleep" to (steamSleepToken != null),
+        ))
         if (shouldSuspend) {
             controller.freeze { success ->
                 mainHandler.post {
-                    if (!SessionState.running) return@post
+                    if (gen != sessionGen || !SessionState.running) return@post
                     suspendOperationPending = false
                     if (success) {
                         SessionState.suspended = true
@@ -1018,6 +1047,7 @@ class SessionService : Service() {
                         releaseLocks()
                         refreshNotification()
                     } else {
+                        completeSteamSleep()
                         suspendAttemptFailed = true
                         Log.w(TAG, "could not confirm that the session stopped")
                     }
@@ -1028,7 +1058,7 @@ class SessionService : Service() {
             acquireLocks()
             controller.resume { success ->
                 mainHandler.post {
-                    if (!SessionState.running) return@post
+                    if (gen != sessionGen || !SessionState.running) return@post
                     suspendOperationPending = false
                     if (success) {
                         SessionState.suspended = false
@@ -1042,6 +1072,27 @@ class SessionService : Service() {
                 }
             }
         }
+    }
+
+    private fun writeSteamSleepState(token: String, state: String) {
+        val dir = LinuxRuntime.sessionRoot(this)
+        runCatching {
+            val staged = File(dir, "steam-sleep-state.tmp")
+            staged.writeText("$token:$state\n")
+            check(staged.renameTo(File(dir, "steam-sleep-state")))
+        }.onFailure { Log.w(TAG, "could not acknowledge Steam sleep", it) }
+    }
+
+    private fun completeSteamSleep() {
+        val token = steamSleepToken ?: return
+        // Write before SIGCONT: the guest's login1 sees it immediately on thaw
+        // and delivers PrepareForSleep(false), restoring Steam's main surface.
+        writeSteamSleepState(token, "awake")
+        steamSleepToken = null
+    }
+
+    private fun resumeSteamSleepOnReturn() {
+        if (suspendPolicy == SessionPrefs.SUSPEND_AUTO && activityVisible && screenOn) completeSteamSleep()
     }
 
     private fun finishSessionStop(status: Int, stoppedGen: Int) {

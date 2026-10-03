@@ -13,6 +13,10 @@
          download from being throttled to nothing by the radio's power-save. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Optional Wi-Fi discovery: requested only from Steam settings after an explanation. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Ends background processes of another app that holds the Steam login. GameHub starts
          itself with the phone via boot receivers and signs this client out seconds after every

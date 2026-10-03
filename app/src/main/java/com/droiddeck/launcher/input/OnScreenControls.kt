@@ -86,6 +86,8 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
     private val groups = controls.map { it.group }.distinct()
 
     private var buttonsOnly = false
+    private var quickHidden = false
+    private var quickPressedBy = -1
     private var settings = ControllerPrefs.read(context)
     private var safe = Rect()
     private var selected: String? = null
@@ -159,7 +161,16 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
         if (buttonsOnly == enabled) return
         releaseAll()
         buttonsOnly = enabled
+        quickHidden = false
         relayout()
+    }
+
+    /** Hide the full touch pad for an unobstructed screen while keeping its quick toggle available. */
+    fun setQuickHidden(hidden: Boolean) {
+        if (buttonsOnly || editing || quickHidden == hidden) return
+        if (hidden) releaseAll()
+        quickHidden = hidden
+        invalidate()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -348,7 +359,7 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
     }
 
     override fun onDraw(canvas: Canvas) {
-        for (control in controls) {
+        if (!quickHidden) for (control in controls) {
             if (!isVisible(control)) continue
             if (control.stick >= 0 && settings.adaptiveSticks && !editing && control.pressedBy == -1) continue
             val held = control.pressedBy != -1
@@ -394,15 +405,37 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
                 canvas.drawText(name, control.cx, control.cy + text.textSize * 0.35f, text)
             }
         }
-        val group = selected ?: return
-        val (x, y) = centre(group)
-        stroke.color = heldStroke
-        val single = members(group).singleOrNull()
-        if (single?.wide == true) {
-            val pad = dp(6f)
-            box.set(x - single.halfW - pad, y - single.halfH - pad, x + single.halfW + pad, y + single.halfH + pad)
-            canvas.drawRoundRect(box, single.halfH, single.halfH, stroke)
-        } else canvas.drawCircle(x, y, extent(group) + dp(6f), stroke)
+        if (editing) {
+            val group = selected ?: return
+            val (x, y) = centre(group)
+            stroke.color = heldStroke
+            val single = members(group).singleOrNull()
+            if (single?.wide == true) {
+                val pad = dp(6f)
+                box.set(x - single.halfW - pad, y - single.halfH - pad, x + single.halfW + pad, y + single.halfH + pad)
+                canvas.drawRoundRect(box, single.halfH, single.halfH, stroke)
+            } else canvas.drawCircle(x, y, extent(group) + dp(6f), stroke)
+        } else if (!buttonsOnly) {
+            val (x, y) = quickCenter()
+            val radius = dp(18f)
+            fill.color = Color.argb(190, Color.red(idleFill), Color.green(idleFill), Color.blue(idleFill))
+            canvas.drawCircle(x, y, radius, fill)
+            stroke.color = idleStroke
+            canvas.drawCircle(x, y, radius, stroke)
+            text.color = idleText
+            text.textSize = dp(22f)
+            canvas.drawText(if (quickHidden) "+" else "−", x, y + text.textSize * 0.35f, text)
+        }
+    }
+
+    private fun quickCenter() = (safe.left + dp(34f)) to (height - safe.bottom - dp(34f))
+
+    private fun quickContains(x: Float, y: Float): Boolean {
+        val (cx, cy) = quickCenter()
+        val radius = dp(26f)
+        val dx = x - cx
+        val dy = y - cy
+        return dx * dx + dy * dy <= radius * radius
     }
 
     private fun drawArrow(canvas: Canvas, x: Float, y: Float, size: Float, direction: Int) {
@@ -429,6 +462,12 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
                 val index = event.actionIndex
                 val x = event.getX(index)
                 val y = event.getY(index)
+                if (!buttonsOnly && event.actionMasked == MotionEvent.ACTION_DOWN && quickContains(x, y)) {
+                    quickPressedBy = event.getPointerId(index)
+                    return true
+                }
+                if (quickPressedBy != -1) return true
+                if (quickHidden) return false
                 val control = controlAt(x, y) ?: adaptiveStickAt(x, y) ?: return false
                 if (control.pressedBy != -1) return true
                 control.pressedBy = event.getPointerId(index)
@@ -444,6 +483,7 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (quickPressedBy != -1) return true
                 var changed = false
                 for (index in 0 until event.pointerCount) {
                     val pointer = event.getPointerId(index)
@@ -468,6 +508,18 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
                 val pointer = event.getPointerId(event.actionIndex)
+                if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    quickPressedBy = -1
+                    releaseAll()
+                    return true
+                }
+                if (quickPressedBy == pointer) {
+                    val toggled = event.actionMasked == MotionEvent.ACTION_UP && quickContains(event.x, event.y)
+                    quickPressedBy = -1
+                    if (toggled) setQuickHidden(!quickHidden)
+                    return true
+                }
+                if (quickHidden) return false
                 var changed = false
                 for (control in controls) {
                     if (control.pressedBy == pointer || event.actionMasked == MotionEvent.ACTION_CANCEL) {
@@ -510,11 +562,11 @@ class OnScreenControls(context: Context, private val pad: PadBridge?, private va
 
     private fun controlAt(x: Float, y: Float): Control? =
         controls.firstOrNull {
-            isVisible(it) && (editing || !settings.adaptiveSticks || it.stick < 0) && it.contains(x, y, it.radius)
+            !quickHidden && isVisible(it) && (editing || !settings.adaptiveSticks || it.stick < 0) && it.contains(x, y, it.radius)
         }
 
     private fun adaptiveStickAt(x: Float, y: Float): Control? {
-        if (!settings.adaptiveSticks || editing || buttonsOnly) return null
+        if (!settings.adaptiveSticks || editing || buttonsOnly || quickHidden) return null
         if (x < safe.left || x >= width - safe.right || y < safe.top || y >= height - safe.bottom) return null
         if (controls.any { it.stick < 0 && isVisible(it) && it.contains(x, y, it.radius, 5f) }) return null
         return controls.filter {

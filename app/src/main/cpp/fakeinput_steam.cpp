@@ -1717,6 +1717,80 @@ __attribute__((visibility("hidden"))) static std::string deck_listing_for(const 
   return std::string(listing) + "/" + names[which];
 }
 
+#ifdef __GLIBC__
+// sd-device's path chase now requires a mount ID, which statx only supplies from Linux 5.8.
+// Older handheld kernels still publish the real ID in fdinfo. Scope this compatibility path to
+// libudev/libsystemd in the Deck-reading Steam client, and never invent a unique mount ID.
+__attribute__((visibility("hidden"))) static bool deck_device_library(void *caller) {
+  Dl_info info;
+  if (!dladdr(caller, &info) || !info.dli_fname) return false;
+  const char *name = strrchr(info.dli_fname, '/');
+  name = name ? name + 1 : info.dli_fname;
+  return !strncmp(name, "libudev.so", 10) || !strncmp(name, "libsystemd.so", 13);
+}
+
+__attribute__((visibility("hidden"))) static bool deck_mount_id_from_fdinfo(
+    int dirfd, const char *path, int flags, struct statx *buf) {
+  static auto real_openat = reinterpret_cast<decltype(&::openat)>(dlsym(RTLD_NEXT, "openat"));
+  static auto real_fstat = reinterpret_cast<decltype(&::fstat)>(dlsym(RTLD_NEXT, "fstat"));
+  int target;
+  if (!path || !*path) {
+    if (!(flags & AT_EMPTY_PATH)) return false;
+    target = dirfd == AT_FDCWD ? real_openat(AT_FDCWD, ".", O_PATH | O_CLOEXEC) :
+                                syscall(SYS_fcntl, dirfd, F_DUPFD_CLOEXEC, 0);
+  } else {
+    target = real_openat(dirfd, path, O_PATH | O_CLOEXEC |
+                        ((flags & AT_SYMLINK_NOFOLLOW) ? O_NOFOLLOW : 0));
+  }
+  if (target < 0) return false;
+  struct stat st;
+  // Pin the inode and check it still matches the successful statx before adding information.
+  bool same = real_fstat(target, &st) == 0 && (buf->stx_mask & STATX_INO) &&
+              st.st_ino == buf->stx_ino && major(st.st_dev) == buf->stx_dev_major &&
+              minor(st.st_dev) == buf->stx_dev_minor;
+  char name[64];
+  snprintf(name, sizeof(name), "/proc/self/fdinfo/%d", target);
+  int info = same ? real_openat(AT_FDCWD, name, O_RDONLY | O_CLOEXEC) : -1;
+  char value[512];
+  ssize_t length = info >= 0 ? syscall(SYS_read, info, value, sizeof(value) - 1) : -1;
+  if (info >= 0) syscall(SYS_close, info);
+  syscall(SYS_close, target);
+  if (length < 0) return false;
+  value[length] = '\0';
+  for (const char *line = value; line && *line;) {
+    unsigned long long id;
+    if (sscanf(line, "mnt_id: %llu", &id) == 1 && id > 0) {
+      buf->stx_mnt_id = id;
+      buf->stx_mask |= STATX_MNT_ID;
+      return true;
+    }
+    const char *next = strchr(line, '\n');
+    line = next ? next + 1 : nullptr;
+  }
+  return false;
+}
+
+EXPORT int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *buf) {
+  static auto real = reinterpret_cast<decltype(&::statx)>(dlsym(RTLD_NEXT, "statx"));
+  int result = real(dirfd, path, flags, mask, buf);
+  int saved_errno = errno;
+  constexpr unsigned unique_mount_id = 0x4000;  // STATX_MNT_ID_UNIQUE, newer than build headers.
+  if (result == 0 && (mask & STATX_MNT_ID) &&
+      !(buf->stx_mask & (STATX_MNT_ID | unique_mount_id)) && fake_deck_enabled() &&
+      process_is_steam_client() && deck_device_library(__builtin_return_address(0))) {
+    bool recovered = deck_mount_id_from_fdinfo(dirfd, path, flags, buf);
+    static std::atomic<bool> noted_success{false}, noted_failure{false};
+    if (!(recovered ? noted_success : noted_failure).exchange(true))
+      Logger::log("deck discovery: statx mount id %s for %s (returned mask=0x%x id=%llu)\n",
+                  recovered ? "recovered from fdinfo" : "unavailable in fdinfo",
+                  path && *path ? path : "(fd)", buf->stx_mask,
+                  static_cast<unsigned long long>(buf->stx_mnt_id));
+  }
+  errno = saved_errno;
+  return result;
+}
+#endif
+
 EXPORT DIR *opendir(const char *name) {
   static auto real = reinterpret_cast<DIR *(*)(const char *)>(dlsym(RTLD_NEXT, "opendir"));
   DIR *dir = real(name);

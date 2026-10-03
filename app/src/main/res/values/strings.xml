@@ -299,6 +299,15 @@
     <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">Microphone</string>
     <string name="mode_mic_hint">For voice chat.</string>
+    <string name="mode_network">Network</string>
+    <string name="mode_wifi_discovery">Wi-Fi discovery</string>
+    <string name="mode_wifi_discovery_hint">Show Wi-Fi names and nearby networks in Steam.</string>
+    <string name="mode_wifi_location_off">Location services are off.</string>
+    <string name="mode_wifi_permission_denied">Location permission not granted.</string>
+    <string name="mode_wifi_open_settings">Open settings</string>
+    <string name="mode_wifi_continue">Continue</string>
+    <string name="mode_wifi_explain_title">Enable Wi-Fi discovery?</string>
+    <string name="mode_wifi_explain_text">Android requires Location permission to read Wi-Fi names and discover nearby networks. DroidDeck uses this access to show those networks in Steam. We don\'t track your location. Internet access works without this permission.</string>
     <string name="mode_storage">Game storage</string>
     <string name="mode_storage_auto">Automatic - the SD card when present</string>
     <string name="mode_storage_auto_none">Automatic - the SD card when present (none now)</string>

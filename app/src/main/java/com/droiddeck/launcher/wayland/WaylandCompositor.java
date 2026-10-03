@@ -132,6 +132,13 @@ public final class WaylandCompositor {
 
     public static void setClipboardListener(ClipboardListener l) { clipboardListener = l; }
 
+    public static boolean isClipboardListener(ClipboardListener l) { return clipboardListener == l; }
+
+    /** A replaced activity must not unhook the clipboard listener of its successor. */
+    public static void clearClipboardListener(ClipboardListener l) {
+        if (clipboardListener == l) clipboardListener = null;
+    }
+
     /** Invoked from native (banner_on_clipboard_text) with UTF-8 bytes. */
     @SuppressWarnings("unused")
     static void onClipboardText(byte[] utf8) {
