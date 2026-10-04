@@ -148,6 +148,7 @@ internal fun SetupPanel(
     }
     val runtime = when {
         s.busy -> stringResource(R.string.common_working)
+        s.removalPending -> stringResource(R.string.setup_retry_removal)
         !s.ready -> stringResource(R.string.setup_install)
         s.available != null && s.available != s.installed -> stringResource(R.string.common_update)
         else -> stringResource(R.string.setup_manage)
@@ -213,12 +214,25 @@ internal fun SetupPanel(
                                 when { s.busy -> CheckState.BUSY; !s.ready -> CheckState.WARN; else -> CheckState.OK },
                                 stringResource(R.string.setup_runtime),
                                 when {
-                                    s.busy -> if (s.percent >= 0) stringResource(R.string.setup_runtime_progress, s.stage, s.percent) else s.stage
+                                    s.busy -> null
+                                    s.removalPending -> stringResource(R.string.runtime_removal_incomplete)
                                     !s.ready -> stringResource(R.string.setup_runtime_missing)
                                     s.available != null && s.available != s.installed -> stringResource(R.string.setup_runtime_update, s.installed ?: stringResource(R.string.setup_installed))
                                     else -> stringResource(R.string.setup_runtime_current, s.installed ?: stringResource(R.string.setup_installed))
                                 },
-                            ) { SecondaryButton(runtime, enabled = !s.busy, compact = true, onClick = a.onRuntime) }
+                                divider = !s.busy,
+                            ) { SecondaryButton(runtime, enabled = !s.busy && !s.runtimeActionsBlocked && !s.sessionRunning, compact = true, onClick = a.onRuntime) }
+                            if (s.busy) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 10.dp)) {
+                                    Text(
+                                        if (s.percent >= 0) stringResource(R.string.setup_runtime_progress, s.stage, s.percent) else s.stage,
+                                        fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 5.dp),
+                                    )
+                                    if (s.percent >= 0) LinearProgressIndicator(progress = { s.percent / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp))
+                                    else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
+                                }
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+                            }
                             CheckRow(
                                 if (limitBlocks) CheckState.WARN else CheckState.OK,
                                 stringResource(R.string.setup_limit),

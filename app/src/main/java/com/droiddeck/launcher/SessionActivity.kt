@@ -266,8 +266,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onInputDeviceChanged(deviceId: Int) = updateOnScreenControls()
     }
 
+    private var runtimeRemovalBlocked = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving()) {
+            runtimeRemovalBlocked = true
+            android.widget.Toast.makeText(this, "Wait for runtime removal to finish", android.widget.Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
             // A Flatpak app or AppImage is named by its arguments, which the name lookup reads here.
@@ -485,16 +493,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onHardwareKeyboard = { drawerOpen = false; pcKeyboardOpen = !pcKeyboardOpen },
                     onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
                     onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
-                    // The desktop with Steam's desktop client in it, in this session's place: the
-                    // session ends with status 0 and onSessionEnded starts the relaunch (Stop's
-                    // finish() would skip it).
-                    onSwitchToDesktop = if (SessionState.mode == SessionService.MODE_STEAM) ({
-                        drawerOpen = false
-                        SessionState.relaunch = Intent(this@SessionActivity, SessionActivity::class.java)
-                            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
-                            .putExtra(SessionService.EXTRA_STEAM_UI, "desktop")
-                        SessionService.stop(this@SessionActivity)
-                    }) else null,
                     backActionsInverted = backActionsInverted,
                     onBackActionsInverted = { inverted ->
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
@@ -812,7 +810,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?: return "Could not reach the runtime catalog. Check the connection and press Play again."
         val ok = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.install(this, release,
             progressFor("the Linux runtime", release.size / 1_000_000))
-        return if (ok) null else "The Linux runtime did not install. Check the connection and press Play again."
+        return if (ok) null else "The Linux runtime did not install. Check the runtime in Setup and press Play again."
     }
 
     /** Null when the desktop package is in, else the loading screen's closing line. */
@@ -1075,8 +1073,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (status == 0) {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                // A session asked for in this one's place (the desktop's Steam launchers, the
-                // drawer's DESKTOP) starts here: this activity restarts on its intent, as an agent
+                // A session asked for in this one's place (the desktop's Steam launchers or
+                // Steam's Switch to Desktop) starts here: this activity restarts on its intent, as an agent
                 // start does. startActivity(next) could not do it - the activity is singleTop, so
                 // the request landed in this instance's onNewIntent and went with its finish().
                 SessionState.relaunch?.let { next ->
@@ -1754,6 +1752,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onStart() {
         super.onStart()
+        if (runtimeRemovalBlocked) return
         started = true
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
         refreshSecondScreenDisplays()
@@ -1762,6 +1761,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onStop() {
+        if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
         displayManager.unregisterDisplayListener(displayListener)
         // Closed while the session is out of sight (sleep, a closed lid, another app), and kept:
@@ -1793,6 +1793,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        if (runtimeRemovalBlocked) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()
         if (intent?.action == SessionService.ACTION_RESUME) {
@@ -1812,6 +1813,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onPause() {
+        if (runtimeRemovalBlocked) { super.onPause(); return }
         sessionClipboard.stop()
         // Do not carry transient session UI across an app/display transition. In particular, the
         // drawer's dim layer can otherwise remain over Steam when this activity returns.
@@ -1837,6 +1839,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (runtimeRemovalBlocked) return
         if (hasFocus && !pipUi) {
             goFullscreen()
             refreshClipboard()
@@ -1875,6 +1878,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        if (runtimeRemovalBlocked) { super.onDestroy(); return }
         // Deliberately does NOT end the session: this activity can be destroyed while the user is
         // in another app, and the whole point of the service is that Steam survives that.
         watching = false

@@ -516,8 +516,9 @@ object SessionPrefs {
     }
 
     /**
-     * The Steam client branch forced on the command line: "publicbeta" (every session so far) or
-     * "steamdeck_publicbeta" (Armada's). Deck mode always takes the Deck branch, whatever was chosen:
+     * The Steam client branch used for the first download and forced on the command line:
+     * "steamdeck_publicbeta" by default, or "publicbeta" when chosen with Deck mode off.
+     * Deck mode always takes the Deck branch, whatever was chosen:
      * with -steamos3 the client picks its own branch as SteamOS does, and on publicbeta it settled
      * on steamdeck_stable - an older client it then offered as a "Software Update" in every session,
      * which applying turns into the exit-42 restart loop (seen on device 2026-09-30). Earlier, Deck
@@ -526,7 +527,7 @@ object SessionPrefs {
      */
     fun steamChannel(context: Context): String =
         if (steamDeckMode(context)) "steamdeck_publicbeta"
-        else prefs(context).getString("steamChannel", null) ?: "publicbeta"
+        else prefs(context).getString("steamChannel", null) ?: "steamdeck_publicbeta"
 
     fun setSteamChannel(context: Context, id: String) {
         prefs(context).edit().putString("steamChannel", id).apply()

@@ -19,7 +19,7 @@ object GameShortcuts {
 
     private fun info(context: Context, game: Library.SteamGame): ShortcutInfo {
         val name = game.name.ifBlank { context.getString(R.string.app_name) }
-        val icon = game.art?.takeIf { it.isFile }?.let { file -> runCatching {
+        val icon = listOfNotNull(game.icon, game.art).firstNotNullOfOrNull { file -> runCatching {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(file.path, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null

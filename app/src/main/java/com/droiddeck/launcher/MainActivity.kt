@@ -68,6 +68,7 @@ import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
 import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.session.SessionArtifacts
+import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.input.SecondScreenDisplay
@@ -96,6 +97,7 @@ class MainActivity : ComponentActivity() {
     private var returning by mutableStateOf<ReturningFlood?>(null)
     private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
+    private var removalPending by mutableStateOf(false)
     private var available by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var busy by mutableStateOf(false)
     private var stage by mutableStateOf("")
@@ -301,7 +303,7 @@ class MainActivity : ComponentActivity() {
     private var resolutionCap by mutableStateOf(1080)
     private var customResolution by mutableStateOf<Pair<Int, Int>?>(null)
     private var fexPreset by mutableStateOf("")
-    private var steamChannel by mutableStateOf("publicbeta")
+    private var steamChannel by mutableStateOf("steamdeck_publicbeta")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
     private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
@@ -346,6 +348,10 @@ class MainActivity : ComponentActivity() {
     override fun startActivity(intent: Intent?) {
         if (intent?.component?.className == SessionActivity::class.java.name) {
             when {
+                busy || LinuxRuntimeInstaller.isBusy() -> {
+                    android.widget.Toast.makeText(this, "Wait for the runtime operation to finish", android.widget.Toast.LENGTH_SHORT).show()
+                    return
+                }
                 protons.protonBusyId != null || ProtonExtras.installInProgress -> {
                     android.widget.Toast.makeText(this, "Wait for the compatibility tool install to finish", android.widget.Toast.LENGTH_SHORT).show()
                     return
@@ -373,6 +379,7 @@ class MainActivity : ComponentActivity() {
 
     /** The page is all blue: the session opens on the same blue, with no animation of its own. */
     private fun launchFlooded(f: PendingFlood) {
+        if (busy || LinuxRuntimeInstaller.isBusy()) { flood = null; floodProgress = 0f; return }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
         overridePendingTransition(0, 0)
@@ -382,6 +389,18 @@ class MainActivity : ComponentActivity() {
     private var shortcutLibraryScanning by mutableStateOf(false)
     @Volatile private var libraryScanGeneration = 0
     private var pendingGameLink: String? = null
+    private var gameSyncFolder by mutableStateOf<String?>(null)
+    private fun pickGameExport(game: Library.SteamGame?) {
+        onSavePicked = { folder ->
+            saveAction(getString(R.string.game_frontend_files)) {
+                if (game != null) com.droiddeck.launcher.frontend.GameFiles.export(folder, game)
+                else com.droiddeck.launcher.frontend.GameFileSync.enable(this, folder)
+                ui.post { gameSyncFolder = com.droiddeck.launcher.frontend.GameFileSync.folder(this) }
+                getString(R.string.game_file_exported, folder.path)
+            }
+        }
+        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
+    }
 
     private fun readGameIntent(request: Intent) {
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
@@ -390,10 +409,20 @@ class MainActivity : ComponentActivity() {
             steamGames = emptyList()
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
-        pendingGameLink = if (request.action == Intent.ACTION_VIEW)
-            com.droiddeck.launcher.frontend.GameLaunchLink.parse(request.dataString) else null
-        if (request.action == Intent.ACTION_VIEW && pendingGameLink == null) {
-            android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
+        pendingGameLink = null
+        if (request.action == Intent.ACTION_VIEW) {
+            val copy = Intent(request)
+            Thread({
+                val id = com.droiddeck.launcher.frontend.GameFiles.readIntent(this, copy)
+                ui.post {
+                    if (intent === request && !isDestroyed) {
+                        pendingGameLink = id
+                        if (id == null) {
+                            android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
+                        } else refresh()
+                    }
+                }
+            }, "game-launch-file").start()
         }
     }
 
@@ -442,6 +471,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         readGameIntent(intent)
+        gameSyncFolder = com.droiddeck.launcher.frontend.GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
         theme = SessionPrefs.theme(this)
@@ -467,9 +497,10 @@ class MainActivity : ComponentActivity() {
                 com.droiddeck.launcher.ui.FloodBehind({ floodProgress }) {
                 FrontEndScreen(
                     FrontEndState(
-                        installed = installed, ready = ready, available = available?.version,
+                        installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
+                        gameSyncFolder = gameSyncFolder,
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled,
                         offlineAccount = offlineAccount, offline = offline,
@@ -511,6 +542,14 @@ class MainActivity : ComponentActivity() {
                         },
                         onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else launchGame(g) },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
+                        onExportGameFile = { g -> pickGameExport(g) },
+                        onSyncGameFiles = { pickGameExport(null) },
+                        onStopGameFileSync = {
+                            Thread({
+                                com.droiddeck.launcher.frontend.GameFileSync.disable(this)
+                                ui.post { gameSyncFolder = null }
+                            }, "game-file-stop-sync").start()
+                        },
                         onCopyGameLink = { g ->
                             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(
                                 ClipData.newPlainText(g.name, com.droiddeck.launcher.frontend.GameLaunchLink.uri(g.gameIdString)))
@@ -704,7 +743,7 @@ class MainActivity : ComponentActivity() {
                     title = "Remove Linux runtime",
                     text = "This deletes the runtime, the Steam client inside it, and every game installed there.",
                     confirm = "Remove",
-                    onConfirm = { Thread({ LinuxRuntimeInstaller.uninstall(this); ui.post { refresh() } }, "uninstall").start() },
+                    onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
                 )
                 flood?.let { f -> com.droiddeck.launcher.ui.LaunchFlood(f.from, onProgress = { floodProgress = it }) { launchFlooded(f) } }
@@ -902,7 +941,7 @@ class MainActivity : ComponentActivity() {
 
     /** Runs a save import or export off the main thread, one at a time, and says how it went. */
     private fun saveAction(label: String, work: () -> String) {
-        if (saveBusy != null) return
+        if (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null) return
         saveBusy = label
         Thread({
             val message = runCatching(work).getOrElse { e -> "$label failed: ${e.message ?: e.javaClass.simpleName}" }
@@ -967,7 +1006,7 @@ class MainActivity : ComponentActivity() {
             protonId = components.compProton,
             comp = components.compComp,
             checking = components.compChecking,
-            busy = components.compBusy,
+            busy = if (busy) stage else components.compBusy,
             downloads = components.compDownloads,
             requestInitialFocus = focusComponentsContent,
             onProton = { components.chooseProton(it) },
@@ -1007,7 +1046,7 @@ class MainActivity : ComponentActivity() {
             busyId = protons.protonBusyId,
             stage = protons.protonStage,
             percent = protons.protonPercent,
-            runtimeReady = ready,
+            runtimeReady = ready && !busy,
             sessionRunning = SessionState.running,
             onInstall = { id -> protons.installProton(id) },
             onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
@@ -1029,7 +1068,7 @@ class MainActivity : ComponentActivity() {
 
     private fun installPackage(id: String) {
         val entry = catalog?.firstOrNull { it.id == id } ?: return
-        if (pkgStage != null || SessionState.running) return
+        if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
         pkgId = id; pkgStage = "Starting…"; pkgPercent = -1
         Thread({
             val problem = DesktopCatalog.install(this, entry) { stage, percent ->
@@ -1046,7 +1085,7 @@ class MainActivity : ComponentActivity() {
 
     private fun removePackage(id: String) {
         val entry = catalog?.firstOrNull { it.id == id } ?: return
-        if (pkgStage != null || SessionState.running) return
+        if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
         pkgId = id; pkgStage = if (entry.kind == "appimage") "Removing ${entry.name}…" else "Forgetting ${entry.name}…"; pkgPercent = -1
         Thread({
             DesktopCatalog.remove(this, entry)
@@ -1354,12 +1393,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refresh() {
-        if (!busy && LinuxRuntimeInstaller.isInstalling()) followInstall { LinuxRuntimeInstaller.attach(it) }
+        if (!busy && LinuxRuntimeInstaller.isBusy()) followRuntimeOperation { LinuxRuntimeInstaller.attach(it) }
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
+        removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
@@ -1376,15 +1416,7 @@ class MainActivity : ComponentActivity() {
             // One update with the whole list: the wall places games by their position in it, so a
             // partial list first would shuffle every capsule when the rest arrived. LibraryCache
             // covers the wait.
-            val games = if (ready) Library.steamGames(this) + com.droiddeck.launcher.frontend.AddedGames.scan(this).map { g ->
-                com.droiddeck.launcher.frontend.AddedGameArt.resolve(this, g).let { art ->
-                    Library.SteamGame(
-                        g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, Library.ADDED, g.gameId,
-                        hero = art.hero ?: art.header, gameFiles = g.folder,
-                        protonPrefix = Library.protonPrefix(this, g.steamAppId?.toLong() ?: g.appId),
-                    )
-                }
-            } else emptyList()
+            val games = if (ready) Library.launchableGames(this) else emptyList()
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             val all = games.distinctBy { it.gameId }
             if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all)
@@ -1406,9 +1438,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onRuntimeButton() {
-        if (busy) return
+        if (runtimeChangesBlocked()) return
         val release = available
-        if (installed != null && release?.version == installed) {
+        if (removalPending || installed != null && release?.version == installed) {
             // Nothing to install: offer the one destructive thing this screen can do.
             showRemove = true
             return
@@ -1426,6 +1458,7 @@ class MainActivity : ComponentActivity() {
 
     /** Starts a session; with no runtime on a non-Adreno, the same warning Setup gives comes first, before any download. */
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
+        if (busy || LinuxRuntimeInstaller.isBusy()) return false
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             showPhantomGate = true
@@ -1464,21 +1497,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun runtimeChangesBlocked(): Boolean =
+        busy || LinuxRuntimeInstaller.isBusy() || SessionState.running ||
+            SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
+            protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null ||
+            components.compBusy != null || saveBusy != null || com.droiddeck.launcher.store.UserAppsState.working != null
+
+    private fun removeRuntime() {
+        if (runtimeChangesBlocked()) return
+        val removal = LinuxRuntimeInstaller.beginUninstall(this) ?: return
+        ready = false
+        com.droiddeck.launcher.runtime.RuntimeInstallService.keepRemovalAlive(this)
+        followRuntimeOperation { removal.run(it) }
+    }
+
     private fun install(release: LinuxRuntimeInstaller.Release) {
         // The service keeps the process alive if the user switches away; this screen joins the
         // same install (or starts it, if it gets there first) to show the progress.
         com.droiddeck.launcher.runtime.RuntimeInstallService.start(this, release)
-        followInstall { listener -> LinuxRuntimeInstaller.install(this, release, listener) }
+        followRuntimeOperation { listener -> LinuxRuntimeInstaller.install(this, release, listener) }
     }
 
     /**
-     * Shows an install's progress until it ends. [run] either starts one or joins the one already
+     * Shows a runtime operation's progress until it ends. [run] either starts one or joins the one already
      * running (null: nothing was), which is how a launcher rebuilt mid-install picks it back up.
      */
-    private fun followInstall(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
+    private fun followRuntimeOperation(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
         busy = true
         failed = false
-        stage = "Starting…"
+        stage = if (LinuxRuntimeInstaller.isRemoving()) "Removing Linux runtime" else "Starting…"
         percent = -1
         Thread({
             val ok = run(LinuxRuntimeInstaller.ProgressListener { s, p ->
@@ -1487,9 +1534,12 @@ class MainActivity : ComponentActivity() {
             ui.post {
                 busy = false
                 if (ok != null) failed = !ok
+                if (ok == false) LinuxRuntimeInstaller.removalError()?.let {
+                    android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show()
+                }
                 refresh()
             }
-        }, "install").start()
+        }, "runtime-operation").start()
     }
 
     private fun checkCatalog() {

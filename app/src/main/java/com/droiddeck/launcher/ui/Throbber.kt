@@ -80,7 +80,7 @@ private val Turn = CubicBezierEasing(0.65f, 0f, 0.35f, 1f)
  * The left half is sampled along rays from the centre so it can bend, point for point, into the
  * mirror of the right half's arc.
  */
-private object LogoShape {
+internal object LogoShape {
     const val LEFT = -55.98f
     const val WIDTH = 239.92f
     const val HEIGHT = 223.72f
