@@ -701,7 +701,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         fillScreen = SessionPrefs.forceFullscreen(this)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
-        touchMode = SessionPrefs.touchMode(this)
+        val nextTouchMode = SessionPrefs.touchMode(this)
+        if (touchMode != nextTouchMode) {
+            if (::touchpad.isInitialized) touchpad.cancel()
+            if (CompositorHost.isStarted) {
+                WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+                listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
+                    WaylandCompositor.nativeSendSceneInput(3, it, 0)
+                }
+            }
+            if (nextTouchMode == SessionPrefs.TOUCH_OFF) cursorVisible = false
+        }
+        touchMode = nextTouchMode
         frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -1570,6 +1581,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
+        // Child views get the event first, so menus, keyboards and the on-screen pad still work.
+        if (touchMode == SessionPrefs.TOUCH_OFF) return true
         if (usingTouchpad()) {
             val rect = drawnRect() ?: return false
             if (touchpad.bounds != rect) {
