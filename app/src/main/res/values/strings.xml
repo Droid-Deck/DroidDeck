@@ -938,4 +938,10 @@
     <string name="setup_retry_removal">Retry removal</string>
     <string name="runtime_removing">Removing</string>
     <string name="runtime_removal_incomplete">Removal incomplete</string>
+    <string name="game_file_export">Export game file</string>
+    <string name="game_file_sync">Sync all game files to folder</string>
+    <string name="game_file_stop_sync">Stop syncing game files</string>
+    <string name="game_file_folder">Choose a folder for frontend game files</string>
+    <string name="game_file_exported">Game files saved to %1$s</string>
+    <string name="game_frontend_files">Frontend files</string>
 </resources>
