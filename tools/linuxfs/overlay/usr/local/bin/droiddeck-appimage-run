@@ -71,6 +71,7 @@ if [ -x /usr/local/bin/droiddeck-fex ]; then
 fi
 echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex Qt $qt${QT_QPA_PLATFORM:+ ($QT_QPA_PLATFORM)}"
 cd "$APPDIR" || exit 1
+started=$(mktemp "${TMPDIR:-/tmp}/droiddeck-appimage.XXXXXX")
 # Apps expect a session bus; Electron's main process traps (SIGTRAP) on an address it cannot
 # parse. A run mode has none, so one is started for the app, as for Flatpak apps.
 case ${DBUS_SESSION_BUS_ADDRESS:-} in
@@ -88,6 +89,15 @@ if [ "$rc" -gt 128 ]; then
 else
   echo "== appimage $ARGV0: exited with status $rc"
 fi
+if [ "$rc" -ne 0 ] && [ -n "$started" ]; then
+  find "${HOME:-/root}/.local/share" "${HOME:-/root}/.config" "${HOME:-/root}/.cache" -maxdepth 4 -type f \
+    \( -iname '*.log' -o -iname '*log*.txt' \) -newer "$started" -size -64M 2>/dev/null | head -n 3 |
+    while IFS= read -r log; do
+      echo "== appimage $ARGV0: end of $log"
+      tail -n 40 "$log" | LC_ALL=C tr -cd '\11\12\40-\176' | cut -c1-400
+    done
+fi
+rm -f "$started"
 # The program a session was started for may hand over to another process and exit: Electron apps
 # relaunch themselves (Obsidian on its first start), launchers fork their real program. The
 # session ends with this script, and takes the rest with it - so it waits while anything running

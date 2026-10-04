@@ -34,7 +34,7 @@ class AppImageRunTest(unittest.TestCase):
 
     def launch(self, session):
         env = {k: v for k, v in os.environ.items() if k not in KEYS + ("GAMESCOPE_WAYLAND_DISPLAY", "DISPLAY")}
-        env.update(session, DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
+        env.update(session, HOME=str(self.tmp / "home"), DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
         result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
         self.assertEqual(0, result.returncode, result.stderr)
         return dict(line.split("=", 1) for line in self.out.read_text().splitlines()), result.stdout
@@ -86,7 +86,7 @@ class AppImageRunTest(unittest.TestCase):
         run = self.dir / "app/AppRun"
         run.write_text("#!/bin/sh\nexit 3\n")
         env = {k: v for k, v in os.environ.items() if k not in KEYS}
-        env.update(RUN_MODE, DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
+        env.update(RUN_MODE, HOME=str(self.tmp / "home"), DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
         result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
         self.assertEqual(3, result.returncode)
         self.assertIn("exited with status 3", result.stdout)
@@ -94,6 +94,27 @@ class AppImageRunTest(unittest.TestCase):
         result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
         self.assertEqual(139, result.returncode)
         self.assertIn("ended by signal 11 (SEGV)", result.stdout)
+
+    def test_a_failed_program_shows_the_log_it_wrote(self):
+        home = self.tmp / "home"
+        old = home / ".local/share/eden/log/old.log"
+        old.parent.mkdir(parents=True)
+        old.write_text("from an earlier run\n")
+        os.utime(old, (1, 1))
+        (self.dir / "app/AppRun").write_text(
+            "#!/bin/sh\nmkdir -p \"$HOME/.local/share/eden/log\"\n"
+            "printf 'Assertion failed: vulkan device\\n\\345\\001\\n' > \"$HOME/.local/share/eden/log/eden_log.txt\"\n"
+            "kill -ILL $$\n")
+        env = {k: v for k, v in os.environ.items() if k not in KEYS}
+        env.update(RUN_MODE, HOME=str(home), DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
+        result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
+        self.assertIn("ended by signal 4 (ILL)", result.stdout)
+        self.assertIn("end of %s" % (home / ".local/share/eden/log/eden_log.txt"), result.stdout)
+        self.assertIn("Assertion failed: vulkan device", result.stdout)
+        self.assertNotIn("from an earlier run", result.stdout)
+        (self.dir / "app/AppRun").write_text("#!/bin/sh\necho again > \"$HOME/.local/share/eden/log/eden_log.txt\"\n")
+        result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
+        self.assertNotIn("end of", result.stdout)
 
     def test_the_per_app_choice_wins(self):
         self.bundle(*QUICK)
