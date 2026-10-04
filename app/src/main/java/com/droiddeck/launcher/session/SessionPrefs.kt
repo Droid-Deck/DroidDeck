@@ -82,6 +82,24 @@ object SessionPrefs {
 
     fun setTouchMode(context: Context, mode: String) {
         prefs(context).edit().putString("touch", mode).apply()
+        writeGameTouchFlag(context)
+    }
+
+    /**
+     * Steam only: the client turns touch off whenever a game has focus, which left a phone with
+     * nothing but the controller in game. While touch is direct (Direct, or Auto, which is direct
+     * in Steam) the session answers that with a left-click mouse - a tap clicks where it lands.
+     * Touchpad and Off send the guest no touches, so the client's choice stands. Changed live
+     * through a file the session watches, like [writeForceFullscreenFlag].
+     */
+    fun gameTouch(context: Context): Boolean = touchMode(context).let { it == TOUCH_AUTO || it == TOUCH_DIRECT }
+
+    /** The choice above as ~/.droiddeck-game-touch, written again at every session start. */
+    fun writeGameTouchFlag(context: Context) {
+        runCatching {
+            java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.droiddeck-game-touch")
+                .writeText(if (gameTouch(context)) "1\n" else "0\n")
+        }
     }
 
     const val SHAPE_AUTO = "auto"

@@ -482,15 +482,69 @@ case $mode in
     # set once it has a controller, per focused app) and which app has focus, logged as they change.
     # A finger that clicks but won't scroll, or touch that stops once a pad is used, shows here as
     # the mode in force at that moment. 4 is touch passed through, 1 a left-click mouse.
+    #
+    # The client also sets 5 - touch disabled - whenever a game takes focus (Monster Train 2 under
+    # Proton, 2026-10-04, while Big Picture kept 4), so a finger did nothing in a game and only the
+    # controller reached it. On a phone the screen is the main input, so a Disabled that still
+    # stands with a game in focus is answered with BL_GAME_TOUCH_MODE (default 1: a tap clicks where
+    # it lands and a drag drags, as touch works in WinNative and GameNative; 4 passes real touch
+    # through). Any other mode the client picks is left alone. The app's Touch setting turns this on
+    # and off live: it writes 1 to ~/.droiddeck-game-touch while touch is direct (Direct, or Auto)
+    # and 0 for Touchpad or Off, and 0 puts the client's 5 back. BL_GAME_TOUCH_MODE=steam turns it
+    # off for the whole session.
+    # What follows "=" in an xprop line, or $2 for a property that is missing or has no value
+    # yet ("NAME(CARDINAL) =", which read leaves with nothing after the "=").
+    xprop_value() {
+      case $1 in *'not found'*|*=) echo "$2"; return ;; esac
+      local v=${1#*=}
+      v=${v# }
+      echo "${v:-$2}"
+    }
+    case ${BL_GAME_TOUCH_MODE:-1} in
+      steam) game_touch= ;;
+      0|1|2|3|4|6) game_touch=${BL_GAME_TOUCH_MODE:-1} ;;
+      *) game_touch=1 ;;
+    esac
+    # Holds the app whose Disabled was replaced, while the replacement is the mode in force.
+    game_touch_mark=${XDG_RUNTIME_DIR:-/tmp}/droiddeck-game-touch-set
+    rm -f "$game_touch_mark"
+    game_touch_on() {
+      local want=1
+      { read -r want || [ -n "$want" ]; } 2>/dev/null < "$HOME/.droiddeck-game-touch"
+      [ -n "$game_touch" ] && [ "$want" != 0 ]
+    }
+    # "<focused app> <touch mode>" as they are now.
+    touch_state() {
+      local now
+      now=$(xprop -root STEAM_TOUCH_CLICK_MODE GAMESCOPE_FOCUSED_APP 2>/dev/null)
+      echo "$(xprop_value "$(grep '^GAMESCOPE_FOCUSED_APP' <<<"$now")" none)" \
+        "$(xprop_value "$(grep '^STEAM_TOUCH_CLICK_MODE' <<<"$now")" unset)"
+    }
+    # Opening the Steam menu over a game sets 1, 5 and 4 within milliseconds, so the property is
+    # read again once that settles: only a 5 that is still there, with a game rather than the
+    # client (769) in focus, is replaced. The replacement shows up in the watcher as a change.
+    enable_game_touch() {
+      game_touch_on || return 0
+      (
+        nap 0.3
+        read -r app_now mode_now <<<"$(touch_state)"
+        case $app_now in ''|none|0|769|*[!0-9]*) exit 0 ;; esac
+        [ "$mode_now" = 5 ] && game_touch_on || exit 0
+        echo "$app_now" > "$game_touch_mark"
+        xprop -root -f STEAM_TOUCH_CLICK_MODE 32c -set STEAM_TOUCH_CLICK_MODE "$game_touch" 2>/dev/null \
+          && echo "== touch mode: the client disabled touch for app $app_now; set $game_touch instead"
+      ) &
+    }
+    restore_game_touch() {
+      [ -f "$game_touch_mark" ] || return 0
+      read -r app_now mode_now <<<"$(touch_state)"
+      rm -f "$game_touch_mark"
+      case $app_now in ''|none|0|769|*[!0-9]*) return 0 ;; esac
+      [ "$mode_now" = "$game_touch" ] || return 0
+      xprop -root -f STEAM_TOUCH_CLICK_MODE 32c -set STEAM_TOUCH_CLICK_MODE 5 2>/dev/null \
+        && echo "== touch mode: touch in games turned off; app $app_now back to the client's 5"
+    }
     [ -z "${BL_DESKTOP:-}" ] && (
-      # What follows "=" in an xprop line, or $2 for a property that is missing or has no value
-      # yet ("NAME(CARDINAL) =", which read leaves with nothing after the "=").
-      xprop_value() {
-        case $1 in *'not found'*|*=) echo "$2"; return ;; esac
-        local v=${1#*=}
-        v=${v# }
-        echo "${v:-$2}"
-      }
       tmode= app=
       xprop -spy -root STEAM_TOUCH_CLICK_MODE GAMESCOPE_FOCUSED_APP 2>/dev/null | while read -r line; do
         case $line in
@@ -499,14 +553,31 @@ case $mode in
             [ "$v" = "$tmode" ] && continue
             tmode=$v
             echo "== touch mode: $tmode (focused app ${app:-?}) at $(date +%T)"
+            # Any other mode is the client's own choice, not the replacement.
+            [ "$tmode" = "$game_touch" ] || rm -f "$game_touch_mark"
+            [ "$tmode" = 5 ] && enable_game_touch
             ;;
           GAMESCOPE_FOCUSED_APP*)
             v=$(xprop_value "$line" none)
             [ "$v" = "$app" ] && continue
             app=$v
             echo "== focused app: $app (touch mode ${tmode:-unset}) at $(date +%T)"
+            [ "$tmode" = 5 ] && enable_game_touch
             ;;
         esac
+      done
+    ) &
+    [ -z "${BL_DESKTOP:-}" ] && [ -n "$game_touch" ] && (
+      last=
+      while :; do
+        nap 1
+        if game_touch_on; then want=1; else want=0; fi
+        [ "$want" = "$last" ] && continue
+        if [ -n "$last" ]; then
+          echo "== touch in games: $([ "$want" = 1 ] && echo on || echo off) (live)"
+          if [ "$want" = 1 ]; then enable_game_touch; else restore_game_touch; fi
+        fi
+        last=$want
       done
     ) &
     # The library beat. Both helpers are whole programs under proot (the compat one a python
