@@ -44,8 +44,8 @@ run() {
   )
 }
 
-if ! run stock "$tool/files/bin-arm64" "server-side synchronization" PROTON_NO_NTSYNC=1 WINEESYNC=0; then
+if ! run stock "$tool/files/bin-arm64" "server-side synchronization" PROTON_NO_NTSYNC=1 WINEESYNC=0 WINEFSYNC=0; then
   echo "stock Proton does not run here either; the pack cannot be judged on this machine"
   exit 3
 fi
-run esync "$work/dist/files/bin-arm64" "esync: up and running" PROTON_NO_NTSYNC=1 WINEESYNC=1
+run esync "$work/dist/files/bin-arm64" "esync: up and running" PROTON_NO_NTSYNC=1 WINEESYNC=1 WINEFSYNC=0
