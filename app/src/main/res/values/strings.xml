@@ -291,6 +291,10 @@
     <string name="mode_branch_public">Public beta</string>
     <string name="mode_branch_deck_beta">Steam Deck public beta</string>
     <string name="mode_branch_note">Deck mode always uses Steam Deck public beta.</string>
+    <string name="mode_steam_repair">Repair Steam client</string>
+    <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
+    <string name="mode_steam_repair_queued">The Steam client will be downloaded again the next time Steam starts.</string>
+    <string name="mode_steam_repair_button">Repair</string>
     <string name="mode_added_games">Added games</string>
     <string name="mode_added_none">no game folders with a .exe found</string>
     <string name="mode_games_folder">Games folder</string>

@@ -12,8 +12,32 @@ manifest=steam_client_${steam_channel}_linuxarm64
 steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
 stamp=$steam_root/package/droiddeck-installed
 legacy_stamp=$steam_root/package/bannerlator-installed
+unconfirmed=$steam_root/package/droiddeck-unconfirmed
+repair_request=$HOME/.bl-steam-repair
 if [ -f "$legacy_stamp" ] && [ ! -f "$stamp" ]; then
   mv -f "$legacy_stamp" "$stamp" || true
+fi
+repair=""
+if [ -e "$repair_request" ]; then
+  repair="requested"
+elif [ -f "$unconfirmed" ] && ! grep -qx repaired "$unconfirmed" \
+    && [ "$(grep -cx start "$unconfirmed")" -ge 2 ]; then
+  repair="the client was started $(grep -cx start "$unconfirmed") times without showing anything"
+fi
+if [ -n "$repair" ]; then
+  echo "== STEP $(date -u +%H:%M:%S) repairing the Steam client ($repair)"
+  rm -f "$stamp" "$legacy_stamp" "$steam_root/.crash" "$steam_root/steam.pid" \
+    "$steam_root"/package/steam_client_*.manifest "$steam_root"/package/steam_client_*.installed
+  for part in "$steam_root"/package/*.zip.*; do
+    [ -f "$part" ] || continue
+    sum=${part##*.}
+    sum=${sum%%_*}
+    case $sum in
+      *[!0-9a-f]*|"") continue ;;
+    esac
+    [ ${#sum} -eq 40 ] || continue
+    [ "$(sha1sum "$part" | cut -d' ' -f1)" = "$sum" ] || rm -f "$part"
+  done
 fi
 [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
 
@@ -68,3 +92,7 @@ ln -sfn "$steam_root/linuxarm64" "$HOME/.steam/sdkarm64"
 ln -sfn "$steam_root/steamrtarm64" "$HOME/.steam/binarm64"
 ln -sfn "$steam_root/linux32" "$HOME/.steam/sdk32"
 echo "$version" > "$stamp"
+if [ -n "$repair" ]; then
+  echo repaired > "$unconfirmed"
+  rm -f "$repair_request"
+fi

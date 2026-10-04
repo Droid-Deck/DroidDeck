@@ -42,6 +42,7 @@ import com.droiddeck.launcher.ui.ComponentsPage
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.ui.ProtonPage
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.PhantomProcessLimit
@@ -110,6 +111,7 @@ class MainActivity : ComponentActivity() {
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
     private var steamDeckMode by mutableStateOf(false)
+    private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var showProtons by mutableStateOf(false)
@@ -1140,6 +1142,7 @@ class MainActivity : ComponentActivity() {
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
+                steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
@@ -1218,6 +1221,7 @@ class MainActivity : ComponentActivity() {
                     syncFallback = SessionPrefs.syncFallback(this)
                 },
                 onSteamChannel = { id -> SessionPrefs.setSteamChannel(this, id); steamChannel = id },
+                onSteamRepair = { steamRepairQueued = SteamRepair.queue(this) },
                 onSteamDeckMode = { on ->
                     SessionPrefs.setSteamDeckMode(this, on)
                     steamDeckMode = on
@@ -1337,6 +1341,7 @@ class MainActivity : ComponentActivity() {
         syncFallback = SessionPrefs.syncFallback(this)
         steamChannel = SessionPrefs.steamChannel(this)
         steamDeckMode = SessionPrefs.steamDeckMode(this)
+        steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)

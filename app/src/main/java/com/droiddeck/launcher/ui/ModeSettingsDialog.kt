@@ -81,6 +81,7 @@ class ModeSettings(
     val steamChannel: String? = null,
     /** Steam only: enable the SteamOS client interface and its performance controls. */
     val steamDeckMode: Boolean = false,
+    val steamRepairQueued: Boolean = false,
     /** Steam, Deck mode: the QAM's performance overlay (mangoapp) is started. */
     val mangoapp: Boolean = true,
     /** Steam only: what the pad is to the client (SessionPrefs.CONTROLLER_*); null outside Steam. */
@@ -139,6 +140,7 @@ class ModeSettingsActions(
     val onForceFullscreen: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamChannel: (String) -> Unit = {},
+    val onSteamRepair: () -> Unit = {},
     val onSteamDeckMode: (Boolean) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
@@ -368,6 +370,12 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 note = stringResource(R.string.mode_branch_note),
                 onPick = a.onSteamChannel,
             )
+            SettingsRow(
+                stringResource(R.string.mode_steam_repair),
+                stringResource(if (s.steamRepairQueued) R.string.mode_steam_repair_queued else R.string.mode_steam_repair_hint),
+            ) {
+                SecondaryButton(stringResource(R.string.mode_steam_repair_button), enabled = !s.steamRepairQueued, onClick = a.onSteamRepair)
+            }
         }
         if (steam && s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
             val hint = when {

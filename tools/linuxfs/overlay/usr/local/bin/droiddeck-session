@@ -775,6 +775,10 @@ BUSCONF
         echo "== steam: client branch on disk was '$(cat "$steam_beta" 2>/dev/null)', set to '$steam_channel' to match -clientbeta"
         echo "$steam_channel" > "$steam_beta"
       fi
+      if [ -z "${_bl_counted:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
+        echo start >> "$steam_root/package/droiddeck-unconfirmed"
+        _bl_counted=1
+      fi
       step "starting the Steam client${BL_STEAM_UI:+ ($BL_STEAM_UI UI)}"
       "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 \
