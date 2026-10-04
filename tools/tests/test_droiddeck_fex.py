@@ -198,8 +198,10 @@ class PrepareTest(FexTestCase):
         for arch in ("x86_64", "i386"):
             for name in ("libblsession.so", "libfakeinput.so"):
                 self.write(self.tmp / "preloads" / arch / name, arch.encode() + name.encode())
+        self.write(self.tmp / "preloads/x86_64/libfaultreport.so", b"report")
         self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n/usr/local/lib/libfakeinput.so\n")
         FEX["install_preloads"](str(root))
+        self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report")
         self.assertEqual((root / "etc/ld.so.preload").read_text(),
                          "/usr/$LIB/droiddeck/libblsession.so\n/usr/$LIB/droiddeck/libfakeinput.so\n")
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfakeinput.so").read_bytes(), b"i386libfakeinput.so")
@@ -357,11 +359,11 @@ class LaunchTest(FexTestCase):
         self.assertEqual((binary, argv), (str(tool / "usr/bin/FEX"), [str(tool / "usr/bin/FEX"), str(program), "-w"]))
         self.assertEqual(env["FEX_PORTABLE"], "1")
         self.assertNotIn("LD_PRELOAD", env)
-        report = self.write(self.tmp / "preloads/x86_64/libfaultreport.so", elf(62))
+        self.write(self.tmp / "preloads/x86_64/libfaultreport.so", elf(62))
         x86 = self.write(self.tmp / "x86.so", elf(62))
         with mock.patch("os.execve") as emulated:
             self.quiet(FEX["launch"], [str(program)], {"LD_PRELOAD": str(x86)}, "auto")
-        self.assertEqual(emulated.call_args[0][2]["LD_PRELOAD"], "%s:%s" % (report, x86))
+        self.assertEqual(emulated.call_args[0][2]["LD_PRELOAD"], "/usr/lib/x86_64-linux-gnu/droiddeck/libfaultreport.so:%s" % x86)
         old = self.write(self.tmp / "game.i386", elf(3), 0o755)
         with mock.patch("os.execve") as emulated:
             self.quiet(FEX["launch"], [str(old)], {}, "auto")

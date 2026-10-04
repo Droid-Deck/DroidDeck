@@ -33,6 +33,8 @@ MARKER = ".droiddeck-fex"
 LAYOUT = 1
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
 PRELOAD_NAMES = ("libblsession.so", "libfakeinput.so")
+FAULT_REPORT = "libfaultreport.so"
+FAULT_REPORT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + FAULT_REPORT
 THUNKS = {"GL": 1, "Vulkan": 1}
 X86 = {3: "i386", 62: "x86_64"}
 ARM = {40: "arm", 183: "arm64"}
@@ -239,6 +241,9 @@ def install_preloads(root):
             if os.path.isfile(source):
                 copy_if_changed(source, os.path.join(root, libdir, "droiddeck", name))
                 shipped.add(name)
+    report = os.path.join(PRELOADS, "x86_64", FAULT_REPORT)
+    if os.path.isfile(report):
+        copy_if_changed(report, os.path.join(root, "lib/x86_64-linux-gnu/droiddeck", FAULT_REPORT))
     wanted = [name for name in host_preloads() if name in shipped]
     write_if_changed(os.path.join(root, "etc", "ld.so.preload"), "".join("/usr/$LIB/droiddeck/%s\n" % name for name in wanted))
 
@@ -433,9 +438,8 @@ def launch(command, env, mode, decide=None):
     if fex is None:
         return 126
     guest = guest_environment(fex, env)
-    report = os.path.join(PRELOADS, "x86_64", "libfaultreport.so")
-    if os.path.isfile(report) and elf_arch(program) != "i386":
-        guest["LD_PRELOAD"] = ":".join([report] + split_paths(guest.get("LD_PRELOAD")))
+    if os.path.isfile(os.path.join(PRELOADS, "x86_64", FAULT_REPORT)) and elf_arch(program) != "i386":
+        guest["LD_PRELOAD"] = ":".join([FAULT_REPORT_GUEST] + split_paths(guest.get("LD_PRELOAD")))
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
 
 
