@@ -96,6 +96,14 @@ object SessionState {
     @Volatile
     var refreshHz: Float = 60f
 
+    /**
+     * How far the compositor enlarges the session onto the panel (panel over outputSize, long
+     * side to long side); set with outputSize. 0 before a session has been sized. Texture
+     * sharpness "Auto" (core/TextureFiltering) is derived from it when a game launches.
+     */
+    @Volatile
+    var upscaleRatio: Float = 0f
+
     /** The session's frame cap (SessionPrefs.fpsLimit), fixed when it starts; 0 = none. */
     @Volatile
     var fpsLimit: Int = 0

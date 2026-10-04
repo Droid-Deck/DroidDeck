@@ -20,6 +20,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <signal.h>
+#include <time.h>
 #include <unistd.h>
 
 static const char *net_dir(void) {
@@ -123,9 +125,75 @@ int listen(int fd, int backlog) {
   return ret;
 }
 
+static unsigned local_port(int fd) {
+  struct sockaddr_storage ss;
+  socklen_t len = sizeof(ss);
+  if (getsockname(fd, (struct sockaddr *)&ss, &len) != 0) {
+    return 0;
+  }
+  return addr_port((struct sockaddr *)&ss, len);
+}
+
+static void bind_before_loopback_connect(int fd, const struct sockaddr *addr, socklen_t len) {
+  if (!addr || addr->sa_family != AF_INET || len < sizeof(struct sockaddr_in) ||
+      ((const struct sockaddr_in *)addr)->sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
+    return;
+  }
+  struct sockaddr_storage ss;
+  socklen_t slen = sizeof(ss);
+  if (getsockname(fd, (struct sockaddr *)&ss, &slen) != 0 || ss.ss_family != AF_INET ||
+      ((struct sockaddr_in *)&ss)->sin_port != 0) {
+    return;
+  }
+  struct sockaddr_in local;
+  memset(&local, 0, sizeof(local));
+  local.sin_family = AF_INET;
+  local.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  int saved = errno;
+  bind(fd, (struct sockaddr *)&local, sizeof(local));
+  errno = saved;
+}
+
+static unsigned guarded_port(void) {
+  static int port = -1;
+  if (port < 0) {
+    const char *value = getenv("BL_CDP_GUARD");
+    port = value && *value ? atoi(value) : 0;
+    if (port < 0 || port > 65535) port = 0;
+  }
+  return (unsigned)port;
+}
+
+static int guest_peer(int fd) {
+  unsigned peer = peer_port(fd);
+  if (peer == 0) {
+    return 0;
+  }
+  char path[300];
+  snprintf(path, sizeof(path), "%s/p%u", net_dir(), peer);
+  struct stat st;
+  if (stat(path, &st) != 0 || time(NULL) - st.st_mtime > 30) {
+    return 0;
+  }
+  int in = open(path, O_RDONLY);
+  if (in < 0) {
+    return 0;
+  }
+  char buf[64];
+  int n = read(in, buf, sizeof(buf) - 1);
+  close(in);
+  if (n <= 0) {
+    return 0;
+  }
+  buf[n] = '\0';
+  int pid = atoi(buf);
+  return pid > 0 && (kill(pid, 0) == 0 || errno != ESRCH);
+}
+
 int connect(int fd, const struct sockaddr *addr, socklen_t len) {
   static connect_fn real;
   if (!real) real = (connect_fn)dlsym(RTLD_NEXT, "connect");
+  bind_before_loopback_connect(fd, addr, len);
   int ret = real(fd, addr, len);
   if (ret == 0 || errno == EINPROGRESS) {
     /* The caller goes on to test for EINPROGRESS, which the bookkeeping must not disturb. */
@@ -139,9 +207,17 @@ int connect(int fd, const struct sockaddr *addr, socklen_t len) {
 int accept4(int fd, struct sockaddr *addr, socklen_t *len, int flags) {
   static accept4_fn real;
   if (!real) real = (accept4_fn)dlsym(RTLD_NEXT, "accept4");
-  int ret = real(fd, addr, len, flags);
-  if (ret >= 0) record_port(ret, peer_port(ret));
-  return ret;
+  for (;;) {
+    int ret = real(fd, addr, len, flags);
+    if (ret < 0) return ret;
+    unsigned guarded = guarded_port();
+    if (guarded && local_port(ret) == guarded && !guest_peer(ret)) {
+      close(ret);
+      continue;
+    }
+    record_port(ret, peer_port(ret));
+    return ret;
+  }
 }
 
 int accept(int fd, struct sockaddr *addr, socklen_t *len) {

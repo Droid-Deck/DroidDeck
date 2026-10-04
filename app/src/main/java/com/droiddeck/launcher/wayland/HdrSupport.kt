@@ -7,7 +7,7 @@ import android.view.WindowManager
 
 /**
  * What the panel says about HDR, read from android.view.Display: the gate the compositor's HDR10
- * output sits behind (banner_color.h). A property of the display, not the device - and the
+ * output sits behind (droiddeck_color.h). A property of the display, not the device - and the
  * settings screen greys the HDR switch out with the reason when it is not there, rather than
  * offering a switch that a session would then silently ignore.
  */

@@ -59,6 +59,19 @@ class SecondaryLibraryTest {
         })
     }
 
+    @Test fun fexAndItsRuntimeInstallWhereTheirProgramsCanRun() {
+        val files = tmp.newFolder("files")
+        val library = tmp.newFolder("card")
+        val manifest = File(library, "steamapps/appmanifest_3127680.acf")
+        manifest.parentFile!!.mkdirs()
+        manifest.writeText("\"AppState\" { \"appid\" \"3127680\" \"installdir\" \"FEX\" }")
+        val private = SecondaryLibrary.privateRoot(files, library)
+        val binds = SecondaryLibrary.binds(files, library)
+        assertTrue(binds.contains("$private/steamapps/common/FEX:/mnt/droiddeck-sd/steamapps/common/FEX"))
+        assertTrue(binds.contains("$private/steamapps/downloading/3127680:/mnt/droiddeck-sd/steamapps/downloading/3127680"))
+        assertTrue(binds.contains("$private/steamapps/common/SteamLinuxRuntime_sniper:/mnt/droiddeck-sd/steamapps/common/SteamLinuxRuntime_sniper"))
+    }
+
     @Test fun deletingAStagedDepotDoesNotRestoreTheOldSharedDownload() {
         val files = tmp.newFolder("files")
         val library = tmp.newFolder("card")

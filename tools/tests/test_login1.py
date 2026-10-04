@@ -14,7 +14,7 @@ try:
 except ImportError:
     Gio = GLib = None
 
-SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/bannerlator-login1"
+SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-login1"
 NAME = "org.freedesktop.login1"
 ROOT = "/org/freedesktop/login1"
 IFACE = NAME + ".Manager"

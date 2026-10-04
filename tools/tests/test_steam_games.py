@@ -18,9 +18,9 @@ def load(name):
     return module
 
 
-imports = load('bannerlator-steam-games')
-shortcuts = load('bannerlator-steam-shortcuts')
-library = load('bannerlator-steam-library')
+imports = load('droiddeck-steam-games')
+shortcuts = load('droiddeck-steam-shortcuts')
+library = load('droiddeck-steam-library')
 
 
 class ImportsTest(unittest.TestCase):
@@ -289,7 +289,7 @@ class ImportsTest(unittest.TestCase):
         path.write_bytes(original)
         listing = self.root / 'games.json'
         listing.write_text(json.dumps([self.game]))
-        run = subprocess.run(['python3', str(BIN / 'bannerlator-steam-shortcuts'), str(self.steam), str(listing)], capture_output=True)
+        run = subprocess.run(['python3', str(BIN / 'droiddeck-steam-shortcuts'), str(self.steam), str(listing)], capture_output=True)
         self.assertEqual(1, run.returncode)
         self.assertEqual(original, path.read_bytes())
 
@@ -300,7 +300,7 @@ class ImportsTest(unittest.TestCase):
         path.write_bytes(shortcuts.write({'shortcuts': {'0': manual, '1': shortcuts.shortcut(self.game)}}))
         listing = self.root / 'games.json'
         listing.write_text(json.dumps([self.game]))
-        subprocess.run(['python3', str(BIN / 'bannerlator-steam-shortcuts'), str(self.steam), str(listing)], check=True, capture_output=True)
+        subprocess.run(['python3', str(BIN / 'droiddeck-steam-shortcuts'), str(self.steam), str(listing)], check=True, capture_output=True)
         result = shortcuts.parse(path.read_bytes())['shortcuts']
         self.assertEqual([manual], list(result.values()))
         self.assertEqual({str(self.game['appid']): 42}, json.loads((path.parent / '.droiddeck-routes.json').read_text()))

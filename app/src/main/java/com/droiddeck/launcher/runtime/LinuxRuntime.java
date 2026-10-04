@@ -27,7 +27,7 @@ import java.util.List;
  */
 public final class LinuxRuntime {
     public static final String DIR = "linuxfs";
-    public static final String SESSION_SCRIPT = "/usr/local/bin/bannerlator-session";
+    public static final String SESSION_SCRIPT = "/usr/local/bin/droiddeck-session";
     public static final String MODE_DESKTOP = "desktop";
     public static final String MODE_STEAM = "steam";
     public static final String MODE_RUN = "run";
@@ -91,7 +91,8 @@ public final class LinuxRuntime {
         if (LinuxRuntimeInstaller.isRemoving() || LinuxRuntimeInstaller.hasRemovalPending(context)) return false;
         File root = rootDir(context);
         return new File(root, "usr/bin/gamescope").isFile()
-                && new File(root, SESSION_SCRIPT.substring(1)).isFile()
+                && (new File(root, SESSION_SCRIPT.substring(1)).isFile()
+                        || new File(root, LegacyNames.SESSION_SCRIPT.substring(1)).isFile())
                 && prootBinary(context).isFile()
                 && prootLoader(context).isFile();
     }
@@ -182,6 +183,7 @@ public final class LinuxRuntime {
     public static List<String> binds(Context context, File sessionRoot, File runtimeDir,
                                      File externalStorage, List<String> extraBinds) {
         File root = rootDir(context);
+        LegacyNames.migrateEtc(root);
         List<String> cmd = new ArrayList<>();
         bind(cmd, "/dev");
         bind(cmd, "/proc");
@@ -191,7 +193,7 @@ public final class LinuxRuntime {
         bind(cmd, "/proc/self/fd/0:/dev/stdin");
         bind(cmd, "/proc/self/fd/1:/dev/stdout");
         bind(cmd, "/proc/self/fd/2:/dev/stderr");
-        bind(cmd, new File(root, "etc/bannerlator/empty").getPath() + ":/sys/fs/selinux");
+        bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/fs/selinux");
         bind(cmd, context.getFilesDir().getPath());
         bind(cmd, context.getCacheDir().getPath());
         if (runtimeDir != null) {
@@ -207,7 +209,7 @@ public final class LinuxRuntime {
         bind(cmd, shm.getPath() + ":/dev/shm");
 
         // Android denies apps these; glibc, Steam and libcap read them at startup.
-        File fakeProc = new File(root, "etc/bannerlator/proc");
+        File fakeProc = new File(root, "etc/droiddeck/proc");
         // libpci picks its procfs backend on whether it can read the /proc/bus/pci directory, which
         // the app can, then die()s - exit(1) on the calling process - on the devices file inside
         // it, which the app cannot. Chromium loads libpci in its GPU process to name the video
@@ -418,7 +420,7 @@ public final class LinuxRuntime {
      * under the mainline name.
      */
     private static void bindCpuTemps(List<String> cmd, File root) {
-        File name = new File(root, "etc/bannerlator/cpu-thermal-type");
+        File name = new File(root, "etc/droiddeck/cpu-thermal-type");
         try {
             if (!name.isFile()) Files.write(name.toPath(), "cpu0-thermal\n".getBytes(StandardCharsets.US_ASCII));
         } catch (IOException e) {

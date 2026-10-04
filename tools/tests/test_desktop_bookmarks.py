@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 
-HELPER = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/bannerlator-desktop-bookmarks"
+HELPER = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-desktop-bookmarks"
 MODULE = runpy.run_path(str(HELPER))
 
 

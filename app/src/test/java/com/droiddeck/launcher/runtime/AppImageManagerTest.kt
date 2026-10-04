@@ -26,7 +26,11 @@ class AppImageManagerTest {
 
     @Test fun acceptsAnArm64TypeTwoImage() = assertNull(AppImageManager.problem(image(183)))
 
-    @Test fun refusesX86WithAHint() = assertTrue(AppImageManager.problem(image(62))!!.contains("x86_64"))
+    @Test fun acceptsAnX86_64ImageForFex() = assertNull(AppImageManager.problem(image(62)))
+
+    @Test fun acceptsAnI386ImageForFex() = assertNull(AppImageManager.problem(image(3)))
+
+    @Test fun refusesOtherProcessors() = assertTrue(AppImageManager.problem(image(40))!!.contains("neither"))
 
     @Test fun refusesTypeOne() = assertTrue(AppImageManager.problem(image(183, type = 1))!!.contains("type 2"))
 

@@ -17,11 +17,11 @@ class SessionAssetsTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.overlay = self.root / 'overlay'
-        self.helper = self.overlay / 'usr/local/bin/bannerlator-login1'
+        self.helper = self.overlay / 'usr/local/bin/droiddeck-login1'
         self.helper.parent.mkdir(parents=True)
         self.helper.write_bytes(b'current helper')
         self.apk = self.root / 'app.apk'
-        self.name = 'assets/linuxfs/usr/local/bin/bannerlator-login1'
+        self.name = 'assets/linuxfs/usr/local/bin/droiddeck-login1'
 
     def test_missing_required_helper_rejects_cached_bundle(self):
         with ZipFile(self.apk, 'w') as package:

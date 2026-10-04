@@ -5,7 +5,7 @@ import unittest
 
 
 BIN = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin'
-MODULE = runpy.run_path(str(BIN / 'bannerlator-steam-ui-scale'))
+MODULE = runpy.run_path(str(BIN / 'droiddeck-steam-ui-scale'))
 initialize = MODULE['initialize']
 seed_text = MODULE['seed_text']
 parse = MODULE['parse']

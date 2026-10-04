@@ -4,7 +4,7 @@
 # generated/ (no host wayland-scanner needed at app build time). Built by the app
 # (add_subdirectory from ../CMakeLists.txt) and on its own by standalone/ for
 # build-waylandcomp.yml.
-add_library(bannerwayland SHARED
+add_library(droiddeckwayland SHARED
         src/compositor.c
         src/vk_present.c
         src/effects_chain.c
@@ -12,7 +12,7 @@ add_library(bannerwayland SHARED
         src/sc_layer.c
         src/ahb_swapchain.c
         src/waylandcomp_jni.c
-        src/banner_ext.c
+        src/droiddeck_ext.c
         src/wl_dmabuf.c
         src/wl_clipboard.c
         src/wl_text_input.c
@@ -36,9 +36,9 @@ add_library(bannerwayland SHARED
         src/framegen_jni.c
 )
 # Warnings on for the compositor's own C. They do not fail the build; they are there to be read.
-target_compile_options(bannerwayland PRIVATE
+target_compile_options(droiddeckwayland PRIVATE
         $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers>)
-target_include_directories(bannerwayland PRIVATE
+target_include_directories(droiddeckwayland PRIVATE
         generated
         prebuilt/include
         src
@@ -54,56 +54,56 @@ target_include_directories(bannerwayland PRIVATE
 # framegen tree and the vendored DXBC translator (thirdparty/dxbc, for the LSFG cache format),
 # which only the app build has: the standalone build (standalone/) gets the stub, which reports
 # every engine unavailable and generates nothing.
-set(BANNER_FRAMEGEN_LSFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/lsfg)
-set(BANNER_FRAMEGEN_WINFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/winfg)
-if (TARGET dxbc AND EXISTS ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
-        AND EXISTS ${BANNER_FRAMEGEN_WINFG_DIR}/winfg_engine.cpp)
-    message(STATUS "bannerwayland: frame-generation engines built in (LSFG Native, Win-FG Native)")
-    target_sources(bannerwayland PRIVATE
+set(DROIDDECK_FRAMEGEN_LSFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/lsfg)
+set(DROIDDECK_FRAMEGEN_WINFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/winfg)
+if (TARGET dxbc AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
+        AND EXISTS ${DROIDDECK_FRAMEGEN_WINFG_DIR}/winfg_engine.cpp)
+    message(STATUS "droiddeckwayland: frame-generation engines built in (LSFG Native, Win-FG Native)")
+    target_sources(droiddeckwayland PRIVATE
             src/framegen_engine.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_probe.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_dll.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_dxbc.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_vkd.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_common.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_shaders.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_mipmaps.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_alpha.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_beta.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_gamma.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_delta.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_generate.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_chain.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_pacer.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_governor.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_probe.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_dll.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_dxbc.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_vkd.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_common.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_shaders.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_mipmaps.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_alpha.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_beta.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_gamma.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_delta.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_generate.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_chain.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_pacer.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_governor.cpp
             # The Lossless.dll import (validate / extract / cache) for the app's LsfgNative.
-            ${BANNER_FRAMEGEN_LSFG_DIR}/lsfg_jni.cpp
-            ${BANNER_FRAMEGEN_WINFG_DIR}/framegen.cpp
-            ${BANNER_FRAMEGEN_WINFG_DIR}/winfg_vkd.cpp
-            ${BANNER_FRAMEGEN_WINFG_DIR}/winfg_engine.cpp
+            ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_jni.cpp
+            ${DROIDDECK_FRAMEGEN_WINFG_DIR}/framegen.cpp
+            ${DROIDDECK_FRAMEGEN_WINFG_DIR}/winfg_vkd.cpp
+            ${DROIDDECK_FRAMEGEN_WINFG_DIR}/winfg_engine.cpp
     )
-    target_include_directories(bannerwayland PRIVATE
+    target_include_directories(droiddeckwayland PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/..            # <thirdparty/...> as the frame-generation engines see it
             ${CMAKE_CURRENT_SOURCE_DIR}/../framegen   # VulkanRendererContext.h (VkTable), lsfg/, winfg/
     )
-    target_compile_options(bannerwayland PRIVATE
+    target_compile_options(droiddeckwayland PRIVATE
             $<$<COMPILE_LANGUAGE:CXX>:-std=c++17 -fvisibility=hidden>)
-    target_compile_definitions(bannerwayland PRIVATE
+    target_compile_definitions(droiddeckwayland PRIVATE
             WINFG_UPSTREAM="${WINFG_UPSTREAM}"
             WINFG_CHAIN_HASH="${WINFG_CHAIN_HASH}"
     )
-    target_link_libraries(bannerwayland dxbc atomic)
+    target_link_libraries(droiddeckwayland dxbc atomic)
 else()
-    message(STATUS "bannerwayland: frame-generation engines NOT built in (standalone build): stub")
-    target_sources(bannerwayland PRIVATE src/framegen_engine_stub.c)
+    message(STATUS "droiddeckwayland: frame-generation engines NOT built in (standalone build): stub")
+    target_sources(droiddeckwayland PRIVATE src/framegen_engine_stub.c)
 endif()
 add_library(wayland-server SHARED IMPORTED)
 set_target_properties(wayland-server PROPERTIES IMPORTED_LOCATION
         ${CMAKE_CURRENT_SOURCE_DIR}/prebuilt/lib/libwayland-server.so)
 # Vulkan is loaded at runtime via adrenotools (Turnip), not linked directly - so the
 # compositor uses Turnip's driver, which supports dmabuf import (drm_format_modifier).
-target_link_libraries(bannerwayland
+target_link_libraries(droiddeckwayland
         wayland-server
         adrenotools
         dl

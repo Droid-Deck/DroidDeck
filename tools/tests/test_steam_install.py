@@ -8,7 +8,7 @@ import unittest
 import zipfile
 
 
-SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/bannerlator-steam-install'
+SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-steam-install'
 
 
 class SteamInstallTest(unittest.TestCase):
@@ -64,7 +64,7 @@ cp "$TEST_CDN/${2##*/}" "$4"
         result = self.install(channel)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(channel + '\n', (self.steam / 'package/beta').read_text())
-        self.assertEqual('123456\n', (self.steam / 'package/bannerlator-installed').read_text())
+        self.assertEqual('123456\n', (self.steam / 'package/droiddeck-installed').read_text())
         client = self.steam / 'steamrtarm64/steam'
         self.assertTrue(os.access(client, os.X_OK))
         self.assertEqual(channel, client.read_text())
@@ -99,7 +99,7 @@ cp "$TEST_CDN/${2##*/}" "$4"
         original = archive.read_bytes()
         archive.write_bytes(b'corrupt download')
         self.assertNotEqual(0, self.install('publicbeta').returncode)
-        self.assertFalse((self.steam / 'package/bannerlator-installed').exists())
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
         archive.write_bytes(original)
         self.assertEqual(0, self.install('publicbeta').returncode)
         self.assertEqual('publicbeta\n', (self.steam / 'package/beta').read_text())

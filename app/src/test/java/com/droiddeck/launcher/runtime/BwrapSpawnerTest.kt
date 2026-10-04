@@ -22,7 +22,7 @@ class BwrapSpawnerTest {
         Bind("/dev", "/dev"),
         Bind("/cache/shm", "/dev/shm"),
         Bind("/proc", "/proc"),
-        Bind("/rootfs/etc/bannerlator/proc/stat", "/proc/stat"),
+        Bind("/rootfs/etc/droiddeck/proc/stat", "/proc/stat"),
         Bind("/data/files", "/data/files"),
     )
 
@@ -52,7 +52,7 @@ class BwrapSpawnerTest {
 
     @Test fun nestedBindsFollowARenamedDestination() {
         val binds = BwrapSpawner.bindsFor(session, "/rootfs", "/proc", "/newproc")
-        assertTrue(Bind("/rootfs/etc/bannerlator/proc/stat", "/newproc/stat") in binds)
+        assertTrue(Bind("/rootfs/etc/droiddeck/proc/stat", "/newproc/stat") in binds)
     }
 
     @Test fun normalizeResolvesDotsLexically() {

@@ -8,7 +8,8 @@ OVERLAY = Path(__file__).resolve().parents[1] / 'linuxfs/overlay'
 
 
 def check(apk, overlay=OVERLAY):
-    sources = list((overlay / 'usr/local/bin').glob('bannerlator-*'))
+    sources = list((overlay / 'usr/local/bin').glob('droiddeck-*'))
+    sources += [path for path in [overlay / 'usr/local/bin/steam-compatibility'] if path.is_file()]
     sources += [path for path in (overlay / 'usr/bin').rglob('*') if path.is_file()]
     errors = []
     with ZipFile(apk) as package:

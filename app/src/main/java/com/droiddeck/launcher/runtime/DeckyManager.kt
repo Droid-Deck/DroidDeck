@@ -81,8 +81,7 @@ object DeckyManager {
                 val assets = release.optJSONArray("assets") ?: continue
                 val rows = (0 until assets.length()).map { assets.getJSONObject(it) }
                 val arm = rows.firstOrNull { it.optString("name") == "PluginLoader-arm64" }
-                val guest = LinuxRuntime.rootDir(context)
-                val fexReady = File(guest, "usr/share/guestos/fex-mesa").isDirectory && File(guest, "usr/bin/FEX").canExecute()
+                val fexReady = LinuxFex.ready(context)
                 val binary = arm ?: if (fexReady) rows.firstOrNull { it.optString("name") == "PluginLoader" } else null
                 val name = binary?.optString("name") ?: continue
                 val url = binary.optString("browser_download_url").takeIf { it.startsWith("https://") } ?: continue

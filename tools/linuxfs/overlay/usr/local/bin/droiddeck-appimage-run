@@ -1,0 +1,122 @@
+#!/bin/bash
+# An AppImage imported from the front end (AppImageManager), extracted once at import into
+#   /opt/appimages/user/<id>/app
+# and started from there: proot has no FUSE to mount the image, and extracting it at every
+# start (APPIMAGE_EXTRACT_AND_RUN) would cost the whole image in /tmp each time.
+#   droiddeck-appimage-run /opt/appimages/user/<id> [args...]
+set -u
+dir=${1:?usage: droiddeck-appimage-run <imported AppImage directory> [args...]}
+shift
+export APPDIR=$dir/app
+# APPIMAGE is left unset on purpose: with it an app believes it runs from an image file and offers
+# to add itself to the menu (DuckStation) or update the file in place - DroidDeck already does the
+# one, and there is no image file for the other.
+unset APPIMAGE
+export ARGV0=$(cat "$dir/name" 2>/dev/null || basename "$dir")
+if [ ! -x "$APPDIR/AppRun" ]; then
+  echo "droiddeck-appimage-run: $APPDIR/AppRun is missing; import the AppImage again" >&2
+  exit 127
+fi
+# Browsers sandbox their own children with namespaces and a setuid helper, neither of which proot
+# can give them (the Flatpak sandboxes get the same; see BwrapSpawner): Firefox and its forks (Zen,
+# LibreWolf) by these switches, Electron and Chromium builds by --no-sandbox. Chromium on Wayland
+# also asks the render node for a DRM version KGSL cannot give, so with an X server up it stays on
+# X11, which it picks from the session type.
+export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
+export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
+# sharun images start the app through their own ld.so, patched not to read /etc/ld.so.preload, and
+# drop LD_PRELOAD unless allowed: without this the app never gets the session's pads.
+if [ -s /etc/ld.so.preload ]; then
+  preload=$(tr -s '\n' ':' < /etc/ld.so.preload)
+  export LD_PRELOAD="${preload%:}${LD_PRELOAD:+:$LD_PRELOAD}" SHARUN_ALLOW_LD_PRELOAD=1
+fi
+flags=()
+if [ -e "$APPDIR/chrome-sandbox" ] || compgen -G "$APPDIR/*/chrome-sandbox" >/dev/null; then
+  flags+=(--no-sandbox)
+  if [ -n "${DISPLAY:-}" ]; then
+    export XDG_SESSION_TYPE=x11
+    unset WAYLAND_DISPLAY
+    flags+=(--ozone-platform=x11)
+  fi
+fi
+qt=$(cat "$dir/qt" 2>/dev/null)
+case $qt in wayland|xcb) ;; *) qt=auto ;; esac
+wayland=${GAMESCOPE_WAYLAND_DISPLAY:-${WAYLAND_DISPLAY:-}}
+if [ "$qt" = auto ] && [ -n "$wayland" ]; then
+  bundled=$(find "$APPDIR" -maxdepth 6 \( -name 'libQt6Quick.so.6*' -o -name libvulkan.so.1 -o -name 'libqwayland*.so' \) -printf '%f\n' 2>/dev/null)
+  if grep -q '^libQt6Quick\.so\.6' <<<"$bundled"; then
+    if grep -q '^libqwayland' <<<"$bundled" \
+       && { grep -qx libvulkan.so.1 <<<"$bundled" || grep -qs QVulkanInstance "$APPDIR"/usr/bin/* "$APPDIR"/bin/*; }; then
+      qt=wayland
+    else
+      echo "== appimage: Qt Quick without Vulkan or Qt's Wayland plugin stays on X11 ($(tr '\n' ' ' <<<"$bundled"))"
+    fi
+  fi
+fi
+if [ "$qt" = wayland ] && [ -n "$wayland" ]; then
+  export QT_QPA_PLATFORM='wayland;xcb' WAYLAND_DISPLAY=$wayland SDL_VIDEODRIVER=wayland XDG_SESSION_TYPE=wayland
+  [ "$wayland" = "${GAMESCOPE_WAYLAND_DISPLAY:-}" ] && export QT_WAYLAND_DISABLE_WINDOWDECORATION=1 DISABLE_GAMESCOPE_WSI=1
+elif [ "$qt" = xcb ] && [ -n "${DISPLAY:-}" ]; then
+  export QT_QPA_PLATFORM=xcb
+fi
+fex=$(cat "$dir/fex" 2>/dev/null)
+case $fex in on|off) ;; *) fex=auto ;; esac
+run=("$APPDIR/AppRun")
+if [ -x /usr/local/bin/droiddeck-fex ]; then
+  case $fex:$(cat "$dir/arch" 2>/dev/null) in
+    auto:x86_64|auto:i386) run=(/usr/local/bin/droiddeck-fex run --mode on -- "$APPDIR/AppRun") ;;
+    auto:arm64) ;;
+    *) run=(/usr/local/bin/droiddeck-fex run --mode "$fex" --for "$APPDIR" -- "$APPDIR/AppRun") ;;
+  esac
+fi
+echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex Qt $qt${QT_QPA_PLATFORM:+ ($QT_QPA_PLATFORM)}"
+cd "$APPDIR" || exit 1
+started=$(mktemp "${TMPDIR:-/tmp}/droiddeck-appimage.XXXXXX")
+# Apps expect a session bus; Electron's main process traps (SIGTRAP) on an address it cannot
+# parse. A run mode has none, so one is started for the app, as for Flatpak apps.
+case ${DBUS_SESSION_BUS_ADDRESS:-} in
+  unix:*) "${run[@]}" "${flags[@]}" "$@" ;;
+  *) unset DBUS_SESSION_BUS_ADDRESS
+     if command -v dbus-run-session >/dev/null 2>&1; then
+       dbus-run-session -- "${run[@]}" "${flags[@]}" "$@"
+     else
+       "${run[@]}" "${flags[@]}" "$@"
+     fi ;;
+esac
+rc=$?
+if [ "$rc" -gt 128 ]; then
+  echo "== appimage $ARGV0: ended by signal $((rc - 128)) ($(kill -l $((rc - 128)) 2>/dev/null))"
+else
+  echo "== appimage $ARGV0: exited with status $rc"
+fi
+if [ "$rc" -ne 0 ] && [ -n "$started" ]; then
+  find "${HOME:-/root}/.local/share" "${HOME:-/root}/.config" "${HOME:-/root}/.cache" -maxdepth 4 -type f \
+    \( -iname '*.log' -o -iname '*log*.txt' \) -newer "$started" -size -64M 2>/dev/null | head -n 3 |
+    while IFS= read -r log; do
+      echo "== appimage $ARGV0: end of $log"
+      tail -n 40 "$log" | LC_ALL=C tr -cd '\11\12\40-\176' | cut -c1-400
+    done
+fi
+rm -f "$started"
+# The program a session was started for may hand over to another process and exit: Electron apps
+# relaunch themselves (Obsidian on its first start), launchers fork their real program. The
+# session ends with this script, and takes the rest with it - so it waits while anything running
+# from the image is still up.
+image_running() {
+  local p exe arg cwd
+  for p in /proc/[0-9]*; do
+    exe=$(readlink "$p/exe" 2>/dev/null) || continue
+    case $exe in "$APPDIR"/*) return 0 ;; esac
+    case $exe in
+      */FEX|*/FEXInterpreter)
+        arg=$(tr '\0' '\n' < "$p/cmdline" 2>/dev/null | sed -n 2p)
+        cwd=$(readlink "$p/cwd" 2>/dev/null)
+        case $arg in "$APPDIR"/*) return 0 ;; esac
+        case $cwd in "$APPDIR"|"$APPDIR"/*) return 0 ;; esac
+        ;;
+    esac
+  done
+  return 1
+}
+while image_running; do sleep 2; done
+exit $rc

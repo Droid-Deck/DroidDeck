@@ -20,7 +20,7 @@ try:
 except ImportError:
     Gio = GLib = None
 
-SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/bannerlator-netmanager"
+SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-netmanager"
 if Gio:
     loader = importlib.machinery.SourceFileLoader("netmanager", str(SCRIPT))
     spec = importlib.util.spec_from_loader(loader.name, loader)

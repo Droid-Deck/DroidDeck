@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PRELOAD_CACHE_VERSION: v2
+  PRELOAD_CACHE_VERSION: v3
 
 jobs:
   build:
@@ -157,7 +157,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/clipboard/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/mangoapp/*') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -182,7 +182,7 @@ jobs:
           mkdir -p "$D/usr/local/bin"
           aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
-          for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
+          for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
             install -Dm644 "$script" "$D/usr/local/bin/$(basename "$script")"
           done
           for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
@@ -204,6 +204,12 @@ jobs:
             test -f "$D/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so"
             rm wlroots.tzst
           fi
+          . tools/linuxfs/uruntime.env
+          curl -fsSL --retry 3 -o uruntime "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}"
+          echo "${URUNTIME_SHA256}  uruntime" | sha256sum -c -
+          install -Dm644 uruntime "$D/usr/local/lib/droiddeck/uruntime"
+          install -Dm644 tools/linuxfs/licenses/uruntime-LICENSE "$D/usr/local/share/licenses/uruntime/LICENSE"
+          rm uruntime
           M="$D/usr/local/lib/mangoapp"
           mkdir -p "$M" mango-pkgs
           grep -v '^#' tools/mangoapp/packages.txt | while read -r sum url; do
@@ -232,6 +238,46 @@ jobs:
           install -Dm644 tools/linuxfs/desktop/panel.conf "$D/etc/xdg/lxqt/panel.conf"
           install -Dm644 tools/linuxfs/desktop/firefox-droiddeck.js "$D/usr/lib/firefox/defaults/pref/droiddeck.js"
           ls -lR "$D"
+
+      - name: Build the x86 preloads FEX guests load (glibc 2.31)
+        if: steps.preloads.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/src" -w /src debian:bullseye bash -c '
+            set -euo pipefail
+            printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+            apt-get -o Acquire::Check-Valid-Until=false update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+            tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
+          '
+          sudo chown -R "$(id -u):$(id -g)" app/src/main/assets/linuxfs
+          ls -l app/src/main/assets/linuxfs/x86_64 app/src/main/assets/linuxfs/i386
+
+      - name: Bundle the droiddeck-esync packs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -f tools/droiddeck-esync/release.env ]; then
+            . tools/droiddeck-esync/release.env
+            gh release download "$SYNC_BUNDLE_TAG" -R "$SYNC_BUNDLE_REPO" -p "$SYNC_BUNDLE_ASSET" -O sync-bundle.tzst
+            echo "$SYNC_BUNDLE_SHA256  sync-bundle.tzst" | sha256sum -c -
+            mkdir -p app/src/main/assets/droiddeck-esync
+            tar --use-compress-program=unzstd -xf sync-bundle.tzst -C app/src/main/assets/droiddeck-esync
+            rm sync-bundle.tzst
+            gh release download "$SYNC_BUNDLE_TAG" -R "$SYNC_BUNDLE_REPO" -p index.json -O sync-index.json
+            revoked=$(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' sync-index.json)
+            for id in $revoked; do
+              if [ -e "app/src/main/assets/droiddeck-esync/packs/$id.tzst" ]; then
+                echo "::warning::$SYNC_BUNDLE_ASSET carries revoked pack $id; it is left out of the APK (point tools/droiddeck-esync/release.env at a newer bundle)"
+                rm -f "app/src/main/assets/droiddeck-esync/packs/$id.tzst"
+              fi
+            done
+            rm sync-index.json
+            test -f app/src/main/assets/droiddeck-esync/index.json
+            test -f app/src/main/assets/droiddeck-esync/index.json.sig
+            ls -lR app/src/main/assets/droiddeck-esync
+          fi
 
       - name: Cache PulseAudio 13.0 source
         id: pa-src
@@ -297,11 +343,11 @@ jobs:
             echo "::error::libfakeinput.so exports the C++ runtime"; exit 1
           fi
           SESSION=$(syms "$D/libblsession.so")
-          for sym in socket bind getsockname setsockopt statfs statvfs; do
+          for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap; do
             grep -qx "$sym" <<<"$SESSION" || { echo "::error::libblsession.so does not export $sym"; exit 1; }
           done
-          test -f "$D/usr/local/bin/bannerlator-session"
-          test -f "$D/usr/local/bin/bannerlator-proton-extra"
+          test -f "$D/usr/local/bin/droiddeck-session"
+          test -f "$D/usr/local/bin/droiddeck-proton-extra"
 
       - name: Cache the CMake build tree
         uses: actions/cache@v4

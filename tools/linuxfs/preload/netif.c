@@ -8,7 +8,7 @@
  * address ioctl, and every table under /proc/net. Wine builds its adapter, address, route and
  * neighbour tables from exactly those, so a game saw a machine with no adapter, no address, no
  * gateway and no MAC, and one that checks its adapters before going online waited for good.
- * The app knows the real link from ConnectivityManager and writes it to /etc/bannerlator-net;
+ * The app knows the real link from ConnectivityManager and writes it to /etc/droiddeck-net;
  * whatever the kernel refuses is answered from that file. Anything the kernel does answer wins.
  */
 #define _GNU_SOURCE 1
@@ -30,7 +30,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define LINK_FILE "/etc/bannerlator-net"
+#define LINK_FILE "/etc/droiddeck-net"
 #define LO_NAME "lo"
 #define LO_INDEX 1
 #define LO_MTU 65536
@@ -352,6 +352,7 @@ static int is_link_query(unsigned long request) {
 void bl_kgsl_chip_id_fixup(unsigned long request, void *arg, int rc); /* kgslid.c */
 int bl_kgsl_poll(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                  void *arg, int *rc) __attribute__((visibility("hidden")));
+int bl_ntsync_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
 
 /* Every DRM and evdev call comes through here, so the lookup is done once. Two threads racing
  * to store it store the same pointer. */
@@ -363,8 +364,9 @@ int ioctl(int fd, unsigned long request, ...) {
     void *arg = va_arg(ap, void *);
     va_end(ap);
 
-    if (real == NULL) real = (ioctl_fn) dlsym(RTLD_NEXT, "ioctl");
     int rc;
+    if (bl_ntsync_ioctl(fd, request, arg, &rc)) return rc;
+    if (real == NULL) real = (ioctl_fn) dlsym(RTLD_NEXT, "ioctl");
     if (!bl_kgsl_poll(real, fd, request, arg, &rc)) rc = real(fd, request, arg);
     bl_kgsl_chip_id_fixup(request, arg, rc);
     if (arg == NULL || !is_link_query(request)) return rc;
@@ -466,7 +468,7 @@ static const char *denied_table(const char *path) {
 static FILE *synthesize(const char *table) {
     struct link link;
     if (!load_link(&link)) return NULL;
-    int fd = memfd_create("bannerlator-net", MFD_CLOEXEC);
+    int fd = memfd_create("droiddeck-net", MFD_CLOEXEC);
     if (fd < 0) return NULL;
     FILE *out = fdopen(fd, "w+");
     if (out == NULL) {

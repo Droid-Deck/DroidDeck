@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
@@ -575,6 +576,10 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
     val narrow = LocalNarrowPane.current
     var confirm by remember(app.key) { mutableStateOf(false) }
     var editing by rememberSaveable(app.key) { mutableStateOf(false) }
+    val x86 = (app.arch == "x86_64" || app.arch == "i386") && app.fex != com.droiddeck.launcher.runtime.LinuxFex.OFF
+    val fexReady by produceState<Boolean?>(null, app.key, x86, s.sessionRunning) {
+        value = if (x86) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.runtime.LinuxFex.ready(ctx) } else true
+    }
     LaunchedEffect(confirm) { if (confirm) { kotlinx.coroutines.delay(4000); confirm = false } }
     Rise(0) { BackLink(stringResource(R.string.user_apps_back)) { onSelect("desktop") } }
     Rise(1) {
@@ -586,7 +591,8 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             Column {
                 Text(app.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Text(
-                    app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label()),
+                    (app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label())) +
+                        (if (app.arch == "x86_64" || app.arch == "i386") " · " + stringResource(R.string.app_fex_x86, app.arch) else ""),
                     fontSize = 14.sp, color = colors.onSurfaceVariant,
                 )
             }
@@ -609,7 +615,10 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
         }
     }
     if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(4) { UserAppsProgress() }
-    if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon -> UserAppsState.edit(ctx, app, name, icon) }
+    if (fexReady == false) Rise(4) {
+        Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) { Note(stringResource(R.string.app_fex_not_ready, app.arch.orEmpty())) }
+    }
+    if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon, fex -> UserAppsState.edit(ctx, app, name, icon, fex) }
     val detail = app.detail
     if (detail != null) Rise(4) {
         Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {

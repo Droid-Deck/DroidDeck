@@ -70,7 +70,11 @@ class ModeSettings(
     val renderer: String?,
     val gameStorage: String? = null,
     val storageOptions: List<Pair<String, String>> = emptyList(),
+    /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
+    val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
+    /** Steam only: SessionPrefs.SYNC_* chosen for Proton games; null outside Steam. */
+    val syncBackend: String? = null,
     /** Steam only: games are stretched to fill the screen (null = not a Steam page). */
     val forceFullscreen: Boolean? = null,
     val stretch16x9: Boolean? = null,
@@ -130,7 +134,9 @@ class ModeSettingsActions(
     val onRenderer: (String) -> Unit,
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
+    val onStorageDiagnostics: (Boolean) -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
+    val onSyncBackend: (String) -> Unit = {},
     val onForceFullscreen: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamChannel: (String) -> Unit = {},
@@ -198,15 +204,14 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 onPick = a.onFpsLimit,
             )
             ChoiceRow(
-                host, "upscaler", "Upscaler", "Sharpens the picture where it is enlarged to the screen.",
+                host, "upscaler", stringResource(R.string.drawer_scaling), "How the picture is resized to the screen; the sharpening modes sharpen where it is enlarged.",
                 com.droiddeck.launcher.session.SessionPrefs.upscalerChoices, s.upscaler,
-                note = "Works only when the session is smaller than the screen; Sharpen only works at any size. Costs a little GPU time.",
+                note = "The sharpening modes work only when the session is smaller than the screen; Linear, Nearest and Sharpen only work at any size. Costs a little GPU time.",
                 onPick = a.onUpscaler,
             )
-            ChoiceRow(
-                host, "upscale-sharpness", "Upscaler sharpness", null,
-                com.droiddeck.launcher.session.SessionPrefs.upscaleSharpnessChoices, s.upscaleSharpness,
-                enabled = s.upscaler != 0, onPick = a.onUpscaleSharpness,
+            SliderRow(
+                stringResource(R.string.drawer_scaling_sharpness), null, s.upscaleSharpness, 0..100, step = 5,
+                enabled = s.upscaler != 0, format = { "$it%" }, onChange = a.onUpscaleSharpness,
             )
             if (editCustom) CustomResolutionDialog(
                 initial = custom,
@@ -413,6 +418,20 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             )
         }
         if (steam && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
+            if (s.syncBackend != null) SettingsRow(
+                stringResource(R.string.sync_backend_title),
+                stringResource(R.string.sync_backend_hint),
+            ) {
+                SegmentedTabs(
+                    listOf(
+                        SessionPrefs.SYNC_NTSYNC to stringResource(R.string.sync_backend_ntsync),
+                        SessionPrefs.SYNC_FSYNC to stringResource(R.string.sync_backend_fsync),
+                        SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
+                        SessionPrefs.SYNC_WINESERVER to stringResource(R.string.sync_backend_wineserver),
+                    ),
+                    s.syncBackend,
+                ) { id -> host.open = null; a.onSyncBackend(id) }
+            }
             ChoiceRow(
                 host, "fex", stringResource(R.string.fex_preset_title), stringResource(R.string.fex_next_launch),
                 FexPreset.all.map { it.id to stringResource(it.label) }, s.fexPreset,
@@ -469,6 +488,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     }
                 }
             }
+            ToggleRow(
+                host, "storageDiagnostics", stringResource(R.string.mode_storage_diagnostics),
+                stringResource(R.string.mode_storage_diagnostics_hint), s.storageDiagnostics,
+                onChange = a.onStorageDiagnostics,
+            )
         }
         if (!steam && s.renderer != null) SettingsGroup(stringResource(R.string.mode_renderer)) {
             ChoiceRow(
