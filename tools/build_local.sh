@@ -292,6 +292,7 @@ mv "${staging_dir}/pulseaudio.tzst" "${bundle_asset}"
 
 cd "${repo_root}"
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}"
+python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 cp -p "${bundle_backup}" "${bundle_asset}"
 bundle_replaced=0
 

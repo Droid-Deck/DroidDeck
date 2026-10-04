@@ -320,6 +320,7 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
+          python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
 
       - name: Steam import and game environment tests
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'

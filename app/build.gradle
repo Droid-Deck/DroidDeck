@@ -176,6 +176,16 @@ android {
     }
 }
 
+// Session scripts must follow this checkout even when the native asset bundle is cached.
+// A stale local bundle can omit a newly required helper on a fresh runtime install.
+def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
+    from(rootProject.file('tools/linuxfs/overlay')) {
+        include 'usr/local/bin/bannerlator-*', 'usr/bin/**'
+    }
+    into(layout.projectDirectory.dir('src/main/assets/linuxfs'))
+}
+tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
+
 dependencies {
     // The runtime tarball is a zstd-compressed tar.
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
