@@ -291,7 +291,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("fastSync", on).apply()
     }
 
-    fun fsyncFirst(context: Context): Boolean = prefs(context).getBoolean("fsyncFirst", true)
+    fun fsyncFirst(context: Context): Boolean = prefs(context).getBoolean("fsyncFirst", false)
 
     fun setFsyncFirst(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("fsyncFirst", on).apply()

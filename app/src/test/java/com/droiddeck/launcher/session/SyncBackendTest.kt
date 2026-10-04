@@ -13,8 +13,9 @@ class SyncBackendTest {
     private val context: Context = RuntimeEnvironment.getApplication()
 
     @Test
-    fun aFreshInstallStartsOnFsync() {
-        assertEquals(SessionPrefs.SYNC_FSYNC, SessionPrefs.syncBackend(context))
+    fun aFreshInstallStartsOnEsync() {
+        assertEquals(SessionPrefs.SYNC_ESYNC, SessionPrefs.syncBackend(context))
+        assertEquals(false, SessionPrefs.fsyncFirst(context))
     }
 
     @Test
