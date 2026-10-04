@@ -98,8 +98,14 @@ object EsyncPacks {
         val exports: String,
         val toolDir: String,
         val firstSeen: Long,
+        val inUse: Rank? = null,
+        val epoch: Long = 0L,
     ) {
         val key: String get() = "$ntdll:$wineserver"
+    }
+
+    data class Rank(val kind: Int, val sameVersion: Int, val rev: Int) : Comparable<Rank> {
+        override fun compareTo(other: Rank): Int = compareValuesBy(this, other, { it.kind }, { it.sameVersion }, { it.rev })
     }
 
     data class ToolState(
@@ -126,7 +132,12 @@ object EsyncPacks {
         Thread(runnable, "droiddeck-esync-fetch").apply { isDaemon = true }
     }
     private val random = SecureRandom()
-    private val publicKey: PublicKey by lazy { key(PUBLIC_KEY) }
+    private val shippedKey: PublicKey by lazy { key(PUBLIC_KEY) }
+    internal var keyOverride: PublicKey? = null
+    private val publicKey: PublicKey get() = keyOverride ?: shippedKey
+    internal var fetcher: (String, Long, OutputStream, ((Long) -> Unit)?) -> Boolean = { url, limit, out, progress ->
+        httpFetch(url, limit, out, progress)
+    }
 
     fun store(root: File): File = File(root, STORE)
 
@@ -217,7 +228,8 @@ object EsyncPacks {
     }
 
     internal fun kind(entry: Entry, row: Wanted): Int = when {
-        entry.stock[NTDLL] == row.ntdll && entry.stock[WINESERVER] == row.wineserver -> 2
+        entry.stock[NTDLL] == row.ntdll && entry.stock[WINESERVER] == row.wineserver ->
+            if (entry.version != row.version && row.epoch > 0 && epochOf(entry.versionLine) > row.epoch) 0 else 2
         entry.sourceMatch && entry.version.isNotEmpty() && entry.version == row.version &&
             entry.exports.isNotEmpty() && entry.exports == row.exports -> 1
         else -> 0
@@ -225,11 +237,24 @@ object EsyncPacks {
 
     fun matches(entry: Entry, row: Wanted): Boolean = !entry.revoked && kind(entry, row) > 0
 
+    internal fun epochOf(versionLine: String): Long =
+        versionLine.trim().split(Regex("\\s+")).firstOrNull()?.toLongOrNull()?.takeIf { it > 0 } ?: 0L
+
+    internal fun withEpochs(wanted: List<Wanted>, tools: List<ToolState>): List<Wanted> = wanted.map { row ->
+        tools.firstOrNull {
+            it.toolDir == row.toolDir && it.ntdll.trim().lowercase() == row.ntdll && it.wineserver.trim().lowercase() == row.wineserver
+        }?.let { row.copy(epoch = epochOf(it.versionLine)) } ?: row
+    }
+
+    internal fun rank(entry: Entry, row: Wanted): Rank =
+        Rank(kind(entry, row), if (entry.version.isNotEmpty() && entry.version == row.version) 1 else 0, entry.rev)
+
     fun best(entries: List<Entry>, row: Wanted): Entry? = entries.filter { matches(it, row) }
-        .maxWithOrNull(compareBy<Entry>({ kind(it, row) }, { it.rev }, { it.id }))
+        .maxWithOrNull(compareBy<Entry>({ rank(it, row) }, { it.id }))
 
     internal fun plan(index: Index, wanted: List<Wanted>, installed: Set<String>): List<Entry> =
-        wanted.mapNotNull { best(index.packs, it) }.distinctBy { it.id }.filter { it.id !in installed }
+        wanted.mapNotNull { row -> best(index.packs, row)?.takeIf { row.inUse == null || rank(it, row) > row.inUse } }
+            .distinctBy { it.id }.filter { it.id !in installed }
 
     internal fun upgradeRows(store: File, tools: List<ToolState>): List<Wanted> = tools.mapNotNull { tool ->
         val ntdll = tool.ntdll.trim().lowercase()
@@ -237,11 +262,16 @@ object EsyncPacks {
         if (tool.state != "pack" || !SHA256.matches(ntdll) || !SHA256.matches(wineserver)) return@mapNotNull null
         val token = tool.versionLine.trim().split(Regex("\\s+")).getOrNull(1).orEmpty()
         val pack = tool.packId?.takeIf { ID.matches(it) }?.let { installedPack(store, it) }
-        val exports = pack?.opt("exports") as? String
-        if (pack != null && pack.opt("source_match") == true && token.isNotEmpty() && pack.opt("version") == token && !exports.isNullOrEmpty())
-            Wanted(ntdll, wineserver, token, exports, tool.toolDir, 0L)
-        else Wanted(ntdll, wineserver, token, "", tool.toolDir, 0L)
+        val exports = if (pack != null && pack.opt("source_match") == true && token.isNotEmpty() && pack.opt("version") == token)
+            (pack.opt("exports") as? String).orEmpty() else ""
+        val epoch = epochOf(tool.versionLine)
+        val inUse = pack?.let { packRank(it, ntdll, wineserver, token, exports, epoch) }?.takeIf { it.kind > 0 }
+        Wanted(ntdll, wineserver, token, exports, tool.toolDir, 0L, inUse, epoch)
     }
+
+    private fun packRank(pack: JSONObject, ntdll: String, wineserver: String, token: String, exports: String, epoch: Long): Rank =
+        Rank(covers(pack, ntdll, wineserver, token, exports, epoch), if (token.isNotEmpty() && pack.opt("version") == token) 1 else 0,
+            pack.optInt("rev"))
 
     private fun installedPack(store: File, id: String): JSONObject? {
         val dir = File(store, "packs/$id")
@@ -293,17 +323,20 @@ object EsyncPacks {
             val wineserver = tool.wineserver.trim().lowercase()
             val token = tool.versionLine.trim().split(Regex("\\s+")).getOrNull(1).orEmpty()
             val exports = rows["$ntdll:$wineserver"]?.exports.orEmpty()
-            val match = packs.map { (id, pack) -> Triple(id, pack, covers(pack, ntdll, wineserver, token, exports)) }
-                .filter { it.third > 0 }
-                .maxWithOrNull(compareBy({ it.third }, { it.second.optInt("rev") }, { it.first }))
+            val epoch = epochOf(tool.versionLine)
+            val match = packs.map { (id, pack) -> Triple(id, pack, packRank(pack, ntdll, wineserver, token, exports, epoch)) }
+                .filter { it.third.kind > 0 }
+                .maxWithOrNull(compareBy({ it.third }, { it.first }))
             if (match == null) tool else tool.copy(state = "pack", packId = match.first)
         }
     }
 
-    private fun covers(pack: JSONObject, ntdll: String, wineserver: String, token: String, exports: String): Int {
+    private fun covers(pack: JSONObject, ntdll: String, wineserver: String, token: String, exports: String, epoch: Long): Int {
         val stock = pack.optJSONObject("stock")
-        if (stock != null && stock.optString(NTDLL) == ntdll && stock.optString(WINESERVER) == wineserver) return 2
         val version = pack.opt("version") as? String
+        if (stock != null && stock.optString(NTDLL) == ntdll && stock.optString(WINESERVER) == wineserver) {
+            return if (version != token && epoch > 0 && epochOf(pack.optString("version_line")) > epoch) 0 else 2
+        }
         val packExports = pack.opt("exports") as? String
         return if (pack.opt("source_match") == true && token.isNotEmpty() && version == token &&
             exports.isNotEmpty() && packExports == exports) 1 else 0
@@ -420,11 +453,11 @@ object EsyncPacks {
             cachedIndex(context)?.let { removeRevoked(store, it) }
             if (!enabled(context)) return 0
             sweep(context, store)
-            val wanted = readText(File(store, WANTED))?.let { parseWanted(it) }.orEmpty()
-            val index = refreshIndex(context, wanted) ?: return 0
-            removeRevoked(store, index)
             val toolsText = readText(File(store, TOOLS))
             val tools = toolsText?.let { parseTools(it) }.orEmpty()
+            val wanted = withEpochs(readText(File(store, WANTED))?.let { parseWanted(it) }.orEmpty(), tools)
+            val index = refreshIndex(context, wanted) ?: return 0
+            removeRevoked(store, index)
             val rows = wanted + upgradeRows(store, tools)
             if (toolsText != null) prune(store, keep(store, index, rows, tools, bundledIds(context)), System.currentTimeMillis())
             val planned = plan(index, rows, installedIds(store))
@@ -807,7 +840,10 @@ object EsyncPacks {
         return if (fetch(url, limit, out, null)) out.toByteArray() else null
     }
 
-    private fun fetch(url: String, limit: Long, out: OutputStream, progress: ((Long) -> Unit)?): Boolean {
+    private fun fetch(url: String, limit: Long, out: OutputStream, progress: ((Long) -> Unit)?): Boolean =
+        fetcher(url, limit, out, progress)
+
+    private fun httpFetch(url: String, limit: Long, out: OutputStream, progress: ((Long) -> Unit)?): Boolean {
         var connection: HttpURLConnection? = null
         try {
             connection = (URL(url).openConnection() as HttpURLConnection).apply {

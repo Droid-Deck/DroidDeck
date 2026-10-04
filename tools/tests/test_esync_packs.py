@@ -637,6 +637,43 @@ class SelectTest(SyncTestCase):
             self.assertEqual(self.select(tool, self.env())[1]["BL_SYNC_PACK"], pack["id"])
         self.assertEqual(json.loads((root / "prefixes.json").read_text())[prefix]["env"]["BL_SYNC_PACK"], pack["id"])
 
+    def test_a_running_prefix_drops_a_pack_that_no_longer_fits(self):
+        root = self.store()
+        tool = make_tool(self.tools, "Proton Experimental (ARM64)")
+        pack = make_pack(root, tool, "valve-experimental-r1")
+        dist = self.dist_of(pack["id"], tool)
+        self.assertEqual(self.select(tool, self.env())[0][0], str(dist / "proton"))
+        with mock.patch.dict(GLOBALS, {"server_running": lambda path: True}):
+            command, env, said = self.select(tool, self.env())
+            self.assertEqual((command[0], env["BL_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
+            self.assertIn("keeping its sync choice", said)
+            (tool / NTDLL).write_bytes(elf(EXPORTS, salt=b"updated in place"))
+            (tool / "version").write_text("1791000000 experimental-11.0-20261008-arm64\n")
+            command, env, said = self.select(tool, self.env(), verb="run")
+            self.assertEqual((command[0], env["BL_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
+            self.assertIn("keeping its sync choice", said)
+            command, env, said = self.select(tool, self.env())
+            self.assertEqual(command[0], str(tool / "proton"))
+            self.assertNotIn("BL_SYNC_PACK", env)
+            self.assertNotIn("keeping", said)
+            self.assertIn("no pack for Proton Experimental (ARM64)", said)
+        other = make_tool(self.tools, "Proton 11.0 (ARM64)", "1788504814 proton-11.0-2c-arm64", salt=b"2c")
+        pack = make_pack(root, other, "valve-proton-11.0-2c-arm64-r1")
+        dist = self.dist_of(pack["id"], other)
+        self.assertEqual(self.select(other, self.env())[1]["BL_SYNC_PACK"], pack["id"])
+        rev2 = make_pack(root, other, "valve-proton-11.0-2c-arm64-r2", rev=2)
+        with mock.patch.dict(GLOBALS, {"server_running": lambda path: True}):
+            self.assertEqual(self.select(other, self.env(), verb="run")[1]["BL_SYNC_PACK"], pack["id"])
+            self.assertEqual(self.select(other, self.env())[1]["BL_SYNC_PACK"], rev2["id"])
+        for gone in (pack, rev2):
+            data = json.loads((root / "packs" / gone["id"] / "pack.json").read_text())
+            (root / "packs" / gone["id"] / "pack.json").write_text(json.dumps(dict(data, revoked=True)))
+        with mock.patch.dict(GLOBALS, {"server_running": lambda path: True}):
+            self.assertEqual(self.select(other, self.env(), verb="run")[1]["BL_SYNC_PACK"], rev2["id"])
+            command, env, said = self.select(other, self.env())
+        self.assertEqual(command[0], str(other / "proton"))
+        self.assertNotIn("keeping", said)
+
     def test_droiddeck_ntsync_does_not_stand_in_when_esync_is_off(self):
         self.store()
         tool = make_tool(self.tools, "Proton Experimental (ARM64)")
@@ -762,6 +799,31 @@ class MatchingTest(SyncTestCase):
                                   "g-exports", "h-version"})
         self.assertEqual(SYNC["find_pack"](SYNC["load_packs"](root), SYNC["measure"](tool))["id"], "d-exact-r2")
 
+    def test_identical_releases_prefer_the_pack_built_for_the_installed_one(self):
+        root = self.store()
+        tool = make_tool(self.tools, "Proton 11.0 (ARM64)", "1787950357 proton-11.0-2b-arm64")
+        find = SYNC["find_pack"]
+        own = make_pack(root, tool, "valve-proton-11.0-2b-arm64-r1")
+        newer = make_pack(root, tool, "valve-proton-11.0-2c-arm64-r1", version="proton-11.0-2c-arm64",
+                          version_line="1788504814 proton-11.0-2c-arm64")
+        older = make_pack(root, tool, "valve-proton-11.0-2a-arm64-r1", version="proton-11.0-2a-arm64",
+                          version_line="1787000000 proton-11.0-2a-arm64")
+        measured = SYNC["measure"](tool)
+        self.assertIs(find([newer, own], measured), own)
+        self.assertIsNone(find([newer], measured))
+        self.assertIsNone(SYNC["match_kind"](newer, measured))
+        self.assertIs(find([newer, older], measured), older)
+        own2 = make_pack(root, tool, "valve-proton-11.0-2b-arm64-r2", rev=2)
+        older2 = make_pack(root, tool, "valve-proton-11.0-2a-arm64-r2", rev=2, version="proton-11.0-2a-arm64",
+                           version_line="1787000000 proton-11.0-2a-arm64")
+        self.assertIs(find([own, older2], measured), own)
+        self.assertIs(find([own, older2, own2], measured), own2)
+        self.assertEqual(find(SYNC["load_packs"](root), measured)["id"], "valve-proton-11.0-2b-arm64-r2")
+        unknown = make_tool(self.tools, "Proton Hotfix", "proton-hotfix", salt=b"hotfix")
+        sibling = make_pack(root, unknown, "valve-hotfix-sibling-r1", version="proton-11.0-2c-arm64",
+                            version_line="1788504814 proton-11.0-2c-arm64")
+        self.assertIs(find([sibling], SYNC["measure"](unknown)), sibling)
+
     def test_exports_are_measured_only_when_needed(self):
         root = self.store()
         tool = make_tool(self.tools, "Proton 11.0 (ARM64)", "1789000000 proton-11.0-3")
@@ -858,6 +920,40 @@ class ReconcileTest(SyncTestCase):
                                 capture_output=True, text=True, check=True)
         self.assertIn("steam-compatibility: droiddeck-esync: 1 pack(s) in use, 0 wanted\n", result.stdout)
         self.assertTrue(self.dist_of("valve-experimental-r1", steam / "steamapps/common/Proton Experimental (ARM64)").is_dir())
+
+
+    def test_an_updated_proton_drops_its_pack_until_one_is_built_for_it(self):
+        root = self.store()
+        steam = self.tmp / "steam"
+        tool = make_tool(steam / "steamapps/common", "Proton Experimental (ARM64)")
+        pack = make_pack(root, tool, "valve-experimental-20261001-r1")
+        dist = self.dist_of(pack["id"], tool)
+        self.assertEqual(self.select(tool, self.env())[0][0], str(dist / "proton"))
+        (tool / NTDLL).write_bytes(elf(EXPORTS, salt=b"20261008"))
+        (tool / WINESERVER).write_bytes(b"wineserver 20261008 /dev/ntsync")
+        line = "1791000000 experimental-11.0-20261008-arm64"
+        (tool / "version").write_text(line + "\n")
+        command, env, said = self.select(tool, self.env())
+        self.assertEqual(command[0], str(tool / "proton"))
+        self.assertNotIn(pack["id"], said)
+        with mock.patch.dict(GLOBALS, {"SD_LIBRARY": str(self.tmp / "sd")}):
+            summary = self.quiet(SYNC["reconcile"], str(steam), {"HOME": str(self.home)})
+            self.assertEqual(summary, "droiddeck-esync: 0 pack(s) in use, 1 wanted")
+            rows = {row[0]: row[1:] for row in (line.split("\t") for line in (root / "tools.tsv").read_text().splitlines())}
+            self.assertEqual(rows, {str(tool): [line, sha(tool / NTDLL), sha(tool / WINESERVER), "wanted", "-"]})
+            wanted = [row.split("\t") for row in (root / "wanted.tsv").read_text().splitlines()]
+            self.assertEqual([(row[0], row[1], row[2], row[4]) for row in wanted],
+                             [(sha(tool / NTDLL), sha(tool / WINESERVER), "experimental-11.0-20261008-arm64", str(tool))])
+            old = time.time() - 2 * SYNC["GC_GRACE"]
+            os.utime(dist, (old, old))
+            with mock.patch.dict(GLOBALS, {"process_cmdlines": lambda: []}):
+                SYNC["gc"](root)
+            self.assertFalse(dist.exists())
+            new = make_pack(root, tool, "valve-experimental-20261008-r1")
+            command, env, said = self.select(tool, self.env())
+            self.assertEqual((command[0], env["BL_SYNC_PACK"]), (str(self.dist_of(new["id"], tool) / "proton"), new["id"]))
+            summary = self.quiet(SYNC["reconcile"], str(steam), {"HOME": str(self.home)})
+            self.assertEqual(summary, "droiddeck-esync: 1 pack(s) in use, 0 wanted")
 
 
 class GcTest(SyncTestCase):

@@ -323,6 +323,168 @@ class EsyncPacksTest {
         assertEquals("", EsyncPacks.upgradeRows(store, listOf(tool.copy(packId = "../$r1"))).single().exports)
     }
 
+    @Test fun identicalReleasesPreferThePackBuiltForTheInstalledOne() {
+        val a = "valve-proton-11.0-2a-arm64-1787000000-aaaaaaaaaaaa-r1"
+        val b = "valve-proton-11.0-2b-arm64-1787950357-aaaaaaaaaaaa-r1"
+        val b2 = "valve-proton-11.0-2b-arm64-1787950357-aaaaaaaaaaaa-r2"
+        val c = "valve-proton-11.0-2c-arm64-1788504814-aaaaaaaaaaaa-r1"
+        val c2 = "valve-proton-11.0-2c-arm64-1788504814-aaaaaaaaaaaa-r2"
+        val va = "proton-11.0-2a-arm64"
+        val vb = "proton-11.0-2b-arm64"
+        val vc = "proton-11.0-2c-arm64"
+        val lines = mapOf(va to "1787000000 $va", vb to "1787950357 $vb", vc to "1788504814 $vc")
+        fun entry(id: String, version: String, rev: Int = 1) = entryJson(id, rev = rev, version = version).put("version_line", lines[version])
+        fun onB(epoch: Long = 1787950357L) = row(version = vb).copy(epoch = epoch)
+        val both = entries(entry(b, vb), entry(c, vc))
+        assertEquals(b, EsyncPacks.best(both, onB())?.id)
+        assertEquals(c, EsyncPacks.best(both, row(version = vc).copy(epoch = 1788504814L))?.id)
+        assertNull(EsyncPacks.best(entries(entry(c, vc)), onB()))
+        assertEquals(c, EsyncPacks.best(entries(entry(c, vc)), onB(epoch = 0L))?.id)
+        assertEquals(a, EsyncPacks.best(entries(entry(a, va), entry(c, vc)), onB())?.id)
+        assertEquals(b, EsyncPacks.best(entries(entry(b, vb), entry(c2, vc, rev = 2)), onB())?.id)
+        assertEquals(listOf(b), EsyncPacks.plan(EsyncPacks.Index(1, 1, both), listOf(onB()), emptySet()).map { it.id })
+        assertTrue(EsyncPacks.plan(EsyncPacks.Index(1, 1, entries(entry(c, vc))), listOf(onB()), emptySet()).isEmpty())
+
+        val tools = listOf(
+            EsyncPacks.ToolState(toolDir, lines[vb]!!, stockNtdll.uppercase(), stockWineserver, "wanted", null),
+            EsyncPacks.ToolState("/root/other", "1 other", "1".repeat(64), "2".repeat(64), "wanted", null),
+        )
+        assertEquals(listOf(1787950357L, 0L), EsyncPacks.withEpochs(listOf(row(version = vb), row(ntdll = "3".repeat(64))), tools).map { it.epoch })
+
+        val store = temp.newFolder("store")
+        fun install(id: String, version: String, rev: Int = 1) {
+            File(store, "packs/$id").mkdirs()
+            File(store, "packs/$id/pack.json").writeText(packJson(id, rev = rev, version = version).put("version_line", lines[version]).toString())
+            File(store, "packs/$id/.complete").writeText("")
+        }
+        fun tool(pack: String) = EsyncPacks.ToolState(toolDir, lines[vb]!!, stockNtdll, stockWineserver, "pack", pack)
+        install(c, vc)
+        assertEquals("wanted", EsyncPacks.settled(store, tools.take(1), emptyList()).single().state)
+        install(b, vb)
+        assertEquals(b, EsyncPacks.settled(store, tools.take(1), emptyList()).single().packId)
+        val onOwn = EsyncPacks.upgradeRows(store, listOf(tool(b)))
+        assertEquals(EsyncPacks.Rank(2, 1, 1), onOwn.single().inUse)
+        assertEquals(1787950357L, onOwn.single().epoch)
+        assertTrue(EsyncPacks.plan(EsyncPacks.Index(1, 1, both), onOwn, setOf(b)).isEmpty())
+        assertTrue(EsyncPacks.plan(EsyncPacks.Index(1, 1, entries(entry(c2, vc, rev = 2))), onOwn, setOf(b)).isEmpty())
+        assertTrue(EsyncPacks.plan(EsyncPacks.Index(1, 1, entries(entry(a, va, rev = 2))), onOwn, setOf(b)).isEmpty())
+        val ownRev = EsyncPacks.Index(1, 1, entries(entry(b2, vb, rev = 2), entry(c2, vc, rev = 2)))
+        assertEquals(listOf(b2), EsyncPacks.plan(ownRev, onOwn, setOf(b)).map { it.id })
+
+        val onOlder = EsyncPacks.upgradeRows(store, listOf(tool(c).copy(versionLine = "1787950357 proton-11.0-2a-arm64")))
+        assertNull(onOlder.single().inUse)
+    }
+
+    @Test fun installRejectsAnArchiveThatDisagreesWithTheIndex() {
+        val store = temp.newFolder("store")
+        val bytes = "not really a pack".toByteArray()
+        val archive = temp.newFile("pack.tzst").apply { writeBytes(bytes) }
+        fun entry(size: Int, sha256: String) = entries(entryJson("ge-a-r1").apply {
+            getJSONObject("asset").put("size", size).put("sha256", sha256)
+        }).single()
+        val good = sha(bytes)
+        val flipped = (if (good[0] == '0') "1" else "0") + good.substring(1)
+        rejects { EsyncPacks.install(store, entry(bytes.size + 1, good), archive) }
+        rejects { EsyncPacks.install(store, entry(bytes.size - 1, good), archive) }
+        rejects { EsyncPacks.install(store, entry(bytes.size, flipped), archive) }
+        assertTrue(File(store, "packs").listFiles().isNullOrEmpty())
+    }
+
+    @Test fun fetchWantedDownloadsOnlyThePackForTheInstalledBuild() {
+        val context = RuntimeEnvironment.getApplication()
+        val cache = File(context.filesDir, "droiddeck-esync").apply { deleteRecursively() }
+        val pair = keyPair()
+        val base = EsyncPacks.ASSET_PREFIX + "valve/"
+        val own = "valve-proton-11.0-2b-arm64-1787950357-aaaaaaaaaaaa-r1"
+        val sibling = "valve-proton-11.0-2c-arm64-1788504814-aaaaaaaaaaaa-r1"
+        val next = "valve-proton-11.0-3-arm64-1790000000-111111111111-r1"
+        val revoked = "valve-proton-11.0-2b-arm64-1787950357-aaaaaaaaaaaa-r2"
+        val ownEntry = entryJson(own, version = "proton-11.0-2b-arm64", url = "$base$own.tzst")
+            .put("version_line", "1787950357 proton-11.0-2b-arm64")
+        val others = arrayOf(
+            entryJson(sibling, version = "proton-11.0-2c-arm64", url = "$base$sibling.tzst").put("version_line", "1788504814 proton-11.0-2c-arm64"),
+            entryJson(next, ntdll = "1".repeat(64), wineserver = "2".repeat(64), version = "proton-11.0-3-arm64", url = "$base$next.tzst"),
+            entryJson(revoked, rev = 2, version = "proton-11.0-2b-arm64", url = "$base$revoked.tzst", revoked = true),
+        )
+        var index = indexBytes(6, *others)
+        var sig = sign(index, pair)
+        val requested = ArrayList<String>()
+        val original = EsyncPacks.fetcher
+        EsyncPacks.keyOverride = pair.public
+        EsyncPacks.fetcher = { url, _, out, _ ->
+            requested.add(url)
+            out.write(
+                when (url) {
+                    EsyncPacks.INDEX_URL -> index
+                    EsyncPacks.SIG_URL -> sig
+                    else -> ByteArray(123)
+                },
+            )
+            true
+        }
+        try {
+            val root = temp.newFolder("rootfs")
+            val store = EsyncPacks.store(root).apply { mkdirs() }
+            File(store, "wanted.tsv").writeText("$stockNtdll\t$stockWineserver\tproton-11.0-2b-arm64\t$exports\t/t\t1\n")
+            File(store, "tools.tsv").writeText("/t\t1787950357 proton-11.0-2b-arm64\t$stockNtdll\t$stockWineserver\twanted\t-\n")
+            assertEquals(0, EsyncPacks.fetchWanted(context, root))
+            assertEquals(listOf(EsyncPacks.INDEX_URL, EsyncPacks.SIG_URL), requested)
+            requested.clear()
+            index = indexBytes(7, ownEntry, *others)
+            sig = sign(index, pair)
+            File(cache, "state.json").delete()
+            assertEquals(0, EsyncPacks.fetchWanted(context, root))
+            assertEquals(listOf(EsyncPacks.INDEX_URL, EsyncPacks.SIG_URL, "$base$own.tzst"), requested)
+            val failures = JSONObject(File(cache, "state.json").readText()).getJSONObject("packFailures")
+            assertEquals(listOf(own), failures.keys().asSequence().toList())
+            assertTrue(File(store, "packs").listFiles().orEmpty().none { it.name == own })
+            requested.clear()
+            assertEquals(0, EsyncPacks.fetchWanted(context, root))
+            assertTrue(requested.isEmpty())
+        } finally {
+            EsyncPacks.keyOverride = null
+            EsyncPacks.fetcher = original
+            cache.deleteRecursively()
+        }
+    }
+
+    @Test fun aReplayedOlderIndexIsRefusedAndATamperedCacheIgnored() {
+        val context = RuntimeEnvironment.getApplication()
+        val cache = File(context.filesDir, "droiddeck-esync").apply { deleteRecursively() }
+        val pair = keyPair()
+        var served = indexBytes(5, entryJson("ge-a-r1"))
+        var online = true
+        val original = EsyncPacks.fetcher
+        EsyncPacks.keyOverride = pair.public
+        EsyncPacks.fetcher = { url, _, out, _ ->
+            if (online) out.write(if (url == EsyncPacks.SIG_URL) sign(served, pair) else served)
+            online
+        }
+        try {
+            assertEquals(5L, EsyncPacks.refreshIndex(context)?.generated)
+            assertEquals("5", File(cache, "floor").readText().trim())
+            File(cache, "index.json").delete()
+            File(cache, "state.json").delete()
+            served = indexBytes(4, entryJson("ge-old-r1"))
+            assertNull(EsyncPacks.refreshIndex(context))
+            assertFalse(File(cache, "index.json").exists())
+            File(cache, "state.json").delete()
+            served = indexBytes(6, entryJson("ge-b-r1"))
+            assertEquals(6L, EsyncPacks.refreshIndex(context)?.generated)
+            assertEquals("6", File(cache, "floor").readText().trim())
+            val bytes = File(cache, "index.json").readBytes()
+            bytes[bytes.size / 2] = (bytes[bytes.size / 2] + 1).toByte()
+            File(cache, "index.json").writeBytes(bytes)
+            File(cache, "state.json").delete()
+            online = false
+            assertNull(EsyncPacks.refreshIndex(context))
+        } finally {
+            EsyncPacks.keyOverride = null
+            EsyncPacks.fetcher = original
+            cache.deleteRecursively()
+        }
+    }
+
     @Test fun removeRevokedDeletesOnlyRevokedPacks() {
         val store = temp.newFolder("store")
         for (id in listOf("ge-a-r1", "ge-b-r1")) {

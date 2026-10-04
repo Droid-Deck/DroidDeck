@@ -1102,7 +1102,7 @@ class SessionService : Service() {
         @Suppress("DEPRECATION")
         val watcher = object : android.os.FileObserver(store.path, CLOSE_WRITE or MOVED_TO) {
             override fun onEvent(event: Int, path: String?) {
-                if (path != "wanted.tsv") return
+                if (path != "wanted.tsv" && path != "tools.tsv") return
                 EsyncPacks.fetchInBackground(this@SessionService, root)
             }
         }
