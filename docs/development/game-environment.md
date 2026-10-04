@@ -68,6 +68,13 @@ Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. Malforme
 configuration falls back to the inherited environment without evaluating its
 contents. Signed non-Steam prefix IDs are normalized to unsigned IDs.
 
+The published file also carries a `dxvkConfig` string the app's own file never
+has: the session menu's texture filtering (Effects page; `core/TextureFiltering`)
+as `d3d9/d3d11.samplerAnisotropy` and `samplerLodBias` options. The launcher
+appends it to `DXVK_CONFIG` after the profiles, so a user's own `DXVK_CONFIG`
+entry keeps its options. "Auto" texture sharpness is `-log2(panel / session)`,
+derived when the session is sized, and applies from the next launch.
+
 Upstream references: [VKD3D capability parsing](https://github.com/HansKristian-Work/vkd3d-proton/blob/master/libs/vkd3d/device.c),
 [VKD3D options](https://github.com/HansKristian-Work/vkd3d-proton#environment-variables),
 [Proton runtime options](https://github.com/ValveSoftware/Proton/tree/proton_11.0#runtime-config-options),

@@ -27,6 +27,19 @@ class GameEnvironmentTest(unittest.TestCase):
                 MODULE["apply_config"](env, {"version": 1, "shared": entries}, "42")
             self.assertEqual(env, {"ORIGINAL": "unchanged"})
 
+    def test_texture_filtering_is_appended_to_dxvk_config(self):
+        options = "d3d9.samplerAnisotropy = 16; d3d11.samplerAnisotropy = 16"
+        config = {"version": 1, "shared": {}, "games": {}, "dxvkConfig": options}
+        self.assertEqual(MODULE["apply_config"]({}, config, "42")["DXVK_CONFIG"], options)
+        own = {"DXVK_CONFIG": "dxvk.maxFrameRate = 60; "}
+        self.assertEqual(MODULE["apply_config"](own, config, "42")["DXVK_CONFIG"], "dxvk.maxFrameRate = 60; " + options)
+        shared = {"version": 1, "shared": {"DXVK_CONFIG": "dxvk.tearFree = True"}, "games": {}, "dxvkConfig": options}
+        self.assertEqual(MODULE["apply_config"]({}, shared, "42")["DXVK_CONFIG"], "dxvk.tearFree = True; " + options)
+        self.assertNotIn("DXVK_CONFIG", MODULE["apply_config"]({}, {**config, "dxvkConfig": ""}, "42"))
+        for bad in (1, "a\0b", "x" * 8193):
+            with self.assertRaises(ValueError):
+                MODULE["apply_config"]({}, {**config, "dxvkConfig": bad}, "42")
+
     def test_game_ids_and_probes(self):
         for prefix in ("", "/compatdata/0", "/compatdata/0-123", "/compatdata/nope", "/compatdata/4294967296"):
             self.assertIsNone(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": prefix}))

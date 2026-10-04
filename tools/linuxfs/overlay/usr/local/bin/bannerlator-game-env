@@ -34,6 +34,15 @@ def apply_config(env, config, app_id):
             result[name] = value
         else:
             raise ValueError("invalid environment value")
+    # The app's texture filtering (Display page), as DXVK options appended after the profiles so
+    # a DXVK_CONFIG entry of the user's keeps its own.
+    dxvk = config.get("dxvkConfig")
+    if dxvk is not None:
+        if not isinstance(dxvk, str) or "\0" in dxvk or len(dxvk) > 8192:
+            raise ValueError("invalid dxvk configuration")
+        if dxvk:
+            own = result.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
+            result["DXVK_CONFIG"] = own + "; " + dxvk if own else dxvk
     return result
 
 

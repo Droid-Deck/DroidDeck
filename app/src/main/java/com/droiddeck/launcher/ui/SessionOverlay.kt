@@ -27,6 +27,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.PowerSettingsNew
@@ -116,20 +117,24 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FexPreset
+import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
+import com.droiddeck.launcher.gpu.ScreenEffectLooks
+import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenMode
 import kotlinx.coroutines.flow.collect
+import java.util.Locale
 
-private val drawerPageTitles = listOf(R.string.drawer_page_display, R.string.drawer_page_controls, R.string.drawer_page_components, R.string.drawer_page_settings)
+private val drawerPageTitles = listOf(R.string.drawer_page_display, R.string.drawer_page_effects, R.string.drawer_page_controls, R.string.drawer_page_components, R.string.drawer_page_settings)
 
 /** One icon per drawer page, in page order (QAM-style tabs). */
-private val drawerPageIcons = listOf(Icons.Outlined.DesktopWindows, Icons.Outlined.SportsEsports, Icons.Outlined.Layers, Icons.Outlined.Settings)
+private val drawerPageIcons = listOf(Icons.Outlined.DesktopWindows, Icons.Outlined.AutoFixHigh, Icons.Outlined.SportsEsports, Icons.Outlined.Layers, Icons.Outlined.Settings)
 
-private val drawerPageEntries = listOf("hud", "touch", "cmp-proton", "suspend")
+private val drawerPageEntries = listOf("hud", "look", "touch", "cmp-proton", "suspend")
 
 private class DrawerFocus {
     private val requesters = HashMap<String, FocusRequester>()
@@ -173,6 +178,11 @@ class DrawerActions(
     val fillScreen: Boolean? = null,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
+    /** The compositor's post chain (gpu/ScreenEffects), changed live. */
+    val effects: ScreenEffects = ScreenEffects.OFF,
+    /** Texture filtering for DirectX 9-11 games (core/TextureFiltering); lands on their next launch. */
+    val textureAnisotropy: Int = 0,
+    val textureLodBias: String = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
@@ -194,6 +204,9 @@ class DrawerActions(
     val onFillScreen: (Boolean) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
+    val onEffects: (ScreenEffects) -> Unit = {},
+    val onTextureAnisotropy: (Int) -> Unit = {},
+    val onTextureLodBias: (String) -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
     val onSecondScreenDisplay: (Int) -> Unit,
     val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
@@ -346,30 +359,36 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll[page]),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 120.dp) {
                     when (page) {
-                        0 -> SettingsGroup(stringResource(R.string.drawer_page_display)) {
-                            ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
-                                chipModifier = focus.track(page, "hud"), onChange = a.onHud)
-                            if (a.fillScreen != null) ToggleRow(
-                                host, "fill", stringResource(R.string.drawer_fill), null, a.fillScreen,
-                                chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen,
-                            )
-                            ChoiceRow(host, "upscaler", "Upscaler", null,
-                                SessionPrefs.upscalerChoices, a.upscaler,
-                                chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
-                            ChoiceRow(host, "upscale-sharpness", "Upscaler sharpness", null,
-                                SessionPrefs.upscaleSharpnessChoices, a.upscaleSharpness, enabled = a.upscaler != 0,
-                                chipModifier = focus.track(page, "upscale-sharpness"), onPick = a.onUpscaleSharpness)
-                            val fgOpen = host.open == "fg"
-                            val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
-                            SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
-                                Box {
-                                    ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
-                                    FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
+                        0 -> {
+                            SettingsGroup(stringResource(R.string.drawer_page_display)) {
+                                ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
+                                    chipModifier = focus.track(page, "hud"), onChange = a.onHud)
+                                if (a.fillScreen != null) ToggleRow(
+                                    host, "fill", stringResource(R.string.drawer_fill), null, a.fillScreen,
+                                    chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen,
+                                )
+                                ChoiceRow(host, "upscaler", stringResource(R.string.drawer_scaling), null,
+                                    SessionPrefs.upscalerChoices, a.upscaler,
+                                    chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
+                                ChoiceRow(host, "upscale-sharpness", stringResource(R.string.drawer_scaling_sharpness), null,
+                                    SessionPrefs.upscaleSharpnessChoices, a.upscaleSharpness, enabled = a.upscaler != 0,
+                                    chipModifier = focus.track(page, "upscale-sharpness"), onPick = a.onUpscaleSharpness)
+                                val fgOpen = host.open == "fg"
+                                val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
+                                SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
+                                    Box {
+                                        ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
+                                        FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
+                                    }
                                 }
                             }
                         }
+                        DRAWER_PAGE_EFFECTS -> {
+                            ScreenEffectsGroup(host, a) { key -> focus.track(page, key) }
+                            TextureFilteringGroup(host, a) { key -> focus.track(page, key) }
+                        }
                         DRAWER_PAGE_COMPONENTS -> ComponentsDrawerPage(host, a) { key -> focus.track(page, key) }
-                        1 -> {
+                        DRAWER_PAGE_CONTROLS -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controls)) {
                                 ChoiceRow(host, "touch", stringResource(R.string.mode_touch), null,
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct)),
@@ -671,10 +690,88 @@ private fun DrawerPageTabs(page: Int, modifier: Modifier = Modifier, compact: Bo
     }
 }
 
-/** Display, Controls, Components, Settings. */
-const val DRAWER_PAGES = 4
+/** The Look row's value when the rows below match no Look. */
+private const val LOOK_CUSTOM = "custom"
 
-private const val DRAWER_PAGE_COMPONENTS = 2
+/**
+ * Screen effects on the Effects page: a Look row that moves every row under it, then the rows
+ * themselves. Values are stepped menus like the rest of the drawer, so a pad drives them; a Look's
+ * own value is kept in a row's menu, so the chip reads what the Look set.
+ */
+@Composable
+private fun ScreenEffectsGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+    val e = a.effects
+    val look = ScreenEffectLooks.match(e, a.upscaler)
+    SettingsGroup(stringResource(R.string.drawer_effects)) {
+        val looks = ScreenEffectLooks.LOOKS.map { it.name to it.name }
+        ChoiceRow(host, "look", stringResource(R.string.drawer_look),
+            look?.desc ?: stringResource(R.string.drawer_effects_hint),
+            if (look == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + looks else looks,
+            look?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
+            ScreenEffectLooks.LOOKS.firstOrNull { it.name == name }?.let { picked ->
+                picked.scalingMode?.let(a.onUpscaler)
+                a.onEffects(picked.effects)
+            }
+        }
+        ToggleRow(host, "cas", stringResource(R.string.drawer_cas), null, e.cas, chipModifier = track("cas")) { a.onEffects(e.copy(cas = it)) }
+        StepRow(host, "cas-level", stringResource(R.string.drawer_cas_level), CAS_STEPS, e.casLevel, enabled = e.cas,
+            format = { "$it%" }, track = track) { a.onEffects(e.copy(casLevel = it)) }
+        ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
+        ToggleRow(host, "deband", stringResource(R.string.drawer_deband), null, e.deband, chipModifier = track("deband")) { a.onEffects(e.copy(deband = it)) }
+        StepRow(host, "deband-strength", stringResource(R.string.drawer_deband_strength), DEBAND_STEPS, e.debandStrength, enabled = e.deband,
+            format = { "$it%" }, track = track) { a.onEffects(e.copy(debandStrength = it)) }
+        StepRow(host, "brightness", stringResource(R.string.drawer_brightness), GRADE_STEPS, e.brightness,
+            format = ::signed, track = track) { a.onEffects(e.copy(brightness = it)) }
+        StepRow(host, "contrast", stringResource(R.string.drawer_contrast), GRADE_STEPS, e.contrast,
+            format = ::signed, track = track) { a.onEffects(e.copy(contrast = it)) }
+        StepRow(host, "gamma", stringResource(R.string.drawer_gamma), GAMMA_STEPS, (e.gamma * 100f).roundToInt(),
+            format = { String.format(Locale.US, "%.2f", it / 100f) }, track = track) { a.onEffects(e.copy(gamma = it / 100f)) }
+        StepRow(host, "saturation", stringResource(R.string.drawer_saturation), SATURATION_STEPS, e.saturation,
+            format = { "$it%" }, track = track) { a.onEffects(e.copy(saturation = it)) }
+        ToggleRow(host, "fxaa", stringResource(R.string.drawer_fxaa), null, e.fxaa, chipModifier = track("fxaa")) { a.onEffects(e.copy(fxaa = it)) }
+        ToggleRow(host, "toon", stringResource(R.string.drawer_toon), null, e.toon, chipModifier = track("toon")) { a.onEffects(e.copy(toon = it)) }
+        ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
+        ToggleRow(host, "ntsc", stringResource(R.string.drawer_ntsc), null, e.ntsc, chipModifier = track("ntsc")) { a.onEffects(e.copy(ntsc = it)) }
+    }
+}
+
+/** Texture filtering on the Effects page: DXVK options for the next DirectX 9-11 launch. */
+@Composable
+private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+    SettingsGroup(stringResource(R.string.drawer_texture)) {
+        ChoiceRow(host, "anisotropy", stringResource(R.string.drawer_anisotropy), stringResource(R.string.drawer_texture_hint),
+            SessionPrefs.textureAnisotropyChoices, a.textureAnisotropy, chipModifier = track("anisotropy"), onPick = a.onTextureAnisotropy)
+        ChoiceRow(host, "texture-sharpness", stringResource(R.string.drawer_texture_sharpness), stringResource(R.string.drawer_texture_hint),
+            SessionPrefs.textureLodBiasChoices, a.textureLodBias, note = stringResource(R.string.drawer_texture_sharpness_note),
+            chipModifier = track("texture-sharpness"), onPick = a.onTextureLodBias)
+    }
+}
+
+private val CAS_STEPS = (0..100 step 10).toList()
+private val DEBAND_STEPS = listOf(25, 50, 75, 100, 125, 150, 175, 200)
+private val GRADE_STEPS = listOf(-40, -30, -20, -15, -10, -5, 0, 5, 10, 15, 20, 30, 40)
+private val GAMMA_STEPS = listOf(50, 70, 80, 90, 100, 110, 120, 140, 160, 200, 250, 300)
+private val SATURATION_STEPS = listOf(0, 50, 75, 90, 100, 110, 125, 150, 175, 200)
+
+private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
+
+/** A stepped value as a menu; the current value is always among the steps, so the chip never reads "-". */
+@Composable
+private fun StepRow(
+    host: MenuHost, key: String, label: String, steps: List<Int>, value: Int, enabled: Boolean = true,
+    format: (Int) -> String, track: (String) -> Modifier, onPick: (Int) -> Unit,
+) {
+    val options = (steps + value).distinct().sorted().map { it to format(it) }
+    ChoiceRow(host, key, label, null, options, value, enabled = enabled, chipModifier = track(key), onPick = onPick)
+}
+
+/** Display, Effects, Controls, Components, Settings. */
+const val DRAWER_PAGES = 5
+
+private const val DRAWER_PAGE_EFFECTS = 1
+private const val DRAWER_PAGE_CONTROLS = 2
+
+private const val DRAWER_PAGE_COMPONENTS = 3
 
 /**
  * The drawer's Components tab: quick swaps between what is already installed, per Proton. A swap

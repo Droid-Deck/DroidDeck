@@ -197,13 +197,13 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 onPick = a.onFpsLimit,
             )
             ChoiceRow(
-                host, "upscaler", "Upscaler", "Sharpens the picture where it is enlarged to the screen.",
+                host, "upscaler", stringResource(R.string.drawer_scaling), "How the picture is resized to the screen; the sharpening modes sharpen where it is enlarged.",
                 com.droiddeck.launcher.session.SessionPrefs.upscalerChoices, s.upscaler,
-                note = "Works only when the session is smaller than the screen; Sharpen only works at any size. Costs a little GPU time.",
+                note = "The sharpening modes work only when the session is smaller than the screen; Linear, Nearest and Sharpen only work at any size. Costs a little GPU time.",
                 onPick = a.onUpscaler,
             )
             ChoiceRow(
-                host, "upscale-sharpness", "Upscaler sharpness", null,
+                host, "upscale-sharpness", stringResource(R.string.drawer_scaling_sharpness), null,
                 com.droiddeck.launcher.session.SessionPrefs.upscaleSharpnessChoices, s.upscaleSharpness,
                 enabled = s.upscaler != 0, onPick = a.onUpscaleSharpness,
             )
