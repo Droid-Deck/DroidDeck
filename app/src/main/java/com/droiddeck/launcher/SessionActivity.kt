@@ -907,7 +907,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // whole process, so the second Play after a session ended used to re-attach the Surface,
         // start nothing, and leave the loading panel counting up over a dead session.
         if (!SessionState.running) {
-            CompositorHost.newSession()
             SessionEvents.transition(SessionPhase.STARTING_GUEST, "guest.starting")
             SessionService.start(
                 this, intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM,

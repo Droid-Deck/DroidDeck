@@ -217,6 +217,9 @@ class SessionService : Service() {
         SessionState.firstFrameSeen = false
         SessionState.guestPid = -1
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
+        // Re-arm after clearing readiness: a retained picture can present between the activity's
+        // start request and this callback, and that notice must not be erased by the reset above.
+        com.droiddeck.launcher.wayland.CompositorHost.newSession()
         // This session's number, claimed here and not when its process starts: the session it
         // replaces can report its own exit in the gap between the two, and that exit must not
         // be taken as this one's.

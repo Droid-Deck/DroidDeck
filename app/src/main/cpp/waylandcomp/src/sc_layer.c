@@ -836,6 +836,7 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
             apply_geometry(tx, l, r); apply_frame_rate(tx, l); apply_colour(tx, l, color);
             api.txApply(tx); api.txDelete(tx);
         }
+        vkp_signal_first_frame();
         return 0;
     }
     ASurfaceTransaction *tx = api.txCreate();
@@ -863,7 +864,10 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
     l->cur_slot = -1;
     l->cur_token = token;
     if (!l->shown) { l->shown = 1; banner_log("layer", "%s: layer shown", l->name); }
-    if (!l->first_logged) { l->first_logged = 1; vkp_signal_first_frame(); }
+    /* The notification is re-armed for each session; the layer and its logging flag can
+     * outlive it. Let the notification's own one-shot decide whether to fire. */
+    if (!l->first_logged) l->first_logged = 1;
+    vkp_signal_first_frame();
     if (color && color->dataspace) banner_color_frame_shown(color, BANNER_HDR_ZERO_COPY, ahb_format);
     return 0;
 unavailable:
@@ -891,8 +895,8 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
         banner_log("layer", "presenting %dx%d game frames on their own SurfaceControl layer (%s pool, %d buffers); "
                    "HUD and pointer stay Android views above it", sw, sh,
                    l->pool_modifier == MOD_QCOM_COMPRESSED ? "UBWC" : "linear", l->pool_n);
-        vkp_signal_first_frame();
     }
+    vkp_signal_first_frame();
     return 0;
 }
 
@@ -915,8 +919,8 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
         banner_log("layer", "presenting %dx%d frames on their own SurfaceControl layer (%s pool, %d buffers); "
                    "HUD and pointer stay Android views above it", rw, rh,
                    l->pool_modifier == MOD_QCOM_COMPRESSED ? "UBWC" : "linear", l->pool_n);
-        vkp_signal_first_frame();
     }
+    vkp_signal_first_frame();
     return 0;
 }
 
@@ -971,7 +975,8 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
                        cov[0] ? ", " : "", cov);
         }
     }
-    if (!l->first_logged) { l->first_logged = 1; vkp_signal_first_frame(); }
+    if (!l->first_logged) l->first_logged = 1;
+    vkp_signal_first_frame();
     return 0;
 }
 
