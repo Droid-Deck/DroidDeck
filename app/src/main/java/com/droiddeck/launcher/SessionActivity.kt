@@ -596,8 +596,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             performBackAction(double = false)
         }
         pendingBackAction = pending
-        // Android's own double-tap window (300 ms): the single action waits it out, so it is felt.
-        uiHandler.postDelayed(pending, android.view.ViewConfiguration.getDoubleTapTimeout().toLong())
+        // Wait 500 ms for a second Back press before performing the single-press action.
+        uiHandler.postDelayed(pending, 500L)
     }
 
     private fun performBackAction(double: Boolean) {
