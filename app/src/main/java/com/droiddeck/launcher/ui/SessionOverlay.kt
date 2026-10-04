@@ -186,6 +186,11 @@ class DrawerActions(
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
     val onOsc: (String) -> Unit,
+    val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
+    val onRumble: (Boolean) -> Unit = {},
+    val onSteamButton: (Boolean) -> Unit = {},
+    val onQamButton: (Boolean) -> Unit = {},
+    val onKeyboardButton: (Boolean) -> Unit = {},
     val onSuspendPolicy: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
@@ -378,6 +383,16 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                     if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
                                     else listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
                                     a.oscMode, chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
+                                a.controller?.let { c ->
+                                    ToggleRow(host, "rumble", stringResource(R.string.ctrl_rumble), null, c.rumble,
+                                        chipModifier = focus.track(page, "rumble"), onChange = a.onRumble)
+                                    ToggleRow(host, "steam-button", stringResource(R.string.ctrl_steam_button), null, c.steamButton,
+                                        chipModifier = focus.track(page, "steam-button"), onChange = a.onSteamButton)
+                                    ToggleRow(host, "qam-button", stringResource(R.string.ctrl_qam_button), null, c.qamButton,
+                                        chipModifier = focus.track(page, "qam-button"), onChange = a.onQamButton)
+                                    ToggleRow(host, "keyboard-button", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton,
+                                        chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
+                                }
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to SessionPrefs.BACK_MENU_THEN_QAM, true to SessionPrefs.BACK_QAM_THEN_MENU),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)

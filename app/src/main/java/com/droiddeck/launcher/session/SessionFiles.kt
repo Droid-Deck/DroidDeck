@@ -43,6 +43,7 @@ object SessionFiles {
             "usr/local/bin/bannerlator-login1" to "usr/local/bin/bannerlator-login1",
             "usr/local/bin/bannerlator-steam-launch" to "usr/local/bin/bannerlator-steam-launch",
             "usr/local/bin/bannerlator-desktop-games" to "usr/local/bin/bannerlator-desktop-games",
+            "usr/local/bin/bannerlator-desktop-bookmarks" to "usr/local/bin/bannerlator-desktop-bookmarks",
             "usr/local/bin/bannerlator-steam-shim" to "usr/local/bin/bannerlator-steam-shim",
             "usr/local/bin/bannerlator-steam-shortcuts" to "usr/local/bin/bannerlator-steam-shortcuts",
             "usr/local/bin/bannerlator-steam-games" to "usr/local/bin/bannerlator-steam-games",

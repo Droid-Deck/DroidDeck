@@ -160,7 +160,7 @@ internal fun Pane(
                 else {
                     // Keeps a leaving page on screen while its flood draws back into the control.
                     transition.animateFloat(
-                        transitionSpec = { if (targetState == EnterExitState.PostExit) tween(PAGE_RETURN_MS) else snap() },
+                        transitionSpec = { if (targetState == EnterExitState.PostExit) Motion.tw(PAGE_RETURN_MS) else snap() },
                         label = "pageReturn",
                     ) { if (it == EnterExitState.PostExit) 1f else 0f }
                     PageFlood(from, leaving = transition.targetState == EnterExitState.PostExit) { shown() }

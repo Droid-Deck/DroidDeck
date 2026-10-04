@@ -121,6 +121,7 @@ class FrontEndState(
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
     val showPhantomGate: Boolean = false,
     val launcherFullscreen: Boolean = true,
+    val animationsEnabled: Boolean = true,
     /** The Flathub Store, a beta the user turns on in Setup. */
     val storeEnabled: Boolean = false,
     /** The Updates page: DroidDeck's own builds and the channel followed. */
@@ -168,6 +169,7 @@ class FrontEndActions(
     val onPageBack: () -> Unit = {},
     val onTheme: (String) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
+    val onAnimationsEnabled: (Boolean) -> Unit = {},
     val onStoreEnabled: (Boolean) -> Unit = {},
     val onHomeApp: () -> Unit = {},
     val onHomeScreen: (Boolean) -> Unit = {},
@@ -188,10 +190,13 @@ class FrontEndActions(
 )
 
 internal object Motion {
-    var scale = 1f
-    /** The system's animator scale, re-read on each resume so "Remove animations" applies without a restart. */
+    var scale by mutableStateOf(1f)
+        private set
+    /** App animations can be disabled independently; Android's "Remove animations" always wins. */
     fun refresh(context: android.content.Context) {
-        scale = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        scale = if (SessionPrefs.animationsEnabled(context))
+            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        else 0f
     }
     val Ease = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
     /** A wall-clock wait (a coroutine delay) scaled as the animations around it are. Compose already
