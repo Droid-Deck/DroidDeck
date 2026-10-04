@@ -623,8 +623,6 @@ object SessionPrefs {
         prefs(context).edit().putInt("upscaler", mode).apply()
     }
 
-    val upscaleSharpnessChoices = listOf(0 to "0%", 25 to "25%", 50 to "50%", 75 to "75%", 100 to "100%")
-
     fun upscaleSharpness(context: Context): Int = prefs(context).getInt("upscaleSharpness", 75).coerceIn(0, 100)
 
     fun setUpscaleSharpness(context: Context, pct: Int) {

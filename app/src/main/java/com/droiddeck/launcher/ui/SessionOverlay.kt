@@ -370,9 +370,9 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                 ChoiceRow(host, "upscaler", stringResource(R.string.drawer_scaling), null,
                                     SessionPrefs.upscalerChoices, a.upscaler,
                                     chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
-                                ChoiceRow(host, "upscale-sharpness", stringResource(R.string.drawer_scaling_sharpness), null,
-                                    SessionPrefs.upscaleSharpnessChoices, a.upscaleSharpness, enabled = a.upscaler != 0,
-                                    chipModifier = focus.track(page, "upscale-sharpness"), onPick = a.onUpscaleSharpness)
+                                SliderRow(stringResource(R.string.drawer_scaling_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
+                                    enabled = a.upscaler != 0, format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"),
+                                    onChange = a.onUpscaleSharpness)
                                 val fgOpen = host.open == "fg"
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                                 SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
@@ -695,8 +695,7 @@ private const val LOOK_CUSTOM = "custom"
 
 /**
  * Screen effects on the Effects page: a Look row that moves every row under it, then the rows
- * themselves. Values are stepped menus like the rest of the drawer, so a pad drives them; a Look's
- * own value is kept in a row's menu, so the chip reads what the Look set.
+ * themselves: switches and sliders the d-pad steps (SliderRow), so a pad drives them.
  */
 @Composable
 private fun ScreenEffectsGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
@@ -714,20 +713,20 @@ private fun ScreenEffectsGroup(host: MenuHost, a: DrawerActions, track: (String)
             }
         }
         ToggleRow(host, "cas", stringResource(R.string.drawer_cas), null, e.cas, chipModifier = track("cas")) { a.onEffects(e.copy(cas = it)) }
-        StepRow(host, "cas-level", stringResource(R.string.drawer_cas_level), CAS_STEPS, e.casLevel, enabled = e.cas,
-            format = { "$it%" }, track = track) { a.onEffects(e.copy(casLevel = it)) }
+        SliderRow(stringResource(R.string.drawer_cas_level), null, e.casLevel, 0..100, step = 5, enabled = e.cas,
+            format = { "$it%" }, modifier = track("cas-level")) { a.onEffects(e.copy(casLevel = it)) }
         ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
         ToggleRow(host, "deband", stringResource(R.string.drawer_deband), null, e.deband, chipModifier = track("deband")) { a.onEffects(e.copy(deband = it)) }
-        StepRow(host, "deband-strength", stringResource(R.string.drawer_deband_strength), DEBAND_STEPS, e.debandStrength, enabled = e.deband,
-            format = { "$it%" }, track = track) { a.onEffects(e.copy(debandStrength = it)) }
-        StepRow(host, "brightness", stringResource(R.string.drawer_brightness), GRADE_STEPS, e.brightness,
-            format = ::signed, track = track) { a.onEffects(e.copy(brightness = it)) }
-        StepRow(host, "contrast", stringResource(R.string.drawer_contrast), GRADE_STEPS, e.contrast,
-            format = ::signed, track = track) { a.onEffects(e.copy(contrast = it)) }
-        StepRow(host, "gamma", stringResource(R.string.drawer_gamma), GAMMA_STEPS, (e.gamma * 100f).roundToInt(),
-            format = { String.format(Locale.US, "%.2f", it / 100f) }, track = track) { a.onEffects(e.copy(gamma = it / 100f)) }
-        StepRow(host, "saturation", stringResource(R.string.drawer_saturation), SATURATION_STEPS, e.saturation,
-            format = { "$it%" }, track = track) { a.onEffects(e.copy(saturation = it)) }
+        SliderRow(stringResource(R.string.drawer_deband_strength), null, e.debandStrength, 0..200, step = 5, enabled = e.deband,
+            format = { "$it%" }, modifier = track("deband-strength")) { a.onEffects(e.copy(debandStrength = it)) }
+        SliderRow(stringResource(R.string.drawer_brightness), null, e.brightness, -100..100, step = 2,
+            format = ::signed, modifier = track("brightness")) { a.onEffects(e.copy(brightness = it)) }
+        SliderRow(stringResource(R.string.drawer_contrast), null, e.contrast, -100..100, step = 2,
+            format = ::signed, modifier = track("contrast")) { a.onEffects(e.copy(contrast = it)) }
+        SliderRow(stringResource(R.string.drawer_gamma), null, (e.gamma * 100f).roundToInt(), 50..300, step = 5,
+            format = { String.format(Locale.US, "%.2f", it / 100f) }, modifier = track("gamma")) { a.onEffects(e.copy(gamma = it / 100f)) }
+        SliderRow(stringResource(R.string.drawer_saturation), null, e.saturation, 0..200, step = 5,
+            format = { "$it%" }, modifier = track("saturation")) { a.onEffects(e.copy(saturation = it)) }
         ToggleRow(host, "fxaa", stringResource(R.string.drawer_fxaa), null, e.fxaa, chipModifier = track("fxaa")) { a.onEffects(e.copy(fxaa = it)) }
         ToggleRow(host, "toon", stringResource(R.string.drawer_toon), null, e.toon, chipModifier = track("toon")) { a.onEffects(e.copy(toon = it)) }
         ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
@@ -747,23 +746,7 @@ private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (Stri
     }
 }
 
-private val CAS_STEPS = (0..100 step 10).toList()
-private val DEBAND_STEPS = listOf(25, 50, 75, 100, 125, 150, 175, 200)
-private val GRADE_STEPS = listOf(-40, -30, -20, -15, -10, -5, 0, 5, 10, 15, 20, 30, 40)
-private val GAMMA_STEPS = listOf(50, 70, 80, 90, 100, 110, 120, 140, 160, 200, 250, 300)
-private val SATURATION_STEPS = listOf(0, 50, 75, 90, 100, 110, 125, 150, 175, 200)
-
 private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
-
-/** A stepped value as a menu; the current value is always among the steps, so the chip never reads "-". */
-@Composable
-private fun StepRow(
-    host: MenuHost, key: String, label: String, steps: List<Int>, value: Int, enabled: Boolean = true,
-    format: (Int) -> String, track: (String) -> Modifier, onPick: (Int) -> Unit,
-) {
-    val options = (steps + value).distinct().sorted().map { it to format(it) }
-    ChoiceRow(host, key, label, null, options, value, enabled = enabled, chipModifier = track(key), onPick = onPick)
-}
 
 /** Display, Effects, Controls, Components, Settings. */
 const val DRAWER_PAGES = 5

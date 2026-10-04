@@ -202,10 +202,9 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 note = "The sharpening modes work only when the session is smaller than the screen; Linear, Nearest and Sharpen only work at any size. Costs a little GPU time.",
                 onPick = a.onUpscaler,
             )
-            ChoiceRow(
-                host, "upscale-sharpness", stringResource(R.string.drawer_scaling_sharpness), null,
-                com.droiddeck.launcher.session.SessionPrefs.upscaleSharpnessChoices, s.upscaleSharpness,
-                enabled = s.upscaler != 0, onPick = a.onUpscaleSharpness,
+            SliderRow(
+                stringResource(R.string.drawer_scaling_sharpness), null, s.upscaleSharpness, 0..100, step = 5,
+                enabled = s.upscaler != 0, format = { "$it%" }, onChange = a.onUpscaleSharpness,
             )
             if (editCustom) CustomResolutionDialog(
                 initial = custom,

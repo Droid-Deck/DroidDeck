@@ -67,6 +67,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.text.style.TextAlign
+import kotlin.math.roundToInt
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
@@ -426,6 +437,88 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
                     .graphicsLayer { translationX = knob * 22.dp.toPx() }
                     .clip(CircleShape)
                     .background(if (checked) pal.onSignal else colors.onSurfaceVariant),
+            )
+        }
+    }
+}
+
+/**
+ * A bounded value as a track: the d-pad's left and right step it by [step] (held, it keeps
+ * going), a finger drags or taps it, and [format] prints the value beside it. [modifier] goes on
+ * the focusable part, for a page's focus tracking.
+ */
+@Composable
+fun SliderRow(
+    label: String, hint: String?, value: Int, range: IntRange, step: Int = 1, enabled: Boolean = true,
+    format: (Int) -> String = { it.toString() }, modifier: Modifier = Modifier, onChange: (Int) -> Unit,
+) = SettingsRow(label, hint) {
+    ValueSlider(value, range, step, enabled, label, format, modifier, onChange)
+}
+
+@Composable
+fun ValueSlider(
+    value: Int, range: IntRange, step: Int, enabled: Boolean, label: String?, format: (Int) -> String,
+    modifier: Modifier = Modifier, onChange: (Int) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
+    val span = (range.last - range.first).coerceAtLeast(1)
+    val fraction = ((value - range.first).toFloat() / span).coerceIn(0f, 1f)
+    val shape = RoundedCornerShape(99.dp)
+    var trackPx by remember { mutableIntStateOf(0) }
+    val text = format(value)
+    // A step from the d-pad lands on the grid of [step] from the range's start; a Look's own
+    // value, which need not be on it, is kept until the user moves.
+    fun stepped(v: Int) = (((v - range.first).toFloat() / step).roundToInt() * step + range.first).coerceIn(range.first, range.last)
+    fun fromX(x: Float) { if (trackPx > 0) onChange(stepped(range.first + (x / trackPx * span).roundToInt())) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .alpha(if (enabled) 1f else 0.5f)
+            .hoverable(src)
+            .focusable(enabled, src)
+            .onPreviewKeyEvent { event ->
+                val keyEvent = event.nativeKeyEvent
+                val left = keyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT
+                if (!left && keyEvent.keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    false
+                } else {
+                    // Every down counts, repeats included, so a held direction keeps stepping.
+                    if (enabled && keyEvent.action == KeyEvent.ACTION_DOWN) {
+                        val next = stepped(value + if (left) -step else step)
+                        if (next != value) onChange(next)
+                    }
+                    true
+                }
+            }
+            .semantics {
+                stateDescription = text
+                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), range.first.toFloat()..range.last.toFloat())
+                if (label != null) contentDescription = label
+            },
+    ) {
+        Text(text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, textAlign = TextAlign.End,
+            modifier = Modifier.widthIn(min = 52.dp))
+        Spacer(Modifier.width(10.dp))
+        Box(
+            contentAlignment = Alignment.CenterStart,
+            modifier = Modifier.size(width = 164.dp, height = 30.dp).clip(shape).background(colors.surfaceVariant)
+                .glideBorder(hot, shape, colors.onBackground, pal.line2)
+                .onSizeChanged { trackPx = it.width }
+                .pointerInput(enabled, range, step) { if (enabled) detectTapGestures { fromX(it.x) } }
+                .pointerInput(enabled, range, step) {
+                    if (enabled) detectHorizontalDragGestures { change, _ -> fromX(change.position.x); change.consume() }
+                },
+        ) {
+            Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(pal.signal))
+            Box(
+                Modifier.padding(4.dp).size(22.dp)
+                    .graphicsLayer { translationX = fraction * (trackPx - 30.dp.toPx()).coerceAtLeast(0f) }
+                    .clip(CircleShape)
+                    .background(pal.onSignal),
             )
         }
     }
