@@ -163,18 +163,14 @@ object DeckyManager {
             if (!File(plugin, "plugin.json").isFile || !File(plugin, "package.json").isFile || !File(plugin, "dist/index.js").isFile) {
                 return "Plugin ZIP is missing plugin.json, package.json, or dist/index.js"
             }
+            val name = JSONObject(File(plugin, "plugin.json").readText()).getString("name")
+            require(name.isNotBlank()) { "Plugin name is missing" }
             val metadata = JSONObject(File(plugin, "package.json").readText())
             downloadRemoteBinaries(metadata, plugin, progress)
             if (SessionState.running) return "A session started during installation; stop it before installing a plugin"
 
-            val target = File(plugins, plugin.name)
-            val backup = File(plugins, plugin.name + backupSuffix)
-            if (target.exists() && !target.renameTo(backup)) return "Could not preserve the existing plugin"
-            if (!plugin.renameTo(target)) {
-                if (backup.exists()) backup.renameTo(target)
-                return "Could not activate the imported plugin"
-            }
-            backup.deleteRecursively()
+            DeckyPluginInstall.activate(plugin, plugins, name,
+                File(plugins.parentFile, "settings/loader.json"), backupSuffix)
             progress("Plugin installed · restart Steam to load it", 100)
             return null
         } catch (e: Exception) {
