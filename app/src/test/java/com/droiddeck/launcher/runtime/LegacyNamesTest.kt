@@ -64,8 +64,8 @@ class LegacyNamesTest {
         write("etc/bannerlator-network.json", "{}")
         write("etc/droiddeck-network.json", "{\"new\":1}")
         write("usr/local/share/bannerlator/system-bus.conf", "<busconfig/>")
-        write("usr/local/share/applications/droiddeck-appimage-eden.desktop",
-            "[Desktop Entry]\nExec=/usr/local/bin/bannerlator-appimage-run /opt/appimages/user/eden %U\n")
+        write("usr/local/share/applications/droiddeck-appimage-emulator.desktop",
+            "[Desktop Entry]\nExec=/usr/local/bin/bannerlator-appimage-run /opt/appimages/user/emulator %U\n")
         write("usr/local/share/applications/firefox.desktop", "Exec=/usr/local/bin/bannerlator-steam-launch\n")
         LegacyNames.migrateRootfs(root)
         assertEquals("wlan0", File(root, "etc/droiddeck-net").readText())
@@ -74,8 +74,8 @@ class LegacyNamesTest {
         assertFalse(File(root, "etc/bannerlator-network.json").exists())
         assertEquals("<busconfig/>", File(root, "usr/local/share/droiddeck/system-bus.conf").readText())
         assertEquals("droiddeck", link("usr/local/share/bannerlator"))
-        assertEquals("[Desktop Entry]\nExec=/usr/local/bin/droiddeck-appimage-run /opt/appimages/user/eden %U\n",
-            File(root, "usr/local/share/applications/droiddeck-appimage-eden.desktop").readText())
+        assertEquals("[Desktop Entry]\nExec=/usr/local/bin/droiddeck-appimage-run /opt/appimages/user/emulator %U\n",
+            File(root, "usr/local/share/applications/droiddeck-appimage-emulator.desktop").readText())
         assertEquals("Exec=/usr/local/bin/bannerlator-steam-launch\n",
             File(root, "usr/local/share/applications/firefox.desktop").readText())
     }
