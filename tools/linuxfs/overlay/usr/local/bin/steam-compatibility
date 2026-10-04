@@ -751,22 +751,22 @@ def fex_wanted_marker():
 def request_fex(steam_root, asked):
     import subprocess
     client = os.path.join(steam_root, "steamrtarm64", "steam")
-    requested = []
-    for app in fex_missing(steam_root):
-        if app in asked or not os.access(client, os.X_OK):
-            continue
+    missing = fex_missing(steam_root)
+    if not os.access(client, os.X_OK) or any(app in asked for app in missing):
+        return []
+    for app in missing:
         asked.add(app)
         try:
             process = subprocess.Popen([client, "steam://install/%s" % app], stdout=subprocess.DEVNULL,
                                        stderr=subprocess.DEVNULL, start_new_session=True)
-            requested.append(app)
         except OSError:
             continue
         try:
             process.wait(timeout=REQUEST_HANDOFF_SECONDS)
         except subprocess.TimeoutExpired:
             pass
-    return requested
+        return [app]
+    return []
 
 
 def read_json(path):
