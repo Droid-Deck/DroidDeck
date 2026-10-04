@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,10 +93,6 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
                 )
                 // Said only when something stands between Play and Steam; a ready runtime needs no words.
                 if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
-            }
-            if (games.isEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.steam_empty_hint), fontSize = 16.sp, lineHeight = 22.sp, color = colors.onSurfaceVariant, modifier = Modifier.widthIn(max = 360.dp))
             }
             Spacer(Modifier.height(18.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
