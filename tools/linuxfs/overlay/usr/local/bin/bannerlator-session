@@ -667,14 +667,13 @@ BUSCONF
       [ -n "$_stale" ] && echo "== steam: cleared what an earlier session left:$_stale"
       unset _stale _f
     fi
-    # The client branch. publicbeta is what every session has run on; steamdeck_publicbeta is the
-    # channel Armada bootstraps its ARM64 client from. Whatever wrote package/beta, the branch on
+    # Use the same configured branch as the first-run download. Whatever wrote package/beta, the branch on
     # disk has to agree with the one forced here - a disagreement is the restart loop above, and
     # it is silent apart from rc=42 in this log.
     # Checked before every start, not once: the client rewrites package/beta during its own run,
     # and a restart below (rc=42, or the one after the ARM64 Proton lands) would otherwise start it
     # again on the branch it just wrote.
-    steam_channel=${BL_STEAM_CHANNEL:-publicbeta}
+    steam_channel=${BL_STEAM_CHANNEL:-steamdeck_publicbeta}
     steam_beta=$steam_root/package/beta
     if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
       bannerlator-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &

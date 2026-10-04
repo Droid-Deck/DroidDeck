@@ -300,7 +300,7 @@ class MainActivity : ComponentActivity() {
     private var resolutionCap by mutableStateOf(1080)
     private var customResolution by mutableStateOf<Pair<Int, Int>?>(null)
     private var fexPreset by mutableStateOf("")
-    private var steamChannel by mutableStateOf("publicbeta")
+    private var steamChannel by mutableStateOf("steamdeck_publicbeta")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
     private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
