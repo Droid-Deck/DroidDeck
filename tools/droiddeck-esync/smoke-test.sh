@@ -33,13 +33,15 @@ run() {
       exit 1
     fi
     cp "$exe" "$prefix/drive_c/esstress.exe"
-    if ! timeout "${STRESS_TIMEOUT:-1800}" "$bin/wine" 'C:\esstress.exe' > "$work/$mode-stress.log" 2>&1; then
-      echo "$mode: esstress failed"
+    status=0
+    timeout "${STRESS_TIMEOUT:-1800}" "$bin/wine" 'C:\esstress.exe' > "$work/$mode-stress.log" 2>&1 || status=$?
+    "$bin/wineserver" -k 2>/dev/null || true
+    if ! grep -q '^esstress:' "$work/$mode-stress.log"; then
+      echo "$mode: esstress did not finish (status $status)"
       tail -n 30 "$work/$mode-stress.log"
-      "$bin/wineserver" -k 2>/dev/null || true
       exit 1
     fi
-    "$bin/wineserver" -k 2>/dev/null || true
+    grep -o '^FAIL [^ ]*:[0-9]*:' "$work/$mode-stress.log" | sort -u > "$work/$mode-failures" || true
     echo "$mode: $(grep -E '^esstress:' "$work/$mode-stress.log" | tail -n 1)"
   )
 }
@@ -49,3 +51,12 @@ if ! run stock "$tool/files/bin-arm64" "server-side synchronization" PROTON_NO_N
   exit 3
 fi
 run esync "$work/dist/files/bin-arm64" "esync: up and running" PROTON_NO_NTSYNC=1 WINEESYNC=1 WINEFSYNC=0
+if [ -s "$work/stock-failures" ]; then
+  echo "stock fails these as well, so they do not count against the pack: $(tr '\n' ' ' < "$work/stock-failures")"
+fi
+new=$(comm -13 "$work/stock-failures" "$work/esync-failures")
+if [ -n "$new" ]; then
+  echo "esync: fails checks stock passes:"
+  grep -F "$new" "$work/esync-stress.log" || echo "$new"
+  exit 1
+fi
