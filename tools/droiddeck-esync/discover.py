@@ -399,10 +399,11 @@ def release_index(repo: str, tag: str) -> dict:
     return {}
 
 
-def published(repo: str, flavors: dict, selected: str, index: dict) -> list[dict]:
+def published(repo: str, flavors: dict, selected: str, index: dict) -> tuple[list[dict], set[str]]:
     packs = index.get("packs") if isinstance(index, dict) else None
     listed = {pack.get("id") for pack in packs if isinstance(pack, dict)} if isinstance(packs, list) else set()
     found = []
+    names = set()
     for flavor in chosen_flavors(flavors, selected):
         cfg = flavors["flavors"].get(flavor)
         tag = f"droiddeck-esync-{flavor}"
@@ -418,6 +419,8 @@ def published(repo: str, flavors: dict, selected: str, index: dict) -> list[dict
                 continue
             ident = name[:-len(".json")]
             rev = PACK_REV.search(ident)
+            if rev:
+                names.add(ident)
             if ident in listed or not rev or int(rev.group(1)) < cfg["rev"]:
                 continue
             try:
@@ -429,7 +432,7 @@ def published(repo: str, flavors: dict, selected: str, index: dict) -> list[dict
                 continue
             print(f"discover: {tag} {name}: published, not in the index yet", file=sys.stderr)
             found.append(entry)
-    return found
+    return found, names
 
 
 def parse_time(value) -> datetime | None:
@@ -504,12 +507,19 @@ def artifact_packs(matrix: dict, directory: Path) -> list[tuple[str, Path, str]]
     return found
 
 
-def emit(entries: list[dict], unindexed: int = 0) -> None:
+def pending_revocations(listed: list, revoked: set[str], names: set[str] = frozenset()) -> list[str]:
+    entries = [entry for entry in listed if isinstance(entry, dict) and isinstance(entry.get("id"), str)]
+    shown = {entry["id"] for entry in entries}
+    return sorted({*(entry["id"] for entry in entries if (entry["id"] in revoked) != (entry.get("revoked") is True)),
+                   *(revoked & names - shown)})
+
+
+def emit(entries: list[dict], unindexed: int = 0, revoke: int = 0) -> None:
     matrix = json.dumps({"include": entries}, sort_keys=True, separators=(",", ":"))
     path = os.environ.get("GITHUB_OUTPUT")
     if path:
         with open(path, "a") as stream:
-            stream.write(f"matrix={matrix}\ncount={len(entries)}\nunindexed={unindexed}\n")
+            stream.write(f"matrix={matrix}\ncount={len(entries)}\nunindexed={unindexed}\nrevoke={revoke}\n")
     print(matrix)
 
 
@@ -628,6 +638,8 @@ def main(argv: list[str] | None = None) -> int:
             raise PackError("pass --index or --index-release, not both")
         failed = frozenset()
         unindexed = 0
+        pending = []
+        revoked = read_revoked(Path(args.revoked)) if args.revoked else set()
         if args.index:
             path = Path(args.index)
             index = json.loads(path.read_text()) if path.exists() else {}
@@ -636,14 +648,16 @@ def main(argv: list[str] | None = None) -> int:
                 raise PackError(f"{args.repo!r} is not owner/name")
             index = release_index(args.repo, args.index_release)
             listed = index.get("packs") if isinstance(index, dict) and isinstance(index.get("packs"), list) else []
-            waiting = published(args.repo, flavors, args.flavor, index)
+            waiting, names = published(args.repo, flavors, args.flavor, index)
             unindexed = len(waiting)
+            pending = pending_revocations(listed, revoked, names)
+            for ident in pending:
+                print(f"discover: {ident}: revoked.txt and the published index disagree; the index is signed again", file=sys.stderr)
             index = {"packs": [*listed, *waiting]}
             failed = recent_failures(args.repo, flavors, args.flavor, datetime.now(timezone.utc))
         else:
             index = {}
-        revoked = read_revoked(Path(args.revoked)) if args.revoked else set()
-        emit(discover(flavors, args.flavor, args.ref.strip(), index, revoked, failed), unindexed)
+        emit(discover(flavors, args.flavor, args.ref.strip(), index, revoked, failed), unindexed, len(pending))
     except (PackError, OSError, ValueError) as e:
         print(f"discover: {e}", file=sys.stderr)
         return 1

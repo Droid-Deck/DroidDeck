@@ -771,7 +771,7 @@ class DiscoverTest(unittest.TestCase):
         self.assertNotIn("GE-Proton10-30", stdout)
         self.assertNotIn("GE-Proton11-4", stdout)
         lines = self.output.read_text().splitlines()
-        self.assertEqual(lines, [f"matrix={json.dumps(matrix, sort_keys=True, separators=(',', ':'))}", "count=3", "unindexed=0"])
+        self.assertEqual(lines, [f"matrix={json.dumps(matrix, sort_keys=True, separators=(',', ':'))}", "count=3", "unindexed=0", "revoke=0"])
 
     def test_a_new_patch_rev_rebuilds(self):
         bumped = json.loads(json.dumps(self.FLAVORS))
@@ -795,7 +795,7 @@ class DiscoverTest(unittest.TestCase):
         code, stdout, stderr = self.discover(ref="GE-Proton11-6")
         self.assertEqual(code, 0, stderr)
         self.assertEqual(json.loads(stdout)["include"], [])
-        self.assertTrue(self.output.read_text().endswith("count=0\nunindexed=0\n"))
+        self.assertTrue(self.output.read_text().endswith("count=0\nunindexed=0\nrevoke=0\n"))
         code, _, stderr = self.discover(ref="GE-Proton11-5")
         self.assertEqual(code, 1)
         self.assertIn("no build is tagged GE-Proton11-5", stderr)
@@ -865,6 +865,33 @@ class DiscoverTest(unittest.TestCase):
         self.assertIn("droiddeck-esync-ge ge-stray-r1.json is not a pack entry", stderr)
         downloaded = {call[-1] for call in self.calls if "/assets/" in call[-1] and "?" not in call[-1]}
         self.assertEqual(downloaded, {f"{base}/assets/6", f"{base}/assets/22", f"{base}/assets/25", f"{base}/assets/26"})
+        self.assertIn("unindexed=1\nrevoke=0\n", self.output.read_text())
+        self.revoked_file.write_text(self.REVOKED + self.INDEX["packs"][0]["id"] + "\n")
+        self.output.write_text("")
+        with mock.patch.object(discover.subprocess, "run", side_effect=run):
+            code, stdout, stderr = run_main(discover.main, argv, {"GITHUB_OUTPUT": str(self.output)})
+        self.assertEqual(code, 0, stderr)
+        self.assertIn("revoke=1\n", self.output.read_text())
+        self.assertIn(f"discover: {self.INDEX['packs'][0]['id']}: revoked.txt and the published index disagree", stderr)
+        self.revoked_file.write_text(self.REVOKED + "ge-GE-Proton11-5-1-aaaaaaaaaaaa-r0\n")
+        self.output.write_text("")
+        with mock.patch.object(discover.subprocess, "run", side_effect=run):
+            code, stdout, stderr = run_main(discover.main, argv, {"GITHUB_OUTPUT": str(self.output)})
+        self.assertEqual(code, 0, stderr)
+        self.assertIn("revoke=1\n", self.output.read_text())
+        self.assertIn("discover: ge-GE-Proton11-5-1-aaaaaaaaaaaa-r0: revoked.txt and the published index disagree", stderr)
+
+    def test_revocations_the_index_does_not_show_yet(self):
+        first, second = (dict(pack) for pack in self.INDEX["packs"])
+        revoked = discover.read_revoked(self.revoked_file)
+        self.assertEqual(discover.pending_revocations([first, second], revoked), [])
+        self.assertEqual(discover.pending_revocations([first, dict(second, revoked=True)], revoked), [second["id"]])
+        self.assertEqual(discover.pending_revocations([first, second], revoked | {first["id"]}), [first["id"]])
+        self.assertEqual(discover.pending_revocations([dict(first, revoked=True), "junk", {"id": 3}], revoked | {first["id"]}), [])
+        superseded = "ge-GE-Proton11-6-1-aaaaaaaaaaaa-r0"
+        self.assertEqual(discover.pending_revocations([first, second], revoked | {superseded}, {first["id"], superseded}), [superseded])
+        self.assertEqual(discover.pending_revocations([first, dict(second, id=superseded, revoked=True)], revoked | {superseded}, {superseded}), [])
+        self.assertEqual(discover.pending_revocations([first, second], revoked | {superseded}, {first["id"]}), [])
 
     def test_build_artifacts_are_checked_against_the_matrix(self):
         entry, payload = index_entry("ge", "GE-Proton11-7", 1789520806, 1, "a")
@@ -1107,6 +1134,96 @@ class DiscoverTest(unittest.TestCase):
             self.assertIn(message, str(raised.exception))
 
 
+FAKE_GH = """#!/usr/bin/env python3
+import os, shutil, sys
+state, args = os.environ["FAKE_GH_STATE"], sys.argv[1:]
+with open(os.path.join(state, "calls"), "a") as log:
+    log.write(" ".join(args) + "\\n")
+release = os.path.join(state, args[2]) if len(args) > 2 else ""
+if args[:2] == ["release", "view"]:
+    if not os.path.isdir(release):
+        sys.exit(1)
+    if "--json" in args:
+        print("\\n".join(sorted(os.listdir(release))))
+elif args[:2] == ["release", "create"]:
+    os.makedirs(release)
+elif args[:2] == ["release", "download"]:
+    source = os.path.join(release, args[args.index("-p") + 1])
+    if not os.path.isfile(source):
+        sys.exit("no assets match the file pattern")
+    shutil.copyfile(source, args[args.index("-O") + 1])
+elif args[:2] == ["release", "upload"]:
+    target = os.path.join(release, os.path.basename(args[5]))
+    if os.path.exists(target) and "--clobber" not in args:
+        sys.exit("asset under the same name already exists")
+    shutil.copyfile(args[5], target)
+"""
+
+
+class PublishStepTest(unittest.TestCase):
+    def setUp(self):
+        try:
+            import yaml
+        except ImportError:
+            self.skipTest("PyYAML is not installed")
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        workflow = yaml.safe_load((WORKFLOWS / "build-droiddeck-esync-packs.yml").read_text())
+        self.script = next(step["run"] for job in workflow["jobs"].values() for step in job.get("steps", [])
+                           if step.get("name") == "Upload the packs to their releases")
+        (self.tmp / "tools").symlink_to(ROOT / "tools")
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "gh").write_text(FAKE_GH)
+        (bin_dir / "gh").chmod(0o755)
+        self.state = self.tmp / "state"
+        self.state.mkdir()
+        self.release = self.state / "droiddeck-esync-ge"
+        self.entry, self.payload = index_entry("ge", "GE-Proton11-7", 1789520806, 1, "a")
+        self.entry["source"]["asset"] = "GE-Proton11-7-aarch64.tar.xz"
+        row = {"key": "ge-GE-Proton11-7-aarch64", "flavor": "ge", "tag": "GE-Proton11-7", "asset": "GE-Proton11-7-aarch64.tar.xz", "rev": 1}
+        folder = self.tmp / "packs" / f"droiddeck-esync-pack-{row['key']}"
+        folder.mkdir(parents=True)
+        (folder / f"{self.entry['id']}.json").write_text(json.dumps(self.entry))
+        (folder / f"{self.entry['id']}.tzst").write_bytes(self.payload)
+        self.env = dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}", FAKE_GH_STATE=str(self.state),
+                        MATRIX=json.dumps({"include": [row]}), GH_TOKEN="x", GITHUB_REPOSITORY="Droid-Deck/DroidDeck",
+                        GITHUB_STEP_SUMMARY=str(self.tmp / "summary"))
+
+    def publish(self):
+        (self.state / "calls").write_text("")
+        result = subprocess.run(["bash", "-c", self.script], cwd=self.tmp, env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout, (self.state / "calls").read_text().splitlines()
+
+    def asset(self, suffix):
+        return (self.release / f"{self.entry['id']}{suffix}").read_bytes()
+
+    def test_a_published_pack_is_never_overwritten_but_an_orphan_is_replaced(self):
+        out, calls = self.publish()
+        self.assertEqual(self.asset(".tzst"), self.payload)
+        self.assertEqual(json.loads(self.asset(".json")), self.entry)
+        self.assertTrue(any(call.startswith("release create droiddeck-esync-ge") for call in calls))
+
+        out, calls = self.publish()
+        self.assertFalse([call for call in calls if call.startswith("release upload") and call.endswith(".tzst")])
+        self.assertEqual(self.asset(".tzst"), self.payload)
+
+        (self.release / f"{self.entry['id']}.tzst").write_bytes(b"published earlier")
+        (self.release / f"{self.entry['id']}.json").write_text("{}")
+        out, calls = self.publish()
+        self.assertIn("is already published with other bytes", out)
+        self.assertEqual(self.asset(".tzst"), b"published earlier")
+        self.assertEqual(self.asset(".json"), b"{}")
+        self.assertFalse([call for call in calls if call.startswith("release upload")])
+
+        (self.release / f"{self.entry['id']}.json").unlink()
+        out, calls = self.publish()
+        self.assertIn("was published without its entry", out)
+        self.assertEqual(self.asset(".tzst"), self.payload)
+        self.assertEqual(json.loads(self.asset(".json")), self.entry)
+
+
 class ShippedFilesTest(unittest.TestCase):
     def test_shipped_flavors(self):
         flavors = discover.load_flavors(ESYNC / "flavors.json")
@@ -1183,6 +1300,8 @@ class ShippedFilesTest(unittest.TestCase):
         self.assertNotIn("GITHUB_SERVER_URL", index_text)
         self.assertNotIn("grep -qxF", index_text)
         self.assertIn("needs.discover.outputs.unindexed != '0'", jobs["index"]["if"])
+        self.assertIn("needs.discover.outputs.revoke != '0'", jobs["index"]["if"])
+        self.assertEqual(jobs["discover"]["outputs"]["revoke"], "${{ steps.discover.outputs.revoke }}")
         self.assertIn("needs.discover.outputs.count != '0'", jobs["index"]["if"])
         steps = {step.get("name"): step for step in jobs["build"]["steps"]}
         smoke = steps["Smoke-test the pack on the release it was made for"]
@@ -1205,6 +1324,7 @@ class ShippedFilesTest(unittest.TestCase):
         self.assertEqual(start["if"], "steps.watch.outputs.changed != ''")
         self.assertIn("gh workflow run build-droiddeck-esync-packs.yml", start["run"])
         self.assertIn("-f publish=true", start["run"])
+        self.assertIn("-f flavor=all", start["run"])
         names = [step.get("name") for step in job["steps"]]
         self.assertLess(names.index("Start the pack builds"), names.index("Save the watch state"))
         self.assertIn("watch-state.json --clobber", steps["Save the watch state"]["run"])

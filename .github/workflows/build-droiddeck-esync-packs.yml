@@ -45,6 +45,7 @@ jobs:
       matrix: ${{ steps.discover.outputs.matrix }}
       count: ${{ steps.discover.outputs.count }}
       unindexed: ${{ steps.discover.outputs.unindexed }}
+      revoke: ${{ steps.discover.outputs.revoke }}
       publish: ${{ steps.discover.outputs.publish }}
     steps:
       - uses: actions/checkout@v4
@@ -330,7 +331,20 @@ jobs:
                 --notes "droiddeck-esync packs for $flavor Proton builds (tools/droiddeck-esync). The app fetches them through the signed index in the droiddeck-esync-index release." \
                 || gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null
             fi
-            gh release upload "$tag" -R "$GITHUB_REPOSITORY" "$dir/$id.tzst" --clobber
+            rm -f published.tzst
+            if gh release download "$tag" -R "$GITHUB_REPOSITORY" -p "$id.tzst" -O published.tzst >/dev/null 2>&1; then
+              if ! cmp -s published.tzst "$dir/$id.tzst"; then
+                names=$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+                if grep -qxF "$id.json" <<< "$names"; then
+                  echo "::warning::$id.tzst is already published with other bytes; the published pack and its index entry stay (raise rev to replace it)"
+                  continue
+                fi
+                echo "::notice::$id.tzst was published without its entry; this build replaces it"
+                gh release upload "$tag" -R "$GITHUB_REPOSITORY" "$dir/$id.tzst" --clobber
+              fi
+            else
+              gh release upload "$tag" -R "$GITHUB_REPOSITORY" "$dir/$id.tzst"
+            fi
             gh release upload "$tag" -R "$GITHUB_REPOSITORY" "$dir/$id.json" --clobber
             gh release edit "$tag" -R "$GITHUB_REPOSITORY" --latest=false --prerelease=false
             echo "Published \`$id\` to $tag" >> "$GITHUB_STEP_SUMMARY"
@@ -360,7 +374,7 @@ jobs:
   index:
     name: Sign the index
     needs: [ discover, build, publish ]
-    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.publish == 'true' && (needs.discover.outputs.count != '0' || needs.discover.outputs.unindexed != '0') }}
+    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.publish == 'true' && (needs.discover.outputs.count != '0' || needs.discover.outputs.unindexed != '0' || needs.discover.outputs.revoke != '0') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: droiddeck-esync-signing

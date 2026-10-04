@@ -87,14 +87,8 @@ jobs:
           CHANGED: ${{ steps.watch.outputs.changed }}
         run: |
           set -euo pipefail
-          read -r -a flavors <<<"$CHANGED"
-          if [ "${#flavors[@]}" -gt 1 ]; then
-            flavors=(all)
-          fi
-          for flavor in "${flavors[@]}"; do
-            gh workflow run build-droiddeck-esync-packs.yml -R "$GITHUB_REPOSITORY" --ref main -f flavor="$flavor" -f publish=true
-            echo "Started the pack build for $flavor" >> "$GITHUB_STEP_SUMMARY"
-          done
+          gh workflow run build-droiddeck-esync-packs.yml -R "$GITHUB_REPOSITORY" --ref main -f flavor=all -f publish=true
+          echo "Started the pack build for every flavor ($CHANGED changed)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save the watch state
         env:
