@@ -706,7 +706,7 @@ private fun ScreenEffectsGroup(host: MenuHost, a: DrawerActions, track: (String)
         ChoiceRow(host, "look", stringResource(R.string.drawer_look),
             look?.desc ?: stringResource(R.string.drawer_effects_hint),
             if (look == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + looks else looks,
-            look?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
+            look?.name ?: LOOK_CUSTOM, chipModifier = track("look"), hintLines = 2) { name ->
             ScreenEffectLooks.LOOKS.firstOrNull { it.name == name }?.let { picked ->
                 picked.scalingMode?.let(a.onUpscaler)
                 a.onEffects(picked.effects)

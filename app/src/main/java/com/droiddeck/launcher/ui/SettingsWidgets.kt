@@ -349,17 +349,26 @@ fun SettingsGroup(title: String, compact: Boolean = false, content: @Composable 
     Column(modifier = Modifier.fillMaxWidth().clip(GroupShape).background(colors.surface).border(1.dp, pal.line, GroupShape)) { content() }
 }
 
+/**
+ * One setting: its label and [hint] with the [control] beside them. [hintLines] fixes the hint to
+ * that many lines, for a hint that changes with the value - the row keeps its height, so the rows
+ * under it stay put.
+ */
 @Composable
-fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, control: @Composable () -> Unit) {
+fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hintLines: Int? = null, control: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val bg by animateColorAsState(if (highlighted) pal.signal.copy(alpha = 0.10f) else Color.Transparent, Motion.tw(200), label = "rowBg")
+    val hintText: @Composable (androidx.compose.ui.unit.TextUnit) -> Unit = { size ->
+        Text(hint ?: "", fontSize = size, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp),
+            minLines = hintLines ?: 1, maxLines = hintLines ?: Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
+    }
     // A narrow page stacks the control under its label, so neither squeezes the other.
     if (LocalNarrowPane.current) Column(
         modifier = Modifier.fillMaxWidth().background(bg).padding(start = 14.dp, end = 14.dp, top = 11.dp, bottom = 12.dp),
     ) {
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-        if (hint != null) Text(hint, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+        if (hint != null || hintLines != null) hintText(13.sp)
         Box(Modifier.padding(top = 8.dp)) { control() }
     } else Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -367,7 +376,7 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, cont
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-            if (hint != null) Text(hint, fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+            if (hint != null || hintLines != null) hintText(12.5.sp)
         }
         control()
     }
@@ -380,10 +389,12 @@ fun <T> ChoiceRow(
     options: List<Pair<T, String>>, selected: T, enabled: Boolean = true, note: String? = null,
     /** For the box itself - a page's FocusRequester for its first control. */
     chipModifier: Modifier = Modifier,
+    /** See SettingsRow: a fixed height for a hint that changes with the choice. */
+    hintLines: Int? = null,
     onPick: (T) -> Unit,
 ) {
     val open = host.open == key
-    SettingsRow(label, hint, highlighted = open) {
+    SettingsRow(label, hint, highlighted = open, hintLines = hintLines) {
         Box {
             ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier) { host.open = if (open) null else key }
             AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
@@ -501,7 +512,7 @@ fun ValueSlider(
             },
     ) {
         Text(text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, textAlign = TextAlign.End,
-            modifier = Modifier.widthIn(min = 52.dp))
+            maxLines = 1, modifier = Modifier.width(56.dp))
         Spacer(Modifier.width(10.dp))
         Box(
             contentAlignment = Alignment.CenterStart,
