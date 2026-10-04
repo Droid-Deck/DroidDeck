@@ -82,6 +82,58 @@ class GameEnvironmentTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 7, result.stderr)
                 self.assertEqual(json.loads(result.stdout), ["specific", ["waitforexitandrun", "game with spaces.exe"]])
 
+    def test_known_fixes_sit_between_shared_and_game_entries(self):
+        config = {"version": 1,
+                  "shared": {"FEX_HALFBARRIERTSOENABLED": "0", "FEX_TSOENABLED": "1", "WINEDLLOVERRIDES": "dxgi=n"},
+                  "games": {"2868840": {"DOTNET_EnableWriteXorExecute": "1"}}}
+        env = MODULE["apply_config"]({"WINEDLLOVERRIDES": "d3d9=n"}, config, "2868840")
+        # Slay the Spire 2: the .NET entries, and tabtip off ahead of the overrides the shared entries
+        # chose; the user's own entry for the game beats the fix; nothing else is added.
+        self.assertEqual(env, {"FEX_HALFBARRIERTSOENABLED": "0", "FEX_TSOENABLED": "1",
+                               "WINEDLLOVERRIDES": "tabtip.exe=d;dxgi=n", "DOTNET_GCHeapHardLimit": "0x400000000",
+                               "DOTNET_EnableWriteXorExecute": "1", "DOTNET_TieredCompilation": "0"})
+        # Another title gets the shared entries only.
+        self.assertEqual(MODULE["apply_config"]({}, config, "42"),
+                         {"FEX_HALFBARRIERTSOENABLED": "0", "FEX_TSOENABLED": "1", "WINEDLLOVERRIDES": "dxgi=n"})
+        # The three layers, with a fix that sets entries: the fix beats the shared FEX preset, the
+        # user's own entry for the game beats the fix, and a user entry can take a fix's entry away.
+        fixes = MODULE["KNOWN_FIXES"]
+        fixes["42"] = {"env": {"FEX_HALFBARRIERTSOENABLED": "1", "DOTNET_TieredCompilation": "0"}}
+        try:
+            config["games"]["42"] = {"DOTNET_TieredCompilation": None, "FEX_TSOENABLED": "0"}
+            self.assertEqual(MODULE["apply_config"]({}, config, "42"),
+                             {"FEX_HALFBARRIERTSOENABLED": "1", "FEX_TSOENABLED": "0", "WINEDLLOVERRIDES": "dxgi=n"})
+        finally:
+            del fixes["42"]
+
+    def test_known_fix_arguments_and_launches_without_configuration(self):
+        self.assertEqual(MODULE["known_args"](["proton", "waitforexitandrun", "SlayTheSpire2.exe"], "2868840"),
+                         ["proton", "waitforexitandrun", "SlayTheSpire2.exe", "--rendering-driver", "vulkan"])
+        fixes = MODULE["KNOWN_FIXES"]
+        fixes["42"] = {"args": ["--rendering-driver", "vulkan"]}
+        try:
+            self.assertEqual(MODULE["known_args"](["proton", "waitforexitandrun", "game.exe"], "42"),
+                             ["proton", "waitforexitandrun", "game.exe", "--rendering-driver", "vulkan"])
+            chosen = ["proton", "waitforexitandrun", "game.exe", "--rendering-driver", "d3d12"]
+            self.assertEqual(MODULE["known_args"](chosen, "42"), chosen)
+        finally:
+            del fixes["42"]
+        self.assertEqual(MODULE["known_args"](["proton", "waitforexitandrun", "game.exe"], "43"),
+                         ["proton", "waitforexitandrun", "game.exe"])
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "fake-proton"
+            probe.write_text("#!/usr/bin/python3\nimport json, os, sys\nprint(json.dumps([os.environ.get('WINEDLLOVERRIDES'), sys.argv[1:]]))\n")
+            probe.chmod(0o755)
+            env = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": "/compatdata/2868840"}
+            env.pop("WINEDLLOVERRIDES", None)
+            run = lambda verb: json.loads(subprocess.check_output(
+                [sys.executable, str(BIN / "bannerlator-game-env"), str(probe), verb, "SlayTheSpire2.exe"],
+                env=env, text=True, stderr=subprocess.DEVNULL))
+            # No configuration file at all: the fix still applies to the game's launch, and only to it.
+            self.assertEqual(run("waitforexitandrun"),
+                             ["tabtip.exe=d", ["waitforexitandrun", "SlayTheSpire2.exe", "--rendering-driver", "vulkan"]])
+            self.assertEqual(run("run"), [None, ["run", "SlayTheSpire2.exe"]])
+
     def test_both_proton_wrappers_call_environment_launcher(self):
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
