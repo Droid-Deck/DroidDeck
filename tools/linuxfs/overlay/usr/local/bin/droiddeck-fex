@@ -35,6 +35,13 @@ GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gn
 PRELOAD_NAMES = ("libblsession.so", "libfakeinput.so")
 FAULT_REPORT = "libfaultreport.so"
 FAULT_REPORT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + FAULT_REPORT
+THUNK_AUDIT = "libthunkaudit.so"
+THUNK_AUDIT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + THUNK_AUDIT
+VULKAN_PIN = "libvulkan-thunk.so"
+VULKAN_THUNK = "libvulkan-guest.so"
+RUNTIME_LIBRARIES = (("libc.so.6", b"GLIBC_"), ("libstdc++.so.6", b"GLIBCXX_"))
+VERSION_NAME = re.compile(rb"GLIBC(?:XX)?_[0-9][0-9.]*[0-9]")
+BUNDLE_DEPTH = 3
 THUNKS = {"GL": 1, "Vulkan": 1}
 X86 = {3: "i386", 62: "x86_64"}
 ARM = {40: "arm", 183: "arm64"}
@@ -241,9 +248,10 @@ def install_preloads(root):
             if os.path.isfile(source):
                 copy_if_changed(source, os.path.join(root, libdir, "droiddeck", name))
                 shipped.add(name)
-    report = os.path.join(PRELOADS, "x86_64", FAULT_REPORT)
-    if os.path.isfile(report):
-        copy_if_changed(report, os.path.join(root, "lib/x86_64-linux-gnu/droiddeck", FAULT_REPORT))
+    for name in (FAULT_REPORT, THUNK_AUDIT, VULKAN_PIN):
+        source = os.path.join(PRELOADS, "x86_64", name)
+        if os.path.isfile(source):
+            copy_if_changed(source, os.path.join(root, "lib/x86_64-linux-gnu/droiddeck", name))
     wanted = [name for name in host_preloads() if name in shipped]
     write_if_changed(os.path.join(root, "etc", "ld.so.preload"), "".join("/usr/$LIB/droiddeck/%s\n" % name for name in wanted))
 
@@ -431,6 +439,43 @@ def guest_environment(fex, env):
     return result
 
 
+def version_names(path):
+    try:
+        with open(path, "rb") as f:
+            return set(VERSION_NAME.findall(f.read()))
+    except OSError:
+        return set()
+
+
+def bundled_libraries(folder):
+    wanted = [name for name, _ in RUNTIME_LIBRARIES]
+    found = {}
+    seen = 0
+    base = folder.rstrip("/").count("/")
+    for directory, dirs, files in os.walk(folder):
+        seen += len(files)
+        if seen > SCAN_LIMIT:
+            break
+        if directory.count("/") - base >= BUNDLE_DEPTH:
+            dirs[:] = []
+        for name in wanted:
+            if name in files and name not in found:
+                found[name] = os.path.join(directory, name)
+    return found
+
+
+def vulkan_thunk_loads(fex, folder):
+    needed = version_names(os.path.join(fex["guest_thunks"], VULKAN_THUNK))
+    if not needed:
+        return False
+    found = bundled_libraries(folder)
+    for name, prefix in RUNTIME_LIBRARIES:
+        library = found.get(name) or os.path.join(fex["rootfs"], "lib/x86_64-linux-gnu", name)
+        if not {version for version in needed if version.startswith(prefix)} <= version_names(library):
+            return False
+    return True
+
+
 def resolve(program, env):
     if "/" in program:
         return os.path.abspath(program)
@@ -446,10 +491,16 @@ def launch(command, env, mode, decide=None):
     if fex is None:
         return 126
     guest = guest_environment(fex, env)
-    if os.path.isfile(os.path.join(PRELOADS, "x86_64", FAULT_REPORT)) and elf_arch(program) != "i386":
+    x86_64 = elf_arch(program) != "i386"
+    if os.path.isfile(os.path.join(PRELOADS, "x86_64", FAULT_REPORT)) and x86_64:
         guest["LD_PRELOAD"] = ":".join([FAULT_REPORT_GUEST] + split_paths(guest.get("LD_PRELOAD")))
-    say("running %s with %s (runtime %s, thunks %s)" % (program, fex["bin"], guest.get("FEX_ROOTFS", "none"),
-                                                         "on" if "FEX_THUNKCONFIG" in guest else "off"))
+    thunks = "on" if "FEX_THUNKCONFIG" in guest else "off"
+    folder = decide if decide and os.path.isdir(decide) else os.path.dirname(program)
+    if thunks == "on" and x86_64 and all(os.path.isfile(os.path.join(PRELOADS, "x86_64", name)) for name in (THUNK_AUDIT, VULKAN_PIN)) \
+            and vulkan_thunk_loads(fex, folder):
+        guest["LD_AUDIT"] = ":".join([THUNK_AUDIT_GUEST] + split_paths(guest.get("LD_AUDIT")))
+        thunks = "on, its own Vulkan loader too"
+    say("running %s with %s (runtime %s, thunks %s)" % (program, fex["bin"], guest.get("FEX_ROOTFS", "none"), thunks))
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
 
 

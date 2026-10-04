@@ -129,6 +129,8 @@ static void report(int sig, void *info, void *context)
     }
     put("\n");
     sys(SYS_write, 2, (long)out, used, 0);
+    struct kernel_sigaction fallback = {0, 0, 0, 0};
+    sys(SYS_rt_sigaction, sig, (long)&fallback, 0, sizeof(fallback.mask));
     sys(SYS_tgkill, sys(SYS_getpid, 0, 0, 0, 0), sys(SYS_gettid, 0, 0, 0, 0), sig, 0);
 }
 

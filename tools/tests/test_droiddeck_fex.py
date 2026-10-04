@@ -199,9 +199,13 @@ class PrepareTest(FexTestCase):
             for name in ("libblsession.so", "libfakeinput.so"):
                 self.write(self.tmp / "preloads" / arch / name, arch.encode() + name.encode())
         self.write(self.tmp / "preloads/x86_64/libfaultreport.so", b"report")
+        self.write(self.tmp / "preloads/x86_64/libthunkaudit.so", b"audit")
+        self.write(self.tmp / "preloads/x86_64/libvulkan-thunk.so", b"pin")
         self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n/usr/local/lib/libfakeinput.so\n")
         FEX["install_preloads"](str(root))
         self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libfaultreport.so").read_bytes(), b"report")
+        self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libthunkaudit.so").read_bytes(), b"audit")
+        self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/libvulkan-thunk.so").read_bytes(), b"pin")
         self.assertEqual((root / "etc/ld.so.preload").read_text(),
                          "/usr/$LIB/droiddeck/libblsession.so\n/usr/$LIB/droiddeck/libfakeinput.so\n")
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfakeinput.so").read_bytes(), b"i386libfakeinput.so")
@@ -385,6 +389,48 @@ class LaunchTest(FexTestCase):
             self.quiet(FEX["launch"], [str(program)], {}, "off")
         native.assert_called_once()
         emulated.assert_not_called()
+
+    def test_programs_that_bring_a_new_enough_runtime_get_the_vulkan_thunk(self):
+        tool = self.fex_tool()
+        self.runtime()
+        self.write(tool / "usr/share/fex-emu/GuestThunks/libvulkan-guest.so",
+                   elf(62) + b"\0libstdc++.so.6\0GLIBCXX_3.4\0GLIBCXX_3.4.29\0libc.so.6\0GLIBC_2.2.5\0GLIBC_2.34\0")
+        self.write(self.tmp / "preloads/x86_64/libthunkaudit.so", elf(62))
+        pin = self.write(self.tmp / "preloads/x86_64/libvulkan-thunk.so", elf(62))
+        audit = "/usr/lib/x86_64-linux-gnu/droiddeck/libthunkaudit.so"
+
+        def app(name, glibc=b"GLIBC_2.34\0GLIBC_2.44", glibcxx=b"GLIBCXX_3.4.29\0GLIBCXX_3.4.36", bundled=True):
+            run = self.write(self.tmp / name / "AppRun", elf(62), 0o755)
+            if bundled:
+                self.write(self.tmp / name / "shared/lib/libc.so.6", elf(62) + b"\0GLIBC_2.2.5\0" + glibc + b"\0")
+                self.write(self.tmp / name / "shared/lib/libstdc++.so.6",
+                           elf(62) + b"\0GLIBCXX_3.4\0" + glibcxx + b"\0GLIBC_2.34\0")
+            return run
+
+        def started(program, env=None, decide=None):
+            with mock.patch("os.execve") as emulated:
+                _, said = self.quiet(FEX["launch"], [str(program)], dict(env or {}), "on", decide)
+            return emulated.call_args[0][2], said
+
+        env, said = started(app("new"))
+        self.assertEqual(env["LD_AUDIT"], audit)
+        self.assertIn("thunks on, its own Vulkan loader too", said)
+        env, _ = started(app("kept"), {"LD_AUDIT": "/opt/audit.so"})
+        self.assertEqual(env["LD_AUDIT"], audit + ":/opt/audit.so")
+        env, _ = started(self.write(self.tmp / "elsewhere/run.sh", "#!/bin/sh\n", 0o755), decide=str(self.tmp / "new"))
+        self.assertEqual(env["LD_AUDIT"], audit)
+        env, said = started(app("old-cxx", glibcxx=b"GLIBCXX_3.4.28"))
+        self.assertNotIn("LD_AUDIT", env)
+        self.assertIn("thunks on)", said)
+        self.assertNotIn("LD_AUDIT", started(app("old-libc", glibc=b"GLIBC_2.31"))[0])
+        self.assertNotIn("LD_AUDIT", started(app("runtime-only", bundled=False))[0])
+        i386 = self.write(self.tmp / "new/game.i386", elf(3), 0o755)
+        self.assertNotIn("LD_AUDIT", started(i386)[0])
+        pin.unlink()
+        self.assertNotIn("LD_AUDIT", started(app("no-pin"))[0])
+        self.write(pin, elf(62))
+        (tool / "usr/share/fex-emu/GuestThunks/libvulkan-guest.so").unlink()
+        self.assertNotIn("LD_AUDIT", started(app("no-thunk"))[0])
 
     def test_steam_verbs(self):
         with mock.patch.dict(G, {"launch": mock.Mock(return_value=0)}):
