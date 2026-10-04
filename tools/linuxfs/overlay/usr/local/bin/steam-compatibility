@@ -50,6 +50,7 @@ FEX_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", FEX_LAUNCHER)
 FEX_APPID = "3127680"
 SNIPER_APPID = "1628350"
 FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID)
+REQUEST_HANDOFF_SECONDS = 30
 PLAYABLE_TYPES = frozenset(("game", "demo", "application", "beta"))
 COMPAT_DIR = os.path.join(os.environ.get("HOME", "/root"), ".local", "share", "droiddeck-compat")
 # Written by us; everything else in the depot is symlinked through.
@@ -756,10 +757,14 @@ def request_fex(steam_root, asked):
             continue
         asked.add(app)
         try:
-            subprocess.Popen([client, "steam://install/%s" % app], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                             start_new_session=True)
+            process = subprocess.Popen([client, "steam://install/%s" % app], stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL, start_new_session=True)
             requested.append(app)
         except OSError:
+            continue
+        try:
+            process.wait(timeout=REQUEST_HANDOFF_SECONDS)
+        except subprocess.TimeoutExpired:
             pass
     return requested
 
