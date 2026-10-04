@@ -1,6 +1,9 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import com.droiddeck.launcher.core.TextureFiltering
+import com.droiddeck.launcher.gpu.ScreenEffects
+import org.json.JSONObject
 
 /** The in-session switches: the HUD and how the on-screen controls decide to appear. */
 object SessionPrefs {
@@ -491,6 +494,14 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("logs", on).apply()
     }
 
+    /** Steam storage-call diagnostics are opt-in because they add timing work to file operations. */
+    fun storageDiagnosticsEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("storageDiagnostics", false)
+
+    fun setStorageDiagnosticsEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("storageDiagnostics", on).apply()
+    }
+
     // ── Per-mode display ────────────────────────────────────────────────────────────────────
 
     /**
@@ -656,9 +667,15 @@ object SessionPrefs {
 
     val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
 
+    /**
+     * How the compositor resizes the session onto the panel (WaylandCompositor.nativeSetUpscaler's
+     * modes): Off and Linear both filter bilinearly, Nearest keeps pixels square for 2D and old
+     * titles, the rest sharpen where the picture is enlarged; FSR (fit) rounds the picture to
+     * FSR's preferred size first. Sharpen only works at any size.
+     */
     val upscalerChoices = listOf(
-        0 to "Off", 4 to "AMD FSR 1", 3 to "Snapdragon GSR", 8 to "Snapdragon GSR (quality)",
-        7 to "NVIDIA NIS", 6 to "Sharpen only",
+        0 to "Off", 1 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 5 to "AMD FSR 1 (fit)", 3 to "Snapdragon GSR",
+        8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
 
     fun upscaler(context: Context): Int =
@@ -668,12 +685,56 @@ object SessionPrefs {
         prefs(context).edit().putInt("upscaler", mode).apply()
     }
 
-    val upscaleSharpnessChoices = listOf(0 to "0%", 25 to "25%", 50 to "50%", 75 to "75%", 100 to "100%")
-
     fun upscaleSharpness(context: Context): Int = prefs(context).getInt("upscaleSharpness", 75).coerceIn(0, 100)
 
     fun setUpscaleSharpness(context: Context, pct: Int) {
         prefs(context).edit().putInt("upscaleSharpness", pct.coerceIn(0, 100)).apply()
+    }
+
+    // ── Screen effects and texture filtering (the Display page) ─────────────────────────────
+
+    /** The compositor's post chain as last set; off until the user picks a Look or moves a row. */
+    fun screenEffects(context: Context): ScreenEffects {
+        val text = prefs(context).getString("screenEffects", null) ?: return ScreenEffects.OFF
+        return runCatching { ScreenEffects.decode(JSONObject(text)) }.getOrDefault(ScreenEffects.OFF)
+    }
+
+    fun setScreenEffects(context: Context, effects: ScreenEffects) {
+        prefs(context).edit().putString("screenEffects", effects.encode().toString()).apply()
+    }
+
+    val textureAnisotropyChoices = TextureFiltering.ANISOTROPY.map { it to if (it == 0) "Off" else "${it}x" }
+
+    val textureLodBiasChoices = TextureFiltering.LOD_BIAS.map {
+        it to when (it) {
+            TextureFiltering.LOD_BIAS_OFF -> "Off"
+            TextureFiltering.LOD_BIAS_AUTO -> "Auto (match scaling)"
+            else -> it
+        }
+    }
+
+    /** Anisotropic filtering forced on DirectX 9-11 games (core/TextureFiltering); 0 = the game's own. */
+    fun textureAnisotropy(context: Context): Int =
+        prefs(context).getInt("textureAnisotropy", 0).takeIf { it in TextureFiltering.ANISOTROPY } ?: 0
+
+    fun setTextureAnisotropy(context: Context, value: Int) {
+        prefs(context).edit().putInt("textureAnisotropy", value).apply()
+        publishGameEnvironment(context)
+    }
+
+    /** Texture sharpness: the mip LOD bias choice (TextureFiltering.LOD_BIAS), "0" = the game's own. */
+    fun textureLodBias(context: Context): String =
+        prefs(context).getString("textureLodBias", null)?.takeIf { it in TextureFiltering.LOD_BIAS } ?: TextureFiltering.LOD_BIAS_OFF
+
+    fun setTextureLodBias(context: Context, choice: String) {
+        prefs(context).edit().putString("textureLodBias", choice).apply()
+        publishGameEnvironment(context)
+    }
+
+    /** Hands the change to the next game launch (GameEnvironmentStore); the running game keeps its own. */
+    private fun publishGameEnvironment(context: Context) {
+        runCatching { GameEnvironmentStore.publish(context) }
+            .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
 
     /**

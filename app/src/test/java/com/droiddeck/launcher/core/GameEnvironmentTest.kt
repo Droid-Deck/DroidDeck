@@ -36,6 +36,12 @@ class GameEnvironmentTest {
         assertEquals("6_9", restored["VKD3D_SHADER_MODEL"])
     }
 
+    @Test fun dotnetRuntimeFitsAndroidAddressSpaceForEveryGame() {
+        val values = GameEnvironment.effective(GameEnvironment.Config(), "PERFORMANCE", "43")
+        assertEquals("0x800000000", values["DOTNET_GCRegionRange"])
+        assertEquals("0", values["DOTNET_EnableWriteXorExecute"])
+    }
+
     @Test fun multiSelectionPreservesCustomTokensAndRemovesToggledValues() {
         assertEquals("fps,custom_token,frametimes", GameEnvironmentOptions.toggle("fps,custom_token", "frametimes"))
         assertEquals("custom_token", GameEnvironmentOptions.toggle("fps,custom_token", "fps"))

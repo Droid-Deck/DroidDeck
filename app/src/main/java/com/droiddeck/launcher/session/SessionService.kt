@@ -390,7 +390,7 @@ class SessionService : Service() {
         // whatever a session leaves behind. The client abandons tens of megabytes of streams a run.
         FileUtils.clear(File(cacheDir, "shm"))
 
-        val binds = sessionBinds(controllersOn, fakeInputDir)
+        val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest)
         // The fast path is told exactly the rootfs and binds proot is given (ProotFastPath).
         val fastPathKey = if (ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
@@ -727,7 +727,12 @@ class SessionService : Service() {
     }
 
     /** What proot binds into the guest: the pads, the battery, storage, the game library, added games and ROMs. */
-    private fun sessionBinds(controllersOn: Boolean, fakeInputDir: File): ArrayList<String> {
+    private fun sessionBinds(
+        controllersOn: Boolean,
+        fakeInputDir: File,
+        sessionDir: File,
+        guest: MutableList<String>,
+    ): ArrayList<String> {
         val binds = ArrayList<String>()
         if (controllersOn) binds.add(fakeInputDir.path + ":/dev/input")
         if (controllersOn) binds.addAll(deckBinds)
@@ -786,6 +791,7 @@ class SessionService : Service() {
         // droiddeck-steam-library registers with the client. Nothing bound = the script removes
         // the entry, so the client never offers a place that is not there.
         val library = GameStorage.effective(this)
+        var storageDiagnosticLibrary: File? = null
         if (library != null) {
             val problem = GameStorage.prepare(library.path)
             if (problem == null) {
@@ -794,6 +800,7 @@ class SessionService : Service() {
                 File(LinuxRuntime.rootDir(this), "mnt/bannerlator-sd").mkdirs()
                 try {
                     binds.addAll(SecondaryLibrary.binds(filesDir, File(library.path)))
+                    storageDiagnosticLibrary = File(library.path)
                     Log.i(TAG, "game storage: ${library.path} -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
                 } catch (e: Exception) {
                     Log.w(TAG, "game storage: private directories could not be prepared; internal only this session", e)
@@ -803,6 +810,26 @@ class SessionService : Service() {
             }
         } else {
             Log.i(TAG, "game storage: internal only")
+        }
+        if (SessionState.mode == MODE_STEAM && SessionPrefs.storageDiagnosticsEnabled(this)) {
+            val target = storageDiagnosticLibrary ?: File(LinuxRuntime.rootDir(this), "root/.local/share/Steam")
+            val device = StorageDiagnostics.writeSnapshot(
+                sessionDir, target,
+                selectedLibrary = if (storageDiagnosticLibrary != null) "secondary" else "internal",
+                removable = storageDiagnosticLibrary?.let {
+                    runCatching { Environment.isExternalStorageRemovable(it) }.getOrDefault(false)
+                } ?: false,
+            )
+            if (device != null) {
+                // guest already has the session command at this point. Put these with the `env -i`
+                // assignments so they reach the Steam process instead of becoming script args.
+                val envAt = guest.indexOf(LinuxRuntime.SESSION_SCRIPT).takeIf { it >= 0 } ?: guest.size
+                guest.add(envAt, "BL_STORAGE_DIAGNOSTICS=1")
+                guest.add(envAt + 1, "BL_STORAGE_DEVICE=$device")
+                guest.add(envAt + 2, "BL_STORAGE_LOG=${File(sessionDir, "storage.log").absolutePath}")
+            } else {
+                Log.w(TAG, "storage diagnostics: selected library could not be identified; metadata snapshot only")
+            }
         }
         // The user's own games folder (the Steam cog's "Added games"), bound at a fixed place so
         // the shortcuts the app writes point somewhere whatever storage the folder is on.

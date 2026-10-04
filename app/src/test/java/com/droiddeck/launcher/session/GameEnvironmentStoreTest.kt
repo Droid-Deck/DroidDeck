@@ -49,6 +49,26 @@ class GameEnvironmentStoreTest {
         assertFalse(JSONObject(guest.readText()).getJSONObject("shared").has("FEX_SMCCHECKS"))
     }
 
+    @Test fun textureFilteringPublishesDxvkOptionsBesideTheProfiles() {
+        GameEnvironmentStore.save(context, GameEnvironment.Config(shared = mapOf("DXVK_CONFIG" to "dxvk.tearFree = True")))
+        assertFalse(JSONObject(guest.readText()).has(GameEnvironmentStore.DXVK_CONFIG))
+        SessionState.upscaleRatio = 1.5f
+        SessionPrefs.setTextureAnisotropy(context, 16)
+        SessionPrefs.setTextureLodBias(context, com.droiddeck.launcher.core.TextureFiltering.LOD_BIAS_AUTO)
+        val json = JSONObject(guest.readText())
+        assertEquals(
+            "d3d9.samplerAnisotropy = 16; d3d11.samplerAnisotropy = 16; d3d9.samplerLodBias = -0.58; d3d11.samplerLodBias = -0.58",
+            json.getString(GameEnvironmentStore.DXVK_CONFIG),
+        )
+        // The user's own entry is untouched; the launcher appends the options at launch.
+        assertEquals("dxvk.tearFree = True", json.getJSONObject("shared").getString("DXVK_CONFIG"))
+        assertEquals(GameEnvironment.Config(shared = mapOf("DXVK_CONFIG" to "dxvk.tearFree = True")), GameEnvironmentStore.read(context))
+        SessionPrefs.setTextureAnisotropy(context, 0)
+        SessionPrefs.setTextureLodBias(context, "0")
+        assertFalse(JSONObject(guest.readText()).has(GameEnvironmentStore.DXVK_CONFIG))
+        SessionState.upscaleRatio = 0f
+    }
+
     @Test fun unchosenFexPresetPublishesPerformanceTso() {
         GameEnvironmentStore.save(context, GameEnvironment.Config())
         val shared = JSONObject(guest.readText()).getJSONObject("shared")

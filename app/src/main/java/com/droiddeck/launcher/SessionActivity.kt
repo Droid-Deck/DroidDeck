@@ -36,9 +36,12 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.gpu.ScreenEffectLooks
+import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.input.EvdevKeys
@@ -56,6 +59,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.LoadingState
 import com.droiddeck.launcher.session.PerfHud
 import com.droiddeck.launcher.session.PerfMode
+import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionArtifacts
@@ -210,6 +214,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var fillScreen by mutableStateOf(true)
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
+    private var effects by mutableStateOf(ScreenEffects.OFF)
+    private var textureAnisotropy by mutableStateOf(0)
+    private var textureLodBias by mutableStateOf(TextureFiltering.LOD_BIAS_OFF)
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
@@ -464,6 +471,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     hudOn = hudOn,
                     fillScreen = if (SessionState.mode == SessionService.MODE_STEAM) fillScreen else null,
                     upscaler = upscaler, upscaleSharpness = upscaleSharpness,
+                    effects = effects, textureAnisotropy = textureAnisotropy, textureLodBias = textureLodBias,
                     frameGen = frameGen,
                     lossless = lossless,
                     oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
@@ -477,11 +485,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onUpscaler = { m ->
                         SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
                         WaylandCompositor.nativeSetUpscaler(m)
+                        // Two Looks carry a scaling mode of their own, so the mode decides which one the log names.
+                        WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(effects, m)?.name)
                     },
                     onUpscaleSharpness = { pct ->
                         SessionPrefs.setUpscaleSharpness(this@SessionActivity, pct); upscaleSharpness = pct
                         WaylandCompositor.nativeSetUpscaleSharpness(pct)
                     },
+                    onEffects = { e ->
+                        SessionPrefs.setScreenEffects(this@SessionActivity, e); effects = e
+                        e.push(upscaler)
+                    },
+                    onTextureAnisotropy = { v -> SessionPrefs.setTextureAnisotropy(this@SessionActivity, v); textureAnisotropy = v },
+                    onTextureLodBias = { v -> SessionPrefs.setTextureLodBias(this@SessionActivity, v); textureLodBias = v },
                     onFrameGenPick = { mode ->
                         FrameGen.set(this@SessionActivity, mode)
                         readPrefs()
@@ -721,6 +737,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         fillScreen = SessionPrefs.forceFullscreen(this)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
+        effects = SessionPrefs.screenEffects(this)
+        textureAnisotropy = SessionPrefs.textureAnisotropy(this)
+        textureLodBias = SessionPrefs.textureLodBias(this)
         val nextTouchMode = SessionPrefs.touchMode(this)
         if (touchMode != nextTouchMode) {
             if (::touchpad.isInitialized) touchpad.cancel()
@@ -885,11 +904,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val size = if (SessionState.running) SessionState.outputSize else outputSize()
         SessionState.outputSize = size
         if (!SessionState.running) SessionState.refreshHz = refreshHz()
+        // How far the panel enlarges the session, for texture sharpness "Auto" (TextureFiltering):
+        // the game environment is published again so the next launch derives it from this session.
+        val panel = panelBounds()
+        SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
+        Thread({
+            runCatching { GameEnvironmentStore.publish(this) }
+                .onFailure { Log.e(TAG, "Could not update game environment", it) }
+        }, "game-env-publish").start()
         // Letterbox, never stretch or crop: the output can be a different shape from the panel,
         // and a game's picture must keep its proportions with bars, not lose its edges.
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
+        SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
         // The session's folder, claimed here because the compositor starts before the service and
         // opens its log once. The compositor reads the path from its environment; setting it after
         // it has started changes nothing, which is why the service copies the file in at teardown.
@@ -973,17 +1001,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * The size the session renders at. gamescope is told this and scales its output onto whatever
      * the panel is, so a 1440p phone can run the client at 1080p without the client knowing.
      */
+    /** The panel, not the window: resources.displayMetrics is what is left after the system bars and the cutout are taken out. */
+    private fun panelBounds(): android.graphics.Rect = if (Build.VERSION.SDK_INT >= 30) {
+        windowManager.maximumWindowMetrics.bounds
+    } else {
+        val metrics = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        android.graphics.Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
+    }
+
     private fun outputSize(): Pair<Int, Int> {
-        // The panel, not the window: resources.displayMetrics is what is left after the system
-        // bars and the cutout are taken out.
-        val bounds = if (Build.VERSION.SDK_INT >= 30) {
-            windowManager.maximumWindowMetrics.bounds
-        } else {
-            val metrics = android.util.DisplayMetrics()
-            @Suppress("DEPRECATION")
-            windowManager.defaultDisplay.getRealMetrics(metrics)
-            android.graphics.Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
-        }
+        val bounds = panelBounds()
         val panelW = maxOf(bounds.width(), bounds.height()).toFloat()
         val panelH = minOf(bounds.width(), bounds.height()).toFloat()
         // Never narrower than 16:9. A foldable's inner panel is nearly square, and a game handed a

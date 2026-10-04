@@ -23,11 +23,109 @@ def game_id(env):
     return str(number % 2**32)
 
 
-def apply_config(env, config, app_id):
+# A .NET (CoreCLR) runtime under FEX crashes in the runtime itself unless memory ordering is fully
+# emulated and multiblock is off: the Stability preset.
+DOTNET_FEX = {
+    "FEX_TSOENABLED": "1",
+    "FEX_VECTORTSOENABLED": "1",
+    "FEX_MEMCPYSETTSOENABLED": "1",
+    "FEX_HALFBARRIERTSOENABLED": "1",
+    "FEX_X87REDUCEDPRECISION": "0",
+    "FEX_MULTIBLOCK": "0",
+}
+
+
+def game_files(exe):
+    """Lower-cased names of the files next to the game's executable and one directory below."""
+    names = set()
+    folder = os.path.dirname(exe)
+    try:
+        with os.scandir(folder) as top:
+            for entry in top:
+                names.add(entry.name.lower())
+                if entry.is_dir(follow_symlinks=False):
+                    try:
+                        with os.scandir(entry.path) as inner:
+                            names.update(e.name.lower() for e in inner)
+                    except OSError:
+                        pass
+    except OSError:
+        pass
+    return names
+
+
+class Game:
+    """What a fix gets to look at: the executable, its launch arguments and the files beside it."""
+
+    def __init__(self, exe, args):
+        self.exe = exe
+        self.args = args
+        self.stem = os.path.splitext(os.path.basename(exe))[0].lower()
+        self.files = game_files(exe)
+
+    def has_arg(self, name):
+        return any(a == name or a.startswith(name + "=") for a in self.args)
+
+
+# Each fix looks at a Game and returns (environment, extra arguments, note) for the games it
+# applies to, or None. Adding one is writing a function and decorating it.
+FIXES = []
+
+
+def fix(function):
+    FIXES.append(function)
+    return function
+
+
+def is_godot(game):
+    return game.stem + ".pck" in game.files or "godotsharp.dll" in game.files
+
+
+@fix
+def dotnet_memory_ordering(game):
+    if "coreclr.dll" in game.files:
+        return DOTNET_FEX, [], ".NET runtime: FEX with full TSO and without multiblock"
+
+
+@fix
+def godot_vulkan(game):
+    # Godot 4 on Direct3D 12 through VKD3D-Proton fails to create its swap chain and runs behind a
+    # black window; its own Vulkan renderer draws.
+    if is_godot(game) and not game.has_arg("--rendering-driver"):
+        return {}, ["--rendering-driver", "vulkan"], "Godot: Vulkan renderer"
+
+
+@fix
+def godot_sentry(game):
+    # The Sentry GDExtension's native crash handler takes the .NET runtime down under FEX. Godot
+    # loads it on demand and carries on without it.
+    sentry = sorted(n[:-4] for n in game.files if n.startswith("libsentry.windows.") and n.endswith(".dll"))
+    if is_godot(game) and sentry:
+        return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
+
+
+def engine_fixes(exe, args):
+    """Environment and extra arguments a game needs because of what it is built with."""
+    game = Game(exe, args)
+    env, extra, notes = {}, [], []
+    for check in FIXES:
+        found = check(game)
+        if found:
+            env.update(found[0])
+            extra += found[1]
+            notes.append(found[2])
+    return env, extra, notes
+
+
+def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
     result = env.copy()
     entries = dict(config.get("shared", {}))
+    for name, value in (fixes or {}).items():
+        if name == "WINEDLLOVERRIDES" and entries.get(name, env.get(name)):
+            value = entries.get(name, env.get(name)) + ";" + value
+        entries[name] = value
     entries.update(config.get("games", {}).get(app_id, {}))
     for name, value in entries.items():
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
@@ -38,6 +136,15 @@ def apply_config(env, config, app_id):
             result[name] = value
         else:
             raise ValueError("invalid environment value")
+    # The app's texture filtering (Display page), as DXVK options appended after the profiles so
+    # a DXVK_CONFIG entry of the user's keeps its own.
+    dxvk = config.get("dxvkConfig")
+    if dxvk is not None:
+        if not isinstance(dxvk, str) or "\0" in dxvk or len(dxvk) > 8192:
+            raise ValueError("invalid dxvk configuration")
+        if dxvk:
+            own = result.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
+            result["DXVK_CONFIG"] = own + "; " + dxvk if own else dxvk
     return result
 
 
@@ -96,16 +203,24 @@ def main():
     env = os.environ.copy()
     app_id = game_id(env)
     if app_id:
+        waiting = len(command) > 1 and command[1] == "waitforexitandrun"
+        fixes = {}
+        if waiting:
+            fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
+            for note in notes:
+                print("droiddeck-game-env: " + note, file=sys.stderr)
+            command += extra
         path = Path.home() / ".config/droiddeck/game-environment.json"
         try:
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
-            if len(command) > 1 and command[1] == "waitforexitandrun":
-                env = apply_config(env, config, app_id)
+            if waiting:
+                env = apply_config(env, config, app_id, fixes)
             else:
                 env = apply_config(env, sync_config(config, app_id), app_id)
         except FileNotFoundError:
-            pass
+            if waiting:
+                env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
     sync = load_sync()
