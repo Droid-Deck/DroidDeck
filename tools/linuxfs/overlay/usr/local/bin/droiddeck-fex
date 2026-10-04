@@ -254,6 +254,7 @@ def write_config(fex, root):
         config["Config"]["ThunkHostLibs"] = fex["host_thunks"]
         config["Config"]["ThunkGuestLibs"] = fex["guest_thunks"]
         config["ThunksDB"] = dict(THUNKS)
+        write_if_changed(os.path.join(CONFIG_DIR, "ThunksConfig.json"), json.dumps({"ThunksDB": dict(THUNKS)}, indent=2) + "\n")
     write_if_changed(os.path.join(CONFIG_DIR, "Config.json"), json.dumps(config, indent=2) + "\n")
 
 
@@ -337,6 +338,7 @@ def prepare():
             say("prepared %s as the x86 runtime" % os.path.basename(platform))
         install_preloads(root)
         write_config(fex, root)
+        fex["rootfs"] = root
         try:
             link_steam_sdk()
         except OSError:
@@ -412,6 +414,12 @@ def guest_environment(fex, env):
     for name in ("FEX_ROOTFS", "FEX_THUNKHOSTLIBS", "FEX_THUNKGUESTLIBS"):
         if name in result and not os.path.exists(result[name]):
             result.pop(name)
+    if fex.get("rootfs"):
+        result["FEX_ROOTFS"] = fex["rootfs"]
+    if fex.get("rootfs") and fex.get("host_thunks") and fex.get("guest_thunks") and fex.get("thunks_db"):
+        result["FEX_THUNKHOSTLIBS"] = fex["host_thunks"]
+        result["FEX_THUNKGUESTLIBS"] = fex["guest_thunks"]
+        result["FEX_THUNKCONFIG"] = os.path.join(CONFIG_DIR, "ThunksConfig.json")
     preload = [part for part in split_paths(result.get("LD_PRELOAD")) if os.path.exists(part) and not is_arm(part)]
     library_path = [part for part in (result.get("LD_LIBRARY_PATH") or "").split(":")
                     if part and "steamrtarm64" not in part and "aarch64" not in part]
@@ -440,6 +448,8 @@ def launch(command, env, mode, decide=None):
     guest = guest_environment(fex, env)
     if os.path.isfile(os.path.join(PRELOADS, "x86_64", FAULT_REPORT)) and elf_arch(program) != "i386":
         guest["LD_PRELOAD"] = ":".join([FAULT_REPORT_GUEST] + split_paths(guest.get("LD_PRELOAD")))
+    say("running %s with %s (runtime %s, thunks %s)" % (program, fex["bin"], guest.get("FEX_ROOTFS", "none"),
+                                                         "on" if "FEX_THUNKCONFIG" in guest else "off"))
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
 
 

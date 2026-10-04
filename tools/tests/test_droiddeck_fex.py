@@ -341,6 +341,18 @@ class LaunchTest(FexTestCase):
         self.assertNotIn("LD_PRELOAD", guest)
         self.assertNotIn("FEX_PORTABLE", guest)
 
+    def test_the_runtime_and_thunks_are_passed_to_fex(self):
+        fex = {"portable": True, "rootfs": "/rt/files", "host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}
+        guest = FEX["guest_environment"](fex, {})
+        self.assertEqual((guest["FEX_ROOTFS"], guest["FEX_THUNKHOSTLIBS"], guest["FEX_THUNKGUESTLIBS"]), ("/rt/files", "/h", "/g"))
+        self.assertTrue(guest["FEX_THUNKCONFIG"].endswith("/config/ThunksConfig.json"))
+        guest = FEX["guest_environment"](dict(fex, host_thunks=None), {})
+        self.assertEqual(guest["FEX_ROOTFS"], "/rt/files")
+        self.assertNotIn("FEX_THUNKCONFIG", guest)
+        FEX["write_config"](fex, "/rt/files")
+        thunks = json.loads((self.home / ".local/share/droiddeck-fex/config/ThunksConfig.json").read_text())
+        self.assertEqual(thunks, {"ThunksDB": {"GL": 1, "Vulkan": 1}})
+
     def test_native_programs_run_directly(self):
         program = self.write(self.tmp / "native", elf(183), 0o755)
         with mock.patch("os.execvpe") as native, mock.patch("os.execve") as emulated:
@@ -359,6 +371,7 @@ class LaunchTest(FexTestCase):
         self.assertEqual((binary, argv), (str(tool / "usr/bin/FEX"), [str(tool / "usr/bin/FEX"), str(program), "-w"]))
         self.assertEqual(env["FEX_PORTABLE"], "1")
         self.assertNotIn("LD_PRELOAD", env)
+        self.assertEqual(env["FEX_ROOTFS"], str(self.steam / "steamapps/common/SteamLinuxRuntime_sniper/sniper_platform_3.0.20260805.254768/files"))
         self.write(self.tmp / "preloads/x86_64/libfaultreport.so", elf(62))
         x86 = self.write(self.tmp / "x86.so", elf(62))
         with mock.patch("os.execve") as emulated:
