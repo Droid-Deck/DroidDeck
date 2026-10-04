@@ -465,8 +465,12 @@ class AppInfoTest(unittest.TestCase):
             return out + b"\x08"
 
         body = b""
-        for app, (oslist, osarch, kind) in apps.items():
-            data = section({"appinfo": {"appid": str(app), "common": {"type": kind, "oslist": oslist, "osarch": osarch}}})
+        for app, entry in apps.items():
+            if isinstance(entry, dict):
+                data = section({"appinfo": dict(entry, appid=str(app))})
+            else:
+                oslist, osarch, kind = entry
+                data = section({"appinfo": {"appid": str(app), "common": {"type": kind, "oslist": oslist, "osarch": osarch}}})
             header = struct.pack("<IIQ", 2, 0, 0) + b"\0" * 20 + struct.pack("<I", 1) + (b"\0" * 20 if magic >= 0x07564428 else b"")
             body += struct.pack("<II", app, len(header) + len(data)) + header + data
         body += struct.pack("<I", 0)
@@ -489,6 +493,38 @@ class AppInfoTest(unittest.TestCase):
                 self.COMPAT["APPINFO_CACHE"].clear()
                 targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "50", "70", "80", "90", "1628350", "60"])
                 self.assertEqual(targets, {"20": "droiddeck-fex", "50": "droiddeck-fex"}, hex(magic))
+
+    def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
+        def deck(oslist, runtime, kind="game"):
+            common = {"type": kind, "oslist": oslist, "steam_deck_compatibility": {"configuration": {"recommended_runtime": runtime}}}
+            if oslist is None:
+                del common["oslist"]
+            return {"common": common}
+        for magic in (0x07564427, 0x07564428, 0x07564429):
+            with tempfile.TemporaryDirectory() as tmp:
+                steam = Path(tmp)
+                (steam / "appcache").mkdir()
+                (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({
+                    10: deck("windows", "proton-stable"), 11: deck("windows,linux", "native"), 12: deck(None, "proton-7.0-5"),
+                    13: deck("linux", "native"), 14: deck("windows", "proton-stable", "Tool"), 15: ("windows", "", "game"),
+                    16: ("windows", "", "game"), 1628350: deck("linux", "native", "game"),
+                    891390: {"common": {"type": "Config"}, "extended": {"app_mappings": {
+                        "16": {"appid": "16", "tool": "proton-stable"}, "17": {"appid": "17", "tool": ""}}}},
+                }, magic))
+                self.COMPAT["APPINFO_CACHE"].clear()
+                self.assertEqual(self.COMPAT["valve_picks"](str(steam)), ["10", "11", "12", "16"], hex(magic))
+
+    def test_titles_with_a_valve_pick_follow_the_default_until_the_user_picks(self):
+        tool = self.COMPAT["TOOL"]
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool, "31": "GE-Proton11-7", "32": "proton_11_arm64", "33": "steamlinuxruntime"},
+            ["40"], [tool, "GE-Proton11-7"], tool, {}, {}, ["30", "31", "32", "33"])
+        self.assertEqual(changes, {"30": tool, "32": tool, "40": tool})
+        self.assertEqual(auto, {"30": tool, "32": tool, "40": tool})
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": "GE-Proton11-7", "30": tool, "31": "GE-Proton11-7", "32": tool}, [], [tool, "GE-Proton11-7"], "GE-Proton11-7", auto, {}, ["30", "31", "32"])
+        self.assertEqual(changes, {"30": "GE-Proton11-7", "32": "GE-Proton11-7"})
+        self.assertEqual(auto, {"30": "GE-Proton11-7", "32": "GE-Proton11-7"})
 
     def test_the_mapping_sends_native_titles_to_fex_and_keeps_picks(self):
         tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]

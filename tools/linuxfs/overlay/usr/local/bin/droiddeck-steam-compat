@@ -397,11 +397,12 @@ class Helper:
             default, state = COMPAT["choose_default"](top["selected"], state, request, live, apply_request=not waiting)
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
-            apps = sorted(set(installed) | set(state.get("auto", {})), key=COMPAT["app_order"])
+            picks = COMPAT["valve_picks"](self.steam_root)
+            apps = sorted(set(installed) | set(picks) | set(state.get("auto", {})), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
             current["0"] = top["selected"]
             native = COMPAT["native_targets"](self.steam_root, installed)
-            changes, auto = COMPAT["plan_mapping"](current, installed, [t["name"] for t in live], default, COMPAT["followers"](state, current), native)
+            changes, auto = COMPAT["plan_mapping"](current, installed, [t["name"] for t in live], default, COMPAT["followers"](state, current), native, picks)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool)))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app, tool))

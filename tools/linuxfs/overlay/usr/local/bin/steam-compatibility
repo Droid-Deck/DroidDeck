@@ -632,17 +632,18 @@ def installed_apps(steam_root):
 
 
 APPINFO_CACHE = {}
+STEAM_PLAY_MANIFESTS = 891390
 
 
-def appinfo_platforms(path, wanted):
+def appinfo_entries(path):
     import struct
     try:
         stamp = os.stat(path).st_mtime_ns
     except OSError:
         return {}
     cached = APPINFO_CACHE.get(path)
-    if cached and cached[0] == stamp and wanted <= cached[1].keys() | cached[2]:
-        return {app: cached[1][app] for app in wanted if app in cached[1]}
+    if cached and cached[0] == stamp:
+        return cached[1]
     try:
         with open(path, "rb") as f:
             data = f.read()
@@ -655,16 +656,19 @@ def appinfo_platforms(path, wanted):
         return {}
     offset = 8
     strings = None
-    if magic == 0x07564429:
-        table = struct.unpack_from("<q", data, offset)[0]
-        offset += 8
-        count = struct.unpack_from("<I", data, table)[0]
-        position = table + 4
-        strings = []
-        for _ in range(count):
-            end = data.index(b"\0", position)
-            strings.append(data[position:end].decode("utf-8", "replace"))
-            position = end + 1
+    try:
+        if magic == 0x07564429:
+            table = struct.unpack_from("<q", data, offset)[0]
+            offset += 8
+            count = struct.unpack_from("<I", data, table)[0]
+            position = table + 4
+            strings = []
+            for _ in range(count):
+                end = data.index(b"\0", position)
+                strings.append(data[position:end].decode("utf-8", "replace"))
+                position = end + 1
+    except (ValueError, IndexError, struct.error):
+        return {}
     header = 4 + 4 + 8 + 20 + 4 + (20 if magic >= 0x07564428 else 0)
 
     def section(position):
@@ -697,23 +701,58 @@ def appinfo_platforms(path, wanted):
                 raise ValueError("unknown appinfo field type %d" % kind)
 
     found = {}
-    try:
-        while offset + 8 <= len(data):
+    while offset + 8 <= len(data):
+        try:
             app, size = struct.unpack_from("<II", data, offset)
-            if app == 0:
-                break
-            start = offset + 8
-            offset = start + size
-            if str(app) not in wanted:
-                continue
+        except struct.error:
+            break
+        if app == 0:
+            break
+        start = offset + 8
+        offset = start + size
+        try:
             info = section(start + header)[0].get("appinfo", {})
-            common = info.get("common", {}) if isinstance(info, dict) else {}
-            oslist = {part.strip().lower() for part in str(common.get("oslist", "")).split(",") if part.strip()}
-            found[str(app)] = (oslist, str(common.get("osarch", "")).lower(), str(common.get("type", "")).lower())
-    except (ValueError, IndexError, struct.error):
-        return {}
-    APPINFO_CACHE[path] = (stamp, found, set(wanted))
-    return {app: found[app] for app in wanted if app in found}
+        except (ValueError, IndexError, struct.error):
+            continue
+        if not isinstance(info, dict):
+            continue
+        common = info.get("common", {}) if isinstance(info.get("common"), dict) else {}
+        deck = common.get("steam_deck_compatibility")
+        configuration = deck.get("configuration") if isinstance(deck, dict) else None
+        recommended = configuration.get("recommended_runtime", "") if isinstance(configuration, dict) else ""
+        entry = {
+            "oslist": {part.strip().lower() for part in str(common.get("oslist", "")).split(",") if part.strip()},
+            "osarch": str(common.get("osarch", "")).lower(),
+            "type": str(common.get("type", "")).lower(),
+            "recommended": str(recommended),
+        }
+        if app == STEAM_PLAY_MANIFESTS:
+            extended = info.get("extended", {})
+            mappings = extended.get("app_mappings", {}) if isinstance(extended, dict) else {}
+            entry["app_mappings"] = {str(m.get("appid", key)): str(m.get("tool", "")) for key, m in mappings.items()
+                                     if isinstance(m, dict)} if isinstance(mappings, dict) else {}
+        found[str(app)] = entry
+    APPINFO_CACHE[path] = (stamp, found)
+    return found
+
+
+def appinfo_platforms(path, wanted):
+    entries = appinfo_entries(path)
+    return {app: (entries[app]["oslist"], entries[app]["osarch"], entries[app]["type"]) for app in wanted if app in entries}
+
+
+def valve_picks(steam_root):
+    entries = appinfo_entries(os.path.join(steam_root, "appcache", "appinfo.vdf"))
+    mapped = {app for app, tool in entries.get(str(STEAM_PLAY_MANIFESTS), {}).get("app_mappings", {}).items() if tool}
+    picks = set()
+    for app, entry in entries.items():
+        if app in NOT_GAMES or entry["type"] not in PLAYABLE_TYPES:
+            continue
+        if entry["oslist"] and "windows" not in entry["oslist"]:
+            continue
+        if entry["recommended"] or app in mapped:
+            picks.add(app)
+    return sorted(picks, key=int)
 
 
 def native_targets(steam_root, apps):
@@ -811,21 +850,22 @@ def app_order(app):
     return (len(app), app)
 
 
-def plan_mapping(current, installed, runnable, default, auto, native=None):
+def plan_mapping(current, installed, runnable, default, auto, native=None, picks=()):
     runnable = {n.lower() for n in runnable}
     installed = set(installed)
+    picks = set(picks)
     native = native or {}
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
-    for app in sorted((set(current) | installed | set(auto)) - {"0"}, key=app_order):
+    for app in sorted((set(current) | installed | picks | set(auto)) - {"0"}, key=app_order):
         name = current.get(app, "")
         mine = auto.get(app)
         target = native.get(app, default)
         stale = unrunnable(name, runnable) or (app in native and linux_runtime_tool(name))
         if name and not stale and (mine is None or name != mine):
             continue
-        if not name and app not in installed:
+        if not name and app not in installed and app not in picks:
             continue
         if name != target:
             changes[app] = target
@@ -976,7 +1016,7 @@ def live_helper_running(directory=None):
         return False
 
 
-def register_default(config_path, apps=(), protect=(), default=None, catalog=None, directory=None, settle=False):
+def register_default(config_path, apps=(), protect=(), default=None, catalog=None, directory=None, settle=False, picks=()):
     """Writes the mapping: the "0" default and every title that follows it (see plan_mapping).
     With settle, the default itself is decided first (see choose_default): before the client
     starts, config.vdf holds what the client last kept, menu changes included."""
@@ -999,7 +1039,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             else:
                 default = state.get("default") if state.get("default") in names else TOOL
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
-        changes, auto = plan_mapping(current, apps, names, default, followers(state, current), native_targets(steam_root, apps))
+        changes, auto = plan_mapping(current, apps, names, default, followers(state, current), native_targets(steam_root, apps), picks)
         for app, tool in changes.items():
             set_mapping(tokens, mapping, app, tool)
         text = serialize(tokens)
@@ -1096,8 +1136,9 @@ def main():
         print("steam-compatibility: the live helper keeps the client's mapping; tools listed")
     elif os.path.isfile(config):
         apps = installed_apps(steam_root)
-        default = register_default(config, apps, protect=extras, catalog=catalog, settle=not steam_running())
-        print("steam-compatibility: default and %d installed title(s) set to %s" % (len(apps), default))
+        picks = valve_picks(steam_root)
+        default = register_default(config, apps, protect=extras, catalog=catalog, settle=not steam_running(), picks=picks)
+        print("steam-compatibility: default, %d installed title(s) and %d title(s) with a Valve pick set to %s" % (len(apps), len(picks), default))
     sync = os.path.join(os.path.dirname(os.path.realpath(__file__)), "droiddeck-esync")
     if os.path.isfile(sync):
         try:
