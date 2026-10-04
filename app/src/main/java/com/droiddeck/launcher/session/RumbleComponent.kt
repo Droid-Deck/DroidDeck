@@ -1,12 +1,14 @@
 package com.droiddeck.launcher.session
 
 import android.net.LocalServerSocket
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
+import com.droiddeck.launcher.input.ControllerPrefs
 import java.io.DataInputStream
 import kotlin.math.max
 
@@ -21,9 +23,25 @@ import kotlin.math.max
  */
 class RumbleComponent : SessionPart() {
     @Volatile private var server: LocalServerSocket? = null
+    private var vibrator: Vibrator? = null
+    private var preferences: SharedPreferences? = null
+    private var enabled = false
+    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == null || key == "rumble") refreshEnabled()
+    }
+
+    @Synchronized private fun refreshEnabled() {
+        enabled = app()?.let { ControllerPrefs.rumbleEnabled(it) } == true
+        if (!enabled) vibrator?.cancel()
+    }
 
     override fun start() {
+        val ctx = app() ?: return
         val s = try { LocalServerSocket(NAME) } catch (e: Exception) { Log.w(TAG, "rumble: no listener ($e)"); return }
+        vibrator = if (Build.VERSION.SDK_INT >= 31) ctx.getSystemService(VibratorManager::class.java)?.defaultVibrator
+            else @Suppress("DEPRECATION") ctx.getSystemService(Vibrator::class.java)
+        preferences = ControllerPrefs.prefs(ctx).also { it.registerOnSharedPreferenceChangeListener(preferenceListener) }
+        refreshEnabled()
         server = s
         Thread({
             while (server === s) {
@@ -43,18 +61,22 @@ class RumbleComponent : SessionPart() {
         Log.i(TAG, "rumble: listening on @$NAME")
     }
 
-    override fun stop() {
-        val s = server ?: return
+    @Synchronized override fun stop() {
+        preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+        preferences = null
+        enabled = false
+        vibrator?.cancel()
+        vibrator = null
+        val s = server
         server = null
-        try { s.close() } catch (e: Exception) { /* the accept loop ends on the next wake */ }
+        try { s?.close() } catch (e: Exception) { /* the accept loop ends on the next wake */ }
     }
 
     private fun u16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or ((b[at + 1].toInt() and 0xFF) shl 8)
 
-    private fun buzz(strength: Int, ms: Int) {
-        val ctx = app() ?: return
-        val vibrator: Vibrator = if (Build.VERSION.SDK_INT >= 31) ctx.getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return
-            else @Suppress("DEPRECATION") (ctx.getSystemService(Vibrator::class.java) ?: return)
+    @Synchronized private fun buzz(strength: Int, ms: Int) {
+        if (!enabled) return
+        val vibrator = vibrator ?: return
         if (!vibrator.hasVibrator()) return
         if (strength == 0 || ms == 0) { vibrator.cancel(); return }
         val amplitude = (strength * 255L / 65535L).toInt().coerceIn(1, 255)

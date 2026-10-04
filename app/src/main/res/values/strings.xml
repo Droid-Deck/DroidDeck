@@ -774,6 +774,11 @@
     <string name="ctrl_stick_click">Stick click</string>
     <string name="ctrl_stick_click_hint">Double-tap and hold a stick for L3 or R3</string>
     <string name="ctrl_adaptive">Adaptive sticks</string>
+    <string name="ctrl_rumble">Game vibration</string>
+    <string name="ctrl_steam_button">Steam button</string>
+    <string name="ctrl_qam_button">QAM button</string>
+    <string name="ctrl_keyboard_button">Keyboard button</string>
+    <string name="setup_animations">Animations</string>
     <string name="ctrl_adaptive_hint">Sticks appear where you touch and hide on release</string>
     <string name="ctrl_layout">Layout</string>
     <string name="ctrl_layout_custom">Custom positions saved</string>

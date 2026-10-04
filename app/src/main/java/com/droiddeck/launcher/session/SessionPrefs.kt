@@ -30,6 +30,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
+
+    fun setAnimationsEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("animations", on).apply()
+    }
+
     /** The Flathub Store (beta): its rail item. Off by default. */
     fun storeEnabled(context: Context): Boolean = prefs(context).getBoolean("storeEnabled", false)
 

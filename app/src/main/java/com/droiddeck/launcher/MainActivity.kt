@@ -153,6 +153,7 @@ class MainActivity : ComponentActivity() {
     private var forceFullscreen by mutableStateOf(true)
     private var stretch16x9 by mutableStateOf(false)
     private var launcherFullscreen by mutableStateOf(true)
+    private var animationsEnabled by mutableStateOf(true)
     private var storeEnabled by mutableStateOf(false)
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
@@ -479,6 +480,7 @@ class MainActivity : ComponentActivity() {
         steamGames = if (shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.LibraryCache.load(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
+        animationsEnabled = SessionPrefs.animationsEnabled(this)
         storeEnabled = SessionPrefs.storeEnabled(this)
         applyLauncherFullscreen()
         updates.start()
@@ -529,6 +531,7 @@ class MainActivity : ComponentActivity() {
                         phantomProcessStatus = phantomProcessStatus,
                         showPhantomGate = showPhantomGate,
                         launcherFullscreen = launcherFullscreen,
+                        animationsEnabled = animationsEnabled,
                         storeEnabled = storeEnabled,
                     ),
                     FrontEndActions(
@@ -644,6 +647,11 @@ class MainActivity : ComponentActivity() {
                             applyLauncherFullscreen()
                         },
                         onStoreEnabled = { on -> SessionPrefs.setStoreEnabled(this, on); storeEnabled = on },
+                        onAnimationsEnabled = { on ->
+                            SessionPrefs.setAnimationsEnabled(this, on)
+                            animationsEnabled = on
+                            com.droiddeck.launcher.ui.Motion.refresh(this)
+                        },
                         onHomeApp = { manageHomeApp() },
                         onHomeScreen = { on ->
                             HomeApp.setHomeScreenEnabled(this, on)
@@ -712,6 +720,10 @@ class MainActivity : ComponentActivity() {
                             onSize = { v -> ControllerPrefs.setSize(this, v); refreshController() },
                             onStickClick = { on -> ControllerPrefs.setStickClick(this, on); refreshController() },
                             onAdaptiveSticks = { on -> ControllerPrefs.setAdaptiveSticks(this, on); refreshController() },
+                            onRumble = { on -> ControllerPrefs.setRumble(this, on); refreshController() },
+                            onSteamButton = { on -> ControllerPrefs.setSteamButton(this, on); refreshController() },
+                            onQamButton = { on -> ControllerPrefs.setQamButton(this, on); refreshController() },
+                            onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = true },

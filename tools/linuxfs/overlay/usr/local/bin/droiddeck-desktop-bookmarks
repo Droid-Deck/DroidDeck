@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Expose the selected secondary library in PCManFM's Places sidebar."""
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+
+LIBRARY = Path("/mnt/droiddeck-sd")
+URI = "file:///mnt/droiddeck-sd"
+
+
+def bookmarks_file(home, config):
+    # libfm-qt reads GTK3 bookmarks first, falling back to the legacy file when empty.
+    current = config / "gtk-3.0/bookmarks"
+    legacy = home / ".gtk-bookmarks"
+    if current.is_file() and current.read_text(errors="surrogateescape").strip():
+        return current
+    return legacy if legacy.is_file() else current
+
+
+def update_bookmark(path, label):
+    original = path.read_text(errors="surrogateescape") if path.is_file() else ""
+    lines = [line for line in original.splitlines(keepends=True)
+             if line.strip().split(" ", 1)[0] != URI]
+    content = "".join(lines)
+    if label is not None:
+        label = " ".join(label.split()) or "Secondary library"
+        if content and not content.endswith("\n"):
+            content += "\n"
+        content += URI + " " + label + "\n"
+    if content == original:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", errors="surrogateescape",
+                                         dir=path.parent, delete=False) as stream:
+            temporary = stream.name
+            stream.write(content)
+        os.replace(temporary, path)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def main():
+    home = Path.home()
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
+    label = os.environ.get("BL_LIBRARY_LABEL")
+    # An unbound mount-point directory may remain from a previous session.
+    available = bool(label) and (LIBRARY / "steamapps").is_dir()
+    update_bookmark(bookmarks_file(home, config), label if available else None)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except OSError as error:
+        print("== desktop library bookmark: " + str(error), file=sys.stderr)

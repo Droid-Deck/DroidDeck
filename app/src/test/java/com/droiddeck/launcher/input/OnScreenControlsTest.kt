@@ -171,6 +171,70 @@ class OnScreenControlsTest {
     }
 
     private fun control(id: String): Any = (field(view, "controls") as List<*>).first { field(it!!, "id") == id }!!
+
+    @Test fun keyboardShortcutWorksWithHiddenPadAndButtonsOnly() {
+        var opened = 0
+        view = OnScreenControls(context, null, onKeyboard = { opened++ })
+        view.layout(0, 0, 1200, 800)
+        view.setQuickHidden(true)
+        assertNotEquals(0, pixel(90f, 766f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (90f to 766f))
+        assertEquals(0, opened)
+        touch(MotionEvent.ACTION_UP, 1 to (90f to 766f))
+        assertEquals(1, opened)
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (600f to 400f)))
+        view.setButtonsOnly(true)
+        touch(MotionEvent.ACTION_DOWN, 1 to (600f to 756f))
+        touch(MotionEvent.ACTION_UP, 1 to (600f to 756f))
+        assertEquals(2, opened)
+        assertEquals(-1, field(control("guide"), "pressedBy"))
+    }
+
+    @Test fun cancelledDraggedOrDisabledKeyboardShortcutDoesNotOpen() {
+        var opened = 0
+        view = OnScreenControls(context, null, onKeyboard = { opened++ })
+        view.layout(0, 0, 1200, 800)
+        touch(MotionEvent.ACTION_DOWN, 1 to (90f to 766f))
+        touch(MotionEvent.ACTION_CANCEL, 1 to (90f to 766f))
+        touch(MotionEvent.ACTION_UP, 1 to (90f to 766f))
+        assertEquals(0, opened)
+        touch(MotionEvent.ACTION_DOWN, 1 to (90f to 766f))
+        touch(MotionEvent.ACTION_MOVE, 1 to (180f to 766f))
+        touch(MotionEvent.ACTION_UP, 1 to (180f to 766f))
+        assertEquals(0, opened)
+        ControllerPrefs.setKeyboardButton(context, false)
+        view.reload()
+        view.setQuickHidden(true)
+        assertEquals(0, pixel(90f, 766f))
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (90f to 766f)))
+    }
+
+    @Test fun hidingSystemButtonsRemovesHitTargetsInBothOverlayModes() {
+        for (buttonsOnly in listOf(false, true)) {
+            ControllerPrefs.setSteamButton(context, true)
+            ControllerPrefs.setQamButton(context, true)
+            view.reload()
+            view.setButtonsOnly(buttonsOnly)
+            val guide = control("guide")
+            val qam = control("qam")
+            val gx = value(guide, "cx"); val gy = value(guide, "cy")
+            val qx = value(qam, "cx"); val qy = value(qam, "cy")
+            assertNotEquals(0, pixel(gx, gy))
+            assertNotEquals(0, pixel(qx, qy))
+            touch(MotionEvent.ACTION_DOWN, 1 to (gx to gy))
+            ControllerPrefs.setSteamButton(context, false)
+            view.reload()
+            assertEquals(-1, field(guide, "pressedBy"))
+            assertEquals(0, pixel(gx, gy))
+            assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (gx to gy)))
+            assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (qx to qy)))
+            touch(MotionEvent.ACTION_UP, 1 to (qx to qy))
+            ControllerPrefs.setQamButton(context, false)
+            view.reload()
+            assertEquals(0, pixel(qx, qy))
+            assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (qx to qy)))
+        }
+    }
     private fun field(owner: Any, name: String): Any = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)!!
     private fun value(owner: Any, name: String) = field(owner, name) as Float
 

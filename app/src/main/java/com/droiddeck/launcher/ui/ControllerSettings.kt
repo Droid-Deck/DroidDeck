@@ -24,6 +24,10 @@ class ControllerActions(
     val onSize: (Int) -> Unit,
     val onStickClick: (Boolean) -> Unit,
     val onAdaptiveSticks: (Boolean) -> Unit,
+    val onRumble: (Boolean) -> Unit,
+    val onSteamButton: (Boolean) -> Unit,
+    val onQamButton: (Boolean) -> Unit,
+    val onKeyboardButton: (Boolean) -> Unit,
     val onEditLayout: () -> Unit,
     val onResetLayout: () -> Unit,
     val onMapping: () -> Unit,
@@ -62,6 +66,10 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
     ChoiceRow(host, "controller-size", stringResource(R.string.ctrl_size), stringResource(R.string.ctrl_size_hint), ControllerPrefs.sizes.map { it to stringResource(R.string.ctrl_percent, it) }, c.size, onPick = a.onSize)
     ToggleRow(host, "controller-stick-click", stringResource(R.string.ctrl_stick_click), stringResource(R.string.ctrl_stick_click_hint), c.stickClick, onChange = a.onStickClick)
     ToggleRow(host, "controller-adaptive", stringResource(R.string.ctrl_adaptive), stringResource(R.string.ctrl_adaptive_hint), c.adaptiveSticks, onChange = a.onAdaptiveSticks)
+    ToggleRow(host, "controller-rumble", stringResource(R.string.ctrl_rumble), null, c.rumble, onChange = a.onRumble)
+    ToggleRow(host, "controller-steam", stringResource(R.string.ctrl_steam_button), null, c.steamButton, onChange = a.onSteamButton)
+    ToggleRow(host, "controller-qam", stringResource(R.string.ctrl_qam_button), null, c.qamButton, onChange = a.onQamButton)
+    ToggleRow(host, "controller-keyboard", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton, onChange = a.onKeyboardButton)
     SettingsRow(stringResource(R.string.ctrl_layout), if (c.customLayout) stringResource(R.string.ctrl_layout_custom) else stringResource(R.string.ctrl_layout_default)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SecondaryButton(stringResource(R.string.ctrl_edit)) { a.onEditLayout() }
