@@ -8,6 +8,7 @@
  * a game become more of these nodes instead of vanishing.
  */
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <climits>
 #include <cstdint>
@@ -38,6 +39,9 @@
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
+#include <time.h>
+#include <unistd.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -295,21 +299,52 @@ static void controller_fork_child() {
 
 namespace Logger {
 int log_enabled;
+// FAKE_EVDEV_LOG_FILE: the session's pad.log, shared by every process the library is loaded in
+// (the client, each game), so a pad report has the guest side in one file of the session folder.
+// Opened with the raw syscall: open() is this library's own hook.
+static int log_fd = -1;
+static char log_name[17];
 
 void init() {
   log_enabled = getenv("FAKE_EVDEV_LOG") && atoi(getenv("FAKE_EVDEV_LOG"));
+  const char *path = getenv("FAKE_EVDEV_LOG_FILE");
+  if (log_enabled && path && *path)
+    log_fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644));
+  if (prctl(PR_GET_NAME, log_name) != 0) strcpy(log_name, "?");
 }
 
 void log(const char *message, ...) {
   if (!log_enabled)
     return;
 
+  if (log_fd < 0) {
+    va_list args;
+    va_start(args, message);
+    vfprintf(stderr, message, args);
+    va_end(args);
+    std::cerr.flush();
+    return;
+  }
+  // One write per line: O_APPEND keeps lines from different processes whole.
+  char line[512];
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME, &now);
+  struct tm local;
+  localtime_r(&now.tv_sec, &local);
+  int n = snprintf(line, sizeof(line), "%02d:%02d:%02d.%03ld %d %s: ", local.tm_hour, local.tm_min,
+                   local.tm_sec, now.tv_nsec / 1000000, getpid(), log_name);
   va_list args;
   va_start(args, message);
-  vfprintf(stderr, message, args);
+  if (n > 0 && n < static_cast<int>(sizeof(line)))
+    n += vsnprintf(line + n, sizeof(line) - n, message, args);
   va_end(args);
-
-  std::cerr.flush();
+  if (n <= 0) return;
+  if (n >= static_cast<int>(sizeof(line))) {
+    n = sizeof(line) - 1;
+    line[n - 1] = '\n';
+  }
+  ssize_t ignored = write(log_fd, line, n);
+  (void)ignored;
 }
 } // namespace Logger
 
@@ -649,31 +684,43 @@ open_fake_input_ring(const char *event, int flags) {
 // does not exist here, so the game was left with no controller at all. With
 // FAKE_EVDEV_STEAM_VIRTUAL set the pad carries the virtual gamepad's identity for every process
 // but the client's own, which must keep seeing the pad as the physical one it reads.
-__attribute__((visibility("hidden"))) static bool presents_steam_virtual() {
+// Whether this process is the Steam client itself. Asked once: a process never becomes another.
+__attribute__((visibility("hidden"))) static bool is_steam_client() {
   static int known;
   if (known == 0) {
-    const char *enabled = getenv("FAKE_EVDEV_STEAM_VIRTUAL");
     char exe[PATH_MAX];
-    ssize_t length = enabled && atoi(enabled) ? readlink("/proc/self/exe", exe, sizeof(exe) - 1) : -1;
+    ssize_t length = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
     bool client = false;
     if (length > 0) {
       exe[length] = '\0';
       const char *name = strrchr(exe, '/');
       client = !strncmp(name ? name + 1 : exe, "steam", 5);
     }
-    known = length > 0 && !client ? 1 : -1;
+    known = client ? 1 : -1;
   }
   return known == 1;
 }
 
-// The virtual gamepad is an X-Box 360 pad, whose triggers are ABS_Z and ABS_RZ. Wine places a
-// gamepad's axes by their position among the ones it advertises, so the triggers have to sit
+__attribute__((visibility("hidden"))) static bool presents_steam_virtual() {
+  static int known;
+  if (known == 0) {
+    const char *enabled = getenv("FAKE_EVDEV_STEAM_VIRTUAL");
+    known = enabled && atoi(enabled) && !is_steam_client() ? 1 : -1;
+  }
+  return known == 1;
+}
+
+// The virtual gamepad is an X-Box 360 pad, whose triggers are ABS_Z and ABS_RZ. Wine and SDL place
+// a gamepad's axes by their position among the ones it advertises, so the triggers have to sit
 // where that pad has them: as ABS_GAS and ABS_BRAKE they follow the sticks, the right stick
-// lands on the left trigger, and a released right trigger reads as the right stick held up.
-// A pad made through /dev/uinput is that pad for real, whoever reads it.
+// lands on the left trigger, and a released right trigger reads as the right stick held up. That
+// is every reader but the Steam client, which maps the pad from what it finds (controller.txt)
+// and has always been shown ABS_GAS/ABS_BRAKE: a game Steam Input is off for reads this pad
+// itself (the Xbox 360 setting), and so do the desktop's programs. A pad made through
+// /dev/uinput is that pad for real, whoever reads it.
 __attribute__((visibility("hidden"))) static bool
 presents_xbox_triggers(const FakeController &fake) {
-  return fake.uinput || presents_steam_virtual();
+  return fake.uinput || !is_steam_client();
 }
 
 __attribute__((visibility("hidden"))) static uint16_t
@@ -1256,6 +1303,14 @@ __attribute__((visibility("hidden"))) static bool process_is_steam_client() {
   return known == 1;
 }
 
+// What the client starts with, so a pad log says whether it was offered a Deck at all.
+__attribute__((constructor)) static void log_client_start() {
+  config();
+  if (process_is_steam_client())
+    Logger::log("loaded in the Steam client: deck %s, ring slot 0 %s\n", fake_deck_enabled() ? "on" : "off",
+                get_ring_path_for_slot(0).empty() ? "(none configured)" : get_ring_path_for_slot(0).c_str());
+}
+
 __attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char *pathname) {
   return pathname && fake_deck_enabled() && !strcmp(pathname, DECK_HIDRAW_PATH);
 }
@@ -1364,12 +1419,16 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
 __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
   if (!process_is_steam_client()) {
+    // Only the client reads the Deck; a game sees Steam Input's virtual pad instead.
+    Logger::log("deck: %s refused: not the Steam client\n", DECK_HIDRAW_PATH);
     errno = ENOENT;
     return -1;
   }
   std::string ring_path = get_ring_path_for_slot(0);
   int ring_fd = ring_path.empty() ? -1 : my_open(ring_path.c_str(), O_RDONLY | O_CLOEXEC);
   if (ring_fd < 0) {
+    Logger::log("deck: %s refused: ring %s not openable (%s)\n", DECK_HIDRAW_PATH,
+                ring_path.empty() ? "(none configured)" : ring_path.c_str(), strerror(errno));
     errno = ENODEV;
     return -1;
   }
@@ -1382,12 +1441,15 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   void *mapping = mmap(nullptr, mapping_size, PROT_READ, MAP_SHARED, ring_fd, 0);
   syscall(SYS_close, ring_fd);
   if (mapping == MAP_FAILED || !ring_header_is_valid(static_cast<FakeInputRingHeader *>(mapping))) {
+    Logger::log("deck: %s refused: ring %s %s\n", DECK_HIDRAW_PATH, ring_path.c_str(),
+                mapping == MAP_FAILED ? "could not be mapped" : "has no valid header");
     if (mapping != MAP_FAILED) munmap(mapping, mapping_size);
     errno = ENODEV;
     return -1;
   }
   int pair[2];
   if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) < 0) {
+    Logger::log("deck: %s refused: socketpair failed (%s)\n", DECK_HIDRAW_PATH, strerror(errno));
     munmap(mapping, mapping_size);
     return -1;
   }
@@ -1426,8 +1488,18 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
 // into /sys, so those paths are said to be sysfs; nothing else is touched.
 static constexpr long SYSFS_FS_MAGIC = 0x62656572;
 
+// FAKE_DECK_SYSFS_LISTING: stand-ins for the listings of /sys, /sys/class and /sys/bus
+// (SteamDeckPad.listingDir), for a client that is not allowed to list the real ones.
+__attribute__((visibility("hidden"))) static const char *deck_listing_dir() {
+  static const char *dir = getenv("FAKE_DECK_SYSFS_LISTING");
+  return dir && *dir ? dir : nullptr;
+}
+
 __attribute__((visibility("hidden"))) static bool is_deck_sysfs_path(const char *path) {
-  return path && (!strncmp(path, "/sys/devices/droiddeck", 22) || !strncmp(path, "/sys/class/hidraw", 17));
+  if (!path) return false;
+  if (!strncmp(path, "/sys/devices/droiddeck", 22) || !strncmp(path, "/sys/class/hidraw", 17)) return true;
+  const char *listing = deck_listing_dir();
+  return listing && !strncmp(path, listing, strlen(listing));
 }
 
 __attribute__((visibility("hidden"))) static bool is_deck_sysfs_fd(int fd) {
@@ -1439,17 +1511,32 @@ __attribute__((visibility("hidden"))) static bool is_deck_sysfs_fd(int fd) {
   return is_deck_sysfs_path(path);
 }
 
+// Once per process: proof the client's enumeration reached the Deck's sysfs at all. No line here
+// and no open of /dev/hidraw16 means the client never looked; a line here and no open means it
+// looked and turned the device down.
+__attribute__((visibility("hidden"))) static void note_deck_sysfs(const char *how, int result) {
+  static std::atomic<bool> noted{false};
+  if (!noted.exchange(true))
+    Logger::log("deck: sysfs checked (%s%s)\n", how, result == 0 ? "" : ", failed");
+}
+
 EXPORT int fstatfs(int fd, struct statfs *buf) {
   static auto real = reinterpret_cast<int (*)(int, struct statfs *)>(dlsym(RTLD_NEXT, "fstatfs"));
   int result = real(fd, buf);
-  if (result == 0 && fake_deck_enabled() && is_deck_sysfs_fd(fd)) buf->f_type = SYSFS_FS_MAGIC;
+  if (fake_deck_enabled() && is_deck_sysfs_fd(fd)) {
+    note_deck_sysfs("fstatfs", result);
+    if (result == 0) buf->f_type = SYSFS_FS_MAGIC;
+  }
   return result;
 }
 
 EXPORT int statfs(const char *path, struct statfs *buf) {
   static auto real = reinterpret_cast<int (*)(const char *, struct statfs *)>(dlsym(RTLD_NEXT, "statfs"));
   int result = real(path, buf);
-  if (result == 0 && fake_deck_enabled() && is_deck_sysfs_path(path)) buf->f_type = SYSFS_FS_MAGIC;
+  if (fake_deck_enabled() && is_deck_sysfs_path(path)) {
+    note_deck_sysfs(path, result);
+    if (result == 0) buf->f_type = SYSFS_FS_MAGIC;
+  }
   return result;
 }
 
@@ -1471,6 +1558,15 @@ __attribute__((visibility("hidden"))) static int copy_ioctl_string(ioctl_request
 }
 
 // Feature reports carry the report id (0) first, then the Valve message: type, length, payload.
+// The client repeats some feature reports (settings, rumble) for as long as it has the pad; each
+// is logged the first time and then at 2, 4, 8... so the log shows what it asked and how often
+// without a line per report.
+__attribute__((visibility("hidden"))) static void log_deck_feature(const char *what, uint8_t feature) {
+  static std::atomic<unsigned> counts[2][256];
+  unsigned n = ++counts[what[0] == 's'][feature];
+  if ((n & (n - 1)) == 0) Logger::log("deck: feature 0x%02x %s (x%u)\n", feature, what, n);
+}
+
 __attribute__((visibility("hidden"))) static int
 deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
   size_t size = _IOC_SIZE(op);
@@ -1484,7 +1580,7 @@ deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
       int left = buf[6] | buf[7] << 8, right = buf[8] | buf[9] << 8;
       send_vibration(left, right, left || right ? 1000 : 0, 0);
     }
-    Logger::log("deck: feature 0x%02x set\n", buf[1]);
+    log_deck_feature("set", buf[1]);
     return static_cast<int>(size);
   }
   uint8_t reply[DECK_REPORT_BYTES + 1] = {};
@@ -1514,7 +1610,7 @@ deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
     reply[1] = deck.pending_feature;
     break;
   }
-  Logger::log("deck: feature 0x%02x read\n", deck.pending_feature);
+  log_deck_feature("read", deck.pending_feature);
   size_t length = std::min(size, sizeof(reply));
   memcpy(buf, reply, length);
   return static_cast<int>(length);
@@ -1556,6 +1652,154 @@ ioctl_deck(DeckHidraw &deck, ioctl_request_t op, void *argp) {
     errno = EINVAL;
     return -1;
   }
+}
+
+// A device scan that fails on a phone and not on the Thor: libudev gives up its whole scan on any
+// sysfs directory it cannot read for a reason other than its absence, and a phone's SELinux policy
+// denies directories a permissive device lets through. The client's /sys failures that are not
+// ENOENT are logged, each path once, so pad.log names the directory that stopped the scan.
+__attribute__((visibility("hidden"))) static std::string note_sys_failure(int dirfd, const char *pathname) {
+  int saved_errno = errno;
+  std::string path;
+  if (saved_errno == ENOENT || !pathname || !process_is_steam_client()) {
+    errno = saved_errno;
+    return path;
+  }
+  if (pathname[0] == '/' || dirfd == AT_FDCWD) {
+    path = pathname;
+  } else {
+    char link[64], dir[PATH_MAX];
+    snprintf(link, sizeof(link), "/proc/self/fd/%d", dirfd);
+    ssize_t length = readlink(link, dir, sizeof(dir) - 1);
+    if (length <= 0) {
+      errno = saved_errno;
+      return path;
+    }
+    path.assign(dir, length);
+    path += '/';
+    path += pathname;
+  }
+  if (path.compare(0, 5, "/sys/") != 0 && path != "/sys") {
+    errno = saved_errno;
+    return {};
+  }
+  static std::mutex mutex;
+  static std::vector<std::string> *seen = new std::vector<std::string>();
+  bool first = false;
+  {
+    std::lock_guard<std::mutex> guard(mutex);
+    if (seen->size() < 64 && std::find(seen->begin(), seen->end(), path) == seen->end()) {
+      seen->push_back(path);
+      first = true;
+    }
+  }
+  if (first) Logger::log("sysfs: %s not readable (%s)\n", path.c_str(), strerror(saved_errno));
+  errno = saved_errno;
+  return path;
+}
+
+// An enforcing SELinux policy (every retail phone; the Thor only with it forced on) refuses an app
+// a listing of /sys, /sys/class and /sys/bus. libudev lists /sys/class to find the subsystems to
+// descend into and gives up its whole scan when it cannot, so the client never reached hidraw and
+// found no Deck. The client is listed the stand-ins instead - hidraw under class - and opens
+// /sys/class/hidraw itself, which is ours and readable. Only on that refusal, only for the client.
+__attribute__((visibility("hidden"))) static std::string deck_listing_for(const char *path) {
+  const char *listing = deck_listing_dir();
+  if (!path || !listing || errno != EACCES || !fake_deck_enabled() || !process_is_steam_client()) return {};
+  std::string p(path);
+  while (p.size() > 1 && p.back() == '/') p.pop_back();
+  int which = p == "/sys" ? 0 : p == "/sys/class" ? 1 : p == "/sys/bus" ? 2 : -1;
+  if (which < 0) return {};
+  static const char *const names[] = {"sys", "class", "bus"};
+  static std::atomic<int> logged{0};
+  if (!(logged.fetch_or(1 << which) & (1 << which)))
+    Logger::log("sysfs: %s listed from the Deck's stand-in\n", p.c_str());
+  return std::string(listing) + "/" + names[which];
+}
+
+#ifdef __GLIBC__
+// sd-device's path chase now requires a mount ID, which statx only supplies from Linux 5.8.
+// Older handheld kernels still publish the real ID in fdinfo. Scope this compatibility path to
+// libudev/libsystemd in the Deck-reading Steam client, and never invent a unique mount ID.
+__attribute__((visibility("hidden"))) static bool deck_device_library(void *caller) {
+  Dl_info info;
+  if (!dladdr(caller, &info) || !info.dli_fname) return false;
+  const char *name = strrchr(info.dli_fname, '/');
+  name = name ? name + 1 : info.dli_fname;
+  return !strncmp(name, "libudev.so", 10) || !strncmp(name, "libsystemd.so", 13);
+}
+
+__attribute__((visibility("hidden"))) static bool deck_mount_id_from_fdinfo(
+    int dirfd, const char *path, int flags, struct statx *buf) {
+  static auto real_openat = reinterpret_cast<decltype(&::openat)>(dlsym(RTLD_NEXT, "openat"));
+  static auto real_fstat = reinterpret_cast<decltype(&::fstat)>(dlsym(RTLD_NEXT, "fstat"));
+  int target;
+  if (!path || !*path) {
+    if (!(flags & AT_EMPTY_PATH)) return false;
+    target = dirfd == AT_FDCWD ? real_openat(AT_FDCWD, ".", O_PATH | O_CLOEXEC) :
+                                syscall(SYS_fcntl, dirfd, F_DUPFD_CLOEXEC, 0);
+  } else {
+    target = real_openat(dirfd, path, O_PATH | O_CLOEXEC |
+                        ((flags & AT_SYMLINK_NOFOLLOW) ? O_NOFOLLOW : 0));
+  }
+  if (target < 0) return false;
+  struct stat st;
+  // Pin the inode and check it still matches the successful statx before adding information.
+  bool same = real_fstat(target, &st) == 0 && (buf->stx_mask & STATX_INO) &&
+              st.st_ino == buf->stx_ino && major(st.st_dev) == buf->stx_dev_major &&
+              minor(st.st_dev) == buf->stx_dev_minor;
+  char name[64];
+  snprintf(name, sizeof(name), "/proc/self/fdinfo/%d", target);
+  int info = same ? real_openat(AT_FDCWD, name, O_RDONLY | O_CLOEXEC) : -1;
+  char value[512];
+  ssize_t length = info >= 0 ? syscall(SYS_read, info, value, sizeof(value) - 1) : -1;
+  if (info >= 0) syscall(SYS_close, info);
+  syscall(SYS_close, target);
+  if (length < 0) return false;
+  value[length] = '\0';
+  for (const char *line = value; line && *line;) {
+    unsigned long long id;
+    if (sscanf(line, "mnt_id: %llu", &id) == 1 && id > 0) {
+      buf->stx_mnt_id = id;
+      buf->stx_mask |= STATX_MNT_ID;
+      return true;
+    }
+    const char *next = strchr(line, '\n');
+    line = next ? next + 1 : nullptr;
+  }
+  return false;
+}
+
+EXPORT int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *buf) {
+  static auto real = reinterpret_cast<decltype(&::statx)>(dlsym(RTLD_NEXT, "statx"));
+  int result = real(dirfd, path, flags, mask, buf);
+  int saved_errno = errno;
+  constexpr unsigned unique_mount_id = 0x4000;  // STATX_MNT_ID_UNIQUE, newer than build headers.
+  if (result == 0 && (mask & STATX_MNT_ID) &&
+      !(buf->stx_mask & (STATX_MNT_ID | unique_mount_id)) && fake_deck_enabled() &&
+      process_is_steam_client() && deck_device_library(__builtin_return_address(0))) {
+    bool recovered = deck_mount_id_from_fdinfo(dirfd, path, flags, buf);
+    static std::atomic<bool> noted_success{false}, noted_failure{false};
+    if (!(recovered ? noted_success : noted_failure).exchange(true))
+      Logger::log("deck discovery: statx mount id %s for %s (returned mask=0x%x id=%llu)\n",
+                  recovered ? "recovered from fdinfo" : "unavailable in fdinfo",
+                  path && *path ? path : "(fd)", buf->stx_mask,
+                  static_cast<unsigned long long>(buf->stx_mnt_id));
+  }
+  errno = saved_errno;
+  return result;
+}
+#endif
+
+EXPORT DIR *opendir(const char *name) {
+  static auto real = reinterpret_cast<DIR *(*)(const char *)>(dlsym(RTLD_NEXT, "opendir"));
+  DIR *dir = real(name);
+  if (!dir) {
+    note_sys_failure(AT_FDCWD, name);
+    std::string listing = deck_listing_for(name);
+    if (!listing.empty()) dir = real(listing.c_str());
+  }
+  return dir;
 }
 
 EXPORT int open(const char *pathname, int flags, ...) {
@@ -1621,6 +1865,10 @@ EXPORT int open(const char *pathname, int flags, ...) {
     fd = my_open(pathname, flags, mode);
   else
     fd = my_open(pathname, flags);
+  if (fd < 0) {
+    std::string listing = deck_listing_for(note_sys_failure(AT_FDCWD, pathname).c_str());
+    if (!listing.empty()) fd = my_open(listing.c_str(), flags);
+  }
 
   if (fake_path)
     free(fake_path);
@@ -1691,6 +1939,10 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
     fd = my_openat(dirfd, pathname, flags, mode);
   else
     fd = my_openat(dirfd, pathname, flags);
+  if (fd < 0) {
+    std::string listing = deck_listing_for(note_sys_failure(dirfd, pathname).c_str());
+    if (!listing.empty()) fd = my_openat(AT_FDCWD, listing.c_str(), flags);
+  }
 
   if (fake_path)
     free(fake_path);

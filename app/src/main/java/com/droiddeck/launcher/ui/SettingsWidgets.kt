@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -130,7 +132,7 @@ internal fun TabStrip(
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(12.dp)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
-        BumperKey("LB", "Previous tab") { onSelect((selected + tabs.size - 1) % tabs.size) }
+        BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
         Row(
             modifier = Modifier.weight(1f, fill = false).clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
                 .horizontalScroll(rememberScrollState()).padding(3.dp),
@@ -155,7 +157,7 @@ internal fun TabStrip(
                 )
             }
         }
-        BumperKey("RB", "Next tab") { onSelect((selected + 1) % tabs.size) }
+        BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
     }
 }
 
@@ -401,6 +403,8 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
     val track by animateColorAsState(if (checked) pal.signal else colors.surfaceVariant, Motion.tw(180), label = "switchTrack")
     val knob by animateFloatAsState(if (checked) 1f else 0f, Motion.sp(0.7f), label = "switchKnob")
     val flip = { onChange(!checked) }
+    val onLabel = stringResource(R.string.widgets_on)
+    val offLabel = stringResource(R.string.widgets_off)
     val shape = RoundedCornerShape(99.dp)
     // 48dp tall to touch; the visible track sits inside it.
     Box(
@@ -411,7 +415,7 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
             .hoverable(src)
             .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Switch, onClick = flip)
             .controllerConfirm(enabled = enabled, onClick = flip)
-            .semantics { stateDescription = if (checked) "On" else "Off"; if (label != null) contentDescription = label },
+            .semantics { stateDescription = if (checked) onLabel else offLabel; if (label != null) contentDescription = label },
     ) {
         Box(
             Modifier.size(width = 52.dp, height = 30.dp).clip(shape).background(track)
@@ -435,9 +439,9 @@ fun MultiRow(
 ) {
     val open = host.open == key
     val summary = when {
-        selected.size >= items.size -> "All ${items.size}"
-        selected.isEmpty() -> "None"
-        else -> "${selected.size} of ${items.size}"
+        selected.size >= items.size -> stringResource(R.string.widgets_all_n, items.size)
+        selected.isEmpty() -> stringResource(R.string.widgets_none)
+        else -> stringResource(R.string.widgets_n_of_m, selected.size, items.size)
     }
     SettingsRow(label, hint, highlighted = open) {
         Box {
@@ -490,7 +494,7 @@ fun SettingsPage(
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.padding(bottom = 6.dp),
                 ) {
-                    BackLink("Back", compact = true, onClick = onBack)
+                    BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
                     Text(
                         title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -502,7 +506,7 @@ fun SettingsPage(
         } else {
             Rise(0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    BackLink("Back", compact = compactLayout, onClick = onBack)
+                    BackLink(stringResource(R.string.mode_back), compact = compactLayout, onClick = onBack)
                     if (eyebrow != null) {
                         Spacer(Modifier.width(10.dp))
                         Eyebrow(eyebrow)

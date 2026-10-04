@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -40,6 +42,7 @@ fun PerformancePage(
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
     prootNoSeccomp: Boolean,
+    prootFastPath: Boolean,
     guestHostname: String,
     phantomWarning: String?,
     onClientOverride: (Boolean) -> Unit,
@@ -51,6 +54,7 @@ fun PerformancePage(
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
+    onProotFastPath: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
@@ -60,81 +64,87 @@ fun PerformancePage(
     val colors = MaterialTheme.colorScheme
     val coreItems = cores.map { it.core to it.label }
     SettingsPage(
-        host, title = "Performance",
-        lede = "CPU cores, session fixes and the host name. Applies next session.",
+        host, title = stringResource(R.string.perf_title),
+        lede = stringResource(R.string.perf_lede),
         onBack = onDismiss,
     ) {
-        SettingsGroup("Steam client cores") {
+        SettingsGroup(stringResource(R.string.perf_client_cores_group)) {
             ToggleRow(
-                host, "override", "Override Steam's own core choice",
-                "Pins Steam, its UI helper, and gamescope to the cores below. Reapplied every few seconds.",
+                host, "override", stringResource(R.string.perf_override),
+                stringResource(R.string.perf_override_hint),
                 clientOverride, onChange = onClientOverride,
             )
             MultiRow(
-                host, "clientCores", "Client cores", if (clientOverride) "Choose cores for Steam." else "Enable the override to choose.",
+                host, "clientCores", stringResource(R.string.perf_client_cores), if (clientOverride) stringResource(R.string.perf_client_cores_on) else stringResource(R.string.perf_client_cores_off),
                 coreItems, clientCores, enabled = clientOverride, onToggle = onClientCore,
             )
         }
-        SettingsGroup("Game cores") {
+        SettingsGroup(stringResource(R.string.perf_game_cores_group)) {
             MultiRow(
-                host, "gameCores", "Game cores",
-                "Choose cores for games. All selected lets Android schedule across every core.",
+                host, "gameCores", stringResource(R.string.perf_game_cores),
+                stringResource(R.string.perf_game_cores_hint),
                 coreItems, gameCores, onToggle = onGameCore,
             )
         }
-        SettingsGroup("Client interface") {
+        SettingsGroup(stringResource(R.string.perf_client_ui)) {
             ToggleRow(
-                host, "glthread", "Threaded GL",
-                "May improve Steam menu responsiveness. Device impact is unverified.",
+                host, "glthread", stringResource(R.string.perf_glthread),
+                stringResource(R.string.perf_glthread_hint),
                 glThread, onChange = onGlThread,
             )
             ToggleRow(
-                host, "zink", "Zink: lazy descriptors",
-                "Lazy, compact descriptors. Recommended for drivers without descriptor buffers.",
+                host, "zink", stringResource(R.string.perf_zink),
+                stringResource(R.string.perf_zink_hint),
                 zinkLazy, onChange = onZinkLazy,
             )
             ToggleRow(
-                host, "noglerror", "Skip GL error checks",
-                "Disables per-call GL validation.",
+                host, "noglerror", stringResource(R.string.perf_noglerror),
+                stringResource(R.string.perf_noglerror_hint),
                 noGlError, onChange = onNoGlError,
             )
             ToggleRow(
-                host, "gsrealtime", "gamescope: realtime GPU queue",
-                "Gives the compositor's GPU work priority over the game's. Can smooth frame pacing, but can cost games GPU time.",
+                host, "gsrealtime", stringResource(R.string.perf_gsrealtime),
+                stringResource(R.string.perf_gsrealtime_hint),
                 gamescopeRealtime, onChange = onGamescopeRealtime,
             )
         }
-        SettingsGroup("GPU") {
+        SettingsGroup(stringResource(R.string.perf_gpu)) {
             ToggleRow(
-                host, "gpuclock", "Hold the GPU at its top clock",
-                "Adreno only. Fewer hitches from the clock ramping up, at the cost of battery and heat. Released when the session ends.",
+                host, "gpuclock", stringResource(R.string.perf_gpuclock),
+                stringResource(R.string.perf_gpuclock_hint),
                 gpuClockPin, onChange = onGpuClockPin,
             )
         }
-        SettingsGroup("Session fixes") {
+        SettingsGroup(stringResource(R.string.perf_fixes)) {
             ToggleRow(
-                host, "sysmem", "Turnip: sysmem rendering",
-                "On by default: faster for the Steam interface and most games. Required on Adreno 710/720/722.",
+                host, "sysmem", stringResource(R.string.perf_sysmem),
+                stringResource(R.string.perf_sysmem_hint),
                 tuSysmem, onChange = onTuSysmem,
             )
             ToggleRow(
-                host, "xalia", "Skip Steam's xalia helper",
-                "Disables Proton's gamepad navigation helper, which costs every game CPU time. Turn off only if a game needs it.",
+                host, "xalia", stringResource(R.string.perf_xalia),
+                stringResource(R.string.perf_xalia_hint),
                 noXalia, onChange = onNoXalia,
             )
             ToggleRow(
-                host, "seccomp", "Run proot without seccomp",
-                "May fix missing syscall errors on some kernels, but can reduce performance.",
+                host, "seccomp", stringResource(R.string.perf_seccomp),
+                stringResource(R.string.perf_seccomp_hint),
                 prootNoSeccomp, onChange = onProotNoSeccomp,
             )
+            ToggleRow(
+                host, "fastpath", stringResource(R.string.perf_fastpath),
+                if (prootNoSeccomp) stringResource(R.string.perf_fastpath_needs_seccomp)
+                else stringResource(R.string.perf_fastpath_hint),
+                prootFastPath && !prootNoSeccomp, enabled = !prootNoSeccomp, onChange = onProotFastPath,
+            )
         }
-        SettingsGroup("Session identity") {
+        SettingsGroup(stringResource(R.string.perf_identity)) {
             var draft by remember(guestHostname) { mutableStateOf(guestHostname) }
             val valid = SessionPrefs.validGuestHostname(draft) != null
             SettingsRow(
-                "Host name",
-                if (valid || draft.isBlank()) "What the session and Steam report as this machine's name. Blank restores ${SessionPrefs.DEFAULT_GUEST_HOSTNAME}."
-                else "Letters, digits and inner hyphens only, up to 63 characters. Not saved until it is valid.",
+                stringResource(R.string.perf_hostname),
+                if (valid || draft.isBlank()) stringResource(R.string.perf_hostname_hint, SessionPrefs.DEFAULT_GUEST_HOSTNAME)
+                else stringResource(R.string.perf_hostname_invalid),
             ) {
                 OutlinedTextField(
                     draft, { v ->
@@ -153,7 +163,7 @@ fun PerformancePage(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(colors.error.copy(alpha = 0.08f))
                     .border(1.dp, colors.error.copy(alpha = 0.4f), RoundedCornerShape(12.dp)).padding(12.dp),
             ) {
-                Text("Android is set to kill this session", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.error)
+                Text(stringResource(R.string.perf_phantom_warning), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.error)
                 Text(phantomWarning, fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
         }

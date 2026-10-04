@@ -5,6 +5,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SecondaryLibrary
 import java.io.File
 
 /**
@@ -22,7 +23,11 @@ object Library {
         val appId: Int, val name: String, val art: File?, val library: String, val gameId: Long = appId.toLong(),
         val hero: File? = null, val lastPlayed: Long = 0L,
         val gameFiles: File? = null, val protonPrefix: File? = null,
-    )
+        val icon: File? = null,
+    ) {
+        /** Decimal form used by Steam links and Android shortcuts, including unsigned shortcut ids. */
+        val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
+    }
     /** The [SteamGame.library] of a game added to the library rather than installed by Steam. */
     const val ADDED = "added"
 
@@ -67,6 +72,7 @@ object Library {
     )
     private val STEAM_CAPSULES = listOf("library_capsule.jpg", "library_600x900.jpg")
     private val STEAM_HEROES = listOf("library_hero.jpg")
+    private val STEAM_ICON = Regex("[a-fA-F0-9]{40}\\.(jpg|png)")
     private val NAME = Regex("^\\s*\"name\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
     private val STATE = Regex("^\\s*\"StateFlags\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
@@ -84,25 +90,30 @@ object Library {
     /** Proton keeps each game's prefix below compatdata/<appid>/pfx in a Steam library. */
     fun protonPrefix(context: Context, appId: Long, preferredLibrary: File? = null): File? {
         val ids = listOf(appId.toString(), java.lang.Integer.toString(appId.toInt())).distinct()
-        val roots = (listOfNotNull(preferredLibrary) + steamLibraries(context).map { it.first })
+        val secondary = GameStorage.effective(context)?.let { File(it.path) }
+        fun prefixRoot(root: File): File = if (secondary != null && root.canonicalPath == secondary.canonicalPath)
+            SecondaryLibrary.privateRoot(context.filesDir, root).takeIf { File(it, "steamapps/compatdata").isDirectory } ?: root
+            else root
+        val roots = (listOfNotNull(preferredLibrary) + steamLibraries(context).map { it.first }).map(::prefixRoot)
             .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
         return roots.asSequence()
             .flatMap { root -> ids.asSequence().map { id -> File(root, "steamapps/compatdata/$id/pfx") } }
             .firstOrNull { it.isDirectory }
     }
 
-    fun steamGames(context: Context): List<SteamGame> {
+    fun steamGames(context: Context, strictRead: Boolean = false): List<SteamGame> {
         val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
         val cache = File(root, "appcache/librarycache")
         val libraries = steamLibraries(context)
         val out = LinkedHashMap<Int, SteamGame>()
         for ((library, label) in libraries) {
             val steamapps = File(library, "steamapps")
-            steamapps.listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }
-                ?.sortedBy { it.name }?.forEach { manifest ->
+            val manifests = steamapps.listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }
+            if (strictRead && steamapps.isDirectory) check(manifests != null) { "Steam manifests are unavailable" }
+            manifests?.sortedBy { it.name }?.forEach { manifest ->
                     val appId = manifest.name.removePrefix("appmanifest_").removeSuffix(".acf").toIntOrNull() ?: return@forEach
                     if (appId in NOT_GAMES || out.containsKey(appId)) return@forEach
-                    val text = try { manifest.readText() } catch (e: Exception) { return@forEach }
+                    val text = try { manifest.readText() } catch (e: Exception) { if (strictRead) throw e; return@forEach }
                     val name = NAME.find(text)?.groupValues?.get(1)?.trim().orEmpty()
                     val flags = STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     // StateFlags 4 = fully installed; anything else is downloading, updating or broken.
@@ -120,11 +131,25 @@ object Library {
                         appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles,
                         protonPrefix = protonPrefix(context, appId.toLong(), library),
+                        icon = steamCacheImage(cache, appId, listOf("icon.jpg", "icon.png"))
+                            ?: File(cache, appId.toString()).listFiles()?.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) },
                     )
                 }
         }
         return out.values.toList()
     }
+
+    /** The same installed-game inventory used for links, shortcuts and file exports. */
+    fun launchableGames(context: Context, strictRead: Boolean = false): List<SteamGame> = (steamGames(context, strictRead) + AddedGames.scan(context).map { g ->
+        AddedGameArt.resolve(context, g).let { art ->
+            SteamGame(
+                g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
+                hero = art.hero ?: art.header, gameFiles = g.folder,
+                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId),
+                icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
+            )
+        }
+    }).distinctBy { it.gameId }
 
     /** Steam stores current library art inside hash-named folders under the app's cache dir. */
     private fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {
@@ -167,11 +192,12 @@ object Library {
 
     /** The emulator's name for a program path from the rail ("ARMSX2"), or null. */
     fun nameForProgram(program: String?): String? =
-        if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER) {
+        if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER ||
+            program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
             com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
         } else specs.firstOrNull { it.program == program }?.name
 
-    /** Flatpak apps' and AppImages' names by id or directory, as launched: the session only knows that. */
+    /** Added apps' names by Flatpak id or directory, as launched: the session only knows that. */
     val flatpakNames = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /**

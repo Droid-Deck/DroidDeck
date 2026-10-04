@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +24,10 @@ class ControllerActions(
     val onSize: (Int) -> Unit,
     val onStickClick: (Boolean) -> Unit,
     val onAdaptiveSticks: (Boolean) -> Unit,
+    val onRumble: (Boolean) -> Unit,
+    val onSteamButton: (Boolean) -> Unit,
+    val onQamButton: (Boolean) -> Unit,
+    val onKeyboardButton: (Boolean) -> Unit,
     val onEditLayout: () -> Unit,
     val onResetLayout: () -> Unit,
     val onMapping: () -> Unit,
@@ -36,17 +42,17 @@ private fun Swatch(color: Int) {
 @Composable
 fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPrefs.Settings, a: ControllerActions) {
     ChoiceRow(
-        host, "controller-osc", "On-screen controls", "When the touch pad appears in a session",
-        listOf(SessionPrefs.OSC_AUTO to "Auto", SessionPrefs.OSC_ALWAYS to "Always", SessionPrefs.OSC_STEAM_QAM to "Steam + QAM", SessionPrefs.OSC_NEVER to "Never"),
-        oscMode, note = "Auto shows all controls without a controller. Steam + QAM shows only those buttons.", onPick = a.onOsc,
+        host, "controller-osc", stringResource(R.string.mode_osc), stringResource(R.string.ctrl_osc_hint),
+        listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
+        oscMode, note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,
     )
     val tintOpen = host.open == "controller-tint"
-    SettingsRow("Color", "Tint of the on-screen buttons", highlighted = tintOpen) {
+    SettingsRow(stringResource(R.string.ctrl_color), stringResource(R.string.ctrl_color_hint), highlighted = tintOpen) {
         Box {
-            ValueChip(ControllerPrefs.tints.firstOrNull { it.first == c.tint }?.second ?: "Custom", tintOpen) {
+            ValueChip(ControllerPrefs.tints.firstOrNull { it.first == c.tint }?.second ?: stringResource(R.string.ctrl_custom), tintOpen) {
                 host.open = if (tintOpen) null else "controller-tint"
             }
-            AnchoredMenu(tintOpen, onDismiss = { if (host.open == "controller-tint") host.open = null }, title = "Color") { firstItemFocus ->
+            AnchoredMenu(tintOpen, onDismiss = { if (host.open == "controller-tint") host.open = null }, title = stringResource(R.string.ctrl_color)) { firstItemFocus ->
                 ControllerPrefs.tints.forEachIndexed { index, (color, name) ->
                     MenuItem(name, checked = c.tint == color, leading = { Swatch(color) }, focusRequester = if (index == 0) firstItemFocus else null) {
                         a.onTint(color)
@@ -56,36 +62,40 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
             }
         }
     }
-    ChoiceRow(host, "controller-opacity", "Opacity", null, ControllerPrefs.opacities.map { it to "$it%" }, c.opacity, onPick = a.onOpacity)
-    ChoiceRow(host, "controller-size", "Button size", "100% keeps the standard size", ControllerPrefs.sizes.map { it to "$it%" }, c.size, onPick = a.onSize)
-    ToggleRow(host, "controller-stick-click", "Stick click", "Double-tap a stick and hold for L3 or R3", c.stickClick, onChange = a.onStickClick)
-    ToggleRow(host, "controller-adaptive", "Adaptive sticks", "Sticks appear when touched near their saved positions and hide when released", c.adaptiveSticks, onChange = a.onAdaptiveSticks)
-    SettingsRow("Layout", if (c.customLayout) "Custom positions saved" else "Placed for this screen's size and your grip") {
+    ChoiceRow(host, "controller-opacity", stringResource(R.string.ctrl_opacity), null, ControllerPrefs.opacities.map { it to stringResource(R.string.ctrl_percent, it) }, c.opacity, onPick = a.onOpacity)
+    ChoiceRow(host, "controller-size", stringResource(R.string.ctrl_size), stringResource(R.string.ctrl_size_hint), ControllerPrefs.sizes.map { it to stringResource(R.string.ctrl_percent, it) }, c.size, onPick = a.onSize)
+    ToggleRow(host, "controller-stick-click", stringResource(R.string.ctrl_stick_click), stringResource(R.string.ctrl_stick_click_hint), c.stickClick, onChange = a.onStickClick)
+    ToggleRow(host, "controller-adaptive", stringResource(R.string.ctrl_adaptive), stringResource(R.string.ctrl_adaptive_hint), c.adaptiveSticks, onChange = a.onAdaptiveSticks)
+    ToggleRow(host, "controller-rumble", stringResource(R.string.ctrl_rumble), null, c.rumble, onChange = a.onRumble)
+    ToggleRow(host, "controller-steam", stringResource(R.string.ctrl_steam_button), null, c.steamButton, onChange = a.onSteamButton)
+    ToggleRow(host, "controller-qam", stringResource(R.string.ctrl_qam_button), null, c.qamButton, onChange = a.onQamButton)
+    ToggleRow(host, "controller-keyboard", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton, onChange = a.onKeyboardButton)
+    SettingsRow(stringResource(R.string.ctrl_layout), if (c.customLayout) stringResource(R.string.ctrl_layout_custom) else stringResource(R.string.ctrl_layout_default)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SecondaryButton("Edit") { a.onEditLayout() }
-            SecondaryButton("Reset", enabled = c.customLayout) { a.onResetLayout() }
+            SecondaryButton(stringResource(R.string.ctrl_edit)) { a.onEditLayout() }
+            SecondaryButton(stringResource(R.string.ctrl_reset), enabled = c.customLayout) { a.onResetLayout() }
         }
     }
     val remapped = c.mapping.count { (id, target) -> id != target }
-    ActionRow("Button mapping", if (remapped == 0) "Every button sends its own input" else "$remapped of ${c.mapping.size} buttons remapped", "Configure", a.onMapping)
-    ActionRow("Reset controller", "Restore the default color, opacity, size, stick behavior, mapping and layout", "Reset", a.onResetAll)
+    ActionRow(stringResource(R.string.ctrl_mapping), if (remapped == 0) stringResource(R.string.ctrl_mapping_default) else stringResource(R.string.ctrl_mapping_count, remapped, c.mapping.size), stringResource(R.string.ctrl_configure), a.onMapping)
+    ActionRow(stringResource(R.string.ctrl_reset_all), stringResource(R.string.ctrl_reset_all_hint), stringResource(R.string.ctrl_reset), a.onResetAll)
 }
 
 @Composable
 fun ControllerMappingPage(mapping: Map<String, String>, onPick: (String, String) -> Unit, onReset: () -> Unit, onBack: () -> Unit) {
     val host = rememberMenuHost()
     SettingsPage(
-        host, title = "Button mapping", eyebrow = "Controller",
-        lede = "Choose what each on-screen button sends to the game. Hidden removes the button.",
+        host, title = stringResource(R.string.ctrl_mapping), eyebrow = stringResource(R.string.setup_controller),
+        lede = stringResource(R.string.ctrl_mapping_lede),
         onBack = onBack,
     ) {
-        SettingsGroup("On-screen buttons") {
+        SettingsGroup(stringResource(R.string.ctrl_onscreen_buttons)) {
             for ((id, name) in ControllerPrefs.mappable) {
                 ChoiceRow(host, "map-$id", name, null, ControllerPrefs.targets, mapping[id] ?: id) { onPick(id, it) }
             }
         }
-        SettingsGroup("Defaults") {
-            ActionRow("Reset mapping", "Every button sends its own input again", "Reset", onReset)
+        SettingsGroup(stringResource(R.string.ctrl_defaults)) {
+            ActionRow(stringResource(R.string.ctrl_reset_mapping), stringResource(R.string.ctrl_mapping_default), stringResource(R.string.ctrl_reset), onReset)
         }
     }
 }

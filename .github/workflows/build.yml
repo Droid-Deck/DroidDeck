@@ -157,7 +157,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/mangoapp/*') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/clipboard/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/mangoapp/*') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -176,6 +176,12 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libblsession.so" tools/linuxfs/preload/*.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblsession.so"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+            -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
+          mkdir -p "$D/usr/local/bin"
+          aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
           for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
             install -Dm644 "$script" "$D/usr/local/bin/$(basename "$script")"
           done
@@ -208,9 +214,13 @@ jobs:
             rm mango-pkgs/pkg.tar.zst
           done
           install -m644 mango-pkgs/usr/bin/mangoapp "$M/mangoapp"
-          for so in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1 libtracefs.so.1; do
+          for so in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
             cp -L "mango-pkgs/usr/lib/$so" "$M/$so"
           done
+          # Ours, not the package's: GPU memory without tracefs (tools/mangoapp/libtracefs-shim.c).
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
+            -o "$M/libtracefs.so.1" tools/mangoapp/libtracefs-shim.c
+          aarch64-linux-gnu-strip --strip-unneeded "$M/libtracefs.so.1"
           install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
           rm -rf mango-pkgs
           ls -l "$M"
@@ -310,6 +320,7 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
+          python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
 
       - name: Steam import and game environment tests
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
@@ -374,6 +385,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -uo pipefail
           MARK="<!-- droiddeck-pr-build -->"
@@ -387,7 +399,15 @@ jobs:
               success)
                 echo "###  Build passed"
                 echo
-                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key. A maintainer can run **PR Release Publish** from \`main\` to create an APK that installs over the release."
+                echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
+                echo
+                if [ "$SAME_REPO" = true ]; then
+                  echo "A release-signed tester build that installs over Stable or Preview is being published now and will appear in DroidDeck's **Test builds** list. Label the PR \`no-test-build\` to skip that."
+                else
+                  echo "**Maintainer:** add the \`publish-test\` label to publish a release-signed tester build that installs over Stable or Preview and appears in DroidDeck's **Test builds** list. The label is removed automatically after publishing."
+                fi
+                echo
+                echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
                 ;;
               failure)
                 echo "### ERROR: Build failed"
@@ -515,6 +535,8 @@ jobs:
           notes="$(cat notes-head.md)
 
           Signed build of $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA - in main, not yet in a DroidDeck release; for testing.
+          Commit: $GITHUB_SHA
+          VersionCode: $(sed -n 's/^ *versionCode \([0-9][0-9]*\)$/\1/p' app/build.gradle)
           Each apk installs over a DroidDeck release and keeps its data. \`standard\` is the normal app; the others are the same app under another package name, installed beside it.
 
           SHA-256:
@@ -576,3 +598,9 @@ jobs:
           jq -n --arg content "$content" '{content: $content, allowed_mentions: {parse: []}}' |
             curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK" -o /dev/null
           echo "Posted: $content"
+
+  catalog:
+    needs: announce
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.announce.result != 'skipped' }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit

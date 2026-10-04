@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -28,9 +30,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,9 +48,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.frontend.Library
 
@@ -52,62 +57,62 @@ private const val WALL_MIN_GAMES = 4
 
 /**
  * The Steam tab: the library as a slowly drifting, tilted wall of capsules (a few games instead
- * lean on their own; none, a wall of empty ones), and over it Steam and the one thing to do here -
+ * lean on their own; none, the DroidDeck mark wandering a blank wall), and over it the wordmark and the one thing to do here -
  * Play. Everything about a single game lives on the Games tab.
  */
 @Composable
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
-    val games = remember(s.steamGames) { s.steamGames.sortedByDescending { it.lastPlayed } }
+    // A fixed order, ties included: the wall places each game by its position, so an order that
+    // came out differently from one read of the library to the next moved every capsule.
+    val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
+    // Where the words and buttons sit, for the empty library's wandering mark to keep off.
+    var words by remember { mutableStateOf<Rect?>(null) }
     Box(modifier = modifier.fillMaxSize().clipToBounds()) {
-        if (games.size in 1 until WALL_MIN_GAMES) CapsuleFan(games)
-        else {
-            if (games.isEmpty()) Box(
-                Modifier.fillMaxSize().drawBehind {
-                    drawRect(
-                        Brush.radialGradient(
-                            listOf(pal.signal.copy(alpha = 0.12f), Color.Transparent),
-                            center = Offset(size.width * 0.72f, size.height * 0.42f), radius = 380.dp.toPx(),
-                        ),
-                    )
-                },
-            )
-            CapsuleWall(games)
-            // The wall fades out behind the words, and toward the bottom where the buttons sit.
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(
-                        0f to colors.background.copy(alpha = 0.97f),
-                        0.34f to colors.background.copy(alpha = 0.86f),
-                        0.68f to colors.background.copy(alpha = 0.25f),
-                        1f to colors.background.copy(alpha = 0.1f),
-                    ),
-                ),
-            )
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
+        when {
+            games.isEmpty() -> EmptyLibrary(avoid = words) { WallFade() }
+            games.size < WALL_MIN_GAMES -> CapsuleFan(games)
+            else -> {
+                CapsuleWall(games)
+                WallFade()
+            }
         }
         Column(
             modifier = Modifier.align(Alignment.BottomStart)
-                .padding(start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp, end = 20.dp),
+                .padding(start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp, end = 20.dp)
+                .onPlaced { words = it.boundsInParent() },
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    "Steam", fontSize = if (narrow) 34.sp else 44.sp, lineHeight = if (narrow) 40.sp else 50.sp,
-                    fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
-                )
+                Wordmark(if (narrow) 30.dp else 40.dp)
                 // Said only when something stands between Play and Steam; a ready runtime needs no words.
                 if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
             }
             Spacer(Modifier.height(18.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 // Enabled without a runtime: the session's loading screen installs it first.
-                PrimaryButton("Play Steam", enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, onClick = a.onPlay)
+                PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, onClick = a.onPlay)
                 Cog(size = 54.dp, onClick = a.onSteamSettings)
             }
         }
     }
+}
+
+/** The wall fades out behind the words, and toward the bottom where the buttons sit. */
+@Composable
+private fun WallFade() {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.horizontalGradient(
+                0f to colors.background.copy(alpha = 0.97f),
+                0.34f to colors.background.copy(alpha = 0.86f),
+                0.68f to colors.background.copy(alpha = 0.25f),
+                1f to colors.background.copy(alpha = 0.1f),
+            ),
+        ),
+    )
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
 }
 
 /**

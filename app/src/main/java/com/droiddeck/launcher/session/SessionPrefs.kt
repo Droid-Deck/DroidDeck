@@ -30,18 +30,17 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
-    /** The Flathub Store (beta): its rail item and the Store's apps on the Desktop page. Off by default. */
+    fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
+
+    fun setAnimationsEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("animations", on).apply()
+    }
+
+    /** The Flathub Store (beta): its rail item. Off by default. */
     fun storeEnabled(context: Context): Boolean = prefs(context).getBoolean("storeEnabled", false)
 
     fun setStoreEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("storeEnabled", on).apply()
-    }
-
-    /** AppImage import (beta): the AppImages section on the Desktop page. Off by default. */
-    fun appImagesEnabled(context: Context): Boolean = prefs(context).getBoolean("appImagesEnabled", false)
-
-    fun setAppImagesEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("appImagesEnabled", on).apply()
     }
 
     /**
@@ -71,9 +70,11 @@ object SessionPrefs {
     const val TOUCH_AUTO = "auto"
     const val TOUCH_PAD = "touchpad"
     const val TOUCH_DIRECT = "direct"
+    const val TOUCH_OFF = "off"
 
     /** How touch drives the pointer: a touchpad (drag moves it from where it is) or direct
-     *  (it jumps under the finger). Auto = touchpad on the desktop, direct in Steam. */
+     *  (it jumps under the finger). Auto = touchpad on the desktop, direct in Steam.
+     *  Off ignores touches on the guest picture; Android controls remain usable. */
     fun touchMode(context: Context): String = prefs(context).getString("touch", TOUCH_AUTO) ?: TOUCH_AUTO
 
     fun setTouchMode(context: Context, mode: String) {
@@ -184,6 +185,12 @@ object SessionPrefs {
         writeForceFullscreenFlag(context)
     }
 
+    fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
+
+    fun setStretch16x9(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("stretch16x9", on).apply()
+    }
+
     /**
      * The same choice as a file the running session watches, so the drawer can change it live:
      * the session hands every change to gamescope, which reads GAMESCOPE_FORCE_WINDOWS_FULLSCREEN
@@ -219,6 +226,19 @@ object SessionPrefs {
 
     fun setMicEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("mic", on).apply()
+    }
+
+    /** Optional SSID reporting and scans. A Location grant alone never opts the user in. */
+    fun wifiDiscoveryEnabled(context: Context): Boolean = prefs(context).getBoolean("wifiDiscovery", false)
+
+    fun setWifiDiscoveryEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("wifiDiscovery", on).apply()
+    }
+
+    fun wifiDiscoveryAsked(context: Context): Boolean = prefs(context).getBoolean("wifiDiscoveryAsked", false)
+
+    fun setWifiDiscoveryAsked(context: Context) {
+        prefs(context).edit().putBoolean("wifiDiscoveryAsked", true).apply()
     }
 
     /**
@@ -296,6 +316,17 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootNoSeccomp", on).apply()
     }
 
+    /**
+     * Whether the session's path lookups take proot's fast path (ProotFastPath): answered inside
+     * each process instead of a round trip through the tracer. On by default; it needs proot's
+     * seccomp filter, so it is off whenever proot runs without one.
+     */
+    fun prootFastPath(context: Context): Boolean = prefs(context).getBoolean("prootFastPath", true)
+
+    fun setProotFastPath(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("prootFastPath", on).apply()
+    }
+
     const val DEFAULT_GUEST_HOSTNAME = "DroidDeck"
 
     @JvmStatic
@@ -347,21 +378,20 @@ object SessionPrefs {
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
 
-    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On for new installs (settleDeckModeDefault). */
+    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On by default (settleDeckModeDefault). */
     fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", true)
     fun setSteamDeckMode(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamDeckMode", on).apply() }
 
     /**
-     * Deck mode became the default for new installs; an install from before keeps what it ran with
-     * (off), so an update never changes its interface or restarts the client on its own. Run once at
-     * process start, before anything reads or writes these prefs: a new install has neither prefs
-     * nor a runtime yet. The answer is written down, so it is decided once.
+     * Deck mode is the default: every install, new or from before, is moved to it once. An install
+     * from before 0.3.0 had off written down for it whether or not anyone chose it, so the move
+     * can't tell a choice from that default and moves everyone; turning it off afterwards sticks.
+     * Run once at process start, before anything reads or writes these prefs.
      */
     fun settleDeckModeDefault(context: Context) {
         val p = prefs(context)
-        if (p.contains("steamDeckMode")) return
-        val existing = p.all.isNotEmpty() || java.io.File(context.filesDir, "linuxfs").exists()
-        p.edit().putBoolean("steamDeckMode", !existing).apply()
+        if (p.getBoolean("deckModeMoved", false)) return
+        p.edit().putBoolean("steamDeckMode", true).putBoolean("deckModeMoved", true).apply()
     }
 
     /**
@@ -448,8 +478,9 @@ object SessionPrefs {
     }
 
     /**
-     * The Steam client branch forced on the command line: "publicbeta" (every session so far) or
-     * "steamdeck_publicbeta" (Armada's). Deck mode always takes the Deck branch, whatever was chosen:
+     * The Steam client branch used for the first download and forced on the command line:
+     * "steamdeck_publicbeta" by default, or "publicbeta" when chosen with Deck mode off.
+     * Deck mode always takes the Deck branch, whatever was chosen:
      * with -steamos3 the client picks its own branch as SteamOS does, and on publicbeta it settled
      * on steamdeck_stable - an older client it then offered as a "Software Update" in every session,
      * which applying turns into the exit-42 restart loop (seen on device 2026-09-30). Earlier, Deck
@@ -458,7 +489,7 @@ object SessionPrefs {
      */
     fun steamChannel(context: Context): String =
         if (steamDeckMode(context)) "steamdeck_publicbeta"
-        else prefs(context).getString("steamChannel", null) ?: "publicbeta"
+        else prefs(context).getString("steamChannel", null) ?: "steamdeck_publicbeta"
 
     fun setSteamChannel(context: Context, id: String) {
         prefs(context).edit().putString("steamChannel", id).apply()
@@ -579,11 +610,37 @@ object SessionPrefs {
 
     val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
 
+    val upscalerChoices = listOf(
+        0 to "Off", 4 to "AMD FSR 1", 3 to "Snapdragon GSR", 8 to "Snapdragon GSR (quality)",
+        7 to "NVIDIA NIS", 6 to "Sharpen only",
+    )
+
+    fun upscaler(context: Context): Int =
+        prefs(context).getInt("upscaler", 0).takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+
+    fun setUpscaler(context: Context, mode: Int) {
+        prefs(context).edit().putInt("upscaler", mode).apply()
+    }
+
+    val upscaleSharpnessChoices = listOf(0 to "0%", 25 to "25%", 50 to "50%", 75 to "75%", 100 to "100%")
+
+    fun upscaleSharpness(context: Context): Int = prefs(context).getInt("upscaleSharpness", 75).coerceIn(0, 100)
+
+    fun setUpscaleSharpness(context: Context, pct: Int) {
+        prefs(context).edit().putInt("upscaleSharpness", pct.coerceIn(0, 100)).apply()
+    }
+
     /**
      * The mode whose per-mode settings apply: a program run under gamescope (MODE_RUN) is a
      * fullscreen session like Steam's, so it takes Steam's display, driver and HDR choices.
      */
     fun prefMode(mode: String): String = if (mode == SessionService.MODE_RUN) SessionService.MODE_STEAM else mode
+
+    fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", false)
+
+    fun setPipAutoEnter(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
+    }
 
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)

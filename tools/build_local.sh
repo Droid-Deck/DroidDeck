@@ -14,6 +14,12 @@ fi
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
 java_dir=${JAVA_HOME:-"/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"}
 image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v2}
+build_variant=${DROIDDECK_BUILD_VARIANT:-release}
+case "$build_variant" in
+    debug) gradle_task=assembleDebug ;;
+    release) gradle_task=assembleRelease ;;
+    *) echo "DROIDDECK_BUILD_VARIANT must be debug or release" >&2; exit 1 ;;
+esac
 
 if [[ ! -x "${sdk_dir}/platform-tools/adb" ]]; then
     echo "Android SDK not found at ${sdk_dir}; set ANDROID_HOME or ANDROID_SDK_ROOT." >&2
@@ -117,6 +123,12 @@ docker run --rm --platform linux/amd64 \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libblsession.so" tools/linuxfs/preload/*.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblsession.so"
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+            -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
+        mkdir -p "$d/usr/local/bin"
+        aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done
@@ -221,9 +233,13 @@ while read -r package_sha256 package_url; do
     zstd -dc "${package_archive}" | tar -xf - -C "${mango_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/mangoapp/packages.txt")
 install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
-for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1 libtracefs.so.1; do
+for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
     cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
 done
+# Ours, not the package's: GPU memory without tracefs (tools/mangoapp/libtracefs-shim.c).
+docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
+    aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
+    -o app/src/main/assets/linuxfs/usr/local/lib/mangoapp/libtracefs.so.1 tools/mangoapp/libtracefs-shim.c
 mkdir -p "${linuxfs_dir}/usr/local/bin"
 install -m644 "${repo_root}/tools/mangoapp/mangoapp" "${linuxfs_dir}/usr/local/bin/mangoapp"
 
@@ -275,11 +291,12 @@ bundle_replaced=1
 mv "${staging_dir}/pulseaudio.tzst" "${bundle_asset}"
 
 cd "${repo_root}"
-./gradlew assembleRelease --console=plain -PndkVersion="${ndk_version}"
+./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}"
+python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 cp -p "${bundle_backup}" "${bundle_asset}"
 bundle_replaced=0
 
-apk="${repo_root}/app/build/outputs/apk/release/app-release.apk"
+apk="${repo_root}/app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 audio_check="${staging_dir}/audio-check"
 mkdir -p "${audio_check}"
 unzip -p "${apk}" assets/pulseaudio.tzst | zstd -dc | tar -xf - -C "${audio_check}"
@@ -293,10 +310,10 @@ for audio_file in \
     fi
 done
 
-docker run --rm --platform linux/amd64 -v "${repo_root}:/src:ro" -w /src "${image_name}" \
+docker run --rm --platform linux/amd64 -e build_variant="${build_variant}" -v "${repo_root}:/src:ro" -w /src "${image_name}" \
     bash -lc '
         set -euo pipefail
-        apk=app/build/outputs/apk/release/app-release.apk
+        apk=app/build/outputs/apk/${build_variant}/app-${build_variant}.apk
         work=$(mktemp -d)
         unzip -q "$apk" "lib/arm64-v8a/*" -d "$work"
         cd "$work/lib/arm64-v8a"

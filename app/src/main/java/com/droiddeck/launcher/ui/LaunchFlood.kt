@@ -3,7 +3,7 @@ package com.droiddeck.launcher.ui
 import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
@@ -48,6 +48,8 @@ import kotlin.math.sin
 // loading screen opens on that blue and gathers it into the ball of the throbber.
 // Stopping one from the drawer runs it the other way: Stop grows until the page is blue, and the
 // front end opens on that blue and draws it back down into the button the session came from.
+// Any other way out (backing out of the loading screen, closing the ended screen, the session
+// ending) spreads the blue back out of the throbber's ball instead (FloodSpread).
 
 /** Carries the flood's colour to the session, which opens on it. */
 const val EXTRA_FLOOD = "com.droiddeck.launcher.FLOOD"
@@ -139,6 +141,7 @@ internal fun LaunchFlood(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val start = fromColors ?: (colors.primary to pal.primary2)
+    VeilRing()
     // Left, top, right, bottom: 0 on the button, 1 on the page's edge. Springs overshoot past the
     // edge, off the page, so the wobble is felt in the pull and never seen as a shrink.
     val edges = remember { List(4) { Animatable(0f) } }
@@ -147,6 +150,12 @@ internal fun LaunchFlood(
     var page by remember { mutableStateOf(Size.Zero) }
     LaunchedEffect(page != Size.Zero) {
         if (page == Size.Zero) return@LaunchedEffect
+        if (Motion.scale == 0f) {
+            edges.forEach { it.snapTo(1f) }
+            progress(1f)
+            covered()
+            return@LaunchedEffect
+        }
         val travel = listOf(from.left, from.top, page.width - from.right, page.height - from.bottom).map { it.coerceAtLeast(0f) }
         val far = travel.max().coerceAtLeast(1f)
         coroutineScope {
@@ -211,6 +220,7 @@ internal fun FloodReturn(flood: Color, to: Rect?, onProgress: (Float) -> Unit, o
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val edges = remember { List(4) { Animatable(1f) } }
+    VeilRing()
     val fade = remember { Animatable(1f) }
     val landed by rememberUpdatedState(onLanded)
     val progress by rememberUpdatedState(onProgress)
@@ -221,7 +231,7 @@ internal fun FloodReturn(flood: Color, to: Rect?, onProgress: (Float) -> Unit, o
         // A beat of plain blue first, so the change of screen does not read as a cut.
         delay(Motion.ms(220).toLong())
         if (to == null || Motion.scale == 0f) {
-            fade.animateTo(0f, tween(Motion.ms(240).coerceAtLeast(1)))
+            fade.animateTo(0f, Motion.tw(240, easing = FastOutSlowInEasing))
         } else {
             val travel = listOf(to.left, to.top, page.width - to.right, page.height - to.bottom).map { it.coerceAtLeast(0f) }
             val far = travel.max().coerceAtLeast(1f)
@@ -253,6 +263,7 @@ internal fun FloodReturn(flood: Color, to: Rect?, onProgress: (Float) -> Unit, o
 @Composable
 internal fun FloodGather(flood: Color, ball: Pair<Offset, Float>?, onLanded: () -> Unit) {
     val gather = remember { Animatable(0f) }
+    VeilRing()
     var started by remember { mutableStateOf(false) }
     val landed by rememberUpdatedState(onLanded)
     LaunchedEffect(ball != null) {
@@ -260,7 +271,7 @@ internal fun FloodGather(flood: Color, ball: Pair<Offset, Float>?, onLanded: () 
         started = true
         // A beat of plain blue first, so the change of screen does not read as a cut.
         delay(Motion.ms(90).toLong())
-        gather.animateTo(1f, tween(Motion.ms(640).coerceAtLeast(1), easing = Gather))
+        gather.animateTo(1f, Motion.tw(640, easing = Gather))
         landed()
     }
     Canvas(Modifier.fillMaxSize().pointerInput(Unit) { awaitEachGesture { while (true) awaitPointerEvent().changes.forEach { it.consume() } } }) {
@@ -272,5 +283,33 @@ internal fun FloodGather(flood: Color, ball: Pair<Offset, Float>?, onLanded: () 
         val (c, r) = b
         val far = maxOf(hypot(c.x, c.y), hypot(size.width - c.x, c.y), hypot(c.x, size.height - c.y), hypot(size.width - c.x, size.height - c.y))
         drawCircle(flood, radius = lerp(far, r, gather.value), center = c)
+    }
+}
+
+/** Where the loading screen's throbber ball sits now (centre and radius, root px), for a flood leaving from it. */
+internal object ThrobberSpot {
+    var ball: Pair<Offset, Float>? = null
+}
+
+private val Spread = CubicBezierEasing(0.7f, 0f, 0.4f, 1f)
+
+/**
+ * Leaving a session: [flood] spreading out of [ball] (centre and radius in root px; the middle of
+ * the screen when there is none) until it covers the screen, the way FloodGather drew it in. Calls
+ * [onCovered] then, for the front end to open on the same blue. Swallows touches while it runs.
+ */
+@Composable
+internal fun FloodSpread(flood: Color, ball: Pair<Offset, Float>?, onCovered: () -> Unit) {
+    VeilRing()
+    val grow = remember { Animatable(0f) }
+    val covered by rememberUpdatedState(onCovered)
+    LaunchedEffect(Unit) {
+        grow.animateTo(1f, Motion.tw(520, easing = Spread))
+        covered()
+    }
+    Canvas(Modifier.fillMaxSize().pointerInput(Unit) { awaitEachGesture { while (true) awaitPointerEvent().changes.forEach { it.consume() } } }) {
+        val (c, r) = ball ?: (Offset(size.width / 2f, size.height / 2f) to 0f)
+        val far = maxOf(hypot(c.x, c.y), hypot(size.width - c.x, c.y), hypot(c.x, size.height - c.y), hypot(size.width - c.x, size.height - c.y))
+        drawCircle(flood, radius = lerp(r, far, grow.value), center = c)
     }
 }

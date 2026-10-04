@@ -5,6 +5,7 @@ import android.os.Environment
 import android.util.Log
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.ProotFastPath
 import java.io.File
 
 /** Everything the session needs written into the runtime before it starts. */
@@ -29,15 +30,20 @@ object SessionFiles {
             "usr/local/bin/bannerlator-game-env" to "usr/local/bin/bannerlator-game-env",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
+            "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
             "usr/local/bin/bannerlator-session" to "usr/local/bin/bannerlator-session",
+            "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
             "usr/local/bin/bannerlator-steam-compat" to "usr/local/bin/bannerlator-steam-compat",
             "usr/local/bin/bannerlator-steam-install" to "usr/local/bin/bannerlator-steam-install",
+            "usr/local/bin/bannerlator-steam-ui-scale" to "usr/local/bin/bannerlator-steam-ui-scale",
             "usr/local/bin/bannerlator-steam-library" to "usr/local/bin/bannerlator-steam-library",
             "usr/local/bin/bannerlator-seed-redists" to "usr/local/bin/bannerlator-seed-redists",
             "usr/local/bin/bannerlator-proton-extra" to "usr/local/bin/bannerlator-proton-extra",
             "usr/local/bin/bannerlator-netmanager" to "usr/local/bin/bannerlator-netmanager",
+            "usr/local/bin/bannerlator-login1" to "usr/local/bin/bannerlator-login1",
             "usr/local/bin/bannerlator-steam-launch" to "usr/local/bin/bannerlator-steam-launch",
             "usr/local/bin/bannerlator-desktop-games" to "usr/local/bin/bannerlator-desktop-games",
+            "usr/local/bin/bannerlator-desktop-bookmarks" to "usr/local/bin/bannerlator-desktop-bookmarks",
             "usr/local/bin/bannerlator-steam-shim" to "usr/local/bin/bannerlator-steam-shim",
             "usr/local/bin/bannerlator-steam-shortcuts" to "usr/local/bin/bannerlator-steam-shortcuts",
             "usr/local/bin/bannerlator-steam-games" to "usr/local/bin/bannerlator-steam-games",
@@ -49,6 +55,7 @@ object SessionFiles {
             "usr/local/bin/bannerlator-flatpak-run" to "usr/local/bin/bannerlator-flatpak-run",
             // The user's own AppImages, extracted at import (AppImageManager).
             "usr/local/bin/bannerlator-appimage-run" to "usr/local/bin/bannerlator-appimage-run",
+            "usr/local/bin/bannerlator-script-run" to "usr/local/bin/bannerlator-script-run",
             // The SteamOS helpers the client calls in Deck mode: the two Armada found it needs, plus
             // the three under /usr/bin, all no-ops that answer "nothing to do" (see each file).
             "usr/bin/steamos-update" to "usr/bin/steamos-update",
@@ -151,6 +158,9 @@ object SessionFiles {
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
+        // Last, so the others' opens and stats reach it through RTLD_NEXT. It stays idle in any
+        // process its proot did not describe to it (ProotFastPath).
+        if (ProotFastPath.enabled(context)) preload.append(ProotFastPath.LIBRARY + "\n")
         val etc = File(root, "etc").apply { mkdirs() }
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())

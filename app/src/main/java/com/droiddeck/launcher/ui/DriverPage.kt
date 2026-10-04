@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
+import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.hoverable
@@ -98,11 +100,11 @@ fun DriverPage(
                     .clickable(interactionSource = refreshSrc, indication = null, enabled = !checking, onClick = onRefresh),
             ) {
                 if (checking) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                else Icon(Icons.Outlined.Refresh, contentDescription = "Check for new drivers", tint = colors.onBackground, modifier = Modifier.size(20.dp))
+                else Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.comp_check_drivers), tint = colors.onBackground, modifier = Modifier.size(20.dp))
             }
         },
     ) {
-        SettingsGroup("Installed") {
+        SettingsGroup(stringResource(R.string.driver_installed)) {
             val focusRow = rows.firstOrNull { it.id == selected } ?: rows.firstOrNull()
             rows.forEachIndexed { i, row ->
                 InstalledRow(
@@ -113,14 +115,14 @@ fun DriverPage(
                 )
             }
         }
-        SettingsGroup("Available to download") {
+        SettingsGroup(stringResource(R.string.driver_available)) {
             if (downloads.isEmpty()) Text(
-                "Nothing new from the last check. Tap the refresh button to look for newer releases.",
+                stringResource(R.string.driver_nothing_new),
                 fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
             ) else for (d in downloads) {
                 SettingsRow(d.label, d.detail) {
                     val p = d.progress
-                    if (p == null) SecondaryButton("Download") { onDownload(d.key) }
+                    if (p == null) SecondaryButton(stringResource(R.string.common_download)) { onDownload(d.key) }
                     else Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(120.dp)) {
                         Text("$p%", fontSize = 12.sp, color = colors.onSurfaceVariant)
                         Spacer(Modifier.height(4.dp))
@@ -131,27 +133,27 @@ fun DriverPage(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 14.dp)) {
             SecondaryButton(importLabel, onClick = onImport)
-            if (canRestore) FocusText("Restore built-in drivers", pal.signal, onClick = onRestore)
+            if (canRestore) FocusText(stringResource(R.string.driver_restore_builtin), pal.signal, onClick = onRestore)
         }
     }
     confirm?.let { row ->
         AlertDialog(
             onDismissRequest = { confirm = null },
-            title = { Text("Delete ${row.name}?") },
+            title = { Text(stringResource(R.string.common_delete_named, row.name) + "?") },
             text = {
                 Text(
-                    if (row.tag == DriverRow.BUNDLED) "It is built into the app, so this removes its unpacked files and hides it. \"Restore built-in drivers\" brings it back, and Auto still uses it on a GPU that needs it."
-                    else if (row.tag == DriverRow.BUNDLE) "It is one half of an Android + Linux bundle, so its runtime and display drivers are both removed. A driver in use goes back to the default."
-                    else "Its files are removed from the app." + if (row.id == selected) " It is the driver in use, so the default takes its place." else "",
+                    if (row.tag == DriverRow.BUNDLED) stringResource(R.string.driver_delete_builtin)
+                    else if (row.tag == DriverRow.BUNDLE) stringResource(R.string.driver_delete_bundle)
+                    else if (row.id == selected) stringResource(R.string.driver_delete_in_use) else stringResource(R.string.driver_delete_plain),
                     fontSize = 13.sp,
                 )
             },
             // Opens on Cancel, so a stray A press on a controller never deletes anything.
-            confirmButton = { FocusText("Delete", colors.error) { confirm = null; onDelete(row.id) } },
+            confirmButton = { FocusText(stringResource(R.string.common_delete), colors.error) { confirm = null; onDelete(row.id) } },
             dismissButton = {
                 val cancelFocus = remember { FocusRequester() }
                 LaunchedEffect(Unit) { runCatching { cancelFocus.requestFocus() } }
-                FocusText("Cancel", colors.onBackground, modifier = Modifier.focusRequester(cancelFocus)) { confirm = null }
+                FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancelFocus)) { confirm = null }
             },
         )
     }
@@ -214,7 +216,7 @@ private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit
                     .focusRequester(delFocus)
                     .focusProperties { left = mainFocus }
                     .hoverable(delSrc).clickable(interactionSource = delSrc, indication = null, onClick = onDelete),
-            ) { Icon(Icons.Outlined.Delete, contentDescription = "Delete ${row.name}", tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
+            ) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.common_delete_named, row.name), tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
         }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))

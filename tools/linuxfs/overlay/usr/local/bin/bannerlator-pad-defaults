@@ -1044,7 +1044,56 @@ def retroarch():
         print(f"bannerlator-pad-defaults: RetroArch: joypad driver udev -> sdl2 ({cfg})")
 
 
-for step in (rpcs3, duckstation, pcsx2, armsx2, dolphin, cemu, melonds, ppsspp, retroarch):
+# yuzu and its forks: Player 1 in [Controls] of <name>/qt-config.ini, which each writes at its first
+# start with the keyboard bound. Bindings are input_common ParamPackages, laid out by position as the
+# frontend's own auto-map does (sdl_driver.cpp GetDefaultButtonBinding); the guid is SDL's with the
+# name CRC cleared (GetGUID). A key is only read while its \default is false. Done once per emulator,
+# and only while Player 1 is still on the keyboard.
+SWITCH_PAD = "engine:sdl,port:0,guid:030000005e0400008e02000010010000,"
+SWITCH_PLAYER1 = {
+    "button_a": "button:1", "button_b": "button:0", "button_x": "button:3", "button_y": "button:2",
+    "button_lstick": "button:9", "button_rstick": "button:10", "button_l": "button:4", "button_r": "button:5",
+    "button_zl": "axis:2,threshold:0.5,invert:+", "button_zr": "axis:5,threshold:0.5,invert:+",
+    "button_plus": "button:7", "button_minus": "button:6", "button_home": "button:8",
+    "button_dleft": "hat:0,direction:left", "button_dup": "hat:0,direction:up",
+    "button_dright": "hat:0,direction:right", "button_ddown": "hat:0,direction:down",
+    "lstick": "axis_x:0,axis_y:1,offset_x:0,offset_y:0,invert_x:+,invert_y:+",
+    "rstick": "axis_x:3,axis_y:4,offset_x:0,offset_y:0,invert_x:+,invert_y:+",
+}
+
+
+def switch_emulators():
+    for name in sorted(os.listdir(CONFIG)) if os.path.isdir(CONFIG) else ():
+        cfg = os.path.join(CONFIG, name, "qt-config.ini")
+        marker = os.path.join(CONFIG, name, ".droiddeck-pad")
+        if os.path.exists(marker) or not os.path.isfile(cfg):
+            continue
+        with open(cfg, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+        span = ini_section(lines, "Controls")
+        if not span:
+            continue
+        current = {l.split("=", 1)[0]: l.split("=", 1)[1] for l in lines[span[0]:span[1]] if "=" in l}
+        if "engine:keyboard" not in current.get("player_0_button_a", ""):
+            continue
+        wanted = {"player_0_connected": "true", "player_0_type": "0"}
+        for key, binding in SWITCH_PLAYER1.items():
+            wanted[f"player_0_{key}"] = f'"{SWITCH_PAD}{binding}"'
+        body = [l for l in lines[span[0]:span[1]]
+                if l.split("=", 1)[0].removesuffix("\\default") not in wanted]
+        while body and not body[-1].strip():
+            body.pop()
+        for key, value in wanted.items():
+            body += [f"{key}\\default=false", f"{key}={value}"]
+        lines[span[0]:span[1]] = body + [""]
+        with open(cfg + ".tmp", "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        os.replace(cfg + ".tmp", cfg)
+        open(marker, "w").close()
+        print(f"bannerlator-pad-defaults: {name}: Player 1 on the controller ({cfg})")
+
+
+for step in (rpcs3, duckstation, pcsx2, armsx2, dolphin, cemu, melonds, ppsspp, retroarch, switch_emulators):
     try:
         step()
     except Exception as e:

@@ -13,6 +13,10 @@
          download from being throttled to nothing by the radio's power-save. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Optional Wi-Fi discovery: requested only from Steam settings after an explanation. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Ends background processes of another app that holds the Steam login. GameHub starts
          itself with the phone via boot receivers and signs this client out seconds after every
@@ -30,6 +34,7 @@
 
     <application
         android:name=".App"
+        android:localeConfig="@xml/locales_config"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -55,6 +60,16 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="droiddeck" android:host="game" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.CREATE_SHORTCUT" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
@@ -111,7 +126,8 @@
         <activity
             android:name=".SessionActivity"
             android:exported="false"
-            android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
+            android:launchMode="singleTask"
             android:theme="@style/SessionTheme"
             android:preferMinimalPostProcessing="true"
             android:screenOrientation="sensorLandscape"

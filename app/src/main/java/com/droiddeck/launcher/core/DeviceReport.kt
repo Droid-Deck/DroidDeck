@@ -150,13 +150,17 @@ object DeviceReport {
         k("No GL error checks", SessionPrefs.noGlError(context))
         k("Steam Deck mode", SessionPrefs.steamDeckMode(context))
         k("Steam controller", SessionPrefs.steamController(context))
+        k("Upscaler", (SessionPrefs.upscalerChoices.firstOrNull { it.first == SessionPrefs.upscaler(context) }?.second ?: "Off") +
+            " (sharpness ${SessionPrefs.upscaleSharpness(context)}%)")
         k("FEX preset", SessionPrefs.fexPreset(context).ifEmpty { "FEX defaults" })
         k("Skip xalia", SessionPrefs.noXalia(context))
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
+        k("proot fast path", SessionPrefs.prootFastPath(context))
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
         k("Stretch games to fill", SessionPrefs.forceFullscreen(context))
+        k("Stretch 16:9 to panel", SessionPrefs.stretch16x9(context))
         k("Client audio", if (SessionPrefs.clientDirectAudio(context)) "DirectAudio" else "classic")
         k("Microphone", SessionPrefs.micEnabled(context))
         k("On-screen controls", SessionPrefs.oscMode(context))
@@ -173,7 +177,7 @@ object DeviceReport {
 
         h("Device switch files in Download")
         for (name in listOf("droiddeck-env", "droiddeck-tu-debug", "droiddeck-driver",
-                            "droiddeck-osc", "droiddeck-no-pad", "droiddeck-pad-log",
+                            "droiddeck-osc", "droiddeck-no-pad",
                             "droiddeck-no-hud", "droiddeck-wlr-renderer")) {
             val f = File(Environment.getExternalStorageDirectory(), "Download/$name")
             if (f.isFile) k(name, FileUtils.readString(f)?.trim()?.replace('\n', ' ')?.ifEmpty { "(present, empty)" } ?: "(present)")

@@ -18,11 +18,15 @@ import kotlin.math.abs
  * from Android's own battery API - the same on every device - into a directory the session binds
  * over `/sys/class/power_supply`, refreshed every few seconds while the session runs.
  *
+ * Steam's Quick Access Menu takes its time estimates from neither: it reads the files in `/run/vpower` (as on
+ * SteamOS), and with those absent showed "?h ?m" for projected battery life and for time to full.
+ * The same estimates are written there too, into [vpowerDir] in the guest's own `/run`.
+ *
  * Values: charge in µAh from the charge counter; energy in µWh from charge × voltage; power in µW
  * from |current| × voltage; time to empty from charge ÷ |average current| while discharging. Where
  * a device reports no current, the client still gets status and percentage.
  */
-class BatteryComponent(val dir: File) : SessionPart() {
+class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart() {
     @Volatile private var running = false
     private var thread: Thread? = null
 
@@ -42,6 +46,8 @@ class BatteryComponent(val dir: File) : SessionPart() {
         running = false
         thread?.interrupt()
         thread = null
+        // Stale estimates would outlive the session in the rootfs; Steam falls back to "?h ?m".
+        for (name in VPOWER_FILES) File(vpowerDir, name).delete()
     }
 
     private fun write() {
@@ -115,6 +121,17 @@ class BatteryComponent(val dir: File) : SessionPart() {
                 for ((k, v) in attrs) uevent.append("POWER_SUPPLY_").append(k.uppercase()).append('=').append(v).append('\n')
                 put(File(bat, "uevent"), uevent.toString())
             }
+            val plugged = (sticky?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
+            vpowerDir.mkdirs()
+            val vpower = linkedMapOf(
+                "ac_status" to if (plugged) "Connected" else "Disconnected",
+                "battery_percent" to "%.2f".format(java.util.Locale.ROOT, pct.toDouble()),
+                "battery_status" to statusText,
+                // Steam reads a separate file for each direction; -1 = no estimate.
+                "secs_until_battery_full" to (if (timeToFullS > 0) timeToFullS else -1L).toString(),
+                "secs_until_shutdown_request" to (if (timeToEmptyS > 0) timeToEmptyS else -1L).toString(),
+            )
+            for ((k, v) in vpower) put(File(vpowerDir, k), v + "\n")
         } catch (t: Throwable) {
             Log.w(TAG, "battery: could not write", t)
         }
@@ -130,5 +147,9 @@ class BatteryComponent(val dir: File) : SessionPart() {
     companion object {
         private const val TAG = "SessionService"
         private const val PERIOD_MS = 5_000L
+        private val VPOWER_FILES = listOf(
+            "ac_status", "battery_percent", "battery_status",
+            "secs_until_battery_full", "secs_until_shutdown_request",
+        )
     }
 }

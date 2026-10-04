@@ -92,6 +92,9 @@ export XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+if [ "$mode" = lxqt ] || [ "$mode" = desktop ]; then
+  /usr/local/bin/bannerlator-desktop-bookmarks || true
+fi
 # Flatpak (the store's apps): its sandboxes through the app instead of bubblewrap, which needs the
 # user namespaces Android keeps from apps, and its apps' menu entries and icons on the desktop.
 export FLATPAK_BWRAP=/usr/local/bin/bannerlator-bwrap
@@ -140,7 +143,16 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   width=${BL_WIDTH:-1280}
   height=${BL_HEIGHT:-720}
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
+  nested=$width
+  if [ "$mode" = steam ] && [ "${BL_GAMESCOPE_STRETCH_16X9:-0}" = 1 ]; then
+    wide=$(( (height * 16 + 4) / 9 / 2 * 2 ))
+    if [ "$wide" -gt "$width" ]; then
+      nested=$wide
+      echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
+    fi
+  fi
+  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
+  [ "$nested" != "$width" ] && args+=(-S stretch)
   # -r is what gamescope advertises as the refresh rate, and what a game reads as the display's.
   # Left unset it defaults to 60, so a 120 Hz panel offers only 60 Hz in game settings. The FPS
   # limiter wins when it is on (it is a deliberate cap); otherwise use the panel's own rate.
@@ -150,6 +162,11 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(-r "$BL_REFRESH")
   fi
   [ "$mode" = steam ] && args+=(-e)
+  # Touch passes through to the client as touch until the client says otherwise, as SteamOS's
+  # gamescope-session starts it (TOUCH_MODE=4). The client sets the mode itself (STEAM_TOUCH_CLICK_MODE)
+  # only once it has a controller; until then gamescope's own default made a finger a left-click
+  # mouse, so the Steam interface took taps but would not scroll on a phone with no pad attached.
+  [ "$mode" = steam ] && args+=(--default-touch-mode 4)
   # A game that resizes its own window when it loses focus (the Steam menu opening over it) comes
   # back smaller, and gamescope draws a window that is not flagged fullscreen at its own size in
   # the top-left corner. Forcing every window to the output's size keeps it filling the screen.
@@ -158,6 +175,8 @@ if [ -z "${BL_INSIDE:-}" ]; then
   # HDR10: the app opened its compositor's colour-management gate for this session (BL_HDR=1);
   # gamescope then offers HDR to its clients through the same wp_color_manager_v1 it binds on ours.
   [ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
+  # Extra gamescope arguments for an experiment (--debug-focus, say), from Download/droiddeck-env.
+  [ -n "${BL_GAMESCOPE_ARGS:-}" ] && read -r -a _bl_extra <<<"$BL_GAMESCOPE_ARGS" && args+=("${_bl_extra[@]}")
   # Deck mode's performance overlay (Quick Access Menu → Performance → Overlay Level) is drawn by
   # mangoapp, which gamescope starts beside the client; the client sets the level by rewriting
   # MANGOHUD_CONFIGFILE. The apk stages Valve's aarch64 build (tools/mangoapp) - without it the menu
@@ -199,6 +218,12 @@ reap_orphans() {
     sleep 0.2
   done
 }
+
+# Gamescope's Wayland backend does not forward the outer clipboard into Xwayland.
+# This helper owns only Android text selections and exits with this guest session.
+if [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
+  /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
+fi
 
 case $mode in
   desktop)
@@ -301,6 +326,9 @@ case $mode in
     bannerlator-steam-library "$steam_root" || true
     step "setting up the ARM64 Proton compatibility tool"
     bannerlator-steam-compat "$steam_root" || true
+    if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
+      bannerlator-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
+    fi
     # The user's own games, as non-Steam shortcuts under that tool; the list is written by the app
     # each session (empty = the app's earlier entries are removed, the client's own are kept).
     if [ -n "${BL_ADDED_GAMES:-}" ]; then
@@ -431,6 +459,37 @@ case $mode in
         prev=$app
       done
     ) &
+    # Evidence for touch reports: the touch mode the client asks gamescope for (STEAM_TOUCH_CLICK_MODE,
+    # set once it has a controller, per focused app) and which app has focus, logged as they change.
+    # A finger that clicks but won't scroll, or touch that stops once a pad is used, shows here as
+    # the mode in force at that moment. 4 is touch passed through, 1 a left-click mouse.
+    [ -z "${BL_DESKTOP:-}" ] && (
+      # What follows "=" in an xprop line, or $2 for a property that is missing or has no value
+      # yet ("NAME(CARDINAL) =", which read leaves with nothing after the "=").
+      xprop_value() {
+        case $1 in *'not found'*|*=) echo "$2"; return ;; esac
+        local v=${1#*=}
+        v=${v# }
+        echo "${v:-$2}"
+      }
+      tmode= app=
+      xprop -spy -root STEAM_TOUCH_CLICK_MODE GAMESCOPE_FOCUSED_APP 2>/dev/null | while read -r line; do
+        case $line in
+          STEAM_TOUCH_CLICK_MODE*)
+            v=$(xprop_value "$line" unset)
+            [ "$v" = "$tmode" ] && continue
+            tmode=$v
+            echo "== touch mode: $tmode (focused app ${app:-?}) at $(date +%T)"
+            ;;
+          GAMESCOPE_FOCUSED_APP*)
+            v=$(xprop_value "$line" none)
+            [ "$v" = "$app" ] && continue
+            app=$v
+            echo "== focused app: $app (touch mode ${tmode:-unset}) at $(date +%T)"
+            ;;
+        esac
+      done
+    ) &
     # The library beat. Both helpers are whole programs under proot (the compat one a python
     # start and a parse of the client's config), and nearly every beat has nothing new for them.
     # The seeder marks Proton's prefix template as well as the prefixes, so a new prefix is born
@@ -511,11 +570,29 @@ BUSCONF
         bannerlator-netmanager &
         netmanager=$!
         echo "== network: system bus up, NetworkManager stand-in running"
+        # Steam blanks its main UI before calling login1.Suspend. Without the
+        # matching resume notification it stays black although the menus work.
+        # Own the name before Steam constructs its login1 proxy at startup.
+        rm -f "$BL_LAUNCH_DIR/steam-sleep-ready"
+        bannerlator-login1 &
+        login_manager=$!
+        for ((_i = 0; _i < 50; _i++)); do
+          [ -f "$BL_LAUNCH_DIR/steam-sleep-ready" ] && break
+          kill -0 "$login_manager" 2>/dev/null || break
+          nap 0.1
+        done
+        if [ ! -f "$BL_LAUNCH_DIR/steam-sleep-ready" ]; then
+          echo "== sleep: login1 did not start; refusing a client that cannot resume"
+          exit 69
+        fi
+        echo "== sleep: login1 ready, Android session pause/resume available"
       else
         echo "== network: the system bus did not come up; the client will show no connection"
+        exit 69
       fi
     else
       echo "== network: no dbus-daemon or netmanager in this runtime; the client will show no connection"
+      exit 69
     fi
 
     export STEAM_RUNTIME=1
@@ -596,14 +673,13 @@ BUSCONF
       [ -n "$_stale" ] && echo "== steam: cleared what an earlier session left:$_stale"
       unset _stale _f
     fi
-    # The client branch. publicbeta is what every session has run on; steamdeck_publicbeta is the
-    # channel Armada bootstraps its ARM64 client from. Whatever wrote package/beta, the branch on
+    # Use the same configured branch as the first-run download. Whatever wrote package/beta, the branch on
     # disk has to agree with the one forced here - a disagreement is the restart loop above, and
     # it is silent apart from rc=42 in this log.
     # Checked before every start, not once: the client rewrites package/beta during its own run,
     # and a restart below (rc=42, or the one after the ARM64 Proton lands) would otherwise start it
     # again on the branch it just wrote.
-    steam_channel=${BL_STEAM_CHANNEL:-publicbeta}
+    steam_channel=${BL_STEAM_CHANNEL:-steamdeck_publicbeta}
     steam_beta=$steam_root/package/beta
     if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
       bannerlator-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
@@ -633,7 +709,7 @@ BUSCONF
     steam_updates=0
     rm -f "$HOME/.bl-stop-requested"
     if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -d "$BL_LAUNCH_DIR" ]; then
-      rm -f "$BL_LAUNCH_DIR/steam-stop"
+      rm -f "$BL_LAUNCH_DIR/steam-stop" "$BL_LAUNCH_DIR/steam-game" "$BL_LAUNCH_DIR/steam-game.tmp"
       (
         while :; do
           if [ -e "$BL_LAUNCH_DIR/steam-stop" ]; then
@@ -642,6 +718,24 @@ BUSCONF
             echo "== steam: the app asked for a clean exit"
             "$steam_root/steamrtarm64/steam" -shutdown >/dev/null 2>&1 || true
             exit 0
+          fi
+          if [ -f "$BL_LAUNCH_DIR/steam-game" ]; then
+            game_id=$(cat "$BL_LAUNCH_DIR/steam-game" 2>/dev/null)
+            rm -f "$BL_LAUNCH_DIR/steam-game"
+            case $game_id in
+              ''|0*|*[!0-9]*) echo "== steam: ignored invalid game launch request" ;;
+              *)
+                game_id_length=${#game_id}
+                if [ "$game_id_length" -lt 20 ] || {
+                  [ "$game_id_length" -eq 20 ] && [[ "$game_id" < "18446744073709551616" ]];
+                }; then
+                  echo "== steam: launching requested game $game_id in the running client"
+                  "$steam_root/steamrtarm64/steam" "steam://rungameid/$game_id" >/dev/null 2>&1 &
+                else
+                  echo "== steam: ignored out-of-range game launch request"
+                fi
+                ;;
+            esac
           fi
           nap 0.5
         done

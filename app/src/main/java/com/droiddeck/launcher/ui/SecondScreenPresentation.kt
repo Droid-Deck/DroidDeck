@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.R
 import android.app.Presentation
 import android.content.ClipboardManager
 import android.content.Context
@@ -99,7 +100,10 @@ class SecondScreenPresentation(
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyImmersiveMode()
+        if (hasFocus) {
+            applyImmersiveMode()
+            sessionActivity.refreshClipboard()
+        }
     }
 
     private fun renderMode() {
@@ -128,37 +132,37 @@ class SecondScreenPresentation(
         }
         controls.addView(Button(context).apply {
             text = "×"
-            contentDescription = "Close second-screen controls"
+            contentDescription = context.getString(R.string.deck_close)
             minWidth = dp(48)
             setOnClickListener { onClose() }
         })
         controls.addView(TextView(context).apply {
-            text = "Trackpad"
+            text = context.getString(R.string.second_trackpad)
             textSize = 14f
             setTextColor(Color.WHITE)
         }, LinearLayout.LayoutParams(0, -2, 1f))
         val keyboardButton = Button(context).apply {
-            text = "Show keyboard"
+            text = context.getString(R.string.second_show_keyboard)
             setOnClickListener {
                 val host = keyboardHost ?: return@setOnClickListener
                 if (host.shown) {
                     host.hide()
-                    text = "Show keyboard"
+                    text = context.getString(R.string.second_show_keyboard)
                 } else {
                     host.show()
-                    text = "Hide keyboard"
+                    text = context.getString(R.string.second_hide_keyboard)
                 }
             }
         }
         controls.addView(keyboardButton)
         controls.addView(Button(context).apply {
             text = "STEAM"
-            contentDescription = "Open Steam menu"
+            contentDescription = context.getString(R.string.deck_open_steam_menu)
             setOnClickListener { onSteamMenu() }
         })
         controls.addView(Button(context).apply {
             text = "…"
-            contentDescription = "Open Quick Access Menu"
+            contentDescription = context.getString(R.string.drawer_open_qam)
             setOnClickListener { onQam() }
         })
         panel.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
@@ -179,17 +183,17 @@ class SecondScreenPresentation(
         }
         bar.addView(Button(context).apply {
             text = "×"
-            contentDescription = "Close second-screen controls"
+            contentDescription = context.getString(R.string.deck_close)
             minWidth = dp(48)
             setOnClickListener { onClose() }
         })
         bar.addView(TextView(context).apply {
-            text = "Linux terminal"
+            text = context.getString(R.string.second_terminal)
             textSize = 14f
             setTextColor(Color.WHITE)
         }, LinearLayout.LayoutParams(0, -2, 1f))
         bar.addView(Button(context).apply {
-            text = "Keyboard"
+            text = context.getString(R.string.drawer_keyboard)
             setOnClickListener { showTerminalKeyboard() }
         })
         root.addView(bar, LinearLayout.LayoutParams(-1, -2))
@@ -205,7 +209,7 @@ class SecondScreenPresentation(
         val session = SessionTerminal.create(terminalClient)
         if (session == null) {
             root.addView(TextView(context).apply {
-                text = "The Linux session is not ready for a terminal yet."
+                text = context.getString(R.string.second_terminal_not_ready)
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
             }, LinearLayout.LayoutParams(-1, 0, 1f))

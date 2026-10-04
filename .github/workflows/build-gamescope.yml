@@ -42,4 +42,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "${{ inputs.tag }}" --title "${{ inputs.tag }}" --notes "gamescope 3.16.29 with tools/gamescope/patches; staged by the apk over /usr/local/bin/gamescope. sha256 $(cut -d' ' -f1 gamescope.tzst.sha256)" gamescope.tzst gamescope.tzst.sha256 || gh release upload "${{ inputs.tag }}" gamescope.tzst gamescope.tzst.sha256 --clobber
+          gh release create "${{ inputs.tag }}" --latest=false --prerelease=false --title "${{ inputs.tag }}" --notes "gamescope 3.16.29 with tools/gamescope/patches; staged by the apk over /usr/local/bin/gamescope. sha256 $(cut -d' ' -f1 gamescope.tzst.sha256)" gamescope.tzst gamescope.tzst.sha256 || gh release upload "${{ inputs.tag }}" gamescope.tzst gamescope.tzst.sha256 --clobber
+          # A component the apk fetches by tag, never something users install: it must not
+          # become the repo's Latest release or appear as a pre-release, also when re-uploaded.
+          gh release edit "${{ inputs.tag }}" --latest=false --prerelease=false
