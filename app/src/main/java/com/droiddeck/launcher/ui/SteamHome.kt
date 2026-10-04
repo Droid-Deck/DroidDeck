@@ -33,7 +33,13 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,7 +61,7 @@ private const val WALL_MIN_GAMES = 4
 
 /**
  * The Steam tab: the library as a slowly drifting, tilted wall of capsules (a few games instead
- * lean on their own; none, the DroidDeck mark in a blank wall), and over it Steam and the one thing to do here -
+ * lean on their own; none, the DroidDeck mark wandering a blank wall), and over it Steam and the one thing to do here -
  * Play. Everything about a single game lives on the Games tab.
  */
 @Composable
@@ -65,9 +71,11 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     val colors = MaterialTheme.colorScheme
+    // Where the words and buttons sit, for the empty library's wandering mark to keep off.
+    var words by remember { mutableStateOf<Rect?>(null) }
     Box(modifier = modifier.fillMaxSize().clipToBounds()) {
         when {
-            games.isEmpty() -> EmptyLibrary { WallFade() }
+            games.isEmpty() -> EmptyLibrary(avoid = words) { WallFade() }
             games.size < WALL_MIN_GAMES -> CapsuleFan(games)
             else -> {
                 CapsuleWall(games)
@@ -76,7 +84,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         }
         Column(
             modifier = Modifier.align(Alignment.BottomStart)
-                .padding(start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp, end = 20.dp),
+                .padding(start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp, end = 20.dp)
+                .onPlaced { words = it.boundsInParent() },
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
