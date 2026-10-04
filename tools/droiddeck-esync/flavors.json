@@ -1,0 +1,84 @@
+{
+ "format": 1,
+ "sdk_image": {
+  "file": "Makefile.in",
+  "variable": "STEAMRT_IMAGE",
+  "match": "arm64-llvm"
+ },
+ "flavors": {
+  "valve": {
+   "repo": "ValveSoftware/Proton",
+   "list": "tags",
+   "families": {
+    "experimental": {
+     "prefix": "experimental-11.0-",
+     "tag": "^experimental-11\\.0-\\d{8}[a-z]?$",
+     "depot_app": "4427310"
+    },
+    "proton": {
+     "prefix": "proton-11.0-",
+     "tag": "^proton-11\\.0-\\d+[a-z]?$",
+     "depot_app": "4628740"
+    }
+   },
+   "version_token": "{tag}-arm64",
+   "keep": 2,
+   "rev": 1,
+   "series": "valve-11",
+   "profile": "valve",
+   "source_match": true,
+   "build_dir": "/builds/proton/proton/build-dir",
+   "wine": {
+    "submodules": [
+     "wine"
+    ],
+    "clone": "shallow",
+    "prep": ""
+   }
+  },
+  "ge": {
+   "repo": "GloriousEggroll/proton-ge-custom",
+   "list": "releases",
+   "tag": "^GE-Proton11-\\d+$",
+   "assets": [
+    "aarch64\\.tar\\.(gz|xz)$",
+    "arm64\\.tar\\.(gz|xz)$"
+   ],
+   "keep": 3,
+   "rev": 1,
+   "series": "valve-11",
+   "profile": "valve",
+   "source_match": false,
+   "build_dir": "/home/tcrider/build",
+   "wine": {
+    "submodules": [
+     "wine",
+     "wine-staging"
+    ],
+    "clone": "treeless",
+    "prep": "patches/protonprep-valve-staging.sh"
+   }
+  },
+  "cachyos": {
+   "repo": "CachyOS/proton-cachyos",
+   "list": "releases",
+   "tag": "^cachyos-11\\.0-",
+   "assets": [
+    "arm64\\.tar\\.(gz|xz)$"
+   ],
+   "keep": 3,
+   "rev": 1,
+   "series": "cachyos-11",
+   "profile": "cachyos",
+   "source_match": false,
+   "build_dir": "/home/runner/work/proton-cachyos/proton-cachyos/build",
+   "wine": {
+    "submodules": [
+     "wine"
+    ],
+    "clone": "shallow",
+    "prep": ""
+   }
+  }
+ }
+}
