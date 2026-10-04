@@ -333,7 +333,9 @@ class LaunchTest(FexTestCase):
         self.assertNotIn("FEX_ROOTFS", guest)
         self.assertEqual(guest["FEX_TSOENABLED"], "1")
         self.assertTrue(guest["FEX_APP_CONFIG_LOCATION"].endswith("/config/"))
-        guest = FEX["guest_environment"]({"portable": False}, {"LD_PRELOAD": str(arm), "FEX_PORTABLE": "1"})
+        self.assertEqual((guest["FEX_SILENTLOG"], guest["FEX_OUTPUTLOG"]), ("0", "stderr"))
+        guest = FEX["guest_environment"]({"portable": False}, {"LD_PRELOAD": str(arm), "FEX_PORTABLE": "1", "FEX_OUTPUTLOG": "/tmp/fex.log"})
+        self.assertEqual(guest["FEX_OUTPUTLOG"], "/tmp/fex.log")
         self.assertNotIn("LD_PRELOAD", guest)
         self.assertNotIn("FEX_PORTABLE", guest)
 

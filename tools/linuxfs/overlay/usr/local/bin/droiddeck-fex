@@ -398,6 +398,8 @@ def guest_environment(fex, env):
     result["FEX_APP_CONFIG_LOCATION"] = CONFIG_DIR + "/"
     result["FEX_APP_DATA_LOCATION"] = DATA_DIR + "/"
     result["FEX_APP_CACHE_LOCATION"] = CACHE_DIR + "/"
+    result.setdefault("FEX_SILENTLOG", "0")
+    result.setdefault("FEX_OUTPUTLOG", "stderr")
     if fex["portable"]:
         result["FEX_PORTABLE"] = "1"
     else:

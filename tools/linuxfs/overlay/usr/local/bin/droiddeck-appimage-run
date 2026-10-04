@@ -83,6 +83,11 @@ case ${DBUS_SESSION_BUS_ADDRESS:-} in
      fi ;;
 esac
 rc=$?
+if [ "$rc" -gt 128 ]; then
+  echo "== appimage $ARGV0: ended by signal $((rc - 128)) ($(kill -l $((rc - 128)) 2>/dev/null))"
+else
+  echo "== appimage $ARGV0: exited with status $rc"
+fi
 # The program a session was started for may hand over to another process and exit: Electron apps
 # relaunch themselves (Obsidian on its first start), launchers fork their real program. The
 # session ends with this script, and takes the rest with it - so it waits while anything running

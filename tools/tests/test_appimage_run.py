@@ -82,6 +82,19 @@ class AppImageRunTest(unittest.TestCase):
         self.assertEqual("unset", env["QT_WAYLAND_DISABLE_WINDOWDECORATION"])
         self.assertEqual("unset", env["DISABLE_GAMESCOPE_WSI"])
 
+    def test_how_the_program_ended_is_logged(self):
+        run = self.dir / "app/AppRun"
+        run.write_text("#!/bin/sh\nexit 3\n")
+        env = {k: v for k, v in os.environ.items() if k not in KEYS}
+        env.update(RUN_MODE, DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
+        result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
+        self.assertEqual(3, result.returncode)
+        self.assertIn("exited with status 3", result.stdout)
+        run.write_text("#!/bin/sh\nkill -SEGV $$\n")
+        result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
+        self.assertEqual(139, result.returncode)
+        self.assertIn("ended by signal 11 (SEGV)", result.stdout)
+
     def test_the_per_app_choice_wins(self):
         self.bundle(*QUICK)
         (self.dir / "qt").write_text("xcb\n")
