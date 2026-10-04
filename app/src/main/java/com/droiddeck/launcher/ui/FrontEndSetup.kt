@@ -337,6 +337,8 @@ internal fun SetupPanel(
                                 if (s.launcherFullscreen) stringResource(R.string.setup_fullscreen_on) else stringResource(R.string.setup_fullscreen_off),
                                 s.launcherFullscreen,
                             ) { a.onLauncherFullscreen(it) }
+                            ToggleRow(host, "launcher-animations", stringResource(R.string.setup_animations), null,
+                                s.animationsEnabled, onChange = a.onAnimationsEnabled)
                             if (s.homeScreenEnabled) {
                                 ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
                             }

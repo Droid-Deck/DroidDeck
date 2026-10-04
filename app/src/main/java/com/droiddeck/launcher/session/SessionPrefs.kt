@@ -33,6 +33,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
+
+    fun setAnimationsEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("animations", on).apply()
+    }
+
     /** The Flathub Store (beta): its rail item. Off by default. */
     fun storeEnabled(context: Context): Boolean = prefs(context).getBoolean("storeEnabled", false)
 
@@ -67,9 +73,11 @@ object SessionPrefs {
     const val TOUCH_AUTO = "auto"
     const val TOUCH_PAD = "touchpad"
     const val TOUCH_DIRECT = "direct"
+    const val TOUCH_OFF = "off"
 
     /** How touch drives the pointer: a touchpad (drag moves it from where it is) or direct
-     *  (it jumps under the finger). Auto = touchpad on the desktop, direct in Steam. */
+     *  (it jumps under the finger). Auto = touchpad on the desktop, direct in Steam.
+     *  Off ignores touches on the guest picture; Android controls remain usable. */
     fun touchMode(context: Context): String = prefs(context).getString("touch", TOUCH_AUTO) ?: TOUCH_AUTO
 
     fun setTouchMode(context: Context, mode: String) {

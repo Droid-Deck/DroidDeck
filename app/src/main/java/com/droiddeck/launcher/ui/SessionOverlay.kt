@@ -28,7 +28,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.AutoFixHigh
-import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
@@ -196,6 +196,11 @@ class DrawerActions(
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
     val onOsc: (String) -> Unit,
+    val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
+    val onRumble: (Boolean) -> Unit = {},
+    val onSteamButton: (Boolean) -> Unit = {},
+    val onQamButton: (Boolean) -> Unit = {},
+    val onKeyboardButton: (Boolean) -> Unit = {},
     val onSuspendPolicy: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
@@ -283,7 +288,7 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { host.open = null; a.onClose() },
     )
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-        // A 4:3 or near-square screen (under 440dp tall) gets one-line shortcuts and a shorter tab row,
+        // A 4:3 or near-square screen (under 440dp tall) gets tighter padding and a shorter tab row,
         // so the settings keep most of the height; a narrow one keeps some of the game in view.
         val short = maxHeight < 440.dp
         val sheetWidth = minOf(360.dp, maxWidth * 0.92f)
@@ -304,35 +309,31 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                     }
                     .padding(if (short) 12.dp else 16.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = if (short) 40.dp else 44.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                ) {
                     Text(a.title ?: if (a.steam) stringResource(R.string.drawer_steam) else stringResource(R.string.drawer_desktop), fontSize = if (short) 18.sp else 20.sp, fontWeight = FontWeight.Bold,
                         color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
-                }
-                if (a.onSteamMenu != null && a.onQam != null) {
-                    val qamInteraction = remember { MutableInteractionSource() }
-                    var qamStartedOnPress by remember { mutableStateOf(false) }
-                    LaunchedEffect(qamInteraction) {
-                        qamInteraction.interactions.collect { interaction ->
-                            if (interaction is PressInteraction.Press) {
-                                qamStartedOnPress = true
-                                host.open = null
-                                a.onQam.invoke()
+                    if (a.onSteamMenu != null && a.onQam != null) {
+                        val qamInteraction = remember { MutableInteractionSource() }
+                        var qamStartedOnPress by remember { mutableStateOf(false) }
+                        LaunchedEffect(qamInteraction) {
+                            qamInteraction.interactions.collect { interaction ->
+                                if (interaction is PressInteraction.Press) {
+                                    qamStartedOnPress = true
+                                    host.open = null
+                                    a.onQam.invoke()
+                                }
                             }
                         }
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(top = if (short) 8.dp else 12.dp),
-                    ) {
-                        QuickAction(stringResource(R.string.drawer_steam_menu), Icons.Outlined.Menu, Modifier.weight(1f).then(focus.track(page, "steam")), compact = short) {
+                        SteamActionPill(stringResource(R.string.drawer_steam_menu), Icons.Outlined.Home, focus.track(page, "steam")) {
                             host.open = null
                             a.onSteamMenu.invoke()
                         }
-                        QuickAction(
-                            stringResource(R.string.drawer_quick_access), Icons.Outlined.MoreHoriz,
-                            stringResource(R.string.drawer_open_qam).let { d -> Modifier.weight(1f).then(focus.track(page, "qam")).semantics { contentDescription = d } },
-                            compact = short,
+                        SteamActionPill(
+                            stringResource(R.string.drawer_open_qam), Icons.Outlined.MoreHoriz, focus.track(page, "qam"),
                             interactionSource = qamInteraction,
                             onConfirm = { host.open = null; a.onQam.invoke() },
                         ) {
@@ -341,6 +342,7 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                             qamStartedOnPress = false
                         }
                     }
+                    StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
 
                 Row(
@@ -391,12 +393,22 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                         DRAWER_PAGE_CONTROLS -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controls)) {
                                 ChoiceRow(host, "touch", stringResource(R.string.mode_touch), null,
-                                    listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct)),
+                                    listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)),
                                     a.touchMode, chipModifier = focus.track(page, "touch"), onPick = a.onTouch)
                                 ChoiceRow(host, "osc", stringResource(R.string.mode_osc), null,
                                     if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
                                     else listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
                                     a.oscMode, chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
+                                a.controller?.let { c ->
+                                    ToggleRow(host, "rumble", stringResource(R.string.ctrl_rumble), null, c.rumble,
+                                        chipModifier = focus.track(page, "rumble"), onChange = a.onRumble)
+                                    ToggleRow(host, "steam-button", stringResource(R.string.ctrl_steam_button), null, c.steamButton,
+                                        chipModifier = focus.track(page, "steam-button"), onChange = a.onSteamButton)
+                                    ToggleRow(host, "qam-button", stringResource(R.string.ctrl_qam_button), null, c.qamButton,
+                                        chipModifier = focus.track(page, "qam-button"), onChange = a.onQamButton)
+                                    ToggleRow(host, "keyboard-button", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton,
+                                        chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
+                                }
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to SessionPrefs.BACK_MENU_THEN_QAM, true to SessionPrefs.BACK_QAM_THEN_MENU),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
@@ -572,11 +584,10 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     }
 }
 
-/** One of the sheet's shortcuts into Steam: an icon over its name, the whole tile the target. */
+/** A compact shortcut into Steam, sharing the header with Stop. */
 @Composable
-private fun QuickAction(
-    label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier,
-    compact: Boolean = false,
+private fun SteamActionPill(
+    description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     onConfirm: (() -> Unit)? = null,
     onClick: () -> Unit,
@@ -584,26 +595,18 @@ private fun QuickAction(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val hot = interactionSource.collectIsFocusedAsState().value || interactionSource.collectIsHoveredAsState().value
-    val shape = RoundedCornerShape(12.dp)
-    val tile = modifier.height(if (compact) 44.dp else 64.dp).clip(shape)
-        .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
-        .glideBorder(hot, shape, pal.signal, pal.line)
-        .hoverable(interactionSource)
-        .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
-        .controllerConfirm(onClick = onConfirm ?: onClick)
-        .padding(horizontal = 6.dp)
-    val content: @Composable () -> Unit = {
+    val shape = RoundedCornerShape(22.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.size(width = 52.dp, height = 44.dp).semantics { contentDescription = description }
+            .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
+            .glideBorder(hot, shape, pal.signal, pal.line)
+            .hoverable(interactionSource)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
+            .controllerConfirm(onClick = onConfirm ?: onClick),
+    ) {
         Icon(icon, contentDescription = null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(20.dp))
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
-    if (compact) Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), modifier = tile,
-    ) { content() }
-    else Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically), modifier = tile,
-    ) { content() }
 }
 
 /** A bumper as a keycap, 44dp to touch; LB / RB on the pad turn the page too. */

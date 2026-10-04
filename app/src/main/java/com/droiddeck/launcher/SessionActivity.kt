@@ -46,6 +46,7 @@ import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.input.EvdevKeys
 import com.droiddeck.launcher.input.KeyboardHost
+import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.PadBridge
@@ -136,6 +137,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
     private var onScreenControls: OnScreenControls? = null
     private var keyboard: KeyboardHost? = null
+    private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
         SessionClipboard(this) {
             window.decorView.hasWindowFocus() || secondScreenPresentation?.window?.decorView?.hasWindowFocus() == true
@@ -339,7 +341,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             uiHandler.removeCallbacks(cursorHide)
             cursorVisible = false
         }
-        onScreenControls = OnScreenControls(this, bridge).also { root.addView(it) }
+        onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { root.addView(it) }
         keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
         // One arrow, ours: Android draws a system pointer for a mouse over any window, and the
@@ -506,7 +508,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             this@SessionActivity, listOf("dll"), getString(R.string.lsfg_pick_title)))
                     },
                     onKeyboard = { drawerOpen = false; pcKeyboardOpen = false; keyboard?.toggle() },
-                    onHardwareKeyboard = { drawerOpen = false; pcKeyboardOpen = !pcKeyboardOpen },
+                    onHardwareKeyboard = ::togglePcKeyboard,
+                    controller = controllerSettings,
+                    onRumble = { on -> updateControllerPrefs { ControllerPrefs.setRumble(this@SessionActivity, on) } },
+                    onSteamButton = { on -> updateControllerPrefs { ControllerPrefs.setSteamButton(this@SessionActivity, on) } },
+                    onQamButton = { on -> updateControllerPrefs { ControllerPrefs.setQamButton(this@SessionActivity, on) } },
+                    onKeyboardButton = { on -> updateControllerPrefs { ControllerPrefs.setKeyboardButton(this@SessionActivity, on) } },
                     onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
                     onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
                     backActionsInverted = backActionsInverted,
@@ -598,6 +605,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun triggerSteamQam() {
         drawerOpen = false
         padBridge?.triggerQam()
+    }
+
+    private fun togglePcKeyboard() {
+        drawerOpen = false
+        keyboard?.hide()
+        onScreenControls?.releaseAll()
+        pcKeyboardOpen = !pcKeyboardOpen
+    }
+
+    private fun updateControllerPrefs(change: () -> Unit) {
+        change()
+        controllerSettings = ControllerPrefs.read(this)
+        onScreenControls?.reload()
     }
 
     private fun routeBackAction() {
@@ -720,7 +740,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         effects = SessionPrefs.screenEffects(this)
         textureAnisotropy = SessionPrefs.textureAnisotropy(this)
         textureLodBias = SessionPrefs.textureLodBias(this)
-        touchMode = SessionPrefs.touchMode(this)
+        val nextTouchMode = SessionPrefs.touchMode(this)
+        if (touchMode != nextTouchMode) {
+            if (::touchpad.isInitialized) touchpad.cancel()
+            if (CompositorHost.isStarted) {
+                WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+                listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
+                    WaylandCompositor.nativeSendSceneInput(3, it, 0)
+                }
+            }
+            if (nextTouchMode == SessionPrefs.TOUCH_OFF) cursorVisible = false
+        }
+        touchMode = nextTouchMode
         frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -1599,6 +1630,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
+        // Child views get the event first, so menus, keyboards and the on-screen pad still work.
+        if (touchMode == SessionPrefs.TOUCH_OFF) return true
         if (usingTouchpad()) {
             val rect = drawnRect() ?: return false
             if (touchpad.bounds != rect) {
@@ -1824,6 +1857,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         onScreenControls?.reload()
+        controllerSettings = ControllerPrefs.read(this)
         updateOnScreenControls()
         resumed = true
         if (!pipUi) sessionClipboard.start()

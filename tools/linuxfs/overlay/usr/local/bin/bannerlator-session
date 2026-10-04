@@ -92,6 +92,9 @@ export XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+if [ "$mode" = lxqt ] || [ "$mode" = desktop ]; then
+  /usr/local/bin/bannerlator-desktop-bookmarks || true
+fi
 # Flatpak (the store's apps): its sandboxes through the app instead of bubblewrap, which needs the
 # user namespaces Android keeps from apps, and its apps' menu entries and icons on the desktop.
 export FLATPAK_BWRAP=/usr/local/bin/bannerlator-bwrap

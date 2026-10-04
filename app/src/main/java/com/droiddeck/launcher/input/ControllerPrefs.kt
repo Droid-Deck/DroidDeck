@@ -41,11 +41,15 @@ object ControllerPrefs {
         val size: Int,
         val stickClick: Boolean,
         val adaptiveSticks: Boolean,
+        val rumble: Boolean,
+        val steamButton: Boolean,
+        val qamButton: Boolean,
+        val keyboardButton: Boolean,
         val customLayout: Boolean,
         val mapping: Map<String, String>,
     )
 
-    private fun prefs(context: Context) = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
+    internal fun prefs(context: Context) = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
 
     fun read(context: Context): Settings {
         val p = prefs(context)
@@ -55,6 +59,10 @@ object ControllerPrefs {
             size = p.getInt("size", 100).takeIf { it in sizes } ?: 100,
             stickClick = p.getBoolean("stickClick", true),
             adaptiveSticks = p.getBoolean("adaptiveSticks", true),
+            rumble = rumbleEnabled(context),
+            steamButton = p.getBoolean("steamButton", true),
+            qamButton = p.getBoolean("qamButton", true),
+            keyboardButton = p.getBoolean("keyboardButton", true),
             customLayout = p.all.keys.any { it.startsWith("layout.") },
             mapping = mappable.associate { (id, _) -> id to target(context, id) },
         )
@@ -92,6 +100,24 @@ object ControllerPrefs {
         prefs(context).edit().putBoolean("adaptiveSticks", on).apply()
     }
 
+    fun rumbleEnabled(context: Context): Boolean = prefs(context).getBoolean("rumble", true)
+
+    fun setRumble(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("rumble", on).apply()
+    }
+
+    fun setSteamButton(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("steamButton", on).apply()
+    }
+
+    fun setQamButton(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("qamButton", on).apply()
+    }
+
+    fun setKeyboardButton(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("keyboardButton", on).apply()
+    }
+
     fun layout(context: Context, width: Int, height: Int): Map<String, Pair<Float, Float>> {
         val raw = prefs(context).getString("layout.${width}x$height", null) ?: return emptyMap()
         return raw.split(';').mapNotNull { entry ->
@@ -111,7 +137,8 @@ object ControllerPrefs {
     }
 
     fun resetAll(context: Context) {
-        prefs(context).edit().clear().apply()
+        // On older Android versions clear() does not notify listeners; restore rumble explicitly.
+        prefs(context).edit().clear().putBoolean("rumble", true).apply()
     }
 
     fun resetAllLayouts(context: Context) {
