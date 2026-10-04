@@ -356,6 +356,16 @@ class LaunchTest(FexTestCase):
         binary, argv, env = emulated.call_args[0]
         self.assertEqual((binary, argv), (str(tool / "usr/bin/FEX"), [str(tool / "usr/bin/FEX"), str(program), "-w"]))
         self.assertEqual(env["FEX_PORTABLE"], "1")
+        self.assertNotIn("LD_PRELOAD", env)
+        report = self.write(self.tmp / "preloads/x86_64/libfaultreport.so", elf(62))
+        x86 = self.write(self.tmp / "x86.so", elf(62))
+        with mock.patch("os.execve") as emulated:
+            self.quiet(FEX["launch"], [str(program)], {"LD_PRELOAD": str(x86)}, "auto")
+        self.assertEqual(emulated.call_args[0][2]["LD_PRELOAD"], "%s:%s" % (report, x86))
+        old = self.write(self.tmp / "game.i386", elf(3), 0o755)
+        with mock.patch("os.execve") as emulated:
+            self.quiet(FEX["launch"], [str(old)], {}, "auto")
+        self.assertNotIn("LD_PRELOAD", emulated.call_args[0][2])
         with mock.patch("os.execvpe") as native, mock.patch("os.execve") as emulated:
             self.quiet(FEX["launch"], [str(program)], {}, "off")
         native.assert_called_once()

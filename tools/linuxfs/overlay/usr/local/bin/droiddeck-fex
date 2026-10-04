@@ -433,6 +433,9 @@ def launch(command, env, mode, decide=None):
     if fex is None:
         return 126
     guest = guest_environment(fex, env)
+    report = os.path.join(PRELOADS, "x86_64", "libfaultreport.so")
+    if os.path.isfile(report) and elf_arch(program) != "i386":
+        guest["LD_PRELOAD"] = ":".join([report] + split_paths(guest.get("LD_PRELOAD")))
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
 
 

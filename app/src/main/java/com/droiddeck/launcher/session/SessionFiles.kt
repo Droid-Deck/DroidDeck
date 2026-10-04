@@ -108,7 +108,7 @@ object SessionFiles {
         } else emptyArray()
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
-        }
+        } + ("x86_64/libfaultreport.so" to "usr/local/lib/droiddeck-fex/x86_64/libfaultreport.so")
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",

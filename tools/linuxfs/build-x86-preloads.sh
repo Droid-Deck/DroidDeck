@@ -26,3 +26,10 @@ for arch in x86_64 i386; do
     fi
   done
 done
+gcc -m64 -shared -fPIC -O2 -Wall -Wextra -nostdlib -fno-stack-protector -fno-builtin -fvisibility=hidden \
+  -o "$out/x86_64/libfaultreport.so" tools/linuxfs/fex/faultreport.c
+strip --strip-unneeded "$out/x86_64/libfaultreport.so"
+if objdump -p "$out/x86_64/libfaultreport.so" | grep -q NEEDED; then
+  echo "$out/x86_64/libfaultreport.so must not need any library" >&2
+  exit 1
+fi
