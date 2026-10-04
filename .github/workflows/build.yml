@@ -266,7 +266,8 @@ jobs:
             tar --use-compress-program=unzstd -xf sync-bundle.tzst -C app/src/main/assets/droiddeck-esync
             rm sync-bundle.tzst
             gh release download "$SYNC_BUNDLE_TAG" -R "$SYNC_BUNDLE_REPO" -p index.json -O sync-index.json
-            for id in $(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' sync-index.json); do
+            revoked=$(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' sync-index.json)
+            for id in $revoked; do
               if [ -e "app/src/main/assets/droiddeck-esync/packs/$id.tzst" ]; then
                 echo "::warning::$SYNC_BUNDLE_ASSET carries revoked pack $id; it is left out of the APK (point tools/droiddeck-esync/release.env at a newer bundle)"
                 rm -f "app/src/main/assets/droiddeck-esync/packs/$id.tzst"
