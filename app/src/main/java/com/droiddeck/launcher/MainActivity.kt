@@ -68,6 +68,7 @@ import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
 import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.session.SessionArtifacts
+import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.input.SecondScreenDisplay
@@ -96,6 +97,7 @@ class MainActivity : ComponentActivity() {
     private var returning by mutableStateOf<ReturningFlood?>(null)
     private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
+    private var removalPending by mutableStateOf(false)
     private var available by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var busy by mutableStateOf(false)
     private var stage by mutableStateOf("")
@@ -343,6 +345,10 @@ class MainActivity : ComponentActivity() {
     override fun startActivity(intent: Intent?) {
         if (intent?.component?.className == SessionActivity::class.java.name) {
             when {
+                busy || LinuxRuntimeInstaller.isBusy() -> {
+                    android.widget.Toast.makeText(this, "Wait for the runtime operation to finish", android.widget.Toast.LENGTH_SHORT).show()
+                    return
+                }
                 protons.protonBusyId != null || ProtonExtras.installInProgress -> {
                     android.widget.Toast.makeText(this, "Wait for the compatibility tool install to finish", android.widget.Toast.LENGTH_SHORT).show()
                     return
@@ -370,6 +376,7 @@ class MainActivity : ComponentActivity() {
 
     /** The page is all blue: the session opens on the same blue, with no animation of its own. */
     private fun launchFlooded(f: PendingFlood) {
+        if (busy || LinuxRuntimeInstaller.isBusy()) { flood = null; floodProgress = 0f; return }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
         overridePendingTransition(0, 0)
@@ -464,7 +471,7 @@ class MainActivity : ComponentActivity() {
                 com.droiddeck.launcher.ui.FloodBehind({ floodProgress }) {
                 FrontEndScreen(
                     FrontEndState(
-                        installed = installed, ready = ready, available = available?.version,
+                        installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         busy = busy, stage = stage, percent = percent,
@@ -701,7 +708,7 @@ class MainActivity : ComponentActivity() {
                     title = "Remove Linux runtime",
                     text = "This deletes the runtime, the Steam client inside it, and every game installed there.",
                     confirm = "Remove",
-                    onConfirm = { Thread({ LinuxRuntimeInstaller.uninstall(this); ui.post { refresh() } }, "uninstall").start() },
+                    onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
                 )
                 flood?.let { f -> com.droiddeck.launcher.ui.LaunchFlood(f.from, onProgress = { floodProgress = it }) { launchFlooded(f) } }
@@ -898,7 +905,7 @@ class MainActivity : ComponentActivity() {
 
     /** Runs a save import or export off the main thread, one at a time, and says how it went. */
     private fun saveAction(label: String, work: () -> String) {
-        if (saveBusy != null) return
+        if (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null) return
         saveBusy = label
         Thread({
             val message = runCatching(work).getOrElse { e -> "$label failed: ${e.message ?: e.javaClass.simpleName}" }
@@ -963,7 +970,7 @@ class MainActivity : ComponentActivity() {
             protonId = components.compProton,
             comp = components.compComp,
             checking = components.compChecking,
-            busy = components.compBusy,
+            busy = if (busy) stage else components.compBusy,
             downloads = components.compDownloads,
             requestInitialFocus = focusComponentsContent,
             onProton = { components.compProton = it },
@@ -1003,7 +1010,7 @@ class MainActivity : ComponentActivity() {
             busyId = protons.protonBusyId,
             stage = protons.protonStage,
             percent = protons.protonPercent,
-            runtimeReady = ready,
+            runtimeReady = ready && !busy,
             sessionRunning = SessionState.running,
             onInstall = { id -> protons.installProton(id) },
             onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
@@ -1025,7 +1032,7 @@ class MainActivity : ComponentActivity() {
 
     private fun installPackage(id: String) {
         val entry = catalog?.firstOrNull { it.id == id } ?: return
-        if (pkgStage != null || SessionState.running) return
+        if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
         pkgId = id; pkgStage = "Starting…"; pkgPercent = -1
         Thread({
             val problem = DesktopCatalog.install(this, entry) { stage, percent ->
@@ -1042,7 +1049,7 @@ class MainActivity : ComponentActivity() {
 
     private fun removePackage(id: String) {
         val entry = catalog?.firstOrNull { it.id == id } ?: return
-        if (pkgStage != null || SessionState.running) return
+        if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
         pkgId = id; pkgStage = if (entry.kind == "appimage") "Removing ${entry.name}…" else "Forgetting ${entry.name}…"; pkgPercent = -1
         Thread({
             DesktopCatalog.remove(this, entry)
@@ -1331,12 +1338,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refresh() {
-        if (!busy && LinuxRuntimeInstaller.isInstalling()) followInstall { LinuxRuntimeInstaller.attach(it) }
+        if (!busy && LinuxRuntimeInstaller.isBusy()) followRuntimeOperation { LinuxRuntimeInstaller.attach(it) }
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
+        removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
@@ -1383,9 +1391,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onRuntimeButton() {
-        if (busy) return
+        if (runtimeChangesBlocked()) return
         val release = available
-        if (installed != null && release?.version == installed) {
+        if (removalPending || installed != null && release?.version == installed) {
             // Nothing to install: offer the one destructive thing this screen can do.
             showRemove = true
             return
@@ -1403,6 +1411,7 @@ class MainActivity : ComponentActivity() {
 
     /** Starts a session; with no runtime on a non-Adreno, the same warning Setup gives comes first, before any download. */
     private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
+        if (busy || LinuxRuntimeInstaller.isBusy()) return false
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             showPhantomGate = true
@@ -1441,21 +1450,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun runtimeChangesBlocked(): Boolean =
+        busy || LinuxRuntimeInstaller.isBusy() || SessionState.running ||
+            SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
+            protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null ||
+            components.compBusy != null || saveBusy != null || com.droiddeck.launcher.store.UserAppsState.working != null
+
+    private fun removeRuntime() {
+        if (runtimeChangesBlocked()) return
+        val removal = LinuxRuntimeInstaller.beginUninstall(this) ?: return
+        ready = false
+        com.droiddeck.launcher.runtime.RuntimeInstallService.keepRemovalAlive(this)
+        followRuntimeOperation { removal.run(it) }
+    }
+
     private fun install(release: LinuxRuntimeInstaller.Release) {
         // The service keeps the process alive if the user switches away; this screen joins the
         // same install (or starts it, if it gets there first) to show the progress.
         com.droiddeck.launcher.runtime.RuntimeInstallService.start(this, release)
-        followInstall { listener -> LinuxRuntimeInstaller.install(this, release, listener) }
+        followRuntimeOperation { listener -> LinuxRuntimeInstaller.install(this, release, listener) }
     }
 
     /**
-     * Shows an install's progress until it ends. [run] either starts one or joins the one already
+     * Shows a runtime operation's progress until it ends. [run] either starts one or joins the one already
      * running (null: nothing was), which is how a launcher rebuilt mid-install picks it back up.
      */
-    private fun followInstall(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
+    private fun followRuntimeOperation(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
         busy = true
         failed = false
-        stage = "Starting…"
+        stage = if (LinuxRuntimeInstaller.isRemoving()) "Removing Linux runtime" else "Starting…"
         percent = -1
         Thread({
             val ok = run(LinuxRuntimeInstaller.ProgressListener { s, p ->
@@ -1464,9 +1487,12 @@ class MainActivity : ComponentActivity() {
             ui.post {
                 busy = false
                 if (ok != null) failed = !ok
+                if (ok == false) LinuxRuntimeInstaller.removalError()?.let {
+                    android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show()
+                }
                 refresh()
             }
-        }, "install").start()
+        }, "runtime-operation").start()
     }
 
     private fun checkCatalog() {

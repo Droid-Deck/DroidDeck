@@ -273,17 +273,17 @@ private fun Content(
                 if (ready.isNotEmpty() || addAfterReady) {
                     Rise(3) { SectionTitle(stringResource(R.string.user_apps_section), ready.size.takeIf { it > 0 }?.toString()) }
                     Rise(4) {
-                        LauncherGrid(if (addAfterReady) ready + GridItem.Add else ready, first = true, onSelect = onSelect, onAdd = { adding = true })
+                        LauncherGrid(if (addAfterReady) ready + GridItem.Add else ready, first = true, onSelect = onSelect, onAdd = { if (!s.busy) adding = true })
                     }
                 }
                 if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(5) { UserAppsProgress() }
                 if (!addAfterReady) {
                     Rise(5) { SectionTitle(stringResource(R.string.content_available), available.size.toString()) }
                     Rise(6) {
-                        LauncherGrid(available.map { GridItem.Emu(it) } + GridItem.Add, first = ready.isEmpty(), onSelect = onSelect, onAdd = { adding = true })
+                        LauncherGrid(available.map { GridItem.Emu(it) } + GridItem.Add, first = ready.isEmpty(), onSelect = onSelect, onAdd = { if (!s.busy) adding = true })
                     }
                 }
-                if (adding) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
+                if (adding && !s.busy) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
             }
             selected.startsWith("user:") -> {
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
@@ -320,7 +320,7 @@ private fun Content(
                                 SecondaryButton(stringResource(R.string.setup_tool_roms), onClick = a.onRoms)
                                 if (pkg != null) SecondaryButton(
                                     if (pkg.kind == "appimage") stringResource(R.string.store_remove) else stringResource(R.string.common_hide),
-                                    enabled = s.packageBusyId == null && !s.sessionRunning,
+                                    enabled = !s.busy && s.packageBusyId == null && !s.sessionRunning,
                                 ) { a.onRemovePackage(pkg.id) }
                             }
                         }
@@ -340,7 +340,7 @@ private fun Content(
                             Actions {
                                 PrimaryButton(
                                     if (s.packageBusyId == pkg.id) stringResource(R.string.store_installing) else stringResource(R.string.content_install_named, e.name),
-                                    enabled = s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning,
+                                    enabled = !s.busy && s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning,
                                 ) { a.onInstallPackage(pkg.id) }
                                 if (s.sessionRunning) ActionChip(stringResource(R.string.content_stop_to_install), ok = false)
                                 else if (!s.ready) ActionChip(stringResource(R.string.content_runtime_required), ok = false)
@@ -600,7 +600,7 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             if (app.repo != null) UpdateButton(app, s)
             SecondaryButton(
                 stringResource(if (confirm) R.string.user_apps_remove_confirm else R.string.user_apps_remove),
-                enabled = !s.sessionRunning && UserAppsState.working == null,
+                enabled = !s.busy && !s.sessionRunning && UserAppsState.working == null,
             ) {
                 if (!confirm) confirm = true
                 else { confirm = false; UserAppsState.remove(ctx, app); onSelect("desktop") }
@@ -628,7 +628,7 @@ private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
     val idle = UserAppsState.working == null && UserAppsState.checking == null
     when (val found = UserAppsState.updates[app.key]) {
         is UserApps.UpdateCheck.Available -> SecondaryButton(
-            stringResource(R.string.user_apps_update_to, found.release.tag), enabled = idle && !s.sessionRunning,
+            stringResource(R.string.user_apps_update_to, found.release.tag), enabled = !s.busy && idle && !s.sessionRunning,
         ) { UserAppsState.update(ctx, app, found.release) }
         else -> {
             SecondaryButton(

@@ -64,7 +64,7 @@ public final class LinuxRuntimeInstaller {
     }
 
     /**
-     * One install per process. The launcher and the session screen can both start one, and a
+     * One runtime operation per process. The launcher and session can both install, and a
      * launcher rebuilt mid-install (a pad plugged in, dark mode switched) forgets it had: a second
      * install would share the first one's archive and staging directory and wreck both.
      */
@@ -74,11 +74,13 @@ public final class LinuxRuntimeInstaller {
         volatile String stage = "Starting\u2026";
         volatile int percent = -1;
         volatile boolean ok;
+        final boolean removal;
+        Job(boolean removal) { this.removal = removal; }
     }
 
     private static final Object JOB_LOCK = new Object();
     private static Job running;
-    private static boolean removing;
+    private static volatile String removalError;
 
     private LinuxRuntimeInstaller() {}
 
@@ -127,9 +129,9 @@ public final class LinuxRuntimeInstaller {
         Job job;
         boolean owner;
         synchronized (JOB_LOCK) {
-            if (removing) return false;
+            if (running != null && running.removal) return false;
             owner = running == null;
-            if (owner) running = new Job();
+            if (owner) { running = new Job(false); removalError = null; }
             job = running;
             if (listener != null) job.listeners.add(listener);
         }
@@ -152,13 +154,31 @@ public final class LinuxRuntimeInstaller {
     /** True while an install is running in this process, whoever started it. */
     public static boolean isInstalling() {
         synchronized (JOB_LOCK) {
-            return running != null;
+            return running != null && !running.removal;
         }
     }
 
+    public static boolean isBusy() {
+        synchronized (JOB_LOCK) { return running != null; }
+    }
+
+    public static boolean isRemoving() {
+        synchronized (JOB_LOCK) { return running != null && running.removal; }
+    }
+
+    public static String removalError() { return removalError; }
+
+    public static boolean hasRemovalPending(Context context) {
+        return removalDirectory(LinuxRuntime.rootDir(context)).exists();
+    }
+
+    private static File removalDirectory(File root) {
+        return new File(root.getParentFile(), root.getName() + ".removing");
+    }
+
     /**
-     * Follows the install already running, for a screen that was rebuilt mid-install. Blocks until
-     * it ends and returns its result, or returns null at once when nothing is installing.
+     * Follows the runtime operation already running, including removal, after a screen rebuild.
+     * Blocks until it ends and returns its result, or null when there is no current operation.
      */
     public static Boolean attach(ProgressListener listener) {
         Job job;
@@ -186,6 +206,11 @@ public final class LinuxRuntimeInstaller {
     private static boolean installOnce(Context context, Release release, ProgressListener listener) {
         File archive = new File(context.getCacheDir(), "linuxfs.tar.zst");
         try {
+            // A failed/interrupted explicit removal must finish before a fresh installation.
+            // Its quarantined home is not user data to carry into an update.
+            File pendingRemoval = removalDirectory(LinuxRuntime.rootDir(context));
+            if (pendingRemoval.exists() && listener != null) listener.onProgress("Removing runtime leftovers", -1);
+            RuntimeFileTree.delete(pendingRemoval, null);
             if (listener != null) listener.onProgress("Downloading", 0);
             // Downloader reports a 0..1 fraction, or -1 while the total size is unknown.
             boolean ok = Downloader.downloadFile(release.url, archive, true, (fraction) -> {
@@ -212,18 +237,18 @@ public final class LinuxRuntimeInstaller {
             File staging = new File(root.getParentFile(), LinuxRuntime.DIR + ".new");
             File old = new File(root.getParentFile(), LinuxRuntime.DIR + ".old");
             recoverInterruptedSwap(root, staging, old);
-            FileUtils.delete(staging);
+            RuntimeFileTree.delete(staging, null);
             if (!staging.mkdirs()) return false;
             if (listener != null) listener.onProgress("Extracting", -1);
             if (!extract(archive, staging, listener)) {
-                FileUtils.delete(staging);
+                RuntimeFileTree.delete(staging, null);
                 return false;
             }
             FileUtils.writeString(new File(staging, VERSION_FILE), release.version);
 
-            FileUtils.delete(old);
+            RuntimeFileTree.delete(old, null);
             if (root.isDirectory() && !root.renameTo(old)) {
-                FileUtils.delete(staging);
+                RuntimeFileTree.delete(staging, null);
                 return false;
             }
 
@@ -232,16 +257,15 @@ public final class LinuxRuntimeInstaller {
             // own empty /root is dropped first so the rename has somewhere to land. If this fails
             // the update is abandoned and the previous runtime is put back untouched - shipping a
             // working system with the user's games gone is the worse outcome.
-            File keptFrom = new File(old, USER_DATA);
-            if (keptFrom.isDirectory()) {
-                File keptTo = new File(staging, USER_DATA);
-                FileUtils.delete(keptTo);
-                if (!keptFrom.renameTo(keptTo)) {
-                    Log.w(TAG, "could not carry " + USER_DATA + " across the update; rolling back");
-                    FileUtils.delete(staging);
-                    old.renameTo(root);
-                    return false;
-                }
+            try {
+                RuntimeFileTree.carryHome(old, staging);
+            } catch (IOException e) {
+                Log.w(TAG, "could not carry root across the update; rolling back", e);
+                // Restore the live name even if cleaning the failed staging tree is denied.
+                old.renameTo(root);
+                try { RuntimeFileTree.delete(staging, null); }
+                catch (IOException cleanup) { Log.w(TAG, "could not clear the failed staging tree", cleanup); }
+                return false;
             }
 
             if (!staging.renameTo(root)) {
@@ -250,7 +274,7 @@ public final class LinuxRuntimeInstaller {
                 if (old.isDirectory()) old.renameTo(root);
                 return false;
             }
-            FileUtils.delete(old);
+            RuntimeFileTree.delete(old, null);
             return LinuxRuntime.isInstalled(context);
         } catch (Exception e) {
             Log.e(TAG, "install", e);
@@ -260,13 +284,13 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
-    private static void recoverInterruptedSwap(File root, File staging, File old) {
+    static void recoverInterruptedSwap(File root, File staging, File old) throws IOException {
         File target = root.isDirectory() ? root : old;
         File stagedHome = new File(staging, USER_DATA);
         File home = new File(target, USER_DATA);
         if (target.isDirectory() && stagedHome.isDirectory() && (!home.exists() || isEmptyDir(home))) {
-            FileUtils.delete(home);
-            if (stagedHome.renameTo(home)) Log.w(TAG, "recovered " + USER_DATA + " from an interrupted update");
+            RuntimeFileTree.carryHome(staging, target);
+            Log.w(TAG, "recovered " + USER_DATA + " from an interrupted update");
         }
         if (!root.isDirectory() && old.isDirectory() && old.renameTo(root)) {
             Log.w(TAG, "restored the previous runtime after an interrupted update");
@@ -278,19 +302,75 @@ public final class LinuxRuntimeInstaller {
         return dir.isDirectory() && names != null && names.length == 0;
     }
 
-    /** Removes the runtime; returns false without touching it while an install is running. */
-    public static boolean uninstall(Context context) {
+    /** Reserve removal before returning to the UI, so Play cannot race the worker. */
+    public static Removal beginUninstall(Context context) {
+        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning()) return null;
+        com.droiddeck.launcher.session.SessionPhase phase = com.droiddeck.launcher.session.SessionState.INSTANCE.getPhase();
+        if (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED) return null;
+        return beginUninstall(LinuxRuntime.rootDir(context));
+    }
+
+    static Removal beginUninstall(File root) {
         synchronized (JOB_LOCK) {
-            if (running != null || removing) return false;
-            removing = true;
+            if (running != null) return null;
+            removalError = null;
+            running = new Job(true);
+            running.stage = "Removing Linux runtime";
+            return new Removal(root, running);
         }
-        try {
-            FileUtils.delete(LinuxRuntime.rootDir(context));
-            return true;
-        } finally {
-            synchronized (JOB_LOCK) {
-                removing = false;
+    }
+
+    public static final class Removal {
+        private final File root;
+        private final Job job;
+        private final java.util.concurrent.atomic.AtomicBoolean started = new java.util.concurrent.atomic.AtomicBoolean();
+        private Removal(File root, Job job) { this.root = root; this.job = job; }
+
+        public boolean run(ProgressListener listener) {
+            if (!started.compareAndSet(false, true)) return join(job, listener);
+            if (listener != null) job.listeners.add(listener);
+            try {
+                report("Removing Linux runtime", -1);
+                final long[] removed = {0};
+                final long[] lastShown = {0};
+                java.util.function.LongConsumer progress = ignored -> {
+                    removed[0]++;
+                    long now = System.nanoTime();
+                    if (removed[0] == 1 || now - lastShown[0] >= 200_000_000L) {
+                        lastShown[0] = now;
+                        report("Removing Linux runtime · " + removed[0] + " entries", -1);
+                    }
+                };
+                File pending = removalDirectory(root);
+                // Invalidate the installation before traversing it. A process killed halfway
+                // through leaves a named removal to resume, never a launchable partial runtime.
+                if (root.exists()) {
+                    RuntimeFileTree.delete(pending, progress);
+                    if (!root.renameTo(pending)) throw new IOException("Cannot prepare the runtime for removal");
+                } else if (!pending.isDirectory() && !pending.mkdirs()) {
+                    throw new IOException("Cannot prepare the runtime for removal");
+                }
+                // Keep the quarantine until all leftovers are gone, so a failure stays retryable.
+                RuntimeFileTree.delete(new File(root.getParentFile(), root.getName() + ".new"), progress);
+                RuntimeFileTree.delete(new File(root.getParentFile(), root.getName() + ".old"), progress);
+                RuntimeFileTree.delete(pending, progress);
+                job.ok = true;
+                report("Linux runtime removed", 100);
+                return true;
+            } catch (IOException e) {
+                removalError = "Could not finish removing the Linux runtime. Retry removal in Setup.";
+                Log.w(TAG, "runtime removal incomplete", e);
+                report(removalError, -1);
+                return false;
+            } finally {
+                synchronized (JOB_LOCK) { running = null; }
+                job.done.countDown();
             }
+        }
+        private void report(String stage, int percent) {
+            job.stage = stage;
+            job.percent = percent;
+            for (ProgressListener listener : job.listeners) listener.onProgress(stage, percent);
         }
     }
 

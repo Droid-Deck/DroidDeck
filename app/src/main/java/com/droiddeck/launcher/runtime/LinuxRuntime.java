@@ -88,6 +88,7 @@ public final class LinuxRuntime {
 
     /** The rootfs is present with gamescope and the session script the launcher hands control to. */
     public static boolean isInstalled(Context context) {
+        if (LinuxRuntimeInstaller.isRemoving() || LinuxRuntimeInstaller.hasRemovalPending(context)) return false;
         File root = rootDir(context);
         return new File(root, "usr/bin/gamescope").isFile()
                 && new File(root, SESSION_SCRIPT.substring(1)).isFile()

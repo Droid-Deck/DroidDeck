@@ -25,22 +25,25 @@ class RuntimeInstallService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val removal = intent?.action == ACTION_REMOVE
         val release = intent?.let(::releaseFrom)
-        startForeground(NOTIFICATION_ID, notification("Starting…", -1))
-        if (release == null) {
+        startForeground(NOTIFICATION_ID, notification(if (removal) "Removing Linux runtime" else "Starting…", -1))
+        if (release == null && !removal) {
             stopSelf(startId)
             return START_NOT_STICKY
         }
         Thread({
             val manager = getSystemService(NotificationManager::class.java)
-            var shown = Int.MIN_VALUE
-            LinuxRuntimeInstaller.install(applicationContext, release) { stage, percent ->
-                // Every percent at most once: a notification per read would flood the system.
-                if (percent != shown) {
-                    shown = percent
+            var shown = ""
+            val progress = LinuxRuntimeInstaller.ProgressListener { stage, percent ->
+                // Install percentages and throttled removal counts, including stage transitions.
+                if ("$stage:$percent" != shown) {
+                    shown = "$stage:$percent"
                     manager?.notify(NOTIFICATION_ID, notification(stage, percent))
                 }
             }
+            if (removal) LinuxRuntimeInstaller.attach(progress)
+            else LinuxRuntimeInstaller.install(applicationContext, release!!, progress)
             @Suppress("DEPRECATION")
             stopForeground(true)
             stopSelf(startId)
@@ -50,9 +53,9 @@ class RuntimeInstallService : Service() {
 
     private fun notification(stage: String, percent: Int): Notification {
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Runtime install",
+        manager?.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Linux runtime",
             NotificationManager.IMPORTANCE_LOW).apply {
-            description = "Shows while the Linux runtime downloads and installs"
+            description = "Shows while the Linux runtime is installed or removed"
             setShowBadge(false)
             setSound(null, null)
             enableVibration(false)
@@ -62,7 +65,7 @@ class RuntimeInstallService : Service() {
             PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_session)
-            .setContentTitle("Installing the Linux runtime")
+            .setContentTitle(if (LinuxRuntimeInstaller.isRemoving()) "Removing the Linux runtime" else "Installing the Linux runtime")
             .setContentText(stage)
             .setProgress(100, percent.coerceIn(0, 100), percent < 0)
             .setContentIntent(open)
@@ -75,6 +78,7 @@ class RuntimeInstallService : Service() {
     companion object {
         private const val CHANNEL_ID = "runtime-install"
         private const val NOTIFICATION_ID = 2
+        private const val ACTION_REMOVE = "com.droiddeck.launcher.REMOVE_RUNTIME"
         private const val EXTRA_VERSION = "version"
         private const val EXTRA_URL = "url"
         private const val EXTRA_SHA256 = "sha256"
@@ -87,6 +91,11 @@ class RuntimeInstallService : Service() {
                 .putExtra(EXTRA_URL, release.url)
                 .putExtra(EXTRA_SHA256, release.sha256)
                 .putExtra(EXTRA_SIZE, release.size)
+            if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
+        }
+
+        fun keepRemovalAlive(context: Context) {
+            val intent = Intent(context, RuntimeInstallService::class.java).setAction(ACTION_REMOVE)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
         }
 

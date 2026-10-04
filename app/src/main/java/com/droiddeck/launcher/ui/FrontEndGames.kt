@@ -279,13 +279,14 @@ internal fun PageHeader(title: String, trailing: @Composable RowScope.() -> Unit
 /** Why a launch button is greyed out: the runtime is being worked on. Nothing when it is not. */
 @Composable
 internal fun BusyChip(s: FrontEndState) {
-    if (s.busy) ActionChip(if (s.percent >= 0) stringResource(R.string.games_runtime_busy_percent, s.percent) else stringResource(R.string.games_runtime_busy), ok = false)
+    if (s.busy) ActionChip(if (s.percent >= 0) stringResource(R.string.games_runtime_busy_percent, s.percent) else s.stage, ok = false)
 }
 
 /** Whether Steam can start, said where Play is rather than only in Setup. */
 @Composable
 internal fun RuntimeChip(s: FrontEndState) = when {
     s.busy -> Chip(if (s.percent >= 0) stringResource(R.string.setup_runtime_progress, s.stage, s.percent) else s.stage, ok = false)
+    s.removalPending -> Chip(stringResource(R.string.runtime_removal_incomplete), ok = false)
     !s.ready -> Chip(stringResource(R.string.games_runtime_first_play), ok = false)
     s.available != null && s.available != s.installed -> Chip(stringResource(R.string.games_runtime_update), ok = false)
     else -> Chip(stringResource(R.string.games_runtime_ready), ok = true)

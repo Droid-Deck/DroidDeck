@@ -935,4 +935,7 @@
     <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
     <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
     <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
+    <string name="setup_retry_removal">Retry removal</string>
+    <string name="runtime_removing">Removing</string>
+    <string name="runtime_removal_incomplete">Removal incomplete</string>
 </resources>

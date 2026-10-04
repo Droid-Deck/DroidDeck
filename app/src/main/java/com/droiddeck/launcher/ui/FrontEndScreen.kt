@@ -111,6 +111,8 @@ class FrontEndState(
     val packageStage: String? = null,
     val packagePercent: Int = -1,
     val sessionRunning: Boolean = false,
+    val removalPending: Boolean = false,
+    val runtimeActionsBlocked: Boolean = false,
     val backActionsInverted: Boolean = false,
     val buildLabel: String = "local",
     val oscMode: String = SessionPrefs.OSC_AUTO,

@@ -126,7 +126,7 @@ internal fun SideRail(
                 val barWidth = if (iconOnly) 44.dp else 60.dp
                 if (s.percent >= 0) LinearProgressIndicator(progress = { s.percent / 100f }, modifier = Modifier.width(barWidth))
                 else LinearProgressIndicator(modifier = Modifier.width(barWidth))
-                Text(if (s.percent >= 0) stringResource(R.string.rail_percent, s.percent) else if (iconOnly) "…" else stringResource(R.string.setup_check_busy), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                Text(if (s.percent >= 0) stringResource(R.string.rail_percent, s.percent) else if (iconOnly) "…" else if (s.stage.startsWith("Removing")) stringResource(R.string.runtime_removing) else stringResource(R.string.setup_check_busy), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
         }
         var lastRunning by remember { mutableStateOf("") }
