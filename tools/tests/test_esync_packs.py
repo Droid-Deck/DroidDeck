@@ -1114,5 +1114,48 @@ class LauncherTest(SyncTestCase):
         self.assertEqual(sorted(os.listdir(debug / "droiddeck-esync")), ["launches.log", "tools.tsv"])
 
 
+class BundleTest(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def release_env(self):
+        values = {}
+        for line in (self.ROOT / "tools/droiddeck-esync/release.env").read_text().splitlines():
+            key, _, value = line.partition("=")
+            values[key] = value
+        return values
+
+    def test_release_env_pins_a_components_bundle(self):
+        env = self.release_env()
+        self.assertEqual(set(env), {"SYNC_BUNDLE_REPO", "SYNC_BUNDLE_TAG", "SYNC_BUNDLE_ASSET", "SYNC_BUNDLE_SHA256"})
+        self.assertEqual(env["SYNC_BUNDLE_REPO"], "Droid-Deck/DroidDeck-Components")
+        self.assertEqual(env["SYNC_BUNDLE_TAG"], "droiddeck-esync-index")
+        self.assertRegex(env["SYNC_BUNDLE_ASSET"], r"^bundle-[0-9]{8}-[0-9]{6}\.tzst$")
+        self.assertRegex(env["SYNC_BUNDLE_SHA256"], r"^[0-9a-f]{64}$")
+        packs = (self.ROOT / "app/src/main/java/com/droiddeck/launcher/session/EsyncPacks.kt").read_text()
+        self.assertIn(f'const val REPO = "{env["SYNC_BUNDLE_REPO"]}"', packs)
+        self.assertIn('releases/download/{}/index.json"'.format(env["SYNC_BUNDLE_TAG"]), packs)
+
+    def test_builds_fetch_the_pinned_bundle(self):
+        try:
+            import yaml
+        except ImportError:
+            self.skipTest("PyYAML is not installed")
+        apk = yaml.safe_load((self.ROOT / ".github/workflows/build.yml").read_text())
+        steps = {step.get("name"): step for step in apk["jobs"]["build"]["steps"]}
+        bundle = steps["Bundle the droiddeck-esync packs"]
+        self.assertNotIn("if", bundle)
+        self.assertIn("tools/droiddeck-esync/release.env", bundle["run"])
+        self.assertEqual(bundle["run"].count('-R "$SYNC_BUNDLE_REPO"'), 2)
+        self.assertIn("sha256sum -c -", bundle["run"])
+        self.assertNotIn("revoked.txt", bundle["run"])
+        stage = next(step for step in apk["jobs"]["build"]["steps"] if "overlay/usr/local/bin/droiddeck-*" in step.get("run", ""))
+        self.assertIn("tools/linuxfs/overlay/usr/local/bin/droiddeck-* ", stage["run"])
+        local = (self.ROOT / "tools/build_local.sh").read_text()
+        self.assertIn("tools/linuxfs/overlay/usr/local/bin/droiddeck-* ", local)
+        self.assertIn('"${SYNC_BUNDLE_REPO}"', local)
+        self.assertNotIn("revoked.txt", local)
+        self.assertFalse((self.ROOT / ".github/workflows/build-droiddeck-esync-packs.yml").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

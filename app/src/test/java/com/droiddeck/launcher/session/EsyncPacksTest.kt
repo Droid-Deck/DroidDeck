@@ -72,7 +72,7 @@ class EsyncPacksTest {
         sourceMatch: Boolean = false,
         version: String = "GE-Proton11-7",
         exportsHash: String = exports,
-        url: String = "https://github.com/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-ge/$id.tzst",
+        url: String = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/droiddeck-esync-ge/$id.tzst",
         revoked: Boolean = false,
     ): JSONObject = packJson(id, rev, ntdll, wineserver, sourceMatch, version, exportsHash)
         .put("asset", JSONObject().put("url", url).put("sha256", "d".repeat(64)).put("size", 123))
@@ -164,20 +164,21 @@ class EsyncPacksTest {
         val packs = entries(
             entryJson("good-r1"),
             entryJson("other-repo-r1", url = "https://github.com/Someone/DroidDeck/releases/download/droiddeck-esync-ge/other-repo-r1.tzst"),
-            entryJson("plain-http-r1", url = "http://github.com/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-ge/plain-http-r1.tzst"),
-            entryJson("dotdot-r1", url = "https://github.com/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-ge/../../x/dotdot-r1.tzst"),
-            entryJson("other-tag-r1", url = "https://github.com/Droid-Deck/DroidDeck/releases/download/v1/other-tag-r1.tzst"),
-            entryJson("query-r1", url = "https://github.com/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-ge/query-r1.tzst?x=1"),
+            entryJson("plain-http-r1", url = "http://github.com/Droid-Deck/DroidDeck-Components/releases/download/droiddeck-esync-ge/plain-http-r1.tzst"),
+            entryJson("dotdot-r1", url = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/droiddeck-esync-ge/../../x/dotdot-r1.tzst"),
+            entryJson("other-tag-r1", url = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/v1/other-tag-r1.tzst"),
+            entryJson("query-r1", url = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/droiddeck-esync-ge/query-r1.tzst?x=1"),
             entryJson("bad/id"),
             entryJson("bad-hash-r1", ntdll = "xyz"),
             entryJson("good-r1", rev = 9),
         )
         assertEquals(listOf("good-r1"), packs.map { it.id })
         assertEquals(1, packs.single().rev)
-        assertTrue(EsyncPacks.allowedUrl("https://github.com/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-cachyos/a-r2.tzst"))
-        assertFalse(EsyncPacks.allowedUrl("https://github.com/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-ge/.."))
-        assertFalse(EsyncPacks.allowedUrl("https://github.com/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-ge/a/b.tzst"))
-        assertFalse(EsyncPacks.allowedUrl("https://github.com.evil.example/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-ge/a.tzst"))
+        assertTrue(EsyncPacks.allowedUrl("https://github.com/Droid-Deck/DroidDeck-Components/releases/download/droiddeck-esync-cachyos/a-r2.tzst"))
+        assertFalse(EsyncPacks.allowedUrl("https://github.com/Droid-Deck/DroidDeck-Components/releases/download/droiddeck-esync-ge/.."))
+        assertFalse(EsyncPacks.allowedUrl("https://github.com/Droid-Deck/DroidDeck-Components/releases/download/droiddeck-esync-ge/a/b.tzst"))
+        assertFalse(EsyncPacks.allowedUrl("https://github.com.evil.example/Droid-Deck/DroidDeck-Components/releases/download/droiddeck-esync-ge/a.tzst"))
+        assertFalse(EsyncPacks.allowedUrl("https://github.com/Droid-Deck/DroidDeck/releases/download/droiddeck-esync-ge/a.tzst"))
     }
 
     @Test fun parseIndexRejectsAnUnknownSchema() {

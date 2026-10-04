@@ -243,19 +243,21 @@ sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
 if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
     . "${repo_root}/tools/droiddeck-esync/release.env"
     sync_archive=$(cached "${SYNC_BUNDLE_SHA256}" "${SYNC_BUNDLE_ASSET}" \
-        bash -c 'gh release download "$0" -R Droid-Deck/DroidDeck -p "$1" -O "$out"' "${SYNC_BUNDLE_TAG}" "${SYNC_BUNDLE_ASSET}")
+        bash -c 'gh release download "$0" -R "$2" -p "$1" -O "$out"' "${SYNC_BUNDLE_TAG}" "${SYNC_BUNDLE_ASSET}" "${SYNC_BUNDLE_REPO}")
     rm -rf "${sync_assets}"
     mkdir -p "${sync_assets}"
     zstd -dc "${sync_archive}" | tar -xf - -C "${sync_assets}"
     test -f "${sync_assets}/index.json"
     test -f "${sync_assets}/index.json.sig"
-    while read -r id _; do
-        case "${id}" in ''|'#'*) continue ;; esac
+    sync_index=$(mktemp)
+    gh release download "${SYNC_BUNDLE_TAG}" -R "${SYNC_BUNDLE_REPO}" -p index.json -O "${sync_index}" --clobber
+    for id in $(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' "${sync_index}"); do
         if [[ -e "${sync_assets}/packs/${id}.tzst" ]]; then
             echo "${SYNC_BUNDLE_ASSET} carries revoked pack ${id}; it is left out of the APK" >&2
             rm -f "${sync_assets}/packs/${id}.tzst"
         fi
-    done < "${repo_root}/tools/droiddeck-esync/revoked.txt"
+    done
+    rm -f "${sync_index}"
 elif [[ -d "${sync_assets}" ]]; then
     echo "No tools/droiddeck-esync/release.env: the APK bundles the droiddeck-esync packs already in ${sync_assets}." >&2
 fi

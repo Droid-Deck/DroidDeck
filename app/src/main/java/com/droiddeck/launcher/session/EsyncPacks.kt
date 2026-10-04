@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 object EsyncPacks {
     private const val TAG = "DroidDeckSync"
-    const val REPO = "Droid-Deck/DroidDeck"
+    const val REPO = "Droid-Deck/DroidDeck-Components"
     const val INDEX_URL = "https://github.com/$REPO/releases/download/droiddeck-esync-index/index.json"
     const val SIG_URL = "$INDEX_URL.sig"
     const val ASSET_PREFIX = "https://github.com/$REPO/releases/download/droiddeck-esync-"
