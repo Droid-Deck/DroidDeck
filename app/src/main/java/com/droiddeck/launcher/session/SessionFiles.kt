@@ -35,6 +35,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
             "usr/local/bin/bannerlator-steam-compat" to "usr/local/bin/bannerlator-steam-compat",
             "usr/local/bin/bannerlator-steam-install" to "usr/local/bin/bannerlator-steam-install",
+            "usr/local/bin/bannerlator-steam-ui-scale" to "usr/local/bin/bannerlator-steam-ui-scale",
             "usr/local/bin/bannerlator-steam-library" to "usr/local/bin/bannerlator-steam-library",
             "usr/local/bin/bannerlator-seed-redists" to "usr/local/bin/bannerlator-seed-redists",
             "usr/local/bin/bannerlator-proton-extra" to "usr/local/bin/bannerlator-proton-extra",

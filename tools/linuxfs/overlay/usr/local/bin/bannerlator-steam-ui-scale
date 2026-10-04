@@ -1,0 +1,136 @@
+#!/usr/bin/python3
+"""Initialize Steam's own Gamescope UI scale once; subsequent choices belong to Steam."""
+import math
+import os
+from pathlib import Path
+import re
+import sys
+import tempfile
+
+
+DISPLAY = "External: gamescope|||Windowed"
+TOKEN = re.compile(r'\s+|//[^\n]*|"(?:\\.|[^"\\])*"|[{}]')
+
+
+class Block:
+    def __init__(self, pairs, end):
+        self.pairs = pairs
+        self.end = end
+
+    def get(self, name):
+        matches = [value for key, value in self.pairs if key.lower() == name.lower()]
+        if len(matches) > 1:
+            raise ValueError("duplicate UI setting")
+        return matches[0] if matches else None
+
+
+def parse(text):
+    tokens = []
+    position = 0
+    for match in TOKEN.finditer(text):
+        if match.start() != position:
+            raise ValueError("invalid config.vdf")
+        position = match.end()
+        token = match.group()
+        if not token.isspace() and not token.startswith('//'):
+            tokens.append((token, match.start()))
+    if position != len(text):
+        raise ValueError("invalid config.vdf")
+
+    def block(index, nested=False):
+        pairs = []
+        while index < len(tokens):
+            token, offset = tokens[index]
+            if token == '}':
+                if not nested:
+                    raise ValueError("unexpected closing brace")
+                return Block(pairs, offset), index + 1
+            if not token.startswith('"') or index + 1 == len(tokens):
+                raise ValueError("missing config value")
+            key = token[1:-1]
+            value = tokens[index + 1][0]
+            index += 2
+            if value == '{':
+                value, index = block(index, True)
+            elif value.startswith('"'):
+                value = value[1:-1]
+            else:
+                raise ValueError("invalid config value")
+            pairs.append((key, value))
+        if nested:
+            raise ValueError("unclosed config block")
+        return Block(pairs, len(text)), index
+
+    return block(0)[0]
+
+
+def initial_scale(width, height):
+    # The Thor setting chosen on device at 1280x720 was 140% of its automatic scale.
+    # Adjust with canvas area so choosing a different session resolution keeps the UI usable.
+    if not 320 <= width <= 16384 or not 320 <= height <= 16384:
+        raise ValueError("invalid session size")
+    return 1.3281567096710205 * math.sqrt(width * height / (1280 * 720))
+
+
+def seed_text(text, scale):
+    root = parse(text).get('InstallConfigStore')
+    if not isinstance(root, Block):
+        raise ValueError("missing InstallConfigStore")
+    ui = root.get('UI')
+    display = ui.get('display') if isinstance(ui, Block) else None
+    if ui is not None and not isinstance(ui, Block):
+        raise ValueError("invalid UI settings")
+    if display is not None and not isinstance(display, Block):
+        raise ValueError("invalid display settings")
+    if display is not None:
+        # Current describes the active display and is written even with automatic scaling.
+        # Named display entries are the user's saved choices, including a return to Auto.
+        if any(name.lower() != 'current' and isinstance(value, Block)
+               and value.get('ScaleFactor') is not None for name, value in display.pairs):
+            return text, False
+    entry = f'"{DISPLAY}"\n{{\n"ScaleFactor" "{scale:.9f}"\n}}\n'
+    if display is not None:
+        at, indent = display.end, 3
+    elif ui is not None:
+        entry = '"display"\n{\n' + entry + '}\n'
+        at, indent = ui.end, 2
+    else:
+        entry = '"UI"\n{\n"display"\n{\n' + entry + '}\n}\n'
+        at, indent = root.end, 1
+    # Insert only the new block; leave every existing byte, comment and credential untouched.
+    insertion = '\n' + '\n'.join('\t' * indent + line for line in entry.splitlines()) + '\n'
+    return text[:at] + insertion + text[at:], True
+
+
+def atomic_write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix='.' + path.name, dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as output:
+            output.write(text)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def initialize(steam_root, width, height):
+    config = Path(steam_root) / 'config/config.vdf'
+    marker = config.with_name('droiddeck-ui-scale-initialized')
+    if marker.exists():
+        return False
+    text = config.read_text() if config.exists() else '"InstallConfigStore"\n{\n}\n'
+    updated, changed = seed_text(text, initial_scale(width, height))
+    if changed:
+        atomic_write(config, updated)
+        print(f'== steam: initial handheld UI scale {initial_scale(width, height):.3f}')
+    atomic_write(marker, '1\n')
+    return changed
+
+
+if __name__ == '__main__':
+    try:
+        initialize(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))
+    except (OSError, ValueError, RecursionError) as error:
+        print('== steam: left UI scale unchanged: ' + str(error), file=sys.stderr)
+        sys.exit(1)

@@ -323,6 +323,9 @@ case $mode in
     bannerlator-steam-library "$steam_root" || true
     step "setting up the ARM64 Proton compatibility tool"
     bannerlator-steam-compat "$steam_root" || true
+    if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
+      bannerlator-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
+    fi
     # The user's own games, as non-Steam shortcuts under that tool; the list is written by the app
     # each session (empty = the app's earlier entries are removed, the client's own are kept).
     if [ -n "${BL_ADDED_GAMES:-}" ]; then
