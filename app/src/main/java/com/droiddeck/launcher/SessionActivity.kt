@@ -493,16 +493,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onHardwareKeyboard = { drawerOpen = false; pcKeyboardOpen = !pcKeyboardOpen },
                     onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
                     onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
-                    // The desktop with Steam's desktop client in it, in this session's place: the
-                    // session ends with status 0 and onSessionEnded starts the relaunch (Stop's
-                    // finish() would skip it).
-                    onSwitchToDesktop = if (SessionState.mode == SessionService.MODE_STEAM) ({
-                        drawerOpen = false
-                        SessionState.relaunch = Intent(this@SessionActivity, SessionActivity::class.java)
-                            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
-                            .putExtra(SessionService.EXTRA_STEAM_UI, "desktop")
-                        SessionService.stop(this@SessionActivity)
-                    }) else null,
                     backActionsInverted = backActionsInverted,
                     onBackActionsInverted = { inverted ->
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
@@ -1083,8 +1073,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (status == 0) {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                // A session asked for in this one's place (the desktop's Steam launchers, the
-                // drawer's DESKTOP) starts here: this activity restarts on its intent, as an agent
+                // A session asked for in this one's place (the desktop's Steam launchers or
+                // Steam's Switch to Desktop) starts here: this activity restarts on its intent, as an agent
                 // start does. startActivity(next) could not do it - the activity is singleTop, so
                 // the request landed in this instance's onNewIntent and went with its finish().
                 SessionState.relaunch?.let { next ->

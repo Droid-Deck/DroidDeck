@@ -185,8 +185,6 @@ class DrawerActions(
     val onHardwareKeyboard: () -> Unit,
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
-    /** Steam sessions: end Big Picture and open the desktop with Steam's desktop client in it. */
-    val onSwitchToDesktop: (() -> Unit)? = null,
     val onOsc: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit,
@@ -328,14 +326,6 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                             host.open = null
                             if (!qamStartedOnPress) a.onQam.invoke()
                             qamStartedOnPress = false
-                        }
-                        // Big Picture's own "Switch to Desktop" waits on SteamOS Manager for ever
-                        // here; this does the switch without the client.
-                        if (a.onSwitchToDesktop != null) {
-                            QuickAction(stringResource(R.string.drawer_desktop), Icons.Outlined.DesktopWindows, Modifier.weight(1f).then(focus.track(page, "desktop")), compact = short) {
-                                host.open = null
-                                a.onSwitchToDesktop.invoke()
-                            }
                         }
                     }
                 }
