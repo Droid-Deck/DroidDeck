@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.DependencyDetector
+import com.droiddeck.launcher.frontend.PrefixInstalledDetector
+import com.droiddeck.launcher.frontend.SteamRedists
 import com.droiddeck.launcher.session.WinComponents
 import com.droiddeck.launcher.session.WinComponents.Support
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +59,12 @@ private fun installable(name: String, all: Map<String, WinComponents.Component>)
 }
 
 @Composable
-internal fun WinComponentsDialog(appKey: String, gameName: String, gameDir: File?, byPad: Boolean, onClose: () -> Unit) {
+internal fun WinComponentsDialog(
+    appKey: String, gameName: String, gameDir: File?, byPad: Boolean,
+    /** compatdata/<id>: what the prefix already has. [steamAppId]: a Steam title, whose appmanifest lists Steam's own redists. */
+    compat: File? = null, steamAppId: Int? = null,
+    onClose: () -> Unit,
+) {
     val context = LocalContext.current
     val coroutine = rememberCoroutineScope()
     val shown = rememberShown(onClose)
@@ -67,6 +74,8 @@ internal fun WinComponentsDialog(appKey: String, gameName: String, gameDir: File
     var offline by remember { mutableStateOf(false) }
     var recommended by remember { mutableStateOf(emptyList<DependencyDetector.Recommendation>()) }
     var installed by remember { mutableStateOf(emptySet<String>()) }
+    // Detector names (oalinst, physx...) already in the prefix from elsewhere.
+    var present by remember { mutableStateOf(emptySet<String>()) }
     var picks by remember { mutableStateOf(WinComponents.picks(context, appKey)) }
     var progress by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -80,11 +89,15 @@ internal fun WinComponentsDialog(appKey: String, gameName: String, gameDir: File
 
     LaunchedEffect(Unit) {
         val (entries, found) = withContext(Dispatchers.IO) {
-            WinComponents.fetch() to (gameDir?.let { DependencyDetector.detect(it) } ?: emptyList())
+            // The folder's own installers first, then what Steam installs with the game.
+            val own = gameDir?.let { DependencyDetector.detect(it) } ?: emptyList()
+            val steam = steamAppId?.let { SteamRedists.detect(gameDir, it) } ?: emptyList()
+            WinComponents.fetch() to (own + steam)
         }
         offline = entries == null
         catalog = entries.orEmpty().associateBy { it.name }
         recommended = found
+        present = withContext(Dispatchers.IO) { PrefixInstalledDetector.detect(compat) }
         installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }
     fun setPicks(next: List<String>) {
@@ -112,6 +125,7 @@ internal fun WinComponentsDialog(appKey: String, gameName: String, gameDir: File
     }
 
     val all = catalog
+    val here = if (all == null) emptySet() else present.map { installable(it, all) }.toSet()
     fun supportOf(id: String): Support =
         all?.get(id)?.let { WinComponents.support(it, all) } ?: if (id in installed) Support.READY else Support.UNSUPPORTED
     val recIds = if (all == null) emptyList() else recommended.distinctBy { installable(it.componentName, all) }
@@ -147,6 +161,7 @@ internal fun WinComponentsDialog(appKey: String, gameName: String, gameDir: File
             val c = all?.get(id)
             val support = supportOf(id)
             val status = when {
+                id in here && id !in picks -> stringResource(R.string.wincomp_already_here)
                 id in installed -> stringResource(R.string.wincomp_downloaded)
                 support == Support.NEEDS_INSTALLER -> stringResource(R.string.wincomp_needs_installer)
                 support == Support.UNSUPPORTED -> stringResource(R.string.wincomp_unsupported)
@@ -172,7 +187,11 @@ internal fun WinComponentsDialog(appKey: String, gameName: String, gameDir: File
                 recIds.forEachIndexed { i, rec ->
                     if (i > 0) Divider()
                     val reason = stringResource(
-                        if (rec.kind == DependencyDetector.Kind.BUNDLED) R.string.wincomp_found_bundled else R.string.wincomp_found_shipped, rec.reason,
+                        when (rec.kind) {
+                            DependencyDetector.Kind.BUNDLED -> R.string.wincomp_found_bundled
+                            DependencyDetector.Kind.SHIPPED -> R.string.wincomp_found_shipped
+                            DependencyDetector.Kind.STEAM -> R.string.wincomp_found_steam
+                        }, rec.reason,
                     )
                     val id = installable(rec.componentName, all)
                     Item(id, reason, focusOf(id))

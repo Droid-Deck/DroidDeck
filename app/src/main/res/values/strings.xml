@@ -315,6 +315,8 @@
     <string name="wincomp_recommended">Recommended for this game</string>
     <string name="wincomp_found_bundled">The game ships %1$s</string>
     <string name="wincomp_found_shipped">The game has %1$s (often works as is)</string>
+    <string name="wincomp_found_steam">Steam installs %1$s with this game</string>
+    <string name="wincomp_already_here">Already in this game</string>
     <string name="wincomp_no_recommendation">Nothing in the game\'s folder points at a component.</string>
     <string name="wincomp_all">All components (%1$d)</string>
     <string name="wincomp_installers">Need a Windows installer (%1$d)</string>
