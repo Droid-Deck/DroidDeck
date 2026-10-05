@@ -110,7 +110,7 @@ class ModeSettings(
 )
 
 /** One added game as the settings page shows it: its folder, the chosen .exe, the other .exe files it could be. */
-class AddedGameRow(val folderPath: String, val folderName: String, val exePath: String, val exeName: String, val candidates: List<Pair<String, String>>)
+class AddedGameRow(val folderPath: String, val folderName: String, val exePath: String, val exeName: String, val candidates: List<Pair<String, String>>, val appId: Long = 0)
 
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
@@ -435,12 +435,16 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 stringResource(R.string.mode_added_art_hint),
                 s.addedGamesArt, onChange = a.onAddedGamesArt,
             )
-            for (g in s.addedGames) ChoiceRow(
-                host, "added:" + g.folderPath, g.folderName, if (s.addedGamesDirs.size > 1) stringResource(R.string.mode_added_launches_in, g.exeName, g.folderPath.substringBeforeLast('/').substringAfterLast('/')) else stringResource(R.string.mode_added_launches, g.exeName),
-                g.candidates + ("__pick__" to stringResource(R.string.mode_added_choose)), g.exePath,
-                note = stringResource(R.string.mode_added_exe_note),
-                onPick = { path -> if (path == "__pick__") a.onPickAddedGameExe(g.folderPath) else a.onAddedGameExe(g.folderPath, path) },
-            )
+            for (g in s.addedGames) {
+                ChoiceRow(
+                    host, "added:" + g.folderPath, g.folderName, if (s.addedGamesDirs.size > 1) stringResource(R.string.mode_added_launches_in, g.exeName, g.folderPath.substringBeforeLast('/').substringAfterLast('/')) else stringResource(R.string.mode_added_launches, g.exeName),
+                    g.candidates + ("__pick__" to stringResource(R.string.mode_added_choose)), g.exePath,
+                    note = stringResource(R.string.mode_added_exe_note),
+                    onPick = { path -> if (path == "__pick__") a.onPickAddedGameExe(g.folderPath) else a.onAddedGameExe(g.folderPath, path) },
+                )
+                // Its prefix is named after the shortcut's appid, so the components follow that.
+                if (g.appId != 0L) WinComponentsRow(g.appId, g.folderName)
+            }
         }
         if (steam && tab == ModeSettingsTab.GAMES && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
             if (s.syncBackend != null) SettingsRow(

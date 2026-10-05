@@ -307,6 +307,15 @@
     <string name="mode_added_launches_in">Launches %1$s · in %2$s</string>
     <string name="mode_added_choose">Choose another file…</string>
     <string name="mode_added_exe_note">Defaults to the .exe named after the folder, or else the largest.</string>
+    <string name="wincomp_title">Windows components</string>
+    <string name="wincomp_edit">Choose…</string>
+    <string name="wincomp_none">Extra Windows DLLs this game may need, such as OpenAL or DirectX helpers. None picked.</string>
+    <string name="wincomp_applies">Microsoft and OpenAL DLLs that Proton does not include. Turn on the ones the game asks for; they go into this game\'s own Windows folder, never the game\'s files, and stay there whichever Proton it runs on.</string>
+    <string name="wincomp_loading">Loading the components…</string>
+    <string name="wincomp_offline">Could not reach the component list. Components already downloaded can still be switched.</string>
+    <string name="wincomp_downloaded">Downloaded</string>
+    <string name="wincomp_download_size">%1$s download</string>
+    <string name="wincomp_next_launch">Takes effect the next time the game starts.</string>
     <string name="mode_fill">Stretch games to fill the screen</string>
     <string name="mode_fill_hint">Keeps self-resizing games full screen. Turn off if a game shows up small. Applies next session.</string>
     <string name="mode_stretch169">Stretch 16:9 games</string>

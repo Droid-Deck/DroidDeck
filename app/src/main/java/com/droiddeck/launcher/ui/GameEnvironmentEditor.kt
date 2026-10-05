@@ -70,7 +70,7 @@ fun GameEnvironmentRow(modifier: Modifier = Modifier, showHint: Boolean = true) 
 /** With a pad driving, focus [target] once the dialog is laid out, and keep the dialog in pad mode. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun PadFocus(byPad: Boolean, target: FocusRequester) {
+internal fun PadFocus(byPad: Boolean, target: FocusRequester) {
     val inputMode = LocalInputModeManager.current
     LaunchedEffect(Unit) {
         if (!byPad) return@LaunchedEffect
