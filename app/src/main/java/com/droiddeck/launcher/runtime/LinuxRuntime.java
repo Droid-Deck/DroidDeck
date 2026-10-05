@@ -270,6 +270,12 @@ public final class LinuxRuntime {
         if (extraBinds != null) {
             for (String spec : extraBinds) bind(cmd, spec);
         }
+        // Android's fonts, for the scripts the runtime's own fonts lack (GuestFonts).
+        String fonts = GuestFonts.bindSpec();
+        if (fonts != null) {
+            bind(cmd, fonts);
+            GuestFonts.prepare(context, root);
+        }
         List<String> specs = new ArrayList<>();
         for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
         return specs;
