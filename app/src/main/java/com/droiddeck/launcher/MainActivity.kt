@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
     private var showPhantomGate by mutableStateOf(false)
     private var directAudio by mutableStateOf(false)
     private var clientDirectAudio by mutableStateOf(false)
-    private var forceFullscreen by mutableStateOf(true)
+    private var forceFullscreen by mutableStateOf(false)
     private var stretch16x9 by mutableStateOf(false)
     private var launcherFullscreen by mutableStateOf(true)
     private var animationsEnabled by mutableStateOf(true)

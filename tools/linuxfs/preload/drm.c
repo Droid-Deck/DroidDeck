@@ -12,10 +12,18 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #define MAX_HANDLES 4096
+
+/* DRM_IOCTL_GEM_CLOSE from drm.h: _IOW('d', 0x09, struct drm_gem_close { u32 handle, pad; }). */
+struct gem_close {
+  uint32_t handle;
+  uint32_t pad;
+};
+#define GEM_CLOSE _IOW('d', 0x09, struct gem_close)
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static int handle_fds[MAX_HANDLES];
@@ -82,20 +90,47 @@ int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) {
   return ret;
 }
 
+/* Drops a handle's descriptor; false when the handle was never given out. */
+static int release_handle(uint32_t handle) {
+  int found = 0;
+  pthread_mutex_lock(&lock);
+  if (handle > 0 && handle < MAX_HANDLES && handle_fds[handle] > 0) {
+    close(handle_fds[handle]);
+    handle_fds[handle] = 0;
+    found = 1;
+  }
+  pthread_mutex_unlock(&lock);
+  return found;
+}
+
 int drmCloseBufferHandle(int fd, uint32_t handle) {
   if (!is_kgsl(fd)) {
     int (*fn)(int, uint32_t) = (int (*)(int, uint32_t)) real("drmCloseBufferHandle");
     return fn ? fn(fd, handle) : -ENOSYS;
   }
-  int ret = -EINVAL;
-  pthread_mutex_lock(&lock);
-  if (handle > 0 && handle < MAX_HANDLES && handle_fds[handle] > 0) {
-    close(handle_fds[handle]);
-    handle_fds[handle] = 0;
-    ret = 0;
+  return release_handle(handle) ? 0 : -EINVAL;
+}
+
+/*
+ * Zink gives its handles back with the GEM_CLOSE ioctl itself, not drmCloseBufferHandle
+ * (zink_bo.c, bo_destroy). KGSL refuses the ioctl, so the duplicated descriptor stayed open and
+ * kept the whole buffer alive: Xwayland asks for a handle for every buffer it imports, and a game
+ * whose swapchain was recreated on each resize piled up gigabytes of old swapchain images until
+ * Android killed the session.
+ */
+int drmIoctl(int fd, unsigned long request, void *arg) {
+  if (request == GEM_CLOSE && arg && is_kgsl(fd)) {
+    if (release_handle(((struct gem_close *) arg)->handle)) {
+      return 0;
+    }
+    errno = EINVAL;
+    return -1;
   }
-  pthread_mutex_unlock(&lock);
-  return ret;
+  int (*fn)(int, unsigned long, void *) = (int (*)(int, unsigned long, void *)) real("drmIoctl");
+  if (!fn) {
+    return -1;
+  }
+  return fn(fd, request, arg);
 }
 
 /*
