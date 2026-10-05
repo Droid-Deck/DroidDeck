@@ -20,8 +20,14 @@ class GameLaunchIntentTest {
         }
     }
 
+    @Test fun stringIdsPreserveUnsignedShortcutIds() {
+        listOf("2147483648", "18446744073709551615").forEach { id ->
+            assertEquals(id, GameLaunchIntent.readId(Intent(GameLaunchIntent.ACTION).putExtra("app_id", id)))
+        }
+    }
+
     @Test fun rejectsUnsupportedSourcesTypesAndIdsWithoutFallingBackToData() {
-        listOf("", "0", "01", "+1", "-1", "2147483648", "18446744073709551615", "620\n", "steam://rungameid/620").forEach { id ->
+        listOf("", "0", "01", "+1", "-1", "18446744073709551616", "620\n", "steam://rungameid/620").forEach { id ->
             assertNull(id, GameLaunchIntent.readId(Intent(GameLaunchIntent.ACTION).putExtra("app_id", id)))
         }
         listOf("EPIC", "GOG", "CUSTOM_GAME", "", "STEAM ").forEach { source ->
@@ -35,7 +41,7 @@ class GameLaunchIntentTest {
             android.net.Uri.parse("droiddeck://game/620"))))
     }
 
-    @Test fun legacyLinksAndPlainIdFilesUseTheSameReader() {
+    @Test fun deepLinksStillAcceptUnsignedShortcutIds() {
         val context = RuntimeEnvironment.getApplication()
         assertEquals("18446744073709551615", GameLaunchIntent.read(context,
             Intent(Intent.ACTION_VIEW, android.net.Uri.parse("droiddeck://game/18446744073709551615"))))

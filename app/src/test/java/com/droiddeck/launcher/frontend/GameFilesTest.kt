@@ -28,8 +28,8 @@ class GameFilesTest {
     @Test fun exportsPortableFilesAndAcceptsFileUriRawPathAndContentUri() {
         val folder = tmp.newFolder()
         val file = GameFiles.export(folder, game("18446744073709551615", "A/B: C"))
-        assertEquals("A_B_ C (18446744073709551615).droiddeck", file.name)
-        assertEquals("droiddeck://game/18446744073709551615\n", file.readText())
+        assertEquals("A_B_ C.steam", file.name)
+        assertEquals("18446744073709551615", file.readText())
         val context = RuntimeEnvironment.getApplication()
         listOf(Uri.fromFile(file), Uri.parse(file.path)).forEach { uri ->
             assertEquals("18446744073709551615", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, uri)))
@@ -44,15 +44,15 @@ class GameFilesTest {
 
     @Test fun rejectsCommandsMalformedIdsLargeFilesAndUnsupportedIntents() {
         listOf("", "0", "01", "-1", "18446744073709551616", "steam://rungameid/8400",
-            "8400\n8401", "droiddeck://game/8400?command=quit", "x".repeat(129)).forEach { value ->
+            "8400\n8401", "droiddeck://game/8400", "droiddeck://game/8400?command=quit", "x".repeat(129)).forEach { value ->
             assertNull(value, GameFiles.read(ByteArrayInputStream(value.toByteArray())))
         }
         assertEquals("8400", GameFiles.read(ByteArrayInputStream("8400\n".toByteArray())))
         val context = RuntimeEnvironment.getApplication()
         assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_SEND, Uri.parse("droiddeck://game/8400"))))
-        assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/8400.droiddeck"))))
-        assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("file://remote/game.droiddeck"))))
-        assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.fromFile(File(tmp.root, "missing.droiddeck")))))
+        assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/8400.steam"))))
+        assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("file://remote/game.steam"))))
+        assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.fromFile(File(tmp.root, "missing.steam")))))
         assertEquals("8400", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("droiddeck://game/8400"))))
     }
 
@@ -71,7 +71,8 @@ class GameFilesTest {
         assertEquals("custom artwork", image.readText())
         GameFiles.sync(folder, emptyList())
         assertEquals("custom artwork", image.readText())
-        assertEquals(0, folder.listFiles { f -> f.extension == GameFiles.EXTENSION }!!.size)
+        assertEquals("8400", File(folder, GameFiles.filename(game)).readText())
+        assertEquals(1, folder.listFiles { f -> f.extension == GameFiles.EXTENSION }!!.size)
         icon.delete()
         val fallback = tmp.newFolder()
         GameFiles.export(fallback, game)
@@ -80,7 +81,7 @@ class GameFilesTest {
 
     @Test fun syncAddsRenamesAndRemovesOwnedFilesAndPreservesUnrelatedAndEditedFiles() {
         val folder = tmp.newFolder()
-        val unrelated = File(folder, "manual.droiddeck").apply { writeText("droiddeck://game/1\n") }
+        val unrelated = File(folder, "manual.steam").apply { writeText("1") }
         val note = File(folder, "notes.txt").apply { writeText("Keep me") }
         val first = game()
         val second = game("620", "Portal 2")
@@ -110,10 +111,12 @@ class GameFilesTest {
         GameFiles.sync(folder, listOf(first))
         val second = game("620", "Portal 2")
         val collision = File(folder, GameFiles.filename(second)).apply { writeText("personal file") }
+        val fallback = File(folder, GameFiles.filename(second, disambiguate = true)).apply { writeText("another personal file") }
         assertThrows(IllegalArgumentException::class.java) { GameFiles.sync(folder, listOf(second)) }
         assertEquals("personal file", collision.readText())
         assertTrue(File(folder, GameFiles.filename(first)).isFile)
         collision.delete()
+        fallback.delete()
         GameFiles.sync(folder, listOf(second))
         assertFalse(File(folder, GameFiles.filename(first)).exists())
         assertTrue(collision.isFile)
@@ -132,10 +135,10 @@ class GameFilesTest {
     @Test fun refusesSymlinksLeavingTheExportFolder() {
         val folder = tmp.newFolder()
         val outside = tmp.newFile()
-        outside.writeText("droiddeck://game/8400\n")
+        outside.writeText("8400")
         java.nio.file.Files.createSymbolicLink(File(folder, GameFiles.filename(game())).toPath(), outside.toPath())
         assertThrows(IllegalArgumentException::class.java) { GameFiles.export(folder, game()) }
-        assertEquals("droiddeck://game/8400\n", outside.readText())
+        assertEquals("8400", outside.readText())
     }
 
     @Test fun caseOnlyRenameKeepsTheLiveExportOnCaseInsensitiveStorage() {
@@ -148,6 +151,8 @@ class GameFilesTest {
         assertTrue(file.isFile)
         assertEquals("8400", file.inputStream().use(GameFiles::read))
         assertEquals(1, folder.listFiles()!!.count { it.extension == GameFiles.EXTENSION })
+        GameFiles.sync(folder, emptyList())
+        assertFalse(file.exists())
     }
 
     @Test fun unrelatedInventoryIsPreserved() {
@@ -158,16 +163,16 @@ class GameFilesTest {
         assertEquals(0, folder.listFiles()!!.count { it.extension == GameFiles.EXTENSION })
     }
 
-    @Test fun steamExportContainsOnlyIdAndAddedGamesKeepTheirLaunchLinks() {
+    @Test fun steamExportContainsOnlyIdForSteamAndAddedGames() {
         val folder = tmp.newFolder()
-        val file = GameFiles.export(folder, game("620", "Portal 2"), GameFiles.ExportFormat.STEAM)
+        val file = GameFiles.export(folder, game("620", "Portal 2"))
         assertEquals("Portal 2.steam", file.name)
         assertEquals("620", file.readText())
         assertEquals("620", GameFiles.readIntent(RuntimeEnvironment.getApplication(), Intent(Intent.ACTION_VIEW, Uri.fromFile(file))))
         val added = Library.SteamGame(1, "Added Game", null, Library.ADDED, -1L)
-        val addedFile = GameFiles.export(folder, added, GameFiles.ExportFormat.STEAM)
-        assertEquals("Added Game (18446744073709551615).droiddeck", addedFile.name)
-        assertEquals("droiddeck://game/18446744073709551615\n", addedFile.readText())
+        val addedFile = GameFiles.export(folder, added)
+        assertEquals("Added Game.steam", addedFile.name)
+        assertEquals("18446744073709551615", addedFile.readText())
     }
 
     @Test fun steamSyncDisambiguatesTitlesAndPreservesEditedAndForeignFiles() {
@@ -176,59 +181,32 @@ class GameFilesTest {
         val second = game("8400", "A:B")
         val foreign = File(folder, "Existing.steam").apply { writeText("1") }
         val existing = game("1", "Existing")
-        GameFiles.sync(folder, listOf(first, second, existing), GameFiles.ExportFormat.STEAM)
+        GameFiles.sync(folder, listOf(first, second, existing))
         val owned = File(folder, "A_B (620).steam")
         assertEquals("620", owned.readText())
         assertEquals("8400", File(folder, "A_B (8400).steam").readText())
         owned.writeText("user edit")
-        GameFiles.sync(folder, listOf(first, second, existing), GameFiles.ExportFormat.STEAM)
+        GameFiles.sync(folder, listOf(first, second, existing))
         assertEquals("user edit", owned.readText())
-        GameFiles.sync(folder, emptyList(), GameFiles.ExportFormat.STEAM)
+        GameFiles.sync(folder, emptyList())
         assertEquals("user edit", owned.readText())
         assertEquals("1", foreign.readText())
         assertFalse(File(folder, "A_B (8400).steam").exists())
-    }
-
-    @Test fun explicitFormatChangePrunesOnlyUneditedOwnedFiles() {
-        val folder = tmp.newFolder()
-        val first = game()
-        val second = game("620", "Portal 2")
-        GameFiles.sync(folder, listOf(first, second))
-        val edited = File(folder, GameFiles.filename(second)).apply { writeText("personal edit") }
-        GameFiles.sync(folder, listOf(first, second), GameFiles.ExportFormat.STEAM)
-        assertFalse(File(folder, GameFiles.filename(first)).exists())
-        assertEquals("personal edit", edited.readText())
-        assertEquals("8400", File(folder, "Geometry Wars.steam").readText())
-        assertEquals("620", File(folder, "Portal 2.steam").readText())
-        GameFiles.sync(folder, listOf(first))
-        assertFalse(File(folder, "Geometry Wars.steam").exists())
-        assertFalse(File(folder, "Portal 2.steam").exists())
-        assertTrue(File(folder, GameFiles.filename(first)).exists())
     }
 
     @Test fun steamCollisionFallbackDoesNotClaimAnExistingFile() {
         val folder = tmp.newFolder()
         val collision = File(folder, "Geometry Wars.steam").apply { writeText("other file") }
         val existing = File(folder, "Geometry Wars (8400).steam").apply { writeText("8400") }
-        GameFiles.sync(folder, listOf(game()), GameFiles.ExportFormat.STEAM)
-        GameFiles.sync(folder, emptyList(), GameFiles.ExportFormat.STEAM)
+        GameFiles.sync(folder, listOf(game()))
+        GameFiles.sync(folder, emptyList())
         assertEquals("other file", collision.readText())
         assertEquals("8400", existing.readText())
         existing.writeText("another file")
         assertThrows(IllegalArgumentException::class.java) {
-            GameFiles.sync(folder, listOf(game()), GameFiles.ExportFormat.STEAM)
+            GameFiles.sync(folder, listOf(game()))
         }
         assertEquals("another file", existing.readText())
-    }
-
-    @Test fun steamCaseOnlyRenameRetainsOwnershipUntilUninstall() {
-        val folder = tmp.newFolder()
-        GameFiles.sync(folder, listOf(game(name = "Game")), GameFiles.ExportFormat.STEAM)
-        GameFiles.sync(folder, listOf(game(name = "GAME")), GameFiles.ExportFormat.STEAM)
-        assertEquals("8400", File(folder, "GAME.steam").readText())
-        assertEquals(1, folder.listFiles()!!.count { it.extension == "steam" })
-        GameFiles.sync(folder, emptyList(), GameFiles.ExportFormat.STEAM)
-        assertEquals(0, folder.listFiles()!!.count { it.extension == "steam" })
     }
 
     private class LaunchFileProvider(private val file: File) : ContentProvider() {

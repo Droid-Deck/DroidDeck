@@ -14,9 +14,6 @@ object GameFileSync {
     private val worker = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "game-file-sync").apply { isDaemon = true } }
     private fun prefs(context: Context) = context.getSharedPreferences("game_files", Context.MODE_PRIVATE)
     fun folder(context: Context): String? = prefs(context).getString("folder", null)
-    fun format(context: Context): GameFiles.ExportFormat =
-        GameFiles.ExportFormat.entries.firstOrNull { it.name == prefs(context).getString("exportFormat", null) }
-            ?: GameFiles.ExportFormat.DROIDDECK
 
     fun start(context: Context) {
         val app = context.applicationContext
@@ -27,19 +24,19 @@ object GameFileSync {
 
     @Synchronized internal fun syncConfigured(context: Context) {
         val path = folder(context) ?: return
-        sync(context, File(path), format(context))
+        sync(context, File(path))
     }
 
-    @Synchronized fun enable(context: Context, folder: File, format: GameFiles.ExportFormat = GameFiles.ExportFormat.DROIDDECK) {
-        sync(context, folder, format)
-        prefs(context).edit().putString("folder", folder.absolutePath).putString("exportFormat", format.name).apply()
+    @Synchronized fun enable(context: Context, folder: File) {
+        sync(context, folder)
+        prefs(context).edit().putString("folder", folder.absolutePath).apply()
     }
 
     @Synchronized fun disable(context: Context) {
-        prefs(context).edit().remove("folder").remove("exportFormat").apply()
+        prefs(context).edit().remove("folder").apply()
     }
 
-    @Synchronized private fun sync(context: Context, folder: File, format: GameFiles.ExportFormat) {
+    @Synchronized private fun sync(context: Context, folder: File) {
         check(LinuxRuntime.isInstalled(context)) { "Install the runtime first" }
         // A disconnected library must not be interpreted as a mass uninstall.
         check(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps").isDirectory) { "Steam library is unavailable" }
@@ -51,7 +48,7 @@ object GameFileSync {
         }
         storage?.let { check(File(it.path).listFiles() != null) { "Game storage is unavailable" } }
         SessionPrefs.addedGamesDirs(context).forEach { check(File(it).listFiles() != null) { "Added games folder is unavailable" } }
-        GameFiles.sync(folder, Library.launchableGames(context, strictRead = true), format)
+        GameFiles.sync(folder, Library.launchableGames(context, strictRead = true))
         prefs(context).edit().putString("storageSetting", storageSetting).putString("storagePath", storage?.path).apply()
     }
 }

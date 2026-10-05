@@ -1023,9 +1023,6 @@
     <string name="game_file_folder">Choose a folder for frontend game files</string>
     <string name="game_file_exported">Game files saved to %1$s</string>
     <string name="game_frontend_files">Frontend files</string>
-    <string name="game_file_format">File format</string>
-    <string name="game_file_format_steam">Steam (.steam)</string>
-    <string name="game_file_format_droiddeck">DroidDeck (.droiddeck)</string>
     <string name="display_session">Session display</string>
     <string name="display_resolution">Resolution</string>
     <string name="display_game_fit">16:9 game fit</string>

@@ -399,18 +399,16 @@ class MainActivity : ComponentActivity() {
     @Volatile private var libraryScanGeneration = 0
     private var pendingGameLink: String? = null
     private var gameSyncFolder by mutableStateOf<String?>(null)
-    private var gameSyncFormat by mutableStateOf(GameFiles.ExportFormat.DROIDDECK)
-    private fun pickGameExport(game: Library.SteamGame?, format: GameFiles.ExportFormat) {
+    private fun pickGameExport(game: Library.SteamGame?) {
         onSavePicked = { folder ->
             saveAction(getString(R.string.game_frontend_files)) {
-                val saved = if (game != null) GameFiles.export(folder, game, format)
+                val saved = if (game != null) GameFiles.export(folder, game)
                 else {
-                    GameFileSync.enable(this, folder, format)
+                    GameFileSync.enable(this, folder)
                     folder
                 }
                 ui.post {
                     gameSyncFolder = GameFileSync.folder(this)
-                    gameSyncFormat = GameFileSync.format(this)
                 }
                 getString(R.string.game_file_exported, saved.path)
             }
@@ -492,7 +490,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)
-        gameSyncFormat = GameFileSync.format(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
         theme = SessionPrefs.theme(this)
@@ -524,7 +521,6 @@ class MainActivity : ComponentActivity() {
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
-                        gameSyncFormat = gameSyncFormat,
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled,
                         offlineAccount = offlineAccount, offline = offline,
@@ -568,8 +564,8 @@ class MainActivity : ComponentActivity() {
                         },
                         onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else launchGame(g) },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
-                        onExportGameFile = { g, format -> pickGameExport(g, format) },
-                        onSyncGameFiles = { format -> pickGameExport(null, format) },
+                        onExportGameFile = { g -> pickGameExport(g) },
+                        onSyncGameFiles = { pickGameExport(null) },
                         onStopGameFileSync = {
                             Thread({
                                 GameFileSync.disable(this)

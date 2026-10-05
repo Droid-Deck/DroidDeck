@@ -24,7 +24,7 @@ object GameLaunchIntent {
         if (source != null && (source !is String || !source.equals("STEAM", ignoreCase = true))) return null
         val id = when (val value = intent.extras?.get(EXTRA_APP_ID)) {
             is Int -> value.takeIf { it > 0 }?.toString()
-            is String -> value.takeIf { GameLaunchLink.validId(it) && (it.toIntOrNull() ?: 0) > 0 }
+            is String -> value.takeIf(GameLaunchLink::validId)
             else -> null
         }
         id
