@@ -1,0 +1,176 @@
+#!/usr/bin/python3
+"""Windows components (OpenAL, d3dx, XAudio, ...) for a game's Proton prefix.
+
+The app installs each component under STORE/<id>: its DLLs in system32/ (64-bit) and syswow64/
+(32-bit) as Windows lays them out, and component.json naming the overrides that make Wine load
+them instead of its own. The user picks components per game; the picks are in SELECTION as
+{"version": 1, "games": {"<appid>": ["openal", ...]}}.
+
+droiddeck-game-env calls apply() before every game launch. It copies what is missing or changed
+into compatdata/<appid>/pfx and returns the overrides for WINEDLLOVERRIDES, so nothing is written
+to the prefix's registry and Wine never has to be running.
+
+Proton leaves the files alone afterwards: its builtin refresh (update_builtin_libs) replaces only
+files that are its own builtins, and a new prefix is built around files already there (copy_pfx
+skips them). The one case that removes them is a launch on an older Proton than the prefix's,
+which deletes every file Proton once placed - and the next launch's apply() puts ours back.
+"""
+import json
+import os
+import shutil
+import sys
+from pathlib import Path
+
+STORE = Path("/opt/droiddeck/wincomponents")
+SELECTION = Path.home() / ".config/droiddeck/wincomponents.json"
+# What this prefix holds from us, so a component the user turns off is taken out again.
+STATE = ".droiddeck-wincomponents.json"
+ARCH_DIRS = ("system32", "syswow64")
+
+
+def wanted(app_id, selection=SELECTION):
+    try:
+        with open(selection, encoding="utf-8") as source:
+            config = json.load(source)
+    except FileNotFoundError:
+        return []
+    if config.get("version") != 1:
+        raise ValueError("unsupported components selection")
+    ids = config.get("games", {}).get(app_id, [])
+    if not isinstance(ids, list) or not all(isinstance(i, str) and i.isidentifier() for i in ids):
+        raise ValueError("invalid components selection")
+    return ids
+
+
+def component(store, cid):
+    """The component's overrides and its files as (relative path, source), or None if not installed."""
+    root = Path(store) / cid
+    try:
+        with open(root / "component.json", encoding="utf-8") as source:
+            meta = json.load(source)
+    except (FileNotFoundError, ValueError):
+        return None
+    files = []
+    for arch in ARCH_DIRS:
+        folder = root / arch
+        if folder.is_dir():
+            for entry in sorted(folder.iterdir()):
+                if entry.is_file():
+                    files.append(("drive_c/windows/%s/%s" % (arch, entry.name.lower()), entry))
+    return [str(o) for o in meta.get("overrides", [])], files
+
+
+def existing(path):
+    """The file at path as the prefix spells it: Windows names ignore case, the filesystem may not."""
+    folder = path.parent
+    try:
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if entry.name.lower() == path.name:
+                    return folder / entry.name
+    except OSError:
+        pass
+    return None
+
+
+def same(src, dst):
+    try:
+        if dst.is_symlink():
+            return False
+        a, b = src.stat(), dst.stat()
+    except OSError:
+        return False
+    return a.st_size == b.st_size and int(a.st_mtime) == int(b.st_mtime)
+
+
+def place(src, target):
+    target.parent.mkdir(parents=True, exist_ok=True)
+    found = existing(target)
+    if found is not None and same(src, found):
+        return False
+    final = found or target
+    temp = final.with_name(".%s.droiddeck" % final.name)
+    shutil.copy2(src, temp)
+    # Over a Proton builtin this swaps its symlink for our file.
+    os.replace(temp, final)
+    return True
+
+
+def load_state(compat):
+    try:
+        with open(compat / STATE, encoding="utf-8") as source:
+            state = json.load(source)
+        return state if isinstance(state.get("files"), dict) else {"files": {}}
+    except (FileNotFoundError, ValueError, AttributeError):
+        return {"files": {}}
+
+
+def save_state(compat, state):
+    temp = compat / (STATE + ".tmp")
+    with open(temp, "w", encoding="utf-8") as out:
+        json.dump(state, out, indent=1, sort_keys=True)
+    os.replace(temp, compat / STATE)
+
+
+def apply(compat_path, app_id, selection=SELECTION, store=STORE):
+    """Brings the prefix in line with the game's picks. Returns (overrides, notes)."""
+    compat = Path(compat_path)
+    pfx = compat / "pfx"
+    ids = wanted(app_id, selection)
+    state = load_state(compat)
+    if not ids and not state["files"]:
+        return [], []
+    notes, overrides, keep = [], [], {}
+    copied = 0
+    for cid in ids:
+        found = component(store, cid)
+        if found is None:
+            notes.append("%s is not installed; skipped" % cid)
+            continue
+        names, files = found
+        overrides += names
+        for rel, src in files:
+            if place(src, pfx / rel):
+                copied += 1
+            keep[rel] = cid
+    removed = 0
+    for rel, cid in state["files"].items():
+        if rel in keep:
+            continue
+        path = existing(pfx / rel)
+        if path is not None and not path.is_symlink():
+            path.unlink()
+            removed += 1
+    if removed:
+        # Proton refreshes its builtins only when its config changes; forgetting the config puts
+        # its own DLLs back where ours were on the next launch - this one.
+        try:
+            (compat / "config_info").unlink()
+        except FileNotFoundError:
+            pass
+    compat.mkdir(parents=True, exist_ok=True)
+    save_state(compat, {"files": keep, "components": [c for c in ids if component(store, c) is not None]})
+    if copied or removed:
+        notes.append("components %s: %d file(s) placed, %d removed" % (",".join(ids) or "none", copied, removed))
+    return overrides, notes
+
+
+def overrides_value(names):
+    """WINEDLLOVERRIDES entries that load the component's DLLs before Wine's builtins."""
+    return ";".join("%s=n,b" % name for name in dict.fromkeys(names))
+
+
+def main():
+    # droiddeck-wincomponents <compatdata dir> <appid>: what a launch would do, for a shell.
+    if len(sys.argv) != 3:
+        print("usage: droiddeck-wincomponents <compatdata dir> <appid>", file=sys.stderr)
+        return 2
+    names, notes = apply(sys.argv[1], sys.argv[2])
+    for note in notes:
+        print(note)
+    print("WINEDLLOVERRIDES=" + overrides_value(names))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
