@@ -124,6 +124,14 @@
             android:theme="@style/AppTheme" />
 
         <activity
+            android:name=".agent.AgentStartActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:permission="android.permission.DUMP"
+            android:theme="@style/SessionTheme" />
+
+        <activity
             android:name=".SessionActivity"
             android:exported="false"
             android:supportsPictureInPicture="true"
@@ -173,5 +181,11 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+        <provider
+            android:name=".agent.AgentBridgeProvider"
+            android:authorities="${applicationId}.agent"
+            android:exported="true"
+            android:permission="android.permission.DUMP"
+            android:grantUriPermissions="false" />
     </application>
 </manifest>
