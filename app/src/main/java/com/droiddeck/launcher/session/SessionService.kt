@@ -43,6 +43,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 /**
  * Owns the running session: the proot tree, the audio daemon, the network link and the locks that
@@ -77,6 +78,10 @@ class SessionService : Service() {
     private var manualPauseRequested = false
     /** An explicit Steam sleep request is independent of the background policy. */
     private var steamSleepToken: String? = null
+    private var nativeSleepToken: String? = null
+    private var nativeSleepReady = false
+    private var nativeSleepFallback = false
+    private var nativeSleepTimeout: Runnable? = null
     private var suspendOperationPending = false
     private var pipTask = false
     private var suspendAttemptFailed = false
@@ -195,6 +200,7 @@ class SessionService : Service() {
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
         manualPauseRequested = false
         steamSleepToken = null
+        completeNativeSleep()
         suspendOperationPending = false
         suspendAttemptFailed = false
         suspendController = null
@@ -992,7 +998,8 @@ class SessionService : Service() {
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
         manualPauseRequested = false
-        if (steamSleepToken == null) requestSteamWake()
+        if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback)) requestSteamWake()
+        completeNativeSleep()
         completeSteamSleep()
         suspendAttemptFailed = false
         updateSuspendPolicy()
@@ -1071,11 +1078,28 @@ class SessionService : Service() {
 
     private fun watchLaunchRequests(dir: File) {
         launchWatcher?.stopWatching()
-        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready", "steam-wake", "steam-wake.tmp").forEach { File(dir, it).delete() }
+        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready", "steam-wake", "steam-wake.tmp",
+            "steam-native-sleep", "steam-native-sleep.tmp", "steam-native-ready", "steam-native-ready.tmp"
+        ).forEach { File(dir, it).delete() }
         val gen = sessionGen
         @Suppress("DEPRECATION")
         val watcher = object : android.os.FileObserver(dir.path, CLOSE_WRITE or MOVED_TO) {
             override fun onEvent(event: Int, path: String?) {
+                if (path == "steam-native-ready") {
+                    val request = File(dir, path)
+                    val token = runCatching { request.readText().trim() }.getOrNull() ?: return
+                    request.delete()
+                    mainHandler.post {
+                        if (gen != sessionGen || !SessionState.running || token != nativeSleepToken) return@post
+                        nativeSleepReady = true
+                        nativeSleepTimeout?.let { mainHandler.removeCallbacks(it) }
+                        nativeSleepTimeout = null
+                        writeSteamSleepState(token, "paused")
+                        SessionEvents.record("steam.native_sleep_prepared")
+                        updateSuspendPolicy()
+                    }
+                    return
+                }
                 if (path == "steam-sleep") {
                     val request = File(dir, path)
                     val token = runCatching { request.readText().trim() }.getOrNull() ?: return
@@ -1143,18 +1167,27 @@ class SessionService : Service() {
         if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && (!activityVisible || !screenOn)) {
             manualPauseRequested = true
         }
+        val controller = suspendController ?: return
+        val hidden = !activityVisible || !screenOn
+        if (suspendPolicy != SessionPrefs.SUSPEND_NATIVE || !hidden) {
+            completeNativeSleep()
+        } else if (nativeSleepToken == null && steamSleepToken == null &&
+            !SessionState.suspended && !suspendAttemptFailed) {
+            prepareNativeSleep()
+        }
         val shouldSuspend = steamSleepToken != null || when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO -> !activityVisible || !screenOn
+            SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
             else -> false
         }
-        val controller = suspendController ?: return
         if (suspendOperationPending || suspendAttemptFailed || shouldSuspend == SessionState.suspended) return
         val gen = sessionGen
         suspendOperationPending = true
         SessionEvents.record(if (shouldSuspend) "session.suspend_requested" else "session.resume_requested", mapOf(
             "policy" to suspendPolicy, "activityVisible" to activityVisible,
             "screenOn" to screenOn, "steamSleep" to (steamSleepToken != null),
+            "nativeSleep" to (nativeSleepToken != null),
         ))
         if (shouldSuspend) {
             controller.freeze { success ->
@@ -1167,6 +1200,7 @@ class SessionService : Service() {
                         releaseLocks()
                         refreshNotification()
                     } else {
+                        completeNativeSleep()
                         completeSteamSleep()
                         suspendAttemptFailed = true
                         Log.w(TAG, "could not confirm that the session stopped")
@@ -1212,10 +1246,52 @@ class SessionService : Service() {
     }
 
     private fun resumeSteamSleepOnReturn() {
-        if (suspendPolicy == SessionPrefs.SUSPEND_AUTO && activityVisible && screenOn) {
-            if (steamSleepToken == null) requestSteamWake()
+        if (suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && activityVisible && screenOn) {
+            if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback)) requestSteamWake()
+            completeNativeSleep()
             completeSteamSleep()
         }
+    }
+
+    /** Let Steam prepare before freezing; retain the wake lock until that freeze completes. */
+    private fun prepareNativeSleep() {
+        val token = UUID.randomUUID().toString().replace("-", "")
+        nativeSleepToken = token
+        nativeSleepReady = false
+        nativeSleepFallback = false
+        val dir = LinuxRuntime.sessionRoot(this)
+        runCatching {
+            val staged = File(dir, "steam-native-sleep.tmp")
+            staged.writeText("$token\n")
+            check(staged.renameTo(File(dir, "steam-native-sleep")))
+        }.onFailure { Log.w(TAG, "could not request Native sleep; using timed pause", it) }
+        SessionEvents.record("steam.native_sleep_requested")
+        val gen = sessionGen
+        val timeout = Runnable {
+            if (gen != sessionGen || !SessionState.running || nativeSleepToken != token) return@Runnable
+            nativeSleepTimeout = null
+            nativeSleepReady = true
+            nativeSleepFallback = true
+            writeSteamSleepState(token, "paused")
+            SessionEvents.record("steam.native_sleep_timeout")
+            updateSuspendPolicy()
+        }
+        nativeSleepTimeout = timeout
+        // A missing or stalled guest helper must not keep the device awake indefinitely.
+        mainHandler.postDelayed(timeout, 4000L)
+    }
+
+    private fun completeNativeSleep() {
+        nativeSleepTimeout?.let { mainHandler.removeCallbacks(it) }
+        nativeSleepTimeout = null
+        val token = nativeSleepToken ?: return
+        writeSteamSleepState(token, "awake")
+        val dir = LinuxRuntime.sessionRoot(this)
+        File(dir, "steam-native-sleep").delete()
+        File(dir, "steam-native-ready").delete()
+        nativeSleepToken = null
+        nativeSleepReady = false
+        nativeSleepFallback = false
     }
 
     /** Resume must also recover a Steam sleep whose request never reached Android. */
@@ -1281,6 +1357,7 @@ class SessionService : Service() {
 
     private fun stopSession(status: Int) {
         cancelQueuedSteamGame()
+        completeNativeSleep()
         synchronized(stopLock) {
             if (!SessionState.running) return
             SessionState.running = false

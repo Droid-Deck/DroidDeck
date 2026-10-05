@@ -134,6 +134,65 @@ class SleepHandshakeTest(unittest.TestCase):
         staged.write_text("wake\n")
         staged.replace(self.dir / "steam-wake")
 
+    def request_native(self, token="1" * 32):
+        staged = self.dir / "steam-native-sleep.tmp"
+        staged.write_text(token + "\n")
+        staged.replace(self.dir / "steam-native-sleep")
+        return token
+
+    def test_native_sleep_prepares_before_host_can_freeze(self):
+        started = time.monotonic()
+        token = self.request_native()
+        self.wait_for(lambda: self.signals == [True])
+        self.assertTrue(self.preparing())
+        self.assertFalse((self.dir / "steam-native-ready").exists())
+        self.assertFalse((self.dir / "steam-sleep").exists())
+        self.wait_for(lambda: (self.dir / "steam-native-ready").exists())
+        self.assertGreaterEqual(time.monotonic() - started, 1.4)
+        self.assertEqual((self.dir / "steam-native-ready").read_text().strip(), token)
+        self.state(token, "paused")
+        self.state(token, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+        self.assertFalse(self.preparing())
+
+    def test_return_during_native_preparation_cancels_late_pause(self):
+        token = self.request_native()
+        self.wait_for(lambda: self.signals == [True])
+        self.state(token, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+        time.sleep(1.7)
+        self.assertFalse((self.dir / "steam-native-ready").exists())
+        self.assertFalse(self.preparing())
+
+    def test_native_request_cancelled_before_helper_reads_it(self):
+        os.kill(self.process.pid, signal.SIGSTOP)
+        token = self.request_native()
+        self.state(token, "awake")
+        os.kill(self.process.pid, signal.SIGCONT)
+        self.wait_for(lambda: not (self.dir / "steam-native-sleep").exists())
+        time.sleep(1.7)
+        self.assertFalse((self.dir / "steam-native-ready").exists())
+        self.assertFalse(self.preparing())
+        self.assertEqual(self.signals, [])
+
+    def test_second_native_sleep_cannot_receive_first_preparation_callback(self):
+        first = self.request_native()
+        self.wait_for(lambda: self.signals == [True])
+        self.state(first, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+        self.signals.clear()
+        second = self.request_native("2" * 32)
+        self.wait_for(lambda: (self.dir / "steam-native-ready").exists())
+        self.assertEqual((self.dir / "steam-native-ready").read_text().strip(), second)
+        self.state(second, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+
+    def test_native_sleep_with_missing_host_recovers(self):
+        self.request_native()
+        self.wait_for(lambda: self.signals == [True, False], timeout=9)
+        self.assertFalse(self.preparing())
+        self.assertFalse((self.dir / "steam-native-ready").exists())
+
     def test_host_resume_recovers_without_a_sleep_request(self):
         self.assertFalse(self.preparing())
         self.request_wake()

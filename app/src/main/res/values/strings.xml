@@ -263,6 +263,8 @@
     <string name="mode_suspend">Background behavior</string>
     <string name="mode_suspend_hint">When the app is hidden or the screen turns off.</string>
     <string name="mode_suspend_manual">Manual</string>
+    <string name="mode_suspend_native">Native</string>
+    <string name="mode_suspend_steam_note">Auto pauses and resumes when shown. Native prepares Steam for sleep first. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
     <string name="mode_steam_startup">Start Steam with DroidDeck</string>
