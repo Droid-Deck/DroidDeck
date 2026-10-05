@@ -38,6 +38,10 @@ cp "$TEST_CDN/${2##*/}" "$4"
             sha = self.bin / 'sha256sum'
             sha.write_text('#!/bin/bash\nexec shasum -a 256 "$@"\n')
             sha.chmod(0o755)
+        if shutil.which('sha1sum') is None:
+            sha1 = self.bin / 'sha1sum'
+            sha1.write_text('#!/bin/bash\nexec shasum -a 1 "$@"\n')
+            sha1.chmod(0o755)
         self.env = dict(os.environ, HOME=str(self.home), XDG_DATA_HOME=str(self.data),
                         PATH=str(self.bin) + os.pathsep + os.environ['PATH'],
                         TEST_CDN=str(self.cdn), TEST_REQUESTS=str(self.requests))
@@ -103,6 +107,65 @@ cp "$TEST_CDN/${2##*/}" "$4"
         archive.write_bytes(original)
         self.assertEqual(0, self.install('publicbeta').returncode)
         self.assertEqual('publicbeta\n', (self.steam / 'package/beta').read_text())
+
+    def break_client(self, starts):
+        self.assert_installed('steamdeck_publicbeta')
+        self.requests.unlink()
+        package = self.steam / 'package'
+        (self.steam / 'steamrtarm64/steam').write_text('half updated')
+        (package / 'steam_client_steamdeck_publicbeta_linuxarm64.manifest').write_text('manifest')
+        (package / 'steam_client_steamdeck_publicbeta_linuxarm64.installed').write_text('installed')
+        good = b'complete package'
+        (package / ('bins_linuxarm64.zip.vz.' + hashlib.sha1(good).hexdigest() + '_16')).write_bytes(good)
+        (package / ('bins_misc_linuxarm64.zip.vz.' + hashlib.sha1(b'whole').hexdigest() + '_5')).write_bytes(b'wh')
+        (package / ('strings_all.zip.' + hashlib.sha1(b'strings').hexdigest())).write_bytes(b'strings')
+        (self.steam / '.crash').write_text('')
+        (package / 'droiddeck-unconfirmed').write_text('start\n' * starts)
+        return package
+
+    def test_two_starts_with_nothing_shown_fetch_the_client_again(self):
+        package = self.break_client(2)
+        self.assert_installed('steamdeck_publicbeta')
+        self.assertEqual('repaired\n', (package / 'droiddeck-unconfirmed').read_text())
+        self.assertFalse((self.steam / '.crash').exists())
+        self.assertEqual([], sorted(p.name for p in package.glob('steam_client_*')))
+        self.assertEqual(['bins_linuxarm64.zip.vz.', 'strings_all.zip.'],
+                         sorted(p.name[:p.name.rindex('.') + 1] for p in package.glob('*.zip.*')))
+
+    def test_one_start_with_nothing_shown_is_left_alone(self):
+        package = self.break_client(1)
+        self.assertEqual(0, self.install().returncode)
+        self.assertFalse(self.requests.exists())
+        self.assertEqual('half updated', (self.steam / 'steamrtarm64/steam').read_text())
+        self.assertTrue((package / 'steam_client_steamdeck_publicbeta_linuxarm64.installed').exists())
+
+    def test_a_repair_is_not_repeated_until_the_client_has_been_seen(self):
+        package = self.break_client(2)
+        self.assertEqual(0, self.install().returncode)
+        self.requests.unlink()
+        with (package / 'droiddeck-unconfirmed').open('a') as marker:
+            marker.write('start\nstart\nstart\n')
+        self.assertEqual(0, self.install().returncode)
+        self.assertFalse(self.requests.exists())
+
+    def test_requested_repair_runs_once_and_is_retried_until_it_completes(self):
+        package = self.break_client(0)
+        (package / 'droiddeck-unconfirmed').unlink()
+        request = self.home / '.bl-steam-repair'
+        request.write_text('1\n')
+        archive = self.cdn / 'steamdeck_publicbeta.zip'
+        original = archive.read_bytes()
+        archive.write_bytes(b'corrupt download')
+        self.assertNotEqual(0, self.install().returncode)
+        self.assertTrue(request.exists())
+        self.assertFalse((package / 'droiddeck-installed').exists())
+        archive.write_bytes(original)
+        self.requests.unlink()
+        self.assert_installed('steamdeck_publicbeta')
+        self.assertFalse(request.exists())
+        self.requests.unlink()
+        self.assertEqual(0, self.install().returncode)
+        self.assertFalse(self.requests.exists())
 
     def test_invalid_channel_fails_before_any_download(self):
         result = self.install('../unknown')

@@ -5,8 +5,15 @@ import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.core.ArchivePaths
+import java.io.BufferedInputStream
+import java.io.FileOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.util.UUID
+import java.util.zip.ZipInputStream
 import org.json.JSONArray
+import org.json.JSONObject
 
 /** Optional Decky Loader installation for the ARM64 Linux guest. */
 object DeckyManager {
@@ -136,6 +143,123 @@ object DeckyManager {
         return null
     }
 
+    /** Imports a Decky distribution ZIP into homebrew/plugins for the next Steam session. */
+    fun installPluginZip(context: Context, archive: File, progress: (String, Int) -> Unit): String? {
+        if (SessionState.running) return "Stop the active session before installing a plugin"
+        if (installed(context) == null) return "Install Decky Loader before importing a plugin"
+        if (!archive.isFile || !archive.canRead()) return "Could not read the selected ZIP file"
+
+        val plugins = File(LinuxRuntime.rootDir(context), "root/homebrew/plugins")
+        if (!plugins.exists() && !plugins.mkdirs()) return "Could not create the Decky plugins directory"
+        val staging = File(plugins, ".droiddeck-import-${UUID.randomUUID()}")
+        val backupSuffix = ".droiddeck-backup-${UUID.randomUUID()}"
+        try {
+            staging.mkdirs()
+            progress("Extracting plugin ZIP", -1)
+            extractPluginZip(archive, staging)
+            val roots = staging.listFiles()?.filter { it.isDirectory } ?: emptyList()
+            if (roots.size != 1 || staging.listFiles()?.size != 1) return "Plugin ZIP must contain one top-level plugin folder"
+            val plugin = roots.single()
+            if (!File(plugin, "plugin.json").isFile || !File(plugin, "package.json").isFile || !File(plugin, "dist/index.js").isFile) {
+                return "Plugin ZIP is missing plugin.json, package.json, or dist/index.js"
+            }
+            val name = JSONObject(File(plugin, "plugin.json").readText()).getString("name")
+            require(name.isNotBlank()) { "Plugin name is missing" }
+            val metadata = JSONObject(File(plugin, "package.json").readText())
+            downloadRemoteBinaries(metadata, plugin, progress)
+            if (SessionState.running) return "A session started during installation; stop it before installing a plugin"
+
+            DeckyPluginInstall.activate(plugin, plugins, name,
+                File(plugins.parentFile, "settings/loader.json"), backupSuffix)
+            progress("Plugin installed · restart Steam to load it", 100)
+            return null
+        } catch (e: Exception) {
+            Log.w(TAG, "plugin ZIP import", e)
+            return e.message?.takeIf { it.isNotBlank() } ?: "Plugin ZIP installation failed"
+        } finally {
+            staging.deleteRecursively()
+        }
+    }
+
+    private fun extractPluginZip(archive: File, destination: File) {
+        var totalBytes = 0L
+        var entries = 0
+        val seen = HashSet<String>()
+        ZipInputStream(BufferedInputStream(FileInputStream(archive))).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                entries++
+                require(entries <= 10_000) { "Plugin ZIP contains too many entries" }
+                val relative = entry.name.replace('\\', '/')
+                require(relative.isNotBlank() && !relative.startsWith('/')) { "Plugin ZIP contains an invalid path" }
+                require(seen.add(relative)) { "Plugin ZIP contains duplicate paths" }
+                val output = ArchivePaths.inside(destination, relative)
+                    ?: throw IllegalArgumentException("Plugin ZIP contains an unsafe path")
+                if (entry.isDirectory) {
+                    require(output.mkdirs() || output.isDirectory) { "Could not create plugin folder" }
+                } else {
+                    require(output.parentFile?.let { it.mkdirs() || it.isDirectory } == true) { "Could not create plugin folder" }
+                    FileOutputStream(output).use { out ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val read = zip.read(buffer)
+                            if (read < 0) break
+                            totalBytes += read
+                            require(totalBytes <= MAX_PLUGIN_ZIP_BYTES) { "Plugin ZIP expands beyond the 1 GiB limit" }
+                            out.write(buffer, 0, read)
+                        }
+                    }
+                    // Decky distributions place plugin executables under bin/. Java's ZIP reader
+                    // does not expose Unix mode bits, so restore execution on those payload files.
+                    if (relative.split('/').dropLast(1).any { it == "bin" } && !output.setExecutable(true, false)) {
+                        throw IllegalStateException("Could not mark bundled plugin binary executable")
+                    }
+                }
+                zip.closeEntry()
+            }
+        }
+    }
+
+    private fun downloadRemoteBinaries(metadata: JSONObject, plugin: File, progress: (String, Int) -> Unit) {
+        val binaries = metadata.optJSONArray("remote_binary") ?: return
+        val bin = File(plugin, "bin")
+        for (i in 0 until binaries.length()) {
+            val binary = binaries.optJSONObject(i) ?: throw IllegalArgumentException("Invalid remote_binary entry")
+            val name = binary.optString("name")
+            val url = binary.optString("url")
+            val hash = binary.optString("sha256hash")
+            require(name.isNotBlank() && name != "." && name != ".." && !name.contains('/') && !name.contains('\\')) { "Invalid remote binary name" }
+            require(url.startsWith("https://")) { "Remote binary URL must use HTTPS" }
+            require(hash.matches(Regex("(?i)[0-9a-f]{64}"))) { "Remote binary $name has an invalid SHA-256 hash" }
+            require(bin.mkdirs() || bin.isDirectory) { "Could not create plugin bin directory" }
+            val temp = File(bin, ".$name.download")
+            progress("Downloading plugin binary · $name", -1)
+            if (!Downloader.downloadFile(url, temp, false) { fraction ->
+                    progress("Downloading plugin binary · $name", if (fraction < 0) -1 else (fraction * 100).toInt().coerceIn(0, 100))
+                }) {
+                temp.delete()
+                throw IllegalStateException("Could not download plugin binary $name")
+            }
+            if (!hash.equals(Hashes.sha256(temp), ignoreCase = true)) {
+                temp.delete()
+                throw IllegalStateException("Plugin binary checksum mismatch · $name")
+            }
+            if (!temp.setExecutable(true, false)) {
+                temp.delete()
+                throw IllegalStateException("Could not mark plugin binary executable · $name")
+            }
+            val target = File(bin, name)
+            if (target.exists() && !target.delete()) {
+                temp.delete()
+                throw IllegalStateException("Could not replace plugin binary · $name")
+            }
+            if (!temp.renameTo(target)) {
+                temp.delete()
+                throw IllegalStateException("Could not install plugin binary · $name")
+            }
+        }
+    }
+
     fun uninstall(context: Context, wipeData: Boolean) {
         val root = LinuxRuntime.rootDir(context)
         setSupervisorEnabled(context, false)
@@ -154,4 +278,6 @@ object DeckyManager {
                 h[4] == 2.toByte() && h[5] == 1.toByte() && (h[18].toInt() and 255) + ((h[19].toInt() and 255) shl 8) == machine
         }
     }.getOrDefault(false)
+
+    private const val MAX_PLUGIN_ZIP_BYTES = 1024L * 1024L * 1024L
 }

@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,6 +61,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +84,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.roundToInt
 import androidx.compose.ui.input.InputMode
@@ -468,8 +474,16 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
 fun SliderRow(
     label: String, hint: String?, value: Int, range: IntRange, step: Int = 1, enabled: Boolean = true,
     format: (Int) -> String = { it.toString() }, modifier: Modifier = Modifier, onChange: (Int) -> Unit,
-) = SettingsRow(label, hint) {
-    ValueSlider(value, range, step, enabled, label, format, modifier, onChange)
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Column(Modifier.fillMaxWidth()) {
+        ValueSlider(value, range, step, enabled, label, format,
+            modifier = modifier.padding(horizontal = 6.dp, vertical = 3.dp), onChange = onChange)
+        if (hint != null) Text(hint, fontSize = 12.5.sp, color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+    }
 }
 
 @Composable
@@ -479,34 +493,39 @@ fun ValueSlider(
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
+    val source = remember { MutableInteractionSource() }
+    val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+    val currentOnChange by rememberUpdatedState(onChange)
     val span = (range.last - range.first).coerceAtLeast(1)
     val fraction = ((value - range.first).toFloat() / span).coerceIn(0f, 1f)
-    val shape = RoundedCornerShape(99.dp)
+    val thumbInset = with(LocalDensity.current) { 8.dp.toPx() }
     var trackPx by remember { mutableIntStateOf(0) }
     val text = format(value)
-    // A step from the d-pad lands on the grid of [step] from the range's start; a Look's own
-    // value, which need not be on it, is kept until the user moves.
+    val shape = RoundedCornerShape(8.dp)
+    // Preserve off-grid preset values until the user adjusts; every input snaps to the same step.
     fun stepped(v: Int) = (((v - range.first).toFloat() / step).roundToInt() * step + range.first).coerceIn(range.first, range.last)
-    fun fromX(x: Float) { if (trackPx > 0) onChange(stepped(range.first + (x / trackPx * span).roundToInt())) }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .heightIn(min = 48.dp)
+    fun fromX(x: Float) {
+        val width = trackPx - 2 * thumbInset
+        if (width > 0) {
+            val position = ((x - thumbInset) / width).coerceIn(0f, 1f)
+            currentOnChange(stepped(range.first + (position * span).roundToInt()))
+        }
+    }
+    Column(
+        modifier = modifier.fillMaxWidth().heightIn(min = 72.dp)
+            .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+            .glideBorder(hot, shape, pal.signal)
             .alpha(if (enabled) 1f else 0.5f)
-            .hoverable(src)
-            .focusable(enabled, src)
+            .hoverable(source).focusable(enabled, source)
             .onPreviewKeyEvent { event ->
                 val keyEvent = event.nativeKeyEvent
                 val left = keyEvent.keyCode == KeyEvent.KEYCODE_DPAD_LEFT
-                if (!left && keyEvent.keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    false
-                } else {
-                    // Every down counts, repeats included, so a held direction keeps stepping.
+                if (!left && keyEvent.keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) false
+                else {
+                    // Repeated key-down events let a held direction keep adjusting.
                     if (enabled && keyEvent.action == KeyEvent.ACTION_DOWN) {
                         val next = stepped(value + if (left) -step else step)
-                        if (next != value) onChange(next)
+                        if (next != value) currentOnChange(next)
                     }
                     true
                 }
@@ -515,28 +534,33 @@ fun ValueSlider(
                 stateDescription = text
                 progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), range.first.toFloat()..range.last.toFloat())
                 if (label != null) contentDescription = label
-            },
+                if (!enabled) disabled()
+                setProgress { next ->
+                    if (!enabled) false else { currentOnChange(stepped(next.roundToInt())); true }
+                }
+            }
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        Text(text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, textAlign = TextAlign.End,
-            maxLines = 1, modifier = Modifier.width(56.dp))
-        Spacer(Modifier.width(10.dp))
-        Box(
-            contentAlignment = Alignment.CenterStart,
-            modifier = Modifier.size(width = 164.dp, height = 30.dp).clip(shape).background(colors.surfaceVariant)
-                .glideBorder(hot, shape, colors.onBackground, pal.line2)
-                .onSizeChanged { trackPx = it.width }
-                .pointerInput(enabled, range, step) { if (enabled) detectTapGestures { fromX(it.x) } }
-                .pointerInput(enabled, range, step) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (label != null) Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                color = colors.onBackground, modifier = Modifier.weight(1f))
+            else Spacer(Modifier.weight(1f))
+            Text(text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1)
+        }
+        Canvas(
+            Modifier.fillMaxWidth().height(40.dp).onSizeChanged { trackPx = it.width }
+                .pointerInput(enabled, range, step, thumbInset) { if (enabled) detectTapGestures { fromX(it.x) } }
+                .pointerInput(enabled, range, step, thumbInset) {
                     if (enabled) detectHorizontalDragGestures { change, _ -> fromX(change.position.x); change.consume() }
                 },
         ) {
-            Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(pal.signal))
-            Box(
-                Modifier.padding(4.dp).size(22.dp)
-                    .graphicsLayer { translationX = fraction * (trackPx - 30.dp.toPx()).coerceAtLeast(0f) }
-                    .clip(CircleShape)
-                    .background(pal.onSignal),
-            )
+            val start = Offset(thumbInset, size.height / 2f)
+            val end = Offset(size.width - thumbInset, start.y)
+            val thumb = Offset(start.x + (end.x - start.x) * fraction, start.y)
+            val fill = if (hot) pal.signal else colors.onBackground
+            drawLine(colors.onSurfaceVariant.copy(alpha = 0.35f), start, end, strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
+            if (fraction > 0) drawLine(fill, start, thumb, strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
+            drawCircle(fill, radius = 7.dp.toPx(), center = thumb)
         }
     }
 }
@@ -574,7 +598,7 @@ fun ActionRow(label: String, hint: String?, button: String, onClick: () -> Unit)
 @Composable
 fun SettingsPage(
     host: MenuHost,
-    title: String,
+    title: String?,
     onBack: () -> Unit,
     eyebrow: String? = null,
     lede: String? = null,
@@ -584,6 +608,9 @@ fun SettingsPage(
     scroll: androidx.compose.foundation.ScrollState? = null,
     scrollContent: Boolean = true,
     compactLayout: Boolean = false,
+    /** Fixed controls below the title, or beside Back when the title is omitted. */
+    header: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val scrollState = scroll ?: rememberScrollState()
@@ -591,13 +618,24 @@ fun SettingsPage(
     val dim by animateFloatAsState(if (host.open != null) 0.6f else 1f, Motion.tw(220), label = "pageDim")
     val narrow = LocalNarrowPane.current && !compactLayout
     Column(
-        modifier = Modifier.fillMaxSize().padding(
+        modifier = modifier.fillMaxSize().padding(
             horizontal = if (compactLayout) 14.dp else if (narrow) 16.dp else 22.dp,
             vertical = if (compactLayout) 6.dp else if (narrow) 12.dp else 18.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(if (compactLayout) 2.dp else 0.dp),
     ) {
-        if (narrow) {
+        if (title == null) {
+            Rise(0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
+                    if (header != null) Box(Modifier.weight(1f)) { header() }
+                }
+            }
+        } else if (narrow) {
             // Back and the title share one line: a 4:3 screen has no height to spare.
             Rise(0) {
                 Row(
@@ -656,6 +694,7 @@ fun SettingsPage(
                 }
             }
         }
+        if (header != null && title != null) header()
         Rise(3, Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 modifier = Modifier

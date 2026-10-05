@@ -14,7 +14,7 @@ import kotlin.math.abs
  * The client reads `/sys/class/power_supply/BAT<n>/...` - a laptop's or a Deck's naming and files
  * (`energy_now`, `power_now`, `time_to_empty_now`, a `uevent` of `POWER_SUPPLY_*` lines). Android
  * names its supply `battery` and lays it out differently, and on many phones an app may not read
- * it at all, so the client showed no battery. This writes a `BAT0` (and a `BAT1`, the Deck's name)
+ * it at all, so the client showed no battery. This writes one `BAT1` (the Deck's name)
  * from Android's own battery API - the same on every device - into a directory the session binds
  * over `/sys/class/power_supply`, refreshed every few seconds while the session runs.
  *
@@ -31,6 +31,8 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
     private var thread: Thread? = null
 
     override fun start() {
+        // Older builds exported the same aggregate battery twice; MangoHud counts both supplies.
+        File(dir, "BAT0").deleteRecursively()
         running = true
         write()
         thread = Thread({
@@ -39,7 +41,7 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
                 if (running) write()
             }
         }, "battery-sysfs").apply { isDaemon = true; start() }
-        Log.i(TAG, "battery: BAT0/BAT1 written to ${dir.path} every ${PERIOD_MS / 1000} s")
+        Log.i(TAG, "battery: BAT1 written to ${dir.path} every ${PERIOD_MS / 1000} s")
     }
 
     override fun stop() {
@@ -87,7 +89,7 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
                 pct <= 15 -> "Low"
                 else -> "Normal"
             }
-            for (name in listOf("BAT0", "BAT1")) {
+            for (name in listOf("BAT1")) {
                 val bat = File(dir, name).apply { mkdirs() }
                 val attrs = linkedMapOf(
                     "type" to "Battery",

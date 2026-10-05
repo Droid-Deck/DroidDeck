@@ -27,6 +27,7 @@ class GameFileSyncTest {
         }
         val folder = File(context.filesDir, "exports").apply { mkdirs() }
         GameFileSync.enable(context, folder)
+        assertEquals("8400", File(folder, "Geometry Wars.steam").readText())
         assertEquals(folder.path, GameFileSync.folder(context))
         assertEquals(1, folder.listFiles()!!.count { it.extension == GameFiles.EXTENSION })
         // An unavailable source must leave the existing export intact.
@@ -35,6 +36,8 @@ class GameFileSyncTest {
         assertThrows(IllegalStateException::class.java) { GameFileSync.syncConfigured(context) }
         assertEquals(1, folder.listFiles()!!.count { it.extension == GameFiles.EXTENSION })
         assertTrue(unavailable.renameTo(steamapps))
+        GameFileSync.syncConfigured(context)
+        assertTrue(File(folder, "Geometry Wars.steam").exists())
         // A genuine uninstall removes the owned export at the next tick.
         assertTrue(manifest.delete())
         GameFileSync.syncConfigured(context)
@@ -44,6 +47,7 @@ class GameFileSyncTest {
         manifest.writeText("\"name\" \"Geometry Wars\"\n\"StateFlags\" \"4\"")
         GameFileSync.syncConfigured(context)
         assertNull(GameFileSync.folder(context))
+        assertFalse(File(folder, "Geometry Wars.steam").exists())
         assertEquals(0, folder.listFiles()!!.count { it.extension == GameFiles.EXTENSION })
     }
 }

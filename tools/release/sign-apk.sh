@@ -44,7 +44,7 @@ if [ "$pkg" = "$P" ]; then
 else
   python3 "$here/axml_rename.py" "$in" "$work/renamed.apk" \
     "$P=$pkg" "$P.androidx-startup=$pkg.androidx-startup" "$P.logs=$pkg.logs" \
-    "$P.documents=$pkg.documents" "$P.home=$pkg.home" \
+    "$P.documents=$pkg.documents" "$P.home=$pkg.home" "$P.agent=$pkg.agent" \
     "$P.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION=$pkg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 fi
 got=$("$BUILD_TOOLS/aapt" dump badging "$work/renamed.apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
