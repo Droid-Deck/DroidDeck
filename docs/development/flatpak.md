@@ -11,7 +11,7 @@ ARM64 builds are listed. Everything lives in one per-user installation at
 
 ## Putting Flatpak in the runtime
 
-`bannerlator-flatpak-setup` runs under proot's fake root (`-0`), because pacman and pacman-key
+`droiddeck-flatpak-setup` runs under proot's fake root (`-0`), because pacman and pacman-key
 refuse any other uid. The runtime's pacman database lists only the base image. The desktop
 and emulator packages were unpacked over it without registering. A plain `pacman -S flatpak`
 would therefore reinstall about a hundred packages, Mesa among them, over the runtime's KGSL
@@ -28,7 +28,7 @@ setup script also puts Flatpak's own error text in the failure message the app s
 ## bubblewrap without namespaces
 
 Android gives apps no user namespaces, so `bwrap` cannot work. Flatpak is pointed at
-`bannerlator-bwrap` instead (`FLATPAK_BWRAP`, exported by `bannerlator-session` and by the
+`droiddeck-bwrap` instead (`FLATPAK_BWRAP`, exported by `droiddeck-session` and by the
 store's commands). It reads bwrap's command line, including `--args` fds and the `--file` and
 `--bind-data` payloads, and then does one of two things:
 
@@ -64,7 +64,7 @@ The spawner also adds what the rootfs gives its own programs:
 
 ## Running apps
 
-The front end starts an app as a run-mode session of `bannerlator-flatpak-run <app-id>`, full
+The front end starts an app as a run-mode session of `droiddeck-flatpak-run <app-id>`, full
 screen under gamescope. Under gamescope it passes `--nosocket=wayland --socket=x11` and sets
 `XDG_SESSION_TYPE=x11`. Otherwise Flatpak finds the app compositor's `wayland-0` and the window
 opens behind gamescope. gamescope's own Wayland socket is no alternative: Chromium on Wayland
@@ -76,7 +76,7 @@ wrapped through `droiddeck-gpu` like the rootfs's own.
 ## The store
 
 `FlathubApi` reads flathub.org's public API: collections, search filtered to `aarch64`, and
-AppStream details. `bannerlator-flatpak` drives libflatpak through PyGObject and prints one
+AppStream details. `droiddeck-flatpak` drives libflatpak through PyGObject and prints one
 JSON object per line (`op`, `progress`, `error`, `done`). `FlatpakManager` turns those lines
 into the store's progress bar. Store commands run in a proot of their own, and
 `OrphanReaper` spares them when a session starts.
@@ -90,7 +90,7 @@ proot has no FUSE, and extracting at every start would cost the whole image each
 comment and icon come from the image's own desktop entry. A menu entry goes to
 `/usr/local/share/applications`, where the desktop's GPU wrapper picks it up.
 
-`bannerlator-appimage-run` starts it:
+`droiddeck-appimage-run` starts it:
 
 - `APPIMAGE` stays unset, so apps don't offer to add themselves to the menu or update in place.
 - Firefox forks get the same sandbox switches as Flatpaks.

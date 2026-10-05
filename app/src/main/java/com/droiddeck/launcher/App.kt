@@ -20,5 +20,6 @@ class App : Application() {
         com.droiddeck.launcher.update.AppUpdates.init(this)
         GpuClockPin.clearLeftover(this)
         BwrapSpawner.start(this)
+        com.droiddeck.launcher.frontend.GameFileSync.start(this)
     }
 }

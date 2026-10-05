@@ -14,7 +14,7 @@ try:
 except ImportError:
     Gio = GLib = None
 
-SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/bannerlator-login1"
+SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-login1"
 NAME = "org.freedesktop.login1"
 ROOT = "/org/freedesktop/login1"
 IFACE = NAME + ".Manager"
@@ -114,6 +114,38 @@ class SleepHandshakeTest(unittest.TestCase):
         os.kill(self.process.pid, signal.SIGCONT)
         token = self.suspend()
         self.state(token, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+        self.assertFalse(self.preparing())
+
+    def test_legacy_upower_suspend_uses_the_same_wake_handshake(self):
+        self.bus.call_sync("org.freedesktop.UPower", "/org/freedesktop/UPower",
+                           "org.freedesktop.UPower", "Suspend", None, None,
+                           Gio.DBusCallFlags.NONE, 2000, None)
+        self.wait_for(lambda: (self.dir / "steam-sleep").exists())
+        self.wait_for(lambda: self.signals == [True])
+        token = (self.dir / "steam-sleep").read_text().strip()
+        self.assertTrue(self.preparing())
+        self.state(token, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+        self.assertFalse(self.preparing())
+
+    def request_wake(self):
+        staged = self.dir / "steam-wake.tmp"
+        staged.write_text("wake\n")
+        staged.replace(self.dir / "steam-wake")
+
+    def test_host_resume_recovers_without_a_sleep_request(self):
+        self.assertFalse(self.preparing())
+        self.request_wake()
+        self.wait_for(lambda: self.signals == [True, False])
+        self.assertFalse((self.dir / "steam-wake").exists())
+
+    def test_host_wake_survives_frozen_service(self):
+        token = self.suspend()
+        self.state(token, "paused")
+        os.kill(self.process.pid, signal.SIGSTOP)
+        self.request_wake()
+        os.kill(self.process.pid, signal.SIGCONT)
         self.wait_for(lambda: self.signals == [True, False])
         self.assertFalse(self.preparing())
 

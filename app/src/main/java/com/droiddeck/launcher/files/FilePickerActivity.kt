@@ -43,7 +43,7 @@ class FilePickerActivity : ComponentActivity() {
             ?.let { File(it) }?.takeIf { it.isDirectory }
 
         setContent {
-            DroidDeckTheme {
+            DroidDeckTheme(appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)) {
                 Surface(modifier = Modifier.fillMaxSize().systemBarsPadding(), color = MaterialTheme.colorScheme.background) {
                     FileManagerScreen(
                         pickMode = true,

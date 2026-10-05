@@ -150,6 +150,12 @@ internal fun LaunchFlood(
     var page by remember { mutableStateOf(Size.Zero) }
     LaunchedEffect(page != Size.Zero) {
         if (page == Size.Zero) return@LaunchedEffect
+        if (Motion.scale == 0f) {
+            edges.forEach { it.snapTo(1f) }
+            progress(1f)
+            covered()
+            return@LaunchedEffect
+        }
         val travel = listOf(from.left, from.top, page.width - from.right, page.height - from.bottom).map { it.coerceAtLeast(0f) }
         val far = travel.max().coerceAtLeast(1f)
         coroutineScope {

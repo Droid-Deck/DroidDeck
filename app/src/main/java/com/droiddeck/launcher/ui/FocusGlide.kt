@@ -179,7 +179,7 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
     var width by remember { mutableStateOf(2.dp) }
     if (cur != null) width = cur.width
 
-    LaunchedEffect(glide) {
+    LaunchedEffect(glide, Motion.scale) {
         var shown: GlideSource? = null
         var movedAt = 0L
         var dirSpecs: List<AnimationSpec<Float>> = List(4) { follow() }
@@ -235,6 +235,20 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
             jobs[4] = scope.launch { if (snap) corner.snapTo(r) else corner.animateTo(r, Motion.sp(0.8f, 500f)) }
         }
         snapshotFlow { Triple(glide.current, glide.moves, glide.hidden || RingVeil.count > 0) }.collectLatest { (src, _, hidden) ->
+            if (Motion.scale == 0f) {
+                jobs.forEach { it?.cancel() }
+                solid.snapTo(0f)
+                val b = src?.let { glide.boundsOf(it) }
+                if (hidden || b == null) alpha.snapTo(0f)
+                else {
+                    listOf(b.left, b.top, b.right, b.bottom).forEachIndexed { i, v -> edges[i].snapTo(v) }
+                    val size = src.coords?.size?.let { Size(it.width.toFloat(), it.height.toFloat()) } ?: b.size
+                    corner.snapTo(cornerOf(src.shape, size, dir, density))
+                    alpha.snapTo(1f)
+                }
+                shown = src
+                return@collectLatest
+            }
             if (hidden) {
                 jobs.forEach { it?.cancel() }
                 alpha.snapTo(0f)

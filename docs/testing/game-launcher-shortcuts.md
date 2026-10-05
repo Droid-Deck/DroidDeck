@@ -6,7 +6,7 @@ DroidDeck exposes installed Steam titles and AddedGames through a canonical laun
 droiddeck://game/<unsigned-decimal-game-id>
 ```
 
-The ID is the value accepted by `steam://rungameid/`, including an AddedGames shortcut ID that occupies the unsigned 64-bit range. The app accepts only the exact URI form and only after a fresh library scan finds that game. It does not accept paths, Steam URLs, extra parameters, leading zeroes, or IDs outside the unsigned 64-bit range.
+The ID is the value accepted by `steam://rungameid/`, including an AddedGames shortcut ID that occupies the unsigned 64-bit range. The app accepts only the exact URI form and only after a fresh library scan finds that game. The deep link does not accept paths, Steam URLs, extra parameters, leading zeroes, or IDs outside the unsigned 64-bit range. Frontends that scan files can instead pass a file or content URI for an exported `.droiddeck` launch file.
 
 Each game page's **Shortcut** menu offers **Add to home screen** through Android's pinned-shortcut request and **Copy launch link**. When a launcher invokes `ACTION_CREATE_SHORTCUT`, DroidDeck opens the Games page and returns Android's standard shortcut result after the user chooses a game.
 

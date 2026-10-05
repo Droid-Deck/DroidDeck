@@ -78,6 +78,7 @@ class SessionService : Service() {
     /** An explicit Steam sleep request is independent of the background policy. */
     private var steamSleepToken: String? = null
     private var suspendOperationPending = false
+    private var pipTask = false
     private var suspendAttemptFailed = false
     /** One validated game request waiting for this Steam session to reach a usable state. */
     private var pendingSteamGameId: String? = null
@@ -151,7 +152,12 @@ class SessionService : Service() {
                 stopSession(0)
                 return START_NOT_STICKY
             }
+            ACTION_PIP_BEGIN -> {
+                pipTask = true
+                return START_NOT_STICKY
+            }
             ACTION_ACTIVITY_VISIBLE -> {
+                if (!SessionState.pipActive) pipTask = false
                 activityVisible = true
                 resumeSteamSleepOnReturn()
                 suspendAttemptFailed = false
@@ -193,6 +199,8 @@ class SessionService : Service() {
         suspendAttemptFailed = false
         suspendController = null
         SessionState.suspended = false
+        SessionState.pipActive = false
+        pipTask = false
         SessionState.program = intent?.getStringExtra(EXTRA_PROGRAM)
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
@@ -204,11 +212,14 @@ class SessionService : Service() {
         }
         // Another Steam client on the device signs ours out seconds after every login; the one that
         // does it here runs from boot without being opened. Only the Steam session signs in.
-        // The desktop too: its Steam launchers run the client right there (bannerlator-steam-launch).
+        // The desktop too: its Steam launchers run the client right there (droiddeck-steam-launch).
         if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) RivalClients.stopBeforeSession(this)
         SessionState.firstFrameSeen = false
         SessionState.guestPid = -1
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
+        // Re-arm after clearing readiness: a retained picture can present between the activity's
+        // start request and this callback, and that notice must not be erased by the reset above.
+        com.droiddeck.launcher.wayland.CompositorHost.newSession()
         // This session's number, claimed here and not when its process starts: the session it
         // replaces can report its own exit in the gap between the two, and that exit must not
         // be taken as this one's.
@@ -289,7 +300,7 @@ class SessionService : Service() {
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
-        // The desktop's Steam launchers start the client there (bannerlator-steam-launch), through the
+        // The desktop's Steam launchers start the client there (droiddeck-steam-launch), through the
         // same set-up as a Steam session: it gets what the client and its games are started with.
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
         addClientEnvironment(guest, steamHere)
@@ -328,7 +339,7 @@ class SessionService : Service() {
             guest.add("BL_WLR_RENDERER=" + (override?.takeIf { it.isNotEmpty() } ?: SessionPrefs.desktopRenderer(this)))
         }
         // The user's own games, for the runtime's shortcuts writer to put in the client's library
-        // before the client starts (see frontend/AddedGames and bannerlator-steam-shortcuts).
+        // before the client starts (see frontend/AddedGames and droiddeck-steam-shortcuts).
         if (steamHere) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
             val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
@@ -339,7 +350,7 @@ class SessionService : Service() {
         }
         // Where the guest leaves a request for another session (the desktop's Steam launchers).
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
-        // The second library's name, for bannerlator-steam-library; the bind itself is made below.
+        // The second library's name, for droiddeck-steam-library; the bind itself is made below.
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
         // The desktop asked for with Steam in it (the front end's "Steam Desktop UI", Big Picture's
@@ -379,7 +390,7 @@ class SessionService : Service() {
         // whatever a session leaves behind. The client abandons tens of megabytes of streams a run.
         FileUtils.clear(File(cacheDir, "shm"))
 
-        val binds = sessionBinds(controllersOn, fakeInputDir)
+        val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest)
         // The fast path is told exactly the rootfs and binds proot is given (ProotFastPath).
         val fastPathKey = if (ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
@@ -444,6 +455,8 @@ class SessionService : Service() {
             it.replace("\\", "\\\\").replace(" ", "\\ ")
         }
         watchLaunchRequests(sessionRoot)
+        watchSyncWanted(root)
+        EsyncPacks.fetchInBackground(this, root)
         // One session replacing another (the desktop's Steam launchers): the old proot is killed
         // by the teardown a second after the new one has started, and its exit used to arrive
         // here as "session ended: 137" and end the NEW session. An exit belongs to the session
@@ -462,6 +475,8 @@ class SessionService : Service() {
             if (gen == sessionGen) {
                 launchWatcher?.stopWatching()
                 launchWatcher = null
+                syncWatcher?.stopWatching()
+                syncWatcher = null
                 components.reversed().forEach { runCatching { it.stop() } }
                 components.clear()
             }
@@ -583,6 +598,9 @@ class SessionService : Service() {
         // XALIA_SUPPORTED_ONLY itself otherwise). Skipped by default: under FEX it costs every game
         // a slice of a core for gamepad navigation the session already has.
         if (SessionPrefs.noXalia(this)) guest.add("PROTON_USE_XALIA=0")
+        guest.add("BL_SYNC=" + (if (SessionPrefs.fastSync(this)) "1" else "0"))
+        guest.add("BL_SYNC_FALLBACK=" + (if (SessionPrefs.syncFallback(this)) "1" else "0"))
+        guest.add("BL_FSYNC_FIRST=" + (if (SessionPrefs.fsyncFirst(this)) "1" else "0"))
         // gamescope's realtime Vulkan queues (the session script turns this into
         // GAMESCOPE_FORCE_VULKAN_REALTIME); off unless the user turns it on.
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
@@ -709,7 +727,12 @@ class SessionService : Service() {
     }
 
     /** What proot binds into the guest: the pads, the battery, storage, the game library, added games and ROMs. */
-    private fun sessionBinds(controllersOn: Boolean, fakeInputDir: File): ArrayList<String> {
+    private fun sessionBinds(
+        controllersOn: Boolean,
+        fakeInputDir: File,
+        sessionDir: File,
+        guest: MutableList<String>,
+    ): ArrayList<String> {
         val binds = ArrayList<String>()
         if (controllersOn) binds.add(fakeInputDir.path + ":/dev/input")
         if (controllersOn) binds.addAll(deckBinds)
@@ -765,9 +788,10 @@ class SessionService : Service() {
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")
         // A second Steam library: the storage chosen in the Steam cog, at the path the runtime's
-        // bannerlator-steam-library registers with the client. Nothing bound = the script removes
+        // droiddeck-steam-library registers with the client. Nothing bound = the script removes
         // the entry, so the client never offers a place that is not there.
         val library = GameStorage.effective(this)
+        var storageDiagnosticLibrary: File? = null
         if (library != null) {
             val problem = GameStorage.prepare(library.path)
             if (problem == null) {
@@ -776,6 +800,7 @@ class SessionService : Service() {
                 File(LinuxRuntime.rootDir(this), "mnt/bannerlator-sd").mkdirs()
                 try {
                     binds.addAll(SecondaryLibrary.binds(filesDir, File(library.path)))
+                    storageDiagnosticLibrary = File(library.path)
                     Log.i(TAG, "game storage: ${library.path} -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
                 } catch (e: Exception) {
                     Log.w(TAG, "game storage: private directories could not be prepared; internal only this session", e)
@@ -785,6 +810,26 @@ class SessionService : Service() {
             }
         } else {
             Log.i(TAG, "game storage: internal only")
+        }
+        if (SessionState.mode == MODE_STEAM && SessionPrefs.storageDiagnosticsEnabled(this)) {
+            val target = storageDiagnosticLibrary ?: File(LinuxRuntime.rootDir(this), "root/.local/share/Steam")
+            val device = StorageDiagnostics.writeSnapshot(
+                sessionDir, target,
+                selectedLibrary = if (storageDiagnosticLibrary != null) "secondary" else "internal",
+                removable = storageDiagnosticLibrary?.let {
+                    runCatching { Environment.isExternalStorageRemovable(it) }.getOrDefault(false)
+                } ?: false,
+            )
+            if (device != null) {
+                // guest already has the session command at this point. Put these with the `env -i`
+                // assignments so they reach the Steam process instead of becoming script args.
+                val envAt = guest.indexOf(LinuxRuntime.SESSION_SCRIPT).takeIf { it >= 0 } ?: guest.size
+                guest.add(envAt, "BL_STORAGE_DIAGNOSTICS=1")
+                guest.add(envAt + 1, "BL_STORAGE_DEVICE=$device")
+                guest.add(envAt + 2, "BL_STORAGE_LOG=${File(sessionDir, "storage.log").absolutePath}")
+            } else {
+                Log.w(TAG, "storage diagnostics: selected library could not be identified; metadata snapshot only")
+            }
         }
         // The user's own games folder (the Steam cog's "Added games"), bound at a fixed place so
         // the shortcuts the app writes point somewhere whatever storage the folder is on.
@@ -947,6 +992,7 @@ class SessionService : Service() {
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
         manualPauseRequested = false
+        if (steamSleepToken == null) requestSteamWake()
         completeSteamSleep()
         suspendAttemptFailed = false
         updateSuspendPolicy()
@@ -1025,7 +1071,7 @@ class SessionService : Service() {
 
     private fun watchLaunchRequests(dir: File) {
         launchWatcher?.stopWatching()
-        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready").forEach { File(dir, it).delete() }
+        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready", "steam-wake", "steam-wake.tmp").forEach { File(dir, it).delete() }
         val gen = sessionGen
         @Suppress("DEPRECATION")
         val watcher = object : android.os.FileObserver(dir.path, CLOSE_WRITE or MOVED_TO) {
@@ -1072,6 +1118,24 @@ class SessionService : Service() {
         }
         watcher.startWatching()
         launchWatcher = watcher
+    }
+
+    @Volatile private var syncWatcher: android.os.FileObserver? = null
+
+    private fun watchSyncWanted(root: File) {
+        syncWatcher?.stopWatching()
+        syncWatcher = null
+        val store = EsyncPacks.store(root)
+        if (!store.isDirectory) return
+        @Suppress("DEPRECATION")
+        val watcher = object : android.os.FileObserver(store.path, CLOSE_WRITE or MOVED_TO) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path != "wanted.tsv" && path != "tools.tsv") return
+                EsyncPacks.fetchInBackground(this@SessionService, root)
+            }
+        }
+        watcher.startWatching()
+        syncWatcher = watcher
     }
 
     private fun updateSuspendPolicy() {
@@ -1148,7 +1212,21 @@ class SessionService : Service() {
     }
 
     private fun resumeSteamSleepOnReturn() {
-        if (suspendPolicy == SessionPrefs.SUSPEND_AUTO && activityVisible && screenOn) completeSteamSleep()
+        if (suspendPolicy == SessionPrefs.SUSPEND_AUTO && activityVisible && screenOn) {
+            if (steamSleepToken == null) requestSteamWake()
+            completeSteamSleep()
+        }
+    }
+
+    /** Resume must also recover a Steam sleep whose request never reached Android. */
+    private fun requestSteamWake() {
+        if (!SessionState.running || SessionState.mode != MODE_STEAM) return
+        val dir = LinuxRuntime.sessionRoot(this)
+        runCatching {
+            val staged = File(dir, "steam-wake.tmp")
+            staged.writeText("wake\n")
+            check(staged.renameTo(File(dir, "steam-wake")))
+        }.onFailure { Log.w(TAG, "could not request Steam wake", it) }
     }
 
     private fun finishSessionStop(status: Int, stoppedGen: Int) {
@@ -1158,6 +1236,8 @@ class SessionService : Service() {
                 return@post
             }
             SessionState.suspended = false
+            SessionState.pipActive = false
+            pipTask = false
             SessionState.guestPid = -1
             releaseLocks()
             if (status == 0) {
@@ -1213,6 +1293,8 @@ class SessionService : Service() {
         suspendOperationPending = false
         launchWatcher?.stopWatching()
         launchWatcher = null
+        syncWatcher?.stopWatching()
+        syncWatcher = null
         // proot's --kill-on-exit takes the guest tree down only if proot gets to run it, and
         // SIGKILL never lets it. A SIGKILLed proot left its tracees alive with no tracer: every
         // seccomp-trapped syscall then failed with ENOSYS, they spun on retries at a full core
@@ -1267,6 +1349,12 @@ class SessionService : Service() {
      * guest would survive as an orphan holding the rootfs and the GPU. Treat the swipe as "quit".
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
+        if (pipTask) {
+            Log.i(TAG, "PiP task dismissed - retaining the session under its background policy")
+            activityVisible = false
+            updateSuspendPolicy()
+            return
+        }
         Log.i(TAG, "task removed - ending the session")
         stopSession(0)
         super.onTaskRemoved(rootIntent)
@@ -1407,6 +1495,7 @@ class SessionService : Service() {
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
         const val ACTION_RESUME = "com.droiddeck.launcher.RESUME_SESSION"
+        private const val ACTION_PIP_BEGIN = "com.droiddeck.launcher.PIP_BEGIN"
         const val ACTION_LAUNCH_GAME = "com.droiddeck.launcher.LAUNCH_STEAM_GAME"
         const val ACTION_HOME_GUIDE = "com.droiddeck.launcher.HOME_GUIDE"
         const val ACTION_AGENT_START = "com.droiddeck.launcher.AGENT_START"
@@ -1418,7 +1507,7 @@ class SessionService : Service() {
         private const val ACTION_AUXILIARY_EXITED = "com.droiddeck.launcher.AUXILIARY_EXITED"
         private const val EXTRA_AUXILIARY_PID = "auxiliaryPid"
         /** Command lines that can only belong to a session of ours. */
-        private val STRAGGLERS = listOf("bannerlator-session", "gamescope", "Xwayland", "steamrtarm64",
+        private val STRAGGLERS = listOf("droiddeck-session", "gamescope", "Xwayland", "steamrtarm64",
             "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
         /** How long proot gets to run its own cleanup before it is killed outright. */
         private const val GRACE_MS = 1200L
@@ -1465,6 +1554,10 @@ class SessionService : Service() {
                 return
             }
             context.startService(Intent(context, SessionService::class.java).setAction(ACTION_STOP))
+        }
+
+        fun beginPip(context: Context) {
+            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_PIP_BEGIN))
         }
 
         fun setActivityVisible(context: Context, visible: Boolean) {

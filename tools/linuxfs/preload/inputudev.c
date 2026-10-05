@@ -89,7 +89,7 @@ static void discover_pads(void) {
 
       if (pad->devnode[0] == '\0') {
         snprintf(pad->sysname, sizeof(pad->sysname), "event%ld", slot);
-        snprintf(pad->syspath, sizeof(pad->syspath), "/sys/devices/virtual/input/bannerlator%ld",
+        snprintf(pad->syspath, sizeof(pad->syspath), "/sys/devices/virtual/input/droiddeck%ld",
                  slot);
         snprintf(pad->devnode, sizeof(pad->devnode), "/dev/input/event%ld", slot);
         snprintf(pad->uevent, sizeof(pad->uevent), PAD_UEVENT_FORMAT, (int)slot, (int)slot);
@@ -153,7 +153,7 @@ static void refresh_pad(int node) {
 
     if (read_virtual_uevent(node, uevent, sizeof(uevent))) {
       snprintf(pad->sysname, sizeof(pad->sysname), "event%d", node);
-      snprintf(pad->syspath, sizeof(pad->syspath), "/sys/devices/virtual/input/bannerlator%d", node);
+      snprintf(pad->syspath, sizeof(pad->syspath), "/sys/devices/virtual/input/droiddeck%d", node);
       memcpy(pad->uevent, uevent, sizeof(uevent));
       pad->devnum = makedev(13, EVENT_MINOR_BASE + (unsigned int)node);
       snprintf(pad->devnode, sizeof(pad->devnode), "/dev/input/event%d", node);

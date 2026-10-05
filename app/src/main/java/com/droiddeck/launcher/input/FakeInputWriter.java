@@ -94,7 +94,6 @@ public class FakeInputWriter {
     private static final int RING_SNAPSHOT_SEQ_OFFSET = 32;
     private static final int RING_SNAPSHOT_BUTTONS_OFFSET = 40;
     private static final int RING_SNAPSHOT_AXES_OFFSET = 44; // short[8]
-    private static final String RING_DIR_NAME = "fakeinput-rings";
     // After the events - MUST match the block in fakeinput_steam.cpp (DeckImu): what a Deck has and
     // an Xbox pad does not - motion, back grips, trackpads - in the Steam Deck controller's axes and
     // units, under a seqlock like the snapshot's. Only libfakeinput's Deck controller reads it.
@@ -198,26 +197,8 @@ public class FakeInputWriter {
         return builder.toString();
     }
 
-    private static File getRingDir(File fakeInputDir) {
-        if (fakeInputDir == null) {
-            return null;
-        }
-        File inputDir = fakeInputDir.getAbsoluteFile();
-        File parent = inputDir.getParentFile();
-        return new File(parent != null ? parent : inputDir, RING_DIR_NAME);
-    }
-
     private static File getRingFile(File fakeInputDir, int slot) {
-        File ringDir = getRingDir(fakeInputDir);
-        return ringDir != null ? new File(ringDir, "ring" + slot) : null;
-    }
-
-    private static String getCanonicalOrAbsolutePath(File file) {
-        try {
-            return file.getCanonicalPath();
-        } catch (IOException e) {
-            return file.getAbsolutePath();
-        }
+        return FakeInputRingPaths.ringFile(fakeInputDir, slot);
     }
 
     private static void initializeRingHeader(ByteBuffer data) {
@@ -325,7 +306,7 @@ public class FakeInputWriter {
             ringSlot.ringFile = ringFile.getAbsoluteFile();
             ringSlot.ringRaf = raf;
             ringSlot.ringChannel = channel;
-            ringSlot.exportPath = getCanonicalOrAbsolutePath(ringFile);
+            ringSlot.exportPath = FakeInputRingPaths.exportPath(ringFile);
             Log.i(TAG, "Created fake input file ring for slot " + slot + ": " + ringSlot.exportPath);
             return ringSlot;
         } catch (IOException e) {

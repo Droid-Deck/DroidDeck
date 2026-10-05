@@ -1,7 +1,7 @@
 /*
  * wp_color_manager_v1 (wayland-protocols staging color-management-v1, version 1) - the subset Mesa's
  * Wayland WSI binds - plus the HDR gate, the per-surface image descriptions and the session log's
- * HDR evidence. See banner_color.h for the design and HDR_RECON.md for why it is shaped this way.
+ * HDR evidence. See droiddeck_color.h for the design and HDR_RECON.md for why it is shaped this way.
  *
  * Strictness policy. A protocol error disconnects the client, and the client here is a GAME, so
  * errors are only raised where the protocol leaves no choice and a conforming client can never hit
@@ -12,8 +12,8 @@
  * for the same surface replaces the first, a request on an inert object is ignored.
  */
 #define _GNU_SOURCE
-#include "banner_color.h"
-#include "banner_ext.h"
+#include "droiddeck_color.h"
+#include "droiddeck_ext.h"
 #include "ahb_swapchain.h"
 #include "sc_layer.h"
 #include "color-management-v1-server-protocol.h"
@@ -30,7 +30,7 @@ extern volatile int g_zero_copy;
 #define TAG "color"
 
 /* AHARDWAREBUFFER_FORMAT_* (android/hardware_buffer.h), for the log only. */
-const char *banner_ahb_format_name(uint32_t f) {
+const char *droiddeck_ahb_format_name(uint32_t f) {
     static char other[32];
     switch (f) {
     case 1: return "RGBA8888 (8-bit)";
@@ -73,9 +73,9 @@ static const char *tf_name(uint32_t tf) {
 
 static const char *dataspace_name(int32_t ds) {
     switch (ds) {
-    case BANNER_ADATASPACE_BT2020_PQ: return "BT2020_PQ";
-    case BANNER_ADATASPACE_BT2020_HLG: return "BT2020_HLG";
-    case BANNER_ADATASPACE_UNKNOWN: return "UNKNOWN (sRGB)";
+    case DROIDDECK_ADATASPACE_BT2020_PQ: return "BT2020_PQ";
+    case DROIDDECK_ADATASPACE_BT2020_HLG: return "BT2020_HLG";
+    case DROIDDECK_ADATASPACE_UNKNOWN: return "UNKNOWN (sRGB)";
     default: return "other";
     }
 }
@@ -99,7 +99,7 @@ static _Atomic int g_gate = -1;     /* -1 undecided, 0 closed, 1 open */
 static char g_gate_why[320];        /* the closed gate's reason (for the summary) */
 static _Atomic int g_output_on = 1; /* the drawer's HDR output switch (per session, starts on) */
 
-void banner_color_set_request(int mode, const char *source, int dxvk_hdr, int zero_copy_forced) {
+void droiddeck_color_set_request(int mode, const char *source, int dxvk_hdr, int zero_copy_forced) {
     pthread_mutex_lock(&g_mu);
     g_req.mode = mode < 0 ? 0 : mode > 2 ? 2 : mode;
     snprintf(g_req.source, sizeof(g_req.source), "%s", source ? source : "environment");
@@ -109,7 +109,7 @@ void banner_color_set_request(int mode, const char *source, int dxvk_hdr, int ze
     atomic_store(&g_output_on, 1); /* the drawer's switch is per session and starts on */
 }
 
-void banner_color_set_display(int id, const char *name, const char *formats, int hdr10, float max_lum,
+void droiddeck_color_set_display(int id, const char *name, const char *formats, int hdr10, float max_lum,
                               float max_avg, float min_lum, int ratio_available, float ratio, int api) {
     pthread_mutex_lock(&g_mu);
     int was_known = g_req.display_known, was_hdr10 = g_req.hdr10, was_id = g_req.display_id;
@@ -127,17 +127,17 @@ void banner_color_set_display(int id, const char *name, const char *formats, int
      * session is recorded, and what it means is said out loud. */
     if (was_known && atomic_load(&g_gate) >= 0 && (was_hdr10 != (hdr10 ? 1 : 0) || was_id != id)) {
         if (atomic_load(&g_gate) == 1 && !hdr10)
-            banner_log(TAG, "the game is now on \"%s\" (display %d), which reports no HDR10: HDR frames stay tagged "
+            droiddeck_log(TAG, "the game is now on \"%s\" (display %d), which reports no HDR10: HDR frames stay tagged "
                        "BT2020_PQ and SurfaceFlinger tone-maps them for this display (the offer to games is fixed "
                        "for the session)", name ? name : "?", id);
         else if (atomic_load(&g_gate) == 0 && hdr10)
-            banner_log(TAG, "the game is now on \"%s\" (display %d), which reports HDR10 - HDR stays off for this "
+            droiddeck_log(TAG, "the game is now on \"%s\" (display %d), which reports HDR10 - HDR stays off for this "
                        "session (the gate is decided when the compositor starts); relaunch to use it", name ? name : "?", id);
     }
 }
 
-int banner_color_gate_state(void) { return atomic_load(&g_gate); }
-int banner_color_hdr_open(void) { return atomic_load(&g_gate) == 1; }
+int droiddeck_color_gate_state(void) { return atomic_load(&g_gate); }
+int droiddeck_color_hdr_open(void) { return atomic_load(&g_gate) == 1; }
 
 /* ---------------------------------------------------------------- HDR evidence (summary) */
 
@@ -170,7 +170,7 @@ static struct {
 static _Atomic int64_t g_last_frame_ns;
 static _Atomic int64_t g_last_tm_ns;    /* the last HDR frame shown tone-mapped to SDR */
 
-/* What the device says beside the headroom (the app, non-root APIs; banner_color_env_*). The Fold showed
+/* What the device says beside the headroom (the app, non-root APIs; droiddeck_color_env_*). The Fold showed
  * three ways to lose HDR headroom with HDR frames on screen - a screen recording, heat under load, and
  * (plausibly) the brightness slider at maximum - so every no-headroom line carries this. Under g_mu. */
 static struct {
@@ -241,20 +241,20 @@ static _Atomic int g_screen_hr_x1000;       /* the screen surface's wanted headr
 static _Atomic int64_t g_screen_hr_ns;      /* the last HDR10-swapchain frame */
 static char g_screen_hr_why[200];           /* under g_mu */
 
-static float peak_of(const struct banner_color *c, float disp_max, const char **src) {
+static float peak_of(const struct droiddeck_color *c, float disp_max, const char **src) {
     if (c->max_cll > 0.0f) { *src = "max CLL"; return c->max_cll; }
     if (c->has_st2086 && c->max_lum > 0.0f) { *src = "mastering max"; return c->max_lum; }
     if (disp_max > 0.0f) { *src = "the display's peak"; return disp_max; }
     *src = "assumed"; return 1000.0f;
 }
 
-float banner_color_desired_headroom(const struct banner_color *c, char *why, size_t n) {
+float droiddeck_color_desired_headroom(const struct droiddeck_color *c, char *why, size_t n) {
     if (!c || !c->dataspace) { if (why && n) why[0] = 0; return 0.0f; }
     pthread_mutex_lock(&g_mu);
     const float disp_max = g_req.max_lum, highest = g_req.highest_ratio;
     pthread_mutex_unlock(&g_mu);
     const char *src;
-    const float peak = peak_of(c, disp_max, &src), white = banner_color_sdr_white();
+    const float peak = peak_of(c, disp_max, &src), white = droiddeck_color_sdr_white();
     if (highest > 0.0f && highest <= 1.01f) {
         if (why && n) snprintf(why, n, "the display reports its highest HDR/SDR ratio as %.2f: no app can get a "
                                "boost here, so nothing is asked", highest);
@@ -273,24 +273,24 @@ float banner_color_desired_headroom(const struct banner_color *c, char *why, siz
     return r;
 }
 
-void banner_color_note_headroom_request(float ratio) {
+void droiddeck_color_note_headroom_request(float ratio) {
     pthread_mutex_lock(&g_mu);
     g_env.requested = ratio;
     pthread_mutex_unlock(&g_mu);
 }
 
-void banner_color_set_highest_ratio(float ratio) {
+void droiddeck_color_set_highest_ratio(float ratio) {
     pthread_mutex_lock(&g_mu);
     const float was = g_req.highest_ratio;
     g_req.highest_ratio = ratio > 0.0f ? ratio : -1.0f;
     pthread_mutex_unlock(&g_mu);
     if (ratio > 0.0f && (was < 0.0f || was != ratio) && atomic_load(&g_gate) == 1)
-        banner_log(TAG, "the display's highest HDR/SDR ratio is %.2f%s", ratio,
+        droiddeck_log(TAG, "the display's highest HDR/SDR ratio is %.2f%s", ratio,
                    ratio <= 1.01f ? " - it reports no HDR boost at all: no app can raise HDR highlights above SDR white here"
                                   : " (the most HDR headroom it can give)");
 }
 
-float banner_color_screen_headroom(char *why, size_t n) {
+float droiddeck_color_screen_headroom(char *why, size_t n) {
     const int64_t t = atomic_load(&g_screen_hr_ns);
     if (!t || now_ns() - t > 1500000000LL) { if (why && n) why[0] = 0; return 0.0f; }
     if (why && n) {
@@ -301,7 +301,7 @@ float banner_color_screen_headroom(char *why, size_t n) {
     return atomic_load(&g_screen_hr_x1000) / 1000.0f;
 }
 
-int banner_color_last_frame_age_ms(void) {
+int droiddeck_color_last_frame_age_ms(void) {
     int64_t t = atomic_load(&g_last_frame_ns);
     if (!t) return -1;
     int64_t age = (now_ns() - t) / 1000000LL;
@@ -408,34 +408,34 @@ static void log_verdict(int force) {
     int changed = strcmp(v, g_hdr.verdict) != 0;
     if (changed) snprintf(g_hdr.verdict, sizeof(g_hdr.verdict), "%s", v);
     pthread_mutex_unlock(&g_mu);
-    if (changed || force) banner_log(TAG, "HDR on screen: %s", v);
+    if (changed || force) droiddeck_log(TAG, "HDR on screen: %s", v);
 }
 
-void banner_color_frame_shown(const struct banner_color *c, int path, uint32_t ahb_format) {
+void droiddeck_color_frame_shown(const struct droiddeck_color *c, int path, uint32_t ahb_format) {
     if (!c || !c->dataspace) return;
     int first8 = 0;
     pthread_mutex_lock(&g_mu);
     switch (path) {
-    case BANNER_HDR_ZERO_COPY:
+    case DROIDDECK_HDR_ZERO_COPY:
         if (ahb_format == 0x2b) g_hdr.layer_10bit++;
         g_hdr.win_zc++;
-        snprintf(g_hdr.layer_fmt, sizeof(g_hdr.layer_fmt), "%s", banner_ahb_format_name(ahb_format));
+        snprintf(g_hdr.layer_fmt, sizeof(g_hdr.layer_fmt), "%s", droiddeck_ahb_format_name(ahb_format));
         break;
-    case BANNER_HDR_LAYER_COPY:
+    case DROIDDECK_HDR_LAYER_COPY:
         if (!g_hdr.layer_copy8) first8 = 1;
         g_hdr.layer_copy8++; g_hdr.win_copy8++;
         snprintf(g_hdr.layer_fmt, sizeof(g_hdr.layer_fmt), "RGBA8888 layer copy");
         break;
-    case BANNER_HDR_COMPOSED:
+    case DROIDDECK_HDR_COMPOSED:
         g_hdr.composed++; g_hdr.win_composed++;
-        snprintf(g_hdr.layer_fmt, sizeof(g_hdr.layer_fmt), "composed %s", banner_ahb_format_name(ahb_format));
+        snprintf(g_hdr.layer_fmt, sizeof(g_hdr.layer_fmt), "composed %s", droiddeck_ahb_format_name(ahb_format));
         break;
-    case BANNER_HDR_SWAPCHAIN:
+    case DROIDDECK_HDR_SWAPCHAIN:
         g_hdr.swapchain++; g_hdr.win_swapchain++;
         snprintf(g_hdr.layer_fmt, sizeof(g_hdr.layer_fmt), "HDR10 swapchain");
         atomic_store(&g_screen_hr_ns, now_ns());
         break;
-    default: /* BANNER_HDR_TONEMAPPED: shown, but not as HDR */
+    default: /* DROIDDECK_HDR_TONEMAPPED: shown, but not as HDR */
         g_hdr.tonemapped++; g_hdr.win_tonemapped++;
         if (!atomic_load(&g_output_on)) g_hdr.tm_off++;
         pthread_mutex_unlock(&g_mu);
@@ -446,7 +446,7 @@ void banner_color_frame_shown(const struct banner_color *c, int path, uint32_t a
     g_hdr.win_layer++;
     pthread_mutex_unlock(&g_mu);
     atomic_store(&g_last_frame_ns, now_ns());
-    if (path == BANNER_HDR_SWAPCHAIN) {
+    if (path == DROIDDECK_HDR_SWAPCHAIN) {
         /* The screen surface's headroom request (the app applies it): worked out again when the
          * description changes, else once a second. */
         static uint32_t ident;
@@ -454,7 +454,7 @@ void banner_color_frame_shown(const struct banner_color *c, int path, uint32_t a
         const int64_t t = now_ns();
         if (c->identity != ident || t - calc_ns > 1000000000LL) {
             char why[200];
-            const float r = banner_color_desired_headroom(c, why, sizeof(why));
+            const float r = droiddeck_color_desired_headroom(c, why, sizeof(why));
             ident = c->identity; calc_ns = t;
             pthread_mutex_lock(&g_mu);
             snprintf(g_screen_hr_why, sizeof(g_screen_hr_why), "%s", why);
@@ -463,12 +463,12 @@ void banner_color_frame_shown(const struct banner_color *c, int path, uint32_t a
         }
     }
     if (first8)
-        banner_log(TAG, "HDR frames are reaching the display layer through the compositor's 8-bit layer copy (the game's "
+        droiddeck_log(TAG, "HDR frames are reaching the display layer through the compositor's 8-bit layer copy (the game's "
                    "buffer is not a gralloc buffer this frame): colours stay correct (the frame keeps its BT2020_PQ tag), "
                    "precision drops to 8 bits (banding possible)");
 }
 
-void banner_color_frame_copied(const char *who, const char *reason) {
+void droiddeck_color_frame_copied(const char *who, const char *reason) {
     int first = 0;
     pthread_mutex_lock(&g_mu);
     g_hdr.copy_frames++;
@@ -479,14 +479,14 @@ void banner_color_frame_copied(const char *who, const char *reason) {
     }
     pthread_mutex_unlock(&g_mu);
     if (first)
-        banner_log(TAG, "HDR frames of %s go through the compositor's 8-bit SDR copy now, because %s: shown WITHOUT "
+        droiddeck_log(TAG, "HDR frames of %s go through the compositor's 8-bit SDR copy now, because %s: shown WITHOUT "
                    "tone mapping (washed out) until that changes", who ? who : "a window", reason ? reason : "?");
 }
 
-void banner_color_ratio_sample(float ratio, int listener) {
+void droiddeck_color_ratio_sample(float ratio, int listener) {
     if (atomic_load(&g_gate) != 1) return;
     int64_t t = now_ns();
-    int age = banner_color_last_frame_age_ms();
+    int age = droiddeck_color_last_frame_age_ms();
     int live = age >= 0 && age < 1500;
     int log_it = 0, periodic = 0, nohead_now = 0, head_back = 0;
     float was;
@@ -536,28 +536,28 @@ void banner_color_ratio_sample(float ratio, int listener) {
     }
     pthread_mutex_unlock(&g_mu);
     if (nohead_now)
-        banner_log(TAG, "no HDR headroom for 5 s while HDR frames are on screen (display HDR/SDR ratio %.2f): %s - Android "
+        droiddeck_log(TAG, "no HDR headroom for 5 s while HDR frames are on screen (display HDR/SDR ratio %.2f): %s - Android "
                    "drops HDR headroom while the screen is recorded and when the device is hot, and some phones never "
                    "boost HDR for apps; HDR highlights look no brighter until that ends [%s]", ratio, causes, env);
     if (head_back)
-        banner_log(TAG, "HDR headroom is back: display HDR/SDR ratio %.2f with HDR frames on screen", ratio);
+        droiddeck_log(TAG, "HDR headroom is back: display HDR/SDR ratio %.2f with HDR frames on screen", ratio);
     if (!log_it) return;
     char when[64];
     if (age < 0) snprintf(when, sizeof(when), "none yet this session");
     else snprintf(when, sizeof(when), "%s, last one %d ms ago", live ? "yes" : "no", age);
     if (periodic)
-        banner_log(TAG, "display HDR/SDR ratio %.2f (steady; HDR frames on screen: %s)%s%s%s%s%s", ratio, when,
+        droiddeck_log(TAG, "display HDR/SDR ratio %.2f (steady; HDR frames on screen: %s)%s%s%s%s%s", ratio, when,
                    live && ratio <= 1.01f ? " - no HDR headroom: " : "", live && ratio <= 1.01f ? causes : "",
                    env[0] ? " [" : "", env, env[0] ? "]" : "");
     else if (was > 0.0f)
-        banner_log(TAG, "display HDR/SDR ratio %.2f (was %.2f; HDR frames on screen: %s) [%s]", ratio, was, when,
+        droiddeck_log(TAG, "display HDR/SDR ratio %.2f (was %.2f; HDR frames on screen: %s) [%s]", ratio, was, when,
                    listener ? "display listener" : "sampler");
     else
-        banner_log(TAG, "display HDR/SDR ratio %.2f (first reading; HDR frames on screen: %s) [%s]", ratio, when,
+        droiddeck_log(TAG, "display HDR/SDR ratio %.2f (first reading; HDR frames on screen: %s) [%s]", ratio, when,
                    listener ? "display listener" : "sampler");
 }
 
-void banner_color_stats_tick(void) {
+void droiddeck_color_stats_tick(void) {
     if (atomic_load(&g_gate) != 1) return;
     char line[512];
     int any;
@@ -582,13 +582,13 @@ void banner_color_stats_tick(void) {
     g_hdr.win_zc = g_hdr.win_composed = g_hdr.win_swapchain = g_hdr.win_tonemapped = 0;
     g_hdr.win_ratio_n = 0;
     pthread_mutex_unlock(&g_mu);
-    if (any) banner_log(TAG, "%s", line);
+    if (any) droiddeck_log(TAG, "%s", line);
     log_verdict(0);
 }
 
-int banner_color_hdr_state(void) {
+int droiddeck_color_hdr_state(void) {
     if (atomic_load(&g_gate) != 1) return 0;
-    int age = banner_color_last_frame_age_ms();
+    int age = droiddeck_color_last_frame_age_ms();
     if (age < 0 || age >= 1500) return 0;
     pthread_mutex_lock(&g_mu);
     int confirmed = !g_hdr.ratio_n || g_hdr.ratio_last > 1.01f; /* no ratio on this display: the tag is all there is */
@@ -597,26 +597,26 @@ int banner_color_hdr_state(void) {
     return confirmed ? 1 : nohead ? 2 : 0;
 }
 
-int banner_color_hdr_on_screen(void) { return banner_color_hdr_state() == 1; }
+int droiddeck_color_hdr_on_screen(void) { return droiddeck_color_hdr_state() == 1; }
 
 static _Atomic int g_sdr_white_x100 = 20300;
-void banner_color_set_sdr_white(float nits) {
+void droiddeck_color_set_sdr_white(float nits) {
     if (!(nits >= 10.0f && nits <= 2000.0f)) return;
     atomic_store(&g_sdr_white_x100, (int)(nits * 100.0f + 0.5f));
-    banner_log(TAG, "SDR content inside an HDR picture is placed at %.0f nits (BANNER_WAYLAND_HDR_SDR_NITS)", nits);
+    droiddeck_log(TAG, "SDR content inside an HDR picture is placed at %.0f nits (DROIDDECK_WAYLAND_HDR_SDR_NITS)", nits);
 }
-float banner_color_sdr_white(void) { return atomic_load(&g_sdr_white_x100) / 100.0f; }
+float droiddeck_color_sdr_white(void) { return atomic_load(&g_sdr_white_x100) / 100.0f; }
 
-int banner_color_requested(void) {
+int droiddeck_color_requested(void) {
     pthread_mutex_lock(&g_mu);
     int m = g_req.mode;
     pthread_mutex_unlock(&g_mu);
     return m != 0;
 }
 
-int banner_color_output(void) { return atomic_load(&g_output_on); }
+int droiddeck_color_output(void) { return atomic_load(&g_output_on); }
 
-void banner_color_env_sample(int thermal, float headroom, int brightness, int bmode) {
+void droiddeck_color_env_sample(int thermal, float headroom, int brightness, int bmode) {
     if (atomic_load(&g_gate) != 1) return;  /* evidence for the HDR lines only */
     char msg[2][200];
     int nmsg = 0;
@@ -644,42 +644,42 @@ void banner_color_env_sample(int thermal, float headroom, int brightness, int bm
                  "brightness changes are logged as they happen)", e);
     }
     pthread_mutex_unlock(&g_mu);
-    for (int i = 0; i < nmsg; i++) banner_log(TAG, "%s", msg[i]);
+    for (int i = 0; i < nmsg; i++) droiddeck_log(TAG, "%s", msg[i]);
 }
 
-int banner_color_tonemapped_on_screen(void) {
+int droiddeck_color_tonemapped_on_screen(void) {
     if (atomic_load(&g_gate) != 1) return 0;
     int64_t t = atomic_load(&g_last_tm_ns);
     return t && now_ns() - t < 1500000000LL;
 }
 
-void banner_color_set_output(int on) {
+void droiddeck_color_set_output(int on) {
     on = on ? 1 : 0;
     if (atomic_load(&g_gate) != 1) {
         /* The drawer only shows the switch in sessions whose gate is open; say so if it ever gets here. */
-        banner_log(TAG, "HDR output switch (%s) ignored: HDR is not open in this session", on ? "on" : "off");
+        droiddeck_log(TAG, "HDR output switch (%s) ignored: HDR is not open in this session", on ? "on" : "off");
         return;
     }
     if (atomic_exchange(&g_output_on, on) == on) return;
     char who[160];
-    int age = banner_color_last_frame_age_ms(), tm = banner_color_tonemapped_on_screen();
+    int age = droiddeck_color_last_frame_age_ms(), tm = droiddeck_color_tonemapped_on_screen();
     pthread_mutex_lock(&g_mu);
     if (!on) g_hdr.output_offs++;
     snprintf(who, sizeof(who), "%s", g_hdr.applied_who[0] ? g_hdr.applied_who : "no HDR program yet");
     pthread_mutex_unlock(&g_mu);
     if (on)
-        banner_log(TAG, "HDR output switched ON in the drawer: HDR frames go to the display as HDR again from the next "
+        droiddeck_log(TAG, "HDR output switched ON in the drawer: HDR frames go to the display as HDR again from the next "
                    "frame (%s; %s)", who, tm ? "they were being tone-mapped to SDR until now" : "none were on screen just now");
     else
-        banner_log(TAG, "HDR output switched OFF in the drawer: HDR frames are tone-mapped to SDR from the next frame "
+        droiddeck_log(TAG, "HDR output switched OFF in the drawer: HDR frames are tone-mapped to SDR from the next frame "
                    "(%s; %s). The game is not told - it keeps rendering HDR; its own HDR setting and DXVK_HDR are "
                    "untouched", who, age >= 0 && age < 1500 ? "HDR frames were on screen" : "no HDR frames on screen just now");
-    banner_request_redraw(); /* a paused game commits nothing: show the change now */
+    droiddeck_request_redraw(); /* a paused game commits nothing: show the change now */
 }
 
 static _Atomic int g_session_ended;
 
-void banner_color_session_end(void) {
+void droiddeck_color_session_end(void) {
     if (atomic_exchange(&g_session_ended, 1)) return;
     if (atomic_load(&g_gate) < 0) return;
     pthread_mutex_lock(&g_mu);
@@ -692,7 +692,7 @@ void banner_color_session_end(void) {
 
 struct cm_desc {
     int refs;                       /* protocol objects + surfaces (pending / current) */
-    struct banner_color c;
+    struct droiddeck_color c;
     /* Set on the output / preferred descriptions the compositor serves (never on one a game built
      * from parameters): get_information is answered rather than refused, with these as the target. */
     int informative;
@@ -727,7 +727,7 @@ static void image_description_get_information(struct wl_client *c, struct wl_res
                                                   wl_resource_get_version(r), id);
     if (!info) { wl_client_post_no_memory(c); return; }
     wl_resource_set_implementation(info, NULL, NULL, NULL); /* events only */
-    const struct banner_color *col = &d->c;
+    const struct droiddeck_color *col = &d->c;
     int32_t xy[8] = { (int32_t)(col->red[0] * 1e6f + 0.5f),   (int32_t)(col->red[1] * 1e6f + 0.5f),
                       (int32_t)(col->green[0] * 1e6f + 0.5f), (int32_t)(col->green[1] * 1e6f + 0.5f),
                       (int32_t)(col->blue[0] * 1e6f + 0.5f),  (int32_t)(col->blue[1] * 1e6f + 0.5f),
@@ -765,12 +765,12 @@ static void image_description_resource_destroy(struct wl_resource *r) {
 static void make_output_description(struct wl_client *c, struct wl_resource *parent, uint32_t id, const char *what) {
     struct cm_desc *d = calloc(1, sizeof(*d));
     if (!d) { wl_client_post_no_memory(c); return; }
-    struct banner_color *col = &d->c;
+    struct droiddeck_color *col = &d->c;
     col->identity = g_next_identity++;
     if (!g_next_identity) g_next_identity = 1;
     col->primaries = WP_COLOR_MANAGER_V1_PRIMARIES_BT2020;
     col->tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ;
-    col->dataspace = BANNER_ADATASPACE_BT2020_PQ;
+    col->dataspace = DROIDDECK_ADATASPACE_BT2020_PQ;
     col->has_st2086 = 1;
     col->red[0] = 0.708f; col->red[1] = 0.292f; col->green[0] = 0.170f; col->green[1] = 0.797f;
     col->blue[0] = 0.131f; col->blue[1] = 0.046f; col->white[0] = 0.3127f; col->white[1] = 0.3290f;
@@ -788,8 +788,8 @@ static void make_output_description(struct wl_client *c, struct wl_resource *par
     d->refs = 1;
     wl_resource_set_implementation(r, &image_description_impl, d, image_description_resource_destroy);
     wp_image_description_v1_send_ready(r, col->identity);
-    banner_log(TAG, "%s asked for %s: answered the display's HDR10 volume (%s), ready and open to get_information",
-               banner_client_name(c), what, col->text);
+    droiddeck_log(TAG, "%s asked for %s: answered the display's HDR10 volume (%s), ready and open to get_information",
+               droiddeck_client_name(c), what, col->text);
 }
 
 static void params_create(struct wl_client *client, struct wl_resource *r, uint32_t id) {
@@ -801,15 +801,15 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
     }
     struct cm_desc *d = calloc(1, sizeof(*d));
     if (!d) { wl_client_post_no_memory(client); return; }
-    struct banner_color *c = &d->c;
+    struct droiddeck_color *c = &d->c;
     c->identity = g_next_identity++;
     if (!g_next_identity) g_next_identity = 1;
     c->primaries = p->primaries;
     c->tf = p->tf;
     if (p->primaries == WP_COLOR_MANAGER_V1_PRIMARIES_BT2020 && p->tf == WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ)
-        c->dataspace = BANNER_ADATASPACE_BT2020_PQ;
+        c->dataspace = DROIDDECK_ADATASPACE_BT2020_PQ;
     else if (p->primaries == WP_COLOR_MANAGER_V1_PRIMARIES_BT2020 && p->tf == WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_HLG)
-        c->dataspace = BANNER_ADATASPACE_BT2020_HLG;
+        c->dataspace = DROIDDECK_ADATASPACE_BT2020_HLG;
 
     /* HDR metadata, kept only when it makes sense. The PQ defaults stand in for what was not given
      * (0.005 - 10000 cd/m², the target volume = the primary one); CTA-861.3 treats 0 as unknown. */
@@ -870,12 +870,12 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
         g_hdr.descs++;
         pthread_mutex_unlock(&g_mu);
     }
-    banner_log(TAG, "image description #%u from %s: %s -> ready (on a display layer: dataspace %s)", c->identity,
-               banner_client_name(client), c->text, dataspace_name(c->dataspace));
+    droiddeck_log(TAG, "image description #%u from %s: %s -> ready (on a display layer: dataspace %s)", c->identity,
+               droiddeck_client_name(client), c->text, dataspace_name(c->dataspace));
     if (dropped[0]) {
         size_t l = strlen(dropped);
         if (l && dropped[l - 1] == ',') dropped[l - 1] = 0;
-        banner_log(TAG, "image description #%u: dropped HDR metadata that breaks the protocol's rules:%s "
+        droiddeck_log(TAG, "image description #%u: dropped HDR metadata that breaks the protocol's rules:%s "
                    "(Android gets the rest)", c->identity, dropped);
     }
     wl_resource_destroy(r); /* create is the creator's destructor */
@@ -982,7 +982,7 @@ static struct cm_surf *surf_of(struct wl_resource *surface) {
 
 static void describe_surface(struct wl_resource *surface, char *out, size_t size) {
     struct surface *s = surface ? wl_resource_get_user_data(surface) : NULL;
-    if (s) banner_surface_describe(s, out, size);
+    if (s) droiddeck_surface_describe(s, out, size);
     else snprintf(out, size, "a closed window");
 }
 
@@ -1002,8 +1002,8 @@ static void cm_surface_set_image_description(struct wl_client *c, struct wl_reso
     struct cm_surf *cs = wl_resource_get_user_data(r);
     struct cm_desc *d = desc_res ? wl_resource_get_user_data(desc_res) : NULL;
     if (!cs) {
-        banner_log(TAG, "%s set an image description on a colour-management object whose surface is gone: ignored",
-                   banner_client_name(c));
+        droiddeck_log(TAG, "%s set an image description on a colour-management object whose surface is gone: ignored",
+                   droiddeck_client_name(c));
         return;
     }
     if (!d) {
@@ -1045,7 +1045,7 @@ static void cm_surface_resource_destroy(struct wl_resource *r) {
     cs->pending_dirty = 1;
 }
 
-void banner_color_commit(struct wl_resource *surface) {
+void droiddeck_color_commit(struct wl_resource *surface) {
     if (atomic_load(&g_gate) != 1) return;
     struct cm_surf *cs = surf_of(surface);
     if (!cs || !cs->pending_dirty) return;
@@ -1056,7 +1056,7 @@ void banner_color_commit(struct wl_resource *surface) {
     char who[160];
     describe_surface(surface, who, sizeof(who));
     if (cs->current) {
-        banner_log(TAG, "%s: image description #%u now applies to its frames (%s; perceptual intent)", who,
+        droiddeck_log(TAG, "%s: image description #%u now applies to its frames (%s; perceptual intent)", who,
                    cs->current->c.identity, cs->current->c.text);
         if (cs->current->c.dataspace) {
             pthread_mutex_lock(&g_mu);
@@ -1064,16 +1064,16 @@ void banner_color_commit(struct wl_resource *surface) {
             snprintf(g_hdr.applied_who, sizeof(g_hdr.applied_who), "%s", who);
             pthread_mutex_unlock(&g_mu);
             if (!g_zero_copy)
-                banner_log(TAG, "%s: zero-copy presentation is OFF, so its HDR frames are composed into the HDR picture "
+                droiddeck_log(TAG, "%s: zero-copy presentation is OFF, so its HDR frames are composed into the HDR picture "
                            "(one extra pass per frame) - switch Zero-copy presentation on for the direct path", who);
         }
     } else if (old) {
-        banner_log(TAG, "%s: image description #%u removed - its frames are sRGB again", who, old->c.identity);
+        droiddeck_log(TAG, "%s: image description #%u removed - its frames are sRGB again", who, old->c.identity);
     }
     desc_unref(old);
 }
 
-const struct banner_color *banner_color_of(struct wl_resource *surface) {
+const struct droiddeck_color *droiddeck_color_of(struct wl_resource *surface) {
     if (atomic_load(&g_gate) != 1) return NULL;
     struct cm_surf *cs = surf_of(surface);
     return cs && cs->current ? &cs->current->c : NULL;
@@ -1125,14 +1125,14 @@ static void cm_get_surface(struct wl_client *c, struct wl_resource *r, uint32_t 
     describe_surface(surface, who, sizeof(who));
     if (cs->owner) {
         /* The protocol says surface_exists; a game would be disconnected for it. The newer object wins. */
-        banner_log(TAG, "%s: a second colour-management object for the same surface - the newer one takes over "
+        droiddeck_log(TAG, "%s: a second colour-management object for the same surface - the newer one takes over "
                    "(protocol error surface_exists not raised)", who);
         wl_resource_set_user_data(cs->owner, NULL);
     }
     cs->owner = o;
     wl_resource_set_implementation(o, &cm_surface_impl, cs, cm_surface_resource_destroy);
-    banner_log(TAG, "%s: colour-management surface created by %s (its Vulkan swapchain asks for a colour space "
-               "other than sRGB)", who, banner_client_name(c));
+    droiddeck_log(TAG, "%s: colour-management surface created by %s (its Vulkan swapchain asks for a colour space "
+               "other than sRGB)", who, droiddeck_client_name(c));
 }
 
 static void cm_get_surface_feedback(struct wl_client *c, struct wl_resource *r, uint32_t id, struct wl_resource *surface) {
@@ -1186,16 +1186,16 @@ static void bind_cm(struct wl_client *c, void *data, uint32_t ver, uint32_t id) 
     /* One line per program: Mesa binds again for every surface-format query. */
     if (last_named != c) {
         last_named = c;
-        banner_log(TAG, "%s bound wp_color_manager_v1 version %u (offered: perceptual intent; parametric descriptions "
+        droiddeck_log(TAG, "%s bound wp_color_manager_v1 version %u (offered: perceptual intent; parametric descriptions "
                    "with mastering metadata; BT.2020 primaries; ST 2084 PQ) - its Vulkan driver can now list "
-                   "VK_COLOR_SPACE_HDR10_ST2084_EXT", banner_client_name(c), ver > 1 ? 1u : ver);
+                   "VK_COLOR_SPACE_HDR10_ST2084_EXT", droiddeck_client_name(c), ver > 1 ? 1u : ver);
     }
 }
 
-void banner_color_client_gone(struct wl_client *client) {
+void droiddeck_color_client_gone(struct wl_client *client) {
     if (atomic_load(&g_gate) != 1 || atomic_load(&g_session_ended)) return;
     /* A program that presented HDR has left: say where the session stands now, while it is fresh. */
-    const char *name = banner_client_name(client);
+    const char *name = droiddeck_client_name(client);
     int mine;
     pthread_mutex_lock(&g_mu);
     mine = g_hdr.applied_who[0] && name && strstr(g_hdr.applied_who, name) != NULL;
@@ -1205,7 +1205,7 @@ void banner_color_client_gone(struct wl_client *client) {
 
 /* ---------------------------------------------------------------- the gate */
 
-void banner_color_init(struct wl_display *display) {
+void droiddeck_color_init(struct wl_display *display) {
     char why[320] = "";
     int mode, dxvk_hdr, zc_forced, known, hdr10, id, ratio_avail, api;
     char name[96], formats[96], source[64];
@@ -1229,14 +1229,14 @@ void banner_color_init(struct wl_display *display) {
 
     /* What asked for HDR, in the words the user knows it by: the editors' setting, or the env override. */
     char asked[128];
-    if (mode == 2) snprintf(asked, sizeof(asked), "BANNER_WAYLAND_HDR=force (%s)", source);
-    else if (strstr(source, "env")) snprintf(asked, sizeof(asked), "BANNER_WAYLAND_HDR=1 (%s)", source);
+    if (mode == 2) snprintf(asked, sizeof(asked), "DROIDDECK_WAYLAND_HDR=force (%s)", source);
+    else if (strstr(source, "env")) snprintf(asked, sizeof(asked), "DROIDDECK_WAYLAND_HDR=1 (%s)", source);
     else snprintf(asked, sizeof(asked), "HDR output is on (%s)", source);
 
     int layer_ok = sc_layer_can_tag_hdr();
     int ahb_ok = ahb_swapchain_advertised();
     char off_why[128];
-    if (strstr(source, "env")) snprintf(off_why, sizeof(off_why), "BANNER_WAYLAND_HDR=0 in the %s overrides the setting", source);
+    if (strstr(source, "env")) snprintf(off_why, sizeof(off_why), "DROIDDECK_WAYLAND_HDR=0 in the %s overrides the setting", source);
     else snprintf(off_why, sizeof(off_why), "the HDR output setting is off");
     if (mode == 0)
         snprintf(why, sizeof(why), "HDR output is off (%s)", off_why);
@@ -1255,16 +1255,16 @@ void banner_color_init(struct wl_display *display) {
         snprintf(g_gate_why, sizeof(g_gate_why), "%s", why);
         atomic_store(&g_gate, 0);
         if (mode) {
-            banner_log(TAG, "HDR gate CLOSED: %s. Nothing is advertised (no wp_color_manager_v1, no 10-bit dma-buf "
+            droiddeck_log(TAG, "HDR gate CLOSED: %s. Nothing is advertised (no wp_color_manager_v1, no 10-bit dma-buf "
                        "formats): games see an SDR display, exactly as without the switch", why);
             if (dxvk_hdr)
-                banner_log(TAG, "DXVK_HDR=1 is set: DXGI will still claim an HDR display that no swapchain can get here "
+                droiddeck_log(TAG, "DXVK_HDR=1 is set: DXGI will still claim an HDR display that no swapchain can get here "
                            "(games that check fall back to SDR; some show washed-out colours) - remove it on this display");
             log_verdict(1);
         } else if (dxvk_hdr || (known && hdr10)) {
             /* Off, and silent unless it is worth a line: a display that could show HDR10, or a DXVK
              * switch that promises games an HDR display they cannot get. */
-            banner_log(TAG, "HDR output off for this session (%s)%s%s", off_why,
+            droiddeck_log(TAG, "HDR output off for this session (%s)%s%s", off_why,
                        (known && hdr10) ? " - this display lists HDR10, so switching HDR output on for this game would "
                                           "offer it to games" : "",
                        dxvk_hdr ? " - but DXVK_HDR=1 is set, so DXGI claims an HDR display the game cannot get a "
@@ -1276,25 +1276,25 @@ void banner_color_init(struct wl_display *display) {
     if (!wl_global_create(display, &wp_color_manager_v1_interface, 1, NULL, bind_cm)) {
         snprintf(g_gate_why, sizeof(g_gate_why), "creating the wp_color_manager_v1 global failed");
         atomic_store(&g_gate, 0);
-        banner_log("error", "color: wp_color_manager_v1 global creation failed - HDR gate closed");
+        droiddeck_log("error", "color: wp_color_manager_v1 global creation failed - HDR gate closed");
         log_verdict(1);
         return;
     }
     atomic_store(&g_gate, 1);
     char syms[160];
     sc_layer_hdr_symbols(syms, sizeof(syms));
-    banner_log(TAG, "HDR gate %s: %s and %s. Offering games HDR10: wp_color_manager_v1 version 1 (BT.2020 primaries "
+    droiddeck_log(TAG, "HDR gate %s: %s and %s. Offering games HDR10: wp_color_manager_v1 version 1 (BT.2020 primaries "
                "+ ST 2084 PQ, parametric descriptions with mastering metadata) and 10-bit AB30/XB30 dma-buf formats; HDR "
                "frames go on the game's own display layer as BT2020_PQ (%s)",
                mode == 2 ? "FORCED OPEN (testing)" : "OPEN", asked, disp, syms);
     if (mode == 2 && !hdr10)
-        banner_log(TAG, "BANNER_WAYLAND_HDR=force on a display without HDR10 - testing only: SurfaceFlinger will tone-map "
+        droiddeck_log(TAG, "DROIDDECK_WAYLAND_HDR=force on a display without HDR10 - testing only: SurfaceFlinger will tone-map "
                    "the game layer for this panel (expect GPU/CLIENT composition for it), nothing looks HDR");
     if (zc_forced)
-        banner_log(TAG, "zero-copy presentation turned on for this session: the HDR game's own 10-bit frames go straight "
+        droiddeck_log(TAG, "zero-copy presentation turned on for this session: the HDR game's own 10-bit frames go straight "
                    "to its display layer (the best path; anything that needs the compositor gets the composed HDR picture)");
     if (!dxvk_hdr)
-        banner_log(TAG, "DXVK_HDR=1 is not in the game's environment: DXVK games will not see an HDR display in DXGI "
+        droiddeck_log(TAG, "DXVK_HDR=1 is not in the game's environment: DXVK games will not see an HDR display in DXGI "
                    "(dxgi.enableHDR in a dxvk.conf does the same) - add DXVK_HDR=1 to the container's or shortcut's "
                    "environment variables");
     (void)max_avg; (void)min_lum;

@@ -79,8 +79,8 @@ android {
         // file out of its own data directory, and this app's entire job is to exec a rootfs:
         // proot, gamescope, the Steam client and everything it launches all live under files/.
         targetSdkVersion 28
-        versionCode 10
-        versionName "0.3.0"
+        versionCode 11
+        versionName "0.3.1"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -175,6 +175,16 @@ android {
         jvmTarget = '17'
     }
 }
+
+// Session scripts must follow this checkout even when the native asset bundle is cached.
+// A stale local bundle can omit a newly required helper on a fresh runtime install.
+def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
+    from(rootProject.file('tools/linuxfs/overlay')) {
+        include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
+    }
+    into(layout.projectDirectory.dir('src/main/assets/linuxfs'))
+}
+tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 
 dependencies {
     // The runtime tarball is a zstd-compressed tar.

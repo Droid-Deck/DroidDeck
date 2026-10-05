@@ -70,6 +70,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 
 // The session's loading screen, its paused screen and the HUD text style.
@@ -273,7 +276,11 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
             .padding(horizontal = 12.dp),
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(20.dp).clip(CircleShape).background(colors.onBackground)) {
-            Text("B", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.background)
+            Text("B", color = colors.background, style = TextStyle(
+                fontSize = 12.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold,
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+            ))
         }
         Text(stringResource(R.string.common_cancel), fontSize = 13.sp, color = colors.onSurfaceVariant)
     }

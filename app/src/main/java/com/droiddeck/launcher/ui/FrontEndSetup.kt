@@ -148,6 +148,7 @@ internal fun SetupPanel(
     }
     val runtime = when {
         s.busy -> stringResource(R.string.common_working)
+        s.removalPending -> stringResource(R.string.setup_retry_removal)
         !s.ready -> stringResource(R.string.setup_install)
         s.available != null && s.available != s.installed -> stringResource(R.string.common_update)
         else -> stringResource(R.string.setup_manage)
@@ -161,8 +162,6 @@ internal fun SetupPanel(
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
-    val checks = 4
-    val readyCount = listOf(gpuOk, s.ready && !s.busy, !limitBlocks, signedIn).count { it }
     // Four tabs instead of one long scroll; LB and RB turn them from anywhere on the page. Build
     // and credits are on the Updates page.
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_session), stringResource(R.string.setup_tab_launcher))
@@ -186,9 +185,8 @@ internal fun SetupPanel(
             ),
         ) {
             PageHeader(stringResource(R.string.setup_title)) {
-                Chip(if (readyCount == checks) stringResource(R.string.setup_all_set) else stringResource(R.string.setup_n_ready, readyCount, checks), ok = readyCount == checks)
+                TabStrip(tabs, tab, pick, Modifier.weight(1f), tabFocus)
             }
-            TabStrip(tabs, tab, pick, Modifier.padding(bottom = 4.dp), tabFocus)
             Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 when (tab) {
                     0 -> {
@@ -213,12 +211,25 @@ internal fun SetupPanel(
                                 when { s.busy -> CheckState.BUSY; !s.ready -> CheckState.WARN; else -> CheckState.OK },
                                 stringResource(R.string.setup_runtime),
                                 when {
-                                    s.busy -> if (s.percent >= 0) stringResource(R.string.setup_runtime_progress, s.stage, s.percent) else s.stage
+                                    s.busy -> null
+                                    s.removalPending -> stringResource(R.string.runtime_removal_incomplete)
                                     !s.ready -> stringResource(R.string.setup_runtime_missing)
                                     s.available != null && s.available != s.installed -> stringResource(R.string.setup_runtime_update, s.installed ?: stringResource(R.string.setup_installed))
                                     else -> stringResource(R.string.setup_runtime_current, s.installed ?: stringResource(R.string.setup_installed))
                                 },
-                            ) { SecondaryButton(runtime, enabled = !s.busy, compact = true, onClick = a.onRuntime) }
+                                divider = !s.busy,
+                            ) { SecondaryButton(runtime, enabled = !s.busy && !s.runtimeActionsBlocked && !s.sessionRunning, compact = true, onClick = a.onRuntime) }
+                            if (s.busy) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 10.dp)) {
+                                    Text(
+                                        if (s.percent >= 0) stringResource(R.string.setup_runtime_progress, s.stage, s.percent) else s.stage,
+                                        fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 5.dp),
+                                    )
+                                    if (s.percent >= 0) LinearProgressIndicator(progress = { s.percent / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp))
+                                    else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
+                                }
+                                Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+                            }
                             CheckRow(
                                 if (limitBlocks) CheckState.WARN else CheckState.OK,
                                 stringResource(R.string.setup_limit),
@@ -300,6 +311,15 @@ internal fun SetupPanel(
                     }
                     3 -> {
                         SettingsGroup(stringResource(R.string.setup_launcher)) {
+                            ChoiceRow(
+                                host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
+                                com.droiddeck.launcher.core.AppUiPrefs.scales.map { percent ->
+                                    percent to stringResource(
+                                        if (percent == com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE) R.string.setup_app_scale_default
+                                        else R.string.ctrl_percent, percent,
+                                    )
+                                }, s.appScale, onPick = a.onAppScale,
+                            )
                             SettingsRow(stringResource(R.string.setup_theme), stringResource(R.string.setup_theme_hint)) {
                                 Box {
                                     ValueChip(Themes.byId(s.theme).label, host.open == "theme") { host.open = if (host.open == "theme") null else "theme" }
@@ -323,6 +343,8 @@ internal fun SetupPanel(
                                 if (s.launcherFullscreen) stringResource(R.string.setup_fullscreen_on) else stringResource(R.string.setup_fullscreen_off),
                                 s.launcherFullscreen,
                             ) { a.onLauncherFullscreen(it) }
+                            ToggleRow(host, "launcher-animations", stringResource(R.string.setup_animations), null,
+                                s.animationsEnabled, onChange = a.onAnimationsEnabled)
                             if (s.homeScreenEnabled) {
                                 ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
                             }

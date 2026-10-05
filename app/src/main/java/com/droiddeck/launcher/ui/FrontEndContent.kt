@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
@@ -160,7 +161,7 @@ internal fun Pane(
                 else {
                     // Keeps a leaving page on screen while its flood draws back into the control.
                     transition.animateFloat(
-                        transitionSpec = { if (targetState == EnterExitState.PostExit) tween(PAGE_RETURN_MS) else snap() },
+                        transitionSpec = { if (targetState == EnterExitState.PostExit) Motion.tw(PAGE_RETURN_MS) else snap() },
                         label = "pageReturn",
                     ) { if (it == EnterExitState.PostExit) 1f else 0f }
                     PageFlood(from, leaving = transition.targetState == EnterExitState.PostExit) { shown() }
@@ -273,17 +274,17 @@ private fun Content(
                 if (ready.isNotEmpty() || addAfterReady) {
                     Rise(3) { SectionTitle(stringResource(R.string.user_apps_section), ready.size.takeIf { it > 0 }?.toString()) }
                     Rise(4) {
-                        LauncherGrid(if (addAfterReady) ready + GridItem.Add else ready, first = true, onSelect = onSelect, onAdd = { adding = true })
+                        LauncherGrid(if (addAfterReady) ready + GridItem.Add else ready, first = true, onSelect = onSelect, onAdd = { if (!s.busy) adding = true })
                     }
                 }
                 if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(5) { UserAppsProgress() }
                 if (!addAfterReady) {
                     Rise(5) { SectionTitle(stringResource(R.string.content_available), available.size.toString()) }
                     Rise(6) {
-                        LauncherGrid(available.map { GridItem.Emu(it) } + GridItem.Add, first = ready.isEmpty(), onSelect = onSelect, onAdd = { adding = true })
+                        LauncherGrid(available.map { GridItem.Emu(it) } + GridItem.Add, first = ready.isEmpty(), onSelect = onSelect, onAdd = { if (!s.busy) adding = true })
                     }
                 }
-                if (adding) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
+                if (adding && !s.busy) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
             }
             selected.startsWith("user:") -> {
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
@@ -320,7 +321,7 @@ private fun Content(
                                 SecondaryButton(stringResource(R.string.setup_tool_roms), onClick = a.onRoms)
                                 if (pkg != null) SecondaryButton(
                                     if (pkg.kind == "appimage") stringResource(R.string.store_remove) else stringResource(R.string.common_hide),
-                                    enabled = s.packageBusyId == null && !s.sessionRunning,
+                                    enabled = !s.busy && s.packageBusyId == null && !s.sessionRunning,
                                 ) { a.onRemovePackage(pkg.id) }
                             }
                         }
@@ -340,7 +341,7 @@ private fun Content(
                             Actions {
                                 PrimaryButton(
                                     if (s.packageBusyId == pkg.id) stringResource(R.string.store_installing) else stringResource(R.string.content_install_named, e.name),
-                                    enabled = s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning,
+                                    enabled = !s.busy && s.packageBusyId == null && s.ready && !s.packageCatalogLoading && !s.sessionRunning,
                                 ) { a.onInstallPackage(pkg.id) }
                                 if (s.sessionRunning) ActionChip(stringResource(R.string.content_stop_to_install), ok = false)
                                 else if (!s.ready) ActionChip(stringResource(R.string.content_runtime_required), ok = false)
@@ -575,6 +576,10 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
     val narrow = LocalNarrowPane.current
     var confirm by remember(app.key) { mutableStateOf(false) }
     var editing by rememberSaveable(app.key) { mutableStateOf(false) }
+    val x86 = (app.arch == "x86_64" || app.arch == "i386") && app.fex != com.droiddeck.launcher.runtime.LinuxFex.OFF
+    val fexReady by produceState<Boolean?>(null, app.key, x86, s.sessionRunning) {
+        value = if (x86) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.runtime.LinuxFex.ready(ctx) } else true
+    }
     LaunchedEffect(confirm) { if (confirm) { kotlinx.coroutines.delay(4000); confirm = false } }
     Rise(0) { BackLink(stringResource(R.string.user_apps_back)) { onSelect("desktop") } }
     Rise(1) {
@@ -586,7 +591,8 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             Column {
                 Text(app.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Text(
-                    app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label()),
+                    (app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label())) +
+                        (if (app.arch == "x86_64" || app.arch == "i386") " · " + stringResource(R.string.app_fex_x86, app.arch) else ""),
                     fontSize = 14.sp, color = colors.onSurfaceVariant,
                 )
             }
@@ -600,7 +606,7 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             if (app.repo != null) UpdateButton(app, s)
             SecondaryButton(
                 stringResource(if (confirm) R.string.user_apps_remove_confirm else R.string.user_apps_remove),
-                enabled = !s.sessionRunning && UserAppsState.working == null,
+                enabled = !s.busy && !s.sessionRunning && UserAppsState.working == null,
             ) {
                 if (!confirm) confirm = true
                 else { confirm = false; UserAppsState.remove(ctx, app); onSelect("desktop") }
@@ -609,7 +615,10 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
         }
     }
     if (UserAppsState.working != null || UserAppsState.lastError != null) Rise(4) { UserAppsProgress() }
-    if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon -> UserAppsState.edit(ctx, app, name, icon) }
+    if (fexReady == false) Rise(4) {
+        Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) { Note(stringResource(R.string.app_fex_not_ready, app.arch.orEmpty())) }
+    }
+    if (editing) EditAppDialog(app, onDismiss = { editing = false }) { name, icon, fex -> UserAppsState.edit(ctx, app, name, icon, fex) }
     val detail = app.detail
     if (detail != null) Rise(4) {
         Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -628,7 +637,7 @@ private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
     val idle = UserAppsState.working == null && UserAppsState.checking == null
     when (val found = UserAppsState.updates[app.key]) {
         is UserApps.UpdateCheck.Available -> SecondaryButton(
-            stringResource(R.string.user_apps_update_to, found.release.tag), enabled = idle && !s.sessionRunning,
+            stringResource(R.string.user_apps_update_to, found.release.tag), enabled = !s.busy && idle && !s.sessionRunning,
         ) { UserAppsState.update(ctx, app, found.release) }
         else -> {
             SecondaryButton(

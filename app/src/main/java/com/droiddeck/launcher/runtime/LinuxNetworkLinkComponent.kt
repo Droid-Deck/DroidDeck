@@ -62,7 +62,7 @@ class LinuxNetworkLinkComponent(
                 synchronized(lock) { writeNetworkState(currentProperties, currentCapabilities) }
                 requestWifiScan()
             }
-            val stamp = File(rootDir, "etc/bannerlator-wifi-scan-request").lastModified()
+            val stamp = File(rootDir, "etc/droiddeck-wifi-scan-request").lastModified()
             if (stamp != 0L && stamp != scanRequestStamp) {
                 scanRequestStamp = stamp
                 requestWifiScan()
@@ -126,7 +126,7 @@ class LinuxNetworkLinkComponent(
             addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION)
             addAction(LocationManager.MODE_CHANGED_ACTION)
         })
-        scanRequestStamp = File(rootDir, "etc/bannerlator-wifi-scan-request").lastModified()
+        scanRequestStamp = File(rootDir, "etc/droiddeck-wifi-scan-request").lastModified()
         scanHandler.post(scanRequests)
         requestWifiScan()
     }
@@ -253,7 +253,7 @@ class LinuxNetworkLinkComponent(
             }
         }
         try {
-            val file = File(rootDir, "etc/bannerlator-network.json")
+            val file = File(rootDir, "etc/droiddeck-network.json")
             val staged = File(file.path + ".staged")
             staged.writeText(state.toString())
             if (!staged.renameTo(file)) throw IOException("Could not replace network state")
@@ -335,7 +335,7 @@ class LinuxNetworkLinkComponent(
 
     companion object {
         private const val TAG = "LinuxNetworkLink"
-        private const val LINK_FILE = "etc/bannerlator-net"
+        private const val LINK_FILE = "etc/droiddeck-net"
         private const val LINK_INDEX = 2
         private const val DEFAULT_MTU = 1500
         private const val OFFLINE_NAME = "eth0"

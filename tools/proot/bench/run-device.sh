@@ -13,7 +13,7 @@ D=/data/local/tmp/dd
 V=$1; shift
 U=$(id -u)
 REL="\\Linux\\DroidDeck\\$(uname -r)\\$(uname -v)\\aarch64\\localdomain\\-1\\"
-BINDS="-b /dev -b /proc -b /sys -b /dev/urandom:/dev/random -b /proc/self/fd:/dev/fd -b /proc/self/fd/0:/dev/stdin -b /proc/self/fd/1:/dev/stdout -b /proc/self/fd/2:/dev/stderr -b $D/tmp:/dev/shm -b $D -b /sdcard -b /data/local/tmp/dd/mini/etc/os-release:/proc/version -b $D/mini/etc/os-release:/proc/loadavg -b $D/mini/etc/os-release:/proc/uptime -b /sys/class/thermal/thermal_zone0/temp:/sys/class/thermal/thermal_zone28/temp -b $D/tmp:/mnt/droiddeck-sd -b $D/tmp:/mnt/bannerlator"
+BINDS="-b /dev -b /proc -b /sys -b /dev/urandom:/dev/random -b /proc/self/fd:/dev/fd -b /proc/self/fd/0:/dev/stdin -b /proc/self/fd/1:/dev/stdout -b /proc/self/fd/2:/dev/stderr -b $D/tmp:/dev/shm -b $D -b /sdcard -b /data/local/tmp/dd/mini/etc/os-release:/proc/version -b $D/mini/etc/os-release:/proc/loadavg -b $D/mini/etc/os-release:/proc/uptime -b /sys/class/thermal/thermal_zone0/temp:/sys/class/thermal/thermal_zone28/temp -b $D/tmp:/mnt/droiddeck-sd -b $D/tmp:/mnt/droiddeck"
 export PROOT_TMP_DIR=$D/tmp
 case $V in
   patched)   export PROOT_LOADER=$D/loader; exec $D/proot --kill-on-exit --kernel-release="$REL" -i $U:$U -r $D/mini -w /root $BINDS /usr/bin/env -i HOME=/root PATH=/usr/bin LANG=C.UTF-8 "$@" ;;

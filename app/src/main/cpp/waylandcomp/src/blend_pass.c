@@ -2,7 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include "blend_pass.h"
 #include "vk_loader.h"
-#include "vk_present.h" /* banner_log, vkp_gpu_name */
+#include "vk_present.h" /* droiddeck_log, vkp_gpu_name */
 #include <string.h>
 
 /* SPIR-V, pre-compiled (glslangValidator -V blend.vert --vn blend_vert_code, the same for blend.frag)
@@ -168,12 +168,12 @@ static int objects_ensure(void) {
     if (!(g_vert = shader(blend_vert_code, sizeof(blend_vert_code)))) goto fail;
     if (!(g_frag = shader(blend_frag_code, sizeof(blend_frag_code)))) goto fail;
     g_ready = 1;
-    banner_log("gpu", "alpha composition ready on %s: translucent surfaces are blended over what is under them",
+    droiddeck_log("gpu", "alpha composition ready on %s: translucent surfaces are blended over what is under them",
             vkp_gpu_name());
     return 0;
 fail:
     objects_destroy();
-    banner_log("error", "gpu: the alpha composition pass could not be built on this driver; translucent surfaces "
+    droiddeck_log("error", "gpu: the alpha composition pass could not be built on this driver; translucent surfaces "
                "are drawn opaque this session");
     return -1;
 }

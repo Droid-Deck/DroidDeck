@@ -39,9 +39,9 @@ for tool in curl tar zstd shasum unzip; do
         exit 1
     fi
 done
-if [[ -f "${repo_root}/tools/gamescope/release.env" || -f "${repo_root}/tools/wlroots/release.env" ]] \
-        && ! command -v gh >/dev/null 2>&1; then
-    echo "GitHub CLI is required to download the pinned Gamescope and wlroots release assets." >&2
+if [[ -f "${repo_root}/tools/gamescope/release.env" || -f "${repo_root}/tools/wlroots/release.env" \
+        || -f "${repo_root}/tools/droiddeck-esync/release.env" ]] && ! command -v gh >/dev/null 2>&1; then
+    echo "GitHub CLI is required to download the pinned Gamescope, wlroots and droiddeck-esync release assets." >&2
     exit 1
 fi
 
@@ -129,7 +129,7 @@ docker run --rm --platform linux/amd64 \
         mkdir -p "$d/usr/local/bin"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
-        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
+        for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
             install -Dm644 "$script" "$d/usr/local/bin/$(basename "$script")"
         done
         for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
@@ -166,8 +166,18 @@ docker run --rm --platform linux/amd64 \
                 exit 1
             }
         done
-        test -f "$d/usr/local/bin/bannerlator-session"
-        test -f "$d/usr/local/bin/bannerlator-proton-extra"
+        test -f "$d/usr/local/bin/droiddeck-session"
+        test -f "$d/usr/local/bin/droiddeck-proton-extra"
+    '
+
+docker run --rm --platform linux/amd64 \
+    -v "${repo_root}:/src" -w /src debian:bullseye bash -c '
+        set -euo pipefail
+        printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+        apt-get -o Acquire::Check-Valid-Until=false update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+        tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
+        chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
     '
 
 github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
@@ -221,6 +231,36 @@ if [[ -f "${repo_root}/tools/wlroots/release.env" ]]; then
         bash -c 'gh release download "$0" -R "$1" -p wlroots.tzst -O "$out"' "${WLROOTS_TAG}" "${github_repo}")
     zstd -dc "${wlroots_archive}" | tar -xf - -C "${linuxfs_dir}"
     test -f "${linuxfs_dir}/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so"
+fi
+
+. "${repo_root}/tools/linuxfs/uruntime.env"
+uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
+    bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
+install -Dm644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
+install -Dm644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
+
+sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
+if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
+    . "${repo_root}/tools/droiddeck-esync/release.env"
+    sync_archive=$(cached "${SYNC_BUNDLE_SHA256}" "${SYNC_BUNDLE_ASSET}" \
+        bash -c 'gh release download "$0" -R "$2" -p "$1" -O "$out"' "${SYNC_BUNDLE_TAG}" "${SYNC_BUNDLE_ASSET}" "${SYNC_BUNDLE_REPO}")
+    rm -rf "${sync_assets}"
+    mkdir -p "${sync_assets}"
+    zstd -dc "${sync_archive}" | tar -xf - -C "${sync_assets}"
+    test -f "${sync_assets}/index.json"
+    test -f "${sync_assets}/index.json.sig"
+    sync_index=$(mktemp)
+    gh release download "${SYNC_BUNDLE_TAG}" -R "${SYNC_BUNDLE_REPO}" -p index.json -O "${sync_index}" --clobber
+    revoked=$(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' "${sync_index}")
+    for id in ${revoked}; do
+        if [[ -e "${sync_assets}/packs/${id}.tzst" ]]; then
+            echo "${SYNC_BUNDLE_ASSET} carries revoked pack ${id}; it is left out of the APK" >&2
+            rm -f "${sync_assets}/packs/${id}.tzst"
+        fi
+    done
+    rm -f "${sync_index}"
+elif [[ -d "${sync_assets}" ]]; then
+    echo "No tools/droiddeck-esync/release.env: the APK bundles the droiddeck-esync packs already in ${sync_assets}." >&2
 fi
 
 mango_dir="${linuxfs_dir}/usr/local/lib/mangoapp"
@@ -292,6 +332,7 @@ mv "${staging_dir}/pulseaudio.tzst" "${bundle_asset}"
 
 cd "${repo_root}"
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}"
+python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 cp -p "${bundle_backup}" "${bundle_asset}"
 bundle_replaced=0
 

@@ -4,6 +4,7 @@ import com.droiddeck.launcher.core.Hashes
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.github.luben.zstd.ZstdInputStream
 import com.github.luben.zstd.ZstdOutputStream
@@ -84,6 +85,7 @@ object ComponentsManager {
         val proton: Proton, val components: Map<String, Component>, val originals: List<Original>, val inUseByGame: Boolean,
         /** When a launch last had to put this Proton's chosen files back (epoch seconds), or 0. */
         val reappliedAt: Long = 0,
+        val sync: EsyncPacks.ToolState? = null,
     )
     data class Snapshot(val protons: List<ProtonView>, val packages: List<Package>)
     data class Catalog(val items: List<CatalogItem>, val fetchedAt: Long)
@@ -101,11 +103,25 @@ object ComponentsManager {
     private fun stateFile(context: Context) = File(dataDir(context), "state.json")
     private fun catalogFile(context: Context) = File(dataDir(context), "catalog.json")
     /**
-     * Inside the Linux runtime, read by the Proton launch wrappers (bannerlator-steam-compat's
+     * Inside the Linux runtime, read by the Proton launch wrappers (steam-compatibility's
      * bl_components) before every game launch: desired.tsv + an unpacked copy of each package in use.
      */
-    private const val LAUNCH_DIR = "root/.local/share/bannerlator-components"
-    private fun launchDir(context: Context) = File(root(context), LAUNCH_DIR)
+    private const val LAUNCH_DIR = "root/.local/share/droiddeck-components"
+    private const val LEGACY_LAUNCH_DIR = "root/.local/share/bannerlator-components"
+    private fun launchDir(context: Context): File {
+        migrateLaunchDir(context)
+        return File(root(context), LAUNCH_DIR)
+    }
+
+    fun migrateLaunchDir(context: Context) = synchronized(lock) {
+        val legacy = File(root(context), LEGACY_LAUNCH_DIR)
+        val dir = File(root(context), LAUNCH_DIR)
+        if (!legacy.isDirectory || dir.exists() || !legacy.renameTo(dir)) return@synchronized
+        val desired = File(dir, "desired.tsv")
+        val text = FileUtils.readString(desired) ?: return@synchronized
+        val staged = File(dir, "desired.tsv.staged")
+        if (!FileUtils.writeString(staged, text.replace("/$LEGACY_LAUNCH_DIR/", "/$LAUNCH_DIR/")) || !staged.renameTo(desired)) staged.delete()
+    }
 
     fun safeName(s: String): String = s.replace(Regex("[^A-Za-z0-9._+-]+"), "_").trim('_').ifEmpty { "unnamed" }
 
@@ -202,22 +218,24 @@ object ComponentsManager {
      * Is anything running on this Proton right now - a game, or the client's own start-up runs,
      * whose Wine processes can outlive them? Swaps wait while it is. Read from the command lines.
      */
-    fun inUse(proton: Proton): Boolean = anyProcess(proton) { needle, text -> text.contains(needle + "proton ") || text.contains(needle + "files/bin") }
+    fun inUse(context: Context, proton: Proton): Boolean = anyProcess(context, proton) { needle, text -> text.contains(needle + "proton ") || text.contains(needle + "files/bin") }
 
     /**
      * Is a game running on this Proton? Only a launch runs proton with the verb waitforexitandrun
      * (Proton's own script stays up until the game exits); the client's start-up runs do not.
      */
-    fun gameRunning(proton: Proton): Boolean = anyProcess(proton) { needle, text -> text.contains(needle + "proton waitforexitandrun") }
+    fun gameRunning(context: Context, proton: Proton): Boolean = anyProcess(context, proton) { needle, text -> text.contains(needle + "proton waitforexitandrun") }
 
-    private fun anyProcess(proton: Proton, match: (String, String) -> Boolean): Boolean {
-        val needle = proton.guestPath.trimEnd('/') + "/"
+    private fun anyProcess(context: Context, proton: Proton, match: (String, String) -> Boolean): Boolean {
+        val needles = (listOf(proton.guestPath) + EsyncPacks.distPathsFor(root(context), proton.guestPath))
+            .map { it.trimEnd('/') + "/" }
         val procs = File("/proc").listFiles() ?: return false
         for (p in procs) {
             if (!p.name.all(Char::isDigit)) continue
             val cmd = runCatching { File(p, "cmdline").readBytes() }.getOrNull() ?: continue
             if (cmd.isEmpty()) continue
-            if (match(needle, String(cmd).replace('\u0000', ' '))) return true
+            val text = String(cmd).replace('\u0000', ' ')
+            if (needles.any { match(it, text) }) return true
         }
         return false
     }
@@ -290,6 +308,7 @@ object ComponentsManager {
                 }
             }
             require(File(staged, "files").isDirectory) { "${wcp.name} has no files/" }
+            if (comp == "fex") FEX_FILES.filter { it.endsWith(".so") && !File(staged, it).isFile }.forEach { File(dir, it).delete() }
             COMP_DIR[comp]?.let { compDir ->
                 for (arch in PE_ARCHES) {
                     val target = File(dir, "$compDir/$arch")
@@ -392,6 +411,7 @@ object ComponentsManager {
                 if (parts.size >= 2) parts[0].toLongOrNull()?.let { reapplied[parts[1]] = maxOf(reapplied[parts[1]] ?: 0, it) }
             }
         }
+        val syncPacks = EsyncPacks.status(root(context))
         val views = protons(context).map { p ->
             val comps = COMPONENTS.associateWith { comp ->
                 val detected = if (comp == "fex") fexVersion(p.dir) else readVersionFile(File(p.dir, "${COMP_DIR.getValue(comp)}/version"))
@@ -414,7 +434,7 @@ object ComponentsManager {
                     q?.optString("label"),
                 )
             }
-            ProtonView(p, comps, originals(context, p.id), gameRunning(p), reapplied[p.dir.name] ?: 0)
+            ProtonView(p, comps, originals(context, p.id), gameRunning(context, p), reapplied[p.dir.name] ?: 0, syncPacks.tool(p.guestPath))
         }
         Snapshot(views, packages(context))
     }
@@ -489,7 +509,7 @@ object ComponentsManager {
         val wcp = File(packagesDir(context), safeName(file))
         val info = packageInfo(wcp)
         val state = loadState(context)
-        if (inUse(p)) {
+        if (inUse(context, p)) {
             state.sub("queued").sub(p.id).put(info.comp, JSONObject().put("kind", "package").put("file", wcp.name).put("label", info.version))
             saveState(context, state)
             return "${LABEL[info.comp]} ${info.version} goes into ${p.name} when the game running on it closes."
@@ -515,7 +535,7 @@ object ComponentsManager {
         val wcp = File(originalsDir(context), "$protonId/${safeName(protonVersion)}/$comp.wcp")
         check(wcp.isFile) { "That original bundle is not stored" }
         val state = loadState(context)
-        if (inUse(p)) {
+        if (inUse(context, p)) {
             state.sub("queued").sub(p.id).put(comp, JSONObject().put("kind", "original").put("protonVersion", protonVersion).put("label", "Original $protonVersion"))
             saveState(context, state)
             return "${LABEL[comp]} of ${p.name} goes back to its original when the game running on it closes."
@@ -545,7 +565,7 @@ object ComponentsManager {
         val all = protons(context)
         for (pid in queued.keys().asSequence().toList()) {
             val p = all.firstOrNull { it.id == pid } ?: run { queued.remove(pid); null } ?: continue
-            if (inUse(p)) continue
+            if (inUse(context, p)) continue
             val comps = queued.optJSONObject(pid) ?: continue
             for (comp in comps.keys().asSequence().toList()) {
                 val q = comps.optJSONObject(comp) ?: continue

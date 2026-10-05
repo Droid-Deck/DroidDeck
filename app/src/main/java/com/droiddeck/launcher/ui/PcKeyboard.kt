@@ -202,7 +202,7 @@ private fun RowScope.KeyCap(
             down -> pal.signal.copy(alpha = 0.55f)
             lit -> pal.signal.copy(alpha = if (locked) 0.45f else 0.28f)
             else -> Color.White.copy(alpha = 0.07f)
-        }, label = "keyFill",
+        }, Motion.tw(160), label = "keyFill",
     )
     Box(
         contentAlignment = Alignment.Center,

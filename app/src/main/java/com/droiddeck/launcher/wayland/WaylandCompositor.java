@@ -13,7 +13,7 @@ import android.view.Surface;
  */
 public final class WaylandCompositor {
     static {
-        System.loadLibrary("bannerwayland");
+        System.loadLibrary("droiddeckwayland");
     }
 
     private WaylandCompositor() {}
@@ -30,7 +30,7 @@ public final class WaylandCompositor {
         if (firstFrameListener == r) firstFrameListener = null;
     }
 
-    /** Invoked from native (banner_on_first_frame) on the first present. */
+    /** Invoked from native (droiddeck_on_first_frame) on the first present. */
     @SuppressWarnings("unused")
     static void onFirstFramePresented() {
         Runnable r = firstFrameListener;
@@ -60,7 +60,7 @@ public final class WaylandCompositor {
         if (gameListener == l) gameListener = null;
     }
 
-    /** Invoked from native (banner_on_game_surface). */
+    /** Invoked from native (droiddeck_on_game_surface). */
     @SuppressWarnings("unused")
     static void onGameSurface(String window, String gpuName) {
         GameListener l = gameListener;
@@ -80,7 +80,7 @@ public final class WaylandCompositor {
         return Math.max(frameIntervalNanos, System.nanoTime() - last) / 1_000_000;
     }
 
-    /** Invoked from native (banner_on_game_frame) for every frame of the HUD's window. */
+    /** Invoked from native (droiddeck_on_game_frame) for every frame of the HUD's window. */
     @SuppressWarnings("unused")
     static void onGameFrame() {
         long now = System.nanoTime();
@@ -95,7 +95,7 @@ public final class WaylandCompositor {
         if (l != null) l.onGameFrame();
     }
 
-    /** Invoked from native (banner_on_game_program) once per game window that starts presenting. */
+    /** Invoked from native (droiddeck_on_game_program) once per game window that starts presenting. */
     @SuppressWarnings("unused")
     static void onGameProgram(int pid, String program) {
         GameListener l = gameListener;
@@ -115,7 +115,12 @@ public final class WaylandCompositor {
 
     public static void setPointerLockListener(PointerLockListener l) { pointerLockListener = l; }
 
-    /** Invoked from native (banner_on_pointer_lock). */
+    /** Unhooks {@code l} only if it is still the listener, so a finishing activity never unhooks its successor's. */
+    public static void clearPointerLockListener(PointerLockListener l) {
+        if (pointerLockListener == l) pointerLockListener = null;
+    }
+
+    /** Invoked from native (droiddeck_on_pointer_lock). */
     @SuppressWarnings("unused")
     static void onPointerLock(boolean locked, int x, int y) {
         PointerLockListener l = pointerLockListener;
@@ -139,7 +144,7 @@ public final class WaylandCompositor {
         if (clipboardListener == l) clipboardListener = null;
     }
 
-    /** Invoked from native (banner_on_clipboard_text) with UTF-8 bytes. */
+    /** Invoked from native (droiddeck_on_clipboard_text) with UTF-8 bytes. */
     @SuppressWarnings("unused")
     static void onClipboardText(byte[] utf8) {
         ClipboardListener l = clipboardListener;
@@ -158,7 +163,7 @@ public final class WaylandCompositor {
 
     public static void setTextInputListener(TextInputListener l) { textInputListener = l; }
 
-    /** Invoked from native (banner_on_text_input). */
+    /** Invoked from native (droiddeck_on_text_input). */
     @SuppressWarnings("unused")
     static void onTextInput(boolean enabled, String program, int x, int y, int w, int h) {
         TextInputListener l = textInputListener;
@@ -240,7 +245,7 @@ public final class WaylandCompositor {
     public static native void nativeSetOutputRefreshRate(float hz);
 
     /** Show a single fullscreen window on its own Android layer (SurfaceControl) instead of blitting
-     *  it into the compositor's swapchain. BANNER_WAYLAND_ZERO_COPY=1 in the container's environment
+     *  it into the compositor's swapchain. DROIDDECK_WAYLAND_ZERO_COPY=1 in the container's environment
      *  variables is the launch default; see waylandcomp/ZERO_COPY_SPIKE.md.
      *
      *  Live and thread-safe: before the compositor starts this is the initial state, and afterwards
@@ -264,12 +269,12 @@ public final class WaylandCompositor {
     /** Compressed (UBWC) game buffers: the compositor advertises DRM_FORMAT_MOD_QCOM_COMPRESSED next to
      *  LINEAR on zwp_linux_dmabuf_v1 for every format its driver can import that way, so the game's
      *  Turnip allocates compressed swapchain images instead of resolving every frame to a linear copy.
-     *  Default on; BANNER_WAYLAND_UBWC=0 in the container's environment variables turns it off (A/B).
+     *  Default on; DROIDDECK_WAYLAND_UBWC=0 in the container's environment variables turns it off (A/B).
      *  Set before the compositor starts. */
     public static native void nativeSetUbwc(boolean on);
 
     /** Debug: advertise no DRM device (main device 0:0) in the dma-buf feedback, as a phone that
-     *  exposes no /dev/dri node to apps does. BANNER_WAYLAND_NO_RENDER_NODE=1 in the container's or
+     *  exposes no /dev/dri node to apps does. DROIDDECK_WAYLAND_NO_RENDER_NODE=1 in the container's or
      *  shortcut's environment variables. Set before the compositor starts. */
     public static native void nativeSetNoRenderNode(boolean on);
 
@@ -311,13 +316,13 @@ public final class WaylandCompositor {
      *  already presented a previous one. */
     public static native void nativeResetFirstFrame();
 
-    // ── HDR10 output, round 1 (waylandcomp/src/banner_color.h, wl_color_mgmt.c) ─────────────────
-    // Opt-in: BANNER_WAYLAND_HDR=1 in the container's or shortcut's env vars. The compositor offers
+    // ── HDR10 output, round 1 (waylandcomp/src/droiddeck_color.h, wl_color_mgmt.c) ─────────────────
+    // Opt-in: DROIDDECK_WAYLAND_HDR=1 in the container's or shortcut's env vars. The compositor offers
     // games HDR10 (wp_color_manager_v1 + 10-bit buffers, frames tagged BT2020_PQ on the game's own
     // display layer) only when the game's display lists HDR10 as well; otherwise nothing changes and
     // the session log says why. Not the drawer's "HDR" effect, which is an SDR bloom/contrast filter.
 
-    /** HDR_MODE_OFF / HDR_MODE_ON (BANNER_WAYLAND_HDR=1) / HDR_MODE_FORCE (=force: skip the display
+    /** HDR_MODE_OFF / HDR_MODE_ON (DROIDDECK_WAYLAND_HDR=1) / HDR_MODE_FORCE (=force: skip the display
      *  check, for testing the negotiation on an SDR panel). */
     public static final int HDR_MODE_OFF = 0, HDR_MODE_ON = 1, HDR_MODE_FORCE = 2;
 
@@ -499,5 +504,12 @@ public final class WaylandCompositor {
     public static void sendPointerDelta(int dx, int dy) {
         if (dx == 0 && dy == 0) return;
         nativeSendSceneInput(6, dx * 256, dy * 256);
+    }
+
+    /** As {@link #sendPointerDelta(int, int)}, keeping a captured mouse's fractions of a pixel. */
+    public static void sendPointerDelta(float dx, float dy) {
+        int x = Math.round(dx * 256f), y = Math.round(dy * 256f);
+        if (x == 0 && y == 0) return;
+        nativeSendSceneInput(6, x, y);
     }
 }

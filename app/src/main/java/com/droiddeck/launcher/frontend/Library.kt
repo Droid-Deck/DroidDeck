@@ -23,6 +23,7 @@ object Library {
         val appId: Int, val name: String, val art: File?, val library: String, val gameId: Long = appId.toLong(),
         val hero: File? = null, val lastPlayed: Long = 0L,
         val gameFiles: File? = null, val protonPrefix: File? = null,
+        val icon: File? = null,
     ) {
         /** Decimal form used by Steam links and Android shortcuts, including unsigned shortcut ids. */
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
@@ -71,6 +72,7 @@ object Library {
     )
     private val STEAM_CAPSULES = listOf("library_capsule.jpg", "library_600x900.jpg")
     private val STEAM_HEROES = listOf("library_hero.jpg")
+    private val STEAM_ICON = Regex("[a-fA-F0-9]{40}\\.(jpg|png)")
     private val NAME = Regex("^\\s*\"name\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
     private val STATE = Regex("^\\s*\"StateFlags\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
@@ -99,18 +101,19 @@ object Library {
             .firstOrNull { it.isDirectory }
     }
 
-    fun steamGames(context: Context): List<SteamGame> {
+    fun steamGames(context: Context, strictRead: Boolean = false): List<SteamGame> {
         val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
         val cache = File(root, "appcache/librarycache")
         val libraries = steamLibraries(context)
         val out = LinkedHashMap<Int, SteamGame>()
         for ((library, label) in libraries) {
             val steamapps = File(library, "steamapps")
-            steamapps.listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }
-                ?.sortedBy { it.name }?.forEach { manifest ->
+            val manifests = steamapps.listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }
+            if (strictRead && steamapps.isDirectory) check(manifests != null) { "Steam manifests are unavailable" }
+            manifests?.sortedBy { it.name }?.forEach { manifest ->
                     val appId = manifest.name.removePrefix("appmanifest_").removeSuffix(".acf").toIntOrNull() ?: return@forEach
                     if (appId in NOT_GAMES || out.containsKey(appId)) return@forEach
-                    val text = try { manifest.readText() } catch (e: Exception) { return@forEach }
+                    val text = try { manifest.readText() } catch (e: Exception) { if (strictRead) throw e; return@forEach }
                     val name = NAME.find(text)?.groupValues?.get(1)?.trim().orEmpty()
                     val flags = STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     // StateFlags 4 = fully installed; anything else is downloading, updating or broken.
@@ -128,11 +131,25 @@ object Library {
                         appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles,
                         protonPrefix = protonPrefix(context, appId.toLong(), library),
+                        icon = steamCacheImage(cache, appId, listOf("icon.jpg", "icon.png"))
+                            ?: File(cache, appId.toString()).listFiles()?.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) },
                     )
                 }
         }
         return out.values.toList()
     }
+
+    /** The same installed-game inventory used for links, shortcuts and file exports. */
+    fun launchableGames(context: Context, strictRead: Boolean = false): List<SteamGame> = (steamGames(context, strictRead) + AddedGames.scan(context).map { g ->
+        AddedGameArt.resolve(context, g).let { art ->
+            SteamGame(
+                g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
+                hero = art.hero ?: art.header, gameFiles = g.folder,
+                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId),
+                icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
+            )
+        }
+    }).distinctBy { it.gameId }
 
     /** Steam stores current library art inside hash-named folders under the app's cache dir. */
     private fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {
@@ -187,7 +204,7 @@ object Library {
      * Whether a program from the rail runs at the panel's own resolution rather than the session's
      * 720p default. melonDS draws two 256x192 screens on the CPU: the panel's size costs it
      * nothing, and 720p scaled up to the panel blurs the sharp pixels its screen layout is set
-     * up for (bannerlator-pad-defaults).
+     * up for (droiddeck-pad-defaults).
      */
     fun drawsAtPanel(program: String?): Boolean = specs.any { it.program == program && it.atPanel }
 
@@ -324,7 +341,7 @@ object Library {
         // Dolphin: full screen, drawn inside its own main window, without its "stop the emulation?"
         // question; no warning boxes either, which wait for a click a controller cannot give
         // (they still go to Dolphin's log). The guide button is Dolphin's Toggle Fullscreen hotkey
-        // (bannerlator-pad-defaults), which shows Dolphin's window and its settings - so no -b, which
+        // (droiddeck-pad-defaults), which shows Dolphin's window and its settings - so no -b, which
         // hides that window; closing Dolphin ends the session. Under gamescope Dolphin does not
         // always see its window as focused, and by default both its hotkeys and the game's
         // controller then stop: HotkeysRequireFocus off, BackgroundInput on. -C sets a Dolphin.ini
@@ -336,10 +353,10 @@ object Library {
             "-e", guestPath,
         )
         // Full screen (LaunchSettings.cpp -f); the settings seed keeps the Getting Started
-        // dialog away (bannerlator-pad-defaults).
+        // dialog away (droiddeck-pad-defaults).
         "cemu" -> listOf("-f", "-g", guestPath)
         // Full screen (CLI.cpp --fullscreen); the guide button leaves it for melonDS's menus and
-        // comes back (HK_FullscreenToggle, bannerlator-pad-defaults).
+        // comes back (HK_FullscreenToggle, droiddeck-pad-defaults).
         "melonds" -> listOf("-f", guestPath)
         else -> listOf(guestPath)
     }

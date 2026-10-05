@@ -3,7 +3,9 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.os.Environment
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.runtime.LegacyNames
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
 import java.io.File
@@ -27,33 +29,38 @@ object SessionFiles {
     fun stage(context: Context, root: File) {
         GameEnvironmentStore.publish(context)
         val files = arrayOf(
-            "usr/local/bin/bannerlator-game-env" to "usr/local/bin/bannerlator-game-env",
+            "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
+            "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
+            "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
+            "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
-            "usr/local/bin/bannerlator-session" to "usr/local/bin/bannerlator-session",
+            "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
+            "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
-            "usr/local/bin/bannerlator-steam-compat" to "usr/local/bin/bannerlator-steam-compat",
-            "usr/local/bin/bannerlator-steam-install" to "usr/local/bin/bannerlator-steam-install",
-            "usr/local/bin/bannerlator-steam-library" to "usr/local/bin/bannerlator-steam-library",
-            "usr/local/bin/bannerlator-seed-redists" to "usr/local/bin/bannerlator-seed-redists",
-            "usr/local/bin/bannerlator-proton-extra" to "usr/local/bin/bannerlator-proton-extra",
-            "usr/local/bin/bannerlator-netmanager" to "usr/local/bin/bannerlator-netmanager",
-            "usr/local/bin/bannerlator-login1" to "usr/local/bin/bannerlator-login1",
-            "usr/local/bin/bannerlator-steam-launch" to "usr/local/bin/bannerlator-steam-launch",
-            "usr/local/bin/bannerlator-desktop-games" to "usr/local/bin/bannerlator-desktop-games",
-            "usr/local/bin/bannerlator-steam-shim" to "usr/local/bin/bannerlator-steam-shim",
-            "usr/local/bin/bannerlator-steam-shortcuts" to "usr/local/bin/bannerlator-steam-shortcuts",
-            "usr/local/bin/bannerlator-steam-games" to "usr/local/bin/bannerlator-steam-games",
-            "usr/local/bin/bannerlator-pad-defaults" to "usr/local/bin/bannerlator-pad-defaults",
+            "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
+            "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
+            "usr/local/bin/droiddeck-steam-library" to "usr/local/bin/droiddeck-steam-library",
+            "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
+            "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
+            "usr/local/bin/droiddeck-netmanager" to "usr/local/bin/droiddeck-netmanager",
+            "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
+            "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
+            "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
+            "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
+            "usr/local/bin/droiddeck-steam-shim" to "usr/local/bin/droiddeck-steam-shim",
+            "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
+            "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
+            "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
             // Flatpak: the bwrap stand-in, the store's helper and setup, and the front end's launcher.
-            "usr/local/bin/bannerlator-bwrap" to "usr/local/bin/bannerlator-bwrap",
-            "usr/local/bin/bannerlator-flatpak" to "usr/local/bin/bannerlator-flatpak",
-            "usr/local/bin/bannerlator-flatpak-setup" to "usr/local/bin/bannerlator-flatpak-setup",
-            "usr/local/bin/bannerlator-flatpak-run" to "usr/local/bin/bannerlator-flatpak-run",
+            "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
+            "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
+            "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
+            "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
             // The user's own AppImages, extracted at import (AppImageManager).
-            "usr/local/bin/bannerlator-appimage-run" to "usr/local/bin/bannerlator-appimage-run",
-            "usr/local/bin/bannerlator-script-run" to "usr/local/bin/bannerlator-script-run",
+            "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
+            "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             // The SteamOS helpers the client calls in Deck mode: the two Armada found it needs, plus
             // the three under /usr/bin, all no-ops that answer "nothing to do" (see each file).
             "usr/bin/steamos-update" to "usr/bin/steamos-update",
@@ -100,9 +107,14 @@ object SessionFiles {
         val wlroots = if (File(root, "usr/bin/labwc").isFile) {
             arrayOf("usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so" to "usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so")
         } else emptyArray()
+        val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
+            listOf("libblsession.so", "libfakeinput.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
+        } + listOf("libfaultreport.so", "libthunkaudit.so", "libvulkan-thunk.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
-        ) + wlroots + mangoapp).filter { (asset, _) ->
+            "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
+            "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
+        ) + wlroots + mangoapp + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
@@ -124,6 +136,10 @@ object SessionFiles {
             }
             if (!installed) Log.e(TAG, "$relative NOT staged")
         }
+        File(root, "usr/local/bin/bannerlator-steam-compat").delete()
+        LegacyNames.migrateRootfs(root)
+        ComponentsManager.migrateLaunchDir(context)
+        EsyncPacks.stageBundled(context, root)
         // The DirectAudio driver for games under Proton: the glibc build of winedirectaudio, which
         // the Proton wrappers add to WINEDLLPATH when the session asks for it (BL_DIRECTAUDIO).
         // Staged like the scripts, so a driver fix reaches an installed runtime without re-hosting.
@@ -165,6 +181,9 @@ object SessionFiles {
             || !staged.renameTo(File(etc, "ld.so.preload"))) {
             staged.delete()
             Log.e(TAG, "could not write ld.so.preload")
+        }
+        if (!FileUtils.writeString(File(etc, "steam-compatibility-label"), context.getString(R.string.steam_compat_label))) {
+            Log.e(TAG, "could not write steam-compatibility-label")
         }
 
         val startupMovieDir = File(root, "root/.local/share/Steam/config/uioverrides/movies")

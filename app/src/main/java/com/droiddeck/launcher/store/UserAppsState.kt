@@ -54,8 +54,8 @@ object UserAppsState {
         run(context, target.name, R.string.user_apps_removed) { app, progress -> UserApps.remove(app, target, progress) }
     }
 
-    fun edit(context: Context, target: UserApps.App, name: String, icon: String?) =
-        run(context, name, R.string.user_apps_saved) { app, _ -> UserApps.edit(app, target, name, icon) }
+    fun edit(context: Context, target: UserApps.App, name: String, icon: String?, fex: String? = null) =
+        run(context, name, R.string.user_apps_saved) { app, _ -> UserApps.edit(app, target, name, icon, fex) }
 
     fun checkUpdate(context: Context, target: UserApps.App) {
         if (checking != null) return

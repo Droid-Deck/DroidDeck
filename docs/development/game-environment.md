@@ -62,11 +62,18 @@ Windows/Wine graphics helper also maps the selected feature level to
 
 DroidDeck instead publishes an atomic JSON snapshot at
 `/root/.config/droiddeck/game-environment.json`. Both its Valve ARM64 Proton
-wrapper and adopted third-party Proton wrappers execute `bannerlator-game-env`,
+wrapper and adopted third-party Proton wrappers execute `droiddeck-game-env`,
 which reads that snapshot for each real game launch and uses `execvpe` to start
 Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. Malformed
 configuration falls back to the inherited environment without evaluating its
 contents. Signed non-Steam prefix IDs are normalized to unsigned IDs.
+
+The published file also carries a `dxvkConfig` string the app's own file never
+has: the session menu's texture filtering (Effects page; `core/TextureFiltering`)
+as `d3d9/d3d11.samplerAnisotropy` and `samplerLodBias` options. The launcher
+appends it to `DXVK_CONFIG` after the profiles, so a user's own `DXVK_CONFIG`
+entry keeps its options. "Auto" texture sharpness is `-log2(panel / session)`,
+derived when the session is sized, and applies from the next launch.
 
 Upstream references: [VKD3D capability parsing](https://github.com/HansKristian-Work/vkd3d-proton/blob/master/libs/vkd3d/device.c),
 [VKD3D options](https://github.com/HansKristian-Work/vkd3d-proton#environment-variables),

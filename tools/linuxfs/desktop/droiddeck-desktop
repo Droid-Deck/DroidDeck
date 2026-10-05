@@ -1,7 +1,7 @@
 #!/bin/bash
 # The desktop session: labwc nested as a client of the app's compositor, with LXQt's panel and
 # file manager started from its autostart, and Xwayland for the X11 programs (the Steam client,
-# most emulators). Run by bannerlator-session in place of gamescope for mode "lxqt".
+# most emulators). Run by droiddeck-session in place of gamescope for mode "lxqt".
 # Staged by the app over the desktop package's copy on every launch, so a fix here reaches an
 # installed desktop without re-downloading the package.
 set -u
@@ -16,6 +16,11 @@ export QT_QPA_PLATFORMTHEME=lxqt
 # The prefs for this are only advisory and a profile can override them; the environment is not.
 export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
 export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
+# Firefox seals the size of the shared memory it hands a tab; on Android 16 (Galaxy S25/S26,
+# RedMagic) adding the seal fails, Firefox only warns, and the tab refuses the unsealed memory
+# ("Shared memory PlatformHandle is not safe to map") and dies on signal 11 - every page. Firefox's
+# own switch skips the seals.
+export MOZ_SHM_NO_SEALS=1
 # pixman composites in software and gives programs shm buffers only, so a Vulkan program on it
 # fails at its swapchain. vulkan (or gles2) composite on the GPU and give programs DMA-BUFs, but
 # stock wlroots allocates through gbm on a real DRM node and the KGSL stand-in is not one ("unable
@@ -114,16 +119,16 @@ if [ ! -f /var/cache/fontconfig/.droiddeck-built ] && command -v fc-cache >/dev/
   echo "== fontconfig: cache rebuilt, default sans is $(fc-match sans-serif 2>/dev/null)"
 fi
 # The menu's "Steam" / "Steam Big Picture" entries and one entry per installed game: all of them
-# hand off to the app (bannerlator-steam-launch), since the client cannot draw on this desktop.
+# hand off to the app (droiddeck-steam-launch), since the client cannot draw on this desktop.
 export BL_DESKTOP=1
-ln -sf /usr/local/bin/bannerlator-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
-ln -sf /usr/local/bin/bannerlator-steam-shim /usr/local/bin/steam 2>/dev/null
-python3 /usr/local/bin/bannerlator-desktop-games 2>&1 | sed 's/^/[games] /'
+ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
+ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
+python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
 # Player 1 on the controller in every emulator that has no profile of its own yet - now, and again
 # every half minute: an emulator started for the first time writes its own config, which is then
 # given the controller for its next start without waiting for the next desktop.
-python3 /usr/local/bin/bannerlator-pad-defaults 2>&1 | sed 's/^/[pads] /'
-( while sleep 30; do python3 /usr/local/bin/bannerlator-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
+python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
+( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
 # Games and emulators from the menu run through droiddeck-gpu (their own gamescope on the app's
 # compositor) while the desktop is on pixman, where they could not draw with the GPU.
 # BL_DESKTOP_GPU=on/off overrides; each entry keeps "Run in a desktop window" either way.

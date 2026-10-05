@@ -71,6 +71,10 @@
                 <action android:name="android.intent.action.CREATE_SHORTCUT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="com.droiddeck.launcher.LAUNCH_GAME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <!-- Android owns the Home key. This small translucent Home handler routes the resulting
@@ -124,9 +128,18 @@
             android:theme="@style/AppTheme" />
 
         <activity
+            android:name=".agent.AgentStartActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:permission="android.permission.DUMP"
+            android:theme="@style/SessionTheme" />
+
+        <activity
             android:name=".SessionActivity"
             android:exported="false"
-            android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
+            android:launchMode="singleTask"
             android:theme="@style/SessionTheme"
             android:preferMinimalPostProcessing="true"
             android:screenOrientation="sensorLandscape"
@@ -172,5 +185,11 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+        <provider
+            android:name=".agent.AgentBridgeProvider"
+            android:authorities="${applicationId}.agent"
+            android:exported="true"
+            android:permission="android.permission.DUMP"
+            android:grantUriPermissions="false" />
     </application>
 </manifest>

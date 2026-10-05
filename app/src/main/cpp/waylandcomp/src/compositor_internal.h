@@ -1,7 +1,7 @@
 /*
  * What compositor.c shares with the protocol modules split out of it (wl_dmabuf.c): the dma-buf
  * buffer records, the per-client bookkeeping and the few functions and globals both sides use.
- * Everything declared here is hidden: it is internal to libbannerwayland, not part of its ABI.
+ * Everything declared here is hidden: it is internal to libdroiddeckwayland, not part of its ABI.
  */
 #pragma once
 #include <stdint.h>
@@ -13,7 +13,7 @@
 #define COMPOSITOR_INTERNAL __attribute__((visibility("hidden")))
 
 #ifndef WLOGE
-#define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "BannerWayland", __VA_ARGS__)
+#define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", __VA_ARGS__)
 #endif
 
 /* ------------------------------------------------------------------ dmabuf buffers */
@@ -71,8 +71,8 @@ struct client_info {
 COMPOSITOR_INTERNAL struct client_info *client_info_of(struct wl_client *client);
 COMPOSITOR_INTERNAL void dmabuf_buffer_unref(struct dmabuf_buffer *b);
 COMPOSITOR_INTERNAL extern const struct wl_buffer_interface dbuf_buffer_impl;
-extern volatile int g_ubwc;             /* BANNER_WAYLAND_UBWC (waylandcomp_jni.c sets it) */
-extern volatile int g_no_render_node;   /* BANNER_WAYLAND_NO_RENDER_NODE */
+extern volatile int g_ubwc;             /* DROIDDECK_WAYLAND_UBWC (waylandcomp_jni.c sets it) */
+extern volatile int g_no_render_node;   /* DROIDDECK_WAYLAND_NO_RENDER_NODE */
 
 /* ---- wl_dmabuf.c */
 COMPOSITOR_INTERNAL extern dev_t g_main_device;  /* the render node clients are told to allocate on */
