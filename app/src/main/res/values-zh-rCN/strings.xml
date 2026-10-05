@@ -291,6 +291,10 @@
     <string name="mode_branch_public">公开测试版</string>
     <string name="mode_branch_deck_beta">Steam Deck 公开测试版</string>
     <string name="mode_branch_note">Deck 模式始终使用 Steam Deck 公开测试版。</string>
+    <string name="mode_steam_repair">修复 Steam 客户端</string>
+    <string name="mode_steam_repair_hint">下次启动 Steam 时重新下载 Steam 客户端。若 Steam 一直停在加载画面，请使用此项。游戏、登录状态与设置都会保留。</string>
+    <string name="mode_steam_repair_queued">Steam 客户端将在下次启动 Steam 时重新下载。</string>
+    <string name="mode_steam_repair_button">修复</string>
     <string name="mode_added_games">已添加的游戏</string>
     <string name="mode_added_none">未找到含 .exe 的游戏文件夹</string>
     <string name="mode_games_folder">游戏文件夹</string>
@@ -469,6 +473,7 @@
     <string name="drawer_page_effects">画面效果</string>
     <string name="drawer_page_controls">控制</string>
     <string name="drawer_page_components">组件</string>
+    <string name="drawer_page_controller">控制器</string>
     <string name="drawer_page_settings">设置</string>
     <string name="drawer_page_desc">%1$s 页面</string>
     <string name="drawer_steam">Steam</string>
@@ -486,6 +491,9 @@
     <string name="drawer_effects_hint">实时生效。任何效果开启期间会占用少量 GPU 时间。</string>
     <string name="drawer_look">观感</string>
     <string name="drawer_look_custom">自定义</string>
+    <string name="drawer_effects_advanced">高级</string>
+    <string name="widgets_expanded">已展开</string>
+    <string name="widgets_collapsed">已折叠</string>
     <string name="drawer_cas">锐化（CAS）</string>
     <string name="drawer_cas_level">锐化级别</string>
     <string name="drawer_fake_hdr">伪 HDR</string>
@@ -509,6 +517,7 @@
     <string name="drawer_pc_keyboard">PC 键盘</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">副屏</string>
+    <string name="drawer_second_screen_mode">模式</string>
     <string name="drawer_second_screen_shows">显示</string>
     <string name="drawer_android_apps">Android 应用</string>
     <string name="drawer_launch_app">启动应用</string>
@@ -585,6 +594,9 @@
     <string name="setup_offline">离线模式</string>
     <string name="setup_sign_in_first">请先登录 Steam</string>
     <string name="setup_launcher">启动器</string>
+    <string name="setup_app_scale">应用缩放</string>
+    <string name="setup_app_scale_hint">DroidDeck 的文字与控件</string>
+    <string name="setup_app_scale_default">%1$d%%（默认）</string>
     <string name="setup_theme">主题</string>
     <string name="setup_theme_hint">启动器外观</string>
     <string name="setup_home">用作主屏幕</string>
@@ -1007,4 +1019,25 @@
     <string name="game_file_folder">选择前端游戏文件的文件夹</string>
     <string name="game_file_exported">游戏文件已保存到 %1$s</string>
     <string name="game_frontend_files">前端文件</string>
+    <string name="display_session">会话显示</string>
+    <string name="display_resolution">分辨率</string>
+    <string name="display_game_fit">16:9 游戏适配</string>
+    <string name="display_game_fit_hint">16:9 游戏如何适配此屏幕。将在下次会话生效。</string>
+    <string name="display_game_fit_unavailable">请选择“匹配屏幕”，或选择比 16:9 更窄的自定义尺寸。</string>
+    <string name="display_preserve">保持比例</string>
+    <string name="display_stretch">拉伸填充</string>
+    <string name="display_image_scaling">图像缩放</string>
+    <string name="display_filter">缩放滤镜</string>
+    <string name="display_filter_hint">Steam 与桌面共用。</string>
+    <string name="display_filter_live">即时生效。Steam 与桌面共用。</string>
+    <string name="display_filter_note">FSR、GSR 与 NIS 仅在放大会话画面时生效；仅锐化则无需放大也可生效。</string>
+    <string name="display_sharpness">滤镜锐度</string>
+    <string name="display_frame_rate">帧率</string>
+    <string name="display_window_compatibility">游戏窗口兼容性</string>
+    <string name="display_force_fullscreen">强制游戏窗口全屏</string>
+    <string name="display_force_fullscreen_hint">让每个游戏窗口都铺满屏幕。若切换应用后游戏变小或缩到角落，请开启；若游戏在不同尺寸间闪烁，请关闭。会话期间即时生效。</string>
+    <string name="display_force_fullscreen_live">若切换后游戏变小请开启；若闪烁请关闭。即时生效。</string>
+    <string name="display_look_filter">%1$s 将缩放设为 %2$s。</string>
+    <string name="display_match_screen">匹配屏幕（%1$d×%2$d）</string>
+    <string name="mode_tab_steam">Steam</string>
 </resources>
