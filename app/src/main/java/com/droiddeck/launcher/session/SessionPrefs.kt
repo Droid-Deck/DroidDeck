@@ -168,9 +168,12 @@ object SessionPrefs {
      * Steam only: gamescope makes every game window the size of the screen. A game that resizes
      * its own window when it loses focus (FlatOut) otherwise comes back smaller, drawn in a
      * corner; a game that sets its own resolution and never looks at its window again (Quake 3)
-     * instead draws small in the bottom-left of the stretched one. On unless turned off.
+     * instead draws small in the bottom-left of the stretched one. A game whose resolution differs
+     * from the screen's (DiRT 3 at 1280x720) fights it: it rebuilds its swapchain on every forced
+     * resize and the picture flickers between its own size and the screen's, often from the first
+     * menu, before the player can reach its resolution setting. Off unless turned on.
      */
-    fun forceFullscreen(context: Context): Boolean = prefs(context).getBoolean("forceFullscreen", true)
+    fun forceFullscreen(context: Context): Boolean = prefs(context).getBoolean("forceFullscreen", false)
 
     fun setForceFullscreen(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("forceFullscreen", on).apply()

@@ -595,6 +595,9 @@
     <string name="setup_offline">Offline mode</string>
     <string name="setup_sign_in_first">Sign in to Steam first</string>
     <string name="setup_launcher">Launcher</string>
+    <string name="setup_app_scale">App scale</string>
+    <string name="setup_app_scale_hint">DroidDeck text and controls</string>
+    <string name="setup_app_scale_default">%1$d%% (Default)</string>
     <string name="setup_theme">Theme</string>
     <string name="setup_theme_hint">Launcher appearance</string>
     <string name="setup_home">Use as Home screen</string>
@@ -1036,8 +1039,8 @@
     <string name="display_frame_rate">Frame rate</string>
     <string name="display_window_compatibility">Game window compatibility</string>
     <string name="display_force_fullscreen">Force game windows fullscreen</string>
-    <string name="display_force_fullscreen_hint">Keeps games fullscreen after focus changes. Turn off if a game draws small. Applies live during a session.</string>
-    <string name="display_force_fullscreen_live">Keeps games fullscreen after focus changes. Applies live.</string>
+    <string name="display_force_fullscreen_hint">Makes every game window the size of the screen. Turn on if a game comes back small or in a corner after switching apps; leave off if a game flickers between sizes. Applies live during a session.</string>
+    <string name="display_force_fullscreen_live">Turn on if a game comes back small after switching; off if it flickers. Applies live.</string>
     <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
     <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
     <string name="mode_tab_steam">Steam</string>

@@ -284,7 +284,7 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
     }
 }
 
-/** A page's title, with room at its right for a status chip. */
+/** A page's title, with room at its right for controls or status. */
 @Composable
 internal fun PageHeader(title: String, trailing: @Composable RowScope.() -> Unit = {}) {
     Row(

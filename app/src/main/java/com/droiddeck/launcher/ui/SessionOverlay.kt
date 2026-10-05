@@ -308,7 +308,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         }
     }
     if (open || veil > 0.01f) Box(
-        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = veil }.background(Color(0x8A000000))
+        modifier = Modifier.fillMaxSize()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { host.open = null; a.onClose() },
     )
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {

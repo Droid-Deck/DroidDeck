@@ -598,7 +598,7 @@ fun ActionRow(label: String, hint: String?, button: String, onClick: () -> Unit)
 @Composable
 fun SettingsPage(
     host: MenuHost,
-    title: String,
+    title: String?,
     onBack: () -> Unit,
     eyebrow: String? = null,
     lede: String? = null,
@@ -608,7 +608,7 @@ fun SettingsPage(
     scroll: androidx.compose.foundation.ScrollState? = null,
     scrollContent: Boolean = true,
     compactLayout: Boolean = false,
-    /** Controls that remain below the title while the settings scroll, such as a tab strip. */
+    /** Fixed controls below the title, or beside Back when the title is omitted. */
     header: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
@@ -624,7 +624,18 @@ fun SettingsPage(
         ),
         verticalArrangement = Arrangement.spacedBy(if (compactLayout) 2.dp else 0.dp),
     ) {
-        if (narrow) {
+        if (title == null) {
+            Rise(0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
+                    if (header != null) Box(Modifier.weight(1f)) { header() }
+                }
+            }
+        } else if (narrow) {
             // Back and the title share one line: a 4:3 screen has no height to spare.
             Rise(0) {
                 Row(
@@ -683,7 +694,7 @@ fun SettingsPage(
                 }
             }
         }
-        if (header != null) header()
+        if (header != null && title != null) header()
         Rise(3, Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 modifier = Modifier

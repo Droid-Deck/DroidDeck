@@ -115,6 +115,11 @@ public final class WaylandCompositor {
 
     public static void setPointerLockListener(PointerLockListener l) { pointerLockListener = l; }
 
+    /** Unhooks {@code l} only if it is still the listener, so a finishing activity never unhooks its successor's. */
+    public static void clearPointerLockListener(PointerLockListener l) {
+        if (pointerLockListener == l) pointerLockListener = null;
+    }
+
     /** Invoked from native (droiddeck_on_pointer_lock). */
     @SuppressWarnings("unused")
     static void onPointerLock(boolean locked, int x, int y) {
@@ -499,5 +504,12 @@ public final class WaylandCompositor {
     public static void sendPointerDelta(int dx, int dy) {
         if (dx == 0 && dy == 0) return;
         nativeSendSceneInput(6, dx * 256, dy * 256);
+    }
+
+    /** As {@link #sendPointerDelta(int, int)}, keeping a captured mouse's fractions of a pixel. */
+    public static void sendPointerDelta(float dx, float dy) {
+        int x = Math.round(dx * 256f), y = Math.round(dy * 256f);
+        if (x == 0 && y == 0) return;
+        nativeSendSceneInput(6, x, y);
     }
 }

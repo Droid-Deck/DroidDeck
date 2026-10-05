@@ -343,7 +343,7 @@ jobs:
             echo "::error::libfakeinput.so exports the C++ runtime"; exit 1
           fi
           SESSION=$(syms "$D/libblsession.so")
-          for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap; do
+          for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap drmPrimeFDToHandle drmCloseBufferHandle drmIoctl; do
             grep -qx "$sym" <<<"$SESSION" || { echo "::error::libblsession.so does not export $sym"; exit 1; }
           done
           test -f "$D/usr/local/bin/droiddeck-session"

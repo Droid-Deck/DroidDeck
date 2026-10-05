@@ -5,9 +5,13 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import com.droiddeck.launcher.core.AppUiPrefs
 import com.droiddeck.launcher.session.SessionPrefs
 
 class Palette(
@@ -67,7 +71,7 @@ val LocalPalette = staticCompositionLocalOf { Themes.byId(Themes.GRAPHITE) }
 val Palette.onSignal: Color get() = if (signal.luminance() > 0.18f) Color(0xFF03111F) else Color.White
 
 @Composable
-fun DroidDeckTheme(theme: String? = null, content: @Composable () -> Unit) {
+fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCALE, content: @Composable () -> Unit) {
     val id = theme ?: SessionPrefs.theme(LocalContext.current)
     val p = Themes.byId(id)
     val scheme = darkColorScheme(
@@ -77,5 +81,13 @@ fun DroidDeckTheme(theme: String? = null, content: @Composable () -> Unit) {
         surfaceVariant = p.surfaceVariant, onSurfaceVariant = p.onSurfaceVariant,
         error = p.error,
     )
-    CompositionLocalProvider(LocalPalette provides p) { MaterialTheme(colorScheme = scheme, content = content) }
+    val baseDensity = LocalDensity.current
+    val baseConfiguration = LocalConfiguration.current
+    val density = remember(baseDensity, appScale) { scaledAppDensity(baseDensity, appScale) }
+    val configuration = remember(baseConfiguration, appScale) { scaledAppConfiguration(baseConfiguration, appScale) }
+    CompositionLocalProvider(
+        LocalPalette provides p,
+        LocalDensity provides density,
+        LocalConfiguration provides configuration,
+    ) { MaterialTheme(colorScheme = scheme, content = content) }
 }

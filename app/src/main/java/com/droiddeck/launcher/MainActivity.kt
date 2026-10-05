@@ -65,6 +65,9 @@ import com.droiddeck.launcher.ui.FrontEndState
 import com.droiddeck.launcher.ui.FrontEndActions
 import com.droiddeck.launcher.frontend.CoverArt
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.GameFiles
+import com.droiddeck.launcher.frontend.GameFileSync
+import com.droiddeck.launcher.frontend.GameLaunchIntent
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
 import com.droiddeck.launcher.files.InAppFilePicker
@@ -152,7 +155,7 @@ class MainActivity : ComponentActivity() {
     private var showPhantomGate by mutableStateOf(false)
     private var directAudio by mutableStateOf(false)
     private var clientDirectAudio by mutableStateOf(false)
-    private var forceFullscreen by mutableStateOf(true)
+    private var forceFullscreen by mutableStateOf(false)
     private var stretch16x9 by mutableStateOf(false)
     private var launcherFullscreen by mutableStateOf(true)
     private var animationsEnabled by mutableStateOf(true)
@@ -311,6 +314,7 @@ class MainActivity : ComponentActivity() {
     private var steamChannel by mutableStateOf("steamdeck_publicbeta")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
+    private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
     private var fpsLimit by mutableStateOf(0)
     private var upscaler by mutableStateOf(0)
@@ -398,10 +402,15 @@ class MainActivity : ComponentActivity() {
     private fun pickGameExport(game: Library.SteamGame?) {
         onSavePicked = { folder ->
             saveAction(getString(R.string.game_frontend_files)) {
-                if (game != null) com.droiddeck.launcher.frontend.GameFiles.export(folder, game)
-                else com.droiddeck.launcher.frontend.GameFileSync.enable(this, folder)
-                ui.post { gameSyncFolder = com.droiddeck.launcher.frontend.GameFileSync.folder(this) }
-                getString(R.string.game_file_exported, folder.path)
+                val saved = if (game != null) GameFiles.export(folder, game)
+                else {
+                    GameFileSync.enable(this, folder)
+                    folder
+                }
+                ui.post {
+                    gameSyncFolder = GameFileSync.folder(this)
+                }
+                getString(R.string.game_file_exported, saved.path)
             }
         }
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
@@ -415,10 +424,10 @@ class MainActivity : ComponentActivity() {
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
         pendingGameLink = null
-        if (request.action == Intent.ACTION_VIEW) {
+        if (GameLaunchIntent.accepts(request.action)) {
             val copy = Intent(request)
             Thread({
-                val id = com.droiddeck.launcher.frontend.GameFiles.readIntent(this, copy)
+                val id = GameLaunchIntent.read(this, copy)
                 ui.post {
                     if (intent === request && !isDestroyed) {
                         pendingGameLink = id
@@ -461,10 +470,14 @@ class MainActivity : ComponentActivity() {
         if (game == null) {
             pendingGameLink = null
             intent.data = null
+            intent.action = Intent.ACTION_MAIN
+            intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
         } else if (launchGame(game)) {
             pendingGameLink = null
             intent.data = null
+            intent.action = Intent.ACTION_MAIN
+            intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
         }
     }
 
@@ -476,10 +489,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         readGameIntent(intent)
-        gameSyncFolder = com.droiddeck.launcher.frontend.GameFileSync.folder(this)
+        gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
         theme = SessionPrefs.theme(this)
+        appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
         // Last start's game list, so the Steam wall is up on the first frame; refresh() replaces it.
         steamGames = if (shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.LibraryCache.load(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
@@ -489,7 +503,7 @@ class MainActivity : ComponentActivity() {
         applyLauncherFullscreen()
         updates.start()
         setContent {
-            DroidDeckTheme(theme) {
+            DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
                 val sm = settingsMode
                 val page: (@Composable () -> Unit)? = when {
@@ -516,6 +530,7 @@ class MainActivity : ComponentActivity() {
                         lossless = lossless,
                         pageKey = sm?.let { "settings:$it" } ?: if (showPerformance) "performance" else if (showProtons) "protons" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
                         theme = theme,
+                        appScale = appScale,
                         isHomeApp = homeAppSelected,
                         homeScreenEnabled = homeScreenEnabled,
                         defaultHomeLabel = defaultHomeLabel,
@@ -553,7 +568,7 @@ class MainActivity : ComponentActivity() {
                         onSyncGameFiles = { pickGameExport(null) },
                         onStopGameFileSync = {
                             Thread({
-                                com.droiddeck.launcher.frontend.GameFileSync.disable(this)
+                                GameFileSync.disable(this)
                                 ui.post { gameSyncFolder = null }
                             }, "game-file-stop-sync").start()
                         },
@@ -645,6 +660,10 @@ class MainActivity : ComponentActivity() {
                         },
                         onPageBack = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
+                        onAppScale = { percent ->
+                            com.droiddeck.launcher.core.AppUiPrefs.setScale(this, percent)
+                            appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
+                        },
                         onLauncherFullscreen = { on ->
                             SessionPrefs.setLauncherFullscreen(this, on)
                             launcherFullscreen = on
