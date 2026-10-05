@@ -33,6 +33,11 @@ object WinComponents {
         JSONObject(File(LinuxRuntime.rootDir(context), "$STORE/$id/component.json").readText()).optString("version", "?")
     }.getOrNull()
 
+    /** Every component in the runtime, by id; what the dialog can offer without the catalog. */
+    fun installedIds(context: Context): List<String> =
+        File(LinuxRuntime.rootDir(context), STORE).listFiles { f -> f.isDirectory && ID.matches(f.name) }
+            .orEmpty().map { it.name }.filter { installed(context, it) != null }.sorted()
+
     /** Downloads, verifies and extracts one component. Returns null on success, else a message. */
     fun install(context: Context, entry: DesktopCatalog.Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
         require(ID.matches(entry.id))

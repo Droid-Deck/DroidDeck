@@ -79,7 +79,7 @@ private fun WinComponentsEditor(appId: Long, gameName: String, byPad: Boolean, o
     val firstFocus = remember { FocusRequester() }
 
     fun refreshInstalled(entries: List<DesktopCatalog.Entry>) {
-        installed = (entries.map { it.id } + picks).distinct()
+        installed = (entries.map { it.id } + picks + WinComponents.installedIds(context)).distinct()
             .mapNotNull { id -> WinComponents.installed(context, id)?.let { id to it } }.toMap()
     }
     LaunchedEffect(Unit) {
