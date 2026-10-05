@@ -701,8 +701,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
         // Fit the line to the room between LB and RB. Worst case is an end tab selected: full size
         // ([tab] dp) and pushed outward by the lean, which scales with the spacing. So
         //   (count-1) * spacing * (1 + lean/spacingMax) + tab <= width
-        // - fit six pages, then bring the icons a little closer together.
-        val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP) * 0.9f
+        val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP)
         val leanStep = DRAWER_TAB_LEAN_DP * spacing / DRAWER_TAB_SPACING_DP
         val lean by animateFloatAsState(-(selectedIndex - middle) * leanStep, motion, label = "tabLean")
         pages.forEachIndexed { index, item ->
