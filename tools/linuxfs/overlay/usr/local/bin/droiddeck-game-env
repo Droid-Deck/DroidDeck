@@ -3,10 +3,12 @@ import json
 import os
 import re
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 
 SYNC_KEYS = ("BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 
 
@@ -235,11 +237,33 @@ def force_ssbs(command, env):
     return env
 
 
+EVALUATOR_SCRIPT = re.compile(r"(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$", re.IGNORECASE)
+
+
+def mark_install_scripts(command, env):
+    """The client is about to run a game's install scripts (iscriptevaluator.exe): mark every process
+    in them as already run first, so no redistributable installer starts - on first launch the
+    shared ones may still be downloading, and on ARM64 Proton the VC++ ones stop with an error."""
+    if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
+        return
+    root = env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
+    scripts = [str(Path(root) / arg.replace("\\", "/")) for arg in command if EVALUATOR_SCRIPT.search(arg)]
+    scripts = [path for path in scripts if os.path.isfile(path)]
+    if not scripts:
+        return
+    try:
+        subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
+                       stdout=sys.stderr, timeout=60, check=False)
+    except (OSError, subprocess.SubprocessError) as error:
+        print("droiddeck-game-env: install scripts not marked (%s)" % error, file=sys.stderr)
+
+
 def main():
     command = sys.argv[1:]
     if not command:
         return 2
     env = os.environ.copy()
+    mark_install_scripts(command, env)
     app_id = game_id(env)
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"

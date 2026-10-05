@@ -78,6 +78,14 @@ class SeedRedistsTest(unittest.TestCase):
         self.run_seed()
         self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
 
+    def test_an_evaluator_script_nested_deeper_is_read(self):
+        script = self.tmp / "legacycompat/evaluatorscript_409710.vdf"
+        script.parent.mkdir(parents=True)
+        script.write_text('"evaluatorscript"\n{\n\t"1"\n' + "\n".join("\t" + line for line in GAME_SCRIPT.replace("VCRedist2022", "x64 14.99.1.0").splitlines()) + "\n}\n")
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_SCRIPTS=str(script))
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, text=True, check=True)
+        self.assertIn('"x64 14.99.1.0"=dword:00000001', self.reg.read_text())
+
     def test_the_prefix_date_is_kept(self):
         os.utime(self.reg, (1_000_000_000, 1_000_000_000))
         self.run_seed()

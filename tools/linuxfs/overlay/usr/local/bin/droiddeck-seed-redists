@@ -26,18 +26,21 @@ redist="$steam_root/steamapps/common/Steamworks Shared/_CommonRedist"
 # Every process an install script would run, as the registry key and value the client writes once
 # it has run it. Names sit one level inside "Run Process", the key they share a level further in.
 read_scripts() { xargs -0 -r awk '
-  FNR == 1 { depth = 0; name = ""; key = "" }
-  /^[[:space:]]*\{/ { depth++; next }
+  # A block whose HasRunKey is set is one process; its name is the key the block opened under, at
+  # whatever depth - an install script nests it under "Run Process", the client'"'"'s evaluator script
+  # for a game wraps the same blocks once more.
+  FNR == 1 { depth = 0; pending = "" }
+  /^[[:space:]]*\{/ { depth++; name[depth] = pending; key[depth] = ""; pending = ""; next }
   /^[[:space:]]*\}/ {
-    if (depth == 3 && name != "" && key != "")
-      printf "%s\t%s\n", key, name
-    depth--
+    if (depth > 0 && key[depth] != "" && name[depth] != "")
+      printf "%s\t%s\n", key[depth], name[depth]
+    if (depth > 0) depth--
     next
   }
   {
     n = split($0, part, "\"")
-    if (n >= 5 && tolower(part[2]) == "hasrunkey") { key = part[4]; next }
-    if (n >= 3 && depth == 2) { name = part[2]; key = "" }
+    if (n >= 5 && tolower(part[2]) == "hasrunkey") { key[depth] = part[4]; next }
+    if (n == 3) pending = part[2]
   }
 '; }
 pairs=$(find "$redist" -name installscript.vdf -print0 2>/dev/null | sort -z | read_scripts)
@@ -81,7 +84,12 @@ if [ "$(head -n 1 "$cache" 2>/dev/null)" != "$sig" ]; then
   } >"$cache.tmp" && mv -f "$cache.tmp" "$cache"
 fi
 game_pairs=$(tail -n +2 "$cache" 2>/dev/null | tr '\n' '\0' | read_scripts)
-[ -n "$game_pairs" ] && pairs=$(printf '%s\n%s\n' "$pairs" "$game_pairs" | sort -u | sed '/^$/d')
+# DROIDDECK_SEED_SCRIPTS: more scripts, one path a line - droiddeck-game-env passes the client's
+# evaluator script for the game about to run its installers, read before the client looks.
+if [ -n "${DROIDDECK_SEED_SCRIPTS:-}" ]; then
+  game_pairs=$(printf '%s\n%s\n' "$game_pairs" "$(printf '%s\n' "$DROIDDECK_SEED_SCRIPTS" | tr '\n' '\0' | read_scripts)")
+fi
+[ -n "$(printf '%s' "$game_pairs" | tr -d '[:space:]')" ] && pairs=$(printf '%s\n%s\n' "$pairs" "$game_pairs" | sort -u | sed '/^$/d')
 
 # The VC++ 2015-2022 runtime as its installers check for it, for each architecture and both registry
 # views. The version is the newest the scripts above know, so any 2015-2022 bundle finds itself
