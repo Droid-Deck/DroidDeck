@@ -134,6 +134,14 @@
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
+        <activity
+            android:name=".agent.AgentStartActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:permission="android.permission.DUMP"
+            android:theme="@style/SessionTheme" />
+
         <!--
             Owns the session - gamescope, the Steam client, audio - so it survives the activity
             going away. Without it Android demotes the process as soon as the last visible
@@ -173,5 +181,11 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+        <provider
+            android:name=".agent.AgentBridgeProvider"
+            android:authorities="${applicationId}.agent"
+            android:exported="true"
+            android:permission="android.permission.DUMP"
+            android:grantUriPermissions="false" />
     </application>
 </manifest>
