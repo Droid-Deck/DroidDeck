@@ -13,6 +13,12 @@ import java.io.InputStream
 /** Small, portable launch files for frontends that scan ROM folders. No guest paths or commands. */
 object GameFiles {
     const val EXTENSION = "droiddeck"
+    enum class ExportFormat(val extension: String) {
+        STEAM("steam"), DROIDDECK(EXTENSION);
+
+        fun forGame(game: Library.SteamGame): ExportFormat =
+            if (this == STEAM && (game.library == Library.ADDED || (game.gameIdString.toIntOrNull() ?: 0) <= 0)) DROIDDECK else this
+    }
     private const val MAX_BYTES = 128
     private const val INVENTORY = ".droiddeck-sync.json"
     private const val FORMAT = "droiddeck-game-files-v1"
@@ -49,24 +55,40 @@ object GameFiles {
         return GameLaunchLink.parse(text) ?: text.takeIf(GameLaunchLink::validId)
     }
 
-    fun filename(game: Library.SteamGame): String {
+    fun filename(game: Library.SteamGame, format: ExportFormat = ExportFormat.DROIDDECK, disambiguate: Boolean = false): String {
         val sanitized = game.name.replace(Regex("[\\p{Cntrl}\\\\/:*?\"<>|]"), "_")
             .trim().trim('.').ifBlank { "Game" }
         val points = sanitized.codePoints().limit(40).toArray()
         val title = String(points, 0, points.size)
-        return "$title (${game.gameIdString}).$EXTENSION"
+        val effective = format.forGame(game)
+        val suffix = if (effective == ExportFormat.DROIDDECK || disambiguate) " (${game.gameIdString})" else ""
+        return "$title$suffix.${effective.extension}"
     }
 
-    private fun contents(id: String) = GameLaunchLink.uri(id) + "\n"
+    private fun contents(id: String, format: ExportFormat): String {
+        require(GameLaunchLink.validId(id))
+        return if (format == ExportFormat.STEAM) id else GameLaunchLink.uri(id) + "\n"
+    }
 
-    @Synchronized fun export(folder: File, game: Library.SteamGame): File {
+    @Synchronized fun export(folder: File, game: Library.SteamGame, format: ExportFormat = ExportFormat.DROIDDECK): File =
+        exportNamed(folder, game, format, filename(game, format))
+
+    private fun exportNamed(folder: File, game: Library.SteamGame, format: ExportFormat, name: String): File {
         require(folder.isDirectory) { "Folder is unavailable" }
-        val target = child(folder, filename(game))
-        val text = contents(game.gameIdString)
+        val text = contents(game.gameIdString, format.forGame(game))
+        val target = exportTarget(folder, game, format, name)
         require(!target.exists() || matches(target, text)) { "A different file already uses ${target.name}" }
         if (!target.exists()) write(target, text)
         exportArt(folder, game)
         return target
+    }
+
+    private fun exportTarget(folder: File, game: Library.SteamGame, format: ExportFormat, name: String): File {
+        val target = child(folder, name)
+        return if (format.forGame(game) == ExportFormat.STEAM && target.exists() &&
+            !matches(target, contents(game.gameIdString, ExportFormat.STEAM))) {
+            child(folder, filename(game, format, disambiguate = true))
+        } else target
     }
 
     /** Cocoon matches icons in its data folder's images directory. Never replace custom art. */
@@ -86,7 +108,7 @@ object GameFiles {
     }
 
     /** Only remove files in our inventory whose content is still exactly what we wrote. */
-    @Synchronized fun sync(folder: File, games: List<Library.SteamGame>) {
+    @Synchronized fun sync(folder: File, games: List<Library.SteamGame>, format: ExportFormat = ExportFormat.DROIDDECK) {
         require(folder.isDirectory) { "Folder is unavailable" }
         val inventory = child(folder, INVENTORY)
         val previous = if (inventory.exists()) {
@@ -95,20 +117,30 @@ object GameFiles {
             record.getJSONObject("games")
         } else JSONObject()
         val next = JSONObject()
-        val exports = games.distinctBy { it.gameId }.map { game ->
-            val target = child(folder, filename(game))
+        val unique = games.distinctBy { it.gameId }
+        val names = unique.groupingBy { filename(it, format).lowercase(java.util.Locale.ROOT) }.eachCount()
+        val exports = unique.map { game ->
+            val name = filename(game, format, disambiguate = names.getValue(filename(game, format).lowercase(java.util.Locale.ROOT)) > 1)
+            val preferred = child(folder, name)
+            val target = if (inventoryOwns(folder, previous, preferred, game.gameIdString)) preferred
+                else exportTarget(folder, game, format, name)
+            val text = contents(game.gameIdString, format.forGame(game))
+            val existed = target.exists()
             // Keep an edited export without letting it block the rest of the library sync.
-            val file = if (previous.optString(target.name) == game.gameIdString && target.exists() &&
-                !matches(target, contents(game.gameIdString))) target else export(folder, game)
-            next.put(file.name, game.gameIdString)
+            val owned = inventoryOwns(folder, previous, target, game.gameIdString)
+            val file = if (owned && target.exists() &&
+                !matches(target, text)) target else exportNamed(folder, game, format, target.name)
+            if (!existed || owned ||
+                format.forGame(game) == ExportFormat.DROIDDECK) next.put(file.name, game.gameIdString)
             file
         }
         // Write new exports before pruning; a failed write must not remove old launch files.
         for (name in previous.keys()) {
             val id = previous.getString(name)
-            if (!next.has(name) && name.endsWith(".$EXTENSION") && GameLaunchLink.validId(id)) {
+            val oldFormat = ExportFormat.entries.firstOrNull { name.endsWith(".${it.extension}") }
+            if (!next.has(name) && oldFormat != null && GameLaunchLink.validId(id)) {
                 val file = child(folder, name)
-                if (matches(file, contents(id))) {
+                if (matches(file, contents(id, oldFormat))) {
                     // Android shared storage is often case insensitive. A case-only rename may
                     // still resolve to the live export, which must not be pruned as an old file.
                     val retained = exports.any { java.nio.file.Files.isSameFile(it.toPath(), file.toPath()) }
@@ -117,6 +149,16 @@ object GameFiles {
             }
         }
         if (previous.toString() != next.toString()) write(inventory, JSONObject().put("format", FORMAT).put("games", next).toString())
+    }
+
+    private fun inventoryOwns(folder: File, record: JSONObject, file: File, id: String): Boolean {
+        if (record.optString(file.name) == id) return true
+        if (!file.exists()) return false
+        return record.keys().asSequence().any { name ->
+            record.optString(name) == id && child(folder, name).let { old ->
+                old.exists() && java.nio.file.Files.isSameFile(old.toPath(), file.toPath())
+            }
+        }
     }
 
     private fun child(folder: File, name: String): File {

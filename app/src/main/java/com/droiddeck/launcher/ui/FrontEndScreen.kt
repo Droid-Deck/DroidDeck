@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.GameFiles
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.input.SecondScreenDisplay
@@ -99,6 +100,7 @@ class FrontEndState(
     val shortcutPicker: Boolean = false,
     val shortcutLibraryScanning: Boolean = false,
     val gameSyncFolder: String? = null,
+    val gameSyncFormat: GameFiles.ExportFormat = GameFiles.ExportFormat.DROIDDECK,
     val pageKey: String? = null,
     val theme: String = Themes.GRAPHITE,
     val appScale: Int = com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE,
@@ -134,8 +136,8 @@ class FrontEndActions(
     val onPlayDesktopUi: () -> Unit,
     val onSteamGame: (Library.SteamGame) -> Unit,
     val onGameShortcut: (Library.SteamGame) -> Unit = {},
-    val onExportGameFile: (Library.SteamGame) -> Unit = {},
-    val onSyncGameFiles: () -> Unit = {},
+    val onExportGameFile: (Library.SteamGame, GameFiles.ExportFormat) -> Unit = { _, _ -> },
+    val onSyncGameFiles: (GameFiles.ExportFormat) -> Unit = {},
     val onStopGameFileSync: () -> Unit = {},
     val onCopyGameLink: (Library.SteamGame) -> Unit = {},
     val onDesktop: () -> Unit,

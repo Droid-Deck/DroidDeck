@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.GameFiles
 
 // The Games page: the list, the hero for the selected game and its labels.
 
@@ -119,16 +120,33 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
 private fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions) {
     if (s.shortcutPicker) return
     var open by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var choosingFormat by remember { androidx.compose.runtime.mutableStateOf(false) }
     Box(Modifier.padding(top = 12.dp)) {
-        SecondaryButton(stringResource(R.string.game_frontend_files), compact = true) { open = !open }
-        AnchoredMenu(open, onDismiss = { open = false }, title = s.gameSyncFolder ?: stringResource(R.string.game_frontend_files)) { first ->
-            MenuItem(stringResource(R.string.game_file_sync), checked = false, focusRequester = first) {
-                open = false; a.onSyncGameFiles()
-            }
-            if (s.gameSyncFolder != null) MenuItem(stringResource(R.string.game_file_stop_sync), checked = false) {
-                open = false; a.onStopGameFileSync()
+        SecondaryButton(stringResource(R.string.game_frontend_files), compact = true) { choosingFormat = false; open = !open }
+        key(choosingFormat) {
+            AnchoredMenu(open, onDismiss = { open = false }, title = if (choosingFormat) stringResource(R.string.game_file_format) else s.gameSyncFolder ?: stringResource(R.string.game_frontend_files)) { first ->
+                if (choosingFormat) {
+                    GameFileFormats(first, s.gameSyncFormat.takeIf { s.gameSyncFolder != null }) { format ->
+                        open = false; a.onSyncGameFiles(format)
+                    }
+                } else {
+                    MenuItem(stringResource(R.string.game_file_sync), checked = false, focusRequester = first) {
+                        choosingFormat = true
+                    }
+                    if (s.gameSyncFolder != null) MenuItem(stringResource(R.string.game_file_stop_sync), checked = false) {
+                        open = false; a.onStopGameFileSync()
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ColumnScope.GameFileFormats(first: androidx.compose.ui.focus.FocusRequester, current: GameFiles.ExportFormat? = null, onChoose: (GameFiles.ExportFormat) -> Unit) {
+    GameFiles.ExportFormat.entries.forEachIndexed { index, format ->
+        MenuItem(stringResource(if (format == GameFiles.ExportFormat.STEAM) R.string.game_file_format_steam else R.string.game_file_format_droiddeck),
+            checked = current == format, focusRequester = if (index == 0) first else null) { onChoose(format) }
     }
 }
 
@@ -153,17 +171,26 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
 @Composable
 private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { androidx.compose.runtime.mutableStateOf(false) }
+    var choosingFormat by remember(g.gameId) { androidx.compose.runtime.mutableStateOf(false) }
     Box {
-        SecondaryButton(stringResource(R.string.game_shortcut), compact = true) { open = !open }
-        AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_shortcut)) { first ->
-            MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = first) {
-                open = false; a.onGameShortcut(g)
-            }
-            MenuItem(stringResource(R.string.game_file_export), checked = false) {
-                open = false; a.onExportGameFile(g)
-            }
-            MenuItem(stringResource(R.string.game_link_copy), checked = false) {
-                open = false; a.onCopyGameLink(g)
+        SecondaryButton(stringResource(R.string.game_shortcut), compact = true) { choosingFormat = false; open = !open }
+        key(choosingFormat) {
+            AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(if (choosingFormat) R.string.game_file_format else R.string.game_shortcut)) { first ->
+                if (choosingFormat) {
+                    GameFileFormats(first) { format -> open = false; a.onExportGameFile(g, format) }
+                } else {
+                    MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = first) {
+                        open = false; a.onGameShortcut(g)
+                    }
+                    MenuItem(stringResource(R.string.game_file_export), checked = false) {
+                        if (g.library == Library.ADDED) {
+                            open = false; a.onExportGameFile(g, GameFiles.ExportFormat.DROIDDECK)
+                        } else choosingFormat = true
+                    }
+                    MenuItem(stringResource(R.string.game_link_copy), checked = false) {
+                        open = false; a.onCopyGameLink(g)
+                    }
+                }
             }
         }
     }
