@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.PowerSettingsNew
@@ -87,6 +88,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -260,6 +263,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     val pal = LocalPalette.current
     val host = rememberMenuHost()
     var androidAppsExpanded by rememberSaveable { mutableStateOf(false) }
+    var advancedEffectsExpanded by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     var confirmStop by remember { mutableStateOf(false) }
     var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -410,7 +414,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             }
                         }
                         SessionDrawerPage.EFFECTS -> {
-                            ScreenEffectsGroup(host, a) { key -> focus.track(page, key) }
+                            ScreenEffectsGroup(host, a, advancedEffectsExpanded,
+                                onAdvancedToggle = { advancedEffectsExpanded = !advancedEffectsExpanded }) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
@@ -739,48 +744,68 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
 /** The Look row's value when the rows below match no Look. */
 private const val LOOK_CUSTOM = "custom"
 
-/**
- * Screen effects on the Effects page: a Look row that moves every row under it, then the rows
- * themselves: switches and sliders the d-pad steps (SliderRow), so a pad drives them.
- */
+/** Presets and simple effects first; detailed adjustments stay behind Advanced. */
 @Composable
-private fun ScreenEffectsGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+private fun ScreenEffectsGroup(
+    host: MenuHost, a: DrawerActions, advancedExpanded: Boolean, onAdvancedToggle: () -> Unit,
+    track: (String) -> Modifier,
+) {
     val e = a.effects
-    val look = ScreenEffectLooks.match(e, a.upscaler)
+    val preset = ScreenEffectLooks.match(e, a.upscaler)
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
     SettingsGroup(stringResource(R.string.drawer_effects)) {
-        val looks = ScreenEffectLooks.LOOKS.map { it.name to it.name }
-        ChoiceRow(host, "look", stringResource(R.string.drawer_look),
-            look?.let { selected ->
-                selected.scalingMode?.let { mode ->
-                    stringResource(R.string.display_look_filter, selected.desc, SessionPrefs.upscalerChoices.first { it.first == mode }.second)
-                } ?: selected.desc
-            } ?: stringResource(R.string.drawer_effects_hint),
-            if (look == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + looks else looks,
-            look?.name ?: LOOK_CUSTOM, chipModifier = track("look"), hintLines = 2) { name ->
+        val presets = ScreenEffectLooks.LOOKS.map { it.name to it.name }
+        ChoiceRow(host, "look", stringResource(R.string.drawer_look), null,
+            if (preset == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + presets else presets,
+            preset?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
             ScreenEffectLooks.LOOKS.firstOrNull { it.name == name }?.let { picked ->
                 picked.scalingMode?.let(a.onUpscaler)
                 a.onEffects(picked.effects)
             }
         }
-        ToggleRow(host, "cas", stringResource(R.string.drawer_cas), null, e.cas, chipModifier = track("cas")) { a.onEffects(e.copy(cas = it)) }
-        SliderRow(stringResource(R.string.drawer_cas_level), null, e.casLevel, 0..100, step = 5, enabled = e.cas,
-            format = { "$it%" }, modifier = track("cas-level")) { a.onEffects(e.copy(casLevel = it)) }
-        ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
-        ToggleRow(host, "deband", stringResource(R.string.drawer_deband), null, e.deband, chipModifier = track("deband")) { a.onEffects(e.copy(deband = it)) }
-        SliderRow(stringResource(R.string.drawer_deband_strength), null, e.debandStrength, 0..200, step = 5, enabled = e.deband,
-            format = { "$it%" }, modifier = track("deband-strength")) { a.onEffects(e.copy(debandStrength = it)) }
-        SliderRow(stringResource(R.string.drawer_brightness), null, e.brightness, -100..100, step = 2,
-            format = ::signed, modifier = track("brightness")) { a.onEffects(e.copy(brightness = it)) }
-        SliderRow(stringResource(R.string.drawer_contrast), null, e.contrast, -100..100, step = 2,
-            format = ::signed, modifier = track("contrast")) { a.onEffects(e.copy(contrast = it)) }
-        SliderRow(stringResource(R.string.drawer_gamma), null, (e.gamma * 100f).roundToInt(), 50..300, step = 5,
-            format = { String.format(Locale.US, "%.2f", it / 100f) }, modifier = track("gamma")) { a.onEffects(e.copy(gamma = it / 100f)) }
-        SliderRow(stringResource(R.string.drawer_saturation), null, e.saturation, 0..200, step = 5,
-            format = { "$it%" }, modifier = track("saturation")) { a.onEffects(e.copy(saturation = it)) }
         ToggleRow(host, "fxaa", stringResource(R.string.drawer_fxaa), null, e.fxaa, chipModifier = track("fxaa")) { a.onEffects(e.copy(fxaa = it)) }
         ToggleRow(host, "toon", stringResource(R.string.drawer_toon), null, e.toon, chipModifier = track("toon")) { a.onEffects(e.copy(toon = it)) }
         ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
         ToggleRow(host, "ntsc", stringResource(R.string.drawer_ntsc), null, e.ntsc, chipModifier = track("ntsc")) { a.onEffects(e.copy(ntsc = it)) }
+        ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
+    }
+    val source = remember { MutableInteractionSource() }
+    val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+    val rotation by animateFloatAsState(if (advancedExpanded) 180f else 0f, Motion.tw(180), label = "advancedArrow")
+    val description = stringResource(if (advancedExpanded) R.string.widgets_expanded else R.string.widgets_collapsed)
+    val toggle = { host.open = null; onAdvancedToggle() }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = track("effects-advanced").fillMaxWidth().padding(top = 12.dp).heightIn(min = 48.dp)
+            .glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
+            .hoverable(source).clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClick = toggle)
+            .controllerConfirm(onClick = toggle).semantics { stateDescription = description }.padding(horizontal = 4.dp),
+    ) {
+        Text(stringResource(R.string.drawer_effects_advanced).uppercase(), fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
+        Box(Modifier.weight(1f).height(1.dp).background(pal.line))
+        Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = colors.onSurfaceVariant,
+            modifier = Modifier.size(22.dp).rotate(rotation))
+    }
+    AnimatedVisibility(advancedExpanded) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).border(1.dp, pal.line, RoundedCornerShape(14.dp))) {
+            ToggleRow(host, "cas", stringResource(R.string.drawer_cas), null, e.cas, chipModifier = track("cas")) { a.onEffects(e.copy(cas = it)) }
+            if (e.cas) SliderRow(stringResource(R.string.drawer_cas_level), null, e.casLevel, 0..100, step = 5,
+                format = { "$it%" }, modifier = track("cas-level")) { a.onEffects(e.copy(casLevel = it)) }
+            ToggleRow(host, "deband", stringResource(R.string.drawer_deband), null, e.deband, chipModifier = track("deband")) { a.onEffects(e.copy(deband = it)) }
+            if (e.deband) SliderRow(stringResource(R.string.drawer_deband_strength), null, e.debandStrength, 0..200, step = 5,
+                format = { "$it%" }, modifier = track("deband-strength")) { a.onEffects(e.copy(debandStrength = it)) }
+            SliderRow(stringResource(R.string.drawer_brightness), null, e.brightness, -100..100, step = 2,
+                format = ::signed, modifier = track("brightness")) { a.onEffects(e.copy(brightness = it)) }
+            SliderRow(stringResource(R.string.drawer_contrast), null, e.contrast, -100..100, step = 2,
+                format = ::signed, modifier = track("contrast")) { a.onEffects(e.copy(contrast = it)) }
+            SliderRow(stringResource(R.string.drawer_gamma), null, (e.gamma * 100f).roundToInt(), 50..300, step = 5,
+                format = { String.format(Locale.US, "%.2f", it / 100f) }, modifier = track("gamma")) { a.onEffects(e.copy(gamma = it / 100f)) }
+            SliderRow(stringResource(R.string.drawer_saturation), null, e.saturation, 0..200, step = 5,
+                format = { "$it%" }, modifier = track("saturation")) { a.onEffects(e.copy(saturation = it)) }
+        }
     }
 }
 

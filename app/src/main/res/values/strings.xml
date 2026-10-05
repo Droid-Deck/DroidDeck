@@ -486,8 +486,11 @@
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
     <string name="drawer_effects">Screen effects</string>
     <string name="drawer_effects_hint">Live. Costs a little GPU time while any effect is on.</string>
-    <string name="drawer_look">Look</string>
+    <string name="drawer_look">Presets</string>
     <string name="drawer_look_custom">Custom</string>
+    <string name="drawer_effects_advanced">Advanced</string>
+    <string name="widgets_expanded">Expanded</string>
+    <string name="widgets_collapsed">Collapsed</string>
     <string name="drawer_cas">Sharpening (CAS)</string>
     <string name="drawer_cas_level">Sharpening level</string>
     <string name="drawer_fake_hdr">Fake HDR</string>
