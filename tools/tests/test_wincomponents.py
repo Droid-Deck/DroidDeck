@@ -90,6 +90,33 @@ class WinComponentsTest(unittest.TestCase):
         self.assertFalse((self.compat / "config_info").exists())
         self.assertIn("1 removed", notes[-1])
 
+    def test_a_file_of_someone_elses_is_kept_and_put_back_when_turned_off(self):
+        self.component("vc", ["msvcp100"], {"syswow64/msvcp100.dll": b"ours"})
+        installer = self.pfx / "syswow64/MSVCP100.dll"
+        installer.parent.mkdir(parents=True)
+        installer.write_bytes(b"from a real installer")
+        self.pick("vc")
+        self.apply()
+        self.assertEqual(installer.read_bytes(), b"ours")
+        self.apply()  # a second launch keeps the first backup, not ours
+        self.pick()
+        names, notes = self.apply()
+        self.assertEqual(installer.read_bytes(), b"from a real installer")
+        self.assertIn("1 put back as they were", notes[-1])
+        self.assertFalse((self.compat / ".droiddeck-wincomponents-backup/drive_c/windows/syswow64/msvcp100.dll").exists())
+
+    def test_protons_own_dlls_and_our_earlier_copy_get_no_backup(self):
+        self.component("vc", ["msvcp100"], {"syswow64/msvcp100.dll": b"ours v1", "system32/msvcp100.dll": b"ours 64"})
+        builtin = self.pfx / "system32/msvcp100.dll"
+        builtin.parent.mkdir(parents=True)
+        builtin.write_bytes(b"MZ" + b"\0" * 62 + b"Wine builtin DLL")
+        self.pick("vc")
+        self.apply()
+        (self.store / "vc/syswow64/msvcp100.dll").write_bytes(b"ours v2")
+        os.utime(self.store / "vc/syswow64/msvcp100.dll", (1, 1))
+        self.apply()
+        self.assertFalse((self.compat / ".droiddeck-wincomponents-backup").exists())
+
     def test_missing_component_is_skipped(self):
         self.pick("physx")
         names, notes = self.apply()

@@ -28,6 +28,10 @@ STORE = Path("/opt/droiddeck/wincomponents")
 SELECTION = Path.home() / ".config/droiddeck/wincomponents.json"
 # What this prefix holds from us, so a component the user turns off is taken out again.
 STATE = ".droiddeck-wincomponents.json"
+# A file ours replaced that was not Proton's (a real installer's, the user's own), put back when the
+# component is turned off. Proton's builtins need no copy: it restores those itself.
+BACKUP = ".droiddeck-wincomponents-backup"
+BUILTIN_MARKS = (b"Wine builtin DLL", b"Wine placeholder DLL")
 ARCH_DIRS = ("system32", "syswow64")
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
@@ -112,11 +116,27 @@ def same(src, dst):
     return a.st_size == b.st_size and int(a.st_mtime) == int(b.st_mtime)
 
 
-def place(src, target):
+def builtin(path):
+    """Proton's own: a symlink into its files, or a Wine DLL that says so in its DOS stub."""
+    if path.is_symlink():
+        return True
+    try:
+        with open(path, "rb") as source:
+            head = source.read(512)
+    except OSError:
+        return False
+    return any(mark in head for mark in BUILTIN_MARKS)
+
+
+def place(src, target, backup=None):
+    """Copies src over target unless it is already there; a file of someone else's goes to backup first."""
     target.parent.mkdir(parents=True, exist_ok=True)
     found = existing(target)
     if found is not None and same(src, found):
         return False
+    if found is not None and backup is not None and not backup.exists() and not builtin(found):
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(found, backup)
     final = found or target
     temp = final.with_name(".%s.droiddeck" % final.name)
     shutil.copy2(src, temp)
@@ -161,15 +181,21 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE):
         names, files, _ = found
         overrides += names
         for rel, src in files:
-            if place(src, pfx / rel):
+            # A file this prefix already has from us is ours to replace; anything else is kept.
+            if place(src, pfx / rel, None if rel in state["files"] else compat / BACKUP / rel):
                 copied += 1
             keep[rel] = cid
-    removed = 0
+    removed = restored = 0
     for rel, cid in state["files"].items():
         if rel in keep:
             continue
         path = existing(pfx / rel)
-        if path is not None and not path.is_symlink():
+        saved = compat / BACKUP / rel
+        if saved.is_file():
+            target = path or (pfx / rel)
+            os.replace(saved, target)
+            restored += 1
+        elif path is not None and not path.is_symlink():
             path.unlink()
             removed += 1
     if removed:
@@ -181,8 +207,9 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE):
             pass
     compat.mkdir(parents=True, exist_ok=True)
     save_state(compat, {"files": keep, "components": installed})
-    if copied or removed:
-        notes.append("components %s: %d file(s) placed, %d removed" % (",".join(ids) or "none", copied, removed))
+    if copied or removed or restored:
+        note = "components %s: %d file(s) placed, %d removed" % (",".join(ids) or "none", copied, removed)
+        notes.append(note + (", %d put back as they were" % restored if restored else ""))
     return overrides, notes
 
 
