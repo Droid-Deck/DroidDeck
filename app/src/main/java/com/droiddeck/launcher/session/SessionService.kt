@@ -992,6 +992,7 @@ class SessionService : Service() {
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
         manualPauseRequested = false
+        if (steamSleepToken == null) requestSteamWake()
         completeSteamSleep()
         suspendAttemptFailed = false
         updateSuspendPolicy()
@@ -1070,7 +1071,7 @@ class SessionService : Service() {
 
     private fun watchLaunchRequests(dir: File) {
         launchWatcher?.stopWatching()
-        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready").forEach { File(dir, it).delete() }
+        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready", "steam-wake", "steam-wake.tmp").forEach { File(dir, it).delete() }
         val gen = sessionGen
         @Suppress("DEPRECATION")
         val watcher = object : android.os.FileObserver(dir.path, CLOSE_WRITE or MOVED_TO) {
@@ -1211,7 +1212,21 @@ class SessionService : Service() {
     }
 
     private fun resumeSteamSleepOnReturn() {
-        if (suspendPolicy == SessionPrefs.SUSPEND_AUTO && activityVisible && screenOn) completeSteamSleep()
+        if (suspendPolicy == SessionPrefs.SUSPEND_AUTO && activityVisible && screenOn) {
+            if (steamSleepToken == null) requestSteamWake()
+            completeSteamSleep()
+        }
+    }
+
+    /** Resume must also recover a Steam sleep whose request never reached Android. */
+    private fun requestSteamWake() {
+        if (!SessionState.running || SessionState.mode != MODE_STEAM) return
+        val dir = LinuxRuntime.sessionRoot(this)
+        runCatching {
+            val staged = File(dir, "steam-wake.tmp")
+            staged.writeText("wake\n")
+            check(staged.renameTo(File(dir, "steam-wake")))
+        }.onFailure { Log.w(TAG, "could not request Steam wake", it) }
     }
 
     private fun finishSessionStop(status: Int, stoppedGen: Int) {

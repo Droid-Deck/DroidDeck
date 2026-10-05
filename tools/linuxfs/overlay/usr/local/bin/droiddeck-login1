@@ -18,6 +18,8 @@ from gi.repository import Gio, GLib  # noqa: E402
 NAME = "org.freedesktop.login1"
 ROOT = "/org/freedesktop/login1"
 INTERFACE = NAME + ".Manager"
+UPOWER = "org.freedesktop.UPower"
+UPOWER_ROOT = "/org/freedesktop/UPower"
 INTROSPECTION = """
 <node>
   <interface name="org.freedesktop.login1.Manager">
@@ -29,6 +31,13 @@ INTROSPECTION = """
   </interface>
 </node>
 """
+UPOWER_INTROSPECTION = """
+<node>
+  <interface name="org.freedesktop.UPower">
+    <method name="Suspend"/>
+  </interface>
+</node>
+"""
 
 
 class LoginManager:
@@ -37,10 +46,15 @@ class LoginManager:
         self.directory = Path(directory)
         self.request = self.directory / "steam-sleep"
         self.state = self.directory / "steam-sleep-state"
+        self.wake = self.directory / "steam-wake"
         self.pending = None
         self.timeout = None
         info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION).interfaces[0]
         self.registration = bus.register_object(ROOT, info, self.method, self.property, None)
+        # Steam can issue its suspend command through the legacy UPower service even
+        # while listening to login1's sleep/resume notifications. Use one handshake.
+        upower_info = Gio.DBusNodeInfo.new_for_xml(UPOWER_INTROSPECTION).interfaces[0]
+        self.upower_registration = bus.register_object(UPOWER_ROOT, upower_info, self.method, None, None)
         self.monitor = Gio.File.new_for_path(str(self.directory)).monitor_directory(Gio.FileMonitorFlags.NONE, None)
         self.monitor.connect("changed", self.changed)
 
@@ -69,7 +83,7 @@ class LoginManager:
             reply.return_value(None)
             # Flush the signal and method reply without blocking this D-Bus callback. Once both are
             # on the wire, publishing the request lets the host safely freeze this service.
-            self.bus.flush_async(None, self.publish_after_flush, None)
+            self.bus.flush(None, self.publish_after_flush, None)
 
     def publish_after_flush(self, connection, result, _data):
         try:
@@ -92,6 +106,10 @@ class LoginManager:
         return False
 
     def changed(self, monitor, file, other, event):
+        if file.get_basename() == self.wake.name or (other and other.get_basename() == self.wake.name):
+            if self.wake.exists():
+                self.wake.unlink(missing_ok=True)
+                self.resume(force=True)
         if file.get_basename() == self.state.name or (other and other.get_basename() == self.state.name):
             self.check_state()
 
@@ -113,14 +131,27 @@ class LoginManager:
             self.resume()
         return False
 
-    def resume(self):
+    def resume(self, force=False):
         if self.pending is None:
+            if force:
+                # A missed suspend command leaves Steam without the first half of
+                # the handshake. Replay both notifications, without pausing again.
+                self.notify(True)
+                self.bus.flush(None, self.finish_recovery, None)
             return
         self.pending = None
         if self.timeout is not None:
             GLib.source_remove(self.timeout)
             self.timeout = None
         self.notify(False)
+
+    def finish_recovery(self, connection, result, _data):
+        try:
+            connection.flush_finish(result)
+        except GLib.Error as error:
+            print("== login1: cannot flush wake recovery: " + str(error), file=sys.stderr)
+        if self.pending is None:
+            self.notify(False)
 
 
 def main():
@@ -131,23 +162,29 @@ def main():
     ready.unlink(missing_ok=True)
     loop = GLib.MainLoop()
     manager = []
+    acquired_names = set()
 
     def connected(bus, name):
-        manager.append(LoginManager(bus, directory))
+        if not manager:
+            manager.append(LoginManager(bus, directory))
 
     def acquired(bus, name):
-        ready.write_text("ready\n")
+        acquired_names.add(name)
+        if acquired_names == {NAME, UPOWER}:
+            ready.write_text("ready\n")
 
     def lost(bus, name):
         ready.unlink(missing_ok=True)
         loop.quit()
 
-    owner = Gio.bus_own_name(Gio.BusType.SYSTEM, NAME, Gio.BusNameOwnerFlags.NONE, connected, acquired, lost)
+    owners = [Gio.bus_own_name(Gio.BusType.SYSTEM, name, Gio.BusNameOwnerFlags.NONE, connected, acquired, lost)
+              for name in (NAME, UPOWER)]
     try:
         loop.run()
     finally:
         ready.unlink(missing_ok=True)
-        Gio.bus_unown_name(owner)
+        for owner in owners:
+            Gio.bus_unown_name(owner)
 
 
 if __name__ == "__main__":
