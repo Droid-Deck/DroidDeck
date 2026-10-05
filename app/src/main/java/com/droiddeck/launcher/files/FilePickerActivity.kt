@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import java.io.File
 
@@ -50,7 +51,7 @@ class FilePickerActivity : ComponentActivity() {
                         pickDirMode = pickDir,
                         pickExtensions = extensions,
                         initialDir = initialDir,
-                        pickerTitle = title ?: if (pickDir) "Choose a folder" else "Choose a file",
+                        pickerTitle = title ?: getString(if (pickDir) R.string.fm_choose_folder else R.string.fm_choose_file),
                         onPick = { file ->
                             setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_SELECTED_FILE, file.absolutePath))
                             finish()

@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.onSignal
 import com.droiddeck.launcher.ui.LocalPalette
@@ -48,10 +50,10 @@ class ControllerEditorActivity : ComponentActivity() {
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), RoundedCornerShape(50))
                             .padding(start = 14.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
                     ) {
-                        Text("Drag to move", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
-                        EditorButton("Reset", false) { controls.resetLayout() }
-                        EditorButton("Cancel", false) { finish() }
-                        EditorButton("Save", true) {
+                        Text(stringResource(R.string.ctrl_editor_drag), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
+                        EditorButton(stringResource(R.string.ctrl_reset), false) { controls.resetLayout() }
+                        EditorButton(stringResource(R.string.common_cancel), false) { finish() }
+                        EditorButton(stringResource(R.string.ctrl_editor_save), true) {
                             controls.saveLayout()
                             finish()
                         }

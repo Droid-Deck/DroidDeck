@@ -2,14 +2,16 @@ package com.droiddeck.launcher.input
 
 import android.hardware.display.DisplayManager
 import android.view.Display
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 
 /** The control surface shown on a secondary Android display during a Linux session. */
-enum class SecondScreenMode(val id: String, val label: String) {
-    NONE("none", "None"),
-    KEYBOARD_TRACKPAD("keyboard-trackpad", "Keyboard + trackpad"),
-    TERMINAL("terminal", "Terminal"),
+enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
+    NONE("none", R.string.second_mode_none),
+    KEYBOARD_TRACKPAD("keyboard-trackpad", R.string.second_mode_keyboard_trackpad),
+    TERMINAL("terminal", R.string.second_mode_terminal),
     /** The Steam Deck controller's back grips and trackpads; offered while the pad is one. */
-    DECK_CONTROLS("deck-controls", "Deck grips + trackpads"),
+    DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls),
 }
 
 data class SecondScreenDisplay(val id: Int, val label: String)

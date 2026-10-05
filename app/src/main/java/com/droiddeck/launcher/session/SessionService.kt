@@ -809,7 +809,7 @@ class SessionService : Service() {
         val library = GameStorage.effective(this)
         var storageDiagnosticLibrary: File? = null
         if (library != null) {
-            val problem = GameStorage.prepare(library.path)
+            val problem = GameStorage.prepare(this, library.path)
             if (problem == null) {
                 File(LinuxRuntime.rootDir(this), "mnt/droiddeck-sd").mkdirs()
                 // Links, prefixes and Steam entries made before the rename still name the old path.

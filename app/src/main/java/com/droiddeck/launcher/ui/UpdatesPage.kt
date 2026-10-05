@@ -179,7 +179,7 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         }
         if (look.detail != null) Text(look.detail, fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
         if (installBlock != null && offered) {
-            Text(installBlock, fontSize = 13.sp, color = AttentionAmber, modifier = Modifier.padding(top = 10.dp))
+            Text(installBlock.message(androidx.compose.ui.platform.LocalContext.current), fontSize = 13.sp, color = AttentionAmber, modifier = Modifier.padding(top = 10.dp))
         }
         if (u.error != null) Text(u.error, fontSize = 13.sp, color = pal.error, modifier = Modifier.padding(top = 12.dp))
         val installable = release?.apk != null && installBlock == null && !s.sessionRunning

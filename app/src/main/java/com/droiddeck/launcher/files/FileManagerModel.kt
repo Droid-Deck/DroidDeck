@@ -8,6 +8,8 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import java.io.File
 
 // The File Manager's non-UI helpers: sorting, paths, conflict choices and favourite locations.
@@ -77,7 +79,7 @@ enum class FavStorage { INTERNAL, SD, OTHER }
 
 data class FavLocation(
     val storage: FavStorage,
-    val driveLabel: String,       // "Internal", "SD card", or "Storage"
+    @StringRes val driveLabel: Int, // Internal, SD card, or Storage
     val displayPath: String       // the unix absolute path
 )
 
@@ -87,15 +89,15 @@ fun describeLocation(file: File): FavLocation {
 
     val internal = "/storage/emulated/0"
     if (abs == internal || abs.startsWith("$internal/")) {
-        return FavLocation(FavStorage.INTERNAL, "Internal", abs)
+        return FavLocation(FavStorage.INTERNAL, R.string.fm_drive_internal, abs)
     }
 
     if (abs.startsWith("/storage/")) {
         val name = abs.removePrefix("/storage/").substringBefore('/')
         if (name.isNotEmpty() && name != "emulated" && name != "self") {
-            return FavLocation(FavStorage.SD, "SD card", abs)
+            return FavLocation(FavStorage.SD, R.string.fm_drive_sd, abs)
         }
     }
 
-    return FavLocation(FavStorage.OTHER, "Storage", abs)
+    return FavLocation(FavStorage.OTHER, R.string.fm_drive_storage, abs)
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.R
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -195,11 +196,15 @@ object AppUpdates {
     }
 
     /** Why Android cannot install this published build over [me], before downloading anything. */
-    fun installBlock(r: Release, me: Installed = installed()): String? = when {
-        r.apk == null -> "This build has no download for this copy of DroidDeck."
-        r.apk.versionCode < me.versionCode ->
-            "Android won't install it over this build because its versionCode ${r.apk.versionCode} is below the installed ${me.versionCode}."
+    fun installBlock(r: Release, me: Installed = installed()): InstallBlock? = when {
+        r.apk == null -> InstallBlock(R.string.upd_block_no_apk)
+        r.apk.versionCode < me.versionCode -> InstallBlock(R.string.upd_block_version_code, r.apk.versionCode, me.versionCode)
         else -> null
+    }
+
+    /** Why Android would refuse a build, as a line for the user. */
+    class InstallBlock(@androidx.annotation.StringRes val text: Int, private vararg val args: Any) {
+        fun message(context: Context): String = context.getString(text, *args)
     }
 
     fun follow(context: Context, catalog: Catalog?): Follow {
@@ -243,11 +248,13 @@ object AppUpdates {
     /** One static request, rather than several unauthenticated GitHub API requests. */
     fun refresh(context: Context): Catalog {
         val checkedAt = System.currentTimeMillis()
-        val catalog = readPublishedCatalog(
-            JSONObject(get("$CATALOG_URL?checked=$checkedAt")),
-            context.packageName,
-            checkedAt,
-        )
+        val published = JSONObject(get(context, "$CATALOG_URL?checked=$checkedAt"))
+        // Its checks say why in English; the user gets that inside a sentence in the app's language.
+        val catalog = try {
+            readPublishedCatalog(published, context.packageName, checkedAt)
+        } catch (e: IOException) {
+            throw IOException(context.getString(R.string.appupd_catalog_rejected, e.message), e)
+        }
         prefs(context).edit().putString(KEY_CATALOG, writeCatalog(catalog).toString()).apply()
         return catalog
     }
@@ -358,7 +365,7 @@ object AppUpdates {
         return 0
     }
 
-    private fun get(url: String): String {
+    private fun get(context: Context, url: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 20_000
@@ -367,7 +374,7 @@ object AppUpdates {
         c.setRequestProperty("Cache-Control", "no-cache")
         try {
             val code = c.responseCode
-            if (code != 200) throw IOException("The update catalog answered HTTP $code")
+            if (code != 200) throw IOException(context.getString(R.string.appupd_http, code))
             return c.inputStream.bufferedReader().use { it.readText() }
         } finally {
             c.disconnect()

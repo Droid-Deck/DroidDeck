@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.files
 
+import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.R
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -19,9 +21,9 @@ object FileOps {
     /** Byte-accurate copy progress (copied/total bytes), reported as the copy proceeds. */
     fun interface ProgressCallback { fun onProgress(copiedBytes: Long, totalBytes: Long) }
 
-    fun formatBytes(bytes: Long): String {
-        if (bytes <= 0) return "0 bytes"
-        val units = arrayOf("bytes", "KB", "MB", "GB", "TB")
+    fun formatBytes(context: Context, bytes: Long): String {
+        if (bytes <= 0) return context.getString(R.string.fm_size_zero)
+        val units = arrayOf(context.getString(R.string.fm_unit_bytes), "KB", "MB", "GB", "TB")
         val group = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt().coerceIn(0, units.lastIndex)
         return String.format(Locale.ENGLISH, "%.2f", bytes / Math.pow(1024.0, group.toDouble())) + " " + units[group]
     }

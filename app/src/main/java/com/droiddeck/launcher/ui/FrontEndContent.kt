@@ -307,7 +307,7 @@ private fun Content(
                             Column {
                                 Text(e.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                                 Text(
-                                    e.system.replaceFirstChar { it.uppercase() }.let { if (e.installed) it else stringResource(R.string.content_not_installed_suffix, it) },
+                                    systemLabel(e).let { if (e.installed) it else stringResource(R.string.content_not_installed_suffix, it) },
                                     fontSize = 14.sp, color = colors.onSurfaceVariant,
                                 )
                             }
@@ -334,7 +334,7 @@ private fun Content(
                             )
                         }
                         else Rise(5, Modifier.fillMaxWidth()) {
-                            ArtGrid(e.games.mapIndexed { index, g -> Tile(g.name, if (g.art != null) "installed" else g.hostPath.extension.uppercase().ifEmpty { "folder" }, g.art, "rom:${e.id}:$index", e.iconRes) { onSelect("rom:${e.id}:$index") } }, wide = e.games.none { it.art != null })
+                            ArtGrid(e.games.mapIndexed { index, g -> Tile(g.name, if (g.art != null) stringResource(R.string.content_rom_installed) else g.hostPath.extension.uppercase().ifEmpty { stringResource(R.string.content_rom_folder) }, g.art, "rom:${e.id}:$index", e.iconRes) { onSelect("rom:${e.id}:$index") } }, wide = e.games.none { it.art != null })
                         }
                     } else {
                         if (pkg != null) Rise(2) {
@@ -379,7 +379,7 @@ private fun Content(
                     Rise(0) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             BackLink(e.name) { onSelect("emu:${e.id}") }
-                            Eyebrow(stringResource(R.string.content_desktop_system, e.system))
+                            Eyebrow(stringResource(R.string.content_desktop_system, systemLabel(e)))
                         }
                     }
                     Rise(1) { Title(g.name) }
@@ -391,7 +391,7 @@ private fun Content(
                                 Actions {
                                     Image(painterResource(e.iconRes), null, modifier = Modifier.size(40.dp))
                                     PrimaryButton(stringResource(R.string.content_launch_in, e.name), enabled = !s.busy, main = true) { a.onRom(g) }
-                                    if (s.busy) BusyChip(s) else ActionChip(g.hostPath.extension.uppercase().ifEmpty { "folder" }, ok = false)
+                                    if (s.busy) BusyChip(s) else ActionChip(g.hostPath.extension.uppercase().ifEmpty { stringResource(R.string.content_rom_folder) }, ok = false)
                                 }
                             }
                             if (g.art != null && !narrow) Poster(g.art, g.name, Modifier.width(detailPosterWidth))
@@ -403,7 +403,7 @@ private fun Content(
                         Rise(4, Modifier.fillMaxWidth()) {
                             ArtGrid(others.map { x ->
                                 val index = e.games.indexOf(x)
-                                Tile(x.name, if (x.art != null) "installed" else x.hostPath.extension.uppercase().ifEmpty { "folder" }, x.art, "rom:${e.id}:$index", e.iconRes) { onSelect("rom:${e.id}:$index") }
+                                Tile(x.name, if (x.art != null) stringResource(R.string.content_rom_installed) else x.hostPath.extension.uppercase().ifEmpty { stringResource(R.string.content_rom_folder) }, x.art, "rom:${e.id}:$index", e.iconRes) { onSelect("rom:${e.id}:$index") }
                             }, wide = others.none { it.art != null })
                         }
                     }
@@ -658,10 +658,14 @@ private fun UpdateButton(app: UserApps.App, s: FrontEndState) {
  * contrast - dimming it read as disabled rather than one press from installing.
  */
 @Composable
+private fun systemLabel(e: Library.Emulator): String =
+    if (e.systemRes != 0) stringResource(e.systemRes) else e.system.replaceFirstChar { it.uppercase() }
+
+@Composable
 private fun EmulatorTile(e: Library.Emulator, modifier: Modifier, isFirst: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val system = e.system.replaceFirstChar { it.uppercase() }
+    val system = systemLabel(e)
     val detail = if (e.installed && e.id != "retroarch") "$system · " + pluralStringResource(R.plurals.mode_added_count, e.games.size, e.games.size) else system
     TileFrame("emu:${e.id}", modifier, isFirst, filled = e.installed, onClick = onClick) {
         Image(painterResource(e.iconRes), contentDescription = null, modifier = Modifier.size(if (e.installed) 44.dp else 36.dp))
