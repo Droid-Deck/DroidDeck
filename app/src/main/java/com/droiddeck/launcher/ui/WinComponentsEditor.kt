@@ -35,6 +35,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.DependencyDetector
 import com.droiddeck.launcher.frontend.PrefixInstalledDetector
 import com.droiddeck.launcher.frontend.SteamRedists
+import com.droiddeck.launcher.session.WinComponentNames
 import com.droiddeck.launcher.session.WinComponents
 import com.droiddeck.launcher.session.WinComponents.Support
 import kotlinx.coroutines.Dispatchers
@@ -131,9 +132,9 @@ internal fun WinComponentsDialog(
     val recIds = if (all == null) emptyList() else recommended.distinctBy { installable(it.componentName, all) }
     val ready = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.READY }.map { it.name }
     val extra = (installed + picks).filter { all?.containsKey(it) != true }
-    val list = (ready + extra).distinct().sortedBy { it.lowercase() }
+    val list = (ready + extra).distinct().sortedBy { WinComponentNames.of(it).lowercase() }
     val waiting = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.NEEDS_INSTALLER }
-        .map { it.name }.sortedBy { it.lowercase() }
+        .map { it.name }.sortedBy { WinComponentNames.of(it).lowercase() }
     val hasRec = all != null && recIds.any { supportOf(installable(it.componentName, all)) == Support.READY }
     val sections = listOfNotNull(recFocus.takeIf { hasRec }, allFocus.takeIf { list.isNotEmpty() },
         waitFocus.takeIf { waiting.isNotEmpty() }, doneFocus)
@@ -167,10 +168,11 @@ internal fun WinComponentsDialog(
                 support == Support.UNSUPPORTED -> stringResource(R.string.wincomp_unsupported)
                 else -> null
             }
-            val detail = listOfNotNull(reason, c?.description?.takeIf { it.isNotEmpty() }, status).joinToString(" · ")
+            // The catalog key stays in the detail: it is what a log or a bug report names.
+            val detail = listOfNotNull(reason, c?.description?.takeIf { it.isNotEmpty() }, status, id).joinToString(" · ")
             val usable = support == Support.READY
             ComponentRow(
-                id, detail, checked = id in picks, enabled = usable || id in picks,
+                WinComponentNames.of(id), detail, checked = id in picks, enabled = usable || id in picks,
                 dim = !usable, modifier = if (usable && focus != null) Modifier.focusRequester(focus) else Modifier,
             ) { on -> toggle(id, on) }
         }
