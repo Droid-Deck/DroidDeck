@@ -42,6 +42,7 @@ import com.droiddeck.launcher.ui.ComponentsPage
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.ui.ProtonPage
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.PhantomProcessLimit
@@ -64,6 +65,9 @@ import com.droiddeck.launcher.ui.FrontEndState
 import com.droiddeck.launcher.ui.FrontEndActions
 import com.droiddeck.launcher.frontend.CoverArt
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.GameFiles
+import com.droiddeck.launcher.frontend.GameFileSync
+import com.droiddeck.launcher.frontend.GameLaunchIntent
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
 import com.droiddeck.launcher.files.InAppFilePicker
@@ -110,6 +114,7 @@ class MainActivity : ComponentActivity() {
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
     private var steamDeckMode by mutableStateOf(false)
+    private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var showProtons by mutableStateOf(false)
@@ -150,7 +155,7 @@ class MainActivity : ComponentActivity() {
     private var showPhantomGate by mutableStateOf(false)
     private var directAudio by mutableStateOf(false)
     private var clientDirectAudio by mutableStateOf(false)
-    private var forceFullscreen by mutableStateOf(true)
+    private var forceFullscreen by mutableStateOf(false)
     private var stretch16x9 by mutableStateOf(false)
     private var launcherFullscreen by mutableStateOf(true)
     private var animationsEnabled by mutableStateOf(true)
@@ -304,13 +309,12 @@ class MainActivity : ComponentActivity() {
     }
     // The mode whose settings dialog is open, with what it shows; refreshed by openModeSettings().
     private var settingsMode by mutableStateOf<String?>(null)
-    private var resolutionCap by mutableStateOf(1080)
-    private var customResolution by mutableStateOf<Pair<Int, Int>?>(null)
+    private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
     private var steamChannel by mutableStateOf("steamdeck_publicbeta")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
-    private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
+    private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
     private var fpsLimit by mutableStateOf(0)
     private var upscaler by mutableStateOf(0)
@@ -398,10 +402,15 @@ class MainActivity : ComponentActivity() {
     private fun pickGameExport(game: Library.SteamGame?) {
         onSavePicked = { folder ->
             saveAction(getString(R.string.game_frontend_files)) {
-                if (game != null) com.droiddeck.launcher.frontend.GameFiles.export(folder, game)
-                else com.droiddeck.launcher.frontend.GameFileSync.enable(this, folder)
-                ui.post { gameSyncFolder = com.droiddeck.launcher.frontend.GameFileSync.folder(this) }
-                getString(R.string.game_file_exported, folder.path)
+                val saved = if (game != null) GameFiles.export(folder, game)
+                else {
+                    GameFileSync.enable(this, folder)
+                    folder
+                }
+                ui.post {
+                    gameSyncFolder = GameFileSync.folder(this)
+                }
+                getString(R.string.game_file_exported, saved.path)
             }
         }
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
@@ -415,10 +424,10 @@ class MainActivity : ComponentActivity() {
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
         pendingGameLink = null
-        if (request.action == Intent.ACTION_VIEW) {
+        if (GameLaunchIntent.accepts(request.action)) {
             val copy = Intent(request)
             Thread({
-                val id = com.droiddeck.launcher.frontend.GameFiles.readIntent(this, copy)
+                val id = GameLaunchIntent.read(this, copy)
                 ui.post {
                     if (intent === request && !isDestroyed) {
                         pendingGameLink = id
@@ -461,10 +470,14 @@ class MainActivity : ComponentActivity() {
         if (game == null) {
             pendingGameLink = null
             intent.data = null
+            intent.action = Intent.ACTION_MAIN
+            intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
         } else if (launchGame(game)) {
             pendingGameLink = null
             intent.data = null
+            intent.action = Intent.ACTION_MAIN
+            intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
         }
     }
 
@@ -476,10 +489,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         readGameIntent(intent)
-        gameSyncFolder = com.droiddeck.launcher.frontend.GameFileSync.folder(this)
+        gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
         theme = SessionPrefs.theme(this)
+        appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
         // Last start's game list, so the Steam wall is up on the first frame; refresh() replaces it.
         steamGames = if (shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.LibraryCache.load(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
@@ -489,7 +503,7 @@ class MainActivity : ComponentActivity() {
         applyLauncherFullscreen()
         updates.start()
         setContent {
-            DroidDeckTheme(theme) {
+            DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
                 val sm = settingsMode
                 val page: (@Composable () -> Unit)? = when {
@@ -516,6 +530,7 @@ class MainActivity : ComponentActivity() {
                         lossless = lossless,
                         pageKey = sm?.let { "settings:$it" } ?: if (showPerformance) "performance" else if (showProtons) "protons" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
                         theme = theme,
+                        appScale = appScale,
                         isHomeApp = homeAppSelected,
                         homeScreenEnabled = homeScreenEnabled,
                         defaultHomeLabel = defaultHomeLabel,
@@ -553,7 +568,7 @@ class MainActivity : ComponentActivity() {
                         onSyncGameFiles = { pickGameExport(null) },
                         onStopGameFileSync = {
                             Thread({
-                                com.droiddeck.launcher.frontend.GameFileSync.disable(this)
+                                GameFileSync.disable(this)
                                 ui.post { gameSyncFolder = null }
                             }, "game-file-stop-sync").start()
                         },
@@ -645,6 +660,10 @@ class MainActivity : ComponentActivity() {
                         },
                         onPageBack = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
+                        onAppScale = { percent ->
+                            com.droiddeck.launcher.core.AppUiPrefs.setScale(this, percent)
+                            appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
+                        },
                         onLauncherFullscreen = { on ->
                             SessionPrefs.setLauncherFullscreen(this, on)
                             launcherFullscreen = on
@@ -1117,7 +1136,8 @@ class MainActivity : ComponentActivity() {
     private fun ModeSettingsHost(mode: String) {
         ModeSettingsPage(
             ModeSettings(
-                mode = mode, resolutionCap = resolutionCap, customResolution = customResolution, shapeMode = shapeMode,
+                mode = mode, resolution = resolution,
+                panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
                 hdr = hdrOn, hdrReason = hdrReason, fpsLimit = fpsLimit,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                 gpuDrivers = drivers.summary(),
@@ -1140,6 +1160,7 @@ class MainActivity : ComponentActivity() {
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
+                steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
@@ -1172,9 +1193,7 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 onWifiDiscoverySettings = { openWifiDiscoverySettings() },
-                onResolution = { cap -> SessionPrefs.setResolutionCap(this, mode, cap); resolutionCap = cap },
-                onCustomResolution = { size -> SessionPrefs.setCustomResolution(this, mode, size); customResolution = size },
-                onShape = { shape -> SessionPrefs.setShapeMode(this, shape); shapeMode = shape },
+                onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
                 onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
                 onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },
                 onFpsLimit = { fps -> SessionPrefs.setFpsLimit(this, mode, fps); fpsLimit = fps },
@@ -1218,6 +1237,7 @@ class MainActivity : ComponentActivity() {
                     syncFallback = SessionPrefs.syncFallback(this)
                 },
                 onSteamChannel = { id -> SessionPrefs.setSteamChannel(this, id); steamChannel = id },
+                onSteamRepair = { steamRepairQueued = SteamRepair.queue(this) },
                 onSteamDeckMode = { on ->
                     SessionPrefs.setSteamDeckMode(this, on)
                     steamDeckMode = on
@@ -1329,19 +1349,18 @@ class MainActivity : ComponentActivity() {
         showProtons = false
         showComponents = false
         showMapping = false
-        resolutionCap = SessionPrefs.resolutionCap(this, mode)
-        customResolution = SessionPrefs.customResolution(this, mode)
+        resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         fexPreset = SessionPrefs.fexPreset(this)
         fastSync = SessionPrefs.fastSync(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         syncFallback = SessionPrefs.syncFallback(this)
         steamChannel = SessionPrefs.steamChannel(this)
         steamDeckMode = SessionPrefs.steamDeckMode(this)
+        steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         addedGamesDirs = SessionPrefs.addedGamesDirs(this)
-        shapeMode = SessionPrefs.shapeMode(this)
         hdrOn = SessionPrefs.hdr(this, mode)
         fpsLimit = SessionPrefs.fpsLimit(this, mode)
         upscaler = SessionPrefs.upscaler(this)

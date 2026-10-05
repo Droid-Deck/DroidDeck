@@ -88,26 +88,15 @@ object SessionPrefs {
     const val SHAPE_WIDE = "16:9"
     const val SHAPE_EXACT = "exact"
 
-    /** The choices the settings offer, in order. */
-    val shapeChoices = listOf(
-        SHAPE_AUTO to "Auto (16:9+)",
-        SHAPE_EXACT to "Match screen",
-        SHAPE_WIDE to "Always 16:9",
-    )
-
     /**
      * The shape of the display the session presents: the panel's own (never narrower than 16:9),
      * exactly the panel's (a 4:3 or 3:2 handheld, drawn edge to edge), or a fixed 16:9. A foldable defaults to 16:9, which sits with modest bars on either of its
      * panels; the panel's own shape would fit one and leave a strip on the other, and gamescope's
      * display cannot change size once the session is up.
      */
-    fun shapeMode(context: Context): String =
+    private fun shapeMode(context: Context): String =
         prefs(context).getString("shape", null)
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
-
-    fun setShapeMode(context: Context, mode: String) {
-        prefs(context).edit().putString("shape", mode).apply()
-    }
 
     fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
 
@@ -179,9 +168,12 @@ object SessionPrefs {
      * Steam only: gamescope makes every game window the size of the screen. A game that resizes
      * its own window when it loses focus (FlatOut) otherwise comes back smaller, drawn in a
      * corner; a game that sets its own resolution and never looks at its window again (Quake 3)
-     * instead draws small in the bottom-left of the stretched one. On unless turned off.
+     * instead draws small in the bottom-left of the stretched one. A game whose resolution differs
+     * from the screen's (DiRT 3 at 1280x720) fights it: it rebuilds its swapchain on every forced
+     * resize and the picture flickers between its own size and the screen's, often from the first
+     * menu, before the player can reach its resolution setting. Off unless turned on.
      */
-    fun forceFullscreen(context: Context): Boolean = prefs(context).getBoolean("forceFullscreen", true)
+    fun forceFullscreen(context: Context): Boolean = prefs(context).getBoolean("forceFullscreen", false)
 
     fun setForceFullscreen(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("forceFullscreen", on).apply()
@@ -512,11 +504,33 @@ object SessionPrefs {
      * and the emulators under it get the same GPU headroom. Read once, when the session's display
      * is sized; a cap the user chose wins over the default.
      */
-    fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", defaultResolutionCap(mode))
+    private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)
 
     /** Whether the user chose the mode's resolution (a cap or a custom size) rather than the default. */
     fun resolutionChosen(context: Context, mode: String): Boolean =
-        prefs(context).contains("resolutionCap.$mode") || customResolution(context, mode) != null
+        prefs(context).contains("displayResolution.$mode") ||
+            prefs(context).contains("resolutionCap.$mode") || customResolution(context, mode) != null
+
+    /** One per-mode choice now owns both dimensions; old caps/shapes are read only for migration. */
+    fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
+        val saved = prefs(context)
+        saved.getString("displayResolution.$mode", null)?.let { value ->
+            if (value == SessionDisplay.MATCH_SCREEN) return value
+            parseResolution(value)?.let { return "${it.first}x${it.second}" }
+        }
+        if (!resolutionChosen(context, mode) && !saved.contains("shape")) return SessionDisplay.DEFAULT_RESOLUTION
+        val legacy = SessionDisplay.resolve(panel, resolutionCap(context, mode), shapeMode(context), customResolution(context, mode))
+        return if (legacy == SessionDisplay.screenSize(panel)) SessionDisplay.MATCH_SCREEN
+        else "${legacy.first}x${legacy.second}"
+    }
+
+    fun setResolutionChoice(context: Context, mode: String, choice: String) {
+        val value = if (choice == SessionDisplay.MATCH_SCREEN) choice else {
+            val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
+            "${size.first}x${size.second}"
+        }
+        prefs(context).edit().putString("displayResolution.$mode", value).apply()
+    }
 
     /**
      * The FEXCore preset for the games the client launches (core/FexPreset ids); "" = FEX's defaults.
@@ -596,24 +610,12 @@ object SessionPrefs {
         prefs(context).edit().putString("theme", id).apply()
     }
 
-    /** What a mode gets when nothing was chosen. */
-    @Suppress("UNUSED_PARAMETER")
-    fun defaultResolutionCap(mode: String): Int = 720
-
-    fun setResolutionCap(context: Context, mode: String, cap: Int) {
-        prefs(context).edit().putInt("resolutionCap.$mode", cap).apply()
-    }
-
     /**
      * A fixed size for the session's display, per mode, or null. When set it replaces both the
      * cap and the shape: the compositor fits it to the panel with bars where the shapes differ.
      */
-    fun customResolution(context: Context, mode: String): Pair<Int, Int>? =
+    private fun customResolution(context: Context, mode: String): Pair<Int, Int>? =
         parseResolution(prefs(context).getString("customRes.$mode", null))
-
-    fun setCustomResolution(context: Context, mode: String, size: Pair<Int, Int>?) {
-        prefs(context).edit().putString("customRes.$mode", size?.let { "${it.first}x${it.second}" }).apply()
-    }
 
     /** "1024x768" (or ×, or *) to an even size inside 320x240..3840x2160; anything else is null. */
     fun parseResolution(text: String?): Pair<Int, Int>? {
@@ -669,20 +671,27 @@ object SessionPrefs {
 
     /**
      * How the compositor resizes the session onto the panel (WaylandCompositor.nativeSetUpscaler's
-     * modes): Off and Linear both filter bilinearly, Nearest keeps pixels square for 2D and old
-     * titles, the rest sharpen where the picture is enlarged; FSR (fit) rounds the picture to
-     * FSR's preferred size first. Sharpen only works at any size.
+     * modes). Linear is the default; Nearest preserves hard pixel edges. Spatial filters work
+     * when enlarged; Sharpen only works at any size. The old Off/Linear and FSR/FSR Fit pairs
+     * are equivalent on Wayland, so saved aliases resolve to one choice.
      */
     val upscalerChoices = listOf(
-        0 to "Off", 1 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 5 to "AMD FSR 1 (fit)", 3 to "Snapdragon GSR",
+        0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
 
-    fun upscaler(context: Context): Int =
-        prefs(context).getInt("upscaler", 0).takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+    fun canonicalUpscaler(mode: Int): Int = when (mode) {
+        1 -> 0
+        5 -> 4
+        else -> mode.takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+    }
+
+    fun upscalerHasSharpness(mode: Int): Boolean = canonicalUpscaler(mode) in 3..8
+
+    fun upscaler(context: Context): Int = canonicalUpscaler(prefs(context).getInt("upscaler", 0))
 
     fun setUpscaler(context: Context, mode: Int) {
-        prefs(context).edit().putInt("upscaler", mode).apply()
+        prefs(context).edit().putInt("upscaler", canonicalUpscaler(mode)).apply()
     }
 
     fun upscaleSharpness(context: Context): Int = prefs(context).getInt("upscaleSharpness", 75).coerceIn(0, 100)

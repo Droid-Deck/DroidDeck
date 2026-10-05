@@ -291,6 +291,10 @@
     <string name="mode_branch_public">Public beta</string>
     <string name="mode_branch_deck_beta">Steam Deck public beta</string>
     <string name="mode_branch_note">Deck mode always uses Steam Deck public beta.</string>
+    <string name="mode_steam_repair">Repair Steam client</string>
+    <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
+    <string name="mode_steam_repair_queued">The Steam client will be downloaded again the next time Steam starts.</string>
+    <string name="mode_steam_repair_button">Repair</string>
     <string name="mode_added_games">Added games</string>
     <string name="mode_added_none">no game folders with a .exe found</string>
     <string name="mode_games_folder">Games folder</string>
@@ -470,6 +474,7 @@
     <string name="drawer_page_effects">Effects</string>
     <string name="drawer_page_controls">Controls</string>
     <string name="drawer_page_components">Components</string>
+    <string name="drawer_page_controller">Controller</string>
     <string name="drawer_page_settings">Settings</string>
     <string name="drawer_page_desc">%1$s page</string>
     <string name="drawer_steam">Steam</string>
@@ -485,8 +490,11 @@
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
     <string name="drawer_effects">Screen effects</string>
     <string name="drawer_effects_hint">Live. Costs a little GPU time while any effect is on.</string>
-    <string name="drawer_look">Look</string>
+    <string name="drawer_look">Presets</string>
     <string name="drawer_look_custom">Custom</string>
+    <string name="drawer_effects_advanced">Advanced</string>
+    <string name="widgets_expanded">Expanded</string>
+    <string name="widgets_collapsed">Collapsed</string>
     <string name="drawer_cas">Sharpening (CAS)</string>
     <string name="drawer_cas_level">Sharpening level</string>
     <string name="drawer_fake_hdr">Fake HDR</string>
@@ -510,6 +518,7 @@
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
+    <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Shows</string>
     <string name="drawer_android_apps">Android apps</string>
     <string name="drawer_launch_app">Launch an app</string>
@@ -586,6 +595,9 @@
     <string name="setup_offline">Offline mode</string>
     <string name="setup_sign_in_first">Sign in to Steam first</string>
     <string name="setup_launcher">Launcher</string>
+    <string name="setup_app_scale">App scale</string>
+    <string name="setup_app_scale_hint">DroidDeck text and controls</string>
+    <string name="setup_app_scale_default">%1$d%% (Default)</string>
     <string name="setup_theme">Theme</string>
     <string name="setup_theme_hint">Launcher appearance</string>
     <string name="setup_home">Use as Home screen</string>
@@ -1011,4 +1023,25 @@
     <string name="game_file_folder">Choose a folder for frontend game files</string>
     <string name="game_file_exported">Game files saved to %1$s</string>
     <string name="game_frontend_files">Frontend files</string>
+    <string name="display_session">Session display</string>
+    <string name="display_resolution">Resolution</string>
+    <string name="display_game_fit">16:9 game fit</string>
+    <string name="display_game_fit_hint">How 16:9 games fit this display. Next session.</string>
+    <string name="display_game_fit_unavailable">Choose Match screen or a custom size narrower than 16:9.</string>
+    <string name="display_preserve">Keep proportions</string>
+    <string name="display_stretch">Stretch to display</string>
+    <string name="display_image_scaling">Image scaling</string>
+    <string name="display_filter">Scaling filter</string>
+    <string name="display_filter_hint">Shared by Steam and Desktop.</string>
+    <string name="display_filter_live">Applies live. Shared by Steam and Desktop.</string>
+    <string name="display_filter_note">FSR, GSR and NIS apply when enlarging the session image. Sharpen only also works without enlargement.</string>
+    <string name="display_sharpness">Filter sharpness</string>
+    <string name="display_frame_rate">Frame rate</string>
+    <string name="display_window_compatibility">Game window compatibility</string>
+    <string name="display_force_fullscreen">Force game windows fullscreen</string>
+    <string name="display_force_fullscreen_hint">Makes every game window the size of the screen. Turn on if a game comes back small or in a corner after switching apps; leave off if a game flickers between sizes. Applies live during a session.</string>
+    <string name="display_force_fullscreen_live">Turn on if a game comes back small after switching; off if it flickers. Applies live.</string>
+    <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
+    <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
+    <string name="mode_tab_steam">Steam</string>
 </resources>

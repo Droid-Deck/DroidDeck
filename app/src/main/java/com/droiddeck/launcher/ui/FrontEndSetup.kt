@@ -162,8 +162,6 @@ internal fun SetupPanel(
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
-    val checks = 4
-    val readyCount = listOf(gpuOk, s.ready && !s.busy, !limitBlocks, signedIn).count { it }
     // Four tabs instead of one long scroll; LB and RB turn them from anywhere on the page. Build
     // and credits are on the Updates page.
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_session), stringResource(R.string.setup_tab_launcher))
@@ -187,9 +185,8 @@ internal fun SetupPanel(
             ),
         ) {
             PageHeader(stringResource(R.string.setup_title)) {
-                Chip(if (readyCount == checks) stringResource(R.string.setup_all_set) else stringResource(R.string.setup_n_ready, readyCount, checks), ok = readyCount == checks)
+                TabStrip(tabs, tab, pick, Modifier.weight(1f), tabFocus)
             }
-            TabStrip(tabs, tab, pick, Modifier.padding(bottom = 4.dp), tabFocus)
             Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 when (tab) {
                     0 -> {
@@ -314,6 +311,15 @@ internal fun SetupPanel(
                     }
                     3 -> {
                         SettingsGroup(stringResource(R.string.setup_launcher)) {
+                            ChoiceRow(
+                                host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
+                                com.droiddeck.launcher.core.AppUiPrefs.scales.map { percent ->
+                                    percent to stringResource(
+                                        if (percent == com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE) R.string.setup_app_scale_default
+                                        else R.string.ctrl_percent, percent,
+                                    )
+                                }, s.appScale, onPick = a.onAppScale,
+                            )
                             SettingsRow(stringResource(R.string.setup_theme), stringResource(R.string.setup_theme_hint)) {
                                 Box {
                                     ValueChip(Themes.byId(s.theme).label, host.open == "theme") { host.open = if (host.open == "theme") null else "theme" }
