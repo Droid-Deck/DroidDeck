@@ -212,7 +212,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             }
             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                 ChoiceRow(
-                    host, "upscaler", stringResource(R.string.display_filter), stringResource(R.string.display_filter_hint),
+                    host, "upscaler", stringResource(R.string.display_filter), null,
                     SessionPrefs.upscalerChoices, s.upscaler,
                     note = stringResource(R.string.display_filter_note), onPick = a.onUpscaler,
                 )

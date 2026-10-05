@@ -35,6 +35,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.ScreenShare
+import androidx.compose.material.icons.outlined.PictureInPictureAlt
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
@@ -184,6 +186,7 @@ class DrawerActions(
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
+    val onScreenButtonsVisible: Boolean,
     val suspendPolicy: String,
     val backActionsInverted: Boolean,
     val touchMode: String,
@@ -392,7 +395,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
-                                ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), stringResource(R.string.display_filter_live),
+                                ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
                                     SessionPrefs.upscalerChoices, a.upscaler,
                                     note = stringResource(R.string.display_filter_note),
                                     chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
@@ -421,12 +424,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 a.controller?.let { c ->
                                     ToggleRow(host, "rumble", stringResource(R.string.ctrl_rumble), null, c.rumble,
                                         chipModifier = focus.track(page, "rumble"), onChange = a.onRumble)
-                                    ToggleRow(host, "steam-button", stringResource(R.string.ctrl_steam_button), null, c.steamButton,
-                                        chipModifier = focus.track(page, "steam-button"), onChange = a.onSteamButton)
-                                    ToggleRow(host, "qam-button", stringResource(R.string.ctrl_qam_button), null, c.qamButton,
-                                        chipModifier = focus.track(page, "qam-button"), onChange = a.onQamButton)
-                                    ToggleRow(host, "keyboard-button", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton,
-                                        chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
+                                    if (a.onScreenButtonsVisible) {
+                                        if (a.steam) {
+                                            ToggleRow(host, "steam-button", stringResource(R.string.ctrl_steam_button), null, c.steamButton,
+                                                chipModifier = focus.track(page, "steam-button"), onChange = a.onSteamButton)
+                                            ToggleRow(host, "qam-button", stringResource(R.string.ctrl_qam_button), null, c.qamButton,
+                                                chipModifier = focus.track(page, "qam-button"), onChange = a.onQamButton)
+                                        }
+                                        ToggleRow(host, "keyboard-button", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton,
+                                            chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
+                                    }
                                 }
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to SessionPrefs.BACK_MENU_THEN_QAM, true to SessionPrefs.BACK_QAM_THEN_MENU),
@@ -490,7 +497,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
                                 ChoiceRow(
                                     host, "suspend", stringResource(R.string.mode_suspend),
-                                    stringResource(R.string.drawer_suspend_hint),
+                                    null,
                                     listOf(
                                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
@@ -514,12 +521,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
                                     a.pipAutoEnter, onChange = a.onPipAutoEnter)
                             }
-                            Spacer(Modifier.height(18.dp))
-                            if (a.pipSupported) DrawerOutlineButton(stringResource(R.string.pip_title), modifier = focus.track(page, "pip")) {
-                                host.open = null; a.onPip()
-                            }
-                            if (!a.isHomeApp) DrawerOutlineButton(stringResource(R.string.drawer_background), modifier = focus.track(page, "background")) {
-                                host.open = null; a.onBackground()
+                            Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (a.pipSupported) DrawerActionButton(stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt,
+                                    modifier = focus.track(page, "pip")) { host.open = null; a.onPip() }
+                                if (!a.isHomeApp) DrawerActionButton(stringResource(R.string.drawer_background), Icons.AutoMirrored.Outlined.ExitToApp,
+                                    modifier = focus.track(page, "background")) { host.open = null; a.onBackground() }
                             }
                         }
                     }
@@ -556,6 +562,27 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             },
             onDismiss = { appToChooseDisplay = null },
         )
+    }
+}
+
+@Composable
+private fun DrawerActionButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val source = remember { MutableInteractionSource() }
+    val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 52.dp).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.16f) else colors.surfaceVariant)
+            .glideBorder(hot, shape, pal.signal)
+            .hoverable(source).clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+            .controllerConfirm(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(22.dp))
+        Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
     }
 }
 
@@ -649,7 +676,7 @@ private fun DrawerBumper(label: String, description: String, modifier: Modifier 
 /**
  * The drawer's page tabs, QAM-style: one icon per page standing in a line in page order. The
  * selected one steps forward - full size, bright, a soft glow - while the others step back to
- * half size and fade, and the whole line leans a little toward the selection. LB / RB still turn
+ * a little smaller and fade, and the whole line leans a little toward the selection. LB / RB still turn
  * the page (the buttons beside it and the pad's bumpers); a tab can be tapped or picked with the
  * pad like the dots it replaces.
  */
@@ -665,12 +692,12 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
         contentAlignment = Alignment.Center,
         modifier = modifier.height(if (compact) 44.dp else 64.dp).clipToBounds(),
     ) {
-        val tab = if (compact) 40f else 56f
+        val tab = if (compact) 36f else 44f
         // Fit the line to the room between LB and RB. Worst case is an end tab selected: full size
         // ([tab] dp) and pushed outward by the lean, which scales with the spacing. So
-        //   (count-1) * spacing * (1 + lean/64) + 56 <= width
-        // - never more than the mock's 64 dp, never tighter than 24 dp for six pages.
-        val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP)
+        //   (count-1) * spacing * (1 + lean/spacingMax) + tab <= width
+        // - fit six pages, then bring the icons a little closer together.
+        val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP) * 0.9f
         val leanStep = DRAWER_TAB_LEAN_DP * spacing / DRAWER_TAB_SPACING_DP
         val lean by animateFloatAsState(-(selectedIndex - middle) * leanStep, motion, label = "tabLean")
         pages.forEachIndexed { index, item ->
@@ -932,14 +959,14 @@ private fun <T> DrawerStackedChoice(
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
 }
 
-/** The tab row's measure, from the approved mock: side tabs at half size, a little faded. */
-private const val DRAWER_TAB_SPACING_DP = 64f
+/** A close row of icons: inactive tabs stay legible while the active tab leads. */
+private const val DRAWER_TAB_SPACING_DP = 48f
 
-private const val DRAWER_TAB_LEAN_DP = 12f
+private const val DRAWER_TAB_LEAN_DP = 8f
 
-private const val DRAWER_TAB_SIDE_SCALE = 0.5f
+private const val DRAWER_TAB_SIDE_SCALE = 0.8f
 
-private const val DRAWER_TAB_SIDE_ALPHA = 0.7f
+private const val DRAWER_TAB_SIDE_ALPHA = 0.8f
 
 /** Room between the Stop pill and the box that steps out under it: the pull. */
 private val StepPull = 6.dp

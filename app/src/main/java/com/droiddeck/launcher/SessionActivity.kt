@@ -227,6 +227,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
+    private var onScreenButtonsVisible by mutableStateOf(false)
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
@@ -475,7 +476,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     effects = effects, textureAnisotropy = textureAnisotropy, textureLodBias = textureLodBias,
                     frameGen = frameGen,
                     lossless = lossless,
-                    oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
+                    oscMode = oscMode, onScreenButtonsVisible = onScreenButtonsVisible, suspendPolicy = suspendPolicy, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
                     fexPreset = fexPreset,
                     secondScreenMode = secondScreenMode,
@@ -1691,6 +1692,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?: SessionPrefs.oscMode(this)
         val controls = onScreenControls ?: return
         if (pipUi) {
+            onScreenButtonsVisible = false
             controls.releaseAll()
             controls.visibility = View.GONE
             return
@@ -1706,6 +1708,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             // started from the rail, or Steam, gets it; the drawer turns it on anywhere.
             else -> !PadBridge.anyControllerConnected() && SessionState.mode != SessionService.MODE_DESKTOP
         }
+        onScreenButtonsVisible = show
         if (show == (controls.visibility == View.VISIBLE)) return
         if (!show) controls.releaseAll()
         controls.visibility = if (show) View.VISIBLE else View.GONE
