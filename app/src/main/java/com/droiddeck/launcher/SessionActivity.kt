@@ -225,7 +225,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
-    private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
+    private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
@@ -476,8 +476,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     lossless = lossless,
                     oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
-                    shapeMode = shapeMode, fexPreset = fexPreset,
-                    customResolution = SessionPrefs.customResolution(this@SessionActivity, SessionPrefs.prefMode(SessionState.mode)),
+                    resolution = resolution, fexPreset = fexPreset,
+                    panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this@SessionActivity),
                     outputSize = SessionState.outputSize,
                     secondScreenMode = secondScreenMode,
                     secondScreenDisplays = secondScreenDisplays,
@@ -530,7 +530,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionService.suspendPolicyChanged(this@SessionActivity)
                     },
                     onTouch = { v -> SessionPrefs.setTouchMode(this@SessionActivity, v); readPrefs() },
-                    onShape = { v -> SessionPrefs.setShapeMode(this@SessionActivity, v); readPrefs() },
+                    onResolution = { value ->
+                        SessionPrefs.setResolutionChoice(this@SessionActivity, SessionPrefs.prefMode(SessionState.mode), value)
+                        resolution = value
+                    },
                     onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
                     onSecondScreenMode = ::selectSecondScreenMode,
                     onSecondScreenDisplay = ::selectSecondScreenDisplay,
@@ -758,7 +761,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         oscMode = SessionPrefs.oscMode(this)
-        shapeMode = SessionPrefs.shapeMode(this)
+        resolution = SessionPrefs.resolutionChoice(this, SessionPrefs.prefMode(SessionState.mode), com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         backActionsInverted = SessionPrefs.backActionsInverted(this)
     }
 
@@ -1014,22 +1017,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun outputSize(): Pair<Int, Int> {
-        // 720 tall at most by default, client and desktop alike: the client's CEF is the heaviest
-        // thing in the session, and pixels above that cost frames for nothing anyone can see on a
-        // handheld panel. The mode's settings (the cog beside Play / Desktop) can change
-        // the cap or lift it to the panel.
         val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
-        // A custom resolution is taken as given; the compositor fits it to the panel.
-        // An emulator whose frames cost next to nothing (Library.drawsAtPanel) gets the panel,
-        // unless the user chose a resolution for the mode.
+        val panel = com.droiddeck.launcher.session.SessionDisplay.panelSize(this)
         val program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
-        val cap = if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_RUN &&
-            Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode)) 0
-        else SessionPrefs.resolutionCap(this, mode)
-        return com.droiddeck.launcher.session.SessionDisplay.resolve(
-            com.droiddeck.launcher.session.SessionDisplay.panelSize(this), cap,
-            SessionPrefs.shapeMode(this), SessionPrefs.customResolution(this, mode),
-        )
+        // Lightweight emulators keep their panel-sized default until a resolution is chosen.
+        val choice = if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_RUN &&
+            Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode))
+            com.droiddeck.launcher.session.SessionDisplay.MATCH_SCREEN
+        else SessionPrefs.resolutionChoice(this, mode, panel)
+        return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, choice)
     }
 
     /**

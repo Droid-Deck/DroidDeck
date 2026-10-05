@@ -1012,11 +1012,7 @@
     <string name="game_file_exported">Game files saved to %1$s</string>
     <string name="game_frontend_files">Frontend files</string>
     <string name="display_session">Session display</string>
-    <string name="display_resolution">Virtual resolution</string>
-    <string name="display_resolution_hint">%1$d×%2$d · Next session.</string>
-    <string name="display_resolution_max">No cap</string>
-    <string name="display_aspect">Display aspect ratio</string>
-    <string name="display_aspect_hint">Shared by Steam and Desktop. Next session.</string>
+    <string name="display_resolution">Resolution</string>
     <string name="display_game_fit">16:9 game fit</string>
     <string name="display_game_fit_hint">How 16:9 games fit this display. Next session.</string>
     <string name="display_game_fit_unavailable">Choose Match screen or a custom size narrower than 16:9.</string>
@@ -1034,4 +1030,6 @@
     <string name="display_force_fullscreen_hint">Keeps games fullscreen after focus changes. Turn off if a game draws small. Applies live during a session.</string>
     <string name="display_force_fullscreen_live">Keeps games fullscreen after focus changes. Applies live.</string>
     <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
+    <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
+    <string name="display_current_resolution">Current: %1$d×%2$d. Changes apply next session.</string>
 </resources>

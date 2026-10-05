@@ -43,10 +43,7 @@ class DownloadRow(val key: String, val label: String, val detail: String, val pr
 
 class ModeSettings(
     val mode: String,
-    val resolutionCap: Int,
-    /** A fixed session size, or null for the cap and shape. */
-    val customResolution: Pair<Int, Int>? = null,
-    val shapeMode: String,
+    val resolution: String,
     val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
@@ -113,10 +110,7 @@ class ModeSettings(
 class AddedGameRow(val folderPath: String, val folderName: String, val exePath: String, val exeName: String, val candidates: List<Pair<String, String>>)
 
 class ModeSettingsActions(
-    val onResolution: (Int) -> Unit,
-    /** Null clears it. */
-    val onCustomResolution: (Pair<Int, Int>?) -> Unit = {},
-    val onShape: (String) -> Unit,
+    val onResolution: (String) -> Unit,
     val onHdr: (Boolean) -> Unit,
     /** Opens the GPU drivers on the Components page: they are shared by every session. */
     val onGpuDrivers: () -> Unit = {},
@@ -179,25 +173,10 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
         onBack = a.onDismiss,
         scroll = pageScroll,
     ) {
-        val custom = s.customResolution
-        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolve(s.panelSize, s.resolutionCap, s.shapeMode, custom)
+        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution)
         SettingsGroup(stringResource(R.string.display_session)) {
-            val default = SessionPrefs.defaultResolutionCap(s.mode)
-            var editCustom by remember { mutableStateOf(false) }
-            ChoiceRow(
-                host, "res", stringResource(R.string.display_resolution),
-                stringResource(R.string.display_resolution_hint, displaySize.first, displaySize.second),
-                listOf(720 to stringResource(R.string.mode_res_720), 900 to stringResource(R.string.mode_res_900), 1080 to stringResource(R.string.mode_res_1080), 0 to stringResource(R.string.display_resolution_max))
-                    .map { (cap, label) -> cap to (if (cap == default) stringResource(R.string.mode_res_default, label) else label) } +
-                    (CUSTOM to (custom?.let { stringResource(R.string.mode_res_custom_value, it.first, it.second) } ?: stringResource(R.string.mode_res_custom))),
-                if (custom != null) CUSTOM else s.resolutionCap,
-                chipModifier = androidx.compose.ui.Modifier.focusRequester(firstChip),
-                onPick = { v -> if (v == CUSTOM) editCustom = true else { a.onCustomResolution(null); a.onResolution(v) } },
-            )
-            if (custom == null) ChoiceRow(
-                host, "shape", stringResource(R.string.display_aspect), stringResource(R.string.display_aspect_hint),
-                SessionPrefs.shapeChoices, s.shapeMode, onPick = a.onShape,
-            )
+            ResolutionRow(host, s.resolution, s.panelSize, a.onResolution,
+                chipModifier = Modifier.focusRequester(firstChip))
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
                 val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
@@ -206,11 +185,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
                     s.stretch16x9 && canStretch, enabled = canStretch, onPick = a.onStretch16x9)
             }
-            if (editCustom) CustomResolutionDialog(
-                initial = custom,
-                onSave = { size -> editCustom = false; a.onCustomResolution(size) },
-                onDismiss = { editCustom = false },
-            )
+
         }
         SettingsGroup(stringResource(R.string.display_image_scaling)) {
             ChoiceRow(
@@ -527,13 +502,10 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
     )
 }
 
-/** The Resolution menu's "Custom…" entry. */
-private const val CUSTOM = -1
-
 /** Width × height for the session, with the common handheld shapes one tap away. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit) {
+internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit) {
     var w by remember { mutableStateOf(initial?.first?.toString() ?: "") }
     var h by remember { mutableStateOf(initial?.second?.toString() ?: "") }
     val parsed = SessionPrefs.parseResolution("${w}x$h")

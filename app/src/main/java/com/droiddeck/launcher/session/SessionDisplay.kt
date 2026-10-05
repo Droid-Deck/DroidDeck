@@ -1,22 +1,37 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
-import android.os.Build
 import android.view.WindowManager
 
 /** The virtual display advertised to the guest, before it is fitted onto the Android panel. */
 object SessionDisplay {
+    const val MATCH_SCREEN = "screen"
+    const val DEFAULT_RESOLUTION = "1280x720"
+
+    fun screenSize(panel: Pair<Int, Int>): Pair<Int, Int> =
+        (maxOf(panel.first, panel.second) and 1.inv()) to (minOf(panel.first, panel.second) and 1.inv())
+
+    fun resolveChoice(panel: Pair<Int, Int>, choice: String): Pair<Int, Int> =
+        if (choice == MATCH_SCREEN) screenSize(panel) else {
+            // Legacy displays may exceed the custom dialog's size limit. Keep their exact size.
+            val parts = choice.split('x').map { it.toIntOrNull() }
+            if (parts.size == 2 && parts.all { it != null && it > 0 }) parts[0]!! to parts[1]!!
+            else 1280 to 720
+        }
+
+    /** Fixed dimensions and the current panel, with no duplicate panel-size preset. */
+    fun resolutionOptions(panel: Pair<Int, Int>): List<String> =
+        listOf(DEFAULT_RESOLUTION, "1600x900", "1920x1080")
+            .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN
+
     fun panelSize(context: Context): Pair<Int, Int> {
         val manager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val bounds = if (Build.VERSION.SDK_INT >= 30) manager.maximumWindowMetrics.bounds else {
-            val metrics = android.util.DisplayMetrics()
-            @Suppress("DEPRECATION")
-            manager.defaultDisplay.getRealMetrics(metrics)
-            android.graphics.Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
-        }
-        return maxOf(bounds.width(), bounds.height()) to minOf(bounds.width(), bounds.height())
+        @Suppress("DEPRECATION")
+        val mode = manager.defaultDisplay.mode
+        return maxOf(mode.physicalWidth, mode.physicalHeight) to minOf(mode.physicalWidth, mode.physicalHeight)
     }
 
+    /** Interpret an older cap/aspect combination without altering the saved picture size. */
     fun resolve(panel: Pair<Int, Int>, cap: Int, shape: String, custom: Pair<Int, Int>? = null): Pair<Int, Int> {
         custom?.let { return it }
         val panelW = maxOf(panel.first, panel.second).toFloat()

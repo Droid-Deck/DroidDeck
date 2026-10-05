@@ -304,13 +304,11 @@ class MainActivity : ComponentActivity() {
     }
     // The mode whose settings dialog is open, with what it shows; refreshed by openModeSettings().
     private var settingsMode by mutableStateOf<String?>(null)
-    private var resolutionCap by mutableStateOf(1080)
-    private var customResolution by mutableStateOf<Pair<Int, Int>?>(null)
+    private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
     private var steamChannel by mutableStateOf("steamdeck_publicbeta")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
-    private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
     private var hdrOn by mutableStateOf(false)
     private var fpsLimit by mutableStateOf(0)
     private var upscaler by mutableStateOf(0)
@@ -1117,7 +1115,7 @@ class MainActivity : ComponentActivity() {
     private fun ModeSettingsHost(mode: String) {
         ModeSettingsPage(
             ModeSettings(
-                mode = mode, resolutionCap = resolutionCap, customResolution = customResolution, shapeMode = shapeMode,
+                mode = mode, resolution = resolution,
                 panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
                 hdr = hdrOn, hdrReason = hdrReason, fpsLimit = fpsLimit,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
@@ -1173,9 +1171,7 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 onWifiDiscoverySettings = { openWifiDiscoverySettings() },
-                onResolution = { cap -> SessionPrefs.setResolutionCap(this, mode, cap); resolutionCap = cap },
-                onCustomResolution = { size -> SessionPrefs.setCustomResolution(this, mode, size); customResolution = size },
-                onShape = { shape -> SessionPrefs.setShapeMode(this, shape); shapeMode = shape },
+                onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
                 onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
                 onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },
                 onFpsLimit = { fps -> SessionPrefs.setFpsLimit(this, mode, fps); fpsLimit = fps },
@@ -1330,8 +1326,7 @@ class MainActivity : ComponentActivity() {
         showProtons = false
         showComponents = false
         showMapping = false
-        resolutionCap = SessionPrefs.resolutionCap(this, mode)
-        customResolution = SessionPrefs.customResolution(this, mode)
+        resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         fexPreset = SessionPrefs.fexPreset(this)
         fastSync = SessionPrefs.fastSync(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
@@ -1342,7 +1337,6 @@ class MainActivity : ComponentActivity() {
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         addedGamesDirs = SessionPrefs.addedGamesDirs(this)
-        shapeMode = SessionPrefs.shapeMode(this)
         hdrOn = SessionPrefs.hdr(this, mode)
         fpsLimit = SessionPrefs.fpsLimit(this, mode)
         upscaler = SessionPrefs.upscaler(this)

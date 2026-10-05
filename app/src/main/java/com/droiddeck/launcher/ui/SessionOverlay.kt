@@ -172,8 +172,8 @@ class DrawerActions(
     val backActionsInverted: Boolean,
     val touchMode: String,
     val touchAuto: String,
-    val shapeMode: String,
-    val customResolution: Pair<Int, Int>? = null,
+    val resolution: String,
+    val panelSize: Pair<Int, Int>,
     val outputSize: Pair<Int, Int> = 1280 to 720,
     val fexPreset: String,
     /** Steam only: forces game windows fullscreen, changed live (null = not Steam). */
@@ -206,7 +206,7 @@ class DrawerActions(
     val onSuspendPolicy: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
-    val onShape: (String) -> Unit,
+    val onResolution: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
     val onFillScreen: (Boolean) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
@@ -386,12 +386,8 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
                             }
                             SettingsGroup(stringResource(R.string.display_session)) {
-                                SettingsRow(stringResource(R.string.display_resolution), null) {
-                                    Text("${a.outputSize.first}×${a.outputSize.second}", color = colors.onBackground, fontSize = 13.sp)
-                                }
-                                if (a.customResolution == null) ChoiceRow(host, "shape", stringResource(R.string.display_aspect),
-                                    stringResource(R.string.display_aspect_hint), SessionPrefs.shapeChoices, a.shapeMode,
-                                    chipModifier = focus.track(page, "shape"), onPick = a.onShape)
+                                ResolutionRow(host, a.resolution, a.panelSize, a.onResolution,
+                                    chipModifier = focus.track(page, "resolution"), currentSize = a.outputSize)
                             }
                         }
                         DRAWER_PAGE_EFFECTS -> {
