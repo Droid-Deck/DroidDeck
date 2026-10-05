@@ -311,6 +311,15 @@ internal fun SetupPanel(
                     }
                     3 -> {
                         SettingsGroup(stringResource(R.string.setup_launcher)) {
+                            ChoiceRow(
+                                host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
+                                com.droiddeck.launcher.core.AppUiPrefs.scales.map { percent ->
+                                    percent to stringResource(
+                                        if (percent == com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE) R.string.setup_app_scale_default
+                                        else R.string.ctrl_percent, percent,
+                                    )
+                                }, s.appScale, onPick = a.onAppScale,
+                            )
                             SettingsRow(stringResource(R.string.setup_theme), stringResource(R.string.setup_theme_hint)) {
                                 Box {
                                     ValueChip(Themes.byId(s.theme).label, host.open == "theme") { host.open = if (host.open == "theme") null else "theme" }
