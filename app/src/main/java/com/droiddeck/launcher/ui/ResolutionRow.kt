@@ -10,11 +10,11 @@ import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionDisplay
 
-/** The same resolution menu before and during a session; changes take effect on the next start. */
+/** Pre-session resolution choice, applied when the session starts. */
 @Composable
 fun ResolutionRow(
     host: MenuHost, choice: String, panel: Pair<Int, Int>, onPick: (String) -> Unit,
-    chipModifier: Modifier = Modifier, currentSize: Pair<Int, Int>? = null,
+    chipModifier: Modifier = Modifier,
 ) {
     val custom = "custom"
     val size = SessionDisplay.resolveChoice(panel, choice)
@@ -30,8 +30,7 @@ fun ResolutionRow(
     } + (custom to if (selected in choices) stringResource(R.string.mode_res_custom)
         else stringResource(R.string.mode_res_custom_value, size.first, size.second))
     ChoiceRow(host, "resolution", stringResource(R.string.display_resolution),
-        currentSize?.let { stringResource(R.string.display_current_resolution, it.first, it.second) }
-            ?: stringResource(R.string.common_applies_next_session),
+        stringResource(R.string.common_applies_next_session),
         options, if (selected in choices) selected else custom, chipModifier = chipModifier,
         onPick = { value -> if (value == custom) editCustom = true else onPick(value) })
     if (editCustom) CustomResolutionDialog(size,

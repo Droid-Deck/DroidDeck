@@ -172,9 +172,6 @@ class DrawerActions(
     val backActionsInverted: Boolean,
     val touchMode: String,
     val touchAuto: String,
-    val resolution: String,
-    val panelSize: Pair<Int, Int>,
-    val outputSize: Pair<Int, Int> = 1280 to 720,
     val fexPreset: String,
     /** Steam only: forces game windows fullscreen, changed live (null = not Steam). */
     val fillScreen: Boolean? = null,
@@ -206,7 +203,6 @@ class DrawerActions(
     val onSuspendPolicy: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
-    val onResolution: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
     val onFillScreen: (Boolean) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
@@ -384,10 +380,6 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                 if (SessionPrefs.upscalerHasSharpness(a.upscaler)) SliderRow(
                                     stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
-                            }
-                            SettingsGroup(stringResource(R.string.display_session)) {
-                                ResolutionRow(host, a.resolution, a.panelSize, a.onResolution,
-                                    chipModifier = focus.track(page, "resolution"), currentSize = a.outputSize)
                             }
                         }
                         DRAWER_PAGE_EFFECTS -> {

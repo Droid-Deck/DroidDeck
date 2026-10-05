@@ -225,7 +225,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
-    private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
@@ -476,9 +475,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     lossless = lossless,
                     oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
-                    resolution = resolution, fexPreset = fexPreset,
-                    panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this@SessionActivity),
-                    outputSize = SessionState.outputSize,
+                    fexPreset = fexPreset,
                     secondScreenMode = secondScreenMode,
                     secondScreenDisplays = secondScreenDisplays,
                     selectedSecondScreenDisplay = selectedSecondScreenDisplay,
@@ -530,10 +527,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionService.suspendPolicyChanged(this@SessionActivity)
                     },
                     onTouch = { v -> SessionPrefs.setTouchMode(this@SessionActivity, v); readPrefs() },
-                    onResolution = { value ->
-                        SessionPrefs.setResolutionChoice(this@SessionActivity, SessionPrefs.prefMode(SessionState.mode), value)
-                        resolution = value
-                    },
                     onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
                     onSecondScreenMode = ::selectSecondScreenMode,
                     onSecondScreenDisplay = ::selectSecondScreenDisplay,
@@ -761,7 +754,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         oscMode = SessionPrefs.oscMode(this)
-        resolution = SessionPrefs.resolutionChoice(this, SessionPrefs.prefMode(SessionState.mode), com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         backActionsInverted = SessionPrefs.backActionsInverted(this)
     }
 
