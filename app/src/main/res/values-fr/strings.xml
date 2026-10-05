@@ -347,11 +347,11 @@
     <string name="comp_proton_note">Les mises à jour de Steam remplacent le Proton de Valve ; les fichiers originaux de chaque version sont conservés.</string>
     <string name="comp_swapped">%1$s · %2$d remplacé(s)</string>
     <string name="comp_all_original">%1$s · Tout est original</string>
-    <string name="comp_game_running_suffix">%1$s · Jeu en cours d'exécution</string>
+    <string name="comp_game_running_suffix">%1$s · Jeu en cours d\'exécution</string>
     <string name="comp_gpu_drivers">Pilotes GPU</string>
     <string name="comp_reapplied">%1$s · Réappliqué au lancement de %2$s</string>
     <string name="comp_next_queued">Suivant : %1$s · Après la fermeture du jeu</string>
-    <string name="comp_in_use">%1$s en cours d'utilisation : %2$s</string>
+    <string name="comp_in_use">%1$s en cours d\'utilisation : %2$s</string>
     <string name="comp_waits">En attente de la fermeture du jeu</string>
     <string name="comp_applies_next_game">Prendra effet au prochain lancement du jeu</string>
     <string name="comp_import_zip">Importer .zip</string>
@@ -602,7 +602,7 @@
     <string name="store_license">Licence</string>
     <string name="store_runtime">Environnement d'exécution</string>
     <string name="store_installed_size">Taille installée</string>
-    <string name="store_installed_size_value">%1$s (plus l'environnement d'exécution partagé)</string>
+    <string name="store_installed_size_value">%1$s (plus l\'environnement d\'exécution partagé)</string>
     <string name="store_website">Site web</string>
     <string name="store_verified">Vérifié</string>
     <string name="upd_title">Mises à jour</string>
@@ -700,7 +700,7 @@
     <string name="wadb_finding_port">Appairé. Recherche du port de débogage sans fil…</string>
     <string name="wadb_enter_port">Appairé. Veuillez saisir le port indiqué dans les paramètres.</string>
     <string name="wadb_applying">Appareil trouvé. Application des paramètres…</string>
-    <string name="wadb_apply_failed">Impossible d'appliquer automatiquement. Veuillez vérifier l'adresse ci-dessous et réessayer. %1$s</string>
+    <string name="wadb_apply_failed">Impossible d\'appliquer automatiquement. Veuillez vérifier l\'adresse ci-dessous et réessayer. %1$s</string>
     <string name="wadb_title_wireless">Débogage sans fil</string>
     <string name="wadb_title_done">Limite des processus enfants mise à jour</string>
     <string name="wadb_title">Modifier la limite des processus enfants</string>
@@ -813,7 +813,7 @@
     <string name="games_export_winlator_hint">Compatible avec Winlator, WinNative et Bannerlator</string>
     <string name="games_open_save_folder">Ouvrir le dossier de sauvegarde</string>
     <string name="games_never_played">Jamais lancé</string>
-    <string name="games_runtime_busy_percent">Environnement d'exécution occupé · %1$d%%</string>
+    <string name="games_runtime_busy_percent">Environnement d\'exécution occupé · %1$d%%</string>
     <string name="games_runtime_busy">Environnement d'exécution occupé</string>
     <string name="games_runtime_first_play">Installation de l'environnement d'exécution lors du premier lancement du jeu</string>
     <string name="games_runtime_update">Mise à jour de l'environnement d'exécution disponible</string>
@@ -828,8 +828,8 @@
     <string name="gpu_hide_other">Masquer les pilotes des autres GPU</string>
     <string name="gpu_show_other">Afficher les pilotes des autres GPU</string>
     <string name="gpu_advanced">Avancé</string>
-    <string name="gpu_set_with_display">Configuré avec le pilote d'affichage : %1$s inclut les deux.</string>
-    <string name="gpu_set_with_runtime">Configuré avec le pilote d'exécution : %1$s inclut les deux.</string>
+    <string name="gpu_set_with_display">Configuré avec le pilote d\'affichage : %1$s inclut les deux.</string>
+    <string name="gpu_set_with_runtime">Configuré avec le pilote d\'exécution : %1$s inclut les deux.</string>
     <string name="gpu_runtime_hint">Utilisé par les jeux et le bureau.</string>
     <string name="gpu_runtime_default">Par défaut de l'environnement d'exécution</string>
     <string name="gpu_display_hint">Responsable de la sortie vidéo vers l'écran. Prendra effet après le redémarrage de DroidDeck.</string>
@@ -902,7 +902,7 @@
     <string name="pckb_android">Clavier Android</string>
     <string name="pckb_hide">Masquer ✕</string>
     <string name="main_launch_named">Lancer %1$s</string>
-    <string name="main_choose_screen">Choisir l'écran. Écran secondaire : %1$s.</string>
+    <string name="main_choose_screen">Choisir l\'écran. Écran secondaire : %1$s.</string>
     <string name="main_secondary_gone">L'écran secondaire n'est plus disponible.</string>
     <string name="main_primary">Écran principal</string>
     <string name="main_secondary">Écran secondaire</string>
