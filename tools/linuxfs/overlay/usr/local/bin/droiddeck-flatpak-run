@@ -1,0 +1,28 @@
+#!/bin/bash
+# A Flatpak app from the front end, full screen under gamescope like an emulator:
+#   droiddeck-flatpak-run <app-id> [args...]
+set -u
+export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
+case ":${XDG_DATA_DIRS:-}:" in
+  *"/flatpak/exports/share:"*) ;;
+  *) export XDG_DATA_DIRS=$HOME/.local/share/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share} ;;
+esac
+# Under gamescope - a program's session (BL_INSIDE), or droiddeck-gpu from the desktop
+# (GAMESCOPE_WAYLAND_DISPLAY) - windows have to reach gamescope's X server. Flatpak would hand an
+# app wayland-0 (it finds it in the runtime directory even with WAYLAND_DISPLAY unset) and the
+# window would open behind gamescope. gamescope's own Wayland socket is no way out: Chromium on
+# Wayland asks the render node it names for its DRM version, which KGSL cannot answer, and exits.
+# The session is X11 as far as an app can tell; Electron picks its platform from that.
+# Its own flatpak options (--branch, --command, from a menu entry) come first, then the app id.
+socket=()
+if [ -n "${BL_INSIDE:-}" ] || [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
+  unset WAYLAND_DISPLAY
+  export XDG_SESSION_TYPE=x11
+  socket=(--nosocket=wayland --socket=x11)
+fi
+echo "== flatpak run ${socket[*]} $*"
+# Apps expect a session bus (settings, portals, single-instance checks); a run mode has none.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
+  exec dbus-run-session -- flatpak run "${socket[@]}" "$@"
+fi
+exec flatpak run "${socket[@]}" "$@"

@@ -54,7 +54,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#define EXPORT __attribute__((visibility("default"))) extern "C"
+#define EXPORT extern "C" __attribute__((visibility("default")))
 
 // glibc declares the request as unsigned long; bionic as int. The same source also serves the
 // Linux runtime's preload (tools/linuxfs), where Steam and SDL run against glibc.
@@ -1729,10 +1729,11 @@ __attribute__((visibility("hidden"))) static bool deck_device_library(void *call
   return !strncmp(name, "libudev.so", 10) || !strncmp(name, "libsystemd.so", 13);
 }
 
+static int real_fstat(int fd, struct stat *buf);
+
 __attribute__((visibility("hidden"))) static bool deck_mount_id_from_fdinfo(
     int dirfd, const char *path, int flags, struct statx *buf) {
   static auto real_openat = reinterpret_cast<decltype(&::openat)>(dlsym(RTLD_NEXT, "openat"));
-  static auto real_fstat = reinterpret_cast<decltype(&::fstat)>(dlsym(RTLD_NEXT, "fstat"));
   int target;
   if (!path || !*path) {
     if (!(flags & AT_EMPTY_PATH)) return false;
@@ -1950,9 +1951,8 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
   return fd;
 }
 
-EXPORT int stat(const char *pathname, struct stat *statbuf) {
-  static auto my_stat = reinterpret_cast<decltype(&::stat)>(dlsym(RTLD_NEXT, "stat"));
-
+template <typename S, typename Real>
+static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
   if (is_withdrawn_pad_path(pathname) || (is_deck_hidraw_path(pathname) && !process_is_steam_client())) {
     errno = ENOENT;
     return -1;
@@ -1988,7 +1988,7 @@ EXPORT int stat(const char *pathname, struct stat *statbuf) {
     }
   }
 
-  int ret = my_stat(pathname, statbuf);
+  int ret = real(pathname, statbuf);
 
   if (ret == 0 && event && get_event_number(event) >= 0) {
     statbuf->st_mode = (statbuf->st_mode & ~S_IFMT) | S_IFCHR;
@@ -2001,10 +2001,9 @@ EXPORT int stat(const char *pathname, struct stat *statbuf) {
   return ret;
 }
 
-EXPORT int fstat(int fd, struct stat *buf) {
-  static auto my_fstat = reinterpret_cast<decltype(&::fstat)>(dlsym(RTLD_NEXT, "fstat"));
-
-  int ret = my_fstat(fd, buf);
+template <typename S, typename Real>
+static int fake_stat_fd(int fd, S *buf, Real real) {
+  int ret = real(fd, buf);
 
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   if (ret == 0 && deck_map().count(fd)) {
@@ -2019,6 +2018,36 @@ EXPORT int fstat(int fd, struct stat *buf) {
   }
 
   return ret;
+}
+
+static int real_stat(const char *pathname, struct stat *statbuf) {
+  static auto fn = reinterpret_cast<int (*)(const char *, struct stat *)>(dlsym(RTLD_NEXT, "stat"));
+  if (fn) return fn(pathname, statbuf);
+#ifdef _STAT_VER
+  static auto xfn = reinterpret_cast<int (*)(int, const char *, struct stat *)>(dlsym(RTLD_NEXT, "__xstat"));
+  if (xfn) return xfn(_STAT_VER, pathname, statbuf);
+#endif
+  errno = ENOSYS;
+  return -1;
+}
+
+static int real_fstat(int fd, struct stat *buf) {
+  static auto fn = reinterpret_cast<int (*)(int, struct stat *)>(dlsym(RTLD_NEXT, "fstat"));
+  if (fn) return fn(fd, buf);
+#ifdef _STAT_VER
+  static auto xfn = reinterpret_cast<int (*)(int, int, struct stat *)>(dlsym(RTLD_NEXT, "__fxstat"));
+  if (xfn) return xfn(_STAT_VER, fd, buf);
+#endif
+  errno = ENOSYS;
+  return -1;
+}
+
+EXPORT int stat(const char *pathname, struct stat *statbuf) {
+  return fake_stat_path(pathname, statbuf, real_stat);
+}
+
+EXPORT int fstat(int fd, struct stat *buf) {
+  return fake_stat_fd(fd, buf, real_fstat);
 }
 
 EXPORT int access(const char *pathname, int mode) {
@@ -2866,31 +2895,57 @@ EXPORT int openat64(int dirfd, const char *pathname, int flags, ...) {
   return openat(dirfd, pathname, flags, mode);
 }
 
+static int real_stat64(const char *pathname, struct stat64 *statbuf) {
+  static auto fn = reinterpret_cast<int (*)(const char *, struct stat64 *)>(dlsym(RTLD_NEXT, "stat64"));
+  if (fn) return fn(pathname, statbuf);
+#ifdef _STAT_VER
+  static auto xfn = reinterpret_cast<int (*)(int, const char *, struct stat64 *)>(dlsym(RTLD_NEXT, "__xstat64"));
+  if (xfn) return xfn(_STAT_VER, pathname, statbuf);
+#endif
+  errno = ENOSYS;
+  return -1;
+}
+
+static int real_fstat64(int fd, struct stat64 *buf) {
+  static auto fn = reinterpret_cast<int (*)(int, struct stat64 *)>(dlsym(RTLD_NEXT, "fstat64"));
+  if (fn) return fn(fd, buf);
+#ifdef _STAT_VER
+  static auto xfn = reinterpret_cast<int (*)(int, int, struct stat64 *)>(dlsym(RTLD_NEXT, "__fxstat64"));
+  if (xfn) return xfn(_STAT_VER, fd, buf);
+#endif
+  errno = ENOSYS;
+  return -1;
+}
+
 EXPORT int stat64(const char *pathname, struct stat64 *statbuf) {
-  return stat(pathname, reinterpret_cast<struct stat *>(statbuf));
+  return fake_stat_path(pathname, statbuf, real_stat64);
 }
 
 EXPORT int fstat64(int fd, struct stat64 *buf) {
-  return fstat(fd, reinterpret_cast<struct stat *>(buf));
+  return fake_stat_fd(fd, buf, real_fstat64);
 }
 
 EXPORT int __xstat(int version, const char *pathname, struct stat *statbuf) {
-  (void)version;
-  return stat(pathname, statbuf);
+  static auto real = reinterpret_cast<int (*)(int, const char *, struct stat *)>(dlsym(RTLD_NEXT, "__xstat"));
+  if (!real) return stat(pathname, statbuf);
+  return fake_stat_path(pathname, statbuf, [version](const char *path, struct stat *buf) { return real(version, path, buf); });
 }
 
 EXPORT int __xstat64(int version, const char *pathname, struct stat64 *statbuf) {
-  (void)version;
-  return stat(pathname, reinterpret_cast<struct stat *>(statbuf));
+  static auto real = reinterpret_cast<int (*)(int, const char *, struct stat64 *)>(dlsym(RTLD_NEXT, "__xstat64"));
+  if (!real) return stat64(pathname, statbuf);
+  return fake_stat_path(pathname, statbuf, [version](const char *path, struct stat64 *buf) { return real(version, path, buf); });
 }
 
 EXPORT int __fxstat(int version, int fd, struct stat *buf) {
-  (void)version;
-  return fstat(fd, buf);
+  static auto real = reinterpret_cast<int (*)(int, int, struct stat *)>(dlsym(RTLD_NEXT, "__fxstat"));
+  if (!real) return fstat(fd, buf);
+  return fake_stat_fd(fd, buf, [version](int f, struct stat *b) { return real(version, f, b); });
 }
 
 EXPORT int __fxstat64(int version, int fd, struct stat64 *buf) {
-  (void)version;
-  return fstat(fd, reinterpret_cast<struct stat *>(buf));
+  static auto real = reinterpret_cast<int (*)(int, int, struct stat64 *)>(dlsym(RTLD_NEXT, "__fxstat64"));
+  if (!real) return fstat64(fd, buf);
+  return fake_stat_fd(fd, buf, [version](int f, struct stat64 *b) { return real(version, f, b); });
 }
 #endif

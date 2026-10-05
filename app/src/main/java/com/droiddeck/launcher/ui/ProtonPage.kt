@@ -48,12 +48,17 @@ fun ProtonPage(
             stringResource(R.string.proton_stop_first),
             fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
         )
+        val compatible = stringResource(R.string.steam_compat_label)
+        Text(
+            stringResource(R.string.proton_compatible_note, compatible),
+            fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
+        )
         SettingsGroup(stringResource(R.string.proton_available)) {
             for (row in rows) {
                 SettingsRow(
                     row.name,
                     when {
-                        row.installed != null -> stringResource(R.string.proton_installed, row.installed)
+                        row.installed != null -> stringResource(R.string.proton_installed_compatible, row.installed, compatible)
                         row.queued -> stringResource(R.string.proton_queued)
                         else -> stringResource(R.string.proton_not_installed)
                     },

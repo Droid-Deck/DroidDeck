@@ -7,8 +7,8 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Flatpak in the Linux runtime: putting it there (bannerlator-flatpak-setup), the apps installed
- * from Flathub, and installing, removing and updating them (bannerlator-flatpak). One per-user
+ * Flatpak in the Linux runtime: putting it there (droiddeck-flatpak-setup), the apps installed
+ * from Flathub, and installing, removing and updating them (droiddeck-flatpak). One per-user
  * installation at /root/.local/share/flatpak, so nothing needs the system helper or polkit.
  *
  * Every command runs in a proot of its own, outside any session: the store works whether or not
@@ -17,11 +17,11 @@ import java.io.File
 object FlatpakManager {
     private const val TAG = "FlatpakManager"
     const val FLATPAK = "/usr/bin/flatpak"
-    const val BWRAP = "/usr/local/bin/bannerlator-bwrap"
+    const val BWRAP = "/usr/local/bin/droiddeck-bwrap"
     /** The program the front end starts a Flatpak app through, in a session of its own. */
-    const val LAUNCHER = "/usr/local/bin/bannerlator-flatpak-run"
-    private const val HELPER = "/usr/local/bin/bannerlator-flatpak"
-    private const val SETUP = "/usr/local/bin/bannerlator-flatpak-setup"
+    const val LAUNCHER = "/usr/local/bin/droiddeck-flatpak-run"
+    private const val HELPER = "/usr/local/bin/droiddeck-flatpak"
+    private const val SETUP = "/usr/local/bin/droiddeck-flatpak-setup"
     private const val USER_DIR = "root/.local/share/flatpak"
 
     /** One store operation at a time: Flatpak locks its installation per transaction anyway. */

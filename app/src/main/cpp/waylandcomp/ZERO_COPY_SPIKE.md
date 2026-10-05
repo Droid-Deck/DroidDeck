@@ -29,7 +29,7 @@ the dma-buf fd through `zwp_linux_dmabuf_v1` as today (so the blit path stays as
 The host half - one `ASurfaceControl` layer per fullscreen window, geometry from the fullscreen
 mode, release fences from `ASurfaceTransaction_setOnComplete`, black base surface, HUD/pointer as
 Android views above - is implemented in this branch as a gated prototype (`sc_layer.c`,
-`BANNER_WAYLAND_ZERO_COPY=1`) with a compositor-owned AHB pool and one blit, so the
+`DROIDDECK_WAYLAND_ZERO_COPY=1`) with a compositor-owned AHB pool and one blit, so the
 SurfaceFlinger side can be measured on the device before the driver work starts.
 
 ---
@@ -240,13 +240,13 @@ Prerequisite: a build of this branch, container on Wayland, the AIO Graphics Tes
 D3D12 tabs) as the workload, session log in `Download/Wayland-logs/`.
 
 0. **UBWC modifier A/B (no layers).** Done on `feat/wayland-ubwc` (advertised when the compositor's
-   driver imports it, `BANNER_WAYLAND_UBWC=0` = old linear-only list; see `WAYLAND_RUNTIME.md`
+   driver imports it, `DROIDDECK_WAYLAND_UBWC=0` = old linear-only list; see `WAYLAND_RUNTIME.md`
    "Compressed (UBWC) game buffers"). Run the AIO Vulkan/D3D12 with and without. Expect
    `vulkan: … is presenting GPU frames through Wayland: WxH, format XB24, tiled (zero-copy)` and
    no `dmabuf import failed`. Records how much of the 20 % is the linear swapchain alone.
-1. **Layer mode smoke.** Put `BANNER_WAYLAND_ZERO_COPY=1` in the container's environment
+1. **Layer mode smoke.** Put `DROIDDECK_WAYLAND_ZERO_COPY=1` in the container's environment
    variables, launch the AIO fullscreen. Expected log lines (tag `layer`):
-   `SurfaceControl "banner_wayland_game" created as a child of the screen surface`,
+   `SurfaceControl "droiddeck_wayland_game" created as a child of the screen surface`,
    `pool buffer 1920x1080 UBWC (QCOM_COMPRESSED), stride 1920 px (gralloc handle 2 fds / N ints)`
    (or `linear` after `import of a UBWC … failed` - also a result: it tells whether the compositor
    Turnip accepts gralloc's UBWC pitch), `geometry: buffer 0,0-1920,1080 -> screen …`,
@@ -254,7 +254,7 @@ D3D12 tabs) as the workload, session log in `Download/Wayland-logs/`.
    and the probe line `kernel exports sync_file fences from the game's dma-buf …` or
    `DMA_BUF_IOCTL_EXPORT_SYNC_FILE … failed (…)`. Picture correct, HUD and pointer on top, fullscreen
    mode changes move the layer (`geometry:` lines).
-2. **Composition type.** With the AIO running: `dumpsys SurfaceFlinger | grep -A3 banner_wayland_game`
+2. **Composition type.** With the AIO running: `dumpsys SurfaceFlinger | grep -A3 droiddeck_wayland_game`
    and the `GPU_TARGET` line of the pipe table. DEVICE/DEVICE on the game layer with an empty GPU
    target = the DPU does the scaling; CLIENT = no gain on this panel orientation → try the
    handheld's native orientation / a resolution equal to the panel's.
@@ -271,7 +271,7 @@ harden: async fence instead of CPU wait, per-window layers, presentation feedbac
 `getLatchTime`); option (a) WSI + protocol + wcp = 2–3 days + 1 day device proving; option (c) =
 3–4 days + the same proving; (b) = not buildable.
 
-## 6. What the prototype in this branch does (`BANNER_WAYLAND_ZERO_COPY=1`)
+## 6. What the prototype in this branch does (`DROIDDECK_WAYLAND_ZERO_COPY=1`)
 
 Files: `src/sc_layer.{c,h}` (new), `src/vk_present.{c,h}` (`vkp_image_import_dmabuf` with a
 blit-destination role, `vkp_blit_image`, `vkp_update_map`, `vkp_map_draw`, `vkp_window`,

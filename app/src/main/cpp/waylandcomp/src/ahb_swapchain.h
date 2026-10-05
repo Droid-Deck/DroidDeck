@@ -1,7 +1,7 @@
 #ifndef AHB_SWAPCHAIN_H
 #define AHB_SWAPCHAIN_H
 /*
- * Zero-copy game frames (layer mode, BANNER_WAYLAND_ZERO_COPY=1 at launch, the drawer's "Zero-copy
+ * Zero-copy game frames (layer mode, DROIDDECK_WAYLAND_ZERO_COPY=1 at launch, the drawer's "Zero-copy
  * presentation" switch live): the guest half of the design in ZERO_COPY_SPIKE.md. Our Wayland Turnip
  * (banners-turnip-wayland, patches/wayland/banner_ahb_wsi.py) binds the private global banner_ahb_v1
  * (version 2), which this compositor advertises on every session where a display layer is possible,
@@ -63,21 +63,21 @@ uint32_t ahb_swapchain_ahb_format(const struct dmabuf_buffer *b);
 void ahb_swapchain_layer_released(void *token, int release_fd);
 
 /* ---- ahb_swapchain.c -> compositor.c (hooks) */
-struct dmabuf_buffer *banner_dmabuf_from_resource(struct wl_resource *buffer);
-int banner_dmabuf_fd(const struct dmabuf_buffer *b);                     /* plane 0's dma-buf */
-void banner_dmabuf_size(const struct dmabuf_buffer *b, int *w, int *h);
-void **banner_dmabuf_ahb_slot(struct dmabuf_buffer *b);                  /* this module's per-buffer state */
-void banner_dmabuf_ref(struct dmabuf_buffer *b);
-void banner_dmabuf_unref(struct dmabuf_buffer *b);
+struct dmabuf_buffer *droiddeck_dmabuf_from_resource(struct wl_resource *buffer);
+int droiddeck_dmabuf_fd(const struct dmabuf_buffer *b);                     /* plane 0's dma-buf */
+void droiddeck_dmabuf_size(const struct dmabuf_buffer *b, int *w, int *h);
+void **droiddeck_dmabuf_ahb_slot(struct dmabuf_buffer *b);                  /* this module's per-buffer state */
+void droiddeck_dmabuf_ref(struct dmabuf_buffer *b);
+void droiddeck_dmabuf_unref(struct dmabuf_buffer *b);
 /* Give a wl_buffer back to its client now (paced = 0) or on the FPS limiter's cadence (s != NULL).
  * since_ns = when the compositor let go of it (CLOCK_MONOTONIC; the perf line's release latency). */
-void banner_release_buffer(struct surface *s, struct wl_resource *buffer, int paced, int64_t since_ns);
+void droiddeck_release_buffer(struct surface *s, struct wl_resource *buffer, int paced, int64_t since_ns);
 /* Redraw the scene on the next tick (the present path may have changed). */
-void banner_request_redraw(void);
+void droiddeck_request_redraw(void);
 /* "<title>" (program) of the window a surface belongs to, for the log. */
-void banner_surface_describe(const struct surface *s, char *out, size_t size);
-/* The surface's current image description (banner_color.h), NULL = none / HDR gate closed. */
-struct banner_color;
-const struct banner_color *banner_surface_color(const struct surface *s);
+void droiddeck_surface_describe(const struct surface *s, char *out, size_t size);
+/* The surface's current image description (droiddeck_color.h), NULL = none / HDR gate closed. */
+struct droiddeck_color;
+const struct droiddeck_color *droiddeck_surface_color(const struct surface *s);
 
 #endif

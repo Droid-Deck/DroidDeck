@@ -16,8 +16,8 @@
 
 #include "linux-dmabuf-v1-server-protocol.h"
 #include "vk_present.h"
-#include "banner_ext.h"
-#include "banner_color.h"
+#include "droiddeck_ext.h"
+#include "droiddeck_color.h"
 #include "compositor_internal.h"
 
 /* ------------------------------------------------------------ zwp_linux_dmabuf_v1 */
@@ -112,7 +112,7 @@ static const struct zwp_linux_dmabuf_v1_interface dmabuf_impl = {
 /* The advertised format/modifier table, built at the first bind from what the renderer's driver
  * can import (vkp_dmabuf_modifiers). INVALID is always offered too (Mesa drops it; other clients
  * may use it for the implicit path). Without a renderer the list is LINEAR + INVALID, as before. */
-/* The last two rows are HDR10's (banner_color.h): A2B10G10R10 as AB30 (alpha) + XB30 (opaque) - Mesa
+/* The last two rows are HDR10's (droiddeck_color.h): A2B10G10R10 as AB30 (alpha) + XB30 (opaque) - Mesa
  * lists a VkFormat only when both are advertised, and it is the one 10-bit layout our zero-copy WSI
  * can put in a gralloc buffer (AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM). They are advertised ONLY
  * while the HDR gate is open, and after the 8-bit rows, so every other session - and every client that
@@ -132,7 +132,7 @@ static void dmabuf_build_formats(void) {
     char line[320];
     int pos = 0, compressed = 0;
     g_dmabuf_fmts_ready = 1;
-    g_dmabuf_nfmt = banner_color_hdr_open() ? DMABUF_NFMT_MAX : DMABUF_NFMT_SDR;
+    g_dmabuf_nfmt = droiddeck_color_hdr_open() ? DMABUF_NFMT_MAX : DMABUF_NFMT_SDR;
     for (int f = 0; f < g_dmabuf_nfmt; f++) {
         uint64_t got[DMABUF_NMOD];
         int n = vkp_dmabuf_modifiers(g_dmabuf_fmts[f].fmt, got, DMABUF_NMOD), k = 0;
@@ -155,10 +155,10 @@ static void dmabuf_build_formats(void) {
                             vkp_modifier_name(g_dmabuf_fmts[f].mods[i]));
         if (pos >= (int)sizeof(line)) pos = (int)sizeof(line) - 1;
     }
-    banner_log("dmabuf", "formats: %s%s", line,
-               !g_ubwc ? " (BANNER_WAYLAND_UBWC=0: qcom_compressed not advertised)" : "");
+    droiddeck_log("dmabuf", "formats: %s%s", line,
+               !g_ubwc ? " (DROIDDECK_WAYLAND_UBWC=0: qcom_compressed not advertised)" : "");
     if (g_ubwc && !compressed)
-        banner_log("dmabuf", "the compositor's driver (%s) reports no importable qcom_compressed layout: "
+        droiddeck_log("dmabuf", "the compositor's driver (%s) reports no importable qcom_compressed layout: "
                    "game swapchains stay linear", vkp_gpu_name());
     if (g_dmabuf_nfmt > DMABUF_NFMT_SDR) {
         /* The rows above always carry LINEAR; say what the compositor's own driver can really import
@@ -166,7 +166,7 @@ static void dmabuf_build_formats(void) {
         uint64_t got[DMABUF_NMOD];
         int n = vkp_dmabuf_modifiers(DRM_XBGR2101010, got, DMABUF_NMOD), ubwc10 = 0;
         for (int i = 0; i < n; i++) if (got[i] == VKP_MOD_QCOM_COMPRESSED) ubwc10 = 1;
-        banner_log("color", "10-bit dma-buf formats AB30/XB30 advertised for HDR10; the compositor's driver (%s) "
+        droiddeck_log("color", "10-bit dma-buf formats AB30/XB30 advertised for HDR10; the compositor's driver (%s) "
                    "imports XB30 %s", vkp_gpu_name(),
                    n == 0 ? "with no layout it reports (copy path unlikely; display layer only)"
                           : ubwc10 ? "linear and UBWC" : "linear only (UBWC 10-bit frames: display layer only)");
@@ -237,7 +237,7 @@ static void dmabuf_build_feedback(void) {
         }
     if (!n) return;
 
-    int fd = (int)syscall(__NR_memfd_create, "banner-dmabuf-formats",
+    int fd = (int)syscall(__NR_memfd_create, "droiddeck-dmabuf-formats",
                           MFD_CLOEXEC | MFD_ALLOW_SEALING);
     if (fd < 0) { WLOGE("dmabuf feedback: memfd_create failed (%s)", strerror(errno)); return; }
     size_t size = (size_t)n * sizeof(entries[0]);
@@ -251,14 +251,14 @@ static void dmabuf_build_feedback(void) {
     g_fmt_table_fd = fd;
     g_fmt_table_size = size;
     g_fmt_table_n = (uint16_t)n;
-    banner_log("dmabuf", "feedback ready: %d format/modifier pairs, main device %u:%u",
+    droiddeck_log("dmabuf", "feedback ready: %d format/modifier pairs, main device %u:%u",
                n, (unsigned)major(g_main_device), (unsigned)minor(g_main_device));
     /* Vulkan games never need the node. Mesa's EGL did until Wayland layer versionCode 9: without
      * one it fell back to a software path that draws nothing here (black window, sound plays). */
     if (!g_main_device)
-        banner_log("dmabuf", "%s: OpenGL games need Wayland layer versionCode 9 or newer, "
+        droiddeck_log("dmabuf", "%s: OpenGL games need Wayland layer versionCode 9 or newer, "
                    "which runs OpenGL on the GPU without a DRM node; older layers show a black window",
-                   g_no_render_node ? "no DRM device named (forced by BANNER_WAYLAND_NO_RENDER_NODE=1)"
+                   g_no_render_node ? "no DRM device named (forced by DROIDDECK_WAYLAND_NO_RENDER_NODE=1)"
                                     : "this device gives apps no display (DRM) device (/dev/dri)");
 }
 

@@ -39,7 +39,7 @@ run lxqt-panel lxqt-panel
 # The desktop was asked for with Steam in it (the front end's "Steam Desktop UI", Big Picture's
 # "Switch to Desktop"): the client's desktop UI, as the menu's Steam entry opens it. A running
 # client just gets the request; on a software desktop it goes back to the app as a Steam session.
-[ "${BL_DESKTOP_STEAM:-0}" = 1 ] && run steam /usr/local/bin/bannerlator-steam-launch desktop
+[ "${BL_DESKTOP_STEAM:-0}" = 1 ] && run steam /usr/local/bin/droiddeck-steam-launch desktop
 # Remote runs, for driving the desktop from a debugger: with ~/.droiddeck-remote-run present (only
 # the app or root can create it), each script dropped into ~/.cache/droiddeck/run/ is run once,
 # inside the session with its environment, its output tagged into the desktop log.

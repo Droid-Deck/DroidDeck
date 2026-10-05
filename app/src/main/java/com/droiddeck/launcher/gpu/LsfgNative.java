@@ -6,7 +6,7 @@ package com.droiddeck.launcher.gpu;
  * DXBC chain translated to SPIR-V. {@link Lossless} decides when; these calls block.
  */
 final class LsfgNative {
-    static { System.loadLibrary("bannerwayland"); }
+    static { System.loadLibrary("droiddeckwayland"); }
 
     private LsfgNative() {}
 

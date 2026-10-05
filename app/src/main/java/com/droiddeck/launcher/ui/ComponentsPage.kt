@@ -187,6 +187,14 @@ fun ComponentsPage(
                         MenuItem(
                             v.proton.name, checked = v.proton.id == view.proton.id,
                             detail = (if (swaps > 0) stringResource(R.string.comp_swapped, v.proton.version, swaps) else stringResource(R.string.comp_all_original, v.proton.version))
+                                .let {
+                                    when (v.sync?.state) {
+                                        "pack" -> stringResource(R.string.comp_esync_pack, it)
+                                        "wanted" -> stringResource(R.string.comp_esync_wanted, it)
+                                        "builtin" -> stringResource(R.string.comp_esync_builtin, it)
+                                        else -> it
+                                    }
+                                }
                                 .let { if (v.inUseByGame) stringResource(R.string.comp_game_running_suffix, it) else it },
                             focusRequester = if (i == 0) first else null,
                         ) { onProton(v.proton.id); protonMenu = false }

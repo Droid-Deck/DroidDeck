@@ -13,6 +13,8 @@ object SecondaryLibrary {
         "4185400" to "SteamLinuxRuntime_4-arm64",
         "4427310" to "Proton Experimental (ARM64)",
         "4628740" to "Proton 11.0 (ARM64)",
+        "1628350" to "SteamLinuxRuntime_sniper",
+        "3127680" to "FEX-Emu",
     )
 
     fun privateRoot(files: File, library: File): File {
@@ -32,7 +34,7 @@ object SecondaryLibrary {
             val id = Regex("\"appid\"\\s+\"(\\d+)\"").find(text)?.groupValues?.get(1)
             val dir = Regex("\"installdir\"\\s+\"([^\"]+)\"").find(text)?.groupValues?.get(1)
             if (id != null && dir != null && File(dir).name == dir &&
-                (dir.startsWith("Proton ") || dir.startsWith("SteamLinuxRuntime"))) tools[id] = dir
+                (dir.startsWith("Proton ") || dir.startsWith("SteamLinuxRuntime") || id in bootstrapTools)) tools[id] = dir
         }
         val overrides = ArrayList<Pair<File, String>>()
         for (name in listOf("compatdata", "shadercache")) {

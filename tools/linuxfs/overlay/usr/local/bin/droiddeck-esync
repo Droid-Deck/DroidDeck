@@ -364,11 +364,21 @@ def load_packs(root):
     return packs
 
 
+def line_epoch(line):
+    fields = (line or "").split()
+    try:
+        return int(fields[0]) if fields else 0
+    except ValueError:
+        return 0
+
+
 def match_kind(pack, measured):
     if pack.get("revoked") or pack.get("ignored") or measured["builtin"]:
         return None
     stock = pack["stock"]
     if stock[NTDLL] == measured["ntdll"] and stock[WINESERVER] == measured["wineserver"]:
+        if pack.get("version") != measured["token"] and line_epoch(pack.get("version_line")) > line_epoch(measured["version_line"]) > 0:
+            return None
         return "exact"
     if (pack.get("source_match") is True and measured["token"] and pack.get("version") == measured["token"]
             and pack.get("exports") == measured["exports"]):
@@ -383,7 +393,7 @@ def find_pack(packs, measured):
         kind = match_kind(pack, measured)
         if kind is None:
             continue
-        key = (kind == "exact", pack["rev"], pack["id"])
+        key = (kind == "exact", bool(measured["token"]) and pack.get("version") == measured["token"], pack["rev"], pack["id"])
         if best_key is None or key > best_key:
             best, best_key = pack, key
     return best
@@ -789,6 +799,18 @@ def keep_live(root, command, env, tool):
         return None
     if not os.path.isfile(kept_command) or not server_running(prefix):
         return None
+    kept_pack = row["env"].get("BL_SYNC_PACK")
+    if isinstance(kept_pack, str) and kept_pack and command[1:2] == ["waitforexitandrun"]:
+        try:
+            cache = HashCache(root)
+            try:
+                pack = find_pack(load_packs(root), measure(tool, cache))
+            finally:
+                cache.save()
+        except (OSError, ValueError):
+            pack = {"id": kept_pack}
+        if pack is None or pack["id"] != kept_pack:
+            return None
     command, env = list(command), dict(env)
     command[0] = kept_command
     for name in LIVE_KEYS:

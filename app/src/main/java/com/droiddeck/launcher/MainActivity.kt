@@ -42,6 +42,7 @@ import com.droiddeck.launcher.ui.ComponentsPage
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.ui.ProtonPage
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.PhantomProcessLimit
@@ -110,6 +111,7 @@ class MainActivity : ComponentActivity() {
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
     private var steamDeckMode by mutableStateOf(false)
+    private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var showProtons by mutableStateOf(false)
@@ -137,6 +139,9 @@ class MainActivity : ComponentActivity() {
     private var tuSysmem by mutableStateOf(false)
     private var zinkLazy by mutableStateOf(false)
     private var noXalia by mutableStateOf(true)
+    private var fastSync by mutableStateOf(false)
+    private var syncFallback by mutableStateOf(true)
+    private var fsyncFirst by mutableStateOf(false)
     private var gamescopeRealtime by mutableStateOf(false)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
@@ -182,6 +187,9 @@ class MainActivity : ComponentActivity() {
     }
     private val pickAndroidDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = false) }
+    }
+    private val pickDeckyPluginZip = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { decky.importPluginZip(it) }
     }
     private val pickAnyDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = null) }
@@ -298,13 +306,11 @@ class MainActivity : ComponentActivity() {
     }
     // The mode whose settings dialog is open, with what it shows; refreshed by openModeSettings().
     private var settingsMode by mutableStateOf<String?>(null)
-    private var resolutionCap by mutableStateOf(1080)
-    private var customResolution by mutableStateOf<Pair<Int, Int>?>(null)
+    private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
     private var steamChannel by mutableStateOf("steamdeck_publicbeta")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
-    private var shapeMode by mutableStateOf(SessionPrefs.SHAPE_AUTO)
     private var hdrOn by mutableStateOf(false)
     private var fpsLimit by mutableStateOf(0)
     private var upscaler by mutableStateOf(0)
@@ -863,9 +869,10 @@ class MainActivity : ComponentActivity() {
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
             if (applied.isNotEmpty()) ui.post {
                 android.widget.Toast.makeText(this, "Applied: " + applied.joinToString(", "), android.widget.Toast.LENGTH_LONG).show()
-                if (showComponents) components.refreshComponents()
             }
+            ui.post { if (showComponents) components.refreshComponents() }
         }, "components-queue").start()
+        else if (showComponents) components.refreshComponents()
         oscMode = SessionPrefs.oscMode(this)
         refreshController()
         refreshHomeAppState()
@@ -1018,7 +1025,7 @@ class MainActivity : ComponentActivity() {
             busy = if (busy) stage else components.compBusy,
             downloads = components.compDownloads,
             requestInitialFocus = focusComponentsContent,
-            onProton = { components.compProton = it },
+            onProton = { components.chooseProton(it) },
             onComp = { components.compComp = it },
             onSwap = { file -> components.compProton?.let { pid -> components.componentAction("Swapping") { ComponentsManager.swap(this, pid, file) } } },
             onRestore = { version -> components.compProton?.let { pid -> components.componentAction("Restoring") { ComponentsManager.restore(this, pid, components.compComp, version) } } },
@@ -1110,7 +1117,8 @@ class MainActivity : ComponentActivity() {
     private fun ModeSettingsHost(mode: String) {
         ModeSettingsPage(
             ModeSettings(
-                mode = mode, resolutionCap = resolutionCap, customResolution = customResolution, shapeMode = shapeMode,
+                mode = mode, resolution = resolution,
+                panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
                 hdr = hdrOn, hdrReason = hdrReason, fpsLimit = fpsLimit,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                 gpuDrivers = drivers.summary(),
@@ -1130,8 +1138,10 @@ class MainActivity : ComponentActivity() {
                 storageOptions = storageOptions,
                 storageDiagnostics = mode == SessionService.MODE_STEAM && storageDiagnostics,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
+                syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
+                steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
@@ -1164,9 +1174,7 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 onWifiDiscoverySettings = { openWifiDiscoverySettings() },
-                onResolution = { cap -> SessionPrefs.setResolutionCap(this, mode, cap); resolutionCap = cap },
-                onCustomResolution = { size -> SessionPrefs.setCustomResolution(this, mode, size); customResolution = size },
-                onShape = { shape -> SessionPrefs.setShapeMode(this, shape); shapeMode = shape },
+                onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
                 onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
                 onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },
                 onFpsLimit = { fps -> SessionPrefs.setFpsLimit(this, mode, fps); fpsLimit = fps },
@@ -1203,7 +1211,14 @@ class MainActivity : ComponentActivity() {
                     storageDiagnostics = on
                 },
                 onFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
+                onSyncBackend = { id ->
+                    SessionPrefs.setSyncBackend(this, id)
+                    fastSync = SessionPrefs.fastSync(this)
+                    fsyncFirst = SessionPrefs.fsyncFirst(this)
+                    syncFallback = SessionPrefs.syncFallback(this)
+                },
                 onSteamChannel = { id -> SessionPrefs.setSteamChannel(this, id); steamChannel = id },
+                onSteamRepair = { steamRepairQueued = SteamRepair.queue(this) },
                 onSteamDeckMode = { on ->
                     SessionPrefs.setSteamDeckMode(this, on)
                     steamDeckMode = on
@@ -1231,6 +1246,9 @@ class MainActivity : ComponentActivity() {
                     decky.deckyInstalled = null
                     decky.deckySupervisor = false
                 },
+                onPickDeckyPluginZip = {
+                    pickDeckyPluginZip.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a Decky plugin ZIP"))
+                },
                 onDismiss = { settingsMode = null },
             ),
         )
@@ -1242,6 +1260,9 @@ class MainActivity : ComponentActivity() {
             cores = CpuCores.all.map { c -> CoreRow(c, "cpu$c" + (CpuCores.maxGhz(c)?.let { String.format(java.util.Locale.US, " · %.1f GHz", it) } ?: "")) },
             clientOverride = clientOverride, clientCores = clientCores, gameCores = gameCores,
             tuSysmem = tuSysmem, zinkLazy = zinkLazy, glThread = glThread, noGlError = noGlError, noXalia = noXalia,
+            fastSync = fastSync,
+            syncFallback = syncFallback,
+            fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, guestHostname = guestHostname, phantomWarning = phantomWarning,
@@ -1251,6 +1272,9 @@ class MainActivity : ComponentActivity() {
             onGlThread = { on -> SessionPrefs.setGlThread(this, on); glThread = on },
             onNoGlError = { on -> SessionPrefs.setNoGlError(this, on); noGlError = on },
             onNoXalia = { on -> SessionPrefs.setNoXalia(this, on); noXalia = on },
+            onFastSync = { on -> SessionPrefs.setFastSync(this, on); fastSync = on },
+            onSyncFallback = { on -> SessionPrefs.setSyncFallback(this, on); syncFallback = on },
+            onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
@@ -1306,16 +1330,18 @@ class MainActivity : ComponentActivity() {
         showProtons = false
         showComponents = false
         showMapping = false
-        resolutionCap = SessionPrefs.resolutionCap(this, mode)
-        customResolution = SessionPrefs.customResolution(this, mode)
+        resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         fexPreset = SessionPrefs.fexPreset(this)
+        fastSync = SessionPrefs.fastSync(this)
+        fsyncFirst = SessionPrefs.fsyncFirst(this)
+        syncFallback = SessionPrefs.syncFallback(this)
         steamChannel = SessionPrefs.steamChannel(this)
         steamDeckMode = SessionPrefs.steamDeckMode(this)
+        steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         addedGamesDirs = SessionPrefs.addedGamesDirs(this)
-        shapeMode = SessionPrefs.shapeMode(this)
         hdrOn = SessionPrefs.hdr(this, mode)
         fpsLimit = SessionPrefs.fpsLimit(this, mode)
         upscaler = SessionPrefs.upscaler(this)
@@ -1380,6 +1406,9 @@ class MainActivity : ComponentActivity() {
         tuSysmem = SessionPrefs.tuSysmem(this)
         zinkLazy = SessionPrefs.zinkLazy(this)
         noXalia = SessionPrefs.noXalia(this)
+        fastSync = SessionPrefs.fastSync(this)
+        syncFallback = SessionPrefs.syncFallback(this)
+        fsyncFirst = SessionPrefs.fsyncFirst(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)

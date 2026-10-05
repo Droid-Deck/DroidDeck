@@ -1,0 +1,218 @@
+#!/usr/bin/python3
+# Installs a third-party Proton build into the client's compatibilitytools.d, so it appears in the
+# Compatibility dropdown beside our own Proton ARM64 and can be picked per game.
+#
+#   droiddeck-proton-extra <steam root> ge [--tag GE-Proton11-7]
+#   droiddeck-proton-extra <steam root> cachyos [--tag cachyos-11.0-20260703-slr]
+#   droiddeck-proton-extra <steam root> <url of an aarch64 tarball>
+#   droiddeck-proton-extra <steam root> /path/to/an/aarch64/tarball
+#   droiddeck-proton-extra <steam root> --list          what is installed now
+#
+# Both projects publish native ARM64 builds - GloriousEggroll as "*-aarch64.tar.gz", CachyOS as
+# "*-arm64.tar.xz" - and both are ordinary Proton trees: a python entry point beside a files/
+# directory holding Wine, DXVK and VKD3D. That is the same shape as the depot the Steam client
+# downloads, so the runtime can run them the same way.
+#
+# What it cannot use is their toolmanifest. Like Valve's ARM64 depot they declare
+# require_tool_appid, which makes Steam stack pressure-vessel underneath - and pressure-vessel
+# needs unprivileged user namespaces, which an Android app does not get. Patching that out is
+# steam-compatibility's job (adopt_extras); this script only puts the tree in place and then
+# calls it, so an install is usable without restarting the client.
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+RELEASES = "https://api.github.com/repos/%s/releases"
+# Each source: the GitHub repo, and how its ARM64 asset is named. Ordered newest-release-first by
+# the API, so "latest usable" is the first release that actually carries an ARM64 asset - the
+# projects do not build one for every tag.
+SOURCES = {
+    "ge": ("GloriousEggroll/proton-ge-custom", re.compile(r"aarch64\.tar\.(gz|xz)$")),
+    "cachyos": ("CachyOS/proton-cachyos", re.compile(r"arm64\.tar\.(gz|xz)$")),
+}
+USER_AGENT = "droiddeck-proton-extra"
+# Room for the tarball and the tree it unpacks to. GE-Proton's aarch64 build is ~650 MB packed and
+# unpacks to about three times that; refusing early beats a half-written tool directory.
+NEED_BYTES = 4 * 1024 * 1024 * 1024
+
+
+def log(*args):
+    print("droiddeck-proton-extra:", *args, flush=True)
+
+
+def fetch_json(url):
+    req = urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.load(r)
+
+
+def pick_asset(source):
+    """(release tag, asset url, sha512 url or None) for the newest release with an ARM64 build."""
+    repo, pattern = SOURCES[source]
+    for release in fetch_json(RELEASES % repo + "?per_page=15"):
+        if release.get("draft"):
+            continue
+        assets = {a["name"]: a["browser_download_url"] for a in release.get("assets", ())}
+        for name in sorted(assets):
+            if pattern.search(name):
+                sums = [u for n, u in assets.items()
+                        if n.startswith(name.split(".tar")[0]) and "sha512" in n]
+                return release["tag_name"], assets[name], (sums[0] if sums else None)
+    return None, None, None
+
+
+def release_asset(source, tag):
+    repo, pattern = SOURCES[source]
+    release = fetch_json(RELEASES % repo + "/tags/" + tag)
+    assets = {a["name"]: a["browser_download_url"] for a in release.get("assets", ())}
+    for name in sorted(assets):
+        if pattern.search(name):
+            sums = [u for n, u in assets.items()
+                    if n.startswith(name.split(".tar")[0]) and "sha512" in n]
+            return tag, assets[name], (sums[0] if sums else None)
+    raise SystemExit("droiddeck-proton-extra: %s has no ARM64 asset" % tag)
+
+
+def download(url, path):
+    """Resumable, because this is hundreds of megabytes over a phone's connection. curl is used
+    rather than urllib so a retry continues rather than starting again."""
+    log("downloading %s" % os.path.basename(path))
+    rc = subprocess.call([
+        "curl", "-fL", "--retry", "5", "--retry-delay", "3", "--retry-connrefused",
+        "-C", "-", "-A", USER_AGENT, "-o", path, url])
+    if rc != 0:
+        raise SystemExit("droiddeck-proton-extra: download failed (curl %d)" % rc)
+    log("downloaded %.0f MB" % (os.path.getsize(path) / 1048576.0))
+
+
+def verify(path, sums_url):
+    if not sums_url:
+        log("no checksum published; skipping verification")
+        return
+    try:
+        req = urllib.request.Request(sums_url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            want = r.read().decode("utf-8", "replace").split()[0].lower()
+    except (urllib.error.URLError, IndexError, OSError) as e:
+        log("could not read the checksum (%s); skipping verification" % e)
+        return
+    h = hashlib.sha512()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4 << 20), b""):
+            h.update(chunk)
+    if h.hexdigest() != want:
+        os.unlink(path)
+        raise SystemExit("droiddeck-proton-extra: checksum mismatch; the download was deleted")
+    log("checksum ok")
+
+
+def extract(tarball, into):
+    os.makedirs(into, exist_ok=True)
+    log("unpacking (a few minutes; nothing is shown while tar runs)")
+    rc = subprocess.call(["tar", "-xf", tarball, "-C", into])
+    if rc != 0:
+        raise SystemExit("droiddeck-proton-extra: tar failed (%d)" % rc)
+    # A Proton tarball holds one top-level directory. Take whichever entry has the entry point so a
+    # stray ._ file or a nested layout does not decide it.
+    entries = [e for e in sorted(os.listdir(into)) if not e.startswith(".")]
+    for entry in entries:
+        path = os.path.join(into, entry)
+        if os.path.isdir(path) and os.path.isfile(os.path.join(path, "toolmanifest.vdf")):
+            return path
+    if len(entries) == 1 and os.path.isdir(os.path.join(into, entries[0])):
+        return os.path.join(into, entries[0])
+    raise SystemExit("droiddeck-proton-extra: no Proton tree in the archive")
+
+
+def installed(tools):
+    out = []
+    for entry in sorted(os.listdir(tools)) if os.path.isdir(tools) else ():
+        if entry.startswith("."):
+            continue
+        if os.path.isfile(os.path.join(tools, entry, "toolmanifest.vdf")):
+            out.append(entry)
+    return out
+
+
+def main():
+    argv = sys.argv[1:]
+    if not argv:
+        raise SystemExit(__doc__ or "usage: droiddeck-proton-extra <steam root> ge|cachyos|<url>")
+    steam_root = argv.pop(0)
+    tools = os.path.join(steam_root, "compatibilitytools.d")
+    os.makedirs(tools, exist_ok=True)
+
+    if not argv or argv[0] in ("--list", "-l"):
+        for name in installed(tools):
+            log("installed: %s" % name)
+        return
+
+    what = argv.pop(0)
+    tag = None
+    if argv and argv[0] in ("--tag", "-t"):
+        argv.pop(0)
+        tag = argv.pop(0) if argv else None
+
+    # A tarball already on the device is used as it is: a session that has to pull 650 MB down
+    # first shows nothing on screen for ten minutes, so the download can be done ahead of time and
+    # handed over by path.
+    local = None
+    if what in SOURCES:
+        tag, url, sums = release_asset(what, tag) if tag else pick_asset(what)
+        if not url:
+            raise SystemExit("droiddeck-proton-extra: no ARM64 build published for %s" % what)
+        log("%s -> %s" % (what, tag))
+    elif what.startswith("http"):
+        url, sums = what, None
+    elif os.path.isfile(what):
+        local, url, sums = what, None, None
+        log("using %s" % what)
+    else:
+        raise SystemExit(
+            "droiddeck-proton-extra: expected ge, cachyos, a URL or a tarball path, got %r" % what)
+
+    free = shutil.disk_usage(tools).free
+    if free < NEED_BYTES:
+        raise SystemExit("droiddeck-proton-extra: needs about %d GB free, has %.1f GB" % (
+            NEED_BYTES // (1024 ** 3), free / float(1024 ** 3)))
+
+    shutil.rmtree(os.path.join(tools, ".bannerlator-download"), ignore_errors=True)
+    staging = os.path.join(tools, ".droiddeck-download")
+    os.makedirs(staging, exist_ok=True)
+    if local:
+        tarball = local
+    else:
+        tarball = os.path.join(staging, os.path.basename(url.split("?")[0]))
+        download(url, tarball)
+        verify(tarball, sums)
+
+    unpacked = os.path.join(staging, "unpacked")
+    shutil.rmtree(unpacked, ignore_errors=True)
+    tree = extract(tarball, unpacked)
+    name = os.path.basename(tree)
+    final = os.path.join(tools, name)
+    # Replaced rather than merged: a half-written tree from an interrupted run would otherwise
+    # leave stale files behind that Proton would load.
+    if os.path.exists(final):
+        shutil.rmtree(final, ignore_errors=True)
+    os.rename(tree, final)
+    if local:
+        shutil.rmtree(os.path.join(staging, "unpacked"), ignore_errors=True)
+    else:
+        shutil.rmtree(staging, ignore_errors=True)
+    log("installed %s" % name)
+
+    # Patches out require_tool_appid and wraps the entry point, which is what makes it launchable
+    # here. Doing it now means the client picks the tool up on its next restart with no extra step.
+    subprocess.call(["steam-compatibility", steam_root])
+
+
+if __name__ == "__main__":
+    main()

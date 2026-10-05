@@ -20,7 +20,7 @@
   </keyboard>
   <mouse><doubleClickTime>500</doubleClickTime></mouse>
   <!-- Programs opened on the desktop at a size that suits it. melonDS remembers a 1x window for the
-       front end's full-screen toggle (bannerlator-pad-defaults), too small for a desktop: here it
+       front end's full-screen toggle (droiddeck-pad-defaults), too small for a desktop: here it
        opens at 800x600, centred (AutoPlace alone kept the top-left corner). Only the desktop reads this file, so the front end is unaffected. -->
   <windowRules>
     <windowRule title="melonDS*">

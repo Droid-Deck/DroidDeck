@@ -11,7 +11,7 @@ import java.io.File
 object GameEnvironmentStore {
     private const val SETTINGS = "game-environment.json"
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
-    /** The published file's extra DXVK options (bannerlator-game-env reads it; the app's own file has none). */
+    /** The published file's extra DXVK options (droiddeck-game-env reads it; the app's own file has none). */
     const val DXVK_CONFIG = "dxvkConfig"
 
     @Synchronized

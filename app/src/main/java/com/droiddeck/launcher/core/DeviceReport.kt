@@ -12,6 +12,7 @@ import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import com.droiddeck.launcher.session.EsyncPacks
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -107,9 +108,9 @@ object DeviceReport {
         h("Display")
         k("Session output", SessionState.outputSize?.let { "${it.first}x${it.second}" })
         k("Session refresh", String.format(Locale.US, "%.2f Hz", SessionState.refreshHz))
-        k("Shape setting", SessionPrefs.shapeMode(context))
-        k("Custom resolution (Steam)", SessionPrefs.customResolution(context, SessionService.MODE_STEAM)?.let { "${it.first}x${it.second}" } ?: "off")
-        k("Custom resolution (Desktop)", SessionPrefs.customResolution(context, SessionService.MODE_DESKTOP)?.let { "${it.first}x${it.second}" } ?: "off")
+        val panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(context)
+        k("Resolution (Steam)", SessionPrefs.resolutionChoice(context, SessionService.MODE_STEAM, panelSize))
+        k("Resolution (Desktop)", SessionPrefs.resolutionChoice(context, SessionService.MODE_DESKTOP, panelSize))
         k("Foldable", context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle"))
 
         h("Drivers")
@@ -154,6 +155,9 @@ object DeviceReport {
             " (sharpness ${SessionPrefs.upscaleSharpness(context)}%)")
         k("FEX preset", SessionPrefs.fexPreset(context).ifEmpty { "FEX defaults" })
         k("Skip xalia", SessionPrefs.noXalia(context))
+        k("Wine sync", SessionPrefs.syncBackend(context))
+        EsyncPacks.status(LinuxRuntime.rootDir(context)).let { k("droiddeck-esync packs", "${it.installed} installed, ${it.wanted} wanted") }
+        k("Linux x86 (FEX)", if (com.droiddeck.launcher.runtime.LinuxFex.ready(context)) "ready" else "not set up")
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
         k("proot fast path", SessionPrefs.prootFastPath(context))

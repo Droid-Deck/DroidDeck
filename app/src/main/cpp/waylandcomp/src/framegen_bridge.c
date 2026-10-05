@@ -11,9 +11,9 @@
 #include <time.h>
 #include <android/log.h>
 
-void banner_log(const char *tag, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
-#define FGLOG(...) banner_log("framegen", __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "BannerWayland", __VA_ARGS__)
+void droiddeck_log(const char *tag, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+#define FGLOG(...) droiddeck_log("framegen", __VA_ARGS__)
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "DroidDeckWayland", __VA_ARGS__)
 
 /* ---- app controls (written from any thread, read on the compositor thread) ------------- */
 static _Atomic int   g_kind = VKP_FG_ENGINE_LSFG;

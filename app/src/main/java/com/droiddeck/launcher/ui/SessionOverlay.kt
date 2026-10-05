@@ -28,15 +28,24 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.ScreenShare
+import androidx.compose.material.icons.outlined.PictureInPictureAlt
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clipToBounds
 import android.view.Display
 import androidx.activity.compose.BackHandler
@@ -79,6 +88,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -93,7 +104,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -129,22 +139,33 @@ import com.droiddeck.launcher.input.SecondScreenMode
 import kotlinx.coroutines.flow.collect
 import java.util.Locale
 
-private val drawerPageTitles = listOf(R.string.drawer_page_display, R.string.drawer_page_effects, R.string.drawer_page_controls, R.string.drawer_page_components, R.string.drawer_page_settings)
+private val SessionDrawerPage.title: Int get() = when (this) {
+    SessionDrawerPage.CONTROLLER -> R.string.drawer_page_controller
+    SessionDrawerPage.SECOND_SCREEN -> R.string.drawer_second_screen
+    SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
+    SessionDrawerPage.EFFECTS -> R.string.drawer_page_effects
+    SessionDrawerPage.GAMES -> R.string.game_settings_title
+    SessionDrawerPage.SESSION -> R.string.mode_session
+}
 
-/** One icon per drawer page, in page order (QAM-style tabs). */
-private val drawerPageIcons = listOf(Icons.Outlined.DesktopWindows, Icons.Outlined.AutoFixHigh, Icons.Outlined.SportsEsports, Icons.Outlined.Layers, Icons.Outlined.Settings)
-
-private val drawerPageEntries = listOf("hud", "look", "touch", "cmp-proton", "suspend")
+private val SessionDrawerPage.icon get() = when (this) {
+    SessionDrawerPage.CONTROLLER -> Icons.Outlined.SportsEsports
+    SessionDrawerPage.SECOND_SCREEN -> Icons.Outlined.ScreenShare
+    SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
+    SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
+    SessionDrawerPage.GAMES -> Icons.Outlined.Layers
+    SessionDrawerPage.SESSION -> Icons.Outlined.Settings
+}
 
 private class DrawerFocus {
     private val requesters = HashMap<String, FocusRequester>()
-    private val last = arrayOfNulls<String>(DRAWER_PAGES)
+    private val last = mutableMapOf<SessionDrawerPage, String>()
     var focused by mutableStateOf<String?>(null)
         private set
 
     private fun requester(key: String) = requesters.getOrPut(key) { FocusRequester() }
 
-    fun track(page: Int, key: String): Modifier = Modifier.focusRequester(requester(key)).onFocusChanged {
+    fun track(page: SessionDrawerPage, key: String): Modifier = Modifier.focusRequester(requester(key)).onFocusChanged {
         if (it.isFocused) {
             last[page] = key
             focused = key
@@ -152,9 +173,9 @@ private class DrawerFocus {
     }
 
     /** Where focus was last on [page], if anywhere. */
-    fun target(page: Int) = last[page]
+    fun target(page: SessionDrawerPage) = last[page]
     fun request(key: String) = runCatching { requester(key).requestFocus() }
-    fun forget(page: Int) { last[page] = null }
+    fun forget(page: SessionDrawerPage) { last.remove(page) }
 }
 
 /** Everything the drawer shows and does. */
@@ -168,13 +189,13 @@ class DrawerActions(
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
+    val onScreenButtonsVisible: Boolean,
     val suspendPolicy: String,
     val backActionsInverted: Boolean,
     val touchMode: String,
     val touchAuto: String,
-    val shapeMode: String,
     val fexPreset: String,
-    /** Steam only: games stretched to the screen's size, changed live (null = not Steam). */
+    /** Steam only: forces game windows fullscreen, changed live (null = not Steam). */
     val fillScreen: Boolean? = null,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
@@ -204,7 +225,6 @@ class DrawerActions(
     val onSuspendPolicy: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
-    val onShape: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
     val onFillScreen: (Boolean) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
@@ -225,7 +245,7 @@ class DrawerActions(
     /** Stop with the dialog's button's bounds on screen, for the flood to grow out of; null falls back to [onStop]. */
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
     val onClose: () -> Unit,
-    /** Components tab: every Proton with what it uses; null until first read. */
+    /** Games tab: every Proton with what it uses; null until first read. */
     val components: ComponentsManager.Snapshot? = null,
     /** Re-reads the Protons (and runs swaps that waited for a game to close). */
     val onComponentsRefresh: () -> Unit = {},
@@ -235,16 +255,20 @@ class DrawerActions(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageChange: (Int) -> Unit, a: DrawerActions) {
+internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions) {
+    val pages = sessionDrawerPages(a.steam && a.secondScreenDisplays.isNotEmpty())
+    val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
+    LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val host = rememberMenuHost()
     var androidAppsExpanded by rememberSaveable { mutableStateOf(false) }
+    var advancedEffectsExpanded by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     var confirmStop by remember { mutableStateOf(false) }
     var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val pageScroll = remember { List(DRAWER_PAGES) { ScrollState(0) } }
+    val pageScroll = remember { SessionDrawerPage.entries.associateWith { ScrollState(0) } }
     val veil by animateFloatAsState(if (open) 1f else 0f, Motion.tw(260), label = "veil")
     val focus = remember { DrawerFocus() }
     val inputModeManager = LocalInputModeManager.current
@@ -254,13 +278,13 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
     }
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
     LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
-    LaunchedEffect(open, page) { if (open && page == DRAWER_PAGE_COMPONENTS) a.onComponentsRefresh() }
+    LaunchedEffect(open, page) { if (open && page == SessionDrawerPage.GAMES) a.onComponentsRefresh() }
     LaunchedEffect(open, controllerActive) {
         if (open && !controllerActive) focusManager.clearFocus(force = true)
     }
     // The page focus was last put on: turning to another (LB, RB, a tab) starts it at its first
     // option; anything else (a menu closing, the drawer opening again) goes back where it was.
-    var focusedPage by remember { mutableIntStateOf(page) }
+    var focusedPage by remember { mutableStateOf(page) }
     LaunchedEffect(open, page, controllerActive, host.open, appToChooseDisplay, confirmStop) {
         if (!open) {
             host.open = null
@@ -270,8 +294,8 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
             if (host.open != null || appToChooseDisplay != null || confirmStop) return@LaunchedEffect
             val turned = page != focusedPage
             focusedPage = page
-            // The page's top control: on Settings that is Android apps, when it is shown.
-            val first = if (page == drawerPageEntries.lastIndex && a.isHomeApp) "apps" else drawerPageEntries[page]
+            // The page's top control: on Session that is Android apps, when it is shown.
+            val first = if (page == SessionDrawerPage.SESSION && a.isHomeApp) "apps" else page.firstControl
             if (turned) focus.forget(page)
             val target = focus.target(page) ?: first
             repeat(24) {
@@ -350,31 +374,21 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                     modifier = Modifier.fillMaxWidth().padding(top = if (short) 6.dp else 12.dp),
                 ) {
                     DrawerBumper("LB", stringResource(R.string.drawer_prev_page), modifier = focus.track(page, "prev")) {
-                        host.open = null; onPageChange((page + DRAWER_PAGES - 1) % DRAWER_PAGES)
+                        host.open = null; onPageChange(pages.step(page, -1))
                     }
-                    DrawerPageTabs(page = page, compact = short, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
+                    DrawerPageTabs(page = page, pages = pages, compact = short, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
-                        host.open = null; onPageChange((page + 1) % DRAWER_PAGES)
+                        host.open = null; onPageChange(pages.step(page, 1))
                     }
                 }
                 Column(
-                    modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll[page]),
+                    modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 120.dp) {
                     when (page) {
-                        0 -> {
+                        SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
                                 ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
                                     chipModifier = focus.track(page, "hud"), onChange = a.onHud)
-                                if (a.fillScreen != null) ToggleRow(
-                                    host, "fill", stringResource(R.string.drawer_fill), null, a.fillScreen,
-                                    chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen,
-                                )
-                                ChoiceRow(host, "upscaler", stringResource(R.string.drawer_scaling), null,
-                                    SessionPrefs.upscalerChoices, a.upscaler,
-                                    chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
-                                SliderRow(stringResource(R.string.drawer_scaling_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
-                                    enabled = a.upscaler != 0, format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"),
-                                    onChange = a.onUpscaleSharpness)
                                 val fgOpen = host.open == "fg"
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                                 SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
@@ -384,14 +398,27 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                     }
                                 }
                             }
+                            SettingsGroup(stringResource(R.string.display_image_scaling)) {
+                                ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
+                                    SessionPrefs.upscalerChoices, a.upscaler,
+                                    note = stringResource(R.string.display_filter_note),
+                                    chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
+                                if (SessionPrefs.upscalerHasSharpness(a.upscaler)) SliderRow(
+                                    stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
+                                    format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
+                            }
+                            if (a.fillScreen != null) SettingsGroup(stringResource(R.string.display_window_compatibility)) {
+                                ToggleRow(host, "fill", stringResource(R.string.display_force_fullscreen),
+                                    stringResource(R.string.display_force_fullscreen_live), a.fillScreen,
+                                    chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen)
+                            }
                         }
-                        DRAWER_PAGE_EFFECTS -> {
-                            ScreenEffectsGroup(host, a) { key -> focus.track(page, key) }
-                            TextureFilteringGroup(host, a) { key -> focus.track(page, key) }
+                        SessionDrawerPage.EFFECTS -> {
+                            ScreenEffectsGroup(host, a, advancedEffectsExpanded,
+                                onAdvancedToggle = { advancedEffectsExpanded = !advancedEffectsExpanded }) { key -> focus.track(page, key) }
                         }
-                        DRAWER_PAGE_COMPONENTS -> ComponentsDrawerPage(host, a) { key -> focus.track(page, key) }
-                        DRAWER_PAGE_CONTROLS -> {
-                            SettingsGroup(stringResource(R.string.drawer_page_controls)) {
+                        SessionDrawerPage.CONTROLLER -> {
+                            SettingsGroup(stringResource(R.string.drawer_page_controller)) {
                                 ChoiceRow(host, "touch", stringResource(R.string.mode_touch), null,
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)),
                                     a.touchMode, chipModifier = focus.track(page, "touch"), onPick = a.onTouch)
@@ -402,12 +429,16 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                 a.controller?.let { c ->
                                     ToggleRow(host, "rumble", stringResource(R.string.ctrl_rumble), null, c.rumble,
                                         chipModifier = focus.track(page, "rumble"), onChange = a.onRumble)
-                                    ToggleRow(host, "steam-button", stringResource(R.string.ctrl_steam_button), null, c.steamButton,
-                                        chipModifier = focus.track(page, "steam-button"), onChange = a.onSteamButton)
-                                    ToggleRow(host, "qam-button", stringResource(R.string.ctrl_qam_button), null, c.qamButton,
-                                        chipModifier = focus.track(page, "qam-button"), onChange = a.onQamButton)
-                                    ToggleRow(host, "keyboard-button", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton,
-                                        chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
+                                    if (a.onScreenButtonsVisible) {
+                                        if (a.steam) {
+                                            ToggleRow(host, "steam-button", stringResource(R.string.ctrl_steam_button), null, c.steamButton,
+                                                chipModifier = focus.track(page, "steam-button"), onChange = a.onSteamButton)
+                                            ToggleRow(host, "qam-button", stringResource(R.string.ctrl_qam_button), null, c.qamButton,
+                                                chipModifier = focus.track(page, "qam-button"), onChange = a.onQamButton)
+                                        }
+                                        ToggleRow(host, "keyboard-button", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton,
+                                            chipModifier = focus.track(page, "keyboard-button"), onChange = a.onKeyboardButton)
+                                    }
                                 }
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to SessionPrefs.BACK_MENU_THEN_QAM, true to SessionPrefs.BACK_QAM_THEN_MENU),
@@ -423,18 +454,23 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                     }
                                 }
                             }
-                            if (a.steam && a.secondScreenDisplays.isNotEmpty()) SettingsGroup(stringResource(R.string.drawer_second_screen)) {
-                                ChoiceRow(host, "second-screen-mode", stringResource(R.string.drawer_second_screen_shows), null,
-                                    (listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
-                                        (if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()))
-                                        .map { it to it.label },
-                                    a.secondScreenMode, chipModifier = focus.track(page, "second-screen-mode"), onPick = a.onSecondScreenMode)
-                                if (a.secondScreenDisplays.size > 1) ChoiceRow(host, "second-screen-display", stringResource(R.string.drawer_page_display), null,
-                                    a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
-                                    chipModifier = focus.track(page, "second-screen-display"), onPick = a.onSecondScreenDisplay)
-                            }
                         }
-                        else -> {
+                        SessionDrawerPage.SECOND_SCREEN -> {
+                            SecondScreenGroup(host, a) { key -> focus.track(page, key) }
+                        }
+                        SessionDrawerPage.GAMES -> {
+                            Text(stringResource(R.string.fex_next_launch), fontSize = 12.sp,
+                                color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
+                            TextureFilteringGroup(host, a) { key -> focus.track(page, key) }
+                            if (a.steam) SettingsGroup(stringResource(R.string.game_settings_title)) {
+                                ChoiceRow(host, "fex", stringResource(R.string.fex_preset_title), null,
+                                    FexPreset.all.map { it.id to stringResource(it.label) }, a.fexPreset,
+                                    chipModifier = focus.track(page, "fex"), onPick = a.onFexPreset)
+                                GameEnvironmentRow(modifier = focus.track(page, "game-env"), showHint = false)
+                            }
+                            ComponentsDrawerPage(host, a) { key -> focus.track(page, key) }
+                        }
+                        SessionDrawerPage.SESSION -> {
                             if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {
                                 SettingsRow(stringResource(R.string.drawer_launch_app), null) {
                                     DrawerOutlineButton(if (androidAppsExpanded) stringResource(R.string.common_hide) else stringResource(R.string.common_show), modifier = focus.track(page, "apps")) {
@@ -466,7 +502,7 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
                                 ChoiceRow(
                                     host, "suspend", stringResource(R.string.mode_suspend),
-                                    stringResource(R.string.drawer_suspend_hint),
+                                    null,
                                     listOf(
                                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
@@ -477,17 +513,6 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                     chipModifier = focus.track(page, "suspend"),
                                     onPick = a.onSuspendPolicy,
                                 )
-                            }
-                            SettingsGroup(stringResource(R.string.drawer_next_session)) {
-                                ChoiceRow(host, "shape", stringResource(R.string.mode_ratio), null,
-                                    SessionPrefs.shapeChoices, a.shapeMode,
-                                    chipModifier = focus.track(page, "shape"), onPick = a.onShape)
-                            }
-                            if (a.steam) SettingsGroup(stringResource(R.string.game_settings_title)) {
-                                ChoiceRow(host, "fex", stringResource(R.string.fex_preset_title), stringResource(R.string.fex_next_launch),
-                                    FexPreset.all.map { it.id to stringResource(it.label) }, a.fexPreset,
-                                    chipModifier = focus.track(page, "fex"), onPick = a.onFexPreset)
-                                GameEnvironmentRow(modifier = focus.track(page, "game-env"))
                             }
                             SettingsGroup(stringResource(R.string.drawer_support)) {
                                 SettingsRow(stringResource(R.string.drawer_logs), stringResource(R.string.drawer_logs_hint)) {
@@ -501,12 +526,11 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                 ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
                                     a.pipAutoEnter, onChange = a.onPipAutoEnter)
                             }
-                            Spacer(Modifier.height(18.dp))
-                            if (a.pipSupported) DrawerOutlineButton(stringResource(R.string.pip_title), modifier = focus.track(page, "pip")) {
-                                host.open = null; a.onPip()
-                            }
-                            if (!a.isHomeApp) DrawerOutlineButton(stringResource(R.string.drawer_background), modifier = focus.track(page, "background")) {
-                                host.open = null; a.onBackground()
+                            Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (a.pipSupported) DrawerActionButton(stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt,
+                                    modifier = focus.track(page, "pip")) { host.open = null; a.onPip() }
+                                if (!a.isHomeApp) DrawerActionButton(stringResource(R.string.drawer_background), Icons.AutoMirrored.Outlined.ExitToApp,
+                                    modifier = focus.track(page, "background")) { host.open = null; a.onBackground() }
                             }
                         }
                     }
@@ -543,6 +567,27 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
             },
             onDismiss = { appToChooseDisplay = null },
         )
+    }
+}
+
+@Composable
+private fun DrawerActionButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val source = remember { MutableInteractionSource() }
+    val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 52.dp).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.16f) else colors.surfaceVariant)
+            .glideBorder(hot, shape, pal.signal)
+            .hoverable(source).clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+            .controllerConfirm(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(22.dp))
+        Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
     }
 }
 
@@ -636,58 +681,60 @@ private fun DrawerBumper(label: String, description: String, modifier: Modifier 
 /**
  * The drawer's page tabs, QAM-style: one icon per page standing in a line in page order. The
  * selected one steps forward - full size, bright, a soft glow - while the others step back to
- * half size and fade, and the whole line leans a little toward the selection. LB / RB still turn
+ * a little smaller and fade, and the whole line leans a little toward the selection. LB / RB still turn
  * the page (the buttons beside it and the pad's bumpers); a tab can be tapped or picked with the
  * pad like the dots it replaces.
  */
 @Composable
-private fun DrawerPageTabs(page: Int, modifier: Modifier = Modifier, compact: Boolean = false, onSelect: (Int) -> Unit) {
+private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPage>, modifier: Modifier = Modifier, compact: Boolean = false, onSelect: (SessionDrawerPage) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val count = drawerPageIcons.size
+    val count = pages.size
+    val selectedIndex = pages.indexOf(page)
     val middle = (count - 1) / 2f
     val motion = Motion.tw<Float>(340, easing = FastOutSlowInEasing)
     androidx.compose.foundation.layout.BoxWithConstraints(
         contentAlignment = Alignment.Center,
         modifier = modifier.height(if (compact) 44.dp else 64.dp).clipToBounds(),
     ) {
-        val tab = if (compact) 40f else 56f
+        val tab = if (compact) 36f else 44f
         // Fit the line to the room between LB and RB. Worst case is an end tab selected: full size
         // ([tab] dp) and pushed outward by the lean, which scales with the spacing. So
-        //   (count-1) * spacing * (1 + lean/64) + 56 <= width
-        // - never more than the mock's 64 dp, never tighter than 32 dp.
-        val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(32f, DRAWER_TAB_SPACING_DP)
+        //   (count-1) * spacing * (1 + lean/spacingMax) + tab <= width
+        val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP)
         val leanStep = DRAWER_TAB_LEAN_DP * spacing / DRAWER_TAB_SPACING_DP
-        val lean by animateFloatAsState(-(page - middle) * leanStep, motion, label = "tabLean")
-        drawerPageIcons.forEachIndexed { index, icon ->
-            val selected = index == page
-            val source = remember { MutableInteractionSource() }
-            val focused = source.collectIsFocusedAsState().value
-            val scale by animateFloatAsState(if (selected) 1f else DRAWER_TAB_SIDE_SCALE, motion, label = "tabScale")
-            val alpha by animateFloatAsState(if (selected) 1f else DRAWER_TAB_SIDE_ALPHA, motion, label = "tabAlpha")
-            val glow by animateFloatAsState(if (selected) 1f else 0f, motion, label = "tabGlow")
-            val pageDescription = stringResource(R.string.drawer_page_desc, stringResource(drawerPageTitles[index]))
-            val tint by animateColorAsState(if (selected) colors.onBackground else colors.onSurfaceVariant, Motion.tw(340, easing = FastOutSlowInEasing), label = "tabTint")
-            val select = { onSelect(index) }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .offset(x = ((index - middle) * spacing + lean).dp)
-                    .size(tab.dp)
-                    .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha }
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        Brush.radialGradient(
-                            listOf(pal.signal.copy(alpha = 0.34f * glow), pal.signal.copy(alpha = 0.10f * glow), Color.Transparent),
-                        ),
-                    )
-                    .glideBorder(focused, RoundedCornerShape(16.dp), colors.onBackground)
-                    .semantics { contentDescription = pageDescription }
-                    .hoverable(source)
-                    .clickable(interactionSource = source, indication = LocalIndication.current, onClick = select)
-                    .controllerConfirm(onClick = select),
-            ) {
-                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(if (compact) 22.dp else 30.dp))
+        val lean by animateFloatAsState(-(selectedIndex - middle) * leanStep, motion, label = "tabLean")
+        pages.forEachIndexed { index, item ->
+            androidx.compose.runtime.key(item) {
+                val selected = item == page
+                val source = remember { MutableInteractionSource() }
+                val focused = source.collectIsFocusedAsState().value
+                val scale by animateFloatAsState(if (selected) 1f else DRAWER_TAB_SIDE_SCALE, motion, label = "tabScale")
+                val alpha by animateFloatAsState(if (selected) 1f else DRAWER_TAB_SIDE_ALPHA, motion, label = "tabAlpha")
+                val glow by animateFloatAsState(if (selected) 1f else 0f, motion, label = "tabGlow")
+                val pageDescription = stringResource(R.string.drawer_page_desc, stringResource(item.title))
+                val tint by animateColorAsState(if (selected) colors.onBackground else colors.onSurfaceVariant, Motion.tw(340, easing = FastOutSlowInEasing), label = "tabTint")
+                val select = { onSelect(item) }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .offset(x = ((index - middle) * spacing + lean).dp)
+                        .size(tab.dp)
+                        .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha }
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.radialGradient(
+                                listOf(pal.signal.copy(alpha = 0.34f * glow), pal.signal.copy(alpha = 0.10f * glow), Color.Transparent),
+                            ),
+                        )
+                        .glideBorder(focused, RoundedCornerShape(16.dp), colors.onBackground)
+                        .semantics { contentDescription = pageDescription }
+                        .hoverable(source)
+                        .clickable(interactionSource = source, indication = LocalIndication.current, onClick = select)
+                        .controllerConfirm(onClick = select),
+                ) {
+                    Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(if (compact) 22.dp else 30.dp))
+                }
             }
         }
     }
@@ -696,54 +743,114 @@ private fun DrawerPageTabs(page: Int, modifier: Modifier = Modifier, compact: Bo
 /** The Look row's value when the rows below match no Look. */
 private const val LOOK_CUSTOM = "custom"
 
-/**
- * Screen effects on the Effects page: a Look row that moves every row under it, then the rows
- * themselves: switches and sliders the d-pad steps (SliderRow), so a pad drives them.
- */
+/** Presets and simple effects first; detailed adjustments stay behind Advanced. */
 @Composable
-private fun ScreenEffectsGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+private fun ScreenEffectsGroup(
+    host: MenuHost, a: DrawerActions, advancedExpanded: Boolean, onAdvancedToggle: () -> Unit,
+    track: (String) -> Modifier,
+) {
     val e = a.effects
-    val look = ScreenEffectLooks.match(e, a.upscaler)
+    val preset = ScreenEffectLooks.match(e, a.upscaler)
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
     SettingsGroup(stringResource(R.string.drawer_effects)) {
-        val looks = ScreenEffectLooks.LOOKS.map { it.name to it.name }
-        ChoiceRow(host, "look", stringResource(R.string.drawer_look),
-            look?.desc ?: stringResource(R.string.drawer_effects_hint),
-            if (look == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + looks else looks,
-            look?.name ?: LOOK_CUSTOM, chipModifier = track("look"), hintLines = 2) { name ->
+        val presets = ScreenEffectLooks.LOOKS.map { it.name to it.name }
+        ChoiceRow(host, "look", stringResource(R.string.drawer_look), null,
+            if (preset == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + presets else presets,
+            preset?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
             ScreenEffectLooks.LOOKS.firstOrNull { it.name == name }?.let { picked ->
                 picked.scalingMode?.let(a.onUpscaler)
                 a.onEffects(picked.effects)
             }
         }
-        ToggleRow(host, "cas", stringResource(R.string.drawer_cas), null, e.cas, chipModifier = track("cas")) { a.onEffects(e.copy(cas = it)) }
-        SliderRow(stringResource(R.string.drawer_cas_level), null, e.casLevel, 0..100, step = 5, enabled = e.cas,
-            format = { "$it%" }, modifier = track("cas-level")) { a.onEffects(e.copy(casLevel = it)) }
-        ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
-        ToggleRow(host, "deband", stringResource(R.string.drawer_deband), null, e.deband, chipModifier = track("deband")) { a.onEffects(e.copy(deband = it)) }
-        SliderRow(stringResource(R.string.drawer_deband_strength), null, e.debandStrength, 0..200, step = 5, enabled = e.deband,
-            format = { "$it%" }, modifier = track("deband-strength")) { a.onEffects(e.copy(debandStrength = it)) }
-        SliderRow(stringResource(R.string.drawer_brightness), null, e.brightness, -100..100, step = 2,
-            format = ::signed, modifier = track("brightness")) { a.onEffects(e.copy(brightness = it)) }
-        SliderRow(stringResource(R.string.drawer_contrast), null, e.contrast, -100..100, step = 2,
-            format = ::signed, modifier = track("contrast")) { a.onEffects(e.copy(contrast = it)) }
-        SliderRow(stringResource(R.string.drawer_gamma), null, (e.gamma * 100f).roundToInt(), 50..300, step = 5,
-            format = { String.format(Locale.US, "%.2f", it / 100f) }, modifier = track("gamma")) { a.onEffects(e.copy(gamma = it / 100f)) }
-        SliderRow(stringResource(R.string.drawer_saturation), null, e.saturation, 0..200, step = 5,
-            format = { "$it%" }, modifier = track("saturation")) { a.onEffects(e.copy(saturation = it)) }
         ToggleRow(host, "fxaa", stringResource(R.string.drawer_fxaa), null, e.fxaa, chipModifier = track("fxaa")) { a.onEffects(e.copy(fxaa = it)) }
         ToggleRow(host, "toon", stringResource(R.string.drawer_toon), null, e.toon, chipModifier = track("toon")) { a.onEffects(e.copy(toon = it)) }
         ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
         ToggleRow(host, "ntsc", stringResource(R.string.drawer_ntsc), null, e.ntsc, chipModifier = track("ntsc")) { a.onEffects(e.copy(ntsc = it)) }
+        ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
+    }
+    val source = remember { MutableInteractionSource() }
+    val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+    val rotation by animateFloatAsState(if (advancedExpanded) 180f else 0f, Motion.tw(180), label = "advancedArrow")
+    val description = stringResource(if (advancedExpanded) R.string.widgets_expanded else R.string.widgets_collapsed)
+    val toggle = { host.open = null; onAdvancedToggle() }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = track("effects-advanced").fillMaxWidth().padding(top = 12.dp).heightIn(min = 48.dp)
+            .glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
+            .hoverable(source).clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClick = toggle)
+            .controllerConfirm(onClick = toggle).semantics { stateDescription = description }.padding(horizontal = 4.dp),
+    ) {
+        Text(stringResource(R.string.drawer_effects_advanced).uppercase(), fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
+        Box(Modifier.weight(1f).height(1.dp).background(pal.line))
+        Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = colors.onSurfaceVariant,
+            modifier = Modifier.size(22.dp).rotate(rotation))
+    }
+    AnimatedVisibility(advancedExpanded) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).border(1.dp, pal.line, RoundedCornerShape(14.dp))) {
+            ToggleRow(host, "cas", stringResource(R.string.drawer_cas), null, e.cas, chipModifier = track("cas")) { a.onEffects(e.copy(cas = it)) }
+            if (e.cas) SliderRow(stringResource(R.string.drawer_cas_level), null, e.casLevel, 0..100, step = 5,
+                format = { "$it%" }, modifier = track("cas-level")) { a.onEffects(e.copy(casLevel = it)) }
+            ToggleRow(host, "deband", stringResource(R.string.drawer_deband), null, e.deband, chipModifier = track("deband")) { a.onEffects(e.copy(deband = it)) }
+            if (e.deband) SliderRow(stringResource(R.string.drawer_deband_strength), null, e.debandStrength, 0..200, step = 5,
+                format = { "$it%" }, modifier = track("deband-strength")) { a.onEffects(e.copy(debandStrength = it)) }
+            SliderRow(stringResource(R.string.drawer_brightness), null, e.brightness, -100..100, step = 2,
+                format = ::signed, modifier = track("brightness")) { a.onEffects(e.copy(brightness = it)) }
+            SliderRow(stringResource(R.string.drawer_contrast), null, e.contrast, -100..100, step = 2,
+                format = ::signed, modifier = track("contrast")) { a.onEffects(e.copy(contrast = it)) }
+            SliderRow(stringResource(R.string.drawer_gamma), null, (e.gamma * 100f).roundToInt(), 50..300, step = 5,
+                format = { String.format(Locale.US, "%.2f", it / 100f) }, modifier = track("gamma")) { a.onEffects(e.copy(gamma = it / 100f)) }
+            SliderRow(stringResource(R.string.drawer_saturation), null, e.saturation, 0..200, step = 5,
+                format = { "$it%" }, modifier = track("saturation")) { a.onEffects(e.copy(saturation = it)) }
+        }
     }
 }
 
-/** Texture filtering on the Effects page: DXVK options for the next DirectX 9-11 launch. */
+/** Secondary-display modes are mutually exclusive and apply immediately. */
+@Composable
+private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val modes = listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
+        if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()
+    SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
+        Column(Modifier.fillMaxWidth().selectableGroup()) {
+            modes.forEach { mode ->
+                val selected = a.secondScreenMode == mode
+                val source = remember { MutableInteractionSource() }
+                val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+                val pick = { host.open = null; a.onSecondScreenMode(mode) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = track("second-screen:${mode.id}").fillMaxWidth().heightIn(min = 56.dp)
+                        .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+                        .glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
+                        .hoverable(source)
+                        .selectable(selected, interactionSource = source, indication = null, role = Role.RadioButton, onClick = pick)
+                        .controllerConfirm(onClick = pick)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Text(mode.label, fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
+                    RadioButton(selected, onClick = null,
+                        colors = RadioButtonDefaults.colors(selectedColor = pal.signal, unselectedColor = colors.onSurfaceVariant))
+                }
+            }
+        }
+        if (a.secondScreenDisplays.size > 1) ChoiceRow(host, "second-screen-display", stringResource(R.string.drawer_page_display), null,
+            a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
+            chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)
+    }
+}
+
+/** Texture filtering on the Games page: DXVK options for the next DirectX 9-11 launch. */
 @Composable
 private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     SettingsGroup(stringResource(R.string.drawer_texture)) {
-        ChoiceRow(host, "anisotropy", stringResource(R.string.drawer_anisotropy), stringResource(R.string.drawer_texture_hint),
+        ChoiceRow(host, "anisotropy", stringResource(R.string.drawer_anisotropy), null,
             SessionPrefs.textureAnisotropyChoices, a.textureAnisotropy, chipModifier = track("anisotropy"), onPick = a.onTextureAnisotropy)
-        ChoiceRow(host, "texture-sharpness", stringResource(R.string.drawer_texture_sharpness), stringResource(R.string.drawer_texture_hint),
+        ChoiceRow(host, "texture-sharpness", stringResource(R.string.drawer_texture_sharpness), null,
             SessionPrefs.textureLodBiasChoices, a.textureLodBias, note = stringResource(R.string.drawer_texture_sharpness_note),
             chipModifier = track("texture-sharpness"), onPick = a.onTextureLodBias)
     }
@@ -751,16 +858,8 @@ private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (Stri
 
 private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
 
-/** Display, Effects, Controls, Components, Settings. */
-const val DRAWER_PAGES = 5
-
-private const val DRAWER_PAGE_EFFECTS = 1
-private const val DRAWER_PAGE_CONTROLS = 2
-
-private const val DRAWER_PAGE_COMPONENTS = 3
-
 /**
- * The drawer's Components tab: quick swaps between what is already installed, per Proton. A swap
+ * The Games tab's components: quick swaps between what is already installed, per Proton. A swap
  * into the Proton a running game uses waits until that game closes; downloading, importing and
  * deleting stay on the Components page in the app.
  */
@@ -884,14 +983,14 @@ private fun <T> DrawerStackedChoice(
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
 }
 
-/** The tab row's measure, from the approved mock: side tabs at half size, a little faded. */
-private const val DRAWER_TAB_SPACING_DP = 64f
+/** A close row of icons: inactive tabs stay legible while the active tab leads. */
+private const val DRAWER_TAB_SPACING_DP = 48f
 
-private const val DRAWER_TAB_LEAN_DP = 12f
+private const val DRAWER_TAB_LEAN_DP = 8f
 
-private const val DRAWER_TAB_SIDE_SCALE = 0.5f
+private const val DRAWER_TAB_SIDE_SCALE = 0.8f
 
-private const val DRAWER_TAB_SIDE_ALPHA = 0.7f
+private const val DRAWER_TAB_SIDE_ALPHA = 0.8f
 
 /** Room between the Stop pill and the box that steps out under it: the pull. */
 private val StepPull = 6.dp

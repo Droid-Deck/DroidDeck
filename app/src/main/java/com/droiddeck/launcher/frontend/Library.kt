@@ -204,7 +204,7 @@ object Library {
      * Whether a program from the rail runs at the panel's own resolution rather than the session's
      * 720p default. melonDS draws two 256x192 screens on the CPU: the panel's size costs it
      * nothing, and 720p scaled up to the panel blurs the sharp pixels its screen layout is set
-     * up for (bannerlator-pad-defaults).
+     * up for (droiddeck-pad-defaults).
      */
     fun drawsAtPanel(program: String?): Boolean = specs.any { it.program == program && it.atPanel }
 
@@ -341,7 +341,7 @@ object Library {
         // Dolphin: full screen, drawn inside its own main window, without its "stop the emulation?"
         // question; no warning boxes either, which wait for a click a controller cannot give
         // (they still go to Dolphin's log). The guide button is Dolphin's Toggle Fullscreen hotkey
-        // (bannerlator-pad-defaults), which shows Dolphin's window and its settings - so no -b, which
+        // (droiddeck-pad-defaults), which shows Dolphin's window and its settings - so no -b, which
         // hides that window; closing Dolphin ends the session. Under gamescope Dolphin does not
         // always see its window as focused, and by default both its hotkeys and the game's
         // controller then stop: HotkeysRequireFocus off, BackgroundInput on. -C sets a Dolphin.ini
@@ -353,10 +353,10 @@ object Library {
             "-e", guestPath,
         )
         // Full screen (LaunchSettings.cpp -f); the settings seed keeps the Getting Started
-        // dialog away (bannerlator-pad-defaults).
+        // dialog away (droiddeck-pad-defaults).
         "cemu" -> listOf("-f", "-g", guestPath)
         // Full screen (CLI.cpp --fullscreen); the guide button leaves it for melonDS's menus and
-        // comes back (HK_FullscreenToggle, bannerlator-pad-defaults).
+        // comes back (HK_FullscreenToggle, droiddeck-pad-defaults).
         "melonds" -> listOf("-f", guestPath)
         else -> listOf(guestPath)
     }
