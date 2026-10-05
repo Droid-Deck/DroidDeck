@@ -1011,4 +1011,27 @@
     <string name="game_file_folder">Choose a folder for frontend game files</string>
     <string name="game_file_exported">Game files saved to %1$s</string>
     <string name="game_frontend_files">Frontend files</string>
+    <string name="display_session">Session display</string>
+    <string name="display_resolution">Virtual resolution</string>
+    <string name="display_resolution_hint">%1$d×%2$d · Next session.</string>
+    <string name="display_resolution_max">No cap</string>
+    <string name="display_aspect">Display aspect ratio</string>
+    <string name="display_aspect_hint">Shared by Steam and Desktop. Next session.</string>
+    <string name="display_game_fit">16:9 game fit</string>
+    <string name="display_game_fit_hint">How 16:9 games fit this display. Next session.</string>
+    <string name="display_game_fit_unavailable">Choose Match screen or a custom size narrower than 16:9.</string>
+    <string name="display_preserve">Keep proportions</string>
+    <string name="display_stretch">Stretch to display</string>
+    <string name="display_image_scaling">Image scaling</string>
+    <string name="display_filter">Scaling filter</string>
+    <string name="display_filter_hint">Shared by Steam and Desktop.</string>
+    <string name="display_filter_live">Applies live. Shared by Steam and Desktop.</string>
+    <string name="display_filter_note">FSR, GSR and NIS apply when enlarging the session image. Sharpen only also works without enlargement.</string>
+    <string name="display_sharpness">Filter sharpness</string>
+    <string name="display_frame_rate">Frame rate</string>
+    <string name="display_window_compatibility">Game window compatibility</string>
+    <string name="display_force_fullscreen">Force game windows fullscreen</string>
+    <string name="display_force_fullscreen_hint">Keeps games fullscreen after focus changes. Turn off if a game draws small. Applies live during a session.</string>
+    <string name="display_force_fullscreen_live">Keeps games fullscreen after focus changes. Applies live.</string>
+    <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
 </resources>

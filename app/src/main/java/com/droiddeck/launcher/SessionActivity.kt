@@ -477,6 +477,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     oscMode = oscMode, suspendPolicy = suspendPolicy, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
                     shapeMode = shapeMode, fexPreset = fexPreset,
+                    customResolution = SessionPrefs.customResolution(this@SessionActivity, SessionPrefs.prefMode(SessionState.mode)),
+                    outputSize = SessionState.outputSize,
                     secondScreenMode = secondScreenMode,
                     secondScreenDisplays = secondScreenDisplays,
                     selectedSecondScreenDisplay = selectedSecondScreenDisplay,
@@ -1012,38 +1014,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun outputSize(): Pair<Int, Int> {
-        val bounds = panelBounds()
-        val panelW = maxOf(bounds.width(), bounds.height()).toFloat()
-        val panelH = minOf(bounds.width(), bounds.height()).toFloat()
-        // Never narrower than 16:9. A foldable's inner panel is nearly square, and a game handed a
-        // square display draws for the frame it was made for and cuts the sides off itself.
-        // Wider than 16:9 is fine - games and the client cope with a phone's 20:9 - so the
-        // panel's aspect is kept above that, unless the user pinned 16:9 for a foldable, and the
-        // compositor letterboxes onto a squarer panel.
-        // "Match screen" drops that floor, for a 4:3 or 3:2 handheld whose games should
-        // fill it.
-        val aspect = when (SessionPrefs.shapeMode(this)) {
-            SessionPrefs.SHAPE_WIDE -> 16f / 9f
-            SessionPrefs.SHAPE_EXACT -> panelW / panelH
-            else -> maxOf(panelW / panelH, 16f / 9f)
-        }
         // 720 tall at most by default, client and desktop alike: the client's CEF is the heaviest
         // thing in the session, and pixels above that cost frames for nothing anyone can see on a
         // handheld panel. The mode's settings (the cog beside Play / Desktop) can change
         // the cap or lift it to the panel.
         val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
         // A custom resolution is taken as given; the compositor fits it to the panel.
-        SessionPrefs.customResolution(this, mode)?.let { return it }
         // An emulator whose frames cost next to nothing (Library.drawsAtPanel) gets the panel,
         // unless the user chose a resolution for the mode.
         val program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
         val cap = if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_RUN &&
             Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode)) 0
         else SessionPrefs.resolutionCap(this, mode)
-        val height = (if (cap <= 0) panelH else minOf(panelH, cap.toFloat())).toInt()
-        val width = (height * aspect).toInt()
-        // Odd sizes upset the scaler; both dimensions even is what every mode here would be.
-        return Pair(width and 1.inv(), height and 1.inv())
+        return com.droiddeck.launcher.session.SessionDisplay.resolve(
+            com.droiddeck.launcher.session.SessionDisplay.panelSize(this), cap,
+            SessionPrefs.shapeMode(this), SessionPrefs.customResolution(this, mode),
+        )
     }
 
     /**

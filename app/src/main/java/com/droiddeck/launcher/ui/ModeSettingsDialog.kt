@@ -47,6 +47,7 @@ class ModeSettings(
     /** A fixed session size, or null for the cap and shape. */
     val customResolution: Pair<Int, Int>? = null,
     val shapeMode: String,
+    val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
     /** The GPU drivers in use, as the row that opens them on the Components page says it. */
@@ -74,7 +75,7 @@ class ModeSettings(
     val fexPreset: String? = null,
     /** Steam only: SessionPrefs.SYNC_* chosen for Proton games; null outside Steam. */
     val syncBackend: String? = null,
-    /** Steam only: games are stretched to fill the screen (null = not a Steam page). */
+    /** Steam only: forces game windows fullscreen (null = not a Steam page). */
     val forceFullscreen: Boolean? = null,
     val stretch16x9: Boolean? = null,
     /** Steam only: the client branch forced on the command line. */
@@ -178,45 +179,57 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
         onBack = a.onDismiss,
         scroll = pageScroll,
     ) {
-        SettingsGroup(stringResource(R.string.mode_display)) {
+        val custom = s.customResolution
+        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolve(s.panelSize, s.resolutionCap, s.shapeMode, custom)
+        SettingsGroup(stringResource(R.string.display_session)) {
             val default = SessionPrefs.defaultResolutionCap(s.mode)
             var editCustom by remember { mutableStateOf(false) }
-            val custom = s.customResolution
             ChoiceRow(
-                host, "res", stringResource(R.string.mode_resolution), stringResource(R.string.common_applies_next_session),
-                listOf(720 to stringResource(R.string.mode_res_720), 900 to stringResource(R.string.mode_res_900), 1080 to stringResource(R.string.mode_res_1080), 0 to stringResource(R.string.mode_res_native))
+                host, "res", stringResource(R.string.display_resolution),
+                stringResource(R.string.display_resolution_hint, displaySize.first, displaySize.second),
+                listOf(720 to stringResource(R.string.mode_res_720), 900 to stringResource(R.string.mode_res_900), 1080 to stringResource(R.string.mode_res_1080), 0 to stringResource(R.string.display_resolution_max))
                     .map { (cap, label) -> cap to (if (cap == default) stringResource(R.string.mode_res_default, label) else label) } +
                     (CUSTOM to (custom?.let { stringResource(R.string.mode_res_custom_value, it.first, it.second) } ?: stringResource(R.string.mode_res_custom))),
-                if (custom != null) CUSTOM else s.resolutionCap, note = stringResource(R.string.mode_res_note),
+                if (custom != null) CUSTOM else s.resolutionCap,
                 chipModifier = androidx.compose.ui.Modifier.focusRequester(firstChip),
                 onPick = { v -> if (v == CUSTOM) editCustom = true else { a.onCustomResolution(null); a.onResolution(v) } },
             )
-            ChoiceRow(
-                host, "shape", stringResource(R.string.mode_ratio),
-                if (custom != null) stringResource(R.string.mode_ratio_custom) else stringResource(R.string.mode_ratio_auto),
-                com.droiddeck.launcher.session.SessionPrefs.shapeChoices, s.shapeMode, enabled = custom == null, onPick = a.onShape,
+            if (custom == null) ChoiceRow(
+                host, "shape", stringResource(R.string.display_aspect), stringResource(R.string.display_aspect_hint),
+                SessionPrefs.shapeChoices, s.shapeMode, onPick = a.onShape,
             )
-            ChoiceRow(
-                host, "fps", stringResource(R.string.mode_fps), stringResource(R.string.common_applies_next_session),
-                com.droiddeck.launcher.session.SessionPrefs.fpsLimitChoices, s.fpsLimit,
-                note = stringResource(R.string.mode_fps_note),
-                onPick = a.onFpsLimit,
-            )
-            ChoiceRow(
-                host, "upscaler", stringResource(R.string.drawer_scaling), "How the picture is resized to the screen; the sharpening modes sharpen where it is enlarged.",
-                com.droiddeck.launcher.session.SessionPrefs.upscalerChoices, s.upscaler,
-                note = "The sharpening modes work only when the session is smaller than the screen; Linear, Nearest and Sharpen only work at any size. Costs a little GPU time.",
-                onPick = a.onUpscaler,
-            )
-            SliderRow(
-                stringResource(R.string.drawer_scaling_sharpness), null, s.upscaleSharpness, 0..100, step = 5,
-                enabled = s.upscaler != 0, format = { "$it%" }, onChange = a.onUpscaleSharpness,
-            )
+            if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
+                    com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
+                val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
+                ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
+                    stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
+                    listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
+                    s.stretch16x9 && canStretch, enabled = canStretch, onPick = a.onStretch16x9)
+            }
             if (editCustom) CustomResolutionDialog(
                 initial = custom,
                 onSave = { size -> editCustom = false; a.onCustomResolution(size) },
                 onDismiss = { editCustom = false },
             )
+        }
+        SettingsGroup(stringResource(R.string.display_image_scaling)) {
+            ChoiceRow(
+                host, "upscaler", stringResource(R.string.display_filter), stringResource(R.string.display_filter_hint),
+                SessionPrefs.upscalerChoices, s.upscaler,
+                note = stringResource(R.string.display_filter_note), onPick = a.onUpscaler,
+            )
+            if (SessionPrefs.upscalerHasSharpness(s.upscaler)) SliderRow(
+                stringResource(R.string.display_sharpness), null, s.upscaleSharpness, 0..100, step = 5,
+                format = { "$it%" }, onChange = a.onUpscaleSharpness,
+            )
+        }
+        SettingsGroup(stringResource(R.string.display_frame_rate)) {
+            ChoiceRow(host, "fps", stringResource(R.string.mode_fps), stringResource(R.string.common_applies_next_session),
+                SessionPrefs.fpsLimitChoices, s.fpsLimit, note = stringResource(R.string.mode_fps_note), onPick = a.onFpsLimit)
+        }
+        if (s.forceFullscreen != null) SettingsGroup(stringResource(R.string.display_window_compatibility)) {
+            ToggleRow(host, "fill", stringResource(R.string.display_force_fullscreen),
+                stringResource(R.string.display_force_fullscreen_hint), s.forceFullscreen, onChange = a.onForceFullscreen)
         }
         SettingsGroup(stringResource(R.string.mode_hdr)) {
             ToggleRow(
@@ -434,16 +447,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 note = stringResource(FexPreset.byId(s.fexPreset).detail), onPick = a.onFexPreset,
             )
             GameEnvironmentRow()
-            if (s.forceFullscreen != null) ToggleRow(
-                host, "fill", stringResource(R.string.mode_fill),
-                stringResource(R.string.mode_fill_hint),
-                s.forceFullscreen, onChange = a.onForceFullscreen,
-            )
-            if (s.stretch16x9 != null) ToggleRow(
-                host, "stretch169", stringResource(R.string.mode_stretch169),
-                stringResource(R.string.mode_stretch169_hint),
-                s.stretch16x9, onChange = a.onStretch16x9,
-            )
+
         }
         if (steam && s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {
             ToggleRow(host, "da", stringResource(R.string.mode_directaudio), stringResource(R.string.mode_directaudio_hint), s.directAudio, onChange = a.onDirectAudio)

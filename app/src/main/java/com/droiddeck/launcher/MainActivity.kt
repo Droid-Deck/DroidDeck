@@ -1118,6 +1118,7 @@ class MainActivity : ComponentActivity() {
         ModeSettingsPage(
             ModeSettings(
                 mode = mode, resolutionCap = resolutionCap, customResolution = customResolution, shapeMode = shapeMode,
+                panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
                 hdr = hdrOn, hdrReason = hdrReason, fpsLimit = fpsLimit,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                 gpuDrivers = drivers.summary(),

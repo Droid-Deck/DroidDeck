@@ -173,8 +173,10 @@ class DrawerActions(
     val touchMode: String,
     val touchAuto: String,
     val shapeMode: String,
+    val customResolution: Pair<Int, Int>? = null,
+    val outputSize: Pair<Int, Int> = 1280 to 720,
     val fexPreset: String,
-    /** Steam only: games stretched to the screen's size, changed live (null = not Steam). */
+    /** Steam only: forces game windows fullscreen, changed live (null = not Steam). */
     val fillScreen: Boolean? = null,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
@@ -365,16 +367,6 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
                                 ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
                                     chipModifier = focus.track(page, "hud"), onChange = a.onHud)
-                                if (a.fillScreen != null) ToggleRow(
-                                    host, "fill", stringResource(R.string.drawer_fill), null, a.fillScreen,
-                                    chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen,
-                                )
-                                ChoiceRow(host, "upscaler", stringResource(R.string.drawer_scaling), null,
-                                    SessionPrefs.upscalerChoices, a.upscaler,
-                                    chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
-                                SliderRow(stringResource(R.string.drawer_scaling_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
-                                    enabled = a.upscaler != 0, format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"),
-                                    onChange = a.onUpscaleSharpness)
                                 val fgOpen = host.open == "fg"
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                                 SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
@@ -383,6 +375,23 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                         FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
                                     }
                                 }
+                            }
+                            SettingsGroup(stringResource(R.string.display_image_scaling)) {
+                                ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), stringResource(R.string.display_filter_live),
+                                    SessionPrefs.upscalerChoices, a.upscaler,
+                                    note = stringResource(R.string.display_filter_note),
+                                    chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
+                                if (SessionPrefs.upscalerHasSharpness(a.upscaler)) SliderRow(
+                                    stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
+                                    format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
+                            }
+                            SettingsGroup(stringResource(R.string.display_session)) {
+                                SettingsRow(stringResource(R.string.display_resolution), null) {
+                                    Text("${a.outputSize.first}×${a.outputSize.second}", color = colors.onBackground, fontSize = 13.sp)
+                                }
+                                if (a.customResolution == null) ChoiceRow(host, "shape", stringResource(R.string.display_aspect),
+                                    stringResource(R.string.display_aspect_hint), SessionPrefs.shapeChoices, a.shapeMode,
+                                    chipModifier = focus.track(page, "shape"), onPick = a.onShape)
                             }
                         }
                         DRAWER_PAGE_EFFECTS -> {
@@ -478,10 +487,10 @@ fun SessionDrawer(open: Boolean, page: Int, controllerActive: Boolean, onPageCha
                                     onPick = a.onSuspendPolicy,
                                 )
                             }
-                            SettingsGroup(stringResource(R.string.drawer_next_session)) {
-                                ChoiceRow(host, "shape", stringResource(R.string.mode_ratio), null,
-                                    SessionPrefs.shapeChoices, a.shapeMode,
-                                    chipModifier = focus.track(page, "shape"), onPick = a.onShape)
+                            if (a.fillScreen != null) SettingsGroup(stringResource(R.string.display_window_compatibility)) {
+                                ToggleRow(host, "fill", stringResource(R.string.display_force_fullscreen),
+                                    stringResource(R.string.display_force_fullscreen_live), a.fillScreen,
+                                    chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen)
                             }
                             if (a.steam) SettingsGroup(stringResource(R.string.game_settings_title)) {
                                 ChoiceRow(host, "fex", stringResource(R.string.fex_preset_title), stringResource(R.string.fex_next_launch),
@@ -707,7 +716,11 @@ private fun ScreenEffectsGroup(host: MenuHost, a: DrawerActions, track: (String)
     SettingsGroup(stringResource(R.string.drawer_effects)) {
         val looks = ScreenEffectLooks.LOOKS.map { it.name to it.name }
         ChoiceRow(host, "look", stringResource(R.string.drawer_look),
-            look?.desc ?: stringResource(R.string.drawer_effects_hint),
+            look?.let { selected ->
+                selected.scalingMode?.let { mode ->
+                    stringResource(R.string.display_look_filter, selected.desc, SessionPrefs.upscalerChoices.first { it.first == mode }.second)
+                } ?: selected.desc
+            } ?: stringResource(R.string.drawer_effects_hint),
             if (look == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + looks else looks,
             look?.name ?: LOOK_CUSTOM, chipModifier = track("look"), hintLines = 2) { name ->
             ScreenEffectLooks.LOOKS.firstOrNull { it.name == name }?.let { picked ->

@@ -90,9 +90,9 @@ object SessionPrefs {
 
     /** The choices the settings offer, in order. */
     val shapeChoices = listOf(
-        SHAPE_AUTO to "Auto (16:9+)",
+        SHAPE_AUTO to "Auto (at least 16:9)",
         SHAPE_EXACT to "Match screen",
-        SHAPE_WIDE to "Always 16:9",
+        SHAPE_WIDE to "16:9",
     )
 
     /**
@@ -669,20 +669,27 @@ object SessionPrefs {
 
     /**
      * How the compositor resizes the session onto the panel (WaylandCompositor.nativeSetUpscaler's
-     * modes): Off and Linear both filter bilinearly, Nearest keeps pixels square for 2D and old
-     * titles, the rest sharpen where the picture is enlarged; FSR (fit) rounds the picture to
-     * FSR's preferred size first. Sharpen only works at any size.
+     * modes). Linear is the default; Nearest preserves hard pixel edges. Spatial filters work
+     * when enlarged; Sharpen only works at any size. The old Off/Linear and FSR/FSR Fit pairs
+     * are equivalent on Wayland, so saved aliases resolve to one choice.
      */
     val upscalerChoices = listOf(
-        0 to "Off", 1 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 5 to "AMD FSR 1 (fit)", 3 to "Snapdragon GSR",
+        0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
 
-    fun upscaler(context: Context): Int =
-        prefs(context).getInt("upscaler", 0).takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+    fun canonicalUpscaler(mode: Int): Int = when (mode) {
+        1 -> 0
+        5 -> 4
+        else -> mode.takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+    }
+
+    fun upscalerHasSharpness(mode: Int): Boolean = canonicalUpscaler(mode) in 3..8
+
+    fun upscaler(context: Context): Int = canonicalUpscaler(prefs(context).getInt("upscaler", 0))
 
     fun setUpscaler(context: Context, mode: Int) {
-        prefs(context).edit().putInt("upscaler", mode).apply()
+        prefs(context).edit().putInt("upscaler", canonicalUpscaler(mode)).apply()
     }
 
     fun upscaleSharpness(context: Context): Int = prefs(context).getInt("upscaleSharpness", 75).coerceIn(0, 100)
