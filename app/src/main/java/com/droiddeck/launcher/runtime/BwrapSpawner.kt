@@ -300,7 +300,10 @@ object BwrapSpawner {
         // session has Xwayland) it stays on X11, which works. GTK and Qt go by their own settings.
         if (env.containsKey("DISPLAY")) env["XDG_SESSION_TYPE"] = "x11"
         for (name in listOf("MOZ_DISABLE_CONTENT_SANDBOX", "MOZ_DISABLE_GMP_SANDBOX", "MOZ_DISABLE_RDD_SANDBOX",
-                            "MOZ_DISABLE_SOCKET_PROCESS_SANDBOX", "MOZ_DISABLE_UTILITY_SANDBOX")) {
+                            "MOZ_DISABLE_SOCKET_PROCESS_SANDBOX", "MOZ_DISABLE_UTILITY_SANDBOX",
+                            // Android 16 refuses the size seal Firefox puts on a tab's shared
+                            // memory, and the tab then dies on every page (droiddeck-desktop).
+                            "MOZ_SHM_NO_SEALS")) {
             env.putIfAbsent(name, "1")
         }
     }
