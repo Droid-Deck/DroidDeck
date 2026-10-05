@@ -2,63 +2,269 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.util.AtomicFile
+import android.util.Log
+import com.droiddeck.launcher.core.ArchivePaths
+import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
-import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntime
-import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.BufferedInputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.security.MessageDigest
+import java.util.zip.ZipInputStream
 
 /**
- * Windows components (OpenAL, d3dx, XAudio...) for a game's Proton prefix, picked per game.
+ * Windows components (OpenAL, d3dx9, XAudio, VC++ DLLs...) for a game's Proton prefix, picked per
+ * game, from Bannerlator's catalog (components.json on winlator-contents, Bottles' manifest format).
  *
- * The packages are hosted like the desktop ones, in a catalog of their own, and each extracts
- * over the runtime to /opt/droiddeck/wincomponents/<id>. The picks go to the runtime as
- * ~/.config/droiddeck/wincomponents.json, and droiddeck-wincomponents copies the picked
- * components into the game's prefix at every launch (see that script for why every launch).
+ * Installing one runs its steps once, into the runtime: the archives it names are downloaded and
+ * its DLLs copied to /opt/droiddeck/wincomponents/<name>/{system32,syswow64}, with component.json
+ * holding its DLL overrides and the components it bundles. The picks go to the runtime as
+ * ~/.config/droiddeck/wincomponents.json, and droiddeck-wincomponents copies the picked components
+ * into the game's prefix at every launch (see that script for why every launch).
+ *
+ * Only components made of file copies and overrides install this way. One that runs a Windows
+ * installer (install_exe/install_msi), unpacks a cabinet or edits the prefix's registry is listed
+ * with the reason it cannot be installed yet.
  */
 object WinComponents {
-    const val CATALOG_URL = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/wincomponents-r1/wincomponents.json"
+    private const val TAG = "WinComponents"
+    const val CATALOG_URL = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/components.json"
     private const val SELECTION = "wincomponents.json"
     private const val GUEST_SELECTION = "root/.config/droiddeck/wincomponents.json"
     private const val STORE = "opt/droiddeck/wincomponents"
-    private val ID = Regex("[a-z][a-z0-9_]*")
+    private val ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+    // register_dll is left out on purpose: the DLLs it names are ones Wine ships and has registered
+    // at the same path, so the native file at that path is the one the registration loads.
+    private val FILE_STEPS = setOf("download_archive", "archive_extract", "copy_dll", "copy_file", "override_dll", "register_dll")
+    private val INSTALLER_STEPS = setOf("install_exe", "install_msi")
 
-    fun fetch(): List<DesktopCatalog.Entry>? =
-        DesktopCatalog.fetch(CATALOG_URL)?.filter { ID.matches(it.id) && it.kind == "tar" }
+    fun validId(id: String): Boolean = ID.matches(id) && ".." !in id
+
+    class Step(val action: String, val json: JSONObject) {
+        fun str(key: String): String = json.optString(key, "")
+    }
+
+    class Component(
+        val name: String, val description: String, val provider: String, val status: String,
+        val dependencies: List<String>, val steps: List<Step>,
+    )
+
+    enum class Support { READY, NEEDS_INSTALLER, UNSUPPORTED }
+
+    fun fetch(): List<Component>? {
+        val body = Downloader.downloadString(CATALOG_URL) ?: return null
+        return try {
+            val arr = JSONObject(body).getJSONArray("components")
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.getJSONObject(i)
+                val name = o.optString("name")
+                if (!validId(name)) return@mapNotNull null
+                val steps = o.optJSONArray("steps") ?: JSONArray()
+                val deps = o.optJSONArray("dependencies") ?: JSONArray()
+                Component(
+                    name, o.optString("description"), o.optString("provider"), o.optString("status"),
+                    (0 until deps.length()).map { deps.getString(it) }.filter { validId(it) },
+                    (0 until steps.length()).map { steps.getJSONObject(it).let { s -> Step(s.optString("action"), s) } },
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "catalog: $e"); null
+        }
+    }
+
+    /** Whether [c] can be installed here, its bundled components included. */
+    fun support(c: Component, all: Map<String, Component>, depth: Int = 0): Support {
+        if (c.status != "ready" || depth > 8) return Support.UNSUPPORTED
+        val own = when {
+            c.steps.any { it.action in INSTALLER_STEPS } -> Support.NEEDS_INSTALLER
+            c.steps.all { it.action in FILE_STEPS && fileStepOk(it) } -> Support.READY
+            else -> Support.UNSUPPORTED
+        }
+        if (own != Support.READY) return own
+        return c.dependencies.map { all[it]?.let { d -> support(d, all, depth + 1) } ?: Support.UNSUPPORTED }
+            .maxOrNull() ?: Support.READY
+    }
+
+    private fun fileStepOk(step: Step): Boolean = when (step.action) {
+        "download_archive", "archive_extract" -> step.str("url").let { url ->
+            !url.startsWith("http") || url.startsWith("https://github.com/") &&
+                url.substringBefore('?').let { it.endsWith(".tar.xz") || it.endsWith(".zip") }
+        }
+        "copy_dll", "copy_file" -> ".." !in step.str("dest")
+        else -> true
+    }
 
     /** The installed version of a component, or null. */
     fun installed(context: Context, id: String): String? = runCatching {
         JSONObject(File(LinuxRuntime.rootDir(context), "$STORE/$id/component.json").readText()).optString("version", "?")
     }.getOrNull()
 
-    /** Every component in the runtime, by id; what the dialog can offer without the catalog. */
+    /** Every component in the runtime, by id. */
     fun installedIds(context: Context): List<String> =
-        File(LinuxRuntime.rootDir(context), STORE).listFiles { f -> f.isDirectory && ID.matches(f.name) }
+        File(LinuxRuntime.rootDir(context), STORE).listFiles { f -> f.isDirectory && validId(f.name) }
             .orEmpty().map { it.name }.filter { installed(context, it) != null }.sorted()
 
-    /** Downloads, verifies and extracts one component. Returns null on success, else a message. */
-    fun install(context: Context, entry: DesktopCatalog.Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
-        require(ID.matches(entry.id))
-        // A new version replaces the old one whole, so a DLL it dropped is not left behind.
-        FileUtils.delete(File(LinuxRuntime.rootDir(context), "$STORE/${entry.id}"))
-        // Its own marker name, so a component never reads as a desktop package of the same id.
-        val error = DesktopCatalog.install(context, DesktopCatalog.Entry(
-            "wincomponent-${entry.id}", entry.name, entry.tier, entry.version, entry.kind,
-            entry.url, entry.sha256, entry.size, entry.notes, entry.icon, entry.category,
-        ), listener)
-        if (error == null && installed(context, entry.id) == null) return "The package did not contain ${entry.id}"
-        return error
+    /**
+     * Installs [c] and the components it bundles that are not installed yet. [onProgress] gets a
+     * line for the step and 0..100 (or -1). Returns null on success, else a message.
+     */
+    fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (String, Int) -> Unit): String? {
+        if (support(c, all) != Support.READY) return "${c.name} cannot be installed here yet"
+        val order = ArrayList<Component>()
+        fun visit(x: Component, depth: Int) {
+            if (depth > 8 || order.any { it.name == x.name }) return
+            x.dependencies.mapNotNull { all[it] }.forEach { visit(it, depth + 1) }
+            if (x.name == c.name || installed(context, x.name) == null) order.add(x)
+        }
+        visit(c, 0)
+        // One download per archive however many components copy out of it (DirectMusic's eleven
+        // parts all come from dxnt, 100 MB).
+        val work = File(context.cacheDir, "wincomponents").apply { FileUtils.delete(this); mkdirs() }
+        val archives = HashMap<String, File>()
+        return try {
+            for (x in order) {
+                onProgress(x.name, -1)
+                installOne(context, x, work, archives, onProgress)?.let { return "${x.name}: $it" }
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "install ${c.name}", e)
+            e.message ?: "Install failed"
+        } finally {
+            FileUtils.delete(work)
+        }
+    }
+
+    private fun installOne(context: Context, c: Component, work: File, archives: HashMap<String, File>, onProgress: (String, Int) -> Unit): String? {
+        val root = LinuxRuntime.rootDir(context)
+        if (!root.isDirectory) return "The Linux runtime is not installed"
+        val staging = File(root, "$STORE/.${c.name}.new").apply { FileUtils.delete(this); mkdirs() }
+        val overrides = ArrayList<String>()
+        var source: File? = null
+        for (step in c.steps) when (step.action) {
+            "download_archive", "archive_extract" -> {
+                val url = step.str("url")
+                if (!url.startsWith("http")) continue
+                source = archives[url] ?: run {
+                    val name = url.substringBefore('?').substringAfterLast('/')
+                    val file = File(work, "${archives.size}-$name")
+                    val ok = Downloader.downloadFile(url, file, false) { f -> onProgress("${c.name}: $name", if (f < 0) -1 else Math.round(f * 100f)) }
+                    if (!ok) return "download failed: $name"
+                    step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
+                        if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return "checksum mismatch: $name"
+                    }
+                    onProgress("${c.name}: unpacking $name", -1)
+                    val dir = File(work, "${archives.size}-x").apply { mkdirs() }
+                    if (!extract(file, dir)) return "could not unpack $name"
+                    file.delete()
+                    dir.also { archives[url] = it }
+                }
+            }
+            "copy_dll", "copy_file" -> {
+                val from = source ?: return "a copy step before any archive"
+                val dest = step.str("dest")
+                val (arch, base) = when (dest.substringBefore('/').lowercase()) {
+                    "win64", "system32" -> "win64" to "system32"
+                    "win32", "syswow64" -> "win32" to "syswow64"
+                    else -> null to "system32"
+                }
+                val sub = dest.substringAfter('/', "")
+                copyMatching(from, step.str("file_name"), File(staging, if (sub.isEmpty()) base else "$base/$sub"), arch)
+            }
+            "override_dll" -> {
+                fun add(dll: String, type: String) {
+                    if (dll.isEmpty()) return
+                    overrides += when (type.ifEmpty { "native,builtin" }) {
+                        "native,builtin" -> dll
+                        "native" -> "$dll=n"
+                        "builtin" -> "$dll=b"
+                        "builtin,native" -> "$dll=b,n"
+                        else -> dll
+                    }
+                }
+                add(step.str("dll"), step.str("type"))
+                step.json.optJSONArray("bundle")?.let { b ->
+                    for (i in 0 until b.length()) b.getJSONObject(i).let { add(it.optString("value"), it.optString("data")) }
+                }
+            }
+            "register_dll" -> Unit
+            else -> return "unsupported step ${step.action}"
+        }
+        val version = Regex("""\b(\d+\.\d+(\.\d+)*)\b""").find(c.description)?.value ?: "catalog"
+        FileUtils.writeString(File(staging, "component.json"), JSONObject()
+            .put("id", c.name).put("version", version)
+            .put("overrides", JSONArray(overrides.distinct()))
+            .put("requires", JSONArray(c.dependencies)).toString(1))
+        val target = File(root, "$STORE/${c.name}")
+        FileUtils.delete(target)
+        if (!staging.renameTo(target)) return "could not place the files"
+        return null
+    }
+
+    private fun digest(file: File, algorithm: String): String {
+        val md = MessageDigest.getInstance(algorithm)
+        FileInputStream(file).use { input ->
+            val buffer = ByteArray(1 shl 16)
+            while (true) { val n = input.read(buffer); if (n < 0) break; md.update(buffer, 0, n) }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun extract(archive: File, dest: File): Boolean = try {
+        if (archive.name.endsWith(".zip", ignoreCase = true)) ZipInputStream(BufferedInputStream(FileInputStream(archive))).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                val out = ArchivePaths.inside(dest, entry.name)
+                if (out != null && !entry.isDirectory) {
+                    out.parentFile?.mkdirs()
+                    FileOutputStream(out).use { FileUtils.copy(zip, it) }
+                }
+                entry = zip.nextEntry
+            }
+        } else TarArchiveInputStream(XZCompressorInputStream(BufferedInputStream(FileInputStream(archive), 1 shl 16))).use { tar ->
+            var entry = tar.nextEntry
+            while (entry != null) {
+                val out = ArchivePaths.inside(dest, entry.name)
+                if (out != null && entry.isFile) {
+                    out.parentFile?.mkdirs()
+                    FileOutputStream(out).use { FileUtils.copy(tar, it) }
+                }
+                entry = tar.nextEntry
+            }
+        }
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "extract ${archive.name}", e); false
+    }
+
+    /**
+     * Bannerlator's rule: the manifest's own temp paths are Bottles', so the files are found by name
+     * anywhere in the unpacked tree, preferring the ones under the matching win32/win64 folder.
+     */
+    private fun copyMatching(srcRoot: File, pattern: String, dest: File, arch: String?) {
+        if (pattern.isEmpty()) return
+        val rx = Regex("^" + pattern.split("*").joinToString(".*") { Regex.escape(it) } + "$", RegexOption.IGNORE_CASE)
+        var matches = srcRoot.walkTopDown().filter { it.isFile && rx.matches(it.name) }.toList()
+        if (arch != null) {
+            val inArch = matches.filter { it.path.contains("/$arch/", true) }
+            val other = if (arch == "win64") "win32" else "win64"
+            matches = inArch.ifEmpty { matches.filterNot { it.path.contains("/$other/", true) } }
+        }
+        dest.mkdirs()
+        matches.forEach { f -> f.copyTo(File(dest, f.name.lowercase()), overwrite = true) }
     }
 
     /** Removes a component from the runtime and from every game's picks. */
     @Synchronized
     fun uninstall(context: Context, id: String) {
-        require(ID.matches(id))
-        val root = LinuxRuntime.rootDir(context)
-        FileUtils.delete(File(root, "$STORE/$id"))
-        File(root, ".droiddeck-pkg-wincomponent-$id").delete()
+        require(validId(id))
+        FileUtils.delete(File(LinuxRuntime.rootDir(context), "$STORE/$id"))
         save(context, read(context).mapValues { (_, ids) -> ids - id }.filterValues { it.isNotEmpty() })
     }
 
@@ -69,19 +275,19 @@ object WinComponents {
         val games = json.optJSONObject("games") ?: JSONObject()
         games.keys().asSequence().associateWith { app ->
             val ids = games.getJSONArray(app)
-            (0 until ids.length()).map { ids.getString(it) }.filter { ID.matches(it) }
+            (0 until ids.length()).map { ids.getString(it) }.filter { validId(it) }
         }
     } catch (_: java.io.FileNotFoundException) {
         emptyMap()
     }
 
-    fun picks(context: Context, appId: Long): List<String> = read(context)[appId.toString()].orEmpty()
+    fun picks(context: Context, appKey: String): List<String> = read(context)[appKey].orEmpty()
 
     @Synchronized
-    fun setPicks(context: Context, appId: Long, ids: List<String>) {
-        require(ids.all { ID.matches(it) })
+    fun setPicks(context: Context, appKey: String, ids: List<String>) {
+        require(ids.all { validId(it) })
         val all = read(context).toMutableMap()
-        if (ids.isEmpty()) all.remove(appId.toString()) else all[appId.toString()] = ids.distinct()
+        if (ids.isEmpty()) all.remove(appKey) else all[appKey] = ids.distinct()
         save(context, all)
     }
 

@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 """Windows components (OpenAL, d3dx, XAudio, ...) for a game's Proton prefix.
 
-The app installs each component under STORE/<id>: its DLLs in system32/ (64-bit) and syswow64/
+The app installs each component under STORE/<id>: its files in system32/ (64-bit) and syswow64/
 (32-bit) as Windows lays them out, and component.json naming the overrides that make Wine load
-them instead of its own. The user picks components per game; the picks are in SELECTION as
-{"version": 1, "games": {"<appid>": ["openal", ...]}}.
+them instead of its own ("name" for native-then-builtin, or "name=n" with Wine's own letters) and
+the components it bundles ("requires"). The ids are Bannerlator's catalog names (xaudio2.7,
+oalinst_dll...). The user picks components per game; the picks are in SELECTION as
+{"version": 1, "games": {"<appid>": ["oalinst_dll", ...]}}.
 
 droiddeck-game-env calls apply() before every game launch. It copies what is missing or changed
 into compatdata/<appid>/pfx and returns the overrides for WINEDLLOVERRIDES, so nothing is written
@@ -17,6 +19,7 @@ which deletes every file Proton once placed - and the next launch's apply() puts
 """
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -26,6 +29,11 @@ SELECTION = Path.home() / ".config/droiddeck/wincomponents.json"
 # What this prefix holds from us, so a component the user turns off is taken out again.
 STATE = ".droiddeck-wincomponents.json"
 ARCH_DIRS = ("system32", "syswow64")
+ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+
+
+def valid_id(value):
+    return isinstance(value, str) and ID.fullmatch(value) is not None and ".." not in value
 
 
 def wanted(app_id, selection=SELECTION):
@@ -37,13 +45,13 @@ def wanted(app_id, selection=SELECTION):
     if config.get("version") != 1:
         raise ValueError("unsupported components selection")
     ids = config.get("games", {}).get(app_id, [])
-    if not isinstance(ids, list) or not all(isinstance(i, str) and i.isidentifier() for i in ids):
+    if not isinstance(ids, list) or not all(valid_id(i) for i in ids):
         raise ValueError("invalid components selection")
     return ids
 
 
 def component(store, cid):
-    """The component's overrides and its files as (relative path, source), or None if not installed."""
+    """The component's overrides, its files as (relative path, source) and the ids it bundles, or None if not installed."""
     root = Path(store) / cid
     try:
         with open(root / "component.json", encoding="utf-8") as source:
@@ -54,10 +62,31 @@ def component(store, cid):
     for arch in ARCH_DIRS:
         folder = root / arch
         if folder.is_dir():
-            for entry in sorted(folder.iterdir()):
-                if entry.is_file():
-                    files.append(("drive_c/windows/%s/%s" % (arch, entry.name.lower()), entry))
-    return [str(o) for o in meta.get("overrides", [])], files
+            # A few go one level down (gmdls: system32/drivers/gm.dls).
+            for entry in sorted(folder.rglob("*")):
+                if entry.is_file() and not entry.is_symlink():
+                    rel = entry.relative_to(folder).as_posix().lower()
+                    files.append(("drive_c/windows/%s/%s" % (arch, rel), entry))
+    requires = [r for r in meta.get("requires", []) if valid_id(r)]
+    return [str(o) for o in meta.get("overrides", [])], files, requires
+
+
+def expand(store, ids):
+    """The picks with everything they bundle, each once, a bundle's parts before it."""
+    out, seen = [], set()
+
+    def visit(cid, depth):
+        if cid in seen or depth > 8:
+            return
+        seen.add(cid)
+        found = component(store, cid)
+        for dep in (found[2] if found else []):
+            visit(dep, depth + 1)
+        out.append(cid)
+
+    for cid in ids:
+        visit(cid, 0)
+    return out
 
 
 def existing(path):
@@ -122,12 +151,14 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE):
         return [], []
     notes, overrides, keep = [], [], {}
     copied = 0
-    for cid in ids:
+    installed = []
+    for cid in expand(store, ids):
         found = component(store, cid)
         if found is None:
             notes.append("%s is not installed; skipped" % cid)
             continue
-        names, files = found
+        installed.append(cid)
+        names, files, _ = found
         overrides += names
         for rel, src in files:
             if place(src, pfx / rel):
@@ -149,15 +180,22 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE):
         except FileNotFoundError:
             pass
     compat.mkdir(parents=True, exist_ok=True)
-    save_state(compat, {"files": keep, "components": [c for c in ids if component(store, c) is not None]})
+    save_state(compat, {"files": keep, "components": installed})
     if copied or removed:
         notes.append("components %s: %d file(s) placed, %d removed" % (",".join(ids) or "none", copied, removed))
     return overrides, notes
 
 
 def overrides_value(names):
-    """WINEDLLOVERRIDES entries that load the component's DLLs before Wine's builtins."""
-    return ";".join("%s=n,b" % name for name in dict.fromkeys(names))
+    """WINEDLLOVERRIDES entries: native-then-builtin unless the component says otherwise; the last word on a DLL wins."""
+    modes = {}
+    for entry in names:
+        name, _, mode = entry.partition("=")
+        name = name.strip().lower()
+        if name and re.fullmatch(r"[a-z0-9._-]+", name) and re.fullmatch(r"[nb,]*", mode):
+            modes.pop(name, None)
+            modes[name] = mode if "=" in entry else "n,b"
+    return ";".join("%s=%s" % item for item in modes.items())
 
 
 def main():

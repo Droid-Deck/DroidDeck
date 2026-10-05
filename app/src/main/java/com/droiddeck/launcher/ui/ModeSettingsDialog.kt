@@ -110,7 +110,7 @@ class ModeSettings(
 )
 
 /** One added game as the settings page shows it: its folder, the chosen .exe, the other .exe files it could be. */
-class AddedGameRow(val folderPath: String, val folderName: String, val exePath: String, val exeName: String, val candidates: List<Pair<String, String>>, val appId: Long = 0)
+class AddedGameRow(val folderPath: String, val folderName: String, val exePath: String, val exeName: String, val candidates: List<Pair<String, String>>)
 
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
@@ -442,8 +442,6 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     note = stringResource(R.string.mode_added_exe_note),
                     onPick = { path -> if (path == "__pick__") a.onPickAddedGameExe(g.folderPath) else a.onAddedGameExe(g.folderPath, path) },
                 )
-                // Its prefix is named after the shortcut's appid, so the components follow that.
-                if (g.appId != 0L) WinComponentsRow(g.appId, g.folderName)
             }
         }
         if (steam && tab == ModeSettingsTab.GAMES && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {

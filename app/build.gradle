@@ -190,6 +190,8 @@ dependencies {
     // The runtime tarball is a zstd-compressed tar.
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
+    // Bannerlator's Windows components come as .tar.xz (WinComponents).
+    implementation 'org.tukaani:xz:1.10'
     // The UI: every menu, dialog and overlay is Compose. The session's SurfaceView and the
     // on-screen pad are Views underneath it, which is what they are in every Compose app.
     implementation platform('androidx.compose:compose-bom:2024.02.00')

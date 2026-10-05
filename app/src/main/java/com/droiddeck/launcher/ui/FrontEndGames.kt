@@ -90,7 +90,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                 }
             }
             Rise(1) { SectionTitle(stringResource(R.string.games_launch_settings), null) }
-            Rise(2) { LaunchSettings(s, a, host) }
+            Rise(2) { LaunchSettings(s, a, host, current) }
             Rise(3) { GameFileFolderActions(s, a) }
         }
         return
@@ -109,7 +109,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                 GameActions(current, s, a)
             }
             SectionTitle(stringResource(R.string.games_launch_settings), null)
-            LaunchSettings(s, a, host)
+            LaunchSettings(s, a, host, current)
             GameFileFolderActions(s, a)
         }
     }

@@ -421,10 +421,16 @@ private fun FrameGenMenu(s: FrontEndState, a: FrontEndActions, host: MenuHost) {
  * app-wide settings - each card opens the same page or menu Setup does.
  */
 @Composable
-internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost) {
+internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost, game: com.droiddeck.launcher.frontend.Library.SteamGame? = null) {
     // Three across, two on a narrow page; each row's cards share one height.
     val columns = if (LocalNarrowPane.current) 2 else 3
     val controller = a.controller
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    // An added game's prefix is compatdata/<its shortcut appid, unsigned>, as droiddeck-game-env reads it.
+    val wincompKey = game?.takeIf { it.library == com.droiddeck.launcher.frontend.Library.ADDED }?.let { Integer.toUnsignedString(it.appId) }
+    var wincompOpen by remember(wincompKey) { mutableStateOf<Boolean?>(null) }
+    val wincompPicks = remember(wincompKey, wincompOpen) { wincompKey?.let { com.droiddeck.launcher.session.WinComponents.picks(context, it) }.orEmpty() }
     val cards = buildList<@Composable (Modifier) -> Unit> {
         add { m -> SettingCard(stringResource(R.string.setup_card_components), stringResource(R.string.setup_card_components_hint), "card:components", m) { a.onComponents(true) } }
         add { m ->
@@ -436,7 +442,16 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
             }
         }
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
+        if (wincompKey != null) add { m ->
+            SettingCard(
+                stringResource(R.string.wincomp_title),
+                if (wincompPicks.isEmpty()) stringResource(R.string.wincomp_card_none) else wincompPicks.joinToString(", "),
+                "card:wincomp", m,
+            ) { wincompOpen = inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard }
+        }
     }
+    val opened = wincompOpen
+    if (opened != null && wincompKey != null && game != null) WinComponentsDialog(wincompKey, game.name, game.gameFiles, opened) { wincompOpen = null }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
         for (row in cards.chunked(columns)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {

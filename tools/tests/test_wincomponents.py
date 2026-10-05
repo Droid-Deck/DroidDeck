@@ -101,7 +101,7 @@ class WinComponentsTest(unittest.TestCase):
         self.assertFalse(self.compat.exists())
 
     def test_bad_selection_is_refused(self):
-        self.selection.write_text(json.dumps({"version": 1, "games": {"2571976725": ["../etc"]}}))
+        self.selection.write_text(json.dumps({"version": 1, "games": {"2571976725": ["a/../etc"]}}))
         with self.assertRaises(ValueError):
             self.apply()
 
@@ -114,6 +114,29 @@ class WinComponentsTest(unittest.TestCase):
         with mock.patch.dict(globals_, {"runpy": mock.Mock(run_path=lambda _path: real)}):
             self.assertEqual(GAME_ENV["win_components"](str(self.compat) + "/", "2571976725"), "openal32=n,b")
             self.assertEqual(GAME_ENV["win_components"]("", "2571976725"), "")
+
+    def test_bundle_brings_its_parts_and_catalog_names_with_dots_work(self):
+        self.component("dmband", ["dmband"], {"syswow64/dmband.dll": b"band"})
+        self.component("dsound", ["dsound=n"], {"syswow64/dsound.dll": b"ds"})
+        meta = self.store / "directmusic"
+        meta.mkdir(parents=True)
+        (meta / "component.json").write_text(json.dumps({"id": "directmusic", "overrides": [], "requires": ["dmband", "dsound"]}))
+        self.component("xaudio2.7", ["xaudio2_7"], {"system32/xaudio2_7.dll": b"xa"})
+        self.pick("directmusic", "xaudio2.7")
+        names, _ = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b;dsound=n;xaudio2_7=n,b")
+        self.assertEqual((self.pfx / "syswow64/dmband.dll").read_bytes(), b"band")
+        self.assertEqual(json.loads((self.compat / ".droiddeck-wincomponents.json").read_text())["components"],
+                         ["dmband", "dsound", "directmusic", "xaudio2.7"])
+
+    def test_files_one_level_down_are_placed(self):
+        self.component("gmdls", [], {"system32/drivers/GM.DLS": b"dls"})
+        self.pick("gmdls")
+        self.apply()
+        self.assertEqual((self.pfx / "system32/drivers/gm.dls").read_bytes(), b"dls")
+
+    def test_overrides_value_last_word_wins_and_refuses_junk(self):
+        self.assertEqual(MODULE["overrides_value"](["a", "b=n", "a=b", "bad;name", "c=x"]), "b=n;a=b")
 
 
 if __name__ == "__main__":
