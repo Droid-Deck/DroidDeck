@@ -733,6 +733,10 @@ BUSCONF
     # and a restart below (rc=42, or the one after the ARM64 Proton lands) would otherwise start it
     # again on the branch it just wrote.
     steam_channel=${BL_STEAM_CHANNEL:-steamdeck_publicbeta}
+    # The app's language (Setup, or the system's): the client's interface takes -language over its
+    # registry, and the registry is rewritten before each start below for its update window.
+    _bl_lang=()
+    [ -n "${BL_STEAM_LANGUAGE:-}" ] && _bl_lang=(-language "$BL_STEAM_LANGUAGE")
     steam_beta=$steam_root/package/beta
     if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
       droiddeck-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
@@ -756,7 +760,7 @@ BUSCONF
         done
       ) &
     fi
-    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
+    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
     # An update that cannot install asks for a restart (rc=42) every time; the count is capped so a
     # session can never again loop in silence, which reads as a menu opening and closing by itself.
     steam_updates=0
@@ -805,8 +809,12 @@ BUSCONF
         echo start >> "$steam_root/package/droiddeck-unconfirmed"
         _bl_counted=1
       fi
+      # Between starts only: the client holds registry.vdf in memory and writes it back on exit.
+      if [ -n "${BL_STEAM_LANGUAGE:-}" ]; then
+        droiddeck-steam-language "$HOME" "$BL_STEAM_LANGUAGE" || true
+      fi
       step "starting the Steam client${BL_STEAM_UI:+ ($BL_STEAM_UI UI)}"
-      "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" -clientbeta "$steam_channel" \
+      "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 \
         -cef-use-gl=angle -cef-use-angle=vulkan "$@"
       rc=$?

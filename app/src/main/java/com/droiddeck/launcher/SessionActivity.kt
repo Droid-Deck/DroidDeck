@@ -100,6 +100,11 @@ import kotlin.math.abs
  * the HUD line, the loading overlay, the drawer and its dialogs.
  */
 class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(newBase)
+        com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
+    }
+
     private lateinit var pip: com.droiddeck.launcher.session.SessionPipController
     private var pipUi by mutableStateOf(false)
     private var pipAutoEnter by mutableStateOf(false)

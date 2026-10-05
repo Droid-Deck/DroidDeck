@@ -20,6 +20,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class WirelessAdbPairingService : Service() {
+    override fun attachBaseContext(newBase: android.content.Context) =
+        super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(newBase))
+
     sealed interface Stage {
         data object Idle : Stage
         data object Waiting : Stage

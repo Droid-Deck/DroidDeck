@@ -1,0 +1,181 @@
+#!/usr/bin/python3
+"""Sets the Steam client's interface language to the app's, before the client starts.
+
+    droiddeck-steam-language <home> <language>
+
+<language> is one of the client's language names (english, spanish, latam, japanese, koreana,
+schinese, tchinese, ...). The client reads it from <home>/.steam/registry.vdf, under
+HKCU/Software/Valve/Steam and again under .../Steamsteamglobal: that second key is copied over the
+first at every start, so setting only the first is undone by the old value. Its update window
+reads the first key alone, and nothing reads LANG. exportedsettings.json is what the client writes
+beside them when its own setting changes. The session also passes -language, which the interface
+honours over the file; the file is still what the update window shows itself in.
+
+Run only while the client is stopped: it keeps the registry in memory and writes it back on exit.
+"""
+import json
+import os
+import re
+import sys
+
+LANGUAGES = {
+    "english", "german", "french", "italian", "koreana", "spanish", "schinese", "tchinese",
+    "russian", "thai", "japanese", "portuguese", "polish", "danish", "dutch", "finnish",
+    "norwegian", "swedish", "hungarian", "czech", "romanian", "turkish", "brazilian", "bulgarian",
+    "greek", "arabic", "ukrainian", "latam", "vietnamese", "indonesian", "malay",
+}
+KEYS = (("Registry", "HKCU", "Software", "Valve", "Steam"),
+        ("Registry", "HKCU", "Software", "Valve", "Steamsteamglobal"))
+TOKEN = re.compile(r'\s*(?:"((?:[^"\\]|\\.)*)"|([{}])|//[^\n]*)')
+
+
+def tokenize(text):
+    tokens, pos = [], 0
+    while pos < len(text):
+        m = TOKEN.match(text, pos)
+        if not m or m.end() == pos:
+            break
+        pos = m.end()
+        if m.group(2):
+            tokens.append(m.group(2))
+        elif m.group(1) is not None:
+            tokens.append('"' + m.group(1) + '"')
+    return tokens
+
+
+def serialize(tokens):
+    out, depth, i = [], 0, 0
+    while i < len(tokens):
+        t = tokens[i]
+        if t == "}":
+            depth -= 1
+            out.append("\t" * depth + "}")
+            i += 1
+        elif i + 1 < len(tokens) and tokens[i + 1] == "{":
+            out.append("\t" * depth + t)
+            out.append("\t" * depth + "{")
+            depth += 1
+            i += 2
+        else:
+            out.append("\t" * depth + t + "\t\t" + (tokens[i + 1] if i + 1 < len(tokens) else '""'))
+            i += 2
+    return "\n".join(out) + "\n"
+
+
+def block_end(tokens, start):
+    """Index of the '}' closing the block whose '{' is at start."""
+    depth = 0
+    for i in range(start, len(tokens)):
+        if tokens[i] == "{":
+            depth += 1
+        elif tokens[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+    return len(tokens)
+
+
+def child(tokens, start, end, name):
+    """Index of the '{' of the block called name directly inside tokens[start:end], or None.
+    Keys are matched without case, as the client does."""
+    i = start
+    while i < end:
+        if tokens[i] in ("{", "}"):
+            i += 1
+            continue
+        if i + 1 < end and tokens[i + 1] == "{":
+            if tokens[i].lower() == '"%s"' % name.lower():
+                return i + 1
+            i = block_end(tokens, i + 1) + 1
+        else:
+            i += 2
+    return None
+
+
+def ensure_block(tokens, path):
+    """The '{' of the block at path, creating it and any missing parent at the end of its parent."""
+    start, end = 0, len(tokens)
+    for depth, name in enumerate(path):
+        found = child(tokens, start, end, name)
+        if found is None:
+            at = end
+            tokens[at:at] = ['"%s"' % name, "{", "}"]
+            found = at + 1
+        start, end = found + 1, block_end(tokens, found)
+    return start - 1
+
+
+def set_value(tokens, opening, key, value):
+    start, end = opening + 1, block_end(tokens, opening)
+    i = start
+    while i < end:
+        if i + 1 < end and tokens[i + 1] == "{":
+            i = block_end(tokens, i + 1) + 1
+            continue
+        if tokens[i].lower() == '"%s"' % key.lower() and i + 1 < end:
+            tokens[i + 1] = '"%s"' % value
+            return
+        i += 2
+    tokens[end:end] = ['"%s"' % key, '"%s"' % value]
+
+
+def with_language(text, language):
+    tokens = tokenize(text)
+    if child(tokens, 0, len(tokens), "Registry") is None:
+        # Not a registry the client wrote (or none at all): start one it will read.
+        tokens = []
+    for path in KEYS:
+        set_value(tokens, ensure_block(tokens, path), "language", language)
+    return serialize(tokens)
+
+
+def write_changed(path, text):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            if f.read() == text:
+                return False
+    except OSError:
+        pass
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".droiddeck"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, path)
+    return True
+
+
+def apply(home, language):
+    steam = os.path.join(home, ".steam")
+    registry = os.path.join(steam, "registry.vdf")
+    try:
+        with open(registry, encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        text = ""
+    changed = write_changed(registry, with_language(text, language))
+    exported = os.path.join(steam, "exportedsettings.json")
+    try:
+        with open(exported, encoding="utf-8") as f:
+            settings = json.load(f)
+        if not isinstance(settings, dict):
+            settings = {}
+    except (OSError, ValueError):
+        settings = {}
+    if settings.get("language") != language:
+        settings["language"] = language
+        write_changed(exported, json.dumps(settings))
+        changed = True
+    return changed
+
+
+def main(argv):
+    if len(argv) != 3 or argv[2] not in LANGUAGES:
+        print("usage: droiddeck-steam-language <home> <steam language name>", file=sys.stderr)
+        return 2
+    changed = apply(argv[1], argv[2])
+    print("== steam: language %s%s" % (argv[2], "" if changed else " (already set)"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

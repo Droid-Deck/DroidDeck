@@ -31,6 +31,11 @@ import com.droiddeck.launcher.ui.onSignal
 import com.droiddeck.launcher.ui.LocalPalette
 
 class ControllerEditorActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(newBase)
+        com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
+    }
+
     private lateinit var controls: OnScreenControls
 
     override fun onCreate(savedInstanceState: Bundle?) {
