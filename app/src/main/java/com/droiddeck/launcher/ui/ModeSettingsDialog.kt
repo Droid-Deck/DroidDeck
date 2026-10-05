@@ -153,132 +153,156 @@ class ModeSettingsActions(
     val onDismiss: () -> Unit,
 )
 
+private enum class SteamSettingsTab(val label: Int) {
+    DISPLAY(R.string.drawer_page_display),
+    CONTROLS(R.string.drawer_page_controls),
+    GAMES(R.string.game_settings_title),
+    AUDIO(R.string.mode_audio),
+    SESSION(R.string.mode_session),
+    STEAM(R.string.mode_tab_steam),
+}
+
 @Composable
 fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
     var confirmDeckyRemoval by remember { mutableStateOf(false) }
     var explainWifiDiscovery by remember { mutableStateOf(false) }
-    val pageScroll = androidx.compose.foundation.rememberScrollState()
+    var tabIndex by androidx.compose.runtime.saveable.rememberSaveable(s.mode) { mutableStateOf(0) }
+    val tabs = SteamSettingsTab.entries
+    val tab = tabs[tabIndex]
+    val scrolls = tabs.map { androidx.compose.foundation.rememberScrollState() }
+    val tabFocus = remember { tabs.map { androidx.compose.ui.focus.FocusRequester() } }
     val firstChip = remember { androidx.compose.ui.focus.FocusRequester() }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        // One frame first: the box has to be laid out before it can take focus. Opened from the
-        // cog, focus starts on the first control (Resolution) so the d-pad works at once.
+    fun selectTab(index: Int) { host.open = null; tabIndex = index }
+    androidx.compose.runtime.LaunchedEffect(steam, tabIndex) {
         androidx.compose.runtime.withFrameNanos { }
-        runCatching { firstChip.requestFocus() }
+        runCatching {
+            if (!steam || tab == SteamSettingsTab.DISPLAY) firstChip.requestFocus()
+            else tabFocus[tabIndex].requestFocus()
+        }
     }
     SettingsPage(
         host,
         title = if (steam) stringResource(R.string.mode_steam_title) else stringResource(R.string.mode_desktop_title),
         onBack = a.onDismiss,
-        scroll = pageScroll,
+        scroll = scrolls[tabIndex],
+        modifier = if (steam) Modifier.bumpers(
+            onPrevious = { selectTab((tabIndex + tabs.size - 1) % tabs.size) },
+            onNext = { selectTab((tabIndex + 1) % tabs.size) },
+        ) else Modifier,
+        header = if (steam) ({
+            TabStrip(tabs.map { stringResource(it.label) }, tabIndex, ::selectTab,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp), focusRequesters = tabFocus)
+        }) else null,
     ) {
-        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution)
-        SettingsGroup(stringResource(R.string.display_session)) {
-            ResolutionRow(host, s.resolution, s.panelSize, a.onResolution,
-                chipModifier = Modifier.focusRequester(firstChip))
-            if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
-                    com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
-                val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
-                ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
-                    stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
-                    listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
-                    s.stretch16x9 && canStretch, enabled = canStretch, onPick = a.onStretch16x9)
+        if (!steam || tab == SteamSettingsTab.DISPLAY) {
+            val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution)
+            SettingsGroup(stringResource(R.string.display_session)) {
+                ResolutionRow(host, s.resolution, s.panelSize, a.onResolution,
+                    chipModifier = Modifier.focusRequester(firstChip))
+                if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
+                        com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
+                    val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
+                    ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
+                        stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
+                        listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
+                        s.stretch16x9 && canStretch, enabled = canStretch, onPick = a.onStretch16x9)
+                }
             }
-
-        }
-        SettingsGroup(stringResource(R.string.display_image_scaling)) {
-            ChoiceRow(
-                host, "upscaler", stringResource(R.string.display_filter), stringResource(R.string.display_filter_hint),
-                SessionPrefs.upscalerChoices, s.upscaler,
-                note = stringResource(R.string.display_filter_note), onPick = a.onUpscaler,
-            )
-            if (SessionPrefs.upscalerHasSharpness(s.upscaler)) SliderRow(
-                stringResource(R.string.display_sharpness), null, s.upscaleSharpness, 0..100, step = 5,
-                format = { "$it%" }, onChange = a.onUpscaleSharpness,
-            )
-        }
-        SettingsGroup(stringResource(R.string.display_frame_rate)) {
-            ChoiceRow(host, "fps", stringResource(R.string.mode_fps), stringResource(R.string.common_applies_next_session),
-                SessionPrefs.fpsLimitChoices, s.fpsLimit, note = stringResource(R.string.mode_fps_note), onPick = a.onFpsLimit)
-        }
-        if (s.forceFullscreen != null) SettingsGroup(stringResource(R.string.display_window_compatibility)) {
-            ToggleRow(host, "fill", stringResource(R.string.display_force_fullscreen),
-                stringResource(R.string.display_force_fullscreen_hint), s.forceFullscreen, onChange = a.onForceFullscreen)
-        }
-        SettingsGroup(stringResource(R.string.mode_hdr)) {
-            ToggleRow(
-                host, "hdr", stringResource(R.string.mode_hdr10),
-                s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) }
-                    ?: stringResource(R.string.mode_hdr_restart),
-                checked = s.hdr && s.hdrReason == null, enabled = s.hdrReason == null, onChange = a.onHdr,
-            )
-        }
-        SettingsGroup(stringResource(R.string.mode_drivers)) {
-            SettingsRow(stringResource(R.string.mode_gpu_drivers), stringResource(R.string.mode_gpu_drivers_hint)) {
-                ValueChip(s.gpuDrivers, open = false) { a.onGpuDrivers() }
+            SettingsGroup(stringResource(R.string.display_image_scaling)) {
+                ChoiceRow(
+                    host, "upscaler", stringResource(R.string.display_filter), stringResource(R.string.display_filter_hint),
+                    SessionPrefs.upscalerChoices, s.upscaler,
+                    note = stringResource(R.string.display_filter_note), onPick = a.onUpscaler,
+                )
+                if (SessionPrefs.upscalerHasSharpness(s.upscaler)) SliderRow(
+                    stringResource(R.string.display_sharpness), null, s.upscaleSharpness, 0..100, step = 5,
+                    format = { "$it%" }, onChange = a.onUpscaleSharpness,
+                )
+            }
+            SettingsGroup(stringResource(R.string.display_frame_rate)) {
+                ChoiceRow(host, "fps", stringResource(R.string.mode_fps), stringResource(R.string.common_applies_next_session),
+                    SessionPrefs.fpsLimitChoices, s.fpsLimit, note = stringResource(R.string.mode_fps_note), onPick = a.onFpsLimit)
+            }
+            SettingsGroup(stringResource(R.string.mode_hdr)) {
+                ToggleRow(
+                    host, "hdr", stringResource(R.string.mode_hdr10),
+                    s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) }
+                        ?: stringResource(R.string.mode_hdr_restart),
+                    checked = s.hdr && s.hdrReason == null, enabled = s.hdrReason == null, onChange = a.onHdr,
+                )
+            }
+            SettingsGroup(stringResource(R.string.mode_drivers)) {
+                SettingsRow(stringResource(R.string.mode_gpu_drivers), stringResource(R.string.mode_gpu_drivers_hint)) {
+                    ValueChip(s.gpuDrivers, open = false) { a.onGpuDrivers() }
+                }
             }
         }
-        SettingsGroup(if (steam) stringResource(R.string.mode_touch_controls) else stringResource(R.string.mode_touch)) {
-            ChoiceRow(
-                host, "touch", stringResource(R.string.mode_touch), null,
-                listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.common_auto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)), s.touchMode,
-                note = stringResource(R.string.mode_touch_note),
-                onPick = a.onTouch,
-            )
-            if (steam && s.oscMode != null) ChoiceRow(
-                host, "osc", stringResource(R.string.mode_osc), null,
-                listOf(
-                    SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto),
-                    SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
-                    SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam),
-                    SessionPrefs.OSC_NEVER to stringResource(R.string.common_never),
-                ), s.oscMode,
-                note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,
-            )
-            if (steam && s.steamController != null) ChoiceRow(
-                host, "controller", stringResource(R.string.mode_controller), stringResource(R.string.mode_controller_hint),
-                listOf(
-                    SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
-                    SessionPrefs.CONTROLLER_XBOX360 to stringResource(R.string.mode_controller_x360),
-                ), s.steamController,
-                note = stringResource(R.string.mode_controller_note),
-                onPick = a.onSteamController,
-            )
-            if (steam) ChoiceRow(
-                host, "back-actions", stringResource(R.string.mode_back), SessionPrefs.backActionsOrder(s.backActionsInverted),
-                listOf(
-                    false to SessionPrefs.BACK_MENU_THEN_QAM,
-                    true to SessionPrefs.BACK_QAM_THEN_MENU,
-                ), s.backActionsInverted, onPick = a.onBackActionsInverted,
-            )
+        if (!steam || tab == SteamSettingsTab.CONTROLS) {
+            SettingsGroup(if (steam) stringResource(R.string.mode_touch_controls) else stringResource(R.string.mode_touch)) {
+                ChoiceRow(
+                    host, "touch", stringResource(R.string.mode_touch), null,
+                    listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.common_auto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)), s.touchMode,
+                    note = stringResource(R.string.mode_touch_note),
+                    onPick = a.onTouch,
+                )
+                if (steam && s.oscMode != null) ChoiceRow(
+                    host, "osc", stringResource(R.string.mode_osc), null,
+                    listOf(
+                        SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto),
+                        SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
+                        SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam),
+                        SessionPrefs.OSC_NEVER to stringResource(R.string.common_never),
+                    ), s.oscMode,
+                    note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,
+                )
+                if (steam && s.steamController != null) ChoiceRow(
+                    host, "controller", stringResource(R.string.mode_controller), stringResource(R.string.mode_controller_hint),
+                    listOf(
+                        SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
+                        SessionPrefs.CONTROLLER_XBOX360 to stringResource(R.string.mode_controller_x360),
+                    ), s.steamController,
+                    note = stringResource(R.string.mode_controller_note),
+                    onPick = a.onSteamController,
+                )
+                if (steam) ChoiceRow(
+                    host, "back-actions", stringResource(R.string.mode_back), SessionPrefs.backActionsOrder(s.backActionsInverted),
+                    listOf(
+                        false to SessionPrefs.BACK_MENU_THEN_QAM,
+                        true to SessionPrefs.BACK_QAM_THEN_MENU,
+                    ), s.backActionsInverted, onPick = a.onBackActionsInverted,
+                )
+            }
         }
-        SettingsGroup(stringResource(R.string.mode_session)) {
-            ChoiceRow(
-                host, "suspend", stringResource(R.string.mode_suspend),
-                stringResource(R.string.mode_suspend_hint),
-                listOf(
-                    SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
-                    SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
-                    SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                ),
-                s.suspendPolicy,
-                note = stringResource(R.string.mode_suspend_note),
-                onPick = a.onSuspendPolicy,
-            )
+        if (!steam || tab == SteamSettingsTab.SESSION) {
+            SettingsGroup(stringResource(R.string.mode_session)) {
+                ChoiceRow(
+                    host, "suspend", stringResource(R.string.mode_suspend),
+                    stringResource(R.string.mode_suspend_hint),
+                    listOf(
+                        SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
+                        SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
+                        SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
+                    ),
+                    s.suspendPolicy,
+                    note = stringResource(R.string.mode_suspend_note),
+                    onPick = a.onSuspendPolicy,
+                )
+            }
+            if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
+                ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
+                    s.pipAutoEnter, onChange = a.onPipAutoEnter)
+            }
+            if (steam) SettingsGroup(stringResource(R.string.mode_startup)) {
+                ToggleRow(
+                    host, "steam-startup", stringResource(R.string.mode_steam_startup),
+                    stringResource(R.string.mode_steam_startup_hint),
+                    s.runSteamAtStartup, onChange = a.onRunSteamAtStartup,
+                )
+            }
         }
-        if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
-            ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
-                s.pipAutoEnter, onChange = a.onPipAutoEnter)
-        }
-        if (steam) SettingsGroup(stringResource(R.string.mode_startup)) {
-            ToggleRow(
-                host, "steam-startup", stringResource(R.string.mode_steam_startup),
-                stringResource(R.string.mode_steam_startup_hint),
-                s.runSteamAtStartup, onChange = a.onRunSteamAtStartup,
-            )
-        }
-        if (steam) SettingsGroup(stringResource(R.string.mode_decky)) {
+        if (steam && tab == SteamSettingsTab.STEAM) SettingsGroup(stringResource(R.string.mode_decky)) {
             val updateAvailable = s.deckyInstalled != null && s.deckyLatestRelease != null &&
                 s.deckyInstalled != s.deckyLatestRelease.tag
             val status = when {
@@ -337,7 +361,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 )
             }
         }
-        if (steam && s.steamChannel != null) SettingsGroup(stringResource(R.string.mode_client)) {
+        if (steam && tab == SteamSettingsTab.STEAM && s.steamChannel != null) SettingsGroup(stringResource(R.string.mode_client)) {
             ToggleRow(
                 host, "steamdeck", stringResource(R.string.mode_deck_mode),
                 stringResource(R.string.mode_deck_mode_hint),
@@ -357,7 +381,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 onPick = a.onSteamChannel,
             )
         }
-        if (steam && s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
+        if (steam && tab == SteamSettingsTab.STEAM && s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
             val hint = when {
                 s.wifiDiscovery && !s.wifiDiscoveryLocation -> stringResource(R.string.mode_wifi_location_off)
                 !s.wifiDiscoveryPermission && s.wifiDiscoveryAsked -> stringResource(R.string.mode_wifi_permission_denied)
@@ -376,7 +400,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 }
             }
         }
-        if (steam && s.addedGamesDirs != null) SettingsGroup(stringResource(R.string.mode_added_games)) {
+        if ((!steam || tab == SteamSettingsTab.GAMES) && s.forceFullscreen != null) SettingsGroup(stringResource(R.string.display_window_compatibility)) {
+            ToggleRow(host, "fill", stringResource(R.string.display_force_fullscreen),
+                stringResource(R.string.display_force_fullscreen_hint), s.forceFullscreen, onChange = a.onForceFullscreen)
+        }
+        if (steam && tab == SteamSettingsTab.GAMES && s.addedGamesDirs != null) SettingsGroup(stringResource(R.string.mode_added_games)) {
             for (dir in s.addedGamesDirs) {
                 val n = s.addedGames.count { it.folderPath.startsWith("$dir/") }
                 ActionRow(
@@ -401,7 +429,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 onPick = { path -> if (path == "__pick__") a.onPickAddedGameExe(g.folderPath) else a.onAddedGameExe(g.folderPath, path) },
             )
         }
-        if (steam && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
+        if (steam && tab == SteamSettingsTab.GAMES && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
             if (s.syncBackend != null) SettingsRow(
                 stringResource(R.string.sync_backend_title),
                 stringResource(R.string.sync_backend_hint),
@@ -424,7 +452,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             GameEnvironmentRow()
 
         }
-        if (steam && s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {
+        if (steam && tab == SteamSettingsTab.AUDIO && s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {
             ToggleRow(host, "da", stringResource(R.string.mode_directaudio), stringResource(R.string.mode_directaudio_hint), s.directAudio, onChange = a.onDirectAudio)
             ChoiceRow(
                 host, "clientAudio", stringResource(R.string.mode_client_audio), stringResource(R.string.mode_client_audio_hint),
@@ -433,7 +461,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             )
             ToggleRow(host, "mic", stringResource(R.string.mode_mic), stringResource(R.string.mode_mic_hint), s.mic, onChange = a.onMic)
         }
-        if (steam && s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
+        if (steam && tab == SteamSettingsTab.GAMES && s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
             val custom = s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.second == s.gameStorage }
             val options = buildList {
                 add("" to (if (s.storageOptions.isEmpty()) stringResource(R.string.mode_storage_auto_none) else stringResource(R.string.mode_storage_auto)))

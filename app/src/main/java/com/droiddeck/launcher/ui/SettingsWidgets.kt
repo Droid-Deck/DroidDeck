@@ -584,6 +584,9 @@ fun SettingsPage(
     scroll: androidx.compose.foundation.ScrollState? = null,
     scrollContent: Boolean = true,
     compactLayout: Boolean = false,
+    /** Controls that remain below the title while the settings scroll, such as a tab strip. */
+    header: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val scrollState = scroll ?: rememberScrollState()
@@ -591,7 +594,7 @@ fun SettingsPage(
     val dim by animateFloatAsState(if (host.open != null) 0.6f else 1f, Motion.tw(220), label = "pageDim")
     val narrow = LocalNarrowPane.current && !compactLayout
     Column(
-        modifier = Modifier.fillMaxSize().padding(
+        modifier = modifier.fillMaxSize().padding(
             horizontal = if (compactLayout) 14.dp else if (narrow) 16.dp else 22.dp,
             vertical = if (compactLayout) 6.dp else if (narrow) 12.dp else 18.dp,
         ),
@@ -656,6 +659,7 @@ fun SettingsPage(
                 }
             }
         }
+        if (header != null) header()
         Rise(3, Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 modifier = Modifier
