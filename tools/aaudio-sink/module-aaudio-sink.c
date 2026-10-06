@@ -60,8 +60,6 @@ PA_MODULE_USAGE(
 
 /* The name the app's daemon config addresses (set-default-sink). */
 #define DEFAULT_SINK_NAME "AAudioSink"
-/* A write that blocks longer than this has lost the device underneath it. */
-#define WRITE_TIMEOUT_NS (500LL * 1000 * 1000)
 /* Underruns are polled every so many writes, not every write. */
 #define XRUN_CHECK_EVERY 8
 #define FALLBACK_BURST_FRAMES 192
@@ -290,21 +288,29 @@ static void check_underruns(struct userdata *u) {
 /* One burst from the sink into the device. Returns <0 when the stream is gone for good. */
 static int write_one_burst(struct userdata *u) {
     const void *data;
-    aaudio_result_t written;
+    aaudio_result_t written = 0;
 
-    if (!u->pending.memblock)
-        pa_sink_render_full(u->sink, u->chunk_bytes, &u->pending);
-    data = pa_memblock_acquire_chunk(&u->pending);
-    written = AAudioStream_write(u->stream, data, (int32_t) (u->pending.length / u->frame_size), WRITE_TIMEOUT_NS);
-    pa_memblock_release(u->pending.memblock);
+    for (;;) {
+        if (!u->pending.memblock) {
+            int64_t space = u->buffer_frames - (AAudioStream_getFramesWritten(u->stream) - AAudioStream_getFramesRead(u->stream));
+
+            if (space < u->burst_frames)
+                break;
+            pa_sink_render_full(u->sink, (size_t) PA_MIN(space, (int64_t) u->chunk_frames) * u->frame_size, &u->pending);
+        }
+        data = pa_memblock_acquire_chunk(&u->pending);
+        written = AAudioStream_write(u->stream, data, (int32_t) (u->pending.length / u->frame_size), 0);
+        pa_memblock_release(u->pending.memblock);
+        if (written < 0)
+            break;
+        u->pending.index += (size_t) written * u->frame_size;
+        u->pending.length -= (size_t) written * u->frame_size;
+        if (u->pending.length > 0)
+            break;
+        drop_pending(u);
+    }
 
     if (written >= 0) {
-        size_t bytes = (size_t) written * u->frame_size;
-
-        u->pending.index += bytes;
-        u->pending.length -= bytes;
-        if (u->pending.length == 0)
-            drop_pending(u);
         check_underruns(u);
         return 0;
     }
@@ -378,9 +384,8 @@ static void thread_func(void *userdata) {
                 pa_sink_process_rewind(u->sink, 0);
             if (write_one_burst(u) < 0)
                 goto fail;
+            pa_rtpoll_set_timer_relative(u->rtpoll, PA_MAX(frames_to_usec(u, u->burst_frames) / 2, PA_USEC_PER_MSEC));
         }
-        /* With the timer at zero this only drains the message queue; with it disabled (the sink
-         * suspended) it blocks until something arrives. */
         if ((ret = pa_rtpoll_run(u->rtpoll)) < 0)
             goto fail;
         if (ret == 0)
