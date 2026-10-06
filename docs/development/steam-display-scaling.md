@@ -214,3 +214,17 @@ Still to check by hand: pasting Android text into a game.
 
 Force fullscreen is still unsafe without a matching Game Resolution: with the default (native),
 a game drawing at another size fights it as in run 4. It stays off by default.
+
+## Force fullscreen removed (`feat/remove-force-fullscreen`)
+
+With games on their own Xwayland server, FlatOut 2 no longer shrinks under the QAM, which was the
+reason "Force game windows fullscreen" existed. What it still did was make any game whose Game
+Resolution differs from what it draws fight it (runs 4 and 5). The switch is gone from Steam
+settings (Games) and the session drawer (Display), along with its preference, the
+`BL_GAMESCOPE_FORCE_FULLSCREEN` flag, the `~/.droiddeck-fill` live watcher and the device report
+line. `BL_GAMESCOPE_ARGS=--force-windows-fullscreen` in `Download/droiddeck-env` still passes the
+flag for an experiment.
+
+Device check (Thor): Alan Wake's American Nightmare with its 1280x720 Game Resolution runs on `:1`
+at 1280x720 with no `--force-windows-fullscreen` in the session, 2 frame-size changes, no crash
+in logcat. The Games tab and the drawer render without the switch.

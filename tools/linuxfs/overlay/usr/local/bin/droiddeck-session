@@ -175,9 +175,10 @@ if [ -z "${BL_INSIDE:-}" ]; then
   # Two Xwayland servers, as SteamOS runs Steam: the client on the first, games on the second
   # (STEAM_GAME_DISPLAY_0). The client then sizes the games' server to each game's Game Resolution
   # (GAMESCOPE_XWAYLAND_MODE_CONTROL; native unless one is set), and gamescope scales it to the
-  # output. With one server the client and its games share the output's size, and a game drawing at
-  # another size fights --force-windows-fullscreen: the resize storm piled up GPU buffers until the
-  # low-memory killer ended the session (docs/development/steam-display-scaling.md).
+  # output. With one server the client and its games share the output's size, so a game's own Game
+  # Resolution never reaches its display (docs/development/steam-display-scaling.md). The client's
+  # overlay is also on another server than the game, so opening it no longer takes the game's X
+  # keyboard focus, which made games like FlatOut shrink their window.
   # BL_XWAYLAND_COUNT=1 in Download/droiddeck-env goes back to one.
   if [ "$mode" = steam ] && [ "${BL_XWAYLAND_COUNT:-2}" -gt 1 ]; then
     args+=(--xwayland-count "${BL_XWAYLAND_COUNT:-2}")
@@ -188,12 +189,10 @@ if [ -z "${BL_INSIDE:-}" ]; then
   # only once it has a controller; until then gamescope's own default made a finger a left-click
   # mouse, so the Steam interface took taps but would not scroll on a phone with no pad attached.
   [ "$mode" = steam ] && args+=(--default-touch-mode 4)
-  # A game that resizes its own window when it loses focus (the Steam menu opening over it) comes
-  # back smaller, and gamescope draws a window that is not flagged fullscreen at its own size in
-  # the top-left corner. Forcing every window to the output's size keeps it filling the screen,
-  # but a game running at a resolution other than the screen's fights it and flickers, so it is
-  # off unless the app asks for it: BL_GAMESCOPE_FORCE_FULLSCREEN=1 turns it on.
-  [ "$mode" = steam ] && [ "${BL_GAMESCOPE_FORCE_FULLSCREEN:-0}" = 1 ] && args+=(--force-windows-fullscreen)
+  # No --force-windows-fullscreen: it was for games that shrink their window when the Steam menu
+  # opens over them (FlatOut), which no longer happens with the games on their own Xwayland server
+  # (above), and it made any game drawing at another size than its display fight it. An experiment
+  # can still pass it with BL_GAMESCOPE_ARGS.
   # HDR10: the app opened its compositor's colour-management gate for this session (BL_HDR=1);
   # gamescope then offers HDR to its clients through the same wp_color_manager_v1 it binds on ours.
   [ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
@@ -217,7 +216,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
 fi
 
 # gamescope manages X windows: toolkits go through Xwayland, not gamescope's own Wayland socket.
-# Root-window requests for the game (fullscreen, restore) go to every display gamescope gave us:
+# Root-window requests for the game (restore) go to every display gamescope gave us:
 # the client's ($DISPLAY) and, with two servers, the games' (STEAM_GAME_DISPLAY_0); gamescope reads
 # them per server.
 bl_displays() {
@@ -467,24 +466,6 @@ case $mode in
     # moments later, so the seeder has only that gap to mark the redistributables as already run.
     # It stamps each prefix it has covered and skips it thereafter, so the extra passes cost
     # almost nothing.
-    # The drawer's "Stretch games to fill the screen" works live: the app writes its choice to
-    # ~/.droiddeck-fill, and each change goes to gamescope as GAMESCOPE_FORCE_WINDOWS_FULLSCREEN on
-    # the root window, which it watches. What gamescope was started with is where this begins.
-    # Not on the desktop (BL_DESKTOP): no gamescope there, and the loop would outlive the client.
-    [ -z "${BL_DESKTOP:-}" ] && (
-      last=${BL_GAMESCOPE_FORCE_FULLSCREEN:-0}
-      while :; do
-        nap 1
-        want=
-        { read -r want || [ -n "$want" ]; } < "$HOME/.droiddeck-fill" 2>/dev/null || continue
-        case $want in 0|1) ;; *) continue ;; esac
-        [ "$want" = "$last" ] && continue
-        if bl_xprop_set_all GAMESCOPE_FORCE_WINDOWS_FULLSCREEN "$want"; then
-          echo "== stretch games to fill the screen: $want (live)"
-          last=$want
-        fi
-      done
-    ) &
     # With the 16:9 stretch on, the client's own scaler must not undo it: in Deck mode it sets
     # GAMESCOPE_NEW_SCALING_SCALER to Auto (0), which fits the 16:9 picture with bars and outranks -S.
     # Auto is put back to Stretch (4); a mode picked in the QAM (Integer, Fit, Fill) is kept.

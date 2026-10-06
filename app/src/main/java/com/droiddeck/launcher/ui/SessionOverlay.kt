@@ -195,8 +195,6 @@ class DrawerActions(
     val touchMode: String,
     val touchAuto: String,
     val fexPreset: String,
-    /** Steam only: forces game windows fullscreen, changed live (null = not Steam). */
-    val fillScreen: Boolean? = null,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     /** The compositor's post chain (gpu/ScreenEffects), changed live. */
@@ -226,7 +224,6 @@ class DrawerActions(
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
-    val onFillScreen: (Boolean) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
@@ -406,11 +403,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (SessionPrefs.upscalerHasSharpness(a.upscaler)) SliderRow(
                                     stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
-                            }
-                            if (a.fillScreen != null) SettingsGroup(stringResource(R.string.display_window_compatibility)) {
-                                ToggleRow(host, "fill", stringResource(R.string.display_force_fullscreen),
-                                    stringResource(R.string.display_force_fullscreen_live), a.fillScreen,
-                                    chipModifier = focus.track(page, "fill"), onChange = a.onFillScreen)
                             }
                         }
                         SessionDrawerPage.EFFECTS -> {
