@@ -30,6 +30,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+void bl_dircache_created(const char *path) __attribute__((visibility("hidden")));
+
 #define LINK_FILE "/etc/droiddeck-net"
 #define LO_NAME "lo"
 #define LO_INDEX 1
@@ -499,6 +501,7 @@ static FILE *open_stream(const char *symbol, const char *path, const char *mode)
         return copy;
     }
     FILE *f = ((fopen_fn) dlsym(RTLD_NEXT, symbol))(path, mode);
+    if (f && mode != NULL && mode[0] != 'r') bl_dircache_created(path);
     if (f || path == NULL || mode == NULL || mode[0] != 'r') return f;
     int saved = errno;
     const char *table = denied_table(path);

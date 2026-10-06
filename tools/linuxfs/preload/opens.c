@@ -36,6 +36,10 @@
 int bl_status_without_tracer(const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_writable_retry(int dirfd, const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_ntsync_open(const char *path, int flags) __attribute__((visibility("hidden")));
+void bl_dircache_created(const char *path) __attribute__((visibility("hidden")));
+unsigned long long bl_meta_now(void) __attribute__((visibility("hidden")));
+void bl_meta_log(const char *op, int dirfd, const char *path, int flags, unsigned long long start, long result, int err)
+    __attribute__((visibility("hidden")));
 
 static int retry_without_noatime(int fd, int flags) {
   return fd < 0 && errno == EPERM && (flags & O_NOATIME);
@@ -68,10 +72,13 @@ int open(const char *path, int flags, ...) {
     errno = ENOSYS;
     return -1;
   }
+  unsigned long long t0 = bl_meta_now();
   fd = real_open(path, flags, mode);
+  bl_meta_log("open", -100, path, flags, t0, fd, errno);
   if (retry_without_noatime(fd, flags)) fd = real_open(path, flags & ~O_NOATIME, mode);
   /* A read-only file the Steam client rewrites (perms.c). */
   if (fd < 0 && bl_writable_retry(AT_FDCWD, path, flags)) fd = real_open(path, flags & ~O_NOATIME, mode);
+  if (fd >= 0 && (flags & O_CREAT)) bl_dircache_created(path);
   return fd;
 }
 
@@ -95,9 +102,12 @@ int openat(int dirfd, const char *path, int flags, ...) {
     errno = ENOSYS;
     return -1;
   }
+  unsigned long long t0 = bl_meta_now();
   fd = real_openat(dirfd, path, flags, mode);
+  bl_meta_log("openat", dirfd, path, flags, t0, fd, errno);
   if (retry_without_noatime(fd, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
   if (fd < 0 && bl_writable_retry(dirfd, path, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
+  if (fd >= 0 && (flags & O_CREAT) && (dirfd == AT_FDCWD || (path && path[0] == '/'))) bl_dircache_created(path);
   return fd;
 }
 

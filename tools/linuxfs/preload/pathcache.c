@@ -125,18 +125,33 @@ char *bl_cached_realpath(const char *path, char *resolved, char *(*real)(const c
   return strdup(out);
 }
 
+unsigned long long bl_meta_now(void) __attribute__((visibility("hidden")));
+void bl_meta_log(const char *op, int dirfd, const char *path, int flags, unsigned long long start, long result, int err)
+    __attribute__((visibility("hidden")));
+
+int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+
 static int cached_access(const char *path, int mode, int flags, int (*check)(const char *, int, int)) {
   unsigned h;
   int hit;
   int result;
 
-  if (!cacheable(path)) return check(path, mode, flags);
+  if (path != NULL && path[0] == '/' && bl_dircache_absent(path)) return -1;
+
+  if (!cacheable(path)) {
+    unsigned long long t0 = bl_meta_now();
+    result = check(path, mode, flags);
+    bl_meta_log("access", -100, path, mode, t0, result, errno);
+    return result;
+  }
   h = hash_of(path, KIND_ACCESS, mode, flags);
   pthread_mutex_lock(&lock);
   hit = find(path, KIND_ACCESS, mode, flags, h) != NULL;
   pthread_mutex_unlock(&lock);
   if (hit) return 0;
+  unsigned long long t0 = bl_meta_now();
   result = check(path, mode, flags);
+  bl_meta_log("access", -100, path, mode, t0, result, errno);
   if (result == 0) {
     pthread_mutex_lock(&lock);
     store(path, KIND_ACCESS, mode, flags, h, NULL);
