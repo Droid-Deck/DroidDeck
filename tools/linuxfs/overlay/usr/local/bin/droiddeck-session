@@ -377,6 +377,14 @@ case $mode in
     if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
     fi
+    # The account the user picked in the app for this start (Setup > Steam account): one request,
+    # consumed here whatever happens, and only while no client is running - the client rewrites
+    # these files when it exits. Before the shortcuts, which go to the account that is MostRecent.
+    if [ -z "${BL_DESKTOP:-}" ] && [ -f "$HOME/.config/droiddeck/steam-account-next" ] \
+       && [ -x /usr/local/bin/droiddeck-steam-account ] \
+       && ! pgrep -f 'steamwebhelper|steamrtarm64/steam' >/dev/null 2>&1; then
+      droiddeck-steam-account apply "$steam_root" || true
+    fi
     # The user's own games, as non-Steam shortcuts under that tool; the list is written by the app
     # each session (empty = the app's earlier entries are removed, the client's own are kept).
     if [ -n "${BL_ADDED_GAMES:-}" ]; then
@@ -811,6 +819,11 @@ BUSCONF
         -cef-use-gl=angle -cef-use-angle=vulkan "$@"
       rc=$?
       echo "== steam exited rc=$rc"
+      # Whether the client signed in as the account picked for this start: one line, read-only.
+      if [ -z "${BL_DESKTOP:-}" ] && [ -f "$HOME/.config/droiddeck/steam-account-last" ] \
+         && [ -x /usr/local/bin/droiddeck-steam-account ]; then
+        droiddeck-steam-account check "$steam_root" || true
+      fi
       collect_steam_logs
       if [ -f "$HOME/.config/droiddeck/fex-wanted" ] && [ -x /usr/local/bin/droiddeck-fex ]; then
         /usr/local/bin/droiddeck-fex status >/dev/null 2>&1 || true

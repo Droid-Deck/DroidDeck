@@ -1,0 +1,25 @@
+﻿"users"
+{
+	"76561198000000001"
+	{
+		"AccountName"		"alpha_acct"
+		"PersonaName"		"Alpha Persona"
+		"RememberPassword"		"1"
+		"WantsOfflineMode"		"0"
+		"SkipOfflineModeWarning"		"0"
+		"AllowAutoLogin"		"1"
+		"MostRecent"		"1"
+		"Timestamp"		"1700000001"
+	}
+	"76561198000000002"
+	{
+		"AccountName"		"bravo_acct"
+		"PersonaName"		"Bravo Persona"
+		"RememberPassword"		"1"
+		"WantsOfflineMode"		"0"
+		"SkipOfflineModeWarning"		"0"
+		"AllowAutoLogin"		"1"
+		"MostRecent"		"0"
+		"Timestamp"		"1700000002"
+	}
+}

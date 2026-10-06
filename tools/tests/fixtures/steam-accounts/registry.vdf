@@ -1,0 +1,19 @@
+"Registry"
+{
+	"HKCU"
+	{
+		"Software"
+		{
+			"Valve"
+			{
+				"Steam"
+				{
+					"language"		"english"
+					"AutoLoginUser"		"alpha_acct"
+					"RememberPassword"		"1"
+					"SourceModInstallPath"		"/root/.local/share/Steam/steamapps/sourcemods"
+				}
+			}
+		}
+	}
+}

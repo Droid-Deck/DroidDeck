@@ -1,0 +1,449 @@
+#!/usr/bin/env python3
+"""Start the Steam client as the account the user picked in the app, before the client starts.
+
+Usage: droiddeck-steam-account apply <steam_root>
+       droiddeck-steam-account check <steam_root>
+
+The app leaves one SteamID64 in ~/.config/droiddeck/steam-account-next. `apply` consumes it - the
+file is gone after every run, whatever the outcome - and switches the two places the client reads
+its sign-in account from at start: which loginusers.vdf block is "MostRecent", and AutoLoginUser
+in ~/.steam/registry.vdf. Only those values change; the files' layout, the other keys and the
+saved sign-in tokens (config.vdf, local.vdf, ssfn*) are never opened. Anything unexpected - an
+unknown account, a file it cannot read back exactly, two files that would disagree - writes
+nothing at all. `check`, after the client has exited, says in the log whether the client really
+signed in as the chosen account. Both always exit 0: the session goes on whatever happens here,
+and the log never names an account.
+"""
+import os
+import re
+import sys
+
+STEAMID = re.compile(r"7656119\d{10}")
+
+
+class _Mark:
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return self.name
+
+
+SAME = _Mark("SAME")      # the file already says so: nothing to write
+ABSENT = _Mark("ABSENT")  # registry.vdf has no AutoLoginUser to switch
+REGISTRY_PATH = ("registry", "hkcu", "software", "valve", "steam")
+
+
+def say(msg):
+    print("== steam account: " + msg, flush=True)
+
+
+# ---- text KeyValues: quoted strings, braces, // comments ----
+
+def tokenize(text):
+    """[(kind, raw, start, end)]: kind "s" is a quoted string whose contents are text[start:end],
+    "{" and "}" the braces. None on an unterminated string or anything unquoted."""
+    toks = []
+    i, n = 0, len(text)
+    if text.startswith("﻿"):
+        i = 1
+    while i < n:
+        c = text[i]
+        if c in " \t\r\n\f\v":
+            i += 1
+        elif c == "/" and text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif c in "{}":
+            toks.append((c, c, i, i + 1))
+            i += 1
+        elif c == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            if j >= n:
+                return None
+            toks.append(("s", text[i + 1:j], i + 1, j))
+            i = j + 1
+        else:
+            return None
+    return toks
+
+
+def tree(toks):
+    """[(key_index, value)] per level, value a token index or a nested list. None when the braces
+    do not balance or a key has no value."""
+    stack = [[]]
+    i = 0
+    while i < len(toks):
+        kind = toks[i][0]
+        if kind == "}":
+            if len(stack) == 1:
+                return None
+            stack.pop()
+            i += 1
+            continue
+        if kind != "s" or i + 1 >= len(toks):
+            return None
+        nxt = toks[i + 1][0]
+        if nxt == "s":
+            stack[-1].append((i, i + 1))
+        elif nxt == "{":
+            child = []
+            stack[-1].append((i, child))
+            stack.append(child)
+        else:
+            return None
+        i += 2
+    return stack[0] if len(stack) == 1 else None
+
+
+def parse(text):
+    """(tokens, tree) or None."""
+    toks = tokenize(text)
+    if toks is None:
+        return None
+    root = tree(toks)
+    return None if root is None else (toks, root)
+
+
+def key(toks, entry):
+    return toks[entry[0]][1].lower()
+
+
+def child(toks, level, name):
+    """The one entry named [name] (any case) on a level; None when absent, False when ambiguous."""
+    found = [e for e in level if key(toks, e) == name]
+    if len(found) > 1:
+        return False
+    return found[0] if found else None
+
+
+def users_of(parsed):
+    """[(id64, {lowercased key: token index})] in file order, or None (see parse_users)."""
+    toks, root = parsed
+    users = child(toks, root, "users")
+    if not users or not isinstance(users[1], list):
+        return None
+    out, seen = [], set()
+    for entry in users[1]:
+        id64 = toks[entry[0]][1]
+        if not STEAMID.fullmatch(id64) or id64 in seen or not isinstance(entry[1], list):
+            return None
+        seen.add(id64)
+        fields = {}
+        for kv in entry[1]:
+            k = key(toks, kv)
+            if k in fields or isinstance(kv[1], list):
+                return None
+            fields[k] = kv[1]
+        if raw(toks, fields, "rememberpassword") == "1" and not raw(toks, fields, "accountname").strip():
+            return None
+        out.append((id64, fields))
+    return out
+
+
+def raw(toks, fields, name):
+    i = fields.get(name)
+    return "" if i is None else toks[i][1]
+
+
+def parse_users(text):
+    """[(id64, {key: raw value})], or None: unbalanced braces, no "users" root, an id twice or one
+    that is not a SteamID64, or a remembered account without its AccountName."""
+    parsed = parse(text)
+    users = users_of(parsed) if parsed else None
+    if users is None:
+        return None
+    toks = parsed[0]
+    return [(id64, {k: toks[i][1] for k, i in fields.items()}) for id64, fields in users]
+
+
+def splice(text, toks, edits):
+    """[text] with the contents of each token index in [edits] replaced; nothing else moves."""
+    for i, value in sorted(edits.items(), key=lambda e: toks[e[0]][2], reverse=True):
+        _, _, start, end = toks[i]
+        text = text[:start] + value + text[end:]
+    return text
+
+
+def select(text, id64):
+    """loginusers.vdf with [id64] the one MostRecent account: the new text, SAME, or None when the
+    file is malformed, the account unknown or not remembered, or its block has no MostRecent line."""
+    parsed = parse(text)
+    users = users_of(parsed) if parsed else None
+    if users is None:
+        return None
+    toks = parsed[0]
+    chosen = dict(users).get(id64)
+    if chosen is None or raw(toks, chosen, "rememberpassword") != "1" or "mostrecent" not in chosen:
+        return None
+    edits = {}
+    for uid, fields in users:
+        i = fields.get("mostrecent")
+        want = "1" if uid == id64 else "0"
+        if i is not None and toks[i][1] != want:
+            edits[i] = want
+    return splice(text, toks, edits) if edits else SAME
+
+
+def registry_value(parsed):
+    """The AutoLoginUser value's token index; ABSENT, or None when ambiguous or not a value."""
+    toks, level = parsed
+    for name in REGISTRY_PATH:
+        entry = child(toks, level, name)
+        if entry is False:
+            return None
+        if entry is None:
+            return ABSENT
+        if not isinstance(entry[1], list):
+            return None
+        level = entry[1]
+    entry = child(toks, level, "autologinuser")
+    if entry is False or (entry and isinstance(entry[1], list)):
+        return None
+    return ABSENT if entry is None else entry[1]
+
+
+def select_registry(text, account):
+    """registry.vdf with AutoLoginUser set to [account]: the new text, SAME, ABSENT (no such value
+    under Registry/HKCU/Software/Valve/Steam - it is never added), or None (malformed, or a name
+    that would need escaping)."""
+    if not account.strip() or any(c in account for c in '"\\\r\n'):
+        return None
+    parsed = parse(text)
+    if parsed is None:
+        return None
+    i = registry_value(parsed)
+    if i is None or i is ABSENT:
+        return i
+    toks = parsed[0]
+    return SAME if toks[i][1] == account else splice(text, toks, {i: account})
+
+
+def editable(parsed, kind):
+    """The token indexes [kind]'s edit may change: every MostRecent value, or the AutoLoginUser."""
+    toks = parsed[0]
+    if kind == "users":
+        users = users_of(parsed)
+        return None if users is None else {f["mostrecent"] for _, f in users if "mostrecent" in f}
+    i = registry_value(parsed)
+    return None if i is None or i is ABSENT else {i}
+
+
+def validate(old, new, kind, id64=None, account=None):
+    """Whether [new] is [old] with only the values [kind] may change ("users": MostRecent, with
+    [id64] the single "1"; "registry": AutoLoginUser, now [account])."""
+    a, b = parse(old), parse(new)
+    if a is None or b is None or len(a[0]) != len(b[0]):
+        return False
+    ea, eb = editable(a, kind), editable(b, kind)
+    if ea is None or ea != eb:
+        return False
+
+    def skeleton(t, toks):
+        return splice(t, toks, {i: "" for i in ea})
+    if skeleton(old, a[0]) != skeleton(new, b[0]):
+        return False
+    toks = b[0]
+    if kind == "users":
+        users = users_of(b)
+        recent = [uid for uid, f in users if raw(toks, f, "mostrecent") == "1"]
+        return recent == [id64]
+    return toks[next(iter(eb))][1] == account
+
+
+# ---- files ----
+
+def read_text(path):
+    """The file's text, None when it is missing, False when it is not UTF-8 text."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return False
+    if b"\x00" in data:
+        return False
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+
+
+def write_atomic(path, data, mode=None):
+    tmp = path + ".tmp"
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        if mode is not None:
+            os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def replace_with_backup(path, old, new):
+    mode = os.stat(path).st_mode & 0o7777
+    write_atomic(path + ".droiddeck-prev", old.encode("utf-8"), mode)
+    write_atomic(path, new.encode("utf-8"), mode)
+
+
+def state_dir(home):
+    return os.path.join(home, ".config", "droiddeck")
+
+
+def consume_request(home):
+    """The requested id or "" when the file was not one; None when there is no request. The file
+    is removed before anything else is looked at, so a request is acted on at most once."""
+    path = os.path.join(state_dir(home), "steam-account-next")
+    if not os.path.lexists(path):
+        return None
+    try:
+        if os.path.islink(path) or not os.path.isfile(path):
+            data = b""
+        else:
+            with open(path, "rb") as f:
+                data = f.read(64)
+    except OSError:
+        data = b""
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    text = data.decode("ascii", "replace").strip()
+    return text if STEAMID.fullmatch(text) else ""
+
+
+def timestamp(text, id64):
+    for uid, fields in parse_users(text) or []:
+        if uid == id64:
+            return fields.get("timestamp", "")
+    return ""
+
+
+def apply(steam_root, home):
+    id64 = consume_request(home)
+    if id64 is None:
+        return 0
+    if not id64:
+        say("ignored an unreadable account request; nothing changed")
+        return 0
+    users_path = os.path.realpath(os.path.join(steam_root, "config", "loginusers.vdf"))
+    users_text = read_text(users_path)
+    if not users_text:
+        say("no readable list of saved accounts; nothing changed")
+        return 0
+    users = parse_users(users_text)
+    if users is None:
+        say("the saved accounts list is not in the expected form; nothing changed")
+        return 0
+    new_users = select(users_text, id64)
+    if new_users is None:
+        say("the chosen account is not a saved sign-in here; nothing changed")
+        return 0
+    account = dict(users)[id64]["accountname"]
+    reg_path = os.path.realpath(os.path.join(home, ".steam", "registry.vdf"))
+    reg_text = read_text(reg_path)
+    new_reg = ABSENT
+    if reg_text is False:
+        say("registry.vdf is not readable text; nothing changed")
+        return 0
+    if reg_text is not None:
+        new_reg = select_registry(reg_text, account)
+        if new_reg is None:
+            say("registry.vdf could not be switched with the accounts list; nothing changed")
+            return 0
+    reg_changes = new_reg is not SAME and new_reg is not ABSENT
+    if new_users is not SAME and not validate(users_text, new_users, "users", id64=id64):
+        say("the switched accounts list did not check out; nothing changed")
+        return 0
+    if reg_changes and not validate(reg_text, new_reg, "registry", account=account):
+        say("the switched registry.vdf did not check out; nothing changed")
+        return 0
+    if reg_changes:
+        try:
+            replace_with_backup(reg_path, reg_text, new_reg)
+        except Exception as e:
+            say("could not write registry.vdf (%s); nothing changed" % e.__class__.__name__)
+            return 0
+    if new_users is not SAME:
+        try:
+            replace_with_backup(users_path, users_text, new_users)
+        except Exception as e:
+            # The two must agree: the registry goes back to what it was rather than name an
+            # account the accounts list does not start with.
+            if reg_changes:
+                try:
+                    write_atomic(reg_path, reg_text.encode("utf-8"), os.stat(reg_path).st_mode & 0o7777)
+                except Exception:
+                    say("could not put registry.vdf back; its earlier copy is registry.vdf.droiddeck-prev")
+            say("could not write the accounts list (%s); nothing changed" % e.__class__.__name__)
+            return 0
+    try:
+        os.makedirs(state_dir(home), exist_ok=True)
+        write_atomic(os.path.join(state_dir(home), "steam-account-last"),
+                     ("%s\n%s\n" % (id64, timestamp(users_text, id64))).encode("ascii", "replace"))
+    except OSError:
+        pass
+    ids = [uid for uid, _ in users]
+    note = "" if new_users is not SAME or reg_changes else " (already selected)"
+    say("starting as account %d of %d%s" % (ids.index(id64) + 1, len(ids), note))
+    return 0
+
+
+def check(steam_root, home):
+    """After the client exits: is the account it signed in as the one apply chose? "yes" when that
+    account is now the MostRecent one and the client rewrote its Timestamp, "no" when another
+    account is, "unknown" when the file does not say."""
+    path = os.path.join(state_dir(home), "steam-account-last")
+    if not os.path.lexists(path):
+        return 0
+    try:
+        with open(path, "rb") as f:
+            lines = f.read(256).decode("ascii", "replace").splitlines()
+    except OSError:
+        lines = []
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    chosen = lines[0].strip() if lines else ""
+    before = lines[1].strip() if len(lines) > 1 else ""
+    text = read_text(os.path.join(steam_root, "config", "loginusers.vdf"))
+    users = parse_users(text) if text else None
+    answer = "unknown"
+    if STEAMID.fullmatch(chosen) and users is not None:
+        recent = [(uid, f) for uid, f in users if f.get("mostrecent") == "1"]
+        if len(recent) == 1 and recent[0][0] != chosen:
+            answer = "no"
+        elif len(recent) == 1 and recent[0][1].get("timestamp", "") != before:
+            answer = "yes"
+    say("client signed in as the chosen account: " + answer)
+    return 0
+
+
+def main(argv):
+    if len(argv) != 3 or argv[1] not in ("apply", "check"):
+        print("usage: droiddeck-steam-account apply|check <steam_root>", file=sys.stderr)
+        return 0
+    home = os.environ.get("HOME") or "/root"
+    try:
+        return (apply if argv[1] == "apply" else check)(argv[2], home)
+    except Exception as e:
+        say("skipped (%s)" % e.__class__.__name__)
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

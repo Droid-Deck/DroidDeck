@@ -1,0 +1,16 @@
+"InstallConfigStore"
+{
+	"Software"
+	{
+		"Valve"
+		{
+			"Steam"
+			{
+				"ConnectCache"
+				{
+					"abc123"		"0123456789abcdef-not-a-real-token"
+				}
+			}
+		}
+	}
+}
