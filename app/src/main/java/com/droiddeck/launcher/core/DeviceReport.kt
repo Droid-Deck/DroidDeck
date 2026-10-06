@@ -109,8 +109,11 @@ object DeviceReport {
         k("Session output", SessionState.outputSize?.let { "${it.first}x${it.second}" })
         k("Session refresh", String.format(Locale.US, "%.2f Hz", SessionState.refreshHz))
         val panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(context)
-        k("Resolution (Steam)", SessionPrefs.resolutionChoice(context, SessionService.MODE_STEAM, panelSize))
-        k("Resolution (Desktop)", SessionPrefs.resolutionChoice(context, SessionService.MODE_DESKTOP, panelSize))
+        for ((label, mode) in listOf("Resolution (Steam)" to SessionService.MODE_STEAM, "Resolution (Desktop)" to SessionService.MODE_DESKTOP)) {
+            val choice = SessionPrefs.resolutionChoice(context, mode, panelSize)
+            val size = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panelSize, choice)
+            k(label, "$choice (${size.first}x${size.second})")
+        }
         k("Foldable", context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle"))
 
         h("Drivers")

@@ -6,23 +6,40 @@ import android.view.WindowManager
 /** The virtual display advertised to the guest, before it is fitted onto the Android panel. */
 object SessionDisplay {
     const val MATCH_SCREEN = "screen"
-    const val DEFAULT_RESOLUTION = "1280x720"
+
+    /**
+     * Presets are heights, not sizes: "720p" is the panel's own shape at 720 lines, never narrower
+     * than 16:9 and never taller than the panel (SHAPE_AUTO). The client treats the output as the
+     * games' native resolution, so the height is what bounds a game's default size on a 1440p
+     * phone; the shape is what keeps the client's interface edge to edge on a 20:9 one (1600x720)
+     * and keeps games at 16:9 or wider on a foldable's near-square panel.
+     */
+    const val DEFAULT_RESOLUTION = "720p"
+    private val PRESET_HEIGHTS = listOf(720, 900, 1080)
+
+    /** The height of a preset choice ("900p"), or null for Match screen and fixed sizes. */
+    fun presetHeight(choice: String): Int? =
+        if (choice.endsWith("p")) choice.dropLast(1).toIntOrNull()?.takeIf { it > 0 } else null
 
     fun screenSize(panel: Pair<Int, Int>): Pair<Int, Int> =
         (maxOf(panel.first, panel.second) and 1.inv()) to (minOf(panel.first, panel.second) and 1.inv())
 
-    fun resolveChoice(panel: Pair<Int, Int>, choice: String): Pair<Int, Int> =
-        if (choice == MATCH_SCREEN) screenSize(panel) else {
-            // Legacy displays may exceed the custom dialog's size limit. Keep their exact size.
-            val parts = choice.split('x').map { it.toIntOrNull() }
-            if (parts.size == 2 && parts.all { it != null && it > 0 }) parts[0]!! to parts[1]!!
-            else 1280 to 720
-        }
+    fun resolveChoice(panel: Pair<Int, Int>, choice: String): Pair<Int, Int> {
+        if (choice == MATCH_SCREEN) return screenSize(panel)
+        presetHeight(choice)?.let { return resolve(panel, it, SessionPrefs.SHAPE_AUTO) }
+        // Fixed sizes (custom, or a preset saved before presets were heights) keep their exact size,
+        // including legacy ones past the custom dialog's limit.
+        val parts = choice.split('x').map { it.toIntOrNull() }
+        return if (parts.size == 2 && parts.all { it != null && it > 0 }) parts[0]!! to parts[1]!!
+        else resolve(panel, 720, SessionPrefs.SHAPE_AUTO)
+    }
 
-    /** Fixed dimensions and the current panel, with no duplicate panel-size preset. */
-    fun resolutionOptions(panel: Pair<Int, Int>): List<String> =
-        listOf(DEFAULT_RESOLUTION, "1600x900", "1920x1080")
+    /** The height presets the panel is tall enough for, then the panel itself, with no duplicate sizes. */
+    fun resolutionOptions(panel: Pair<Int, Int>): List<String> {
+        val panelHeight = minOf(panel.first, panel.second)
+        return PRESET_HEIGHTS.filter { it <= panelHeight }.map { "${it}p" }
             .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN
+    }
 
     fun panelSize(context: Context): Pair<Int, Int> {
         val manager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
