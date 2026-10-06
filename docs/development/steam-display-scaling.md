@@ -202,12 +202,15 @@ Device runs (Thor, no `droiddeck-env`):
 Steam saves the per-game choice as `"ResolutionOverride2" "1280x720"` under the app in
 `userdata/<id>/config/localconfig.vdf`.
 
-Still to check by hand (need controller input):
-- the Steam menu and QAM over a game, then Resume. Patches 0112 and 0113 work per server, and X
-  keyboard focus is now separate for the client and the game;
-- FlatOut 2 (the reason Force fullscreen exists) with Force fullscreen off: does it come back small
-  after the Steam menu?
-- pasting Android text into a game.
+Checked by hand (2026-10-06, Thor, Force fullscreen off):
+- **FlatOut 2**, the game Force fullscreen was added for, does not shrink when the QAM opens over
+  it and closes again. With the client's overlay on another X server, the game keeps its own X
+  keyboard focus and never sees the deactivation that made it shrink.
+- Resume after the Steam menu: the resume watcher's restore request reaches both servers
+  (`restore requested for focus window` logged once for the client's window and once for the
+  game's).
+
+Still to check by hand: pasting Android text into a game.
 
 Force fullscreen is still unsafe without a matching Game Resolution: with the default (native),
 a game drawing at another size fights it as in run 4. It stays off by default.
