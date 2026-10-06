@@ -416,6 +416,9 @@ class SessionService : Service() {
                 guest.addAll(fastPathAt, env)
                 shellGuest.addAll(fastPathAt, env)
                 Log.i(TAG, "proot: fast path on (${prootBinds.size} binds)")
+            } ?: run {
+                Log.w(TAG, "proot: fast path off - ${prootBinds.size} binds (it holds ${ProotFastPath.MAX_BINDS}) or a path it cannot be told")
+                null
             }
         } else null
 
