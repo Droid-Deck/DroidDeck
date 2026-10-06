@@ -134,7 +134,8 @@ object DeviceInfo {
         add("API version", vk["api"])
         add("Loader version", vk["loader"])
         add("Driver", listOfNotNull(vk["driver_name"], vk["driver_version"]).joinToString(" "))
-        add("Driver build", vk["driver_info"])
+        // Qualcomm's build string starts with its own label ("Driver Build: 43c70540de, ...").
+        add("Driver build", vk["driver_info"]?.replace(Regex("(?i)^driver build:\\s*"), ""))
         add("Conformance", vk["conformance"])
         add("Vendor / device id", listOfNotNull(vk["vendor_id"], vk["device_id"]).joinToString(" / "))
         add("Max texture size", vk["max_image_2d"])
