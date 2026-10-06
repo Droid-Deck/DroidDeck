@@ -8,9 +8,14 @@ the components it bundles ("requires"). The ids are Bannerlator's catalog names 
 oalinst_dll...). The user picks components per game; the picks are in SELECTION as
 {"version": 1, "games": {"<appid>": ["oalinst_dll", ...]}}.
 
+A component installed from a Windows Installer package (droiddeck-msi-install) also has drive_c/,
+its files at their Windows paths (Program Files, the .NET GAC, winsxs...), and registry.json, the
+values its package writes.
+
 droiddeck-game-env calls apply() before every game launch. It copies what is missing or changed
-into compatdata/<appid>/pfx and returns the overrides for WINEDLLOVERRIDES, so nothing is written
-to the prefix's registry and Wine never has to be running.
+into compatdata/<appid>/pfx, writes the components' registry values into the prefix's registry
+files (system.reg, user.reg) and returns the overrides for WINEDLLOVERRIDES, so Wine never has to
+be running. A prefix Proton has not made yet gets the registry values on the launch after.
 
 Proton leaves the files alone afterwards: its builtin refresh (update_builtin_libs) replaces only
 files that are its own builtins, and a new prefix is built around files already there (copy_pfx
@@ -22,6 +27,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from pathlib import Path
 
 STORE = Path("/opt/droiddeck/wincomponents")
@@ -34,6 +40,10 @@ BACKUP = ".droiddeck-wincomponents-backup"
 BUILTIN_MARKS = (b"Wine builtin DLL", b"Wine placeholder DLL")
 ARCH_DIRS = ("system32", "syswow64")
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+# The registry file of each hive in a prefix, and the kinds of value registry.json holds: "key"
+# makes a key, "append"/"prepend" add to a list such as PATH unless it is already there.
+HIVES = {"HKLM": "system.reg", "HKCU": "user.reg"}
+VALUE_TYPES = {"key", "sz", "expand_sz", "multi_sz", "dword", "binary", "append", "prepend"}
 
 
 def valid_id(value):
@@ -71,8 +81,28 @@ def component(store, cid):
                 if entry.is_file() and not entry.is_symlink():
                     rel = entry.relative_to(folder).as_posix().lower()
                     files.append(("drive_c/windows/%s/%s" % (arch, rel), entry))
+    drive = root / "drive_c"
+    if drive.is_dir():
+        for entry in sorted(drive.rglob("*")):
+            if entry.is_file() and not entry.is_symlink():
+                files.append(("drive_c/" + entry.relative_to(drive).as_posix(), entry))
     requires = [r for r in meta.get("requires", []) if valid_id(r)]
-    return [str(o) for o in meta.get("overrides", [])], files, requires
+    return [str(o) for o in meta.get("overrides", [])], files, requires, registry_values(root)
+
+
+def registry_values(root):
+    """The component's registry values (registry.json), the ones that are well formed."""
+    try:
+        with open(Path(root) / "registry.json", encoding="utf-8") as source:
+            values = json.load(source).get("values", [])
+    except (FileNotFoundError, ValueError, AttributeError):
+        return []
+    good = []
+    for value in values if isinstance(values, list) else []:
+        if isinstance(value, dict) and value.get("hive") in HIVES and isinstance(value.get("key"), str) \
+                and value.get("type") in VALUE_TYPES and value["key"].strip("\\") and "\0" not in value["key"]:
+            good.append(value)
+    return good
 
 
 def expand(store, ids):
@@ -93,13 +123,33 @@ def expand(store, ids):
     return out
 
 
+def spelled(path):
+    """path with each folder that exists spelled as the prefix spells it (Windows names ignore case)."""
+    parts = path.parts
+    current = Path(parts[0])
+    for part in parts[1:]:
+        candidate = current / part
+        if not candidate.exists():
+            try:
+                with os.scandir(current) as entries:
+                    for entry in entries:
+                        if entry.name.lower() == part.lower() and entry.is_dir():
+                            candidate = current / entry.name
+                            break
+            except OSError:
+                pass
+        current = candidate
+    return current
+
+
 def existing(path):
     """The file at path as the prefix spells it: Windows names ignore case, the filesystem may not."""
-    folder = path.parent
+    folder = spelled(path.parent)
+    path = folder / path.name
     try:
         with os.scandir(folder) as entries:
             for entry in entries:
-                if entry.name.lower() == path.name:
+                if entry.name.lower() == path.name.lower():
                     return folder / entry.name
     except OSError:
         pass
@@ -130,6 +180,7 @@ def builtin(path):
 
 def place(src, target, backup=None):
     """Copies src over target unless it is already there; a file of someone else's goes to backup first."""
+    target = spelled(target.parent) / target.name
     target.parent.mkdir(parents=True, exist_ok=True)
     found = existing(target)
     if found is not None and same(src, found):
@@ -144,6 +195,312 @@ def place(src, target, backup=None):
     os.replace(temp, final)
     return True
 
+
+# ---------------------------------------------------------------- the prefix's registry files
+
+def reg_escape(text, extra=""):
+    """A string as Wine's registry files write it."""
+    out = []
+    for ch in text:
+        if ch == "\\" or ch == '"' or ch in extra:
+            out.append("\\" + ch)
+        elif ch == "\n":
+            out.append("\\n")
+        elif ch == "\r":
+            out.append("\\r")
+        elif ch == "\t":
+            out.append("\\t")
+        elif ch == "\0":
+            out.append("\\0")
+        elif ch < " " or ch > "~":
+            out.append("\\x%04x" % ord(ch))
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def reg_unescape(text):
+    out, i = [], 0
+    while i < len(text):
+        ch = text[i]
+        if ch != "\\" or i + 1 >= len(text):
+            out.append(ch)
+            i += 1
+            continue
+        nxt = text[i + 1]
+        if nxt == "x":
+            match = re.match(r"[0-9a-fA-F]{1,4}", text[i + 2:])
+            if match:
+                out.append(chr(int(match.group(0), 16)))
+                i += 2 + len(match.group(0))
+                continue
+        out.append({"n": "\n", "r": "\r", "t": "\t", "0": "\0"}.get(nxt, nxt))
+        i += 2
+    return "".join(out)
+
+
+def reg_key_line(key):
+    return "[%s]" % "\\\\".join(reg_escape(part, "[]") for part in key.strip("\\").split("\\"))
+
+
+def reg_value_line(name, kind, data):
+    """name=data as one registry file line; None for a kind that has no line of its own."""
+    head = "@" if name == "" else '"%s"' % reg_escape(name)
+    if kind == "sz":
+        return '%s="%s"' % (head, reg_escape(str(data)))
+    if kind == "expand_sz":
+        return '%s=str(2):"%s"' % (head, reg_escape(str(data)))
+    if kind == "multi_sz":
+        parts = [str(part) for part in data] if isinstance(data, list) else [str(data)]
+        return '%s=str(7):"%s"' % (head, reg_escape("".join(part + "\0" for part in parts)))
+    if kind == "dword":
+        return "%s=dword:%08x" % (head, int(data) & 0xFFFFFFFF)
+    if kind == "binary":
+        digits = re.sub(r"[^0-9a-f]", "", str(data).lower())
+        return "%s=hex:%s" % (head, ",".join(digits[i:i + 2] for i in range(0, len(digits) - 1, 2)))
+    return None
+
+
+def reg_string(line):
+    """The text of a string value line (plain or str(2)), or None for any other kind."""
+    match = re.match(r'^(?:@|"(?:[^"\\]|\\.)*")=(?:str\(2\):)?"((?:[^"\\]|\\.)*)"\s*$', line)
+    return reg_unescape(match.group(1)) if match else None
+
+
+class RegistryFile:
+    """One of a prefix's registry files, as Wine keeps them: [key] sections of name=value lines."""
+
+    def __init__(self, path):
+        self.path = Path(path)
+        with open(self.path, encoding="utf-8", errors="surrogateescape", newline="") as source:
+            self.lines = source.read().split("\n")
+        self.changed = False
+        self.index = {}
+        self.links = {}
+        root = ""
+        for line in self.lines[:4]:
+            match = re.match(r"^;; All keys relative to (.*)$", line)
+            if match:
+                root = reg_unescape(match.group(1)).strip("\\").lower()
+        current = None
+        for number, line in enumerate(self.lines):
+            if line.startswith("["):
+                key = self.parse_key(line)
+                current = key
+                if key is not None:
+                    self.index.setdefault(key.lower(), number)
+            elif line == "#link" and current is not None:
+                target = self.link_target(number, root)
+                if target:
+                    self.links[current.lower()] = target
+
+    def link_target(self, number, root):
+        """Where the link key whose "#link" line is at number leads, relative to this file's root."""
+        for at in range(number + 1, min(number + 8, len(self.lines))):
+            line = self.lines[at]
+            if line.startswith("["):
+                return None
+            if line.startswith('"SymbolicLinkValue"=hex(6):'):
+                data = line.split(":", 1)[1]
+                while data.endswith("\\") and at + 1 < len(self.lines):
+                    at += 1
+                    data = data[:-1] + self.lines[at].strip()
+                try:
+                    raw = bytes(int(part, 16) for part in data.split(",") if part.strip())
+                    target = raw.decode("utf-16-le").strip("\\")
+                except ValueError:
+                    return None
+                if root and target.lower().startswith(root + "\\"):
+                    return target[len(root) + 1:]
+                return None
+        return None
+
+    def resolve(self, key):
+        """The key Wine really keeps key in: a path through a link key leads to the link's target."""
+        key = key.strip("\\")
+        for _ in range(8):
+            lower = key.lower()
+            for link, target in self.links.items():
+                if lower == link or lower.startswith(link + "\\"):
+                    key = target + key[len(link):]
+                    break
+            else:
+                return key
+        return key
+
+    @staticmethod
+    def parse_key(line):
+        end, i = None, 1
+        while i < len(line):
+            if line[i] == "\\":
+                i += 2
+                continue
+            if line[i] == "]":
+                end = i
+                break
+            i += 1
+        return None if end is None else reg_unescape(line[1:end])
+
+    def section(self, key):
+        """(start, end) line numbers of the key's values, or None."""
+        start = self.index.get(self.resolve(key).lower())
+        if start is None:
+            return None
+        end = start + 1
+        while end < len(self.lines) and not self.lines[end].startswith("["):
+            end += 1
+        return start + 1, end
+
+    @staticmethod
+    def value_name(line):
+        if line.startswith("@="):
+            return ""
+        match = re.match(r'^"((?:[^"\\]|\\.)*)"=', line)
+        return reg_unescape(match.group(1)).lower() if match else None
+
+    def find(self, key, name):
+        """(first, last + 1) of the value's lines, or None."""
+        span = self.section(key)
+        if span is None:
+            return None
+        wanted = name.lower()
+        number = span[0]
+        while number < span[1]:
+            line = self.lines[number]
+            last = number
+            while self.lines[last].endswith("\\") and last + 1 < span[1]:
+                last += 1
+            if self.value_name(line) == wanted:
+                return number, last + 1
+            number = last + 1
+        return None
+
+    def get(self, key, name):
+        found = self.find(key, name)
+        return None if found is None else "\n".join(self.lines[found[0]:found[1]])
+
+    def ensure_key(self, key):
+        key = self.resolve(key)
+        if key.lower() in self.index:
+            return
+        now = time.time()
+        while self.lines and self.lines[-1] == "":
+            self.lines.pop()
+        self.lines += ["", "%s %d" % (reg_key_line(key), int(now)),
+                       "#time=%x" % (int(now * 10000000) + 116444736000000000)]
+        self.index[key.lower()] = len(self.lines) - 2
+        self.lines.append("")
+        self.changed = True
+
+    def put(self, key, name, raw):
+        """Sets the value's line(s) to raw, or removes the value when raw is None; True if that changed it."""
+        found = self.find(key, name)
+        if raw is None:
+            if found is None:
+                return False
+            del self.lines[found[0]:found[1]]
+            self.shift(found[0], found[0] - found[1])
+            self.changed = True
+            return True
+        new = raw.split("\n")
+        if found is not None:
+            if self.lines[found[0]:found[1]] == new:
+                return False
+            self.lines[found[0]:found[1]] = new
+            self.shift(found[0], len(new) - (found[1] - found[0]))
+        else:
+            self.ensure_key(key)
+            start, end = self.section(key)
+            while end > start and self.lines[end - 1] == "":
+                end -= 1
+            self.lines[end:end] = new
+            self.shift(end, len(new))
+        self.changed = True
+        return True
+
+    def shift(self, at, by):
+        if by:
+            for key, number in self.index.items():
+                if number >= at:
+                    self.index[key] = number + by
+
+    def save(self):
+        if not self.changed:
+            return
+        temp = self.path.with_name("." + self.path.name + ".droiddeck")
+        with open(temp, "w", encoding="utf-8", errors="surrogateescape", newline="") as out:
+            out.write("\n".join(self.lines))
+        shutil.copymode(self.path, temp)
+        os.replace(temp, self.path)
+        self.changed = False
+
+
+def list_line(name, current, item, separator, add, at_end=True):
+    """current (a string value line) with item added to or taken out of its list, None if it had
+    nothing else; a value that is not a string is left as it is."""
+    text = reg_string(current) if current is not None else ""
+    if text is None:
+        return current
+    items = [part for part in text.split(separator) if part and part.lower() != item.lower()]
+    if add:
+        items = items + [item] if at_end else [item] + items
+    if not items:
+        return None
+    expand = current is None or "=str(2):" in current
+    return reg_value_line(name, "expand_sz" if expand else "sz", separator.join(items))
+
+
+def apply_registry(pfx, values, state):
+    """Writes the picked components' registry values into the prefix and takes out the ones of
+    components turned off: a value goes back to what it was before, an entry added to a list such
+    as PATH just leaves the list. Returns (values written, notes)."""
+    files = {}
+    for hive, name in HIVES.items():
+        if (pfx / name).is_file():
+            files[hive] = RegistryFile(pfx / name)
+    old = state.get("registry") if isinstance(state.get("registry"), dict) else {}
+    keep, notes, written, waiting = {}, [], 0, 0
+    for cid, value in values:
+        reg = files.get(value["hive"])
+        if reg is None:
+            waiting += 1
+            continue
+        if value["type"] == "key":
+            reg.ensure_key(value["key"])
+            continue
+        name = value.get("name") or ""
+        ident = "%s\t%s\t%s" % (value["hive"], value["key"].lower(), name.lower())
+        current = reg.get(value["key"], name)
+        record = keep.get(ident) or (old.get(ident) if isinstance(old.get(ident), dict) else None) or {"prev": current}
+        if value["type"] in ("append", "prepend"):
+            line = list_line(name, current, str(value.get("data", "")), value.get("separator") or ";", True,
+                             value["type"] == "append")
+            record = dict(record, item=str(value.get("data", "")), separator=value.get("separator") or ";")
+        else:
+            line = reg_value_line(name, value["type"], value.get("data"))
+        if line != current and reg.put(value["key"], name, line):
+            written += 1
+        keep[ident] = dict(record, cid=cid, hive=value["hive"], key=value["key"], name=name)
+    for ident, record in old.items():
+        if ident in keep or not isinstance(record, dict) or not isinstance(record.get("key"), str):
+            continue
+        reg = files.get(record.get("hive"))
+        if reg is None:
+            keep[ident] = record
+            continue
+        name = record.get("name") or ""
+        if "item" in record:
+            line = list_line(name, reg.get(record["key"], name), record["item"], record.get("separator") or ";", False)
+        else:
+            line = record.get("prev")
+        if reg.put(record["key"], name, line):
+            written += 1
+    for reg in files.values():
+        reg.save()
+    state["registry"] = keep
+    if waiting:
+        notes.append("%d registry value(s) wait for the prefix: they go in on the next launch" % waiting)
+    return written, notes
 
 def load_state(compat):
     try:
@@ -167,19 +524,21 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE):
     pfx = compat / "pfx"
     ids = wanted(app_id, selection)
     state = load_state(compat)
-    if not ids and not state["files"]:
+    if not ids and not state["files"] and not state.get("registry"):
         return [], []
     notes, overrides, keep = [], [], {}
     copied = 0
     installed = []
+    values = []
     for cid in expand(store, ids):
         found = component(store, cid)
         if found is None:
             notes.append("%s is not installed; skipped" % cid)
             continue
         installed.append(cid)
-        names, files, _ = found
+        names, files, _, registry = found
         overrides += names
+        values += [(cid, value) for value in registry]
         for rel, src in files:
             # A file this prefix already has from us is ours to replace; anything else is kept.
             if place(src, pfx / rel, None if rel in state["files"] else compat / BACKUP / rel):
@@ -206,10 +565,16 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE):
         except FileNotFoundError:
             pass
     compat.mkdir(parents=True, exist_ok=True)
-    save_state(compat, {"files": keep, "components": installed})
-    if copied or removed or restored:
+    new_state = {"files": keep, "components": installed, "registry": state.get("registry", {})}
+    written = 0
+    if values or new_state["registry"]:
+        written, registry_notes = apply_registry(pfx, values, new_state)
+        notes += registry_notes
+    save_state(compat, new_state)
+    if copied or removed or restored or written:
         note = "components %s: %d file(s) placed, %d removed" % (",".join(ids) or "none", copied, removed)
-        notes.append(note + (", %d put back as they were" % restored if restored else ""))
+        note += ", %d put back as they were" % restored if restored else ""
+        notes.append(note + (", %d registry value(s) written" % written if written else ""))
     return overrides, notes
 
 

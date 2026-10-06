@@ -173,7 +173,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -250,6 +250,26 @@ jobs:
           install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
           rm -rf mango-pkgs
           ls -l "$M"
+          # The Windows components installer's tools (tools/msitools/packages.txt).
+          T="$D/usr/local/lib/droiddeck-msitools"
+          mkdir -p "$T" msi-pkgs
+          grep -v '^#' tools/msitools/packages.txt | while read -r sum url; do
+            [ -n "$url" ] || continue
+            curl -fsSL --retry 3 -o msi-pkgs/pkg.tar.xz "$url"
+            echo "$sum  msi-pkgs/pkg.tar.xz" | sha256sum -c -
+            tar -xJf msi-pkgs/pkg.tar.xz -C msi-pkgs
+            rm msi-pkgs/pkg.tar.xz
+          done
+          install -m644 msi-pkgs/usr/bin/msiinfo "$T/msiinfo"
+          install -m644 msi-pkgs/usr/bin/cabextract "$T/cabextract"
+          for so in libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
+            cp -L "msi-pkgs/usr/lib/$so" "$T/$so"
+          done
+          for f in NOTICE GPL-2 GPL-3 LGPL-2.1; do
+            install -Dm644 "tools/msitools/licenses/$f" "$D/usr/local/share/licenses/droiddeck-msitools/$f"
+          done
+          rm -rf msi-pkgs
+          ls -l "$T"
           install -Dm644 tools/linuxfs/desktop/droiddeck-desktop "$D/usr/local/bin/droiddeck-desktop"
           install -Dm644 tools/linuxfs/desktop/droiddeck-gpu "$D/usr/local/bin/droiddeck-gpu"
           install -Dm644 tools/linuxfs/desktop/droiddeck-desktop-gpu "$D/usr/local/bin/droiddeck-desktop-gpu"
@@ -376,6 +396,10 @@ jobs:
           done
           test -f "$D/usr/local/bin/droiddeck-session"
           test -f "$D/usr/local/bin/droiddeck-proton-extra"
+          test -f "$D/usr/local/bin/droiddeck-msi-install"
+          for f in msiinfo cabextract libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
+            test -f "$D/usr/local/lib/droiddeck-msitools/$f" || { echo "::error::droiddeck-msitools/$f missing"; exit 1; }
+          done
 
       - name: Cache the CMake build tree
         uses: actions/cache@v4

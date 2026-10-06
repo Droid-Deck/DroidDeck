@@ -32,6 +32,7 @@ object SessionFiles {
         val files = arrayOf(
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
             "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
+            "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
@@ -106,6 +107,10 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
+        // What the Windows components installer reads .msi packages with (tools/msitools).
+        val msitools = listOf("msiinfo", "cabextract", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
+            .map { "usr/local/lib/droiddeck-msitools/$it" } +
+            listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
         // The patched wlroots (tools/wlroots) the desktop loads for its vulkan / gles2 renderers.
         val wlroots = if (File(root, "usr/bin/labwc").isFile) {
             arrayOf("usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so" to "usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so")
@@ -117,7 +122,7 @@ object SessionFiles {
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + wlroots + mangoapp + fexPreloads).filter { (asset, _) ->
+        ) + wlroots + mangoapp + msitools.map { it to it } + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
