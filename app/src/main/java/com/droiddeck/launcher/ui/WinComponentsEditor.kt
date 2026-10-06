@@ -26,6 +26,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +62,7 @@ private fun installable(name: String, all: Map<String, WinComponents.Component>)
     return if (twin != null && WinComponents.support(twin, all) == Support.READY) dll else name
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun WinComponentsDialog(
     appKey: String, gameName: String, gameDir: File?, byPad: Boolean,
@@ -80,13 +84,18 @@ internal fun WinComponentsDialog(
     var picks by remember { mutableStateOf(WinComponents.picks(context, appKey)) }
     var progress by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    // The component the error is about, so it shows on its own row and not only at the bottom.
+    var failed by remember { mutableStateOf<String?>(null) }
     var showWaiting by remember { mutableStateOf(false) }
-    // With a pad: Done holds focus while the list loads, then the first component takes it; LB and RB
-    // jump between the sections, since the full list runs past sixty switches.
+    // Done holds focus while the list loads, then the top switch takes it - opened by touch or by
+    // pad, so the d-pad always has somewhere to start; LB and RB jump between the sections, since
+    // the full list runs past sixty switches.
     val recFocus = remember { FocusRequester() }
     val allFocus = remember { FocusRequester() }
     val waitFocus = remember { FocusRequester() }
     val doneFocus = remember { FocusRequester() }
+    val inputMode = LocalInputModeManager.current
+    var switchFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val (entries, found) = withContext(Dispatchers.IO) {
@@ -110,6 +119,7 @@ internal fun WinComponentsDialog(
         // then is ignored here.
         if (progress != null) return
         error = null
+        failed = null
         if (!on) { setPicks(picks - id); return }
         val all = catalog.orEmpty()
         val c = all[id]
@@ -121,7 +131,7 @@ internal fun WinComponentsDialog(
             }
             progress = null
             installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
-            if (problem != null) error = problem else setPicks(picks + id)
+            if (problem != null) { error = problem; failed = id } else setPicks(picks + id)
         }
     }
 
@@ -144,14 +154,21 @@ internal fun WinComponentsDialog(
         runCatching { sections[section].requestFocus() }
     }
     LaunchedEffect(all != null) {
-        if (!byPad || all == null) return@LaunchedEffect
-        repeat(2) { withFrameNanos { } }
+        // The dialog's window starts in touch mode, where a switch cannot hold focus at all.
+        inputMode.requestInputMode(InputMode.Keyboard)
         section = 0
-        runCatching { sections.first().requestFocus() }
+        val target = if (all == null) doneFocus else sections.first()
+        switchFocused = false
+        // It animates in and the list composes over a few frames: ask until the switch has it.
+        repeat(60) {
+            withFrameNanos { }
+            runCatching { target.requestFocus() }
+            withFrameNanos { }
+            if (switchFocused || (target !== recFocus && target !== allFocus)) return@LaunchedEffect
+        }
     }
 
     AppDialog(shown, close, "winComponents", wide = true, modifier = Modifier.bumpers({ jump(-1) }, { jump(1) })) {
-        PadFocus(byPad, doneFocus)
         DialogHeader(gameName, stringResource(R.string.wincomp_title))
         Small(stringResource(R.string.wincomp_applies))
         if (byPad) Small(stringResource(R.string.wincomp_pad_hint))
@@ -162,6 +179,7 @@ internal fun WinComponentsDialog(
             val c = all?.get(id)
             val support = supportOf(id)
             val status = when {
+                id == failed && error != null -> stringResource(R.string.wincomp_failed, error.orEmpty())
                 id in here && id !in picks -> stringResource(R.string.wincomp_already_here)
                 id in installed -> stringResource(R.string.wincomp_downloaded)
                 support == Support.NEEDS_INSTALLER -> stringResource(R.string.wincomp_needs_installer)
@@ -173,7 +191,8 @@ internal fun WinComponentsDialog(
             val usable = support == Support.READY
             ComponentRow(
                 WinComponentNames.of(id), detail, checked = id in picks, enabled = usable || id in picks,
-                dim = !usable, modifier = if (usable && focus != null) Modifier.focusRequester(focus) else Modifier,
+                dim = !usable, modifier = (if (usable && focus != null) Modifier.focusRequester(focus) else Modifier)
+                    .onFocusChanged { if (it.isFocused) switchFocused = true },
             ) { on -> toggle(id, on) }
         }
         /** The section's requester goes to its first switch that can take focus. */

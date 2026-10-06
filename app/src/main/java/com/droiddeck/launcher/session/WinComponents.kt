@@ -6,6 +6,7 @@ import android.util.Log
 import com.droiddeck.launcher.core.ArchivePaths
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.runtime.GuestCommand
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
@@ -28,9 +29,12 @@ import java.util.zip.ZipInputStream
  * ~/.config/droiddeck/wincomponents.json, and droiddeck-wincomponents copies the picked components
  * into the game's prefix at every launch (see that script for why every launch).
  *
- * Only components made of file copies and overrides install this way. One that runs a Windows
- * installer (install_exe/install_msi), unpacks a cabinet or edits the prefix's registry is listed
- * with the reason it cannot be installed yet.
+ * A component whose installer is a Windows Installer package (.msi: XNA, PhysX, Games for Windows
+ * Live, MSXML...) installs here too, without running it: droiddeck-msi-install reads the package's
+ * tables in the runtime and lays out its files (Program Files, the .NET GAC, winsxs) and registry
+ * values the way Wine's msiexec would, under the same store folder. One that runs any other
+ * installer (.exe), unpacks a cabinet or edits the prefix's registry by itself is listed with the
+ * reason it cannot be installed yet.
  */
 object WinComponents {
     private const val TAG = "WinComponents"
@@ -43,6 +47,11 @@ object WinComponents {
     // at the same path, so the native file at that path is the one the registration loads.
     private val FILE_STEPS = setOf("download_archive", "archive_extract", "copy_dll", "copy_file", "override_dll", "register_dll")
     private val INSTALLER_STEPS = setOf("install_exe", "install_msi")
+    private const val MSI_INSTALL = "/usr/local/bin/droiddeck-msi-install"
+    /** Where a downloaded .msi waits for the installer, inside the runtime so it can read it. */
+    private const val MSI_CACHE = "$STORE/.packages"
+    /** Catalog entries Proton already provides newer copies of, which an install would only shadow. */
+    private val PROTON_PROVIDES = setOf("gecko")
 
     fun validId(id: String): Boolean = ID.matches(id) && ".." !in id
 
@@ -56,6 +65,11 @@ object WinComponents {
     )
 
     enum class Support { READY, NEEDS_INSTALLER, UNSUPPORTED }
+
+    /** A step that installs a Windows Installer package, which droiddeck-msi-install does here. */
+    private fun isMsi(step: Step): Boolean = step.action in INSTALLER_STEPS && step.str("url").startsWith("https://") &&
+        (step.action == "install_msi" || listOf(step.str("file_name"), step.str("url").substringBefore('?'))
+            .any { it.endsWith(".msi", ignoreCase = true) })
 
     fun fetch(): List<Component>? {
         val body = Downloader.downloadString(CATALOG_URL) ?: return null
@@ -80,9 +94,12 @@ object WinComponents {
 
     /** Whether [c] can be installed here, its bundled components included. */
     fun support(c: Component, all: Map<String, Component>, depth: Int = 0): Support {
-        if (c.status != "ready" || depth > 8) return Support.UNSUPPORTED
+        if (c.status != "ready" || depth > 8 || c.name in PROTON_PROVIDES) return Support.UNSUPPORTED
+        val installers = c.steps.filter { it.action in INSTALLER_STEPS }
         val own = when {
-            c.steps.any { it.action in INSTALLER_STEPS } -> Support.NEEDS_INSTALLER
+            installers.isNotEmpty() && installers.all { isMsi(it) } &&
+                c.steps.all { it in installers || it.action == "delete_dlls" || it.action in FILE_STEPS && fileStepOk(it) } -> Support.READY
+            installers.isNotEmpty() -> Support.NEEDS_INSTALLER
             c.steps.all { it.action in FILE_STEPS && fileStepOk(it) } -> Support.READY
             else -> Support.UNSUPPORTED
         }
@@ -147,7 +164,20 @@ object WinComponents {
         val staging = File(root, "$STORE/.${c.name}.new").apply { FileUtils.delete(this); mkdirs() }
         val overrides = ArrayList<String>()
         var source: File? = null
+        var msi: JSONObject? = null
         for (step in c.steps) when (step.action) {
+            // A component may have several packages (PowerShell's 32- and 64-bit): each adds to the
+            // same folder, the first one names the component.
+            "install_msi", "install_exe" -> {
+                val (result, problem) = installMsi(context, c, step, staging, onProgress)
+                if (result == null) return problem
+                msi = msi?.apply {
+                    val notes = optJSONArray("notes") ?: JSONArray().also { put("notes", it) }
+                    result.optJSONArray("notes")?.let { for (i in 0 until it.length()) notes.put(it.get(i)) }
+                } ?: result
+            }
+            // A catalog step that makes room for the installer's own copy; ours is copied anyway.
+            "delete_dlls" -> Unit
             "download_archive", "archive_extract" -> {
                 val url = step.str("url")
                 if (!url.startsWith("http")) continue
@@ -196,15 +226,58 @@ object WinComponents {
             "register_dll" -> Unit
             else -> return "unsupported step ${step.action}"
         }
-        val version = Regex("""\b(\d+\.\d+(\.\d+)*)\b""").find(c.description)?.value ?: "catalog"
-        FileUtils.writeString(File(staging, "component.json"), JSONObject()
+        val version = msi?.optString("version")?.takeIf { it.isNotEmpty() }
+            ?: Regex("""\b(\d+\.\d+(\.\d+)*)\b""").find(c.description)?.value ?: "catalog"
+        val meta = JSONObject()
             .put("id", c.name).put("version", version)
             .put("overrides", JSONArray(overrides.distinct()))
-            .put("requires", JSONArray(c.dependencies)).toString(1))
+            .put("requires", JSONArray(c.dependencies))
+        msi?.let { meta.put("kind", "msi").put("product", it.optString("product")).put("notes", it.optJSONArray("notes") ?: JSONArray()) }
+        FileUtils.writeString(File(staging, "component.json"), meta.toString(1))
         val target = File(root, "$STORE/${c.name}")
         FileUtils.delete(target)
         if (!staging.renameTo(target)) return "could not place the files"
         return null
+    }
+
+    /**
+     * Downloads the component's .msi into the runtime and has droiddeck-msi-install lay it out in
+     * [staging]. Returns the installer's result (product, version, counts, notes), or null and why.
+     * Everything the installer prints also goes to Download/DroidDeck/tools.
+     */
+    private fun installMsi(context: Context, c: Component, step: Step, staging: File, onProgress: (String, Int) -> Unit): Pair<JSONObject?, String> {
+        val root = LinuxRuntime.rootDir(context)
+        val url = step.str("url")
+        val name = url.substringBefore('?').substringAfterLast('/')
+        val cache = File(root, MSI_CACHE).apply { mkdirs() }
+        val file = File(cache, "${c.name}.msi")
+        try {
+            if (!Downloader.downloadFile(url, file, false) { f -> onProgress("${c.name}: $name", if (f < 0) -1 else Math.round(f * 100f)) }) {
+                return null to "download failed: $name"
+            }
+            step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
+                if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return null to "checksum mismatch: $name"
+            }
+            onProgress("${c.name}: installing", -1)
+            var result: JSONObject? = null
+            var problem: String? = null
+            val status = GuestCommand.run(context, listOf(MSI_INSTALL, "/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}"),
+                logName = "wincomponents-${c.name}") { line ->
+                when {
+                    line.startsWith("progress ") -> onProgress("${c.name}: ${line.removePrefix("progress ")}", -1)
+                    line.startsWith("result ") -> result = runCatching { JSONObject(line.removePrefix("result ")) }.getOrNull()
+                    line.startsWith("error ") -> problem = line.removePrefix("error ")
+                }
+            }
+            val done = result
+            if (status != 0 || done == null) return null to (problem ?: "the installer stopped (status $status)")
+            return done to ""
+        } catch (e: Exception) {
+            Log.e(TAG, "msi ${c.name}", e)
+            return null to (e.message ?: "the installer failed")
+        } finally {
+            file.delete()
+        }
     }
 
     private fun digest(file: File, algorithm: String): String {

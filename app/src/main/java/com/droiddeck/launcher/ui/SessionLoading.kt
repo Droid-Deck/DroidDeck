@@ -229,7 +229,8 @@ private fun EndedActions(onRetry: (() -> Unit)?, onShareLogs: (() -> Unit)?, onC
         var firstUsed = false
         fun claim(): Modifier = if (firstUsed) Modifier else { firstUsed = true; Modifier.focusRequester(first) }
         if (onRetry != null) PrimaryButton(stringResource(R.string.store_try_again), modifier = claim(), onClick = onRetry)
-        if (onShareLogs != null) SecondaryButton(stringResource(R.string.drawer_share_logs), modifier = claim(), onClick = onShareLogs)
+        if (onShareLogs != null) SecondaryButton(stringResource(R.string.drawer_share_logs), modifier = claim(),
+            progress = com.droiddeck.launcher.session.SessionLogShare.progress, onClick = onShareLogs)
         if (onClose != null) SecondaryButton(stringResource(R.string.mode_back), modifier = claim(), onClick = onClose)
     }
 }

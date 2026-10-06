@@ -279,8 +279,6 @@
     <string name="mode_added_launches_in">Запустить %1$s · в %2$s</string>
     <string name="mode_added_choose">Выбрать другой файл…</string>
     <string name="mode_added_exe_note">По умолчанию используется .exe с именем папки, иначе самый большой .exe.</string>
-    <string name="mode_fill">Растянуть игру на весь экран</string>
-    <string name="mode_fill_hint">Сохраняет полноэкранный режим для игр, поддерживающих изменение размера. Отключите, если игра отображается мелко. Вступит в силу в следующей сессии.</string>
     <string name="mode_stretch169">Растянуть игры 16:9</string>
     <string name="mode_stretch169_hint">На экранах с соотношением сторон менее 16:9 растягивает игру на весь экран вместо черных полос. Вступит в силу в следующей сессии.</string>
     <string name="mode_audio">Аудио</string>
@@ -444,7 +442,6 @@
     <string name="drawer_prev_page">Предыдущая страница</string>
     <string name="drawer_next_page">Следующая страница</string>
     <string name="drawer_hud">HUD производительности</string>
-    <string name="drawer_fill">Растянуть игру на весь экран</string>
     <string name="drawer_touch_auto">Авто (%1$s)</string>
     <string name="drawer_keyboard">Клавиатура</string>
     <string name="drawer_pc_keyboard">Клавиатура ПК</string>

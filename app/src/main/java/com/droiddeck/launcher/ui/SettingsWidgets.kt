@@ -591,8 +591,8 @@ fun MultiRow(
 }
 
 @Composable
-fun ActionRow(label: String, hint: String?, button: String, onClick: () -> Unit) {
-    SettingsRow(label, hint) { SecondaryButton(button, onClick = onClick) }
+fun ActionRow(label: String, hint: String?, button: String, onClick: () -> Unit, progress: Float? = null) {
+    SettingsRow(label, hint) { SecondaryButton(button, progress = progress, onClick = onClick) }
 }
 
 @Composable

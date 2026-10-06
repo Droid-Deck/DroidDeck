@@ -279,8 +279,6 @@
     <string name="mode_added_launches_in">Lancer %1$s · dans %2$s</string>
     <string name="mode_added_choose">Choisir un autre fichier…</string>
     <string name="mode_added_exe_note">Utilise par défaut le .exe portant le même nom que le dossier, sinon le .exe le plus volumineux.</string>
-    <string name="mode_fill">Étirer le jeu pour remplir l\'écran</string>
-    <string name="mode_fill_hint">Maintient en plein écran les jeux capables de se redimensionner. Désactivez cette option si le jeu s\'affiche en petit. Prendra effet à la prochaine session.</string>
     <string name="mode_stretch169">Étirer les jeux 16:9</string>
     <string name="mode_stretch169_hint">Sur les écrans dont le rapport d\'aspect est inférieur à 16:9, étire le jeu pour remplir l\'écran au lieu d\'afficher des bandes noires. Prendra effet à la prochaine session.</string>
     <string name="mode_audio">Audio</string>
@@ -442,7 +440,6 @@
     <string name="drawer_prev_page">Page précédente</string>
     <string name="drawer_next_page">Page suivante</string>
     <string name="drawer_hud">HUD de performance</string>
-    <string name="drawer_fill">Étirer le jeu pour remplir l\'écran</string>
     <string name="drawer_touch_auto">Auto (%1$s)</string>
     <string name="drawer_keyboard">Clavier</string>
     <string name="drawer_pc_keyboard">Clavier PC</string>

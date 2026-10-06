@@ -279,8 +279,6 @@
     <string name="mode_added_launches_in">啟動 %1$s · 位於 %2$s</string>
     <string name="mode_added_choose">選擇其他檔案…</string>
     <string name="mode_added_exe_note">預設使用與資料夾同名的 .exe，否則使用最大的 .exe。</string>
-    <string name="mode_fill">拉伸遊戲以填滿螢幕</string>
-    <string name="mode_fill_hint">讓支援自行調整大小的遊戲保持全螢幕。如果遊戲顯示得很小，請關閉此項。下次工作階段生效。</string>
     <string name="mode_stretch169">拉伸 16:9 遊戲</string>
     <string name="mode_stretch169_hint">在長寬比小於 16:9 的螢幕上，將遊戲拉伸以填滿螢幕，而不是顯示黑邊。下次工作階段生效。</string>
     <string name="mode_audio">音訊</string>
@@ -442,7 +440,6 @@
     <string name="drawer_prev_page">上一頁</string>
     <string name="drawer_next_page">下一頁</string>
     <string name="drawer_hud">效能 HUD</string>
-    <string name="drawer_fill">拉伸遊戲以填滿螢幕</string>
     <string name="drawer_touch_auto">自動（%1$s）</string>
     <string name="drawer_keyboard">鍵盤</string>
     <string name="drawer_pc_keyboard">電腦鍵盤</string>

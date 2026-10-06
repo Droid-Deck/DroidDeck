@@ -301,8 +301,6 @@
     <string name="mode_added_launches_in">启动 %1$s · 位于 %2$s</string>
     <string name="mode_added_choose">选择其他文件…</string>
     <string name="mode_added_exe_note">默认为与文件夹同名的 .exe，否则为最大的那个。</string>
-    <string name="mode_fill">拉伸游戏以填满屏幕</string>
-    <string name="mode_fill_hint">使会自行缩放的游戏保持全屏。若游戏显示过小，请关闭此项。将在下次会话生效。</string>
     <string name="mode_stretch169">拉伸 16:9 比例的游戏</string>
     <string name="mode_stretch169_hint">在比 16:9 更方的屏幕上，拉伸游戏填满屏幕而不是显示黑边。将在下次会话生效。</string>
     <string name="mode_audio">音频</string>
@@ -479,7 +477,6 @@
     <string name="drawer_prev_page">上一页</string>
     <string name="drawer_next_page">下一页</string>
     <string name="drawer_hud">性能 HUD</string>
-    <string name="drawer_fill">拉伸游戏填满屏幕</string>
     <string name="drawer_scaling">缩放模式</string>
     <string name="drawer_scaling_sharpness">缩放锐度</string>
     <string name="drawer_effects">屏幕效果</string>

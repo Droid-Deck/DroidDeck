@@ -279,8 +279,6 @@
     <string name="mode_added_launches_in">%1$s 실행 · %2$s에 위치</string>
     <string name="mode_added_choose">다른 파일 선택…</string>
     <string name="mode_added_exe_note">기본적으로 폴더와 이름이 같은 .exe를 사용하고, 없으면 가장 큰 .exe를 사용합니다.</string>
-    <string name="mode_fill">게임을 늘려 화면 채우기</string>
-    <string name="mode_fill_hint">자체적으로 크기를 조절하는 게임을 전체 화면으로 유지합니다. 게임이 작게 표시되면 이 옵션을 끄세요. 다음 세션에 적용됩니다.</string>
     <string name="mode_stretch169">16:9 게임 늘리기</string>
     <string name="mode_stretch169_hint">가로세로 비율이 16:9 미만인 화면에서 검은색 여백 대신 게임을 늘려 화면을 채웁니다. 다음 세션에 적용됩니다.</string>
     <string name="mode_audio">오디오</string>
@@ -442,7 +440,6 @@
     <string name="drawer_prev_page">이전 페이지</string>
     <string name="drawer_next_page">다음 페이지</string>
     <string name="drawer_hud">성능 HUD</string>
-    <string name="drawer_fill">게임을 늘려 화면 채우기</string>
     <string name="drawer_touch_auto">자동(%1$s)</string>
     <string name="drawer_keyboard">키보드</string>
     <string name="drawer_pc_keyboard">PC 키보드</string>

@@ -229,7 +229,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** The on-screen PC keyboard (ui/PcKeyboard): real key presses, Esc and F1 included. */
     private var pcKeyboardOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
-    private var fillScreen by mutableStateOf(true)
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var effects by mutableStateOf(ScreenEffects.OFF)
@@ -501,7 +500,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     isHomeApp = isHomeApp,
                     androidApps = androidApps,
                     hudOn = hudOn,
-                    fillScreen = if (SessionState.mode == SessionService.MODE_STEAM) fillScreen else null,
                     upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                     effects = effects, textureAnisotropy = textureAnisotropy, textureLodBias = textureLodBias,
                     frameGen = frameGen,
@@ -513,7 +511,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     secondScreenDisplays = secondScreenDisplays,
                     selectedSecondScreenDisplay = selectedSecondScreenDisplay,
                     onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
-                    onFillScreen = { on -> SessionPrefs.setForceFullscreen(this@SessionActivity, on); fillScreen = on },
                     onUpscaler = { m ->
                         SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
                         WaylandCompositor.nativeSetUpscaler(m)
@@ -744,28 +741,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Toast.makeText(this, "No logs for this session.", Toast.LENGTH_LONG).show()
             return
         }
-        Thread({
-            val zip = runCatching { SessionLogShare.zipFolder(this, folder) }
-                .onFailure { Log.w(TAG, "could not package current session logs", it) }
-                .getOrNull()
-            uiHandler.post {
-                if (zip == null) {
-                    Toast.makeText(this, "Could not create the session log archive.", Toast.LENGTH_LONG).show()
-                } else {
-                    runCatching { startActivity(SessionLogShare.shareIntent(this, zip)) }
-                        .onFailure {
-                            Log.w(TAG, "could not share current session logs", it)
-                            Toast.makeText(this, "Could not share the session logs.", Toast.LENGTH_LONG).show()
-                        }
-                }
+        SessionLogShare.prepare(this, { folder }) { zip ->
+            if (zip == null) {
+                Toast.makeText(this, "Could not create the session log archive.", Toast.LENGTH_LONG).show()
+            } else {
+                runCatching { startActivity(SessionLogShare.shareIntent(this, zip)) }
+                    .onFailure {
+                        Log.w(TAG, "could not share current session logs", it)
+                        Toast.makeText(this, "Could not share the session logs.", Toast.LENGTH_LONG).show()
+                    }
             }
-        }, "share-session-logs").start()
+        }
     }
 
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         hudOn = SessionPrefs.hudEnabled(this)
-        fillScreen = SessionPrefs.forceFullscreen(this)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         effects = SessionPrefs.screenEffects(this)

@@ -279,8 +279,6 @@
     <string name="mode_added_launches_in">%1$sを起動 · %2$s内</string>
     <string name="mode_added_choose">別のファイルを選択…</string>
     <string name="mode_added_exe_note">デフォルトではフォルダと同じ名前の.exeを使用し、ない場合は最大の.exeを使用します。</string>
-    <string name="mode_fill">ゲームを引き伸ばして画面を埋める</string>
-    <string name="mode_fill_hint">自身でサイズ変更できるゲームを全画面に保ちます。ゲームが小さく表示される場合はこれをオフにしてください。次回のセッションで有効になります。</string>
     <string name="mode_stretch169">16:9ゲームを引き伸ばす</string>
     <string name="mode_stretch169_hint">アスペクト比が16:9未満の画面で、黒帯を表示する代わりにゲームを引き伸ばして画面を埋めます。次回のセッションで有効になります。</string>
     <string name="mode_audio">オーディオ</string>
@@ -442,7 +440,6 @@
     <string name="drawer_prev_page">前のページ</string>
     <string name="drawer_next_page">次のページ</string>
     <string name="drawer_hud">パフォーマンスHUD</string>
-    <string name="drawer_fill">ゲームを引き伸ばして画面を埋める</string>
     <string name="drawer_touch_auto">自動（%1$s）</string>
     <string name="drawer_keyboard">キーボード</string>
     <string name="drawer_pc_keyboard">PCキーボード</string>

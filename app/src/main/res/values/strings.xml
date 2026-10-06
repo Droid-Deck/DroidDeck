@@ -326,11 +326,10 @@
     <string name="wincomp_needs_installer">Needs a Windows installer (coming)</string>
     <string name="wincomp_unsupported">Not supported here yet</string>
     <string name="wincomp_loading">Loading the components…</string>
+    <string name="wincomp_failed">Could not install: %1$s</string>
     <string name="wincomp_downloaded">Downloaded</string>
     <string name="wincomp_download_size">%1$s download</string>
     <string name="wincomp_next_launch">Takes effect the next time the game starts.</string>
-    <string name="mode_fill">Stretch games to fill the screen</string>
-    <string name="mode_fill_hint">Keeps self-resizing games full screen. Turn off if a game shows up small. Applies next session.</string>
     <string name="mode_stretch169">Stretch 16:9 games</string>
     <string name="mode_stretch169_hint">On screens squarer than 16:9, stretches games to fill instead of showing bars. Applies next session.</string>
     <string name="mode_audio">Audio</string>
@@ -509,7 +508,6 @@
     <string name="drawer_prev_page">Previous page</string>
     <string name="drawer_next_page">Next page</string>
     <string name="drawer_hud">Performance HUD</string>
-    <string name="drawer_fill">Stretch games to fill</string>
     <string name="drawer_scaling">Scaling mode</string>
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
     <string name="drawer_effects">Screen effects</string>
@@ -1061,10 +1059,6 @@
     <string name="display_filter_note">FSR, GSR and NIS apply when enlarging the session image. Sharpen only also works without enlargement.</string>
     <string name="display_sharpness">Filter sharpness</string>
     <string name="display_frame_rate">Frame rate</string>
-    <string name="display_window_compatibility">Game window compatibility</string>
-    <string name="display_force_fullscreen">Force game windows fullscreen</string>
-    <string name="display_force_fullscreen_hint">Makes every game window the size of the screen. Turn on if a game comes back small or in a corner after switching apps; leave off if a game flickers between sizes. Applies live during a session.</string>
-    <string name="display_force_fullscreen_live">Turn on if a game comes back small after switching; off if it flickers. Applies live.</string>
     <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
     <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
     <string name="mode_tab_steam">Steam</string>

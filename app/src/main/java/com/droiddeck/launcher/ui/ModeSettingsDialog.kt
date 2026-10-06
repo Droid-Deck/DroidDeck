@@ -74,8 +74,6 @@ class ModeSettings(
     val forceSsbs: Boolean = false,
     /** Steam only: SessionPrefs.SYNC_* chosen for Proton games; null outside Steam. */
     val syncBackend: String? = null,
-    /** Steam only: forces game windows fullscreen (null = not a Steam page). */
-    val forceFullscreen: Boolean? = null,
     val stretch16x9: Boolean? = null,
     /** Steam only: the client branch forced on the command line. */
     val steamChannel: String? = null,
@@ -135,7 +133,6 @@ class ModeSettingsActions(
     val onFexPreset: (String) -> Unit = {},
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
-    val onForceFullscreen: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamChannel: (String) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
@@ -412,10 +409,6 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     }
                 }
             }
-        }
-        if ((tab == ModeSettingsTab.GAMES || (!steam && tab == ModeSettingsTab.DISPLAY)) && s.forceFullscreen != null) SettingsGroup(stringResource(R.string.display_window_compatibility)) {
-            ToggleRow(host, "fill", stringResource(R.string.display_force_fullscreen),
-                stringResource(R.string.display_force_fullscreen_hint), s.forceFullscreen, onChange = a.onForceFullscreen)
         }
         if (steam && tab == ModeSettingsTab.GAMES && s.addedGamesDirs != null) SettingsGroup(stringResource(R.string.mode_added_games)) {
             for (dir in s.addedGamesDirs) {

@@ -7,8 +7,8 @@ import java.io.File
 /**
  * What GPU this is, in the terms the driver lists are sorted by. KGSL names the model
  * ("Adreno740v2", "Adreno825"); the family decides which Turnip builds run on it at all, and the
- * support level is what the app has actually been tested on (Adreno 725 and up) - an Adreno 610
- * may start, but it is not "supported" just because it is a Qualcomm chip.
+ * support level is what the app has actually been tested on (Adreno 650, 725 and newer) - an
+ * Adreno 610 may start, but it is not "supported" just because it is a Qualcomm chip.
  */
 data class GpuInfo(
     /** "Adreno 740", or the vendor's own name when this is not an Adreno. */
@@ -41,6 +41,7 @@ data class GpuInfo(
     val support: Support
         get() = when {
             family == Family.NOT_ADRENO -> Support.UNSUPPORTED
+            family == Family.A6XX && model == 650 -> Support.TESTED
             family == Family.A8XX -> Support.TESTED
             family == Family.A7XX && model >= 725 -> Support.TESTED
             else -> Support.UNTESTED
@@ -51,7 +52,7 @@ data class GpuInfo(
         get() = when (support) {
             Support.TESTED -> "Supported"
             Support.UNTESTED -> if (family == Family.A7XX_LOW) "Experimental: its drivers are test builds"
-                else "Below tested hardware (Adreno 725 and newer): it may not run"
+                else "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
             Support.UNSUPPORTED -> "Not supported: DroidDeck needs an Adreno (Snapdragon) GPU"
         }
 

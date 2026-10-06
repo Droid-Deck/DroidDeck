@@ -416,6 +416,9 @@ class SessionService : Service() {
                 guest.addAll(fastPathAt, env)
                 shellGuest.addAll(fastPathAt, env)
                 Log.i(TAG, "proot: fast path on (${prootBinds.size} binds)")
+            } ?: run {
+                Log.w(TAG, "proot: fast path off - ${prootBinds.size} binds (it holds ${ProotFastPath.MAX_BINDS}) or a path it cannot be told")
+                null
             }
         } else null
 
@@ -604,9 +607,7 @@ class SessionService : Service() {
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
         if (steamHere) guest.add("BL_STEAM_CHANNEL=" + SessionPrefs.steamChannel(this))
         if (SessionState.mode == MODE_STEAM) {
-            guest.add("BL_GAMESCOPE_FORCE_FULLSCREEN=" + (if (SessionPrefs.forceFullscreen(this)) "1" else "0"))
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
-            SessionPrefs.writeForceFullscreenFlag(this)
         }
         // Proton's own gate for its xalia helper (its `proton` script reads this, and sets
         // XALIA_SUPPORTED_ONLY itself otherwise). Skipped by default: under FEX it costs every game
