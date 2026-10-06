@@ -29,6 +29,10 @@ class DriverPairsTest {
     fun onlyTestedHardwareCountsAsSupported() {
         assertEquals(GpuInfo.Support.TESTED, gpu(650).support)
         assertEquals("Supported", gpu(650).supportText)
+        assertEquals(
+            GpuInfo.Support.UNTESTED,
+            GpuInfo("Adreno 650", 650, Family.ADRENO_UNKNOWN, "", false).support,
+        )
         assertEquals(GpuInfo.Support.TESTED, gpu(740).support)
         assertEquals(GpuInfo.Support.TESTED, gpu(825).support)
         assertEquals(GpuInfo.Support.UNTESTED, gpu(610).support)
