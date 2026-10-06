@@ -15,6 +15,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MAX_HANDLES 4096
@@ -35,6 +36,19 @@ struct handle_entry {
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static struct handle_entry handle_entries[MAX_HANDLES];
 static uint32_t next_handle = 1;
+
+/*
+ * Descriptors Zink gave back with GEM_CLOSE are held a little longer before closing (see drmIoctl):
+ * at most RETIRED_MAX of them, none past RETIRED_NS. Keeps #275's bound on memory without handing
+ * the buffer's pages straight back to the allocator.
+ */
+#define RETIRED_MAX 64
+#define RETIRED_NS 2000000000LL
+static struct {
+  int fd;
+  long long at;
+} retired[RETIRED_MAX];
+static int retired_head, retired_count;
 static dev_t kgsl_dev;
 static int kgsl_state; /* 0 unknown, 1 known, -1 absent */
 
@@ -109,6 +123,22 @@ static uint32_t alloc_handle_locked(void) {
   return 0;
 }
 
+static long long now_ns(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+/* Closes retired descriptors that are too old, or the oldest when room is needed for one more. */
+static void reap_retired_locked(long long now, int need_room) {
+  while (retired_count > 0 &&
+         ((need_room && retired_count == RETIRED_MAX) || now - retired[retired_head].at >= RETIRED_NS)) {
+    close(retired[retired_head].fd);
+    retired_head = (retired_head + 1) % RETIRED_MAX;
+    retired_count--;
+  }
+}
+
 int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) {
   if (!is_kgsl(fd)) {
     int (*fn)(int, int, uint32_t *) = (int (*)(int, int, uint32_t *)) real("drmPrimeFDToHandle");
@@ -120,6 +150,7 @@ int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) {
   }
   int ret = -ENOMEM;
   pthread_mutex_lock(&lock);
+  reap_retired_locked(now_ns(), 0);
   for (int i = 0; i < MAX_HANDLES; i++) {
     if (handle_entries[i].handle == 0) {
       uint32_t token = alloc_handle_locked();
@@ -157,13 +188,22 @@ int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) {
   return ret;
 }
 
-/* Drops only a handle belonging to this KGSL file description. */
-static int release_handle(int fd, uint32_t handle) {
+/* Drops only a handle belonging to this KGSL file description; deferred keeps its fd open a while. */
+static int release_handle(int fd, uint32_t handle, int deferred) {
   int found = 0;
   pthread_mutex_lock(&lock);
   int index = find_handle_locked(fd, handle);
   if (index >= 0) {
-    close(handle_entries[index].dma_fd);
+    if (deferred) {
+      long long now = now_ns();
+      reap_retired_locked(now, 1);
+      int slot = (retired_head + retired_count) % RETIRED_MAX;
+      retired[slot].fd = handle_entries[index].dma_fd;
+      retired[slot].at = now;
+      retired_count++;
+    } else {
+      close(handle_entries[index].dma_fd);
+    }
     handle_entries[index] = (struct handle_entry){0};
     found = 1;
   }
@@ -176,7 +216,7 @@ int drmCloseBufferHandle(int fd, uint32_t handle) {
     int (*fn)(int, uint32_t) = (int (*)(int, uint32_t)) real("drmCloseBufferHandle");
     return fn ? fn(fd, handle) : -ENOSYS;
   }
-  return release_handle(fd, handle) ? 0 : -EINVAL;
+  return release_handle(fd, handle, 0) ? 0 : -EINVAL;
 }
 
 /*
@@ -184,10 +224,12 @@ int drmCloseBufferHandle(int fd, uint32_t handle) {
  * (zink_bo.c, bo_destroy). KGSL refuses the ioctl, so the duplicated descriptor stayed open and
  * kept the whole buffer alive. Preserve #275's reclamation without letting another KGSL file
  * description release the token or making a new buffer immediately inherit a retired token.
+ * With the descriptor closed at once, games presenting through gamescope showed old frames again
+ * (No Man's Sky, Adreno 840), so it goes through the retired queue instead.
  */
 int drmIoctl(int fd, unsigned long request, void *arg) {
   if (request == GEM_CLOSE && arg && is_kgsl(fd)) {
-    if (release_handle(fd, ((struct gem_close *) arg)->handle)) {
+    if (release_handle(fd, ((struct gem_close *) arg)->handle, 1)) {
       return 0;
     }
     errno = EINVAL;
