@@ -184,28 +184,22 @@ int drmCloseBufferHandle(int fd, uint32_t handle) {
  * (zink_bo.c, bo_destroy). KGSL refuses the ioctl, so the duplicated descriptor stayed open and
  * kept the whole buffer alive. Preserve #275's reclamation without letting another KGSL file
  * description release the token or making a new buffer immediately inherit a retired token.
+ *
+ * Caught at ioctl() (netif.c), which libdrm's drmIoctl calls, rather than by exporting drmIoctl:
+ * every session process preloads this library, and exporting drmIoctl from it brought on a
+ * judder replaying old frames in No Man's Sky on an Adreno 840 even with no handle released.
  */
-int drmIoctl(int fd, unsigned long request, void *arg) {
-  /*
-   * A/B test for the judder seen since #275: keep the symbol interposed but leave GEM_CLOSE to KGSL
-   * (which refuses it, as before #275). Smooth here means the release itself is the cause; judder
-   * here means interposing drmIoctl is.
-   */
-  if (0 && request == GEM_CLOSE && arg && is_kgsl(fd)) {
-    if (release_handle(fd, ((struct gem_close *) arg)->handle)) {
-      return 0;
-    }
+__attribute__((visibility("hidden"))) int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) {
+  if (request != GEM_CLOSE || !arg || !is_kgsl(fd)) {
+    return 0;
+  }
+  if (release_handle(fd, ((struct gem_close *) arg)->handle)) {
+    *rc = 0;
+  } else {
     errno = EINVAL;
-    return -1;
+    *rc = -1;
   }
-  static int (*fn)(int, unsigned long, void *);
-  if (!fn) {
-    fn = (int (*)(int, unsigned long, void *)) real("drmIoctl");
-  }
-  if (!fn) {
-    return -1;
-  }
-  return fn(fd, request, arg);
+  return 1;
 }
 
 /*
