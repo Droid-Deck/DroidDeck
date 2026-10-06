@@ -582,8 +582,8 @@
     <string name="setup_offline">离线模式</string>
     <string name="setup_sign_in_first">请先登录 Steam</string>
     <string name="setup_steam_account">Steam 账户</string>
-    <string name="setup_steam_account_next">下次启动：%1$s</string>
-    <string name="setup_steam_account_add">要添加账户，请在 Steam 的电源菜单中选择“添加账户”</string>
+    <string name="setup_steam_account_next">下次 Steam 会话：%1$s</string>
+    <string name="setup_steam_account_add">添加帐户需在 Steam 内进行，而不是在 DroidDeck 设置中：Steam 菜单 &gt; 电源 &gt; 更改帐户 &gt; 添加帐户</string>
     <string name="setup_steam_account_running">停止会话后才能切换账户</string>
     <string name="setup_launcher">启动器</string>
     <string name="setup_theme">主题</string>

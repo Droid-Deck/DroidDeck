@@ -544,8 +544,8 @@
     <string name="setup_offline">Modo sin conexión</string>
     <string name="setup_sign_in_first">Inicia sesión en Steam primero</string>
     <string name="setup_steam_account">Cuenta de Steam</string>
-    <string name="setup_steam_account_next">Próximo inicio: %1$s</string>
-    <string name="setup_steam_account_add">Para añadir una cuenta, usa «Añadir cuenta» en el menú de encendido de Steam</string>
+    <string name="setup_steam_account_next">Próxima sesión de Steam: %1$s</string>
+    <string name="setup_steam_account_add">Para añadir una cuenta, hazlo dentro de Steam, no en los ajustes de DroidDeck: menú Steam &gt; Iniciar/Apagar &gt; Cambiar de cuenta &gt; Añadir cuenta</string>
     <string name="setup_steam_account_running">Detén la sesión para cambiar de cuenta</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_theme">Tema</string>

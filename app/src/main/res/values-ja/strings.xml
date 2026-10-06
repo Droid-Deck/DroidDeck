@@ -521,8 +521,8 @@
     <string name="setup_offline">オフラインモード</string>
     <string name="setup_sign_in_first">先にSteamにログインしてください</string>
     <string name="setup_steam_account">Steamアカウント</string>
-    <string name="setup_steam_account_next">次回の起動: %1$s</string>
-    <string name="setup_steam_account_add">アカウントを追加するには、Steamの電源メニューから「アカウントを追加」を選んでください</string>
+    <string name="setup_steam_account_next">次回のSteamセッション: %1$s</string>
+    <string name="setup_steam_account_add">アカウントの追加はDroidDeckの設定ではなくSteam内で行います：Steamメニュー &gt; 電源 &gt; アカウントを変更 &gt; アカウントを追加</string>
     <string name="setup_steam_account_running">アカウントを切り替えるにはセッションを停止してください</string>
     <string name="setup_launcher">ランチャー</string>
     <string name="setup_theme">テーマ</string>
