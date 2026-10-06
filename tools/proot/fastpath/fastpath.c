@@ -48,7 +48,10 @@
 
 #define FP_STUB_ADDR 0xffff00000UL /* must match FASTPATH_STUB_ADDR in proot's seccomp.c */
 #define FP_STUB_SIZE 4096UL
-#define MAX_BINDS 64
+/* A session binds 80-odd paths (devices, the Steam libraries, each Games folder...). More than fit,
+ * or one that cannot be held, turns the fast path off: a bind it did not know would map that
+ * guest path into the rootfs instead (an empty mount point), which proot never does. */
+#define MAX_BINDS 256
 #define FP_SLOW (-100000L)
 
 typedef long (*stub_fn)(long nr, long a, long b, long c, long d, long e, long f);
@@ -162,7 +165,9 @@ static void fp_init(void) {
   snprintf(root, sizeof root, "%s", r);
   canonical(root, sizeof root);
   rootlen = strlen(root);
-  for (const char *s = b; s && *s && nbinds < MAX_BINDS;) {
+  const char *s = b;
+  int unheld = 0;
+  for (; s && *s && nbinds < MAX_BINDS;) {
     const char *end = strchr(s, '|');
     size_t len = end ? (size_t)(end - s) : strlen(s);
     char spec[2 * PATH_MAX];
@@ -176,7 +181,7 @@ static void fp_init(void) {
        * Static storage: malloc here would grow the heap with brk(2), which proot traps. */
       static char hosts[MAX_BINDS][PATH_MAX], guests[MAX_BINDS][512];
       const char *g = colon ? colon + 1 : spec;
-      if (strlen(g) >= sizeof guests[0]) { s = end ? end + 1 : NULL; continue; }
+      if (strlen(g) >= sizeof guests[0]) { unheld = 1; break; }
       bd->host = hosts[nbinds];
       bd->guest = guests[nbinds];
       snprintf(bd->guest, sizeof guests[0], "%s", g);
@@ -184,9 +189,13 @@ static void fp_init(void) {
       bd->hlen = strlen(bd->host);
       bd->glen = strlen(bd->guest);
       if (bd->guest[0] == '/' && bd->glen > 1 && bd->hlen > 0) nbinds++;
+    } else if (len > 0) {
+      unheld = 1;
+      break;
     }
     s = end ? end + 1 : NULL;
   }
+  if (unheld || (s && *s)) { fp_sys = NULL; return; }
   pthread_atfork(NULL, NULL, after_fork); /* registered once per exec */
   fp_on = 1;
   if (getenv("PROOT_FP_STATS")) atexit(stats);
