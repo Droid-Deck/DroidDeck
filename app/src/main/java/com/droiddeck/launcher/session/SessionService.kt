@@ -618,7 +618,6 @@ class SessionService : Service() {
         // gamescope's realtime Vulkan queues (the session script turns this into
         // GAMESCOPE_FORCE_VULKAN_REALTIME); off unless the user turns it on.
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
-        guest.add("PULSE_LATENCY_MSEC=60")
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
         // Anything else, for a device that cannot be reached with a debugger: Downloads/droiddeck-env
         // holds KEY=VALUE lines that go into the session's environment as written, after ours, so a
