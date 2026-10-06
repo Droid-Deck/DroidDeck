@@ -241,6 +241,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
+    private var steamDownloadsInBackground by mutableStateOf(false)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
     private var onScreenButtonsVisible by mutableStateOf(false)
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
@@ -504,7 +505,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     effects = effects, textureAnisotropy = textureAnisotropy, textureLodBias = textureLodBias,
                     frameGen = frameGen,
                     lossless = lossless,
-                    oscMode = oscMode, onScreenButtonsVisible = onScreenButtonsVisible, suspendPolicy = suspendPolicy, touchMode = touchMode,
+                    oscMode = oscMode, onScreenButtonsVisible = onScreenButtonsVisible, suspendPolicy = suspendPolicy,
+                    steamDownloadsInBackground = steamDownloadsInBackground, touchMode = touchMode,
                     touchAuto = if (usingTouchpad()) "touchpad" else "direct",
                     fexPreset = fexPreset,
                     secondScreenMode = secondScreenMode,
@@ -554,6 +556,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onSuspendPolicy = { policy ->
                         SessionPrefs.setSuspendPolicy(this@SessionActivity, SessionState.mode, policy)
                         suspendPolicy = policy
+                        SessionService.suspendPolicyChanged(this@SessionActivity)
+                    },
+                    onSteamDownloadsInBackground = { enabled ->
+                        SessionPrefs.setSteamDownloadsInBackground(this@SessionActivity, enabled)
+                        steamDownloadsInBackground = enabled
                         SessionService.suspendPolicyChanged(this@SessionActivity)
                     },
                     onTouch = { v -> SessionPrefs.setTouchMode(this@SessionActivity, v); readPrefs() },
@@ -782,6 +789,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
+        steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
     }

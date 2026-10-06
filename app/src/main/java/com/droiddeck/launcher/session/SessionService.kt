@@ -77,6 +77,7 @@ class SessionService : Service() {
     private var downloadActive = false
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
+    private var steamDownloadsInBackground = false
     private var activityVisible = true
     private var screenOn = true
     private var manualPauseRequested = false
@@ -183,6 +184,7 @@ class SessionService : Service() {
             ACTION_SUSPEND_POLICY_CHANGED -> {
                 if (!SessionState.running) return START_NOT_STICKY
                 suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
+                steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
                 updateDownloadMonitoring()
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
@@ -208,6 +210,7 @@ class SessionService : Service() {
         }
         SessionState.mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_STEAM
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
+        steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
         manualPauseRequested = false
@@ -1195,19 +1198,19 @@ class SessionService : Service() {
         }
         val controller = suspendController ?: return
         val hidden = !activityVisible || !screenOn
-        val downloads = suspendPolicy == SessionPrefs.SUSPEND_DOWNLOADS && SessionState.mode == MODE_STEAM
-        if (downloads && hidden && downloadActive && !suspendDownloadNow) acquireLocks()
-        if (suspendPolicy != SessionPrefs.SUSPEND_NATIVE || !hidden) {
+        val downloadsBlockingSuspend = steamDownloadsInBackground && SessionState.mode == MODE_STEAM &&
+            suspendPolicy != SessionPrefs.SUSPEND_NEVER && hidden && downloadActive && !suspendDownloadNow
+        if (downloadsBlockingSuspend) acquireLocks()
+        if (suspendPolicy != SessionPrefs.SUSPEND_NATIVE || !hidden || downloadsBlockingSuspend) {
             completeNativeSleep()
         } else if (nativeSleepToken == null && steamSleepToken == null &&
             !SessionState.suspended && !suspendAttemptFailed) {
             prepareNativeSleep()
         }
         val shouldSuspend = steamSleepToken != null || when (suspendPolicy) {
-            SessionPrefs.SUSPEND_AUTO -> !activityVisible || !screenOn
-            SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady
-            SessionPrefs.SUSPEND_DOWNLOADS -> hidden && (suspendDownloadNow || !downloadActive)
-            SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
+            SessionPrefs.SUSPEND_AUTO -> hidden && !downloadsBlockingSuspend
+            SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady && !downloadsBlockingSuspend
+            SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && !downloadsBlockingSuspend
             else -> false
         }
         if (suspendOperationPending || suspendAttemptFailed || shouldSuspend == SessionState.suspended) return
@@ -1563,7 +1566,8 @@ class SessionService : Service() {
             .setContentText(getString(
                 when {
                     SessionState.suspended -> R.string.session_notification_paused
-                    downloadActive && suspendPolicy == SessionPrefs.SUSPEND_DOWNLOADS -> R.string.session_notification_downloads
+                    downloadActive && steamDownloadsInBackground &&
+                        suspendPolicy != SessionPrefs.SUSPEND_NEVER -> R.string.session_notification_downloads
                     else -> R.string.session_notification
                 }
             ))
@@ -1571,7 +1575,8 @@ class SessionService : Service() {
             .apply {
                 if (SessionState.suspended) {
                     addAction(Notification.Action.Builder(null, getString(R.string.resume_session), resume).build())
-                } else if (downloadActive && suspendPolicy == SessionPrefs.SUSPEND_DOWNLOADS) {
+                } else if (downloadActive && steamDownloadsInBackground &&
+                    suspendPolicy != SessionPrefs.SUSPEND_NEVER) {
                     val suspend = PendingIntent.getService(
                         this@SessionService, 3,
                         Intent(this@SessionService, SessionService::class.java).setAction(ACTION_SUSPEND_NOW),
@@ -1593,19 +1598,22 @@ class SessionService : Service() {
 
     private fun updateDownloadMonitoring() {
         val enabled = SessionState.running && SessionState.mode == MODE_STEAM &&
-            suspendPolicy == SessionPrefs.SUSPEND_DOWNLOADS
+            steamDownloadsInBackground && suspendPolicy != SessionPrefs.SUSPEND_NEVER
         if (!enabled) {
+            val wasActive = downloadActive
             downloadMonitorTask?.let(mainHandler::removeCallbacks)
             downloadMonitorTask = null
             steamDownloadMonitor.reset()
             downloadActive = false
+            if (wasActive) refreshNotification()
             return
         }
         if (downloadMonitorTask != null) return
         val poll = object : Runnable {
             override fun run() {
                 if (downloadMonitorTask !== this || !SessionState.running ||
-                    SessionState.mode != MODE_STEAM || suspendPolicy != SessionPrefs.SUSPEND_DOWNLOADS) {
+                    SessionState.mode != MODE_STEAM || !steamDownloadsInBackground ||
+                    suspendPolicy == SessionPrefs.SUSPEND_NEVER) {
                     return
                 }
                 val wasActive = downloadActive

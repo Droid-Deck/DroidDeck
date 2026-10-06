@@ -55,6 +55,7 @@ class ModeSettings(
     val upscaleSharpness: Int = 75,
     val touchMode: String,
     val suspendPolicy: String,
+    val steamDownloadsInBackground: Boolean = false,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
     /** Steam only. */
@@ -120,6 +121,7 @@ class ModeSettingsActions(
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
+    val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit = {},
@@ -289,12 +291,16 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                         SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
                     ) + if (steam) listOf(
-                        SessionPrefs.SUSPEND_DOWNLOADS to stringResource(R.string.mode_suspend_downloads),
                         SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native),
                     ) else emptyList(),
                     s.suspendPolicy,
                     note = stringResource(if (steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
                     onPick = a.onSuspendPolicy,
+                )
+                if (steam && s.suspendPolicy != SessionPrefs.SUSPEND_NEVER) ToggleRow(
+                    host, "background-downloads", stringResource(R.string.mode_background_downloads),
+                    stringResource(R.string.mode_background_downloads_hint),
+                    s.steamDownloadsInBackground, onChange = a.onSteamDownloadsInBackground,
                 )
             }
             if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
