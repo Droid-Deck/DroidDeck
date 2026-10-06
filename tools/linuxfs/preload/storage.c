@@ -166,6 +166,26 @@ static void allocation_line(const char *api, int result, int error, int flags,
   if (n > 0 && (size_t)n < sizeof(line)) append_line(line, (size_t)n);
 }
 
+/* EXPERIMENT: how Steam sizes files once the reservation is skipped. exFAT has no sparse files,
+ * so growing a file writes zeros for the whole new range. */
+static volatile unsigned int extend_details;
+static int truncate_skip = -1;
+
+static int skip_extension(void) {
+  if (truncate_skip < 0) truncate_skip = access("/root/.droiddeck-truncate-skip", F_OK) == 0;
+  return skip_preallocation && truncate_skip;
+}
+
+static void extend_line(const char *api, long long from, long long to, int result, uint64_t elapsed) {
+  char line[256], comm[48];
+  if (__atomic_add_fetch(&extend_details, 1, __ATOMIC_RELAXED) > 256) return;
+  comm_name(comm, sizeof(comm));
+  int n = snprintf(line, sizeof(line), "extend pid=%ld tid=%ld comm=%s api=%s from=%lld to=%lld result=%d elapsed_us=%llu\n",
+                   (long)getpid(), (long)syscall(SYS_gettid), comm, api, from, to, result,
+                   (unsigned long long)(elapsed / 1000ULL));
+  if (n > 0 && (size_t)n < sizeof(line)) append_line(line, (size_t)n);
+}
+
 int fallocate(int fd, int mode, off_t offset, off_t length) {
   int entry_errno = errno;
   if (next_fallocate == NULL) next_fallocate = dlsym(RTLD_NEXT, "fallocate");
@@ -220,6 +240,18 @@ ssize_t pwrite(int fd, const void *buffer, size_t count, off_t offset) {
   if (next_pwrite == NULL) next_pwrite = dlsym(RTLD_NEXT, "pwrite");
   if (next_pwrite == NULL) { errno = ENOSYS; return -1; }
   initialize();
+  if (enabled && extend_details < 256 && on_selected_device(fd, NULL, 0)) {
+    struct stat st;
+    if (next_fstat(fd, &st) == 0 && (long long)offset > (long long)st.st_size + 65536) {
+      uint64_t t0 = now_ns();
+      errno = entry_errno;
+      ssize_t r = next_pwrite(fd, buffer, count, offset);
+      int e = errno;
+      extend_line("pwrite_past_eof", (long long)st.st_size, (long long)offset + (long long)count, (int)r, now_ns() - t0);
+      errno = e;
+      return r;
+    }
+  }
   uint64_t sequence = enabled ? add(&pwrite_seen, 1) : 1;
   int sample = enabled && (sequence % 32ULL) == 0;
   int selected = sample && on_selected_device(fd, NULL, 0);
@@ -242,20 +274,55 @@ ssize_t pwrite(int fd, const void *buffer, size_t count, off_t offset) {
 
 int ftruncate(int fd, off_t length) {
   int entry_errno = errno;
+  struct stat st;
   if (next_ftruncate == NULL) next_ftruncate = dlsym(RTLD_NEXT, "ftruncate");
   if (next_ftruncate == NULL) { errno = ENOSYS; return -1; }
-  int selected = on_selected_device(fd, NULL, 0);
+  if (next_fstat == NULL) next_fstat = dlsym(RTLD_NEXT, "fstat");
+  int selected = on_selected_device(fd, NULL, 1);
   errno = entry_errno;
   if (!selected) return next_ftruncate(fd, length);
+  long long from = (next_fstat != NULL && next_fstat(fd, &st) == 0) ? (long long)st.st_size : -1;
+  int extending = from >= 0 && (long long)length > from;
+  if (extending && skip_extension()) {
+    extend_line("ftruncate_skipped", from, (long long)length, 0, 0);
+    errno = entry_errno;
+    return 0;
+  }
   uint64_t start = now_ns();
   errno = entry_errno;
   int result = next_ftruncate(fd, length);
   int call_errno = errno;
   uint64_t elapsed = now_ns() - start;
+  if (extending) extend_line("ftruncate", from, (long long)length, result, elapsed);
   add(&stats.ftruncate_calls, 1);
   if (result != 0) add(&stats.ftruncate_failures, 1);
   add(&stats.ftruncate_elapsed_ns, elapsed);
   update_max(&stats.ftruncate_max_ns, elapsed);
+  errno = call_errno;
+  return result;
+}
+
+int truncate(const char *path, off_t length) {
+  static int (*next_truncate)(const char *, off_t);
+  int entry_errno = errno;
+  struct stat st;
+  if (next_truncate == NULL) next_truncate = dlsym(RTLD_NEXT, "truncate");
+  if (next_truncate == NULL) { errno = ENOSYS; return -1; }
+  initialize();
+  int selected = device_valid && (enabled || skip_preallocation) && stat(path, &st) == 0 &&
+                 (long long)st.st_dev == selected_device;
+  errno = entry_errno;
+  if (!selected) return next_truncate(path, length);
+  int extending = (long long)length > (long long)st.st_size;
+  if (extending && skip_extension()) {
+    extend_line("truncate_skipped", (long long)st.st_size, (long long)length, 0, 0);
+    errno = entry_errno;
+    return 0;
+  }
+  uint64_t start = now_ns();
+  int result = next_truncate(path, length);
+  int call_errno = errno;
+  if (extending) extend_line("truncate", (long long)st.st_size, (long long)length, result, now_ns() - start);
   errno = call_errno;
   return result;
 }
@@ -336,5 +403,6 @@ int fallocate64(int fd, int mode, off64_t offset, off64_t length) __attribute__(
 int posix_fallocate64(int fd, off64_t offset, off64_t length) __attribute__((alias("posix_fallocate")));
 ssize_t pwrite64(int fd, const void *buffer, size_t count, off64_t offset) __attribute__((alias("pwrite")));
 int ftruncate64(int fd, off64_t length) __attribute__((alias("ftruncate")));
+int truncate64(const char *path, off64_t length) __attribute__((alias("truncate")));
 int fstat64(int fd, struct stat64 *out) __attribute__((alias("fstat")));
 #endif
