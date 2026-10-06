@@ -62,7 +62,7 @@ class ModeSettings(
     /** Steam only: whether single and double Back actions are swapped. */
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
-    val clientDirectAudio: Boolean = false,
+    val clientDirectAudio: Boolean = true,
     val mic: Boolean?,
     val renderer: String?,
     val gameStorage: String? = null,

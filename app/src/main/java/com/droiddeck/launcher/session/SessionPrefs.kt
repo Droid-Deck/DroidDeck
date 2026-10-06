@@ -156,10 +156,9 @@ object SessionPrefs {
 
     /**
      * The Steam client's own sound through the DirectAudio relay instead of the classic AAudio
-     * sink. Off by default: on an AYN Thor (Android 13, 20 ms bursts) the relay path stayed choppy
-     * where the classic sink - the one 0.1.5 shipped - was fine.
+     * sink. On unless the user picked Classic.
      */
-    fun clientDirectAudio(context: Context): Boolean = prefs(context).getBoolean("clientDirectAudio", false)
+    fun clientDirectAudio(context: Context): Boolean = prefs(context).getBoolean("clientDirectAudio", true)
 
     fun setClientDirectAudio(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("clientDirectAudio", on).apply()
