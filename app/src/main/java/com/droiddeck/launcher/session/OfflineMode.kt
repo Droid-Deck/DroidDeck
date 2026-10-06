@@ -57,40 +57,7 @@ object OfflineMode {
         if (!file.isFile) return
         val want = if (enabled(context)) "1" else "0"
         try {
-            val lines = file.readLines()
-            val out = ArrayList<String>(lines.size + 4)
-            var sawWants = false
-            var sawSkip = false
-            var changed = false
-            for (line in lines) {
-                val wants = WANTS.matchEntire(line)
-                val skip = SKIP.matchEntire(line)
-                when {
-                    wants != null -> {
-                        sawWants = true
-                        if (wants.groupValues[2] != want) changed = true
-                        out.add(wants.groupValues[1] + want + wants.groupValues[3])
-                    }
-                    skip != null -> {
-                        sawSkip = true
-                        if (skip.groupValues[2] != want) changed = true
-                        out.add(skip.groupValues[1] + want + skip.groupValues[3])
-                    }
-                    else -> {
-                        out.add(line)
-                        if (line.contains("\"AccountName\"")) {
-                            val indent = line.takeWhile { it == ' ' || it == '\t' }
-                            if (!lines.any { WANTS.matchEntire(it) != null }) {
-                                out.add("$indent\"WantsOfflineMode\"\t\t\"$want\""); changed = true
-                            }
-                            if (!lines.any { SKIP.matchEntire(it) != null }) {
-                                out.add("$indent\"SkipOfflineModeWarning\"\t\t\"$want\""); changed = true
-                            }
-                        }
-                    }
-                }
-            }
-            if (!changed) return
+            val out = rewrite(file.readLines(), want) ?: return
             val staged = File(file.parentFile, "loginusers.vdf.staged")
             staged.writeText(out.joinToString("\n", postfix = "\n"))
             if (!staged.renameTo(file)) {
@@ -98,9 +65,67 @@ object OfflineMode {
                 Log.w(TAG, "could not replace loginusers.vdf")
                 return
             }
-            Log.i(TAG, "offline=$want (wants=$sawWants skip=$sawSkip)")
+            Log.i(TAG, "offline=$want")
         } catch (e: Exception) {
             Log.w(TAG, "could not write loginusers.vdf", e)
         }
+    }
+
+    /** loginusers.vdf's lines with every account block asking for [want], or null when nothing changes. */
+    internal fun rewrite(lines: List<String>, want: String): List<String>? {
+        // Which lines belong to which account block (the braces one level inside "users"), so a
+        // block that lacks a key gets it even when another account's block has it - with more
+        // than one remembered account, a whole-file check left a newer account out.
+        val blockOf = IntArray(lines.size) { -1 }
+        val blockHasWants = ArrayList<Boolean>()
+        val blockHasSkip = ArrayList<Boolean>()
+        var depth = 0
+        for ((i, line) in lines.withIndex()) {
+            val t = line.trim()
+            if (t == "{") {
+                depth++
+                if (depth == 2) { blockHasWants.add(false); blockHasSkip.add(false) }
+                continue
+            }
+            if (t == "}") { depth--; continue }
+            if (depth >= 2 && blockHasWants.isNotEmpty()) {
+                val b = blockHasWants.size - 1
+                blockOf[i] = b
+                if (WANTS.matchEntire(line) != null) blockHasWants[b] = true
+                if (SKIP.matchEntire(line) != null) blockHasSkip[b] = true
+            }
+        }
+        val out = ArrayList<String>(lines.size + 4)
+        var changed = false
+        for ((i, line) in lines.withIndex()) {
+            val wants = WANTS.matchEntire(line)
+            val skip = SKIP.matchEntire(line)
+            when {
+                wants != null -> {
+                    if (wants.groupValues[2] != want) changed = true
+                    out.add(wants.groupValues[1] + want + wants.groupValues[3])
+                }
+                skip != null -> {
+                    if (skip.groupValues[2] != want) changed = true
+                    out.add(skip.groupValues[1] + want + skip.groupValues[3])
+                }
+                else -> {
+                    out.add(line)
+                    if (line.contains("\"AccountName\"")) {
+                        val indent = line.takeWhile { it == ' ' || it == '\t' }
+                        val b = blockOf[i]
+                        val hasWants = if (b >= 0) blockHasWants[b] else lines.any { WANTS.matchEntire(it) != null }
+                        val hasSkip = if (b >= 0) blockHasSkip[b] else lines.any { SKIP.matchEntire(it) != null }
+                        if (!hasWants) {
+                            out.add("$indent\"WantsOfflineMode\"\t\t\"$want\""); changed = true
+                        }
+                        if (!hasSkip) {
+                            out.add("$indent\"SkipOfflineModeWarning\"\t\t\"$want\""); changed = true
+                        }
+                    }
+                }
+            }
+        }
+        return if (changed) out else null
     }
 }
