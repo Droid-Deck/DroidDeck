@@ -59,7 +59,7 @@ object GameEnvironmentStore {
 
     @Synchronized
     fun publish(context: Context, config: GameEnvironment.Config = read(context)) {
-        val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context)) + config.shared)
+        val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
         val json = encode(resolved)
         // The Display page's texture filtering, as DXVK options the launcher appends to
         // DXVK_CONFIG after the profiles - a user's own DXVK_CONFIG entry keeps its options.

@@ -1052,4 +1052,6 @@
     <string name="device_info_copy">Copy</string>
     <string name="device_info_copy_hint">Copy these details into a bug report.</string>
     <string name="device_info_copied">Copied.</string>
+    <string name="force_ssbs_title">Force SSBS</string>
+    <string name="force_ssbs_hint">Keeps a CPU speed setting on that Wine keeps turning off. Can make Windows games faster on Snapdragon 8 Elite; little change seen on older chips. Applies on the next game launch.</string>
 </resources>

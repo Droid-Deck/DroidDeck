@@ -543,6 +543,22 @@ object SessionPrefs {
 
     private const val DEFAULT_FEX_PRESET = "PERFORMANCE_TSO"
 
+    /**
+     * Force SSBS for Proton games: Wine resumes threads from a Windows CONTEXT that never carries
+     * PSTATE.SSBS, so they run with speculative store bypass disabled; libssbs.so keeps it set
+     * (on DiRT 3 / GE-Proton: from ~99% of a game's threads running without it to none). The
+     * speed-up is reported on Oryon cores (Snapdragon 8 Elite) and was not measurable on an
+     * 8 Gen 3, so it is off unless turned on. A game's own environment can still say
+     * DROIDDECK_FORCE_SSBS=0.
+     */
+    fun forceSsbs(context: Context): Boolean = prefs(context).getBoolean("forceSsbs", false)
+
+    fun setForceSsbs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("forceSsbs", on).apply()
+        runCatching { GameEnvironmentStore.publish(context) }
+            .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
+    }
+
     fun setFexPreset(context: Context, id: String) {
         prefs(context).edit().putString("fexPreset", id).apply()
         runCatching { GameEnvironmentStore.publish(context) }
