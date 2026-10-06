@@ -309,6 +309,14 @@ class SessionService : Service() {
         // The desktop's Steam launchers start the client there (droiddeck-steam-launch), through the
         // same set-up as a Steam session: it gets what the client and its games are started with.
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        // Some GPUs need a component Proton does not ship. Apply those before the guest, so the
+        // next game launch copies them into the prefix. A download failure is logged and the
+        // session still starts; the next session tries again.
+        if (steamHere) {
+            runCatching { ComponentsManager.ensureForcedPackages(this) }
+                .onSuccess { if (it != null) Log.i(TAG, it) }
+                .onFailure { Log.w(TAG, "forced components", it) }
+        }
         addClientEnvironment(guest, steamHere)
         // Where the fast path's description of proot's view goes, once the binds are known.
         val fastPathAt = guest.size
