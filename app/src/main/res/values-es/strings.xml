@@ -291,6 +291,10 @@
     <string name="mode_branch_public">Beta pública</string>
     <string name="mode_branch_deck_beta">Beta pública de Steam Deck</string>
     <string name="mode_branch_note">El modo Deck siempre usa la beta pública de Steam Deck.</string>
+    <string name="mode_steam_repair">Reparar cliente de Steam</string>
+    <string name="mode_steam_repair_hint">Vuelve a descargar el cliente de Steam la próxima vez que se inicie Steam. Úsalo si Steam se queda en la pantalla de carga. Los juegos, el inicio de sesión y los ajustes se conservan.</string>
+    <string name="mode_steam_repair_queued">El cliente de Steam se volverá a descargar la próxima vez que se inicie Steam.</string>
+    <string name="mode_steam_repair_button">Reparar</string>
     <string name="mode_added_games">Juegos añadidos</string>
     <string name="mode_added_none">no hay carpetas de juegos con un .exe</string>
     <string name="mode_games_folder">Carpeta de juegos</string>
@@ -470,6 +474,7 @@
     <string name="drawer_page_effects">Efectos</string>
     <string name="drawer_page_controls">Controles</string>
     <string name="drawer_page_components">Componentes</string>
+    <string name="drawer_page_controller">Mando</string>
     <string name="drawer_page_settings">Ajustes</string>
     <string name="drawer_page_desc">Página %1$s</string>
     <string name="drawer_steam">Steam</string>
@@ -487,6 +492,9 @@
     <string name="drawer_effects_hint">Se aplica al instante. Consume algo de GPU mientras haya algún efecto activo.</string>
     <string name="drawer_look">Estilo</string>
     <string name="drawer_look_custom">Personalizado</string>
+    <string name="drawer_effects_advanced">Avanzado</string>
+    <string name="widgets_expanded">Expandido</string>
+    <string name="widgets_collapsed">Contraído</string>
     <string name="drawer_cas">Nitidez (CAS)</string>
     <string name="drawer_cas_level">Nivel de nitidez</string>
     <string name="drawer_fake_hdr">HDR simulado</string>
@@ -510,6 +518,7 @@
     <string name="drawer_pc_keyboard">Teclado de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Segunda pantalla</string>
+    <string name="drawer_second_screen_mode">Modo</string>
     <string name="drawer_second_screen_shows">Muestra</string>
     <string name="drawer_android_apps">Apps de Android</string>
     <string name="drawer_launch_app">Iniciar una app</string>
@@ -586,6 +595,9 @@
     <string name="setup_offline">Modo sin conexión</string>
     <string name="setup_sign_in_first">Inicia sesión en Steam primero</string>
     <string name="setup_launcher">Launcher</string>
+    <string name="setup_app_scale">Escala de la app</string>
+    <string name="setup_app_scale_hint">Texto y controles de DroidDeck</string>
+    <string name="setup_app_scale_default">%1$d%% (por defecto)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Apariencia del launcher</string>
     <string name="setup_home">Usar como pantalla de inicio</string>
@@ -1011,4 +1023,25 @@
     <string name="game_file_folder">Elige una carpeta para los archivos de juegos del frontend</string>
     <string name="game_file_exported">Archivos de juegos guardados en %1$s</string>
     <string name="game_frontend_files">Archivos para frontends</string>
+    <string name="display_session">Pantalla de la sesión</string>
+    <string name="display_resolution">Resolución</string>
+    <string name="display_game_fit">Ajuste de juegos 16:9</string>
+    <string name="display_game_fit_hint">Cómo se ajustan los juegos 16:9 a esta pantalla. Próxima sesión.</string>
+    <string name="display_game_fit_unavailable">Elige Igualar pantalla o un tamaño personalizado más estrecho que 16:9.</string>
+    <string name="display_preserve">Mantener proporciones</string>
+    <string name="display_stretch">Estirar a la pantalla</string>
+    <string name="display_image_scaling">Escalado de imagen</string>
+    <string name="display_filter">Filtro de escalado</string>
+    <string name="display_filter_hint">Compartido por Steam y Escritorio.</string>
+    <string name="display_filter_live">Se aplica al instante. Compartido por Steam y Escritorio.</string>
+    <string name="display_filter_note">FSR, GSR y NIS se aplican al ampliar la imagen de la sesión. Sharpen only también funciona sin ampliación.</string>
+    <string name="display_sharpness">Nitidez del filtro</string>
+    <string name="display_frame_rate">Tasa de fotogramas</string>
+    <string name="display_window_compatibility">Compatibilidad de ventanas de juego</string>
+    <string name="display_force_fullscreen">Forzar ventanas de juego a pantalla completa</string>
+    <string name="display_force_fullscreen_hint">Hace que cada ventana de juego tenga el tamaño de la pantalla. Actívalo si un juego se vuelve pequeño o en una esquina tras cambiar de app; déjalo desactivado si un juego parpadea entre tamaños. Se aplica al instante durante una sesión.</string>
+    <string name="display_force_fullscreen_live">Actívalo si un juego se vuelve pequeño tras cambiar de app; desactívalo si parpadea. Se aplica al instante.</string>
+    <string name="display_look_filter">%1$s Define el escalado en %2$s.</string>
+    <string name="display_match_screen">Igualar pantalla (%1$d×%2$d)</string>
+    <string name="mode_tab_steam">Steam</string>
 </resources>
