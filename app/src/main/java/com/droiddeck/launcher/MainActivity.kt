@@ -327,6 +327,7 @@ class MainActivity : ComponentActivity() {
     private var renderer by mutableStateOf("vulkan")
     private var gameStorage by mutableStateOf("")
     private var storageDiagnostics by mutableStateOf(false)
+    private var skipPreallocation by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<Pair<String, String>>>(emptyList())
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
@@ -1154,6 +1155,7 @@ class MainActivity : ComponentActivity() {
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
                 storageDiagnostics = mode == SessionService.MODE_STEAM && storageDiagnostics,
+                skipPreallocation = mode == SessionService.MODE_STEAM && skipPreallocation,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
                 forceSsbs = forceSsbs,
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
@@ -1226,6 +1228,10 @@ class MainActivity : ComponentActivity() {
                 onStorageDiagnostics = { on ->
                     SessionPrefs.setStorageDiagnosticsEnabled(this, on)
                     storageDiagnostics = on
+                },
+                onSkipPreallocation = { on ->
+                    SessionPrefs.setSkipLibraryPreallocation(this, on)
+                    skipPreallocation = on
                 },
                 onFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
                 onForceSsbs = { on -> SessionPrefs.setForceSsbs(this, on); forceSsbs = on },
@@ -1378,6 +1384,7 @@ class MainActivity : ComponentActivity() {
         renderer = SessionPrefs.desktopRenderer(this)
         gameStorage = SessionPrefs.gameStorage(this)
         storageDiagnostics = SessionPrefs.storageDiagnosticsEnabled(this)
+        skipPreallocation = SessionPrefs.skipLibraryPreallocation(this)
         settingsMode = mode
         // The page opens at once, on what was last read; the slow part (driver files, a walk of the
         // added-games folders, the storage volumes) lands while it animates in.

@@ -358,6 +358,8 @@
     <string name="mode_second_library">Second library</string>
     <string name="mode_storage_note">Games that stream assets from SD or shared storage may stutter.</string>
     <string name="mode_storage_diagnostics">Storage diagnostics</string>
+    <string name="mode_skip_preallocation">Skip space reservation (experimental)</string>
+    <string name="mode_skip_preallocation_hint">Steam starts downloading to the game storage folder straight away instead of reserving every file\'s space first, which can take many minutes on an SD card. If the card fills up, the download stops with a disk write error. Applies next session.</string>
     <string name="mode_storage_diagnostics_hint">Record allocation results and sampled storage timings in Share logs. May slow installs while enabled. Applies next session.</string>
     <string name="mode_choose_folder">Choose a folder…</string>
     <string name="mode_renderer">Renderer</string>

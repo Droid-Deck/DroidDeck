@@ -826,6 +826,20 @@ class SessionService : Service() {
         } else {
             Log.i(TAG, "game storage: internal only")
         }
+        // guest already has the session command at this point. These go with the `env -i`
+        // assignments so they reach the Steam process instead of becoming script args.
+        val storageEnv = ArrayList<String>()
+        val skipLibrary = storageDiagnosticLibrary
+        if (SessionState.mode == MODE_STEAM && skipLibrary != null && SessionPrefs.skipLibraryPreallocation(this)) {
+            val device = runCatching { android.system.Os.stat(skipLibrary.absolutePath).st_dev }.getOrNull()
+            if (device != null) {
+                storageEnv.add("BL_STORAGE_DEVICE=$device")
+                storageEnv.add("BL_STORAGE_PREALLOCATE_SKIP=1")
+                Log.i(TAG, "game storage: Steam's space reservation on the second library is skipped")
+            } else {
+                Log.w(TAG, "game storage: library could not be identified; space reservation not skipped")
+            }
+        }
         if (SessionState.mode == MODE_STEAM && SessionPrefs.storageDiagnosticsEnabled(this)) {
             val target = storageDiagnosticLibrary ?: File(LinuxRuntime.rootDir(this), "root/.local/share/Steam")
             val device = StorageDiagnostics.writeSnapshot(
@@ -836,15 +850,17 @@ class SessionService : Service() {
                 } ?: false,
             )
             if (device != null) {
-                // guest already has the session command at this point. Put these with the `env -i`
-                // assignments so they reach the Steam process instead of becoming script args.
-                val envAt = guest.indexOf(LinuxRuntime.SESSION_SCRIPT).takeIf { it >= 0 } ?: guest.size
-                guest.add(envAt, "BL_STORAGE_DIAGNOSTICS=1")
-                guest.add(envAt + 1, "BL_STORAGE_DEVICE=$device")
-                guest.add(envAt + 2, "BL_STORAGE_LOG=${File(sessionDir, "storage.log").absolutePath}")
+                // Both observe the same library, so a device the skip already set is the same one.
+                if (storageEnv.none { it.startsWith("BL_STORAGE_DEVICE=") }) storageEnv.add("BL_STORAGE_DEVICE=$device")
+                storageEnv.add("BL_STORAGE_DIAGNOSTICS=1")
+                storageEnv.add("BL_STORAGE_LOG=${File(sessionDir, "storage.log").absolutePath}")
             } else {
                 Log.w(TAG, "storage diagnostics: selected library could not be identified; metadata snapshot only")
             }
+        }
+        if (storageEnv.isNotEmpty()) {
+            val envAt = guest.indexOf(LinuxRuntime.SESSION_SCRIPT).takeIf { it >= 0 } ?: guest.size
+            guest.addAll(envAt, storageEnv)
         }
         // The user's own games folder (the Steam cog's "Added games"), bound at a fixed place so
         // the shortcuts the app writes point somewhere whatever storage the folder is on.

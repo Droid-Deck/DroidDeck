@@ -467,6 +467,14 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storageDiagnostics", on).apply()
     }
 
+    /** Experimental: Steam's space reservation on the second library reports success untouched. */
+    fun skipLibraryPreallocation(context: Context): Boolean =
+        prefs(context).getBoolean("skipLibraryPreallocation", false)
+
+    fun setSkipLibraryPreallocation(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("skipLibraryPreallocation", on).apply()
+    }
+
     // ── Per-mode display ────────────────────────────────────────────────────────────────────
 
     /**

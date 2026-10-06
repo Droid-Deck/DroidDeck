@@ -69,6 +69,8 @@ class ModeSettings(
     val storageOptions: List<Pair<String, String>> = emptyList(),
     /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
     val storageDiagnostics: Boolean = false,
+    /** Steam only: report Steam's space reservation on the second library as done (experimental). */
+    val skipPreallocation: Boolean = false,
     val fexPreset: String? = null,
     /** Steam only: Force SSBS for Proton games (SessionPrefs.forceSsbs). */
     val forceSsbs: Boolean = false,
@@ -130,6 +132,7 @@ class ModeSettingsActions(
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
+    val onSkipPreallocation: (Boolean) -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
@@ -504,6 +507,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 host, "storageDiagnostics", stringResource(R.string.mode_storage_diagnostics),
                 stringResource(R.string.mode_storage_diagnostics_hint), s.storageDiagnostics,
                 onChange = a.onStorageDiagnostics,
+            )
+            ToggleRow(
+                host, "skipPreallocation", stringResource(R.string.mode_skip_preallocation),
+                stringResource(R.string.mode_skip_preallocation_hint), s.skipPreallocation,
+                onChange = a.onSkipPreallocation,
             )
         }
         if (!steam && tab == ModeSettingsTab.DISPLAY && s.renderer != null) SettingsGroup(stringResource(R.string.mode_renderer)) {

@@ -177,6 +177,7 @@ object DeviceReport {
             SessionPrefs.GAME_STORAGE_OFF -> "internal only"
             else -> g
         })
+        k("Skip space reservation", SessionPrefs.skipLibraryPreallocation(context))
 
         h("Android process limits")
         k("Phantom proc monitor", PhantomProcessLimit.reportValue(PhantomProcessLimit.read(context)))

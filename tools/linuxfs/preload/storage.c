@@ -7,6 +7,12 @@
  * each process, allocation details are capped, writes are sampled, and storage.log has a global
  * size limit because every Steam child shares it.
  *
+ * One deliberate exception: when the user opts to skip space reservation, plain reservation
+ * requests on the selected library report success without touching the file. On a portable SD
+ * card Steam's reservation goes through Android's FUSE layer and can take tens of minutes; with it
+ * skipped Steam goes straight to downloading, and a full card shows up as a write error during the
+ * download rather than up front.
+ *
  * LD_PRELOAD cannot see direct syscalls or libc-internal calls that bypass public symbols. A
  * missing entry therefore does not prove the operation did not happen.
  */
@@ -45,6 +51,8 @@ static volatile unsigned int alloc_details;
 static long long selected_device;
 static int init_state;
 static int enabled;
+static int device_valid;
+static int skip_preallocation;
 
 static uint64_t add(volatile uint64_t *slot, uint64_t value) {
   return __atomic_add_fetch(slot, value, __ATOMIC_RELAXED);
@@ -71,14 +79,17 @@ static void initialize(void) {
     return;
   }
   const char *on = getenv("BL_STORAGE_DIAGNOSTICS");
+  const char *skip = getenv("BL_STORAGE_PREALLOCATE_SKIP");
   const char *device = getenv("BL_STORAGE_DEVICE");
-  if (on != NULL && strcmp(on, "1") == 0 && device != NULL && *device != '\0') {
+  if (device != NULL && *device != '\0') {
     char *end = NULL;
     errno = 0;
     long long parsed = strtoll(device, &end, 10);
     if (errno == 0 && end != device && *end == '\0') {
       selected_device = parsed;
-      enabled = 1;
+      device_valid = 1;
+      enabled = on != NULL && strcmp(on, "1") == 0;
+      skip_preallocation = skip != NULL && strcmp(skip, "1") == 0;
     }
   }
   __atomic_store_n(&init_state, 2, __ATOMIC_RELEASE);
@@ -90,10 +101,11 @@ static uint64_t now_ns(void) {
   return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 }
 
-static int on_selected_device(int fd, const struct stat *known) {
+/* Diagnostics watch every wrapped call; skipping only concerns the allocation wrappers. */
+static int on_selected_device(int fd, const struct stat *known, int allocation) {
   struct stat local;
   initialize();
-  if (!enabled) return 0;
+  if (!device_valid || !(enabled || (allocation && skip_preallocation))) return 0;
   if (known == NULL) {
     if (next_fstat == NULL) next_fstat = dlsym(RTLD_NEXT, "fstat");
     if (next_fstat == NULL || next_fstat(fd, &local) != 0) return 0;
@@ -158,15 +170,21 @@ int fallocate(int fd, int mode, off_t offset, off_t length) {
   int entry_errno = errno;
   if (next_fallocate == NULL) next_fallocate = dlsym(RTLD_NEXT, "fallocate");
   if (next_fallocate == NULL) { errno = ENOSYS; return -1; }
-  int selected = on_selected_device(fd, NULL);
+  int selected = on_selected_device(fd, NULL, 1);
   errno = entry_errno;
   if (!selected) return next_fallocate(fd, mode, offset, length);
   uint64_t start = now_ns();
+  /* Only a plain reservation is skipped; hole punching and the other modes change contents. */
+  if (skip_preallocation && (mode == 0 || mode == FALLOC_FL_KEEP_SIZE)) {
+    if (enabled) allocation_line("fallocate_skipped", 0, entry_errno, mode, offset, length, now_ns() - start);
+    errno = entry_errno;
+    return 0;
+  }
   errno = entry_errno;
   int result = next_fallocate(fd, mode, offset, length);
   int call_errno = errno;
   uint64_t elapsed = now_ns() - start;
-  allocation_line("fallocate", result, call_errno, mode, offset, length, elapsed);
+  if (enabled) allocation_line("fallocate", result, call_errno, mode, offset, length, elapsed);
   errno = call_errno;
   return result;
 }
@@ -175,7 +193,7 @@ int posix_fallocate(int fd, off_t offset, off_t length) {
   int entry_errno = errno;
   if (next_posix_fallocate == NULL) next_posix_fallocate = dlsym(RTLD_NEXT, "posix_fallocate");
   if (next_posix_fallocate == NULL) { errno = entry_errno; return ENOSYS; }
-  int selected = on_selected_device(fd, NULL);
+  int selected = on_selected_device(fd, NULL, 1);
   errno = entry_errno;
   if (!selected) {
     int result = next_posix_fallocate(fd, offset, length);
@@ -183,11 +201,16 @@ int posix_fallocate(int fd, off_t offset, off_t length) {
     return result;
   }
   uint64_t start = now_ns();
+  if (skip_preallocation) {
+    if (enabled) allocation_line("posix_fallocate_skipped", 0, entry_errno, 0, offset, length, now_ns() - start);
+    errno = entry_errno;
+    return 0;
+  }
   errno = entry_errno;
   int result = next_posix_fallocate(fd, offset, length);
   int call_errno = errno;
   uint64_t elapsed = now_ns() - start;
-  allocation_line("posix_fallocate", result, call_errno, 0, offset, length, elapsed);
+  if (enabled) allocation_line("posix_fallocate", result, call_errno, 0, offset, length, elapsed);
   errno = entry_errno; /* POSIX requires the error to be returned, leaving errno unchanged. */
   return result;
 }
@@ -199,7 +222,7 @@ ssize_t pwrite(int fd, const void *buffer, size_t count, off_t offset) {
   initialize();
   uint64_t sequence = enabled ? add(&pwrite_seen, 1) : 1;
   int sample = enabled && (sequence % 32ULL) == 0;
-  int selected = sample && on_selected_device(fd, NULL);
+  int selected = sample && on_selected_device(fd, NULL, 0);
   errno = entry_errno;
   if (!selected)
     return next_pwrite(fd, buffer, count, offset);
@@ -221,7 +244,7 @@ int ftruncate(int fd, off_t length) {
   int entry_errno = errno;
   if (next_ftruncate == NULL) next_ftruncate = dlsym(RTLD_NEXT, "ftruncate");
   if (next_ftruncate == NULL) { errno = ENOSYS; return -1; }
-  int selected = on_selected_device(fd, NULL);
+  int selected = on_selected_device(fd, NULL, 0);
   errno = entry_errno;
   if (!selected) return next_ftruncate(fd, length);
   uint64_t start = now_ns();
@@ -249,7 +272,7 @@ int fstat(int fd, struct stat *out) {
   int result = next_fstat(fd, out);
   int call_errno = errno;
   uint64_t elapsed = now_ns() - start;
-  if (result == 0 && on_selected_device(fd, out)) {
+  if (result == 0 && on_selected_device(fd, out, 0)) {
     add(&stats.fstat_calls, 1);
     add(&stats.fstat_elapsed_ns, elapsed);
     update_max(&stats.fstat_max_ns, elapsed);
@@ -262,7 +285,7 @@ int fsync(int fd) {
   int entry_errno = errno;
   if (next_fsync == NULL) next_fsync = dlsym(RTLD_NEXT, "fsync");
   if (next_fsync == NULL) { errno = ENOSYS; return -1; }
-  int selected = on_selected_device(fd, NULL);
+  int selected = on_selected_device(fd, NULL, 0);
   errno = entry_errno;
   if (!selected) return next_fsync(fd);
   uint64_t start = now_ns();
