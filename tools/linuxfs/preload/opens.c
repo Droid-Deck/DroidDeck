@@ -107,7 +107,7 @@ int openat(int dirfd, const char *path, int flags, ...) {
   bl_meta_log("openat", dirfd, path, flags, t0, fd, errno);
   if (retry_without_noatime(fd, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
   if (fd < 0 && bl_writable_retry(dirfd, path, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
-  if (fd >= 0 && (flags & O_CREAT) && (dirfd == AT_FDCWD || (path && path[0] == '/'))) bl_dircache_created(path);
+  if (fd >= 0 && (flags & O_CREAT)) bl_dircache_created(path);
   return fd;
 }
 

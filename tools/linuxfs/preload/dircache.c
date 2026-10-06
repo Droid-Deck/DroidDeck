@@ -166,10 +166,21 @@ static void remove_name(struct listing *l, const char *name) {
   l->names[i] = l->names[--l->count];
 }
 
+static int in_scope(const char *path);
+
+/* A change the cache can't place (a relative path): no listing can be trusted after it. */
+static void forget_all(void) {
+  if (!in_scope("/mnt/droiddeck-sd")) return;
+  pthread_mutex_lock(&lock);
+  for (int i = 0; i < DIRCACHE_SLOTS; i++) drop(&listings[i]);
+  pthread_mutex_unlock(&lock);
+}
+
 /* The client's own change to a directory, applied to its listing when one is cached. */
 static void note(const char *path, int added, unsigned char type) {
   char parent[DIRCACHE_PATH_MAX];
   const char *base;
+  if (path != NULL && path[0] != '/') { forget_all(); return; }
   if (!in_scope(path) || !split(path, parent, &base)) return;
   pthread_mutex_lock(&lock);
   struct listing *l = find(parent, now_ns());
@@ -404,12 +415,6 @@ MUTATE(unlink, (const char *p), (p), p, note(p, 0, DT_REG))
 MUTATE(rmdir, (const char *p), (p), p, note(p, 0, DT_DIR))
 MUTATE(rename, (const char *a, const char *b), (a, b), a, { note(a, 0, DT_DIR); note(b, 0, DT_DIR); note(b, 1, DT_UNKNOWN); })
 
-/* Calls relative to a directory descriptor: the cache can't tell which listing changed. */
-static void forget_all(void) {
-  pthread_mutex_lock(&lock);
-  for (int i = 0; i < DIRCACHE_SLOTS; i++) drop(&listings[i]);
-  pthread_mutex_unlock(&lock);
-}
 
 #define MUTATE_AT(name, sig, args)                                  \
   int name sig {                                                    \
