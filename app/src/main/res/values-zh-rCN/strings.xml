@@ -170,7 +170,7 @@
     <string name="app_fex_not_ready">此程序面向 %1$s PC 构建，需经由 FEX 运行，而 FEX 尚未配置。请在登录状态下打开一次 Steam：DroidDeck 会让其下载 FEX 及所需的 Steam Linux Runtime，之后即可打开。</string>
     <string name="session_end_program">此程序</string>
     <string name="session_end_fex_missing">%1$s 面向 x86 PC 构建，需经由 FEX 运行，而 FEX 尚未安装。请在登录状态下启动一次 Steam，让其下载 FEX 与 Steam Linux Runtime，然后重新启动。</string>
-    <string name="add_app_flatpak_hint">一个 Flathub 应用 ID 或其 Flathub 页面。若尚未设置 Flatpak 会先进行设置。</string>
+    <string name="add_app_flatpak_hint">一个 Flathub 应用 ID 或其 Flathub 页面。若尚未配置 Flatpak 会先进行配置。</string>
     <string name="add_app_file">文件</string>
     <string name="add_app_no_file">未选择文件</string>
     <string name="add_app_choose_file">选择文件</string>
@@ -265,6 +265,8 @@
     <string name="mode_suspend">后台行为</string>
     <string name="mode_suspend_hint">应用被隐藏或屏幕关闭时。</string>
     <string name="mode_suspend_manual">手动</string>
+    <string name="mode_suspend_native">原生</string>
+    <string name="mode_suspend_steam_note">自动会暂停并在显示时恢复。原生会先让 Steam 做好睡眠准备。手动会等待点按恢复。“从不”则保持运行。</string>
     <string name="mode_suspend_note">自动会在后台暂停并在显示时恢复。手动会等待点按恢复。“从不”则保持运行。</string>
     <string name="mode_startup">启动</string>
     <string name="mode_steam_startup">随 DroidDeck 启动 Steam</string>
@@ -307,6 +309,29 @@
     <string name="mode_added_launches_in">启动 %1$s · 位于 %2$s</string>
     <string name="mode_added_choose">选择其他文件…</string>
     <string name="mode_added_exe_note">默认为与文件夹同名的 .exe，否则为最大的那个。</string>
+    <string name="wincomp_title">Windows 组件</string>
+    <string name="wincomp_pad_hint">按 LB / RB 在各部分之间跳转。</string>
+    <string name="wincomp_card_none">无</string>
+    <string name="wincomp_applies">Proton 未包含的 Windows DLL，来自 Bannerlator 的组件列表。开启此游戏需要的组件：它们会放入游戏自己的 Windows 文件夹，绝不改动游戏文件，并且无论游戏使用哪个 Proton 都会保留。</string>
+    <string name="wincomp_offline">无法访问组件列表。已下载的组件仍可开启或关闭。</string>
+    <string name="wincomp_recommended">此游戏推荐</string>
+    <string name="wincomp_found_bundled">游戏自带 %1$s</string>
+    <string name="wincomp_found_shipped">游戏含有 %1$s（通常可直接使用）</string>
+    <string name="wincomp_found_steam">Steam 会随此游戏安装 %1$s</string>
+    <string name="wincomp_already_here">此游戏中已有</string>
+    <string name="wincomp_no_recommendation">游戏文件夹中没有指向任何组件的内容。</string>
+    <string name="wincomp_all">全部组件（%1$d）</string>
+    <string name="wincomp_installers">需要 Windows 安装程序（%1$d）</string>
+    <string name="wincomp_installers_note">这些组件需要在前缀中运行真正的安装程序（.NET、PhysX、XNA、完整的 Visual C++ 安装程序等）。DroidDeck 暂时无法做到，接下来会支持。</string>
+    <string name="wincomp_show">显示</string>
+    <string name="wincomp_hide">隐藏</string>
+    <string name="wincomp_needs_installer">需要 Windows 安装程序（即将支持）</string>
+    <string name="wincomp_unsupported">此处暂不支持</string>
+    <string name="wincomp_loading">正在加载组件…</string>
+    <string name="wincomp_failed">无法安装：%1$s</string>
+    <string name="wincomp_downloaded">已下载</string>
+    <string name="wincomp_download_size">下载 %1$s</string>
+    <string name="wincomp_next_launch">将在下次启动游戏时生效。</string>
     <string name="mode_stretch169">拉伸 16:9 比例的游戏</string>
     <string name="mode_stretch169_hint">在比 16:9 更方的屏幕上，拉伸游戏填满屏幕而不是显示黑边。将在下次会话生效。</string>
     <string name="mode_audio">音频</string>
@@ -635,9 +660,9 @@
     <string name="store_chip_flathub">Flathub · ARM64</string>
     <string name="store_chip_ready">● Flatpak 就绪</string>
     <string name="store_needs_runtime">请先在“配置”中安装 Linux 运行时。</string>
-    <string name="store_setup_title">设置 Flatpak</string>
+    <string name="store_setup_title">配置 Flatpak</string>
     <string name="store_setup_text">添加 Flatpak 并连接到 Flathub（约 20 MB）。安装第一个应用时还会额外下载它的运行时。</string>
-    <string name="store_setting_up">正在设置…</string>
+    <string name="store_setting_up">正在配置…</string>
     <string name="store_flatpak">Flatpak</string>
     <string name="store_updates">更新</string>
     <string name="store_busy">%1$s · %2$s</string>
@@ -658,7 +683,7 @@
     <string name="store_update_all">全部更新（%1$d）</string>
     <string name="store_all_current">● 一切已是最新</string>
     <string name="store_no_apps">还没有应用。去“发现”或“搜索”里找找吧。</string>
-    <string name="store_setup_first_note">请先设置 Flatpak 再安装应用。</string>
+    <string name="store_setup_first_note">请先配置 Flatpak 再安装应用。</string>
     <string name="store_update_available_prefix">有可用更新 · %1$s</string>
     <string name="store_open">打开</string>
     <string name="store_details">详情</string>
@@ -666,7 +691,7 @@
     <string name="store_press_again">再次点按以移除</string>
     <string name="store_installing">安装中…</string>
     <string name="store_install">安装</string>
-    <string name="store_setup_first">请先设置 Flatpak</string>
+    <string name="store_setup_first">请先配置 Flatpak</string>
     <string name="store_download_size">需下载 %1$s</string>
     <string name="store_installed_chip">● 已安装</string>
     <string name="store_details_failed">无法加载该应用的 Flathub 页面。</string>
@@ -1033,7 +1058,7 @@
     <string name="main_saves_close_session">请先关闭 Steam 会话，以免游戏存档覆盖导入的内容</string>
 
     <!-- Busy line while saves are imported; %1$s is the game's name -->
-    <string name="main_saves_importing">导入到 %1$s</string>
+    <string name="main_saves_importing">正在导入到 %1$s</string>
 
     <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the game's name -->
     <plurals name="main_saves_imported">
@@ -1045,7 +1070,7 @@
     <string name="main_saves_pick_zip">为 %1$s 选择存档 zip 包</string>
 
     <!-- Busy line while saves are exported; %1$s is the game's name -->
-    <string name="main_saves_exporting">导出 %1$s</string>
+    <string name="main_saves_exporting">正在导出 %1$s</string>
 
     <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the zip's path -->
     <plurals name="main_saves_exported">
@@ -1086,11 +1111,11 @@
     <string name="android_app_open_failed_display">无法在显示器 %2$d 上打开 %1$s</string>
 
     <!-- Components page busy lines, shown with … after them -->
-    <string name="comp_busy_importing">导入</string>
-    <string name="comp_busy_swapping">替换</string>
-    <string name="comp_busy_restoring">还原</string>
-    <string name="comp_busy_cancelling">取消</string>
-    <string name="comp_busy_deleting">删除</string>
+    <string name="comp_busy_importing">正在导入</string>
+    <string name="comp_busy_swapping">正在替换</string>
+    <string name="comp_busy_restoring">正在还原</string>
+    <string name="comp_busy_cancelling">正在取消</string>
+    <string name="comp_busy_deleting">正在删除</string>
     <string name="comp_cannot_read">无法读取该文件</string>
 
     <!-- %1$s is a version or a name -->
@@ -1288,7 +1313,7 @@
     <!-- Store front-page section of recently updated apps -->
     <string name="store_section_updated">最近更新</string>
     <string name="store_section_loading">加载中…</string>
-    <string name="store_flatpak_setup">Flatpak 设置</string>
+    <string name="store_flatpak_setup">Flatpak 配置</string>
 
     <!-- %1$s is what failed (an app name or "Flatpak setup"), %2$s the error -->
     <string name="store_problem">%1$s：%2$s</string>
@@ -1585,10 +1610,10 @@
     <string name="deskpkg_install_failed">安装失败</string>
 
     <!-- Flatpak store operations (FlatpakManager) -->
-    <string name="flatpakmgr_setup_failed">Flatpak 设置失败（退出代码 %1$d）</string>
-    <string name="flatpakmgr_setup_unfinished">Flatpak 设置未完成</string>
+    <string name="flatpakmgr_setup_failed">Flatpak 配置失败（退出代码 %1$d）</string>
+    <string name="flatpakmgr_setup_unfinished">Flatpak 配置未完成</string>
     <string name="flatpakmgr_busy">另一个商店任务正在运行</string>
-    <string name="flatpakmgr_not_ready">请先设置 Flatpak</string>
+    <string name="flatpakmgr_not_ready">请先配置 Flatpak</string>
     <string name="flatpakmgr_starting">启动中</string>
     <string name="flatpakmgr_exit_status">Flatpak 已退出，状态码 %1$d</string>
 
@@ -1729,7 +1754,7 @@
     <string name="adbpair_port_not_found">已配对，但未找到无线调试端口。请保持无线调试开启，然后重试。</string>
     <string name="adbpair_applying">正在应用设置…</string>
     <string name="adbpair_command_failed">无线调试命令执行失败</string>
-    <string name="adbpair_channel_name">无线调试设置</string>
+    <string name="adbpair_channel_name">无线调试配置</string>
     <string name="adbpair_channel_description">在“设置”打开时请求输入无线调试配对码</string>
     <string name="adbpair_title_pair">配对无线调试</string>
     <string name="adbpair_waiting_text">开启无线调试，然后点按“使用配对码配对设备”。</string>
@@ -1743,10 +1768,10 @@
 
     <!-- Notification action button -->
     <string name="adbpair_enter_code">输入配对码</string>
-    <string name="adbpair_title_working">正在设置 Steam</string>
+    <string name="adbpair_title_working">正在配置 Steam</string>
     <string name="adbpair_title_done">Steam 已就绪</string>
     <string name="adbpair_done_text">点按即可返回 DroidDeck。现在可以关闭无线调试了。</string>
-    <string name="adbpair_title_failed">无线调试设置已中止</string>
+    <string name="adbpair_title_failed">无线调试配置已中止</string>
 
     <!-- DroidDeck's own updates (SelfInstaller, AppUpdates) -->
     <string name="selfinst_http">下载服务器返回 HTTP %1$d</string>
@@ -2025,11 +2050,15 @@
     <string name="display_filter_note">FSR、GSR 和 NIS 在放大会话画面时生效。“仅锐化”在不放大时也可用。</string>
     <string name="display_sharpness">滤镜锐度</string>
     <string name="display_frame_rate">帧率</string>
-    <string name="display_window_compatibility">游戏窗口兼容性</string>
-    <string name="display_force_fullscreen">强制游戏窗口全屏</string>
-    <string name="display_force_fullscreen_hint">让每个游戏窗口都与屏幕大小一致。如果切换应用后游戏变小或显示在角落，请开启；如果游戏在不同尺寸间闪烁，请保持关闭。会话中即时生效。</string>
-    <string name="display_force_fullscreen_live">切换后游戏变小请开启；出现闪烁请关闭。即时生效。</string>
     <string name="display_look_filter">%1$s 将缩放设为 %2$s。</string>
     <string name="display_match_screen">匹配屏幕（%1$d×%2$d）</string>
     <string name="mode_tab_steam">Steam</string>
+    <string name="device_info_show">显示设备详情</string>
+    <string name="device_info_hide">隐藏设备详情</string>
+    <string name="device_info_loading">正在读取设备信息…</string>
+    <string name="device_info_copy">复制</string>
+    <string name="device_info_copy_hint">将这些详情复制到错误报告中。</string>
+    <string name="device_info_copied">已复制。</string>
+    <string name="force_ssbs_title">强制 SSBS</string>
+    <string name="force_ssbs_hint">保持开启一项 Wine 会不断关闭的 CPU 速度设置。在骁龙 8 至尊版上可能让 Windows 游戏更快；在较旧芯片上变化不大。下次启动游戏时生效。</string>
 </resources>
