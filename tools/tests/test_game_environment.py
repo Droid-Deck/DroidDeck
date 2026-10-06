@@ -461,3 +461,27 @@ class DirectAudioPrefixTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ForceSsbsTest(unittest.TestCase):
+    def test_libssbs_is_preloaded_only_when_asked_and_only_into_arm64_proton(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            arm = Path(tmp) / "arm"
+            (arm / "files/lib/wine/aarch64-unix").mkdir(parents=True)
+            x86 = Path(tmp) / "x86"
+            (x86 / "files/lib/wine/x86_64-unix").mkdir(parents=True)
+            lib = Path(tmp) / "libssbs.so"
+            lib.write_bytes(b"\x7fELF")
+            g = MODULE["force_ssbs"].__globals__
+            old = g["SSBS_LIB"]
+            g["SSBS_LIB"] = str(lib)
+            try:
+                env = {"LD_PRELOAD": "/usr/local/lib/libblsession.so"}
+                self.assertEqual(MODULE["force_ssbs"]([str(arm / "proton"), "waitforexitandrun"], env), env)
+                on = dict(env, DROIDDECK_FORCE_SSBS="1")
+                got = MODULE["force_ssbs"]([str(arm / "proton"), "waitforexitandrun"], on)
+                self.assertEqual(got["LD_PRELOAD"], "/usr/local/lib/libblsession.so:" + str(lib))
+                self.assertEqual(MODULE["force_ssbs"]([str(arm / "proton")], got)["LD_PRELOAD"], got["LD_PRELOAD"])
+                self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
+            finally:
+                g["SSBS_LIB"] = old

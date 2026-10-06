@@ -173,7 +173,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -195,6 +195,10 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
+          # Force-SSBS adapter, preloaded into a game's Wine only when the game asks for it.
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+            -o "$D/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/libssbs.so"
           mkdir -p "$D/usr/local/bin"
           aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
@@ -361,6 +365,10 @@ jobs:
           SESSION=$(syms "$D/libblsession.so")
           for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap drmPrimeFDToHandle drmCloseBufferHandle drmIoctl; do
             grep -qx "$sym" <<<"$SESSION" || { echo "::error::libblsession.so does not export $sym"; exit 1; }
+          done
+          SSBS=$(syms "$D/libssbs.so")
+          for sym in sigaction signal bsd_signal sysv_signal; do
+            grep -qx "$sym" <<<"$SSBS" || { echo "::error::libssbs.so does not export $sym"; exit 1; }
           done
           test -f "$D/usr/local/bin/droiddeck-session"
           test -f "$D/usr/local/bin/droiddeck-proton-extra"

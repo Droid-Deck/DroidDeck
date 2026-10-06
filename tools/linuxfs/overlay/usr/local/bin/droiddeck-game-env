@@ -196,6 +196,30 @@ def without_pack(chosen_env, env):
     return result
 
 
+SSBS_LIB = "/usr/local/lib/libssbs.so"
+
+
+def force_ssbs(command, env):
+    """DROIDDECK_FORCE_SSBS=1 (a game's or the shared environment): preload libssbs.so into this
+    Proton's Wine, which then keeps PSTATE.SSBS set across signal returns - speculative store
+    bypass stays allowed, as force_ssbs.diff does inside a rebuilt ntdll. ARM64 Protons only: the
+    library is aarch64 and only arm64 Wine has the signal path it fixes."""
+    if env.get("DROIDDECK_FORCE_SSBS", "").lower() not in ("1", "on", "true", "yes"):
+        return env
+    proton = os.path.dirname(command[0]) if command else ""
+    if not os.path.isdir(os.path.join(proton, "files/lib/wine/aarch64-unix")):
+        print("droiddeck-game-env: force SSBS asked for, but this Proton is not an ARM64 one; left off", file=sys.stderr)
+        return env
+    if not os.path.isfile(SSBS_LIB):
+        print("droiddeck-game-env: force SSBS asked for, but %s is missing; left off" % SSBS_LIB, file=sys.stderr)
+        return env
+    parts = [p for p in re.split(r"[:\s]+", env.get("LD_PRELOAD", "")) if p]
+    if SSBS_LIB not in parts:
+        env = dict(env, LD_PRELOAD=":".join(parts + [SSBS_LIB]))
+        print("droiddeck-game-env: force SSBS on (libssbs.so preloaded)", file=sys.stderr)
+    return env
+
+
 def main():
     command = sys.argv[1:]
     if not command:
@@ -223,6 +247,7 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    env = force_ssbs(command, env)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
