@@ -639,6 +639,7 @@ class MainActivity : ComponentActivity() {
                             logsEnabled = SessionPrefs.logsEnabled(this)
                         },
                         onShareLogs = {
+                            android.widget.Toast.makeText(this, "Preparing session logs…", android.widget.Toast.LENGTH_SHORT).show()
                             Thread({
                                 val zip = runCatching { SessionLogShare.zipLatest(this) }.getOrNull()
                                 ui.post {

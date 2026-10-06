@@ -38,7 +38,10 @@ collect_steam_logs() {
   # Into steam/ beside this session's own logs. The app scrubs these line by line after the
   # session ends - they carry the account's session token and id - so nothing here is the last
   # word on what the user ends up sharing; this is just the copy that survives the runtime.
-  [ -d "$steam_root/logs" ] && cp -r "$steam_root/logs/." "$BL_DEBUG_DIR/steam/" 2>/dev/null
+  # Up to 8 MB each, as the app's own copy takes them: the client's CEF and *.previous.txt logs
+  # reach 17 MB and say little about this session, and every share scrubs whatever is here.
+  [ -d "$steam_root/logs" ] && find "$steam_root/logs" -maxdepth 1 -type f -size -8192k \
+    -exec cp {} "$BL_DEBUG_DIR/steam/" \; 2>/dev/null
   [ -f "$HOME/.steam/steam/logs/steamwebhelper.log" ] && cp "$HOME/.steam/steam/logs/steamwebhelper.log" "$BL_DEBUG_DIR/steam/" 2>/dev/null
   # NOT copied, ever: loginusers.vdf, config.vdf and the ssfn* files, which hold the credentials
   # themselves rather than a mention of them.

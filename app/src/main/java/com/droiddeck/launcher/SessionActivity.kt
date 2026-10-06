@@ -744,6 +744,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Toast.makeText(this, "No logs for this session.", Toast.LENGTH_LONG).show()
             return
         }
+        Toast.makeText(this, "Preparing session logs…", Toast.LENGTH_SHORT).show()
         Thread({
             val zip = runCatching { SessionLogShare.zipFolder(this, folder) }
                 .onFailure { Log.w(TAG, "could not package current session logs", it) }

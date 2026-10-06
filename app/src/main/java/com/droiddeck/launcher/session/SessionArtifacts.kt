@@ -34,6 +34,14 @@ object SessionArtifacts {
     /** Every file in the folder has been through the redactor, own addresses and accounts included (-2: accounts added). */
     private const val SCRUBBED_MARKER = ".scrubbed-2"
 
+    /**
+     * Written by a session's own ending: every file, subfolders included (whatever the session
+     * script copied into steam/ and droiddeck-esync/ as well as what the app wrote), has been through
+     * the redactor. A file no newer than it needs no second pass when the folder is shared
+     * (SessionLogShare). Older folders lack it and are scrubbed whole on the way into the zip.
+     */
+    const val SCRUBBED_TREE_MARKER = ".scrubbed-tree"
+
     /** Everything the end of a session gathers, into [dir]. Safe to call for a dead session. */
     fun collect(context: Context, dir: File, reason: String) {
         try {
@@ -44,11 +52,11 @@ object SessionArtifacts {
                 }
             }
             LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-            copySteamLogs(context, dir)
+            val scrubbed = copySteamLogs(context, dir)
             // A session the system killed leaves its trace here and nowhere else.
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
-            scrubFolder(dir)
-            try { File(dir, SCRUBBED_MARKER).writeText("scrubbed ${now()}\n") } catch (e: Exception) {}
+            scrubTree(dir, scrubbed)
+            markScrubbed(dir)
             SessionEvents.record("session.artifacts_collected", mapOf("reason" to reason), dir)
             File(dir, COMPLETE_MARKER).writeText("collected: $reason at ${now()}\n")
         } catch (e: Exception) {
@@ -84,8 +92,8 @@ object SessionArtifacts {
      * through the redactor before the folder can be shared. A file is rewritten only if a line
      * changed. steam/ was scrubbed on the way in.
      */
-    private fun scrubFolder(dir: File) {
-        dir.listFiles { f -> f.isFile && !f.name.startsWith(".") }?.forEach { f ->
+    private fun scrubFolder(dir: File, skip: Set<File> = emptySet()) {
+        dir.listFiles { f -> f.isFile && !f.name.startsWith(".") && f !in skip }?.forEach { f ->
             if (!LogRedactor.isText(f)) return@forEach
             try {
                 val tmp = File(dir, ".${f.name}.scrub")
@@ -97,21 +105,42 @@ object SessionArtifacts {
         }
     }
 
-    /** Steam's logs: redacted into steam/, never copied verbatim. */
-    private fun copySteamLogs(context: Context, dir: File) {
+    private fun markScrubbed(dir: File) {
+        try {
+            File(dir, SCRUBBED_MARKER).writeText("scrubbed ${now()}\n")
+            File(dir, SCRUBBED_TREE_MARKER).writeText("scrubbed ${now()}\n")
+        } catch (e: Exception) {}
+    }
+
+    /**
+     * [dir] and the folders in it (steam/, droiddeck-esync/): the session script copied files there
+     * verbatim, and a Steam log the app did not copy over again (gone from the runtime, or past its
+     * size limit) stayed as the script left it. [skip] are files already redacted on the way in.
+     */
+    private fun scrubTree(dir: File, skip: Set<File> = emptySet()) {
+        scrubFolder(dir, skip)
+        dir.listFiles { f -> f.isDirectory }?.forEach { scrubFolder(it, skip) }
+    }
+
+    /** Steam's logs: redacted into steam/, never copied verbatim. Returns the files it wrote. */
+    private fun copySteamLogs(context: Context, dir: File): Set<File> {
         val logs = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs")
-        if (!logs.isDirectory) return
+        if (!logs.isDirectory) return emptySet()
         val out = File(dir, "steam").apply { mkdirs() }
+        val written = HashSet<File>()
         logs.listFiles { f -> f.isFile && f.length() < 8L * 1024 * 1024 }?.forEach { src ->
             try {
-                File(out, src.name).bufferedWriter().use { w ->
+                val dst = File(out, src.name)
+                dst.bufferedWriter().use { w ->
                     src.forEachLine { line -> w.write(LogRedactor.redact(line)); w.newLine() }
                 }
+                written += dst
             } catch (e: Exception) {
                 Log.w(TAG, "could not scrub ${src.name}", e)
             }
         }
         Log.i(TAG, "collected ${out.listFiles()?.size ?: 0} Steam log(s), scrubbed, into $out")
+        return written
     }
 
     /**
@@ -143,12 +172,11 @@ object SessionArtifacts {
                         "crash.log holds Android's crash buffer as of the next app start - if this\n" +
                         "session died of a crash, the entry is in there unless the device rebooted.\n"
                 )
-                if (newest) {
-                    copySteamLogs(context, dir)
-                }
+                val scrubbed = if (newest) copySteamLogs(context, dir) else emptySet()
                 SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
                 SessionEvents.record("session.artifacts_recovered", mapOf("newest" to newest), dir)
-                scrubFolder(dir)
+                scrubTree(dir, scrubbed)
+                markScrubbed(dir)
                 File(dir, COMPLETE_MARKER).writeText("collected: late, at next app start, ${now()}\n")
                 Log.i(TAG, "finished the abandoned session folder $dir")
             } catch (e: Exception) {
