@@ -252,12 +252,12 @@
     <string name="mode_decky_installed">インストール済み · %1$s</string>
     <string name="mode_decky_update">アップデートあり · %1$s</string>
     <string name="mode_decky_current">最新です · %1$s</string>
-    <string name="mode_decky_loader">ローダー</string>
+    <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">最新バージョンをインストール</string>
     <string name="mode_decky_on">Steamと共に起動します。有効にすると、このデバイス上の他のアプリがSteamを制御できる場合があります。</string>
     <string name="mode_decky_off">オフ。Steamのリモートデバッグポートは閉じたままになります。</string>
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
-    <string name="mode_decky_remove_text">ローダーを削除します。プラグインと設定は保持されます。</string>
+    <string name="mode_decky_remove_text">Loaderを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>
     <string name="mode_deck_mode">Steam Deckモード</string>
     <string name="mode_deck_mode_hint">Steam DeckのUIとクイックアクセスパフォーマンスコントロール。次回のセッションで有効になります。</string>
@@ -346,7 +346,7 @@
     <string name="comp_proton">Proton</string>
     <string name="comp_proton_note">Steamのアップデート時にValveのProtonが置き換わります。各ビルドの元のファイルは保持されます。</string>
     <string name="comp_swapped">%1$s · %2$d個を置き換え</string>
-    <string name="comp_all_original">%1$s · すべて元のファイル</string>
+    <string name="comp_all_original">%1$s · すべて原版のファイル</string>
     <string name="comp_game_running_suffix">%1$s · ゲーム実行中</string>
     <string name="comp_gpu_drivers">GPUドライバー</string>
     <string name="comp_reapplied">%1$s · %2$sの起動時に再適用</string>
@@ -357,7 +357,7 @@
     <string name="comp_import_zip">.zipをインポート</string>
     <string name="comp_reading">Protonを読み込み中…</string>
     <string name="comp_no_proton">Protonがインストールされていません。一度Steamを起動してARM64 Protonをダウンロードするか、「設定」からGE-ProtonまたはCachyOSを追加してください。</string>
-    <string name="comp_original">元 · %1$s</string>
+    <string name="comp_original">原版 · %1$s</string>
     <string name="comp_this_build">%1$s · 現在のビルド</string>
     <string name="comp_earlier_build">%1$s · 以前のビルド</string>
     <string name="comp_installed_count">インストール済み · %1$d</string>
@@ -379,7 +379,7 @@
     <string name="comp_restore_original_body">%1$sの元のファイル%2$sを元に戻しますか？</string>
     <string name="comp_swap">切り替え</string>
     <string name="comp_about_text">FEX、DXVK、VKD3D-Proton：Steamがゲームを実行するために使用する各Proton向け。\n\nインストール済みの項目を選択すると、それに差し替えられます。次回のゲーム起動時、または現在実行中のゲームを終了した後に有効になります。\n\n起動のたびに選択内容が再確認され、変更されていれば復元されます。各Protonの元のファイルは保持されるため、Steamのアップデートで失われることはありません。</string>
-    <string name="comp_tag_original">元</string>
+    <string name="comp_tag_original">原版</string>
     <string name="comp_tag_in_use">使用中</string>
     <string name="comp_tag_new">新規</string>
     <string name="comp_tag_stored">保存済み</string>
@@ -469,7 +469,7 @@
     <string name="drawer_no_proton">Protonがインストールされていません。</string>
     <string name="drawer_game_running">ゲーム実行中</string>
     <string name="drawer_reapplied">%1$sの起動時に再適用しました</string>
-    <string name="drawer_original">元</string>
+    <string name="drawer_original">原版</string>
     <string name="drawer_components_note">「コンポーネント」ページでダウンロード、インポート、削除してください。</string>
     <string name="setup_check_done">完了</string>
     <string name="setup_check_warn">要対応</string>
