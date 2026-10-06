@@ -57,6 +57,22 @@ jobs:
             exit 1
           fi
 
+      - name: Version bumps are isolated
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          base=$(git merge-base origin/main HEAD)
+          diff=$(git diff -U0 "$base..HEAD" -- app/build.gradle)
+          grep -Eq '^[+-][[:space:]]*version(Code|Name)[[:space:]]' <<<"$diff" || exit 0
+          other_files=$(git diff --name-only "$base..HEAD" | grep -v '^app/build.gradle$' || true)
+          other_gradle=$(grep -E '^[+-]' <<<"$diff" | grep -Ev '^(---|\+\+\+)' | grep -Ev '^[+-][[:space:]]*version(Code|Name)[[:space:]]' || true)
+          if [[ -n "$other_files" || -n "$other_gradle" ]]; then
+            echo "::error::versionCode/versionName changes must be isolated in their own PR"
+            echo "A version PR may only change the versionCode/versionName lines in app/build.gradle." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       - name: Merge onto main, or say what conflicts
         if: github.event_name == 'pull_request'
         run: |
