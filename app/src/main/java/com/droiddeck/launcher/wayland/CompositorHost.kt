@@ -36,6 +36,10 @@ object CompositorHost {
     ): Boolean {
         pace(refreshHz, fpsLimit)
         if (started) {
+            // The compositor outlives sessions, and the next one may have another resolution: the
+            // size it configures gamescope's window with must be this session's, not the first's.
+            WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
+            WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
             attached = surface
             WaylandCompositor.nativeSetSurface(surface)
             resumeVsync()
