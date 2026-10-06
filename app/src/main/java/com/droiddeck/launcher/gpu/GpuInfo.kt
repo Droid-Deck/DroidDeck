@@ -20,6 +20,10 @@ data class GpuInfo(
     val soc: String,
     /** Samsung's One UI on an 8 Gen 2: its Turnip needs the OneUI build, or frames tear and flicker. */
     val oneUi8Gen2: Boolean,
+    /** KGSL's own name for the GPU, as the kernel spells it ("Adreno740v2", "Adreno33v2"). */
+    val kgslName: String = "",
+    /** Where [model] came from: "kernel", "vulkan" or "platform", "" when unknown. */
+    val modelSource: String = "",
 ) {
     enum class Family(val label: String) {
         A8XX("Adreno 8xx"),
@@ -57,14 +61,45 @@ data class GpuInfo(
             val raw = listOf("/sys/class/kgsl/kgsl-3d0/gpu_model", "/sys/class/kgsl/kgsl-3d0/gpu_chipid")
                 .firstNotNullOfOrNull { FileUtils.readString(File(it))?.trim()?.takeIf(String::isNotEmpty) }
             val soc = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL.takeIf { it.isNotBlank() && it != Build.UNKNOWN }.orEmpty() else ""
-            val model = raw?.let { Regex("""(\d{3})""").find(it)?.groupValues?.get(1)?.toIntOrNull() } ?: 0
+            val fromKernel = raw?.let { threeDigits(it) } ?: 0
+            // Some kernels name the GPU without its model (AYANEO's Pocket FIT: "Adreno33v2"). The
+            // Vulkan driver's own name, when this process has asked it, then the platform's code
+            // name stand in - the GPU is the same on every phone of a platform.
+            val fromVulkan = if (fromKernel > 0 || !adreno) 0 else VulkanInfo.cachedOrNull()?.get("device")?.let { threeDigits(it) } ?: 0
+            val fromPlatform = if (fromKernel > 0 || fromVulkan > 0 || !adreno) 0 else platformModel()
+            val model = maxOf(fromKernel, fromVulkan, fromPlatform)
+            val source = when {
+                fromKernel > 0 -> "kernel"
+                fromVulkan > 0 -> "vulkan"
+                fromPlatform > 0 -> "platform"
+                else -> ""
+            }
             val family = familyOf(adreno, model)
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
             return GpuInfo(
                 name = if (!adreno) Build.HARDWARE.ifBlank { "this GPU" } else if (model > 0) "Adreno $model" else "Adreno",
                 model = model, family = family, soc = soc,
                 oneUi8Gen2 = samsung && model == 740,
+                kgslName = raw.orEmpty(), modelSource = source,
             )
+        }
+
+        private fun threeDigits(text: String): Int = Regex("""(\d{3})""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+        /** Qualcomm platform code names whose GPU is known for certain. */
+        private val PLATFORMS = mapOf(
+            "msmnile" to 640, "kona" to 650, "lahaina" to 660, "taro" to 730, "cape" to 730,
+            "kalama" to 740, "pineapple" to 750, "sun" to 830,
+        )
+
+        internal fun platformModel(platform: String = systemProperty("ro.board.platform")): Int =
+            PLATFORMS[platform.lowercase()] ?: PLATFORMS[systemProperty("ro.vendor.qti.soc_name").lowercase()] ?: 0
+
+        /** android.os.SystemProperties.get, which apps may read but not call directly. */
+        fun systemProperty(name: String): String = try {
+            Class.forName("android.os.SystemProperties").getMethod("get", String::class.java).invoke(null, name) as? String ?: ""
+        } catch (_: Exception) {
+            ""
         }
 
         internal fun familyOf(adreno: Boolean, model: Int): Family = when {

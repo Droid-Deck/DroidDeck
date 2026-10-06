@@ -1044,4 +1044,10 @@
     <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
     <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
     <string name="mode_tab_steam">Steam</string>
+    <string name="device_info_show">Show device details</string>
+    <string name="device_info_hide">Hide device details</string>
+    <string name="device_info_loading">Reading the device…</string>
+    <string name="device_info_copy">Copy</string>
+    <string name="device_info_copy_hint">Copy these details into a bug report.</string>
+    <string name="device_info_copied">Copied.</string>
 </resources>
