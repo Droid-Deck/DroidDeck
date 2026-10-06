@@ -159,7 +159,7 @@ restored): the session starts at `size=1280x720` and the device report shows `72
 
 ## Follow-ups
 
-- **Two Xwayland servers and per-game Game Resolution.** Still to verify: whether the client shows
+- **Two Xwayland servers and per-game Game Resolution** (done, see below). Was to verify: whether the client shows
   Game Resolution under game Properties in our session, the Android clipboard bridge for games on
   `:1`, and the drawer's live Force fullscreen toggle (it writes `GAMESCOPE_FORCE_WINDOWS_FULLSCREEN`
   only on `:0`'s root, and gamescope reads it per server). The client's devtools (port 8080 when
@@ -177,3 +177,37 @@ Two temporary session-script hooks, not kept on this branch: `BL_STEAM_MAX_HEIGH
 `GAMESCOPE_STEAM_MAX_HEIGHT` on the root window, and `BL_GAME_XWAYLAND_MODE=WxH` wrote
 `GAMESCOPE_XWAYLAND_MODE_CONTROL = 1,W,H,0` five seconds after `GAMESCOPE_FOCUSED_APP` showed a
 game. `--xwayland-count 2` and `STEAM_MULTIPLE_XWAYLANDS=1` went through `Download/droiddeck-env`.
+
+## Two Xwayland servers by default (`feat/steam-dual-xwayland`)
+
+Steam sessions now start gamescope with `--xwayland-count 2` and `STEAM_MULTIPLE_XWAYLANDS=1`.
+`BL_XWAYLAND_COUNT=1` in `Download/droiddeck-env` goes back to one. The session script's
+root-window requests that are meant for the game (the drawer's live Force fullscreen,
+`GAMESCOPE_FORCE_WINDOWS_FULLSCREEN`, and the resume watcher's `GAMESCOPE_RESTORE_FOCUS_WINDOW`)
+go to both displays, `$DISPLAY` and `STEAM_GAME_DISPLAY_0`. gamescope reads both per server, so
+writing only to `:0` would have reached the Steam client and not the game.
+
+Clipboard: gamescope copies a selection made on any of its Xwayland servers to all of them
+(`gamescope_set_selection`), so the Android text `droiddeck-clipboard` puts on `:0` reaches games
+on `:1` without changes here.
+
+Device runs (Thor, no `droiddeck-env`):
+
+| Run | Game | Game Resolution | Force fullscreen | Result |
+|---|---|---|---|---|
+| d1 | Alan Wake's American Nightmare | 1280x720 (set in Steam) | on | The client set `#1` to 1280x720 itself. 2 frame-size changes, `:1` steady at 10 dma-bufs, memory steady. No storm |
+| d2 | Alan Wake's American Nightmare | 1280x720 | on → off → on, live | `stretch games to fill the screen: 0 (live)` then `1`, written to both displays. Game stable |
+| d5 | 198X | default | off | The client set `#1` to native 1920x1080. Full screen, 60 fps |
+
+Steam saves the per-game choice as `"ResolutionOverride2" "1280x720"` under the app in
+`userdata/<id>/config/localconfig.vdf`.
+
+Still to check by hand (need controller input):
+- the Steam menu and QAM over a game, then Resume. Patches 0112 and 0113 work per server, and X
+  keyboard focus is now separate for the client and the game;
+- FlatOut 2 (the reason Force fullscreen exists) with Force fullscreen off: does it come back small
+  after the Steam menu?
+- pasting Android text into a game.
+
+Force fullscreen is still unsafe without a matching Game Resolution: with the default (native),
+a game drawing at another size fights it as in run 4. It stays off by default.

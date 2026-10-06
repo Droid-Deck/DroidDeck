@@ -172,6 +172,17 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(-r "$BL_REFRESH")
   fi
   [ "$mode" = steam ] && args+=(-e)
+  # Two Xwayland servers, as SteamOS runs Steam: the client on the first, games on the second
+  # (STEAM_GAME_DISPLAY_0). The client then sizes the games' server to each game's Game Resolution
+  # (GAMESCOPE_XWAYLAND_MODE_CONTROL; native unless one is set), and gamescope scales it to the
+  # output. With one server the client and its games share the output's size, and a game drawing at
+  # another size fights --force-windows-fullscreen: the resize storm piled up GPU buffers until the
+  # low-memory killer ended the session (docs/development/steam-display-scaling.md).
+  # BL_XWAYLAND_COUNT=1 in Download/droiddeck-env goes back to one.
+  if [ "$mode" = steam ] && [ "${BL_XWAYLAND_COUNT:-2}" -gt 1 ]; then
+    args+=(--xwayland-count "${BL_XWAYLAND_COUNT:-2}")
+    export STEAM_MULTIPLE_XWAYLANDS=1
+  fi
   # Touch passes through to the client as touch until the client says otherwise, as SteamOS's
   # gamescope-session starts it (TOUCH_MODE=4). The client sets the mode itself (STEAM_TOUCH_CLICK_MODE)
   # only once it has a controller; until then gamescope's own default made a finger a left-click
@@ -206,6 +217,21 @@ if [ -z "${BL_INSIDE:-}" ]; then
 fi
 
 # gamescope manages X windows: toolkits go through Xwayland, not gamescope's own Wayland socket.
+# Root-window requests for the game (fullscreen, restore) go to every display gamescope gave us:
+# the client's ($DISPLAY) and, with two servers, the games' (STEAM_GAME_DISPLAY_0); gamescope reads
+# them per server.
+bl_displays() {
+  printf '%s\n' "$DISPLAY"
+  [ -n "${STEAM_GAME_DISPLAY_0:-}" ] && [ "$STEAM_GAME_DISPLAY_0" != "$DISPLAY" ] && printf '%s\n' "$STEAM_GAME_DISPLAY_0"
+  return 0
+}
+bl_xprop_set_all() {
+  local d ok=1
+  for d in $(bl_displays); do
+    DISPLAY=$d xprop -root -f "$1" 32c -set "$1" "$2" 2>/dev/null || ok=0
+  done
+  [ "$ok" = 1 ]
+}
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
 # gamescope's reaper waits for every process left under it before the compositor comes down. A
 # process a game left behind - a Wine service blocked on a server that is already gone - is
@@ -453,7 +479,7 @@ case $mode in
         { read -r want || [ -n "$want" ]; } < "$HOME/.droiddeck-fill" 2>/dev/null || continue
         case $want in 0|1) ;; *) continue ;; esac
         [ "$want" = "$last" ] && continue
-        if xprop -root -f GAMESCOPE_FORCE_WINDOWS_FULLSCREEN 32c -set GAMESCOPE_FORCE_WINDOWS_FULLSCREEN "$want" 2>/dev/null; then
+        if bl_xprop_set_all GAMESCOPE_FORCE_WINDOWS_FULLSCREEN "$want"; then
           echo "== stretch games to fill the screen: $want (live)"
           last=$want
         fi
@@ -486,7 +512,7 @@ case $mode in
         case $app in ''|*[!0-9]*) prev=; continue ;; esac
         if [ "$prev" = 769 ] && [ "$app" != 769 ]; then
           nap 1
-          xprop -root -f GAMESCOPE_RESTORE_FOCUS_WINDOW 32c -set GAMESCOPE_RESTORE_FOCUS_WINDOW 1 2>/dev/null \
+          bl_xprop_set_all GAMESCOPE_RESTORE_FOCUS_WINDOW 1 \
             && echo "== resume: asked gamescope to restore the game window (app $app)"
         fi
         prev=$app
