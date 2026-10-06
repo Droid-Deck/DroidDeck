@@ -13,6 +13,7 @@ import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.TrafficStats
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Environment
@@ -1617,7 +1618,10 @@ class SessionService : Service() {
                     return
                 }
                 val wasActive = downloadActive
-                downloadActive = steamDownloadMonitor.poll(LinuxRuntime.rootDir(this@SessionService))
+                downloadActive = steamDownloadMonitor.poll(
+                    LinuxRuntime.rootDir(this@SessionService),
+                    receivedBytes = TrafficStats.getUidRxBytes(android.os.Process.myUid()),
+                )
                 if (wasActive != downloadActive) refreshNotification()
                 updateSuspendPolicy()
                 mainHandler.postDelayed(this, DOWNLOAD_POLL_MS)

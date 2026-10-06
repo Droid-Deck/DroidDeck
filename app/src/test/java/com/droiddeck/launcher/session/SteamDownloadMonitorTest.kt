@@ -54,14 +54,54 @@ class SteamDownloadMonitorTest {
             val monitor = SteamDownloadMonitor()
 
             assertTrue(monitor.poll(root, now = 1_000L))
-            assertTrue(monitor.poll(root, now = 45_000L))
-            assertFalse(monitor.poll(root, now = 46_001L))
+            assertTrue(monitor.poll(root, now = 90_000L))
+            assertFalse(monitor.poll(root, now = 91_001L))
 
             contentLog.appendText("[2026-10-06 14:45:02] Current download rate: 27.178 Mbps\n")
-            assertTrue(monitor.poll(root, now = 47_000L))
+            assertTrue(monitor.poll(root, now = 92_000L))
 
             contentLog.appendText("[2026-10-06 14:45:03] AppID 44 App update changed : None\n")
-            assertFalse(monitor.poll(root, now = 48_000L))
+            assertFalse(monitor.poll(root, now = 93_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test fun receivedTrafficBridgesSteamRateLines() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            val contentLog = File(root, "root/.local/share/Steam/logs/content_log.txt").apply {
+                check(parentFile?.mkdirs() != false)
+                writeText("[2026-10-06 16:06:30] AppID 44 App update changed : Running Update,Downloading,\n")
+            }
+            val monitor = SteamDownloadMonitor()
+            var received = 1_000_000L
+            var now = 1_000L
+
+            assertTrue(monitor.poll(root, now, received))
+            // Five minutes of a download Steam no longer logs, at 4 MB/s.
+            while (now < 300_000L) {
+                now += 2_000L
+                received += 8_000_000L
+                assertTrue(monitor.poll(root, now, received))
+            }
+            // Traffic stops: the session may suspend once the grace runs out.
+            assertTrue(monitor.poll(root, now + 90_000L, received))
+            assertFalse(monitor.poll(root, now + 92_001L, received))
+
+            contentLog.appendText("[2026-10-06 16:12:00] AppID 44 App update changed : None\n")
+            assertFalse(monitor.poll(root, now + 94_000L, received + 8_000_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test fun trafficAloneIsNotADownload() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            val monitor = SteamDownloadMonitor()
+            assertFalse(monitor.poll(root, now = 1_000L, receivedBytes = 0L))
+            assertFalse(monitor.poll(root, now = 3_000L, receivedBytes = 50_000_000L))
         } finally {
             root.deleteRecursively()
         }

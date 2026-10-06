@@ -14,8 +14,15 @@ internal class SteamDownloadMonitor {
     private var contentLogOffset = 0L
     private val activeContentDownloads = mutableSetOf<String>()
     private var lastContentActivityAt = 0L
+    private var lastReceivedBytes = -1L
+    private var lastReceivedAt = 0L
 
-    fun poll(runtimeRoot: File, now: Long = System.currentTimeMillis()): Boolean {
+    /**
+     * [receivedBytes] is the app uid's received-byte counter (the guest runs as that uid), or a
+     * negative value when Android does not report one. Steam writes its rate line about once a
+     * minute and flushes manifest counters even less often, so live traffic is what bridges them.
+     */
+    fun poll(runtimeRoot: File, now: Long = System.currentTimeMillis(), receivedBytes: Long = -1L): Boolean {
         val current = manifests(runtimeRoot).associate { it.path to read(it) }
         val progressed = current.any { (path, state) ->
             state.incomplete && state.bytesDownloaded > (previous[path]?.bytesDownloaded ?: state.bytesDownloaded)
@@ -24,7 +31,17 @@ internal class SteamDownloadMonitor {
         previous = current
         val manifestActive = progressed || lastProgressAt > 0L && now - lastProgressAt <= MANIFEST_PROGRESS_GRACE_MS &&
             current.values.any { it.incomplete }
+        if (receiving(receivedBytes, now)) lastContentActivityAt = now
         return manifestActive || readContentActivity(runtimeRoot, now)
+    }
+
+    private fun receiving(receivedBytes: Long, now: Long): Boolean {
+        val previousBytes = lastReceivedBytes
+        val previousAt = lastReceivedAt
+        lastReceivedBytes = receivedBytes
+        lastReceivedAt = now
+        if (receivedBytes < 0L || previousBytes < 0L || receivedBytes < previousBytes || now <= previousAt) return false
+        return (receivedBytes - previousBytes) * 1000L / (now - previousAt) >= MIN_RECEIVE_BYTES_PER_SEC
     }
 
     fun reset() {
@@ -33,6 +50,8 @@ internal class SteamDownloadMonitor {
         contentLogOffset = 0L
         activeContentDownloads.clear()
         lastContentActivityAt = 0L
+        lastReceivedBytes = -1L
+        lastReceivedAt = 0L
     }
 
     private fun readContentActivity(runtimeRoot: File, now: Long): Boolean {
@@ -106,7 +125,9 @@ internal class SteamDownloadMonitor {
 
     private companion object {
         const val MANIFEST_PROGRESS_GRACE_MS = 8_000L
-        const val CONTENT_ACTIVITY_GRACE_MS = 45_000L
+        // Longer than Steam's ~60 s between rate lines, for when no traffic counter is available.
+        const val CONTENT_ACTIVITY_GRACE_MS = 90_000L
+        const val MIN_RECEIVE_BYTES_PER_SEC = 64L * 1024L
         val PATH = Regex("\"path\"\\s+\"([^\"]+)\"")
         val APP_UPDATE = Regex("""AppID (\d+) App update changed : (.*)""")
         val CURRENT_RATE = Regex("""Current download rate: ([\d.]+) Mbps""")
