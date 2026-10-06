@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import java.io.File
+import java.io.RandomAccessFile
 
 internal class SteamDownloadMonitor {
     private data class ManifestState(
@@ -10,6 +11,9 @@ internal class SteamDownloadMonitor {
 
     private var previous = emptyMap<String, ManifestState>()
     private var lastProgressAt = 0L
+    private var contentLogOffset = 0L
+    private val activeContentDownloads = mutableSetOf<String>()
+    private var lastContentActivityAt = 0L
 
     fun poll(runtimeRoot: File, now: Long = System.currentTimeMillis()): Boolean {
         val current = manifests(runtimeRoot).associate { it.path to read(it) }
@@ -18,13 +22,59 @@ internal class SteamDownloadMonitor {
         }
         if (progressed) lastProgressAt = now
         previous = current
-        return progressed || lastProgressAt > 0L && now - lastProgressAt <= PROGRESS_GRACE_MS &&
+        val manifestActive = progressed || lastProgressAt > 0L && now - lastProgressAt <= MANIFEST_PROGRESS_GRACE_MS &&
             current.values.any { it.incomplete }
+        return manifestActive || readContentActivity(runtimeRoot, now)
     }
 
     fun reset() {
         previous = emptyMap()
         lastProgressAt = 0L
+        contentLogOffset = 0L
+        activeContentDownloads.clear()
+        lastContentActivityAt = 0L
+    }
+
+    private fun readContentActivity(runtimeRoot: File, now: Long): Boolean {
+        val log = File(runtimeRoot, "root/.local/share/Steam/logs/content_log.txt")
+        if (!log.isFile) return false
+        if (log.length() < contentLogOffset) {
+            contentLogOffset = 0L
+            activeContentDownloads.clear()
+            lastContentActivityAt = 0L
+        }
+        runCatching {
+            RandomAccessFile(log, "r").use { input ->
+                input.seek(contentLogOffset)
+                while (true) {
+                    val line = input.readLine() ?: break
+                    when {
+                        "Client version:" in line -> {
+                            activeContentDownloads.clear()
+                            lastContentActivityAt = 0L
+                        }
+                        APP_UPDATE.find(line)?.let { match ->
+                            val appId = match.groupValues[1]
+                            val state = match.groupValues[2]
+                            if ("Running Update" in state && "Stopping" !in state) {
+                                activeContentDownloads += appId
+                                lastContentActivityAt = now
+                            } else {
+                                activeContentDownloads -= appId
+                            }
+                            true
+                        } == true -> Unit
+                        CURRENT_RATE.find(line)?.groupValues?.get(1)?.toDoubleOrNull()?.let { it > 0.0 } == true ->
+                            lastContentActivityAt = now
+                        "Downloading " in line && " chunks for depot " in line ->
+                            lastContentActivityAt = now
+                    }
+                }
+                contentLogOffset = input.filePointer
+            }
+        }
+        return activeContentDownloads.isNotEmpty() && lastContentActivityAt > 0L &&
+            now - lastContentActivityAt <= CONTENT_ACTIVITY_GRACE_MS
     }
 
     private fun manifests(runtimeRoot: File): List<File> {
@@ -55,7 +105,10 @@ internal class SteamDownloadMonitor {
         Regex("\"$key\"\\s+\"([^\"]*)\"").find(text)?.groupValues?.get(1)
 
     private companion object {
-        const val PROGRESS_GRACE_MS = 8_000L
+        const val MANIFEST_PROGRESS_GRACE_MS = 8_000L
+        const val CONTENT_ACTIVITY_GRACE_MS = 45_000L
         val PATH = Regex("\"path\"\\s+\"([^\"]+)\"")
+        val APP_UPDATE = Regex("""AppID (\d+) App update changed : (.*)""")
+        val CURRENT_RATE = Regex("""Current download rate: ([\d.]+) Mbps""")
     }
 }

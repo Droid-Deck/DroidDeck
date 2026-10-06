@@ -42,6 +42,50 @@ class SteamDownloadMonitorTest {
         }
     }
 
+    @Test fun followsSteamContentActivityWhenManifestProgressIsNotFlushed() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            val steam = File(root, "root/.local/share/Steam")
+            manifest(steam, "44", downloaded = 0, total = 10_000, flags = 10)
+            val contentLog = File(steam, "logs/content_log.txt").apply {
+                check(parentFile?.mkdirs() != false)
+                writeText("[2026-10-06 14:44:17] AppID 44 App update changed : Running Update,Downloading,Staging,\n")
+            }
+            val monitor = SteamDownloadMonitor()
+
+            assertTrue(monitor.poll(root, now = 1_000L))
+            assertTrue(monitor.poll(root, now = 45_000L))
+            assertFalse(monitor.poll(root, now = 46_001L))
+
+            contentLog.appendText("[2026-10-06 14:45:02] Current download rate: 27.178 Mbps\n")
+            assertTrue(monitor.poll(root, now = 47_000L))
+
+            contentLog.appendText("[2026-10-06 14:45:03] AppID 44 App update changed : None\n")
+            assertFalse(monitor.poll(root, now = 48_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test fun newSteamSessionClearsStaleContentActivity() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            val log = File(root, "root/.local/share/Steam/logs/content_log.txt").apply {
+                check(parentFile?.mkdirs() != false)
+                writeText("[old] AppID 44 App update changed : Running Update,Downloading,\n")
+                appendText("[new] Client version: 1\n")
+            }
+
+            val monitor = SteamDownloadMonitor()
+            assertFalse(monitor.poll(root, now = 1_000L))
+
+            log.appendText("[new] AppID 44 App update changed : Running Update,Downloading,\n")
+            assertTrue(monitor.poll(root, now = 2_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     private fun manifest(root: File, appId: String, downloaded: Long, total: Long, flags: Int): File {
         val file = File(root, "steamapps/appmanifest_$appId.acf")
         check(file.parentFile?.mkdirs() != false)
