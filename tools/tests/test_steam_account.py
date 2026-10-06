@@ -534,5 +534,13 @@ class SessionScriptTest(unittest.TestCase):
             self.assertEqual(0, bad.returncode)
 
 
+class KotlinCopiesTest(unittest.TestCase):
+    def test_kotlin_fixtures_match_these(self):
+        kt = (TOOLS.parent / 'app/src/test/java/com/droiddeck/launcher/session/SteamAccountsTest.kt').read_text()
+        copies = dict(re.findall(r'"([\w.-]+\.vdf)" to """(.*?)"""', kt, re.S))
+        self.assertGreaterEqual(len(copies), 10)
+        for name, text in copies.items():
+            self.assertEqual(fixture(name).decode(), text, name)
+
 if __name__ == '__main__':
     unittest.main()

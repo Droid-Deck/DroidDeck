@@ -55,4 +55,18 @@ class LogRedactorTest {
             assertEquals(once, LogRedactor.redact(once))
         }
     }
+
+    @Test fun everyAccountOnTheDeviceIsMasked() {
+        val file = java.io.File.createTempFile("loginusers", ".vdf")
+        try {
+            file.writeText(com.droiddeck.launcher.session.SteamAccountsTest.FIXTURES.getValue("two.vdf"))
+            LogRedactor.learnAccounts(file)
+            val line = "alpha_acct Alpha Persona bravo_acct Bravo Persona"
+            val out = LogRedactor.redact(line)
+            for (name in listOf("alpha_acct", "Alpha Persona", "bravo_acct", "Bravo Persona")) assertFalse(out, out.contains(name))
+        } finally {
+            file.delete()
+            LogRedactor.learnAccounts(java.io.File("/nonexistent"))
+        }
+    }
 }

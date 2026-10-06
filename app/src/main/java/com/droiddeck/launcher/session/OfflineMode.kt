@@ -23,8 +23,6 @@ object OfflineMode {
     private const val KEY = "steam_offline"
     private val WANTS = Regex("""^(\s*"WantsOfflineMode"\s*")([01])(".*)$""")
     private val SKIP = Regex("""^(\s*"SkipOfflineModeWarning"\s*")([01])(".*)$""")
-    private val REMEMBER = Regex(""""RememberPassword"\s*"1"""")
-    private val PERSONA = Regex(""""PersonaName"\s*"([^"]*)"""")
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
@@ -38,8 +36,7 @@ object OfflineMode {
         } catch (e: Exception) {
             Log.w(TAG, "could not read loginusers.vdf", e); return null
         }
-        if (!REMEMBER.containsMatchIn(text)) return null
-        return PERSONA.find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() } ?: "signed in"
+        return SteamAccounts.activeLabel(text)
     }
 
     fun enabled(context: Context): Boolean = prefs(context).getBoolean(KEY, false)
