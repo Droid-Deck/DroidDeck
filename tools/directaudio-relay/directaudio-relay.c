@@ -100,6 +100,9 @@ static void futex_wake_all(volatile uint32_t *word)
 #define DA_DECAY_QUIET_NS     10000000000ull
 #define DA_DECAY_PUNISH_NS    5000000000ull
 #define DA_DECAY_MAX_BACKOFF  32
+#define DA_MIN_BUFFER_BURSTS  2
+#define DA_RING_MIN_TARGET_MS 40
+#define DA_FADE_FRAMES        64
 
 /* ---- live runtime config (mailbox) ----------------------------------------
  * The path arrives in the first client's hello (every client of one host names
@@ -159,6 +162,9 @@ struct client
     unsigned int decay_backoff, cb_count, wd_last_cb;
     int reopen_running, reopen_redo;
     int32_t ring_max_target;      /* ceiling for the ring's own adaptive step */
+    int consuming;
+    int primed;
+    int starved;
 
     /* capture: ring + the one INPUT stream */
     int in_fd;
@@ -212,6 +218,18 @@ static void ring_destroy(struct da_ring *r, int fd)
 /* ---- OUTPUT stream ------------------------------------------------------- */
 static void request_reopen(struct client *c, const char *why);
 
+static void fade(float *p, uint32_t frames, int in)
+{
+    uint32_t i, ch;
+
+    for (i = 0; i < frames; i++)
+    {
+        float g = (float)(in ? i + 1 : frames - i) / (float)(frames + 1);
+
+        for (ch = 0; ch < DA_RING_CHANNELS; ch++) p[(size_t)i * DA_RING_CHANNELS + ch] *= g;
+    }
+}
+
 /* The AAudio data callback: pull one block from the render ring. This is the
  * in-process mixer_cb with the mixing replaced by a ring read; the bookkeeping
  * after the copy (liveness, adaptive growth, decay) is ported as-is. */
@@ -221,29 +239,58 @@ static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user,
     struct client *c = user;
     struct da_ring *r = c->out;
     float *out = audioData;
+    AAudioStream *live = __atomic_load_n(&c->aq, __ATOMIC_SEQ_CST);
     uint32_t cap = r->cap_frames;
-    uint32_t ridx = __atomic_load_n(&r->ridx, __ATOMIC_ACQUIRE);
-    uint32_t avail = __atomic_load_n(&r->widx, __ATOMIC_ACQUIRE) - ridx;
-    uint32_t n = (uint32_t)numFrames < avail ? (uint32_t)numFrames : avail;
-    uint32_t i, first, slot = ridx % cap;
+    uint32_t frames = (uint32_t)numFrames;
+    uint32_t ridx, avail, n = 0, i;
+    int fade_in = 0, short_read = 0, starving = 0;
     uint64_t now;
 
-    /* Copy out, at most two memcpy's around the wrap. The soft-knee limiter ran
-     * in the game before the samples were queued, so this is a straight copy. */
-    first = cap - slot < n ? cap - slot : n;
-    memcpy(out, &r->data[(size_t)slot * DA_RING_CHANNELS], (size_t)first * DA_RING_CHANNELS * sizeof(float));
-    if (n > first)
-        memcpy(out + (size_t)first * DA_RING_CHANNELS, r->data, (size_t)(n - first) * DA_RING_CHANNELS * sizeof(float));
-    for (i = n * DA_RING_CHANNELS; i < (uint32_t)numFrames * DA_RING_CHANNELS; i++) out[i] = 0.0f;
+    if ((live && aq != live) || __atomic_exchange_n(&c->consuming, 1, __ATOMIC_ACQUIRE))
+    {
+        memset(out, 0, (size_t)frames * DA_RING_CHANNELS * sizeof(float));
+        return AAUDIO_CALLBACK_RESULT_CONTINUE;
+    }
 
-    __atomic_store_n(&r->ridx, ridx + n, __ATOMIC_RELEASE);
+    ridx = __atomic_load_n(&r->ridx, __ATOMIC_ACQUIRE);
+    avail = __atomic_load_n(&r->widx, __ATOMIC_ACQUIRE) - ridx;
+    if (!c->primed)
+    {
+        uint32_t start = (uint32_t)__atomic_load_n(&r->target_frames, __ATOMIC_ACQUIRE);
+
+        if (start < frames) start = frames;
+        if (start > cap) start = cap;
+        c->primed = fade_in = avail >= start;
+        if (c->primed) c->starved = 0;
+        else starving = c->starved;
+    }
+    if (c->primed)
+    {
+        uint32_t slot = ridx % cap, first;
+
+        n = frames < avail ? frames : avail;
+        first = cap - slot < n ? cap - slot : n;
+        memcpy(out, &r->data[(size_t)slot * DA_RING_CHANNELS], (size_t)first * DA_RING_CHANNELS * sizeof(float));
+        if (n > first)
+            memcpy(out + (size_t)first * DA_RING_CHANNELS, r->data, (size_t)(n - first) * DA_RING_CHANNELS * sizeof(float));
+        if (fade_in)
+            fade(out, n < DA_FADE_FRAMES ? n : DA_FADE_FRAMES, 1);
+        if (n < frames)
+        {
+            uint32_t tail = n < DA_FADE_FRAMES ? n : DA_FADE_FRAMES;
+
+            fade(out + (size_t)(n - tail) * DA_RING_CHANNELS, tail, 0);
+            c->primed = 0;
+            c->starved = 1;
+            short_read = 1;
+        }
+        __atomic_store_n(&r->ridx, ridx + n, __ATOMIC_RELEASE);
+    }
+    for (i = n * DA_RING_CHANNELS; i < frames * DA_RING_CHANNELS; i++) out[i] = 0.0f;
+    __atomic_store_n(&c->consuming, 0, __ATOMIC_RELEASE);
+
     __atomic_add_fetch(&r->wake, 1, __ATOMIC_RELEASE);
     futex_wake_all(&r->wake);
-
-    /* Only the live, promoted stream owns the state below (same guard as the
-     * in-process build: an outgoing stream still gets a callback or two). */
-    if (aq != __atomic_load_n(&c->aq, __ATOMIC_SEQ_CST) && __atomic_load_n(&c->aq, __ATOMIC_SEQ_CST))
-        return AAUDIO_CALLBACK_RESULT_CONTINUE;
 
     now = now_ns();
     {
@@ -262,9 +309,10 @@ static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user,
      * earlier - so ask it to keep one more burst queued. Only grows; the AAudio
      * buffer below is where decay lives, and the ring stays a small fixed cost
      * on top of it. */
-    if (n < (uint32_t)numFrames)
-    {
+    if (short_read)
         __atomic_add_fetch(&r->underruns, 1, __ATOMIC_RELAXED);
+    if (short_read || starving)
+    {
         if (c->adaptive)
         {
             int32_t burst = AAudioStream_getFramesPerBurst(aq);
@@ -276,7 +324,7 @@ static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user,
             {
                 __atomic_store_n(&r->target_frames, want, __ATOMIC_RELEASE);
                 RLOG("[%d] ring grow: target %d -> %d frames (short by %u)", c->pid, cur, want,
-                     (uint32_t)numFrames - n);
+                     frames - n);
             }
         }
     }
@@ -411,16 +459,21 @@ static aaudio_result_t open_output(struct client *c, AAudioStream **out)
                 want = (nb < 1 ? 1 : nb) * burst;
             }
         }
+        if (burst > 0 && want < DA_MIN_BUFFER_BURSTS * burst) want = DA_MIN_BUFFER_BURSTS * burst;
         if (want > capf) want = capf;
         if (want > 0) AAudioStream_setBufferSizeInFrames(aq, want);
 
-        /* The ring's initial target: DA_RING_TARGET_BURSTS bursts of the real
-         * burst size, ceiling DA_RING_MAX_TARGET_MS. Set on every (re)open so a
-         * recovered stream starts low again, like the buffer does. */
         if (burst <= 0) burst = 192;
         c->ring_max_target = DA_RING_MAX_TARGET_MS * DA_RING_RATE / 1000;
         if (c->ring_max_target > (int32_t)c->out->cap_frames) c->ring_max_target = c->out->cap_frames;
-        __atomic_store_n(&c->out->target_frames, DA_RING_TARGET_BURSTS * burst, __ATOMIC_RELEASE);
+        {
+            int32_t floor = DA_RING_TARGET_BURSTS * burst;
+
+            if (floor < DA_RING_MIN_TARGET_MS * DA_RING_RATE / 1000) floor = DA_RING_MIN_TARGET_MS * DA_RING_RATE / 1000;
+            if (floor > c->ring_max_target) floor = c->ring_max_target;
+            if (__atomic_load_n(&c->out->target_frames, __ATOMIC_ACQUIRE) < floor)
+                __atomic_store_n(&c->out->target_frames, floor, __ATOMIC_RELEASE);
+        }
         __atomic_store_n(&c->out->hw_burst, burst, __ATOMIC_RELAXED);
     }
     c->last_xrun = AAudioStream_getXRunCount(aq);
