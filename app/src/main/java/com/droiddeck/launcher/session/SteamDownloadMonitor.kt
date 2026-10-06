@@ -12,7 +12,7 @@ internal class SteamDownloadMonitor {
     private var previous = emptyMap<String, ManifestState>()
     private var lastProgressAt = 0L
     private var contentLogOffset = 0L
-    private val activeContentDownloads = mutableSetOf<String>()
+    private val activeContentUpdates = mutableSetOf<String>()
     private var lastContentActivityAt = 0L
     private var lastReceivedBytes = -1L
     private var lastReceivedAt = 0L
@@ -48,7 +48,7 @@ internal class SteamDownloadMonitor {
         previous = emptyMap()
         lastProgressAt = 0L
         contentLogOffset = 0L
-        activeContentDownloads.clear()
+        activeContentUpdates.clear()
         lastContentActivityAt = 0L
         lastReceivedBytes = -1L
         lastReceivedAt = 0L
@@ -59,7 +59,7 @@ internal class SteamDownloadMonitor {
         if (!log.isFile) return false
         if (log.length() < contentLogOffset) {
             contentLogOffset = 0L
-            activeContentDownloads.clear()
+            activeContentUpdates.clear()
             lastContentActivityAt = 0L
         }
         runCatching {
@@ -69,17 +69,19 @@ internal class SteamDownloadMonitor {
                     val line = input.readLine() ?: break
                     when {
                         "Client version:" in line -> {
-                            activeContentDownloads.clear()
+                            activeContentUpdates.clear()
                             lastContentActivityAt = 0L
                         }
-                        APP_UPDATE.find(line)?.let { match ->
+                        CONTENT_UPDATE.find(line)?.let { match ->
                             val appId = match.groupValues[1]
-                            val state = match.groupValues[2]
+                            val updateType = match.groupValues[2]
+                            val state = match.groupValues[3]
+                            val updateId = "$updateType:$appId"
                             if ("Running Update" in state && "Stopping" !in state) {
-                                activeContentDownloads += appId
+                                activeContentUpdates += updateId
                                 lastContentActivityAt = now
                             } else {
-                                activeContentDownloads -= appId
+                                activeContentUpdates -= updateId
                             }
                             true
                         } == true -> Unit
@@ -88,11 +90,12 @@ internal class SteamDownloadMonitor {
                         "Downloading " in line && " chunks for depot " in line ->
                             lastContentActivityAt = now
                     }
+                    if (activeContentUpdates.isNotEmpty()) lastContentActivityAt = now
                 }
                 contentLogOffset = input.filePointer
             }
         }
-        return activeContentDownloads.isNotEmpty() && lastContentActivityAt > 0L &&
+        return activeContentUpdates.isNotEmpty() && lastContentActivityAt > 0L &&
             now - lastContentActivityAt <= CONTENT_ACTIVITY_GRACE_MS
     }
 
@@ -129,7 +132,7 @@ internal class SteamDownloadMonitor {
         const val CONTENT_ACTIVITY_GRACE_MS = 90_000L
         const val MIN_RECEIVE_BYTES_PER_SEC = 64L * 1024L
         val PATH = Regex("\"path\"\\s+\"([^\"]+)\"")
-        val APP_UPDATE = Regex("""AppID (\d+) App update changed : (.*)""")
+        val CONTENT_UPDATE = Regex("""AppID (\d+) (App|Workshop|Shader) update changed : (.*)""")
         val CURRENT_RATE = Regex("""Current download rate: ([\d.]+) Mbps""")
     }
 }
