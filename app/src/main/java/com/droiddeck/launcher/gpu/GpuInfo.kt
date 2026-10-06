@@ -16,7 +16,7 @@ data class GpuInfo(
     /** The three-digit Adreno model (740, 825), or 0 when KGSL does not say. */
     val model: Int,
     val family: Family,
-    /** The SoC as the device reports it ("SM8550", "QCS8550"), or "" when it does not. */
+    /** The SoC as a person would say it ("Snapdragon 8 Gen 2 (QCS8550)"), or "" when the phone does not say. */
     val soc: String,
     /** Samsung's One UI on an 8 Gen 2: its Turnip needs the OneUI build, or frames tear and flicker. */
     val oneUi8Gen2: Boolean,
@@ -60,7 +60,8 @@ data class GpuInfo(
             val adreno = File("/sys/class/kgsl/kgsl-3d0").exists() || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
             val raw = listOf("/sys/class/kgsl/kgsl-3d0/gpu_model", "/sys/class/kgsl/kgsl-3d0/gpu_chipid")
                 .firstNotNullOfOrNull { FileUtils.readString(File(it))?.trim()?.takeIf(String::isNotEmpty) }
-            val soc = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL.takeIf { it.isNotBlank() && it != Build.UNKNOWN }.orEmpty() else ""
+            // Where vendors put the chip's model, named when it is known: "Snapdragon 8 Gen 2 (QCS8550)".
+            val soc = if (adreno) SocNames.label() else ""
             val fromKernel = raw?.let { threeDigits(it) } ?: 0
             // Some kernels name the GPU without its model (AYANEO's Pocket FIT: "Adreno33v2"). The
             // Vulkan driver's own name, when this process has asked it, then the platform's code

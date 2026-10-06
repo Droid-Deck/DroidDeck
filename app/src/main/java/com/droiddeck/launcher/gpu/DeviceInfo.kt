@@ -45,12 +45,12 @@ object DeviceInfo {
     private fun prop(name: String): String = GpuInfo.systemProperty(name)
 
     private fun chip() = Section("Chip (SoC)", buildList<Pair<String, String>> {
-        if (Build.VERSION.SDK_INT >= 31) {
-            add("Maker", Build.SOC_MANUFACTURER)
-            add("Model", Build.SOC_MODEL)
-        }
-        add("Model (vendor)", prop("ro.vendor.qti.soc_model").ifEmpty { prop("ro.soc.model") })
-        add("Platform", prop("ro.board.platform"))
+        val model = SocNames.model()
+        val platform = prop("ro.board.platform")
+        add("Name", SocNames.name(model, platform))
+        add("Model", model)
+        if (Build.VERSION.SDK_INT >= 31) add("Maker", Build.SOC_MANUFACTURER)
+        add("Platform", platform)
         add("Hardware", Build.HARDWARE)
         add("Board", Build.BOARD)
         val id = read("/sys/devices/soc0/soc_id")
@@ -70,23 +70,47 @@ object DeviceInfo {
         })
         add("Kernel name", gpu.kgslName)
         val kgsl = "/sys/class/kgsl/kgsl-3d0"
-        val maxMhz = read("$kgsl/max_clock_mhz") ?: read("$kgsl/max_gpuclk")?.toLongOrNull()?.let { (it / 1_000_000).toString() }
-        add("Max clock", maxMhz?.let { "$it MHz" })
+        add("Clock range", gpuRange())
         add("Load", read("$kgsl/gpu_busy_percentage")?.let { if (it.endsWith("%")) it else "$it %" })
         add("Temperature", read("$kgsl/temp")?.toLongOrNull()?.let { if (it > 1000) "${it / 1000} °C" else "$it °C" })
         add("Support", gpu.supportText)
     })
 
     private fun cpu() = Section("CPU", buildList<Pair<String, String>> {
-        val cores = Runtime.getRuntime().availableProcessors()
-        add("Cores", cores.toString())
-        val speeds = (0 until cores).mapNotNull { read("/sys/devices/system/cpu/cpu$it/cpufreq/cpuinfo_max_freq")?.toLongOrNull() }
-        if (speeds.isNotEmpty()) {
-            val groups = speeds.groupingBy { it }.eachCount().toSortedMap()
-            add("Clusters", groups.entries.joinToString(" + ") { (khz, n) -> "$n × " + String.format(Locale.US, "%.2f GHz", khz / 1e6) })
+        add("Cores", Runtime.getRuntime().availableProcessors().toString())
+        // Each cpufreq policy is one cluster: the cores it covers and their speed range.
+        val policies = File("/sys/devices/system/cpu/cpufreq").listFiles { f -> f.name.matches(Regex("policy\\d+")) }
+            ?.sortedBy { it.name.removePrefix("policy").toInt() }.orEmpty()
+        for (p in policies) {
+            val cpus = (read("${p.path}/related_cpus") ?: read("${p.path}/affected_cpus"))?.split(Regex("\\s+"))?.filter { it.isNotEmpty() }.orEmpty()
+            val min = read("${p.path}/cpuinfo_min_freq")?.toLongOrNull()
+            val max = read("${p.path}/cpuinfo_max_freq")?.toLongOrNull() ?: continue
+            val cores = if (cpus.size > 1) "cores ${cpus.first()}-${cpus.last()}" else "core ${cpus.firstOrNull() ?: p.name.removePrefix("policy")}"
+            add("Cluster ${p.name.removePrefix("policy")}", "${cpus.size.coerceAtLeast(1)} × $cores · " +
+                (if (min != null) ghz(min) + "–" else "") + ghz(max))
         }
         add("ABI", Build.SUPPORTED_ABIS.joinToString(", "))
     })
+
+    private fun ghz(khz: Long) = String.format(Locale.US, "%.2f GHz", khz / 1e6)
+
+    /** The GPU's slowest and fastest step: KGSL's list, else a devfreq GPU node (Mali and others). */
+    private fun gpuRange(): String? {
+        fun mhz(hz: Long) = "${hz / 1_000_000} MHz"
+        val kgsl = read("/sys/class/kgsl/kgsl-3d0/gpu_available_frequencies")
+            ?.split(Regex("\\s+"))?.mapNotNull { it.toLongOrNull() }?.filter { it > 0 }.orEmpty()
+        if (kgsl.isNotEmpty()) return "${mhz(kgsl.min())}–${mhz(kgsl.max())} (${kgsl.size} steps)"
+        read("/sys/class/kgsl/kgsl-3d0/max_gpuclk")?.toLongOrNull()?.let { return "up to ${mhz(it)}" }
+        val node = File("/sys/class/devfreq").listFiles()?.firstOrNull { f ->
+            val n = f.name.lowercase()
+            (n.contains("gpu") || n.contains("mali") || n.contains("kgsl-3d")) && listOf("bus", "bw", "memlat").none { n.contains(it) }
+        } ?: return null
+        val steps = read("${node.path}/available_frequencies")?.split(Regex("\\s+"))?.mapNotNull { it.toLongOrNull() }?.filter { it > 0 }.orEmpty()
+        if (steps.isNotEmpty()) return "${mhz(steps.min())}–${mhz(steps.max())} (${steps.size} steps)"
+        val min = read("${node.path}/min_freq")?.toLongOrNull()
+        val max = read("${node.path}/max_freq")?.toLongOrNull() ?: return null
+        return (if (min != null) "${mhz(min)}–" else "up to ") + mhz(max)
+    }
 
     private fun memory(context: Context) = Section("Memory", buildList<Pair<String, String>> {
         val am = context.getSystemService(ActivityManager::class.java) ?: return@buildList
