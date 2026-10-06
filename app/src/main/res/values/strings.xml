@@ -15,8 +15,10 @@
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Shows while a Steam or desktop session is open</string>
     <string name="session_notification">Steam is running</string>
+    <string name="session_notification_downloads">Steam download active</string>
     <string name="session_notification_paused">Session paused - tap Resume when ready</string>
     <string name="resume_session">Resume</string>
+    <string name="suspend_now">Suspend now</string>
     <string name="stop_session">Stop session</string>
     <string name="frame_gen_title">Frame generation</string>
     <string name="frame_gen_hint">Select the frame generation mode</string>
@@ -264,7 +266,8 @@
     <string name="mode_suspend_hint">When the app is hidden or the screen turns off.</string>
     <string name="mode_suspend_manual">Manual</string>
     <string name="mode_suspend_native">Native</string>
-    <string name="mode_suspend_steam_note">Auto pauses and resumes when shown. Native prepares Steam for sleep first. Manual waits for Resume. Never keeps running.</string>
+    <string name="mode_suspend_downloads">Downloads</string>
+    <string name="mode_suspend_steam_note">Auto pauses and resumes when shown. Downloads keep active Steam downloads running while hidden, then pause when progress stops. Native prepares Steam for sleep first. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
     <string name="mode_steam_startup">Start Steam with DroidDeck</string>

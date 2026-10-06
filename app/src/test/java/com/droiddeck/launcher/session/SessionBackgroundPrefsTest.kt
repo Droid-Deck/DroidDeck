@@ -21,16 +21,18 @@ class SessionBackgroundPrefsTest {
     @Test fun nativeIsOptInAndDoesNotChangeDesktopOrExistingPolicies() {
         assertEquals(SessionPrefs.SUSPEND_MANUAL, SessionPrefs.suspendPolicy(context, "steam"))
         for (policy in listOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_MANUAL, SessionPrefs.SUSPEND_NEVER,
-                SessionPrefs.SUSPEND_NATIVE)) {
+                SessionPrefs.SUSPEND_NATIVE, SessionPrefs.SUSPEND_DOWNLOADS)) {
             SessionPrefs.setSuspendPolicy(context, "steam", policy)
             assertEquals(policy, SessionPrefs.suspendPolicy(context, "steam"))
             assertEquals(SessionPrefs.SUSPEND_MANUAL, SessionPrefs.suspendPolicy(context, "desktop"))
         }
     }
 
-    @Test fun directGamesUseAutoWithoutOverwritingSteamsNativeChoice() {
-        SessionPrefs.setSuspendPolicy(context, SessionService.MODE_STEAM, SessionPrefs.SUSPEND_NATIVE)
-        assertEquals(SessionPrefs.SUSPEND_AUTO, SessionPrefs.suspendPolicy(context, SessionService.MODE_RUN))
-        assertEquals(SessionPrefs.SUSPEND_NATIVE, SessionPrefs.suspendPolicy(context, SessionService.MODE_STEAM))
+    @Test fun directGamesUseAutoWithoutOverwritingSteamsBackgroundChoice() {
+        for (policy in listOf(SessionPrefs.SUSPEND_NATIVE, SessionPrefs.SUSPEND_DOWNLOADS)) {
+            SessionPrefs.setSuspendPolicy(context, SessionService.MODE_STEAM, policy)
+            assertEquals(SessionPrefs.SUSPEND_AUTO, SessionPrefs.suspendPolicy(context, SessionService.MODE_RUN))
+            assertEquals(policy, SessionPrefs.suspendPolicy(context, SessionService.MODE_STEAM))
+        }
     }
 }

@@ -9,6 +9,7 @@ import org.json.JSONObject
 object SessionPrefs {
     const val SUSPEND_AUTO = "auto"
     const val SUSPEND_NATIVE = "native"
+    const val SUSPEND_DOWNLOADS = "downloads"
     const val SUSPEND_MANUAL = "manual"
     const val SUSPEND_NEVER = "never"
 
@@ -749,14 +750,17 @@ object SessionPrefs {
 
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
-            ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
+            ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_DOWNLOADS, SUSPEND_MANUAL, SUSPEND_NEVER) }
             // Direct games share Steam's settings but have no Steam client to prepare.
-            ?.let { if (it == SUSPEND_NATIVE && mode != SessionService.MODE_STEAM) SUSPEND_AUTO else it }
+            ?.let {
+                if (mode != SessionService.MODE_STEAM &&
+                    it in setOf(SUSPEND_NATIVE, SUSPEND_DOWNLOADS)) SUSPEND_AUTO else it
+            }
             ?: SUSPEND_MANUAL
 
     fun setSuspendPolicy(context: Context, mode: String, policy: String) {
         val normalized = policy.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_MANUAL, SUSPEND_NEVER) ||
-            (it == SUSPEND_NATIVE && mode == SessionService.MODE_STEAM) }
+            (it in setOf(SUSPEND_NATIVE, SUSPEND_DOWNLOADS) && mode == SessionService.MODE_STEAM) }
             ?: SUSPEND_MANUAL
         prefs(context).edit().putString("suspendPolicy.${prefMode(mode)}", normalized).apply()
     }

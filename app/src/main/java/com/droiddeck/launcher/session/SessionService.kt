@@ -72,6 +72,10 @@ class SessionService : Service() {
     private val auxiliaryProcessesLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var suspendController: SessionSuspendController? = null
+    private val steamDownloadMonitor = SteamDownloadMonitor()
+    private var downloadMonitorTask: Runnable? = null
+    private var downloadActive = false
+    private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var activityVisible = true
     private var screenOn = true
@@ -164,6 +168,7 @@ class SessionService : Service() {
             ACTION_ACTIVITY_VISIBLE -> {
                 if (!SessionState.pipActive) pipTask = false
                 activityVisible = true
+                suspendDownloadNow = false
                 resumeSteamSleepOnReturn()
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
@@ -178,7 +183,14 @@ class SessionService : Service() {
             ACTION_SUSPEND_POLICY_CHANGED -> {
                 if (!SessionState.running) return START_NOT_STICKY
                 suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
+                updateDownloadMonitoring()
                 suspendAttemptFailed = false
+                updateSuspendPolicy()
+                return START_NOT_STICKY
+            }
+            ACTION_SUSPEND_NOW -> {
+                if (!SessionState.running) return START_NOT_STICKY
+                suspendDownloadNow = true
                 updateSuspendPolicy()
                 return START_NOT_STICKY
             }
@@ -199,6 +211,9 @@ class SessionService : Service() {
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
         manualPauseRequested = false
+        suspendDownloadNow = false
+        steamDownloadMonitor.reset()
+        downloadActive = false
         steamSleepToken = null
         completeNativeSleep()
         suspendOperationPending = false
@@ -522,6 +537,7 @@ class SessionService : Service() {
                 },
             )
             mainHandler.post { updateSuspendPolicy() }
+            updateDownloadMonitoring()
         }
     }
 
@@ -1007,6 +1023,7 @@ class SessionService : Service() {
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
         manualPauseRequested = false
+        suspendDownloadNow = false
         if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback)) requestSteamWake()
         completeNativeSleep()
         completeSteamSleep()
@@ -1178,6 +1195,8 @@ class SessionService : Service() {
         }
         val controller = suspendController ?: return
         val hidden = !activityVisible || !screenOn
+        val downloads = suspendPolicy == SessionPrefs.SUSPEND_DOWNLOADS && SessionState.mode == MODE_STEAM
+        if (downloads && hidden && downloadActive && !suspendDownloadNow) acquireLocks()
         if (suspendPolicy != SessionPrefs.SUSPEND_NATIVE || !hidden) {
             completeNativeSleep()
         } else if (nativeSleepToken == null && steamSleepToken == null &&
@@ -1187,6 +1206,7 @@ class SessionService : Service() {
         val shouldSuspend = steamSleepToken != null || when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO -> !activityVisible || !screenOn
             SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady
+            SessionPrefs.SUSPEND_DOWNLOADS -> hidden && (suspendDownloadNow || !downloadActive)
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
             else -> false
         }
@@ -1371,6 +1391,7 @@ class SessionService : Service() {
             if (!SessionState.running) return
             SessionState.running = false
         }
+        updateDownloadMonitoring()
         val stoppedGen = sessionGen
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
@@ -1539,11 +1560,24 @@ class SessionService : Service() {
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_session)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(if (SessionState.suspended) R.string.session_notification_paused else R.string.session_notification))
+            .setContentText(getString(
+                when {
+                    SessionState.suspended -> R.string.session_notification_paused
+                    downloadActive && suspendPolicy == SessionPrefs.SUSPEND_DOWNLOADS -> R.string.session_notification_downloads
+                    else -> R.string.session_notification
+                }
+            ))
             .setContentIntent(open)
             .apply {
                 if (SessionState.suspended) {
                     addAction(Notification.Action.Builder(null, getString(R.string.resume_session), resume).build())
+                } else if (downloadActive && suspendPolicy == SessionPrefs.SUSPEND_DOWNLOADS) {
+                    val suspend = PendingIntent.getService(
+                        this@SessionService, 3,
+                        Intent(this@SessionService, SessionService::class.java).setAction(ACTION_SUSPEND_NOW),
+                        PendingIntent.FLAG_IMMUTABLE,
+                    )
+                    addAction(Notification.Action.Builder(null, getString(R.string.suspend_now), suspend).build())
                 }
             }
             .addAction(Notification.Action.Builder(null, getString(R.string.stop_session), stop).build())
@@ -1555,6 +1589,34 @@ class SessionService : Service() {
 
     private fun refreshNotification() {
         getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, buildNotification())
+    }
+
+    private fun updateDownloadMonitoring() {
+        val enabled = SessionState.running && SessionState.mode == MODE_STEAM &&
+            suspendPolicy == SessionPrefs.SUSPEND_DOWNLOADS
+        if (!enabled) {
+            downloadMonitorTask?.let(mainHandler::removeCallbacks)
+            downloadMonitorTask = null
+            steamDownloadMonitor.reset()
+            downloadActive = false
+            return
+        }
+        if (downloadMonitorTask != null) return
+        val poll = object : Runnable {
+            override fun run() {
+                if (downloadMonitorTask !== this || !SessionState.running ||
+                    SessionState.mode != MODE_STEAM || suspendPolicy != SessionPrefs.SUSPEND_DOWNLOADS) {
+                    return
+                }
+                val wasActive = downloadActive
+                downloadActive = steamDownloadMonitor.poll(LinuxRuntime.rootDir(this@SessionService))
+                if (wasActive != downloadActive) refreshNotification()
+                updateSuspendPolicy()
+                mainHandler.postDelayed(this, DOWNLOAD_POLL_MS)
+            }
+        }
+        downloadMonitorTask = poll
+        mainHandler.post(poll)
     }
 
     /** The pads attached as the session starts; the activity logs the ones that come and go after. */
@@ -1581,6 +1643,7 @@ class SessionService : Service() {
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
         const val ACTION_RESUME = "com.droiddeck.launcher.RESUME_SESSION"
+        const val ACTION_SUSPEND_NOW = "com.droiddeck.launcher.SUSPEND_NOW"
         private const val ACTION_PIP_BEGIN = "com.droiddeck.launcher.PIP_BEGIN"
         const val ACTION_LAUNCH_GAME = "com.droiddeck.launcher.LAUNCH_STEAM_GAME"
         const val ACTION_HOME_GUIDE = "com.droiddeck.launcher.HOME_GUIDE"
@@ -1600,6 +1663,7 @@ class SessionService : Service() {
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L
         private const val GAME_LAUNCH_RETRY_MS = 250L
+        private const val DOWNLOAD_POLL_MS = 2_000L
         private const val STEAM_GAME_REQUEST = "steam-game"
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"

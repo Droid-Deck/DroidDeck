@@ -288,7 +288,10 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                         SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                    ) + if (steam) listOf(SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native)) else emptyList(),
+                    ) + if (steam) listOf(
+                        SessionPrefs.SUSPEND_DOWNLOADS to stringResource(R.string.mode_suspend_downloads),
+                        SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native),
+                    ) else emptyList(),
                     s.suspendPolicy,
                     note = stringResource(if (steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
                     onPick = a.onSuspendPolicy,
