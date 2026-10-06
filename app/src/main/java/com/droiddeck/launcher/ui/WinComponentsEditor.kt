@@ -84,6 +84,8 @@ internal fun WinComponentsDialog(
     var picks by remember { mutableStateOf(WinComponents.picks(context, appKey)) }
     var progress by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    // The component the error is about, so it shows on its own row and not only at the bottom.
+    var failed by remember { mutableStateOf<String?>(null) }
     var showWaiting by remember { mutableStateOf(false) }
     // Done holds focus while the list loads, then the top switch takes it - opened by touch or by
     // pad, so the d-pad always has somewhere to start; LB and RB jump between the sections, since
@@ -117,6 +119,7 @@ internal fun WinComponentsDialog(
         // then is ignored here.
         if (progress != null) return
         error = null
+        failed = null
         if (!on) { setPicks(picks - id); return }
         val all = catalog.orEmpty()
         val c = all[id]
@@ -128,7 +131,7 @@ internal fun WinComponentsDialog(
             }
             progress = null
             installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
-            if (problem != null) error = problem else setPicks(picks + id)
+            if (problem != null) { error = problem; failed = id } else setPicks(picks + id)
         }
     }
 
@@ -176,6 +179,7 @@ internal fun WinComponentsDialog(
             val c = all?.get(id)
             val support = supportOf(id)
             val status = when {
+                id == failed && error != null -> stringResource(R.string.wincomp_failed, error.orEmpty())
                 id in here && id !in picks -> stringResource(R.string.wincomp_already_here)
                 id in installed -> stringResource(R.string.wincomp_downloaded)
                 support == Support.NEEDS_INSTALLER -> stringResource(R.string.wincomp_needs_installer)

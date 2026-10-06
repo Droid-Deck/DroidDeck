@@ -326,6 +326,7 @@
     <string name="wincomp_needs_installer">Needs a Windows installer (coming)</string>
     <string name="wincomp_unsupported">Not supported here yet</string>
     <string name="wincomp_loading">Loading the components…</string>
+    <string name="wincomp_failed">Could not install: %1$s</string>
     <string name="wincomp_downloaded">Downloaded</string>
     <string name="wincomp_download_size">%1$s download</string>
     <string name="wincomp_next_launch">Takes effect the next time the game starts.</string>

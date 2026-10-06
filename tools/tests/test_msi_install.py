@@ -34,6 +34,12 @@ def installer(tables, out="/tmp/unused", summary=None):
     return MSI["Installer"]("fake.msi", out, FakePackage(tables, summary))
 
 
+class ToolsTest(unittest.TestCase):
+    def test_the_tools_find_their_own_libraries(self):
+        paths = MSI["tool_env"]()["LD_LIBRARY_PATH"].split(":")
+        self.assertEqual(paths[0], str(MSI["TOOLS"]))
+
+
 class ConditionsTest(unittest.TestCase):
     def evaluate(self, text, props=None, default="default"):
         return MSI["Conditions"](props or {"VersionNT": "603", "VersionNT64": "603"}).evaluate(text, default)

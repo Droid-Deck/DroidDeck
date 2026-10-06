@@ -29,6 +29,13 @@ TOOLS = Path(os.environ.get("DROIDDECK_MSITOOLS", "/usr/local/lib/droiddeck-msit
 MSIINFO = os.environ.get("DROIDDECK_MSIINFO", str(TOOLS / "msiinfo"))
 CABEXTRACT = os.environ.get("DROIDDECK_CABEXTRACT", str(TOOLS / "cabextract"))
 
+
+def tool_env():
+    """The environment the tools run in: their own libraries (libmsi, libgsf, libgcab) beside them."""
+    env = dict(os.environ)
+    env["LD_LIBRARY_PATH"] = ":".join(p for p in (str(TOOLS), env.get("LD_LIBRARY_PATH", "")) if p)
+    return env
+
 # The folders Windows Installer knows by name, as a 64-bit Windows 10 prefix lays them out (Proton's
 # user is steamuser). None is a folder whose files a game never needs: installer temp files and
 # shortcuts.
@@ -93,7 +100,7 @@ IDT_ESCAPES = str.maketrans({"\x19": "\n", "\x11": "\r", "\x15": "\t", "\x1b": "
 
 def msiinfo(*args, binary=False):
     try:
-        result = subprocess.run([MSIINFO, *args], capture_output=True, timeout=600)
+        result = subprocess.run([MSIINFO, *args], capture_output=True, timeout=600, env=tool_env())
     except OSError as error:
         raise MsiError("msitools is not available (%s)" % error)
     if result.returncode != 0:
@@ -544,7 +551,8 @@ class Installer:
             self.pkg.stream(cabinet[1:], cab)
             dest = Path(work) / ("media%d" % index)
             dest.mkdir()
-            result = subprocess.run([CABEXTRACT, "-q", "-d", str(dest), str(cab)], capture_output=True, timeout=1800)
+            result = subprocess.run([CABEXTRACT, "-q", "-d", str(dest), str(cab)], capture_output=True, timeout=1800,
+                                    env=tool_env())
             if result.returncode != 0:
                 raise MsiError("cabextract: %s" % result.stderr.decode("utf-8", "replace").strip()[:300])
             cab.unlink()
