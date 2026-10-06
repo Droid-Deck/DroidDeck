@@ -7,6 +7,7 @@ must see this service before startup or it can stay black after its idle timer.
 """
 import os
 from pathlib import Path
+import re
 import sys
 import uuid
 
@@ -20,6 +21,7 @@ ROOT = "/org/freedesktop/login1"
 INTERFACE = NAME + ".Manager"
 UPOWER = "org.freedesktop.UPower"
 UPOWER_ROOT = "/org/freedesktop/UPower"
+NATIVE_PREPARE_MS = 1500
 INTROSPECTION = """
 <node>
   <interface name="org.freedesktop.login1.Manager">
@@ -47,8 +49,11 @@ class LoginManager:
         self.request = self.directory / "steam-sleep"
         self.state = self.directory / "steam-sleep-state"
         self.wake = self.directory / "steam-wake"
+        self.native_request = self.directory / "steam-native-sleep"
+        self.native_ready = self.directory / "steam-native-ready"
         self.pending = None
         self.timeout = None
+        self.preparation = None
         info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION).interfaces[0]
         self.registration = bus.register_object(ROOT, info, self.method, self.property, None)
         # Steam can issue its suspend command through the legacy UPower service even
@@ -83,29 +88,69 @@ class LoginManager:
             reply.return_value(None)
             # Flush the signal and method reply without blocking this D-Bus callback. Once both are
             # on the wire, publishing the request lets the host safely freeze this service.
-            self.bus.flush(None, self.publish_after_flush, None)
+            self.bus.flush(None, self.publish_after_flush, self.pending)
 
-    def publish_after_flush(self, connection, result, _data):
+    def publish_after_flush(self, connection, result, token):
         try:
             connection.flush_finish(result)
         except GLib.Error as error:
             print("== login1: cannot complete suspend handshake: " + str(error), file=sys.stderr)
             self.resume()
             return
-        self.publish()
+        if self.pending == token:
+            self.publish(self.request)
 
-    def publish(self):
+    def publish(self, request):
+        self.check_state()
+        if self.pending is None:
+            return False
         try:
-            staged = self.request.with_suffix(".tmp")
+            staged = request.with_suffix(".tmp")
             staged.write_text(self.pending + "\n")
-            staged.replace(self.request)
+            staged.replace(request)
             self.timeout = GLib.timeout_add_seconds(5, self.check_ack)
         except OSError as error:
             print("== login1: cannot request pause: " + str(error), file=sys.stderr)
             self.resume()
         return False
 
+    def prepare_native(self):
+        try:
+            token = self.native_request.read_text().strip()
+            self.native_request.unlink(missing_ok=True)
+        except OSError:
+            return
+        if not re.fullmatch(r"[a-f0-9]{32}", token) or self.pending is not None:
+            return
+        # Android may have returned before this helper read its request.
+        if self.read_state() == token + ":awake":
+            return
+        self.pending = token
+        self.notify(True)
+        self.bus.flush(None, self.prepare_after_flush, token)
+
+    def prepare_after_flush(self, connection, result, token):
+        try:
+            connection.flush_finish(result)
+        except GLib.Error as error:
+            print("== login1: cannot prepare native sleep: " + str(error), file=sys.stderr)
+            self.resume()
+            return
+        self.check_state()
+        if self.pending == token:
+            # Keep Steam runnable while it handles the system sleep notification.
+            # This is a bounded grace period, not a claim that every game has saved.
+            self.preparation = GLib.timeout_add(NATIVE_PREPARE_MS, self.finish_preparation, token)
+
+    def finish_preparation(self, token):
+        self.preparation = None
+        if self.pending == token:
+            self.publish(self.native_ready)
+        return False
+
     def changed(self, monitor, file, other, event):
+        if file.get_basename() == self.native_request.name or (other and other.get_basename() == self.native_request.name):
+            self.prepare_native()
         if file.get_basename() == self.wake.name or (other and other.get_basename() == self.wake.name):
             if self.wake.exists():
                 self.wake.unlink(missing_ok=True)
@@ -128,6 +173,7 @@ class LoginManager:
         if self.pending and self.read_state() != self.pending + ":paused":
             # A missing host or a failed freeze must not strand Steam in black.
             self.request.unlink(missing_ok=True)
+            self.native_ready.unlink(missing_ok=True)
             self.resume()
         return False
 
@@ -140,6 +186,9 @@ class LoginManager:
                 self.bus.flush(None, self.finish_recovery, None)
             return
         self.pending = None
+        if self.preparation is not None:
+            GLib.source_remove(self.preparation)
+            self.preparation = None
         if self.timeout is not None:
             GLib.source_remove(self.timeout)
             self.timeout = None

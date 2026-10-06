@@ -70,6 +70,8 @@ class ModeSettings(
     /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
     val storageDiagnostics: Boolean = false,
     val fexPreset: String? = null,
+    /** Steam only: Force SSBS for Proton games (SessionPrefs.forceSsbs). */
+    val forceSsbs: Boolean = false,
     /** Steam only: SessionPrefs.SYNC_* chosen for Proton games; null outside Steam. */
     val syncBackend: String? = null,
     /** Steam only: forces game windows fullscreen (null = not a Steam page). */
@@ -131,6 +133,7 @@ class ModeSettingsActions(
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
+    val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
     val onForceFullscreen: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
@@ -288,9 +291,9 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                         SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                    ),
+                    ) + if (steam) listOf(SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native)) else emptyList(),
                     s.suspendPolicy,
-                    note = stringResource(R.string.mode_suspend_note),
+                    note = stringResource(if (steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
                     onPick = a.onSuspendPolicy,
                 )
             }
@@ -459,6 +462,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 FexPreset.all.map { it.id to stringResource(it.label) }, s.fexPreset,
                 note = stringResource(FexPreset.byId(s.fexPreset).detail), onPick = a.onFexPreset,
             )
+            ToggleRow(host, "ssbs", stringResource(R.string.force_ssbs_title), stringResource(R.string.force_ssbs_hint), s.forceSsbs, onChange = a.onForceSsbs)
             GameEnvironmentRow()
 
         }

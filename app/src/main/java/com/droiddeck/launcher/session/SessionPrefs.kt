@@ -8,6 +8,7 @@ import org.json.JSONObject
 /** The in-session switches: the HUD and how the on-screen controls decide to appear. */
 object SessionPrefs {
     const val SUSPEND_AUTO = "auto"
+    const val SUSPEND_NATIVE = "native"
     const val SUSPEND_MANUAL = "manual"
     const val SUSPEND_NEVER = "never"
 
@@ -542,6 +543,22 @@ object SessionPrefs {
 
     private const val DEFAULT_FEX_PRESET = "PERFORMANCE_TSO"
 
+    /**
+     * Force SSBS for Proton games: Wine resumes threads from a Windows CONTEXT that never carries
+     * PSTATE.SSBS, so they run with speculative store bypass disabled; libssbs.so keeps it set
+     * (on DiRT 3 / GE-Proton: from ~99% of a game's threads running without it to none). The
+     * speed-up is reported on Oryon cores (Snapdragon 8 Elite) and was not measurable on an
+     * 8 Gen 3, so it is off unless turned on. A game's own environment can still say
+     * DROIDDECK_FORCE_SSBS=0.
+     */
+    fun forceSsbs(context: Context): Boolean = prefs(context).getBoolean("forceSsbs", false)
+
+    fun setForceSsbs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("forceSsbs", on).apply()
+        runCatching { GameEnvironmentStore.publish(context) }
+            .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
+    }
+
     fun setFexPreset(context: Context, id: String) {
         prefs(context).edit().putString("fexPreset", id).apply()
         runCatching { GameEnvironmentStore.publish(context) }
@@ -760,11 +777,14 @@ object SessionPrefs {
 
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
-            ?.takeIf { it == SUSPEND_AUTO || it == SUSPEND_MANUAL || it == SUSPEND_NEVER }
+            ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
+            // Direct games share Steam's settings but have no Steam client to prepare.
+            ?.let { if (it == SUSPEND_NATIVE && mode != SessionService.MODE_STEAM) SUSPEND_AUTO else it }
             ?: SUSPEND_MANUAL
 
     fun setSuspendPolicy(context: Context, mode: String, policy: String) {
-        val normalized = policy.takeIf { it == SUSPEND_AUTO || it == SUSPEND_MANUAL || it == SUSPEND_NEVER }
+        val normalized = policy.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_MANUAL, SUSPEND_NEVER) ||
+            (it == SUSPEND_NATIVE && mode == SessionService.MODE_STEAM) }
             ?: SUSPEND_MANUAL
         prefs(context).edit().putString("suspendPolicy.${prefMode(mode)}", normalized).apply()
     }

@@ -311,6 +311,7 @@ class MainActivity : ComponentActivity() {
     private var settingsMode by mutableStateOf<String?>(null)
     private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
+    private var forceSsbs by mutableStateOf(false)
     private var steamChannel by mutableStateOf("steamdeck_publicbeta")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
@@ -1159,6 +1160,7 @@ class MainActivity : ComponentActivity() {
                 storageOptions = storageOptions,
                 storageDiagnostics = mode == SessionService.MODE_STEAM && storageDiagnostics,
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
+                forceSsbs = forceSsbs,
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
@@ -1232,6 +1234,7 @@ class MainActivity : ComponentActivity() {
                     storageDiagnostics = on
                 },
                 onFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
+                onForceSsbs = { on -> SessionPrefs.setForceSsbs(this, on); forceSsbs = on },
                 onSyncBackend = { id ->
                     SessionPrefs.setSyncBackend(this, id)
                     fastSync = SessionPrefs.fastSync(this)
@@ -1353,6 +1356,7 @@ class MainActivity : ComponentActivity() {
         showMapping = false
         resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         fexPreset = SessionPrefs.fexPreset(this)
+        forceSsbs = SessionPrefs.forceSsbs(this)
         fastSync = SessionPrefs.fastSync(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         syncFallback = SessionPrefs.syncFallback(this)

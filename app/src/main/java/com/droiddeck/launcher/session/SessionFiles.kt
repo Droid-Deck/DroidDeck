@@ -36,6 +36,7 @@ object SessionFiles {
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",

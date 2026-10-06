@@ -507,9 +507,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                                         SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                                    ),
+                                    ) + if (a.steam) listOf(SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native)) else emptyList(),
                                     a.suspendPolicy,
-                                    note = stringResource(R.string.mode_suspend_note),
+                                    note = stringResource(if (a.steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
                                     chipModifier = focus.track(page, "suspend"),
                                     onPick = a.onSuspendPolicy,
                                 )

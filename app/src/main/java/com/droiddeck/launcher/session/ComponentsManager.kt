@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.github.luben.zstd.ZstdInputStream
 import com.github.luben.zstd.ZstdOutputStream
@@ -659,6 +660,107 @@ object ComponentsManager {
         }.sortedWith(compareBy({ it.comp }, { it.release }, { it.file }))
         return Catalog(items, o.optLong("fetchedAt"))
     }
+
+    /**
+     * A package Proton does not ship, required on the GPUs listed here. An empty [models] set
+     * means every model in [families]. A row the user already chose in Components is left alone;
+     * a Steam update that puts the Proton's own files back is replaced on the next session.
+     */
+    internal data class ForcedPackage(
+        val families: Set<GpuInfo.Family>,
+        val comp: String,
+        val file: String,
+        val release: String,
+        val models: Set<Int> = emptySet(),
+    ) {
+        fun matches(gpu: GpuInfo) = gpu.family in families && (models.isEmpty() || gpu.model in models)
+    }
+
+    internal val FORCED_PACKAGES = listOf(
+        // DXVK 3 refuses to start unless the device exposes storageBuffer8BitAccess. Turnip on
+        // Adreno 6xx does not. 2.7.1 is the last DXVK 2 package on the Dxvk-Linux tag.
+        ForcedPackage(setOf(GpuInfo.Family.A6XX), "dxvk", "dxvk-2.7.1-linux.wcp", "Dxvk-Linux"),
+    )
+
+    /**
+     * True when this Proton should receive the forced package. No active swap means the Proton's
+     * own copy. A record for a different Proton build means a Steam update put that copy back,
+     * whichever package was recorded. A record for this build is a Components choice and stays.
+     */
+    internal fun forcedPackageWanted(activeFile: String?, protonVersionMatches: Boolean): Boolean =
+        activeFile.isNullOrEmpty() || !protonVersionMatches
+
+    /** The catalog row for this file and release, or null. */
+    internal fun catalogMatch(items: List<CatalogItem>, file: String, release: String): CatalogItem? =
+        items.firstOrNull { it.file == file && it.release == release }
+
+    /**
+     * Install every [FORCED_PACKAGES] row this GPU matches into each Proton that
+     * [forcedPackageWanted] selects. Returns a line for the log, or null when this GPU or these
+     * Protons need nothing. A failed fetch throws and the session logs it without stopping.
+     */
+    fun ensureForcedPackages(context: Context): String? = ensureForcedPackages(
+        context, GpuInfo.detect(),
+        { file, release -> catalogItem(context, file, release) },
+        { download(context, it) {} },
+        { id, file -> swap(context, id, file) },
+    )
+
+    internal fun ensureForcedPackages(
+        context: Context,
+        gpu: GpuInfo,
+        lookup: (file: String, release: String) -> CatalogItem?,
+        fetch: (CatalogItem) -> Unit,
+        apply: (protonId: String, file: String) -> String,
+    ): String? {
+        val rules = FORCED_PACKAGES.filter { it.matches(gpu) }
+        if (rules.isEmpty()) return null
+        val installed = protons(context)
+        val lines = mutableListOf<String>()
+        for (rule in rules) {
+            val state = loadState(context)
+            val targets = installed.filter { p ->
+                val active = state.optJSONObject("active")?.optJSONObject(p.id)?.optJSONObject(rule.comp)
+                forcedPackageWanted(active?.optString("file"), active?.optString("protonVersion") == p.version)
+            }
+            if (targets.isEmpty()) continue
+            val missing = missingPackage(context, rule, lookup, fetch)
+            if (missing != null) {
+                lines.add(missing)
+                continue
+            }
+            lines.add(targets.joinToString("; ") { apply(it.id, rule.file) })
+        }
+        return lines.joinToString("; ").ifEmpty { null }
+    }
+
+    /** Null when [rule]'s package is stored and readable. Otherwise the log line, after a fetch. */
+    private fun missingPackage(
+        context: Context,
+        rule: ForcedPackage,
+        lookup: (file: String, release: String) -> CatalogItem?,
+        fetch: (CatalogItem) -> Unit,
+    ): String? {
+        val wcp = File(packagesDir(context), safeName(rule.file))
+        if (wcp.isFile && runCatching { packageInfo(wcp) }.isSuccess) return null
+        wcp.delete()
+        val item = lookup(rule.file, rule.release)
+            ?: return "${rule.file} is not in the Nightlies listing; ${LABEL.getValue(rule.comp)} stays on the Proton's copy"
+        fetch(item)
+        return null
+    }
+
+    /** The cached Nightlies row for this file, fetching the listing when the cache does not have it. */
+    internal fun catalogItem(context: Context, file: String, release: String): CatalogItem? =
+        resolveCatalogItem(file, release, { catalog(context, false).items }, { catalog(context, true).items })
+
+    /** [cached] when it has the row, otherwise [refresh]. [refresh] is not called on a hit. */
+    internal fun resolveCatalogItem(
+        file: String,
+        release: String,
+        cached: () -> List<CatalogItem>,
+        refresh: () -> List<CatalogItem>,
+    ): CatalogItem? = catalogMatch(cached(), file, release) ?: catalogMatch(refresh(), file, release)
 
     /** Downloads a catalog item into storage, verifying the release's sha256 and the package type. */
     fun download(context: Context, item: CatalogItem, progress: (Int) -> Unit): Package {
