@@ -581,6 +581,10 @@
     <string name="setup_clear_logs">清除日志</string>
     <string name="setup_offline">离线模式</string>
     <string name="setup_sign_in_first">请先登录 Steam</string>
+    <string name="setup_steam_account">Steam 账户</string>
+    <string name="setup_steam_account_next">下次启动：%1$s</string>
+    <string name="setup_steam_account_add">要添加账户，请在 Steam 的电源菜单中选择“添加账户”</string>
+    <string name="setup_steam_account_running">停止会话后才能切换账户</string>
     <string name="setup_launcher">启动器</string>
     <string name="setup_theme">主题</string>
     <string name="setup_theme_hint">启动器外观</string>

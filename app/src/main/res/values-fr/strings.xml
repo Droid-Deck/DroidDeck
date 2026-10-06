@@ -520,6 +520,10 @@
     <string name="setup_clear_logs">Effacer les journaux</string>
     <string name="setup_offline">Mode hors ligne</string>
     <string name="setup_sign_in_first">Veuillez d\'abord vous connecter à Steam</string>
+    <string name="setup_steam_account">Compte Steam</string>
+    <string name="setup_steam_account_next">Au prochain démarrage : %1$s</string>
+    <string name="setup_steam_account_add">Pour ajouter un compte, utilisez « Ajouter un compte » dans le menu Alimentation de Steam</string>
+    <string name="setup_steam_account_running">Arrêtez la session pour changer de compte</string>
     <string name="setup_launcher">Lanceur</string>
     <string name="setup_theme">Thème</string>
     <string name="setup_theme_hint">Apparence du lanceur</string>

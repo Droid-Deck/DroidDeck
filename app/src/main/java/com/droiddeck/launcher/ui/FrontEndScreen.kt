@@ -88,6 +88,10 @@ class FrontEndState(
     val desktopInstalled: Boolean,
     val offlineAccount: String?,
     val offline: Boolean,
+    /** The client's remembered accounts; the Setup page offers a choice from two on. */
+    val steamAccounts: List<com.droiddeck.launcher.session.SteamAccounts.Account> = emptyList(),
+    /** The account the next session will start as, when the user picked one. */
+    val nextAccount: Long? = null,
     val frameGenLabel: String,
     val romsDir: String?,
     val logsEnabled: Boolean,
@@ -167,6 +171,8 @@ class FrontEndActions(
     val onShareLogs: () -> Unit = {},
     val onClearLogs: () -> Unit = {},
     val onOffline: () -> Unit,
+    /** A SteamID64 for the next session to start as. */
+    val onPickAccount: (Long) -> Unit = {},
     val onPageBack: () -> Unit = {},
     val onTheme: (String) -> Unit = {},
     val onAppScale: (Int) -> Unit = {},

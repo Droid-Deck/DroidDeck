@@ -616,6 +616,10 @@
     <string name="setup_clear_logs">Clear logs</string>
     <string name="setup_offline">Offline mode</string>
     <string name="setup_sign_in_first">Sign in to Steam first</string>
+    <string name="setup_steam_account">Steam account</string>
+    <string name="setup_steam_account_next">Next start: %1$s</string>
+    <string name="setup_steam_account_add">To add an account, use Power &gt; Add Account inside Steam</string>
+    <string name="setup_steam_account_running">Stop the session to change account</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_app_scale">App scale</string>
     <string name="setup_app_scale_hint">DroidDeck text and controls</string>

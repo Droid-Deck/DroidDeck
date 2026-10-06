@@ -520,6 +520,10 @@
     <string name="setup_clear_logs">로그 지우기</string>
     <string name="setup_offline">오프라인 모드</string>
     <string name="setup_sign_in_first">먼저 Steam에 로그인하세요</string>
+    <string name="setup_steam_account">Steam 계정</string>
+    <string name="setup_steam_account_next">다음 시작: %1$s</string>
+    <string name="setup_steam_account_add">계정을 추가하려면 Steam의 전원 메뉴에서 \'계정 추가\'를 사용하세요</string>
+    <string name="setup_steam_account_running">계정을 바꾸려면 세션을 중지하세요</string>
     <string name="setup_launcher">런처</string>
     <string name="setup_theme">테마</string>
     <string name="setup_theme_hint">런처 외관</string>

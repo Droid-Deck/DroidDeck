@@ -303,6 +303,7 @@ internal fun SetupPanel(
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,
                                 progress = com.droiddeck.launcher.session.SessionLogShare.progress)
                             ActionRow(stringResource(R.string.setup_saved_logs), stringResource(R.string.setup_saved_logs_hint, com.droiddeck.launcher.session.SessionPaths.KEEP_SESSIONS), stringResource(R.string.setup_clear_logs), a.onClearLogs)
+                            if (s.steamAccounts.size >= 2) SteamAccountRow(host, s, a)
                             ToggleRow(
                                 host, "offline", stringResource(R.string.setup_offline),
                                 s.offlineAccount?.let { stringResource(R.string.setup_signed_in, it) } ?: stringResource(R.string.setup_sign_in_first),
@@ -492,4 +493,25 @@ private fun SettingCard(label: String, value: String, id: String, modifier: Modi
         Text(label, fontSize = 13.sp, color = if (hot) pal.signal else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(value, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+/**
+ * Which remembered Steam account the next session starts as. Shown from two accounts on; the
+ * choice is applied in the guest as the client starts, so it waits for a stopped session.
+ */
+@Composable
+private fun SteamAccountRow(host: MenuHost, s: FrontEndState, a: FrontEndActions) {
+    val accounts = s.steamAccounts
+    val active = accounts.firstOrNull { it.mostRecent }?.id64 ?: -1L
+    val next = accounts.firstOrNull { it.id64 == s.nextAccount && it.id64 != active }
+    ChoiceRow(
+        host, "steam-account", stringResource(R.string.setup_steam_account),
+        when {
+            s.sessionRunning -> stringResource(R.string.setup_steam_account_running)
+            next != null -> stringResource(R.string.setup_steam_account_next, com.droiddeck.launcher.session.SteamAccounts.label(next, accounts))
+            else -> stringResource(R.string.setup_steam_account_add)
+        },
+        accounts.map { it.id64 to com.droiddeck.launcher.session.SteamAccounts.label(it, accounts) },
+        active, enabled = !s.sessionRunning, onPick = a.onPickAccount,
+    )
 }

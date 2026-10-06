@@ -36,6 +36,7 @@ import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
 import com.droiddeck.launcher.session.OfflineMode
+import com.droiddeck.launcher.session.SteamAccounts
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.ui.ComponentsPage
@@ -135,6 +136,9 @@ class MainActivity : ComponentActivity() {
     private var desktopInstalled by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
     private var offline by mutableStateOf(false)
+    // The remembered Steam accounts and the one picked for the next start (SteamAccounts).
+    private var steamAccounts by mutableStateOf<List<SteamAccounts.Account>>(emptyList())
+    private var nextAccount by mutableStateOf<Long?>(null)
     private var showPerformance by mutableStateOf(false)
     private var clientOverride by mutableStateOf(false)
     private var clientCores by mutableStateOf<Set<Int>>(emptySet())
@@ -526,6 +530,7 @@ class MainActivity : ComponentActivity() {
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled,
                         offlineAccount = offlineAccount, offline = offline,
+                        steamAccounts = steamAccounts, nextAccount = nextAccount,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
@@ -656,6 +661,13 @@ class MainActivity : ComponentActivity() {
                         onOffline = {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
                             offline = OfflineMode.enabled(this)
+                        },
+                        onPickAccount = { id64 ->
+                            if (SteamAccounts.requestAllowed(SessionState.running)) {
+                                val root = LinuxRuntime.rootDir(this)
+                                SteamAccounts.request(root, id64, steamAccounts.firstOrNull { it.mostRecent }?.id64)
+                                nextAccount = SteamAccounts.pending(root)
+                            }
                         },
                         onPageBack = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
@@ -1440,6 +1452,8 @@ class MainActivity : ComponentActivity() {
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
+        steamAccounts = SteamAccounts.read(LinuxRuntime.rootDir(this))
+        nextAccount = SteamAccounts.pending(LinuxRuntime.rootDir(this))
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)

@@ -522,6 +522,10 @@
     <string name="setup_clear_logs">Очистить журналы</string>
     <string name="setup_offline">Автономный режим</string>
     <string name="setup_sign_in_first">Сначала войдите в Steam</string>
+    <string name="setup_steam_account">Аккаунт Steam</string>
+    <string name="setup_steam_account_next">При следующем запуске: %1$s</string>
+    <string name="setup_steam_account_add">Чтобы добавить аккаунт, выберите «Добавить аккаунт» в меню питания Steam</string>
+    <string name="setup_steam_account_running">Остановите сеанс, чтобы сменить аккаунт</string>
     <string name="setup_launcher">Лаунчер</string>
     <string name="setup_theme">Тема</string>
     <string name="setup_theme_hint">Внешний вид лаунчера</string>

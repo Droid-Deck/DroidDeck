@@ -520,6 +520,10 @@
     <string name="setup_clear_logs">清除日誌</string>
     <string name="setup_offline">離線模式</string>
     <string name="setup_sign_in_first">請先登入 Steam</string>
+    <string name="setup_steam_account">Steam 帳戶</string>
+    <string name="setup_steam_account_next">下次啟動：%1$s</string>
+    <string name="setup_steam_account_add">要新增帳戶，請在 Steam 的電源選單中選擇「新增帳戶」</string>
+    <string name="setup_steam_account_running">停止工作階段後才能切換帳戶</string>
     <string name="setup_launcher">啟動器</string>
     <string name="setup_theme">佈景主題</string>
     <string name="setup_theme_hint">啟動器外觀</string>
