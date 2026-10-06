@@ -27,9 +27,13 @@ class DriverPairsTest {
 
     @Test
     fun onlyTestedHardwareCountsAsSupported() {
+        assertEquals(GpuInfo.Support.TESTED, gpu(650).support)
+        assertEquals("Supported", gpu(650).supportText)
         assertEquals(GpuInfo.Support.TESTED, gpu(740).support)
         assertEquals(GpuInfo.Support.TESTED, gpu(825).support)
         assertEquals(GpuInfo.Support.UNTESTED, gpu(610).support)
+        assertEquals(GpuInfo.Support.UNTESTED, gpu(660).support)
+        assertEquals("Outside tested hardware (Adreno 650, 725 and newer): it may not run", gpu(660).supportText)
         assertEquals(GpuInfo.Support.UNTESTED, gpu(720).support)
         assertEquals(GpuInfo.Support.UNSUPPORTED, gpu(0, adreno = false).support)
     }
