@@ -80,7 +80,7 @@
     <string name="game_env_fsync_first">Pon 1 para que este juego use droiddeck-fsync, o 0 para dar prioridad a droiddeck-esync cuando haya un paquete para su Proton.</string>
     <string name="game_env_xalia">Pon 0 para desactivar el asistente de navegación con mando de Proton en este juego.</string>
     <string name="game_env_hud">Superposición de DXVK para D3D9–11. fps muestra la tasa de fotogramas; sin definir la oculta.</string>
-    <string name="game_env_dxvk_config">Ajustes de DXVK separados por punto y coma. Las builds recientes usan dxvk.maxFrameRate para limitar fotogramas; para el uso normal prefiere el límite de fotogramas de la sesión.</string>
+    <string name="game_env_dxvk_config">Ajustes de DXVK separados por punto y coma. Las compilaciones recientes usan dxvk.maxFrameRate para limitar fotogramas; para el uso normal prefiere el límite de fotogramas de la sesión.</string>
     <string name="game_env_vkd3d_limit">Límite de fotogramas de D3D12. 0 desactiva el límite.</string>
     <string name="game_env_glthread">Subprocesos de OpenGL de Mesa. true puede ayudar a juegos OpenGL limitados por la CPU; pruébalo en cada juego.</string>
     <string name="sync_backend_title">Sincronización de Wine</string>
@@ -206,7 +206,7 @@
     <string name="add_app_runtime_required">Instala primero el runtime de Linux desde Configuración.</string>
     <string name="add_app_busy">Espera a que termine %1$s.</string>
     <string name="steam_compat_label">Compatible</string>
-    <string name="proton_compatible_note">Las builds marcadas como “%1$s” en el menú Compatibilidad de Steam incluyen las correcciones de prefijo de DroidDeck e inician juegos aquí. La build por defecto es Proton Experimental ARM64 (%1$s), o Proton 11.0 ARM64 (%1$s) cuando esa build más reciente esté instalada. Las entradas de Proton de Valve sin la marca no pueden iniciar juegos en este dispositivo.</string>
+    <string name="proton_compatible_note">Las compilaciones marcadas como “%1$s” en el menú Compatibilidad de Steam incluyen las correcciones de prefijo de DroidDeck e inician juegos aquí. La compilación por defecto es Proton Experimental ARM64 (%1$s), o Proton 11.0 ARM64 (%1$s) cuando esa compilación más reciente esté instalada. Las entradas de Proton de Valve sin la marca no pueden iniciar juegos en este dispositivo.</string>
     <string name="proton_installed_compatible">Instalada %1$s · %2$s</string>
     <string name="common_cancel">Cancelar</string>
     <string name="common_auto">Auto</string>
@@ -270,7 +270,7 @@
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Buscando versiones…</string>
     <string name="mode_decky_ready">Listo para instalar %1$s.</string>
-    <string name="mode_decky_none">No se encontró ninguna build compatible. Inténtalo más tarde.</string>
+    <string name="mode_decky_none">No se encontró ninguna compilación compatible. Inténtalo más tarde.</string>
     <string name="mode_decky_installed">Instalado · %1$s</string>
     <string name="mode_decky_update">Actualización disponible · %1$s</string>
     <string name="mode_decky_current">Al día · %1$s</string>
@@ -368,7 +368,7 @@
     <string name="comp_check_drivers">Buscar controladores nuevos</string>
     <string name="comp_check_nightlies">Buscar paquetes nuevos en las Nightlies</string>
     <string name="comp_proton">Proton</string>
-    <string name="comp_proton_note">El Proton elegido aquí ejecuta todos los juegos que no tengan uno propio en Steam, y un cambio hecho en Steam también se ve aquí. Steam reemplaza el Proton de Valve al actualizarse; los originales se conservan por build.</string>
+    <string name="comp_proton_note">El Proton elegido aquí ejecuta todos los juegos que no tengan uno propio en Steam, y un cambio hecho en Steam también se ve aquí. Steam reemplaza el Proton de Valve al actualizarse; los originales se conservan por compilación.</string>
     <string name="comp_default_live">%1$s ahora ejecuta todos los juegos que no tengan su propio Proton en Steam.</string>
     <string name="comp_default_next">%1$s ejecutará todos los juegos que no tengan su propio Proton a partir del próximo inicio de Steam.</string>
     <string name="comp_default_not_runnable">%1$s no puede iniciar juegos aquí, así que no puede usarse por defecto.</string>
@@ -389,8 +389,8 @@
     <string name="comp_reading">Leyendo Protons…</string>
     <string name="comp_no_proton">Aún no hay ningún Proton instalado. Inicia Steam una vez para descargar su Proton ARM64, o añade GE-Proton o CachyOS desde Configuración.</string>
     <string name="comp_original">Original · %1$s</string>
-    <string name="comp_this_build">%1$s · esta build</string>
-    <string name="comp_earlier_build">%1$s · build anterior</string>
+    <string name="comp_this_build">%1$s · esta compilación</string>
+    <string name="comp_earlier_build">%1$s · compilación anterior</string>
     <string name="comp_installed_count">Instalados · %1$d</string>
     <string name="comp_nothing_stored">Aún no hay nada almacenado para %1$s. Los archivos propios de este Proton se guardan como su original.</string>
     <string name="comp_waits_long">Hay un juego en ejecución con este Proton, así que se espera a que se cierre.</string>
@@ -401,7 +401,7 @@
     <string name="comp_restore_body">¿Volver a poner el original de %1$s en %2$s? %3$s</string>
     <string name="comp_delete_package_body">Quita el paquete de la app. Puedes descargarlo de nuevo.</string>
     <string name="comp_delete_original_title">¿Eliminar este original?</string>
-    <string name="comp_delete_original_body">Este original de %1$s es de una build anterior de %2$s. El original de la build actual siempre se conserva.</string>
+    <string name="comp_delete_original_body">Este original de %1$s es de una compilación anterior de %2$s. El original de la compilación actual siempre se conserva.</string>
     <string name="comp_nightlies_count">En las Nightlies · %1$d</string>
     <string name="comp_refresh_to_list">Actualiza para listar los paquetes de las Nightlies.</string>
     <string name="comp_nothing_new">Nada nuevo desde la última comprobación.</string>
@@ -446,7 +446,7 @@
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync primero</string>
     <string name="perf_fsync_hint">Usa el fsync propio de Proton con los archivos originales de Proton, con futex_waitv proporcionado en espacio de usuario, así que no requiere paquete y sigue funcionando en cuanto Steam actualiza Proton. Mientras está activado, los juegos lo usan antes que droiddeck-esync, salvo los pocos que Proton mantiene sin fsync. Se aplica en la próxima sesión.</string>
-    <string name="perf_esync_hint">Los hilos de Windows de los juegos se esperan entre sí mediante eventfd y memoria compartida, sin pasar por wineserver. Usa un paquete droiddeck-esync hecho para esa build exacta de Proton; los paquetes se obtienen en automático. Mientras no exista uno para una build nueva de Proton, droiddeck-fsync lo sustituye. Se aplica en la próxima sesión.</string>
+    <string name="perf_esync_hint">Los hilos de Windows de los juegos se esperan entre sí mediante eventfd y memoria compartida, sin pasar por wineserver. Usa un paquete droiddeck-esync hecho para esa compilación exacta de Proton; los paquetes se obtienen en automático. Mientras no exista uno para una compilación nueva de Proton, droiddeck-fsync lo sustituye. Se aplica en la próxima sesión.</string>
     <string name="perf_xalia_hint">Desactiva el asistente de navegación con mando de Proton, que consume CPU en cada juego.</string>
     <string name="perf_seccomp">Ejecutar proot sin seccomp</string>
     <string name="perf_seccomp_hint">Puede corregir errores de syscalls ausentes en algunos kernels. Puede reducir el rendimiento.</string>
@@ -604,7 +604,7 @@
     <string name="setup_tool_files">Archivos</string>
     <string name="setup_tool_files_hint">Explorar y gestionar archivos</string>
     <string name="setup_tool_protons">Versiones de Proton</string>
-    <string name="setup_tool_protons_hint">Instala builds de Proton ARM64</string>
+    <string name="setup_tool_protons_hint">Instala compilaciones de Proton ARM64</string>
     <string name="setup_tool_performance">Rendimiento</string>
     <string name="setup_tool_performance_hint">Asignación de núcleos de CPU</string>
     <string name="setup_tool_roms">Carpeta de ROMs</string>
@@ -657,7 +657,7 @@
     <string name="store_installed_chip">● Instalada</string>
     <string name="store_details_failed">No se pudo cargar la página de esta app en Flathub.</string>
     <string name="store_loading">Cargando desde Flathub…</string>
-    <string name="store_no_arm">No hay build ARM64 en Flathub, así que no se puede instalar aquí.</string>
+    <string name="store_no_arm">No hay compilación ARM64 en Flathub, así que no se puede instalar aquí.</string>
     <string name="store_screenshots">Capturas de pantalla</string>
     <string name="store_about">Acerca de</string>
     <string name="store_app_id">ID de app</string>
@@ -683,7 +683,7 @@
     <string name="upd_switch">Lista para cambiar</string>
     <string name="upd_ahead_status">Por delante de Stable</string>
     <string name="upd_ahead_headline">Vas por delante de Stable</string>
-    <string name="upd_ahead_detail">Esta build es más reciente que la última Stable. Pasarás a Stable con su próxima versión.</string>
+    <string name="upd_ahead_detail">Esta compilación es más reciente que la última Stable. Pasarás a Stable con su próxima versión.</string>
     <string name="upd_gone_status">Prueba finalizada</string>
     <string name="upd_gone_headline">Esta prueba ha finalizado</string>
     <string name="upd_gone_detail">Su corrección se fusionó o se descartó. Sigue Preview para las correcciones más recientes.</string>
@@ -700,8 +700,8 @@
     <string name="upd_less">Menos</string>
     <string name="upd_more">Más</string>
     <string name="upd_new_stable">DroidDeck %1$s</string>
-    <string name="upd_new_preview">Nueva build de Preview</string>
-    <string name="upd_new_test">Build de prueba del PR #%1$d</string>
+    <string name="upd_new_preview">Nueva compilación de Preview</string>
+    <string name="upd_new_test">Compilación de prueba del PR #%1$d</string>
     <string name="upd_mb">%1$d MB</string>
     <string name="upd_channel">CANAL DE ACTUALIZACIÓN</string>
     <string name="upd_stable">Stable</string>
@@ -710,7 +710,7 @@
     <string name="upd_preview">Preview</string>
     <string name="upd_preview_hint">Las correcciones más recientes, antes que Stable</string>
     <string name="upd_preview_current">Al día</string>
-    <string name="upd_tests">Builds de prueba</string>
+    <string name="upd_tests">Compilaciones de prueba</string>
     <string name="upd_tests_hint">Prueba una corrección antes de su publicación</string>
     <string name="upd_tests_none">Ninguna por ahora</string>
     <string name="upd_pr">PR #%1$d</string>
@@ -724,12 +724,12 @@
         <item quantity="other">%1$d para probar</item>
     </plurals>
     <plurals name="upd_preview_behind">
-        <item quantity="one">Cambios desde tu build · %1$d build atrás</item>
-        <item quantity="other">Cambios desde tu build · %1$d builds atrás</item>
+        <item quantity="one">Cambios desde tu compilación · %1$d compilación atrás</item>
+        <item quantity="other">Cambios desde tu compilación · %1$d compilaciones atrás</item>
     </plurals>
     <plurals name="upd_preview_recent">
-        <item quantity="one">Cambios recientes · %1$d build</item>
-        <item quantity="other">Cambios recientes · %1$d builds</item>
+        <item quantity="one">Cambios recientes · %1$d compilación</item>
+        <item quantity="other">Cambios recientes · %1$d compilaciones</item>
     </plurals>
     <string name="gate_title">Un ajuste de Android por cambiar</string>
     <string name="gate_eyebrow">Steam</string>
@@ -953,9 +953,9 @@
     <string name="roms_applies">Se aplica en la próxima sesión. Las tarjetas SD funcionan.</string>
     <string name="roms_choose">Elegir carpeta</string>
     <string name="roms_change">Cambiar carpeta</string>
-    <string name="proton_lede">Instala una build de Proton ARM64 y luego elígela para cada juego en Steam → Propiedades → Compatibilidad.</string>
+    <string name="proton_lede">Instala una compilación de Proton ARM64 y luego elígela para cada juego en Steam → Propiedades → Compatibilidad.</string>
     <string name="proton_stop_first">Detén la sesión en ejecución para instalar o quitar una herramienta de compatibilidad.</string>
-    <string name="proton_available">Builds disponibles</string>
+    <string name="proton_available">Compilaciones disponibles</string>
     <string name="proton_installed">Instalada %1$s</string>
     <string name="proton_queued">Pendiente de una solicitud anterior</string>
     <string name="proton_not_installed">No instalada</string>
