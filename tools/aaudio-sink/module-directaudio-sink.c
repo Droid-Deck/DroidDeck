@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/un.h>
@@ -73,6 +74,7 @@ PA_MODULE_USAGE(
  * legacy one (an AYN Thor, Android 13), and a single burst has nothing to cover a late callback.
  * 24 ms is two bursts there, Android's recommended minimum; the relay still grows it on xruns. */
 #define DEFAULT_BUFFER_MS 24
+#define AUDIO_NICE (-16)
 
 static const char* const valid_modargs[] = {
     "socket", "sink_name", "sink_properties", "volume", "performance_mode", "adaptive", "buffer_ms", NULL
@@ -299,6 +301,8 @@ static void thread_func(void *userdata) {
 
     pa_log_debug("IO thread starting");
     pa_thread_mq_install(&u->thread_mq);
+    if (setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), AUDIO_NICE) < 0)
+        pa_log_debug("directaudio-sink: could not raise the IO thread's priority (%s)", strerror(errno));
     if (u->core->realtime_scheduling)
         pa_thread_make_realtime(u->core->realtime_priority);
     pa_rtpoll_set_timer_relative(u->rtpoll, 0);
