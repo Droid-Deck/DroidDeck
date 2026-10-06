@@ -190,6 +190,14 @@ object LogRedactor {
         false
     }
 
+    /**
+     * Bump whenever a pattern is added or tightened. A session folder records the version it was
+     * scrubbed under (SessionArtifacts.SCRUBBED_TREE_MARKER), and a share copies a file as it is
+     * only when that matches, so a folder scrubbed under older rules is scrubbed again on the way
+     * out.
+     */
+    const val RULES_VERSION = 1
+
     /** [src]'s lines, scrubbed, to [out]. */
     fun scrubTo(src: java.io.File, out: java.io.Writer) {
         src.forEachLine { line -> out.write(redact(line)); out.write("\n") }

@@ -66,11 +66,11 @@ object SessionLogShare {
         // Scrubbed on the way into the zip: a session shared while it runs has not had its end-of-
         // session pass yet, and the redactor changes nothing in a line that is already clean.
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-        // A finished folder was scrubbed whole when it ended; a file no newer than that marker goes
-        // in as it is, and only one written since (or any, in a session still running) is scrubbed
-        // again. Scrubbing tens of MB of the client's logs on every share kept the share sheet
-        // from appearing for ten seconds or more.
-        val scrubbedAt = File(folder, SessionArtifacts.SCRUBBED_TREE_MARKER).takeIf { it.isFile }?.lastModified() ?: 0L
+        // A finished folder was scrubbed whole when it ended. A file its record lists, unchanged
+        // since, goes in as it is; anything else (added or changed since, hidden, or any file of a
+        // session still running) is scrubbed again. Scrubbing tens of MB of the client's logs on
+        // every share kept the share sheet from appearing for ten seconds or more.
+        val scrubbed = SessionArtifacts.scrubbedFiles(folder)
         val live = liveSteamLogs(context, folder)
         val total = (files + live).sumOf { it.length() }.coerceAtLeast(1L)
         var done = 0L
@@ -81,7 +81,7 @@ object SessionLogShare {
             if (percent != shown) { shown = percent; onProgress?.invoke(percent / 100f) }
         }
         ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f, f.lastModified() < scrubbedAt); advance(f) }
+            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f, f.relativeTo(folder).path in scrubbed); advance(f) }
             live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f, false); advance(f) }
         }
         return zip
