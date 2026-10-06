@@ -1250,12 +1250,22 @@ ssize_t recvmsg(int fd, struct msghdr *msg, int flags) {
 }
 
 void bl_fsync_fds_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
+int bl_meta_on(void) __attribute__((visibility("hidden")));
+uint64_t bl_meta_now(void) __attribute__((visibility("hidden")));
+void bl_meta_log(const char *op, int dirfd, const char *path, int flags, uint64_t start, long result, int err)
+    __attribute__((visibility("hidden")));
 
 int close(int fd) {
   if (fd >= 0) bl_fsync_fds_closed((unsigned int)fd, (unsigned int)fd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && fd >= 0 && fd < NS_FDS && __atomic_load_n(&t[fd], __ATOMIC_ACQUIRE)) ns_forget(fd);
-  return ns_close_fd(fd);
+  if (!bl_meta_on()) return ns_close_fd(fd);
+  uint64_t t0 = bl_meta_now();
+  int r = ns_close_fd(fd);
+  int e = errno;
+  if (bl_meta_now() - t0 > 1000000ULL) bl_meta_log("close", fd, "/steamapps/(slow close)", 0, t0, r, e);
+  errno = e;
+  return r;
 }
 
 int dup2(int oldfd, int newfd) {

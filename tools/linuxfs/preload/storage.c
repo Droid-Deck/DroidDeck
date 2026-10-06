@@ -327,12 +327,24 @@ int truncate(const char *path, off_t length) {
   return result;
 }
 
+int bl_meta_on(void) __attribute__((visibility("hidden")));
+void bl_meta_log(const char *op, int dirfd, const char *path, int flags, uint64_t start, long result, int err)
+    __attribute__((visibility("hidden")));
+
 int fstat(int fd, struct stat *out) {
   int entry_errno = errno;
   if (next_fstat == NULL) next_fstat = dlsym(RTLD_NEXT, "fstat");
   if (next_fstat == NULL) { errno = ENOSYS; return -1; }
   initialize();
   errno = entry_errno;
+  if (bl_meta_on()) {
+    uint64_t t0 = now_ns();
+    int r = next_fstat(fd, out);
+    int e = errno;
+    if (now_ns() - t0 > 500000ULL) bl_meta_log("fstat", fd, "/steamapps/(slow fstat)", 0, t0, r, e);
+    errno = e;
+    if (!enabled) return r;
+  }
   if (!enabled) return next_fstat(fd, out);
   uint64_t start = now_ns();
   errno = entry_errno;
