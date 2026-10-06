@@ -639,14 +639,10 @@ class MainActivity : ComponentActivity() {
                             logsEnabled = SessionPrefs.logsEnabled(this)
                         },
                         onShareLogs = {
-                            android.widget.Toast.makeText(this, "Preparing session logs…", android.widget.Toast.LENGTH_SHORT).show()
-                            Thread({
-                                val zip = runCatching { SessionLogShare.zipLatest(this) }.getOrNull()
-                                ui.post {
-                                    if (zip == null) android.widget.Toast.makeText(this, "No session logs yet: run a session first.", android.widget.Toast.LENGTH_LONG).show()
-                                    else startActivity(SessionLogShare.shareIntent(this, zip))
-                                }
-                            }, "share-logs").start()
+                            SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
+                                if (zip == null) android.widget.Toast.makeText(this, "No session logs yet: run a session first.", android.widget.Toast.LENGTH_LONG).show()
+                                else startActivity(SessionLogShare.shareIntent(this, zip))
+                            }
                         },
                         onClearLogs = {
                             Thread({

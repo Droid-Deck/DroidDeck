@@ -516,7 +516,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             }
                             SettingsGroup(stringResource(R.string.drawer_support)) {
                                 SettingsRow(stringResource(R.string.drawer_logs), stringResource(R.string.drawer_logs_hint)) {
-                                    DrawerOutlineButton(stringResource(R.string.drawer_share_logs), modifier = focus.track(page, "share-logs")) {
+                                    DrawerOutlineButton(stringResource(R.string.drawer_share_logs), modifier = focus.track(page, "share-logs"),
+                                        progress = com.droiddeck.launcher.session.SessionLogShare.progress) {
                                         host.open = null
                                         a.onShareLogs()
                                     }
@@ -592,7 +593,7 @@ private fun DrawerActionButton(text: String, icon: androidx.compose.ui.graphics.
 }
 
 @Composable
-private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, progress: Float? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val source = remember { MutableInteractionSource() }
@@ -605,7 +606,7 @@ private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, onC
         contentPadding = PaddingValues(horizontal = 12.dp),
         border = BorderStroke(if (hot) 2.dp else 1.dp, if (hot) pal.signal else colors.outline),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent),
-    ) { Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+    ) { ProgressLabel({ m -> Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = m) }, progress, fontSize = 13.sp) }
 }
 
 @Composable

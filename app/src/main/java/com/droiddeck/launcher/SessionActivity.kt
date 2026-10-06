@@ -744,23 +744,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Toast.makeText(this, "No logs for this session.", Toast.LENGTH_LONG).show()
             return
         }
-        Toast.makeText(this, "Preparing session logs…", Toast.LENGTH_SHORT).show()
-        Thread({
-            val zip = runCatching { SessionLogShare.zipFolder(this, folder) }
-                .onFailure { Log.w(TAG, "could not package current session logs", it) }
-                .getOrNull()
-            uiHandler.post {
-                if (zip == null) {
-                    Toast.makeText(this, "Could not create the session log archive.", Toast.LENGTH_LONG).show()
-                } else {
-                    runCatching { startActivity(SessionLogShare.shareIntent(this, zip)) }
-                        .onFailure {
-                            Log.w(TAG, "could not share current session logs", it)
-                            Toast.makeText(this, "Could not share the session logs.", Toast.LENGTH_LONG).show()
-                        }
-                }
+        SessionLogShare.prepare(this, { folder }) { zip ->
+            if (zip == null) {
+                Toast.makeText(this, "Could not create the session log archive.", Toast.LENGTH_LONG).show()
+            } else {
+                runCatching { startActivity(SessionLogShare.shareIntent(this, zip)) }
+                    .onFailure {
+                        Log.w(TAG, "could not share current session logs", it)
+                        Toast.makeText(this, "Could not share the session logs.", Toast.LENGTH_LONG).show()
+                    }
             }
-        }, "share-session-logs").start()
+        }
     }
 
     private fun readPrefs() {
