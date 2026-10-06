@@ -29,7 +29,13 @@
  * daemon today. It exits when its socket is removed or on SIGTERM; a client
  * going away (socket EOF) tears down that client's streams only.
  *
- *   directaudio-relay --socket <path> [--log]
+ *   directaudio-relay --socket <path> [--mic-fifo <path>] [--log]
+ *
+ * --mic-fifo also serves the microphone to a NON-Wine consumer: the Steam client
+ * reads its mic from PulseAudio, so the helper writes the same capture as raw
+ * s16le / 48000 Hz / mono into a named pipe that PulseAudio's module-pipe-source
+ * turns into a source. See "the microphone" below for how the one stream is
+ * shared between games and the pipe.
  *
  * Build (NDK r27, API 28, 16 KB-page safe):
  *   aarch64-linux-android28-clang -O2 -Wl,-z,max-page-size=16384 \
@@ -100,9 +106,6 @@ static void futex_wake_all(volatile uint32_t *word)
 #define DA_DECAY_QUIET_NS     10000000000ull
 #define DA_DECAY_PUNISH_NS    5000000000ull
 #define DA_DECAY_MAX_BACKOFF  32
-#define DA_MIN_BUFFER_BURSTS  2
-#define DA_RING_MIN_TARGET_MS 40
-#define DA_FADE_FRAMES        64
 
 /* ---- live runtime config (mailbox) ----------------------------------------
  * The path arrives in the first client's hello (every client of one host names
@@ -162,19 +165,11 @@ struct client
     unsigned int decay_backoff, cb_count, wd_last_cb;
     int reopen_running, reopen_redo;
     int32_t ring_max_target;      /* ceiling for the ring's own adaptive step */
-    int consuming;
-    int primed;
-    int starved;
 
-    /* capture: ring + the one INPUT stream */
+    /* capture: this game's ring, fed by the shared microphone (see g_mic) */
     int in_fd;
     struct da_ring *in;
-    AAudioStream *cq;
-    int32_t in_rate, in_channels;
-    aaudio_format_t in_format;
-    int mic_started;              /* requestStart issued on the current input */
-    int cap_reopen_running, cap_reopen_redo;
-    unsigned int cap_cb_count;
+    int mic_hot;                  /* this game asked for the mic to be started */
 
     volatile int dead;
 };
@@ -218,18 +213,6 @@ static void ring_destroy(struct da_ring *r, int fd)
 /* ---- OUTPUT stream ------------------------------------------------------- */
 static void request_reopen(struct client *c, const char *why);
 
-static void fade(float *p, uint32_t frames, int in)
-{
-    uint32_t i, ch;
-
-    for (i = 0; i < frames; i++)
-    {
-        float g = (float)(in ? i + 1 : frames - i) / (float)(frames + 1);
-
-        for (ch = 0; ch < DA_RING_CHANNELS; ch++) p[(size_t)i * DA_RING_CHANNELS + ch] *= g;
-    }
-}
-
 /* The AAudio data callback: pull one block from the render ring. This is the
  * in-process mixer_cb with the mixing replaced by a ring read; the bookkeeping
  * after the copy (liveness, adaptive growth, decay) is ported as-is. */
@@ -239,58 +222,29 @@ static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user,
     struct client *c = user;
     struct da_ring *r = c->out;
     float *out = audioData;
-    AAudioStream *live = __atomic_load_n(&c->aq, __ATOMIC_SEQ_CST);
     uint32_t cap = r->cap_frames;
-    uint32_t frames = (uint32_t)numFrames;
-    uint32_t ridx, avail, n = 0, i;
-    int fade_in = 0, short_read = 0, starving = 0;
+    uint32_t ridx = __atomic_load_n(&r->ridx, __ATOMIC_ACQUIRE);
+    uint32_t avail = __atomic_load_n(&r->widx, __ATOMIC_ACQUIRE) - ridx;
+    uint32_t n = (uint32_t)numFrames < avail ? (uint32_t)numFrames : avail;
+    uint32_t i, first, slot = ridx % cap;
     uint64_t now;
 
-    if ((live && aq != live) || __atomic_exchange_n(&c->consuming, 1, __ATOMIC_ACQUIRE))
-    {
-        memset(out, 0, (size_t)frames * DA_RING_CHANNELS * sizeof(float));
-        return AAUDIO_CALLBACK_RESULT_CONTINUE;
-    }
+    /* Copy out, at most two memcpy's around the wrap. The soft-knee limiter ran
+     * in the game before the samples were queued, so this is a straight copy. */
+    first = cap - slot < n ? cap - slot : n;
+    memcpy(out, &r->data[(size_t)slot * DA_RING_CHANNELS], (size_t)first * DA_RING_CHANNELS * sizeof(float));
+    if (n > first)
+        memcpy(out + (size_t)first * DA_RING_CHANNELS, r->data, (size_t)(n - first) * DA_RING_CHANNELS * sizeof(float));
+    for (i = n * DA_RING_CHANNELS; i < (uint32_t)numFrames * DA_RING_CHANNELS; i++) out[i] = 0.0f;
 
-    ridx = __atomic_load_n(&r->ridx, __ATOMIC_ACQUIRE);
-    avail = __atomic_load_n(&r->widx, __ATOMIC_ACQUIRE) - ridx;
-    if (!c->primed)
-    {
-        uint32_t start = (uint32_t)__atomic_load_n(&r->target_frames, __ATOMIC_ACQUIRE);
-
-        if (start < frames) start = frames;
-        if (start > cap) start = cap;
-        c->primed = fade_in = avail >= start;
-        if (c->primed) c->starved = 0;
-        else starving = c->starved;
-    }
-    if (c->primed)
-    {
-        uint32_t slot = ridx % cap, first;
-
-        n = frames < avail ? frames : avail;
-        first = cap - slot < n ? cap - slot : n;
-        memcpy(out, &r->data[(size_t)slot * DA_RING_CHANNELS], (size_t)first * DA_RING_CHANNELS * sizeof(float));
-        if (n > first)
-            memcpy(out + (size_t)first * DA_RING_CHANNELS, r->data, (size_t)(n - first) * DA_RING_CHANNELS * sizeof(float));
-        if (fade_in)
-            fade(out, n < DA_FADE_FRAMES ? n : DA_FADE_FRAMES, 1);
-        if (n < frames)
-        {
-            uint32_t tail = n < DA_FADE_FRAMES ? n : DA_FADE_FRAMES;
-
-            fade(out + (size_t)(n - tail) * DA_RING_CHANNELS, tail, 0);
-            c->primed = 0;
-            c->starved = 1;
-            short_read = 1;
-        }
-        __atomic_store_n(&r->ridx, ridx + n, __ATOMIC_RELEASE);
-    }
-    for (i = n * DA_RING_CHANNELS; i < frames * DA_RING_CHANNELS; i++) out[i] = 0.0f;
-    __atomic_store_n(&c->consuming, 0, __ATOMIC_RELEASE);
-
+    __atomic_store_n(&r->ridx, ridx + n, __ATOMIC_RELEASE);
     __atomic_add_fetch(&r->wake, 1, __ATOMIC_RELEASE);
     futex_wake_all(&r->wake);
+
+    /* Only the live, promoted stream owns the state below (same guard as the
+     * in-process build: an outgoing stream still gets a callback or two). */
+    if (aq != __atomic_load_n(&c->aq, __ATOMIC_SEQ_CST) && __atomic_load_n(&c->aq, __ATOMIC_SEQ_CST))
+        return AAUDIO_CALLBACK_RESULT_CONTINUE;
 
     now = now_ns();
     {
@@ -309,10 +263,9 @@ static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user,
      * earlier - so ask it to keep one more burst queued. Only grows; the AAudio
      * buffer below is where decay lives, and the ring stays a small fixed cost
      * on top of it. */
-    if (short_read)
-        __atomic_add_fetch(&r->underruns, 1, __ATOMIC_RELAXED);
-    if (short_read || starving)
+    if (n < (uint32_t)numFrames)
     {
+        __atomic_add_fetch(&r->underruns, 1, __ATOMIC_RELAXED);
         if (c->adaptive)
         {
             int32_t burst = AAudioStream_getFramesPerBurst(aq);
@@ -324,7 +277,7 @@ static aaudio_data_callback_result_t out_cb(AAudioStream *aq, void *user,
             {
                 __atomic_store_n(&r->target_frames, want, __ATOMIC_RELEASE);
                 RLOG("[%d] ring grow: target %d -> %d frames (short by %u)", c->pid, cur, want,
-                     frames - n);
+                     (uint32_t)numFrames - n);
             }
         }
     }
@@ -459,21 +412,16 @@ static aaudio_result_t open_output(struct client *c, AAudioStream **out)
                 want = (nb < 1 ? 1 : nb) * burst;
             }
         }
-        if (burst > 0 && want < DA_MIN_BUFFER_BURSTS * burst) want = DA_MIN_BUFFER_BURSTS * burst;
         if (want > capf) want = capf;
         if (want > 0) AAudioStream_setBufferSizeInFrames(aq, want);
 
+        /* The ring's initial target: DA_RING_TARGET_BURSTS bursts of the real
+         * burst size, ceiling DA_RING_MAX_TARGET_MS. Set on every (re)open so a
+         * recovered stream starts low again, like the buffer does. */
         if (burst <= 0) burst = 192;
         c->ring_max_target = DA_RING_MAX_TARGET_MS * DA_RING_RATE / 1000;
         if (c->ring_max_target > (int32_t)c->out->cap_frames) c->ring_max_target = c->out->cap_frames;
-        {
-            int32_t floor = DA_RING_TARGET_BURSTS * burst;
-
-            if (floor < DA_RING_MIN_TARGET_MS * DA_RING_RATE / 1000) floor = DA_RING_MIN_TARGET_MS * DA_RING_RATE / 1000;
-            if (floor > c->ring_max_target) floor = c->ring_max_target;
-            if (__atomic_load_n(&c->out->target_frames, __ATOMIC_ACQUIRE) < floor)
-                __atomic_store_n(&c->out->target_frames, floor, __ATOMIC_RELEASE);
-        }
+        __atomic_store_n(&c->out->target_frames, DA_RING_TARGET_BURSTS * burst, __ATOMIC_RELEASE);
         __atomic_store_n(&c->out->hw_burst, burst, __ATOMIC_RELAXED);
     }
     c->last_xrun = AAudioStream_getXRunCount(aq);
@@ -586,73 +534,180 @@ static void watchdog(struct client *c)
     request_reopen(c, "data callback stalled");
 }
 
-/* ---- INPUT stream (microphone) ------------------------------------------- */
-static void cap_request_reopen(struct client *c, const char *why);
+/* ---- the microphone: one INPUT stream, fanned out ---------------------------
+ *
+ * Android grants recording to the uid that holds RECORD_AUDIO, which is this
+ * process, so this is the one place a microphone can be opened for anyone
+ * downstream. There are two kinds of downstream: a GAME, under Proton, whose
+ * driver instance asked for a capture ring in its hello; and the STEAM CLIENT,
+ * a native program that never touches Wine and reads its microphone from
+ * PulseAudio - fed here through a FIFO that module-pipe-source turns into a
+ * PulseAudio source (--mic-fifo).
+ *
+ * Both want the same microphone, so there is one stream and every consumer gets
+ * a copy of every block: in-game voice and Steam voice chat are different
+ * features and only one of them transmits at a time, so hearing the same mic in
+ * both is the behaviour a user expects, not a conflict. The stream is opened
+ * (not started) on the first consumer that registers, made hot while at least
+ * one consumer WANTS it - a game between its first capture Start and its last
+ * capture voice going away, the FIFO while a reader is connected and draining -
+ * and stopped when none does, so the OS recording indicator tells the truth.
+ *
+ * Game rings carry float stereo at the rate the stream was granted (the driver
+ * resamples per voice, as its in-process build does). The FIFO carries a FIXED
+ * format, s16le / 48000 Hz / mono, resampled here when the grant differs: a
+ * pipe has no clock, so the rate PulseAudio is told has to be the rate the bytes
+ * really are, whatever the route (a Bluetooth headset mic is often 16 kHz). */
 
-/* The input callback: convert whatever AAudio granted (float or I16, mono or
- * stereo) to float stereo and queue it. The rate is left as granted; the
- * driver resamples per voice exactly as the in-process capture_fill_voice does. */
-static aaudio_data_callback_result_t in_cb(AAudioStream *aq, void *user,
-                                           void *audioData, int32_t numFrames)
+#define MIC_FIFO_RATE      48000
+#define MIC_FIFO_RING      (MIC_FIFO_RATE * 2)     /* 2 s of s16 mono */
+#define MIC_FIFO_CHUNK     480                     /* 10 ms per write */
+#define MIC_FIFO_IDLE_NS   2000000000ull           /* pipe full this long => nobody is reading */
+
+struct mic_fifo
 {
-    struct client *c = user;
-    struct da_ring *r = c->in;
-    uint32_t cap, widx, space, n, i;
+    char path[512];
+    int fd;                       /* -1 until a reader has the other end open */
+    int hot;                      /* counted in g_mic.want */
+    pthread_t th;
 
-    __atomic_add_fetch(&c->cap_cb_count, 1, __ATOMIC_RELAXED);
-    if (aq != __atomic_load_n(&c->cq, __ATOMIC_SEQ_CST) && __atomic_load_n(&c->cq, __ATOMIC_SEQ_CST))
-        return AAUDIO_CALLBACK_RESULT_CONTINUE;
-    if (!r) return AAUDIO_CALLBACK_RESULT_CONTINUE;
+    /* private SPSC ring, in_cb -> writer thread */
+    int16_t *buf;
+    volatile uint32_t widx, ridx, wake;
+    double rs_pos;                /* resampler read position within the current block */
+    float last_l, last_r;         /* the previous block's final frame, for interpolation */
+    uint32_t dropped;
+};
 
-    cap = r->cap_frames;
-    widx = __atomic_load_n(&r->widx, __ATOMIC_RELAXED);
-    space = cap - (widx - __atomic_load_n(&r->ridx, __ATOMIC_ACQUIRE));
-    n = (uint32_t)numFrames < space ? (uint32_t)numFrames : space;   /* overrun: drop the newest */
+static struct
+{
+    pthread_mutex_t lock;
+    AAudioStream *cq;
+    int32_t in_rate, in_channels;
+    aaudio_format_t in_format;
+    aaudio_performance_mode_t perf;
+    int opened;                   /* a stream exists (may be stopped) */
+    int started;                  /* requestStart issued on the current stream */
+    int want;                     /* consumers that want it hot */
+    int reopen_running, reopen_redo;
+    unsigned int cb_count;
+    struct mic_fifo *fifo;        /* NULL unless --mic-fifo */
+} g_mic = { .lock = PTHREAD_MUTEX_INITIALIZER };
+
+static void mic_request_reopen(const char *why);
+
+/* one granted input frame -> float L/R, whatever the granted format/channels */
+static inline void mic_frame(const void *buf, int32_t i, float *L, float *R)
+{
+    if (g_mic.in_format == AAUDIO_FORMAT_PCM_I16)
+    {
+        const int16_t *p = (const int16_t *)buf + (size_t)i * g_mic.in_channels;
+        *L = p[0] * (1.0f / 32768.0f);
+        *R = g_mic.in_channels > 1 ? p[1] * (1.0f / 32768.0f) : *L;
+    }
+    else
+    {
+        const float *p = (const float *)buf + (size_t)i * g_mic.in_channels;
+        *L = p[0];
+        *R = g_mic.in_channels > 1 ? p[1] : p[0];
+    }
+}
+
+/* a game's capture ring: float stereo at the granted rate, straight copy */
+static void mic_feed_ring(struct da_ring *r, const void *audioData, int32_t numFrames)
+{
+    uint32_t cap = r->cap_frames;
+    uint32_t widx = __atomic_load_n(&r->widx, __ATOMIC_RELAXED);
+    uint32_t space = cap - (widx - __atomic_load_n(&r->ridx, __ATOMIC_ACQUIRE));
+    uint32_t n = (uint32_t)numFrames < space ? (uint32_t)numFrames : space;   /* overrun: drop the newest */
+    uint32_t i;
 
     for (i = 0; i < n; i++)
     {
         uint32_t slot = (widx + i) % cap;
-        float L, R;
-
-        if (c->in_format == AAUDIO_FORMAT_PCM_I16)
-        {
-            const int16_t *p = (const int16_t *)audioData + (size_t)i * c->in_channels;
-            L = p[0] * (1.0f / 32768.0f);
-            R = c->in_channels > 1 ? p[1] * (1.0f / 32768.0f) : L;
-        }
-        else
-        {
-            const float *p = (const float *)audioData + (size_t)i * c->in_channels;
-            L = p[0];
-            R = c->in_channels > 1 ? p[1] : p[0];
-        }
-        r->data[(size_t)slot * 2] = L;
-        r->data[(size_t)slot * 2 + 1] = R;
+        mic_frame(audioData, (int32_t)i, &r->data[(size_t)slot * 2], &r->data[(size_t)slot * 2 + 1]);
     }
     __atomic_store_n(&r->widx, widx + n, __ATOMIC_RELEASE);
     __atomic_add_fetch(&r->wake, 1, __ATOMIC_RELEASE);
     futex_wake_all(&r->wake);
     if (n < (uint32_t)numFrames) __atomic_add_fetch(&r->underruns, 1, __ATOMIC_RELAXED);
-    __atomic_store_n(&r->cb_count, c->cap_cb_count, __ATOMIC_RELAXED);
+    __atomic_store_n(&r->cb_count, g_mic.cb_count, __ATOMIC_RELAXED);
+}
+
+/* the FIFO's ring: s16 mono at MIC_FIFO_RATE, linear resample from the granted
+ * rate with the read position carried across blocks */
+static void mic_feed_fifo(struct mic_fifo *f, const void *audioData, int32_t numFrames)
+{
+    double ratio = (double)g_mic.in_rate / MIC_FIFO_RATE;
+    uint32_t widx = __atomic_load_n(&f->widx, __ATOMIC_RELAXED);
+    uint32_t space = MIC_FIFO_RING - (widx - __atomic_load_n(&f->ridx, __ATOMIC_ACQUIRE));
+    uint32_t n = 0;
+
+    if (!f->hot) return;   /* nobody reading: do not fill the ring with stale audio */
+    while (f->rs_pos < numFrames && n < space)
+    {
+        int32_t i0 = (int32_t)f->rs_pos;
+        double frac = f->rs_pos - i0;
+        float l0, r0, l1, r1, m;
+
+        if (i0 < 0) { l0 = f->last_l; r0 = f->last_r; mic_frame(audioData, 0, &l1, &r1); }
+        else
+        {
+            mic_frame(audioData, i0, &l0, &r0);
+            if (i0 + 1 < numFrames) mic_frame(audioData, i0 + 1, &l1, &r1);
+            else { l1 = l0; r1 = r0; }
+        }
+        m = (float)(((l0 + r0) * 0.5) + (((l1 + r1) * 0.5) - ((l0 + r0) * 0.5)) * frac);
+        if (m > 1.0f) m = 1.0f; else if (m < -1.0f) m = -1.0f;
+        f->buf[(widx + n) % MIC_FIFO_RING] = (int16_t)(m * 32767.0f + (m >= 0 ? 0.5f : -0.5f));
+        n++;
+        f->rs_pos += ratio;
+    }
+    if (f->rs_pos < numFrames) f->dropped += (uint32_t)((numFrames - f->rs_pos) / ratio);
+    f->rs_pos -= numFrames;
+    if (f->rs_pos < -1.0) f->rs_pos = -1.0;
+    mic_frame(audioData, numFrames - 1, &f->last_l, &f->last_r);
+    __atomic_store_n(&f->widx, widx + n, __ATOMIC_RELEASE);
+    __atomic_add_fetch(&f->wake, 1, __ATOMIC_RELEASE);
+    futex_wake_all(&f->wake);
+}
+
+/* The input callback: one block, every consumer. The consumer list is the
+ * client list (those holding a capture ring) plus the FIFO. */
+static aaudio_data_callback_result_t in_cb(AAudioStream *aq, void *user,
+                                           void *audioData, int32_t numFrames)
+{
+    struct client *c;
+
+    (void)user;
+    if (aq != __atomic_load_n(&g_mic.cq, __ATOMIC_SEQ_CST) && __atomic_load_n(&g_mic.cq, __ATOMIC_SEQ_CST))
+        return AAUDIO_CALLBACK_RESULT_CONTINUE;
+    __atomic_add_fetch(&g_mic.cb_count, 1, __ATOMIC_RELAXED);
+
+    pthread_mutex_lock(&g_clients_lock);
+    for (c = g_clients; c; c = c->next)
+        if (!c->dead && c->in) mic_feed_ring(c->in, audioData, numFrames);
+    pthread_mutex_unlock(&g_clients_lock);
+
+    if (g_mic.fifo) mic_feed_fifo(g_mic.fifo, audioData, numFrames);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
 static void in_error_cb(AAudioStream *aq, void *user, aaudio_result_t error)
 {
-    struct client *c = user;
-
-    if (aq != __atomic_load_n(&c->cq, __ATOMIC_SEQ_CST)) return;
+    (void)user;
+    if (aq != __atomic_load_n(&g_mic.cq, __ATOMIC_SEQ_CST)) return;
     if (error != AAUDIO_ERROR_DISCONNECTED &&
         error != AAUDIO_ERROR_INVALID_STATE &&
         error != AAUDIO_ERROR_INVALID_HANDLE &&
         error != AAUDIO_ERROR_TIMEOUT)
         return;
-    cap_request_reopen(c, "capture stream error");
+    mic_request_reopen("capture stream error");
 }
 
 /* Port of capture_open_stream: open (NOT start) 48 kHz / float / stereo with
  * the VOICE_COMMUNICATION preset for platform AEC / noise suppression / AGC. */
-static aaudio_result_t open_input(struct client *c, AAudioStream **out)
+static aaudio_result_t open_input(AAudioStream **out)
 {
     AAudioStreamBuilder *builder = NULL;
     AAudioStream *aq = NULL;
@@ -663,75 +718,130 @@ static aaudio_result_t open_input(struct client *c, AAudioStream **out)
 
     AAudioStreamBuilder_setDirection(builder, AAUDIO_DIRECTION_INPUT);
     AAudioStreamBuilder_setSharingMode(builder, AAUDIO_SHARING_MODE_SHARED);
-    AAudioStreamBuilder_setPerformanceMode(builder, c->perf);
+    AAudioStreamBuilder_setPerformanceMode(builder, g_mic.perf);
     AAudioStreamBuilder_setInputPreset(builder, AAUDIO_INPUT_PRESET_VOICE_COMMUNICATION);
     AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_FLOAT);
     AAudioStreamBuilder_setChannelCount(builder, DA_RING_CHANNELS);
     AAudioStreamBuilder_setSampleRate(builder, DA_RING_RATE);
-    AAudioStreamBuilder_setDataCallback(builder, in_cb, c);
-    AAudioStreamBuilder_setErrorCallback(builder, in_error_cb, c);
+    AAudioStreamBuilder_setDataCallback(builder, in_cb, NULL);
+    AAudioStreamBuilder_setErrorCallback(builder, in_error_cb, NULL);
 
     r = AAudioStreamBuilder_openStream(builder, &aq);
     AAudioStreamBuilder_delete(builder);
     if (r != AAUDIO_OK || !aq) return r != AAUDIO_OK ? r : AAUDIO_ERROR_INTERNAL;
 
-    REVENT("[%d] capture open: req 48000/float/2ch preset=voicecomm perf=%d - got rate=%d ch=%d fmt=%d",
-           c->pid, c->perf, AAudioStream_getSampleRate(aq), AAudioStream_getChannelCount(aq),
+    REVENT("mic open: req 48000/float/2ch preset=voicecomm perf=%d - got rate=%d ch=%d fmt=%d",
+           g_mic.perf, AAudioStream_getSampleRate(aq), AAudioStream_getChannelCount(aq),
            AAudioStream_getFormat(aq));
     *out = aq;
     return AAUDIO_OK;
 }
 
-static void note_input_geometry(struct client *c, AAudioStream *aq)
+/* read back the granted geometry and publish it to every game ring: the rate
+ * is what the driver resamples from, and it can change across a reopen */
+static void note_input_geometry(AAudioStream *aq)
 {
-    c->in_rate = AAudioStream_getSampleRate(aq);
-    c->in_channels = AAudioStream_getChannelCount(aq);
-    c->in_format = AAudioStream_getFormat(aq);
-    if (c->in_rate <= 0) c->in_rate = DA_RING_RATE;
-    if (c->in_channels <= 0) c->in_channels = DA_RING_CHANNELS;
+    struct client *c;
+
+    g_mic.in_rate = AAudioStream_getSampleRate(aq);
+    g_mic.in_channels = AAudioStream_getChannelCount(aq);
+    g_mic.in_format = AAudioStream_getFormat(aq);
+    if (g_mic.in_rate <= 0) g_mic.in_rate = DA_RING_RATE;
+    if (g_mic.in_channels <= 0) g_mic.in_channels = DA_RING_CHANNELS;
+
+    pthread_mutex_lock(&g_clients_lock);
+    for (c = g_clients; c; c = c->next)
+        if (c->in) __atomic_store_n(&c->in->rate, (uint32_t)g_mic.in_rate, __ATOMIC_RELEASE);
+    pthread_mutex_unlock(&g_clients_lock);
 }
 
-static void *cap_reopen_thread(void *user)
+/* Open the shared input on the first consumer (lazy, and NOT started). Called
+ * with g_mic.lock held. A mic that will not open (the uid lacks RECORD_AUDIO)
+ * is the caller's problem to report. */
+static aaudio_result_t mic_ensure_open_locked(aaudio_performance_mode_t perf)
 {
-    struct client *c = user;
+    aaudio_result_t r;
 
+    if (g_mic.opened) return AAUDIO_OK;
+    g_mic.perf = perf;
+    r = open_input(&g_mic.cq);
+    if (r != AAUDIO_OK) return r;
+    note_input_geometry(g_mic.cq);
+    g_mic.opened = 1;
+    return AAUDIO_OK;
+}
+
+/* A consumer's wish changes: +1 wants it hot, -1 no longer does. The stream
+ * starts on 0 -> 1 and stops on 1 -> 0. requestStart/Stop run outside the lock
+ * (they can wait on the callback). */
+static void mic_want(int delta, const char *who)
+{
+    AAudioStream *aq = NULL;
+    int start = 0, stop = 0;
+
+    pthread_mutex_lock(&g_mic.lock);
+    g_mic.want += delta;
+    if (g_mic.want < 0) g_mic.want = 0;
+    if (g_mic.cq)
+    {
+        if (g_mic.want > 0 && !g_mic.started) { g_mic.started = 1; start = 1; aq = g_mic.cq; }
+        if (g_mic.want == 0 && g_mic.started) { g_mic.started = 0; stop = 1; aq = g_mic.cq; }
+    }
+    pthread_mutex_unlock(&g_mic.lock);
+
+    if (start)
+    {
+        if (AAudioStream_requestStart(aq) != AAUDIO_OK)
+        {
+            REVENT("mic requestStart failed (%s)", who);
+            pthread_mutex_lock(&g_mic.lock);
+            g_mic.started = 0;
+            pthread_mutex_unlock(&g_mic.lock);
+        }
+        else REVENT("mic start (%s wants it, %d consumer(s))", who, g_mic.want);
+    }
+    else if (stop)
+    {
+        AAudioStream_requestStop(aq);
+        REVENT("mic stop (%s was the last consumer)", who);
+    }
+}
+
+static void *mic_reopen_thread(void *unused)
+{
+    (void)unused;
     for (;;)
     {
         AAudioStream *old = NULL, *neu = NULL;
         int expected = 0, want_start;
 
-        __atomic_store_n(&c->cap_reopen_redo, 0, __ATOMIC_SEQ_CST);
-        if (c->dead) break;
+        __atomic_store_n(&g_mic.reopen_redo, 0, __ATOMIC_SEQ_CST);
 
-        pthread_mutex_lock(&c->lock);
-        want_start = c->mic_started;
-        pthread_mutex_unlock(&c->lock);
+        pthread_mutex_lock(&g_mic.lock);
+        want_start = g_mic.want > 0;
+        pthread_mutex_unlock(&g_mic.lock);
 
-        if (open_input(c, &neu) == AAUDIO_OK)
+        if (open_input(&neu) == AAUDIO_OK)
         {
-            pthread_mutex_lock(&c->lock);
-            old = c->cq;
-            note_input_geometry(c, neu);
-            /* The ring's rate is what the driver resamples from. A reopen on a
-             * different route can change it (a BT headset mic at 16 kHz); the
-             * driver re-reads the header per block, so publish before promoting. */
-            if (c->in) __atomic_store_n(&c->in->rate, (uint32_t)c->in_rate, __ATOMIC_RELEASE);
-            __atomic_store_n(&c->cq, neu, __ATOMIC_SEQ_CST);
-            c->mic_started = 0;
-            pthread_mutex_unlock(&c->lock);
+            pthread_mutex_lock(&g_mic.lock);
+            old = g_mic.cq;
+            note_input_geometry(neu);
+            __atomic_store_n(&g_mic.cq, neu, __ATOMIC_SEQ_CST);
+            g_mic.started = 0;
+            pthread_mutex_unlock(&g_mic.lock);
 
             if (want_start)
             {
                 if (AAudioStream_requestStart(neu) == AAUDIO_OK)
                 {
-                    pthread_mutex_lock(&c->lock);
-                    c->mic_started = 1;
-                    pthread_mutex_unlock(&c->lock);
+                    pthread_mutex_lock(&g_mic.lock);
+                    g_mic.started = 1;
+                    pthread_mutex_unlock(&g_mic.lock);
                 }
-                else REVENT("[%d] capture reopen: requestStart failed", c->pid);
+                else REVENT("mic reopen: requestStart failed");
             }
         }
-        else REVENT("[%d] capture reopen failed; keeping old stream", c->pid);
+        else REVENT("mic reopen failed; keeping old stream");
 
         if (old)
         {
@@ -739,61 +849,247 @@ static void *cap_reopen_thread(void *user)
             AAudioStream_close(old);
         }
 
-        if (__atomic_load_n(&c->cap_reopen_redo, __ATOMIC_SEQ_CST)) { usleep(20000); continue; }
-        __atomic_store_n(&c->cap_reopen_running, 0, __ATOMIC_SEQ_CST);
-        if (!__atomic_load_n(&c->cap_reopen_redo, __ATOMIC_SEQ_CST)) break;
-        if (!__atomic_compare_exchange_n(&c->cap_reopen_running, &expected, 1, 0,
+        if (__atomic_load_n(&g_mic.reopen_redo, __ATOMIC_SEQ_CST)) { usleep(20000); continue; }
+        __atomic_store_n(&g_mic.reopen_running, 0, __ATOMIC_SEQ_CST);
+        if (!__atomic_load_n(&g_mic.reopen_redo, __ATOMIC_SEQ_CST)) break;
+        if (!__atomic_compare_exchange_n(&g_mic.reopen_running, &expected, 1, 0,
                                          __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
             break;
     }
     return NULL;
 }
 
-static void cap_request_reopen(struct client *c, const char *why)
+static void mic_request_reopen(const char *why)
 {
     int expected = 0;
 
-    __atomic_store_n(&c->cap_reopen_redo, 1, __ATOMIC_SEQ_CST);
-    if (__atomic_compare_exchange_n(&c->cap_reopen_running, &expected, 1, 0,
+    __atomic_store_n(&g_mic.reopen_redo, 1, __ATOMIC_SEQ_CST);
+    if (__atomic_compare_exchange_n(&g_mic.reopen_running, &expected, 1, 0,
                                     __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
     {
         pthread_t th;
-        REVENT("[%d] capture reopen: %s", c->pid, why);
-        if (pthread_create(&th, NULL, cap_reopen_thread, c))
-            __atomic_store_n(&c->cap_reopen_running, 0, __ATOMIC_SEQ_CST);
+        REVENT("mic reopen: %s", why);
+        if (pthread_create(&th, NULL, mic_reopen_thread, NULL))
+            __atomic_store_n(&g_mic.reopen_running, 0, __ATOMIC_SEQ_CST);
         else
             pthread_detach(th);
     }
 }
 
+/* a game asked for the mic in its hello: open the shared input, give it a ring */
+static int mic_attach_client(struct client *c)
+{
+    aaudio_result_t r;
+
+    pthread_mutex_lock(&g_mic.lock);
+    r = mic_ensure_open_locked(c->perf);
+    pthread_mutex_unlock(&g_mic.lock);
+    if (r != AAUDIO_OK)
+    {
+        REVENT("[%d] mic open failed: %d - mic unavailable", c->pid, r);
+        return -1;
+    }
+    if (ring_create((uint32_t)((int64_t)DA_CAPTURE_RING_MS * g_mic.in_rate / 1000),
+                    (uint32_t)g_mic.in_rate, &c->in, &c->in_fd) != 0)
+        return -1;
+    __atomic_store_n(&c->in->state, DA_RING_PLAYING, __ATOMIC_RELEASE);
+    return 0;
+}
+
+/* the game's first capture Start / last capture voice gone */
 static void mic_start(struct client *c)
 {
-    AAudioStream *aq = NULL;
+    int go = 0;
 
     pthread_mutex_lock(&c->lock);
-    if (c->cq && !c->mic_started) { c->mic_started = 1; aq = c->cq; }
+    if (c->in && !c->mic_hot) { c->mic_hot = 1; go = 1; }
     pthread_mutex_unlock(&c->lock);
-    if (!aq) return;
-    if (AAudioStream_requestStart(aq) != AAUDIO_OK)
-    {
-        REVENT("[%d] capture requestStart failed", c->pid);
-        pthread_mutex_lock(&c->lock);
-        c->mic_started = 0;
-        pthread_mutex_unlock(&c->lock);
-    }
-    else REVENT("[%d] capture start", c->pid);
+    if (go) mic_want(+1, c->name);
 }
 
 static void mic_stop(struct client *c)
 {
-    AAudioStream *aq = NULL;
+    int go = 0;
 
     pthread_mutex_lock(&c->lock);
-    if (c->cq && c->mic_started) { c->mic_started = 0; aq = c->cq; }
+    if (c->mic_hot) { c->mic_hot = 0; go = 1; }
     pthread_mutex_unlock(&c->lock);
-    if (!aq) return;
-    AAudioStream_requestStop(aq);
-    REVENT("[%d] capture stop: no voices", c->pid);
+    if (go) mic_want(-1, c->name);
+}
+
+/* ---- the FIFO consumer (Steam client via PulseAudio module-pipe-source) ----
+ *
+ * The writer thread owns the pipe. A FIFO can only be opened for writing while
+ * something holds it for reading, so O_WRONLY|O_NONBLOCK doubles as the "is
+ * PulseAudio there?" probe: ENXIO means not yet, retry in half a second. While
+ * connected, a write that keeps failing with EAGAIN means the pipe is full and
+ * nobody is draining it - PulseAudio has suspended the source because no client
+ * is recording - so after MIC_FIFO_IDLE_NS the mic is released and short probe
+ * writes of silence are tried instead until one goes through, which is the
+ * source waking up. EPIPE means the reader closed: back to probing. */
+static void fifo_set_hot(struct mic_fifo *f, int hot)
+{
+    if (f->hot == hot) return;
+    f->hot = hot;
+    if (hot)
+    {
+        /* start clean: whatever queued while idle is stale */
+        __atomic_store_n(&f->ridx, __atomic_load_n(&f->widx, __ATOMIC_ACQUIRE), __ATOMIC_RELEASE);
+        f->rs_pos = 0.0;
+    }
+    mic_want(hot ? +1 : -1, "mic-fifo");
+}
+
+static void *fifo_thread(void *user)
+{
+    struct mic_fifo *f = user;
+    int16_t chunk[MIC_FIFO_CHUNK];
+    uint64_t eagain_since = 0;
+    int idle = 0;
+
+    for (;;)
+    {
+        if (f->fd < 0)
+        {
+            int fd = open(f->path, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
+            if (fd < 0)
+            {
+                struct timespec ts = { 0, 500 * 1000 * 1000 };
+                if (errno != ENXIO && errno != ENOENT)
+                    RLOG("mic-fifo: open %s: %d", f->path, errno);
+                nanosleep(&ts, NULL);
+                continue;
+            }
+            f->fd = fd;
+            eagain_since = 0;
+            idle = 0;
+            REVENT("mic-fifo: reader connected on %s (s16le %d Hz mono)", f->path, MIC_FIFO_RATE);
+            fifo_set_hot(f, 1);
+        }
+
+        if (idle)
+        {
+            /* the source is suspended: probe with 10 ms of silence every 250 ms */
+            struct timespec ts = { 0, 250 * 1000 * 1000 };
+            ssize_t w;
+
+            memset(chunk, 0, sizeof(chunk));
+            w = write(f->fd, chunk, sizeof(chunk));
+            if (w > 0)
+            {
+                REVENT("mic-fifo: reader draining again - mic back on");
+                idle = 0;
+                eagain_since = 0;
+                fifo_set_hot(f, 1);
+                continue;
+            }
+            if (w < 0 && errno != EAGAIN && errno != EINTR)
+            {
+                REVENT("mic-fifo: reader gone (%d) - waiting for the next one", errno);
+                close(f->fd); f->fd = -1;
+                idle = 0;
+                fifo_set_hot(f, 0);
+                continue;
+            }
+            nanosleep(&ts, NULL);
+            continue;
+        }
+
+        {
+            uint32_t seen = __atomic_load_n(&f->wake, __ATOMIC_ACQUIRE);
+            uint32_t ridx = __atomic_load_n(&f->ridx, __ATOMIC_RELAXED);
+            uint32_t avail = __atomic_load_n(&f->widx, __ATOMIC_ACQUIRE) - ridx;
+            int broke = 0;
+
+            while (avail >= MIC_FIFO_CHUNK && !broke)
+            {
+                ssize_t w;
+                uint32_t i;
+
+                for (i = 0; i < MIC_FIFO_CHUNK; i++) chunk[i] = f->buf[(ridx + i) % MIC_FIFO_RING];
+                w = write(f->fd, chunk, sizeof(chunk));
+                if (w == (ssize_t)sizeof(chunk))
+                {
+                    ridx += MIC_FIFO_CHUNK;
+                    __atomic_store_n(&f->ridx, ridx, __ATOMIC_RELEASE);
+                    avail -= MIC_FIFO_CHUNK;
+                    eagain_since = 0;
+                }
+                else if (w < 0 && errno == EAGAIN)
+                {
+                    uint64_t now = now_ns();
+                    if (!eagain_since) eagain_since = now;
+                    else if (now - eagain_since > MIC_FIFO_IDLE_NS)
+                    {
+                        REVENT("mic-fifo: reader not draining - releasing the mic until it does");
+                        idle = 1;
+                        fifo_set_hot(f, 0);
+                    }
+                    break;   /* pipe full: wait for room */
+                }
+                else if (w < 0 && errno == EINTR) continue;
+                else
+                {
+                    /* EPIPE (reader closed) or a short write we do not expect */
+                    REVENT("mic-fifo: write failed (%d) - reader gone", w < 0 ? errno : 0);
+                    close(f->fd); f->fd = -1;
+                    fifo_set_hot(f, 0);
+                    broke = 1;
+                }
+            }
+            if (f->fd >= 0 && !idle)
+            {
+                struct timespec ts = { 0, 20 * 1000 * 1000 };
+                syscall(SYS_futex, &f->wake, FUTEX_WAIT, seen, &ts, NULL, 0);
+            }
+        }
+    }
+    return NULL;
+}
+
+/* --mic-fifo <path>: open the shared input so the geometry is known and start
+ * the writer. The pipe itself belongs to the READER: PulseAudio's
+ * module-pipe-source creates it at load and refuses to load (EEXIST) if it is
+ * already there, so the helper never creates it - device-proven 2026-09-20,
+ * where a helper-made pipe won the race and the module failed. The writer just
+ * waits for the path to appear (ENOENT retries like ENXIO). A host that runs
+ * the helper with some other reader makes the pipe itself with mkfifo. The mic
+ * is NOT made hot here; that happens when a reader shows up. */
+static int fifo_setup(const char *path)
+{
+    struct mic_fifo *f = calloc(1, sizeof(*f));
+    struct stat st;
+    aaudio_result_t r;
+
+    if (!f) return -1;
+    snprintf(f->path, sizeof(f->path), "%s", path);
+    f->fd = -1;
+    f->buf = calloc(MIC_FIFO_RING, sizeof(int16_t));
+    if (!f->buf) { free(f); return -1; }
+
+    if (stat(path, &st) == 0 && !S_ISFIFO(st.st_mode))
+    {
+        REVENT("mic-fifo: %s exists and is not a FIFO", path);
+        free(f->buf); free(f);
+        return -1;
+    }
+
+    pthread_mutex_lock(&g_mic.lock);
+    r = mic_ensure_open_locked(AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+    g_mic.fifo = f;
+    pthread_mutex_unlock(&g_mic.lock);
+    if (r != AAUDIO_OK)
+    {
+        /* Not fatal: games may still get their rings later if the mic frees up
+         * (a reopen after a permission grant is not automatic, though). */
+        REVENT("mic-fifo: mic would not open (%d) - is RECORD_AUDIO granted to this uid?", r);
+    }
+    if (pthread_create(&f->th, NULL, fifo_thread, f) != 0) { REVENT("mic-fifo: thread failed"); return -1; }
+    pthread_detach(f->th);
+    REVENT("mic-fifo: will write s16le %d Hz mono to %s once a reader creates and opens it "
+           "(module-pipe-source file=%s format=s16le rate=%d channels=1)",
+           MIC_FIFO_RATE, path, path, MIC_FIFO_RATE);
+    return 0;
 }
 
 /* ---- client lifecycle ---------------------------------------------------- */
@@ -838,9 +1134,11 @@ static int send_ack(int sock, const struct da_ack *ack, const int *fds, int nfds
 
 static void client_teardown(struct client *c)
 {
-    AAudioStream *aq, *cq;
+    AAudioStream *aq;
 
     c->dead = 1;
+    /* Unlink first, under the lock the input callback fans out under: once this
+     * returns no callback can touch c->in, so the ring below can go. */
     pthread_mutex_lock(&g_clients_lock);
     {
         struct client **pp = &g_clients;
@@ -849,17 +1147,17 @@ static void client_teardown(struct client *c)
     }
     pthread_mutex_unlock(&g_clients_lock);
 
+    /* A game that died with the mic hot releases its share of it. */
+    mic_stop(c);
+
     /* Let any in-flight reopen worker finish with the stream it is holding. */
-    while (__atomic_load_n(&c->reopen_running, __ATOMIC_SEQ_CST) ||
-           __atomic_load_n(&c->cap_reopen_running, __ATOMIC_SEQ_CST))
+    while (__atomic_load_n(&c->reopen_running, __ATOMIC_SEQ_CST))
         usleep(10000);
 
     pthread_mutex_lock(&c->lock);
     aq = c->aq; c->aq = NULL;
-    cq = c->cq; c->cq = NULL;
     pthread_mutex_unlock(&c->lock);
     if (aq) { AAudioStream_requestStop(aq); AAudioStream_close(aq); }
-    if (cq) { AAudioStream_requestStop(cq); AAudioStream_close(cq); }
 
     REVENT("[%d] gone (%s): cb=%u ring underruns=%u", c->pid, c->name, c->cb_count,
            c->out ? c->out->underruns : 0u);
@@ -956,28 +1254,13 @@ static void *client_thread(void *user)
      * gets its output and the driver invalidates its capture endpoint. */
     if (c->mic)
     {
-        r = open_input(c, &c->cq);
-        if (r != AAUDIO_OK)
-        {
-            REVENT("[%d] capture open failed: %d - mic unavailable", c->pid, r);
+        if (mic_attach_client(c) != 0)
             ack.flags |= DA_ACK_MIC_FAILED;
-        }
         else
         {
-            note_input_geometry(c, c->cq);
-            if (ring_create((uint32_t)((int64_t)DA_CAPTURE_RING_MS * c->in_rate / 1000),
-                            (uint32_t)c->in_rate, &c->in, &c->in_fd) != 0)
-            {
-                AAudioStream_close(c->cq); c->cq = NULL;
-                ack.flags |= DA_ACK_MIC_FAILED;
-            }
-            else
-            {
-                ack.in_cap_frames = (int32_t)c->in->cap_frames;
-                ack.in_rate = c->in_rate;
-                __atomic_store_n(&c->in->state, DA_RING_PLAYING, __ATOMIC_RELEASE);
-                fds[nfds++] = c->in_fd;
-            }
+            ack.in_cap_frames = (int32_t)c->in->cap_frames;
+            ack.in_rate = g_mic.in_rate;
+            fds[nfds++] = c->in_fd;
         }
     }
 
@@ -1057,7 +1340,7 @@ static void on_term(int sig) { (void)sig; g_stop = 1; }
 
 int main(int argc, char **argv)
 {
-    const char *path = NULL;
+    const char *path = NULL, *fifo_path = NULL;
     struct sockaddr_un addr;
     pthread_t th;
     int srv, i;
@@ -1065,8 +1348,9 @@ int main(int argc, char **argv)
     for (i = 1; i < argc; i++)
     {
         if (!strcmp(argv[i], "--socket") && i + 1 < argc) path = argv[++i];
+        else if (!strcmp(argv[i], "--mic-fifo") && i + 1 < argc) fifo_path = argv[++i];
         else if (!strcmp(argv[i], "--log")) g_verbose = 1;
-        else { fprintf(stderr, "usage: directaudio-relay --socket <path> [--log]\n"); return 2; }
+        else { fprintf(stderr, "usage: directaudio-relay --socket <path> [--mic-fifo <path>] [--log]\n"); return 2; }
     }
     if (!path)
     {
@@ -1093,6 +1377,8 @@ int main(int argc, char **argv)
     if (listen(srv, 8) != 0) { REVENT("listen: %d", errno); return 1; }
 
     if (pthread_create(&th, NULL, housekeeping_thread, NULL) == 0) pthread_detach(th);
+    if (fifo_path && fifo_setup(fifo_path) != 0)
+        REVENT("mic-fifo: disabled");
     REVENT("listening on %s (protocol v%d, pid %d)", path, DA_RELAY_VERSION, (int)getpid());
 
     while (!g_stop)
