@@ -776,11 +776,11 @@ object SessionPrefs {
     }
 
     fun suspendPolicy(context: Context, mode: String): String =
-        prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
+        (prefs(context).getString("suspendPolicy.${prefMode(mode)}", null)
             ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
+            ?: if (mode == SessionService.MODE_STEAM) SUSPEND_AUTO else SUSPEND_MANUAL)
             // Direct games share Steam's settings but have no Steam client to prepare.
-            ?.let { if (it == SUSPEND_NATIVE && mode != SessionService.MODE_STEAM) SUSPEND_AUTO else it }
-            ?: SUSPEND_MANUAL
+            .let { if (it == SUSPEND_NATIVE && mode != SessionService.MODE_STEAM) SUSPEND_AUTO else it }
 
     fun setSuspendPolicy(context: Context, mode: String, policy: String) {
         val normalized = policy.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_MANUAL, SUSPEND_NEVER) ||
