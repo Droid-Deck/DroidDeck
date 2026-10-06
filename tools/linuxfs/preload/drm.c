@@ -186,14 +186,22 @@ int drmCloseBufferHandle(int fd, uint32_t handle) {
  * description release the token or making a new buffer immediately inherit a retired token.
  */
 int drmIoctl(int fd, unsigned long request, void *arg) {
-  if (request == GEM_CLOSE && arg && is_kgsl(fd)) {
+  /*
+   * A/B test for the judder seen since #275: keep the symbol interposed but leave GEM_CLOSE to KGSL
+   * (which refuses it, as before #275). Smooth here means the release itself is the cause; judder
+   * here means interposing drmIoctl is.
+   */
+  if (0 && request == GEM_CLOSE && arg && is_kgsl(fd)) {
     if (release_handle(fd, ((struct gem_close *) arg)->handle)) {
       return 0;
     }
     errno = EINVAL;
     return -1;
   }
-  int (*fn)(int, unsigned long, void *) = (int (*)(int, unsigned long, void *)) real("drmIoctl");
+  static int (*fn)(int, unsigned long, void *);
+  if (!fn) {
+    fn = (int (*)(int, unsigned long, void *)) real("drmIoctl");
+  }
   if (!fn) {
     return -1;
   }
