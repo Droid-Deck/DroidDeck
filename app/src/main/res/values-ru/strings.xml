@@ -958,4 +958,6 @@
     <string name="game_file_folder">Выбрать папку для файлов игры фронтенда</string>
     <string name="game_file_exported">Файлы игры сохранены в %1$s</string>
     <string name="game_frontend_files">Файлы фронтенда</string>
+    <string name="fm_up_one_level">На уровень вверх</string>
+    <string name="fm_drive_linux">Система Linux</string>
 </resources>

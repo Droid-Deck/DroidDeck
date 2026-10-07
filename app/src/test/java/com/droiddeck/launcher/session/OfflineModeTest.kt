@@ -11,7 +11,7 @@ class OfflineModeTest {
     private val PERSONA = Regex(""""PersonaName"\s*"([^"]*)"""")
     private fun old(text: String): String? {
         if (!REMEMBER.containsMatchIn(text)) return null
-        return PERSONA.find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() } ?: "signed in"
+        return PERSONA.find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }.orEmpty()
     }
 
     private val one = SteamAccountsTest.FIXTURES.getValue("one.vdf")
@@ -31,7 +31,7 @@ class OfflineModeTest {
         for (text in cases) assertEquals(text, old(text), SteamAccounts.activeLabel(text))
         assertEquals("Alpha Persona", SteamAccounts.activeLabel(one))
         assertNull(SteamAccounts.activeLabel(cases[1]))
-        assertEquals("signed in", SteamAccounts.activeLabel(cases[2]))
+        assertEquals("", SteamAccounts.activeLabel(cases[2]))
     }
 
     @Test fun twoAccountsNameTheMostRecentOne() {

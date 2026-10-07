@@ -28,7 +28,7 @@ object OfflineMode {
 
     private fun loginUsers(root: File) = File(root, "root/.local/share/Steam/config/loginusers.vdf")
 
-    /** Whether the client has an account it could sign in as offline. */
+    /** The account the client could sign in as offline: its name, "" when it recorded none, null when there is none. */
     fun account(context: Context): String? {
         val file = loginUsers(LinuxRuntime.rootDir(context))
         val text = try {

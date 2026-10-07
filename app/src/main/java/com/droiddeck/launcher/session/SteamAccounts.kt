@@ -74,7 +74,7 @@ object SteamAccounts {
         if (!REMEMBER.containsMatchIn(text)) return null
         val recent = BLOCK.findAll(text).firstOrNull { RECENT.containsMatchIn(it.groupValues[2]) }
         recent?.let { PERSONA.find(it.groupValues[2])?.groupValues?.get(1) }?.takeIf { it.isNotBlank() }?.let { return it }
-        return PERSONA.find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() } ?: "signed in"
+        return PERSONA.find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }.orEmpty()
     }
 
     /** The account a menu shows: its persona, with the account name too when two personas match. */

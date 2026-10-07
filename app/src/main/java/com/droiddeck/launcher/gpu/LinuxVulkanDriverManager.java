@@ -4,6 +4,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
 
+import com.droiddeck.launcher.R;
 import com.droiddeck.launcher.core.FileUtils;
 
 import org.json.JSONObject;
@@ -181,20 +182,17 @@ public class LinuxVulkanDriverManager {
     String adopt(File tmpDir, String soName, JSONObject zipMeta, String displayName) throws IOException {
         try {
             if (soName == null) {
-                throw new IllegalArgumentException("No libvulkan_freedreno*.so in this zip. An Android "
-                        + "(AdrenoTools) or -Wayland Turnip zip is not a Linux runtime driver.");
+                throw new IllegalArgumentException(context.getString(R.string.lvd_no_library));
             }
             File so = new File(tmpDir, LIB_NAME);
             if (!isAarch64Elf(so)) {
-                throw new IllegalArgumentException(soName + " is not a 64-bit AArch64 ELF shared library.");
+                throw new IllegalArgumentException(context.getString(R.string.lvd_not_aarch64, soName));
             }
             // The one check that actually separates this from the bionic builds. Both sonames
             // are in the driver's .dynstr, so a byte scan is enough and needs no ELF parsing:
             // glibc's is versioned ("libc.so.6"), bionic's is not ("libc.so").
             if (!containsAscii(so, "libc.so.6")) {
-                throw new IllegalArgumentException(soName + " is not a glibc driver - it links Android's libc. "
-                        + "The Linux runtime needs a \"-Linux\" zip; a plain or \"-Wayland\" Turnip cannot be "
-                        + "loaded by the Steam client at all.");
+                throw new IllegalArgumentException(context.getString(R.string.lvd_not_glibc, soName));
             }
             String kind = zipMeta != null ? zipMeta.optString("kind", "") : "";
             if (!kind.isEmpty() && !"linux-vulkan-icd".equals(kind)) {

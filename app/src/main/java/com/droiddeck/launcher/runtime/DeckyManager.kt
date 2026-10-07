@@ -3,6 +3,7 @@ package com.droiddeck.launcher.runtime
 import com.droiddeck.launcher.core.Hashes
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.core.ArchivePaths
@@ -24,13 +25,17 @@ object DeckyManager {
     private const val VERSION = "root/homebrew/services/.droiddeck-decky-version"
     private const val CEF_REMOTE_DEBUG_MARKER = "root/.local/share/Steam/.cef-enable-remote-debugging"
 
+    /** True while a plugin's remote binary downloads: what the UI branches on, not the stage's words. */
+    @Volatile var downloadingBinary = false
+        private set
+
     data class Release(val tag: String, val prerelease: Boolean, val asset: String, val url: String, val digest: String?, val shaUrl: String?, val size: Long, val machine: Int)
     data class ReleaseChannels(val stable: List<Release>, val prerelease: List<Release>)
 
     fun installed(context: Context): String? {
         val loader = loader(context)
         if (!loader.isFile || !loader.canExecute()) return null
-        return File(LinuxRuntime.rootDir(context), VERSION).takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() } ?: "Installed"
+        return File(LinuxRuntime.rootDir(context), VERSION).takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() } ?: context.getString(R.string.setup_installed)
     }
 
     fun loader(context: Context) = File(LinuxRuntime.rootDir(context), PATH)
@@ -102,39 +107,40 @@ object DeckyManager {
 
     /** Downloads to a sibling temp file and atomically renames only after size, digest and ELF checks. */
     fun install(context: Context, release: Release, progress: (String, Int) -> Unit): String? {
-        if (SessionState.running) return "Stop the active session before installing Decky Loader"
+        if (SessionState.running) return context.getString(R.string.deckymgr_stop_session_loader)
         val target = loader(context)
         target.parentFile?.mkdirs()
         val temp = File(target.parentFile, "PluginLoader.download")
-        val ok = Downloader.downloadFile(release.url, temp, false) { f -> progress("Downloading ${release.tag}", if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }
-        if (!ok) { temp.delete(); return "Decky Loader download failed" }
-        if (temp.length() != release.size) { temp.delete(); return "Decky Loader size did not match the release metadata" }
+        val downloading = context.getString(R.string.user_apps_downloading, release.tag)
+        val ok = Downloader.downloadFile(release.url, temp, false) { f -> progress(downloading, if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }
+        if (!ok) { temp.delete(); return context.getString(R.string.deckymgr_download_failed) }
+        if (temp.length() != release.size) { temp.delete(); return context.getString(R.string.deckymgr_size_mismatch) }
         val expected = release.digest?.substringAfter(':') ?: release.shaUrl?.let { checksumUrl ->
-            val checksumBody = Downloader.downloadString(checksumUrl) ?: run { temp.delete(); return "Could not download the release checksum" }
+            val checksumBody = Downloader.downloadString(checksumUrl) ?: run { temp.delete(); return context.getString(R.string.deckymgr_checksum_download_failed) }
             Regex("(?i)\\b[0-9a-f]{64}\\b").find(checksumBody)?.value
-        } ?: run { temp.delete(); return "Release checksum is missing" }
-        if (!expected.matches(Regex("(?i)[0-9a-f]{64}"))) { temp.delete(); return "Release checksum is invalid" }
-        if (!expected.equals(Hashes.sha256(temp), true)) { temp.delete(); return "Decky Loader checksum mismatch" }
-        if (!validElf(temp, release.machine)) { temp.delete(); return "Release asset is not a compatible 64-bit Linux executable" }
-        if (SessionState.running) { temp.delete(); return "A session started during the download; stop it before installing Decky Loader" }
-        if (!temp.setExecutable(true, false)) { temp.delete(); return "Could not mark PluginLoader executable" }
+        } ?: run { temp.delete(); return context.getString(R.string.deckymgr_checksum_missing) }
+        if (!expected.matches(Regex("(?i)[0-9a-f]{64}"))) { temp.delete(); return context.getString(R.string.deckymgr_checksum_invalid) }
+        if (!expected.equals(Hashes.sha256(temp), true)) { temp.delete(); return context.getString(R.string.deckymgr_checksum_mismatch) }
+        if (!validElf(temp, release.machine)) { temp.delete(); return context.getString(R.string.deckymgr_not_elf) }
+        if (SessionState.running) { temp.delete(); return context.getString(R.string.deckymgr_session_started_loader) }
+        if (!temp.setExecutable(true, false)) { temp.delete(); return context.getString(R.string.deckymgr_loader_not_executable) }
         // Decky needs Steam's local CEF debugger only when its session supervisor is enabled.
         val cefMarker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
         val cefReady = !supervisorEnabled(context) || cefMarker.isFile || runCatching {
             cefMarker.parentFile?.mkdirs()
             cefMarker.createNewFile() || cefMarker.isFile
         }.getOrDefault(false)
-        if (!cefReady) { temp.delete(); return "Could not enable Steam CEF remote debugging" }
+        if (!cefReady) { temp.delete(); return context.getString(R.string.deckymgr_cef_failed) }
         val staged = File(target.parentFile, "PluginLoader.new")
         staged.delete()
-        if (!temp.renameTo(staged)) { temp.delete(); return "Could not stage PluginLoader" }
+        if (!temp.renameTo(staged)) { temp.delete(); return context.getString(R.string.deckymgr_stage_failed) }
         val old = File(target.parentFile, "PluginLoader.old")
         old.delete()
-        if (target.exists() && !target.renameTo(old)) { staged.delete(); return "Could not preserve the existing PluginLoader" }
+        if (target.exists() && !target.renameTo(old)) { staged.delete(); return context.getString(R.string.deckymgr_loader_preserve_failed) }
         if (!staged.renameTo(target)) {
             if (old.exists()) old.renameTo(target)
             staged.delete()
-            return "Could not activate the new PluginLoader"
+            return context.getString(R.string.deckymgr_loader_activate_failed)
         }
         old.delete()
         File(target.parentFile, ".droiddeck-decky-version").writeText(release.tag + "\n")
@@ -145,43 +151,44 @@ object DeckyManager {
 
     /** Imports a Decky distribution ZIP into homebrew/plugins for the next Steam session. */
     fun installPluginZip(context: Context, archive: File, progress: (String, Int) -> Unit): String? {
-        if (SessionState.running) return "Stop the active session before installing a plugin"
-        if (installed(context) == null) return "Install Decky Loader before importing a plugin"
-        if (!archive.isFile || !archive.canRead()) return "Could not read the selected ZIP file"
+        if (SessionState.running) return context.getString(R.string.deckymgr_stop_session_plugin)
+        if (installed(context) == null) return context.getString(R.string.deckymgr_loader_required)
+        if (!archive.isFile || !archive.canRead()) return context.getString(R.string.deckymgr_zip_unreadable)
 
         val plugins = File(LinuxRuntime.rootDir(context), "root/homebrew/plugins")
-        if (!plugins.exists() && !plugins.mkdirs()) return "Could not create the Decky plugins directory"
+        if (!plugins.exists() && !plugins.mkdirs()) return context.getString(R.string.deckymgr_plugins_dir_failed)
         val staging = File(plugins, ".droiddeck-import-${UUID.randomUUID()}")
         val backupSuffix = ".droiddeck-backup-${UUID.randomUUID()}"
         try {
             staging.mkdirs()
-            progress("Extracting plugin ZIP", -1)
-            extractPluginZip(archive, staging)
+            progress(context.getString(R.string.deckymgr_extracting_zip), -1)
+            extractPluginZip(context, archive, staging)
             val roots = staging.listFiles()?.filter { it.isDirectory } ?: emptyList()
-            if (roots.size != 1 || staging.listFiles()?.size != 1) return "Plugin ZIP must contain one top-level plugin folder"
+            if (roots.size != 1 || staging.listFiles()?.size != 1) return context.getString(R.string.deckymgr_zip_one_folder)
             val plugin = roots.single()
             if (!File(plugin, "plugin.json").isFile || !File(plugin, "package.json").isFile || !File(plugin, "dist/index.js").isFile) {
-                return "Plugin ZIP is missing plugin.json, package.json, or dist/index.js"
+                return context.getString(R.string.deckymgr_zip_missing_files)
             }
             val name = JSONObject(File(plugin, "plugin.json").readText()).getString("name")
-            require(name.isNotBlank()) { "Plugin name is missing" }
+            require(name.isNotBlank()) { context.getString(R.string.deckymgr_plugin_name_missing) }
             val metadata = JSONObject(File(plugin, "package.json").readText())
-            downloadRemoteBinaries(metadata, plugin, progress)
-            if (SessionState.running) return "A session started during installation; stop it before installing a plugin"
+            downloadRemoteBinaries(context, metadata, plugin, progress)
+            if (SessionState.running) return context.getString(R.string.deckymgr_session_started_plugin)
 
             DeckyPluginInstall.activate(plugin, plugins, name,
                 File(plugins.parentFile, "settings/loader.json"), backupSuffix)
-            progress("Plugin installed · restart Steam to load it", 100)
+            progress(context.getString(R.string.deckymgr_plugin_installed), 100)
             return null
         } catch (e: Exception) {
             Log.w(TAG, "plugin ZIP import", e)
-            return e.message?.takeIf { it.isNotBlank() } ?: "Plugin ZIP installation failed"
+            if (e is DeckyPluginInstall.Failure) return context.getString(e.text)
+            return e.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.deckymgr_plugin_install_failed)
         } finally {
             staging.deleteRecursively()
         }
     }
 
-    private fun extractPluginZip(archive: File, destination: File) {
+    private fun extractPluginZip(context: Context, archive: File, destination: File) {
         var totalBytes = 0L
         var entries = 0
         val seen = HashSet<String>()
@@ -189,30 +196,30 @@ object DeckyManager {
             while (true) {
                 val entry = zip.nextEntry ?: break
                 entries++
-                require(entries <= 10_000) { "Plugin ZIP contains too many entries" }
+                require(entries <= 10_000) { context.getString(R.string.deckymgr_zip_too_many) }
                 val relative = entry.name.replace('\\', '/')
-                require(relative.isNotBlank() && !relative.startsWith('/')) { "Plugin ZIP contains an invalid path" }
-                require(seen.add(relative)) { "Plugin ZIP contains duplicate paths" }
+                require(relative.isNotBlank() && !relative.startsWith('/')) { context.getString(R.string.deckymgr_zip_invalid_path) }
+                require(seen.add(relative)) { context.getString(R.string.deckymgr_zip_duplicate_paths) }
                 val output = ArchivePaths.inside(destination, relative)
-                    ?: throw IllegalArgumentException("Plugin ZIP contains an unsafe path")
+                    ?: throw IllegalArgumentException(context.getString(R.string.deckymgr_zip_unsafe_path))
                 if (entry.isDirectory) {
-                    require(output.mkdirs() || output.isDirectory) { "Could not create plugin folder" }
+                    require(output.mkdirs() || output.isDirectory) { context.getString(R.string.deckymgr_folder_failed) }
                 } else {
-                    require(output.parentFile?.let { it.mkdirs() || it.isDirectory } == true) { "Could not create plugin folder" }
+                    require(output.parentFile?.let { it.mkdirs() || it.isDirectory } == true) { context.getString(R.string.deckymgr_folder_failed) }
                     FileOutputStream(output).use { out ->
                         val buffer = ByteArray(64 * 1024)
                         while (true) {
                             val read = zip.read(buffer)
                             if (read < 0) break
                             totalBytes += read
-                            require(totalBytes <= MAX_PLUGIN_ZIP_BYTES) { "Plugin ZIP expands beyond the 1 GiB limit" }
+                            require(totalBytes <= MAX_PLUGIN_ZIP_BYTES) { context.getString(R.string.deckymgr_zip_too_large) }
                             out.write(buffer, 0, read)
                         }
                     }
                     // Decky distributions place plugin executables under bin/. Java's ZIP reader
                     // does not expose Unix mode bits, so restore execution on those payload files.
                     if (relative.split('/').dropLast(1).any { it == "bin" } && !output.setExecutable(true, false)) {
-                        throw IllegalStateException("Could not mark bundled plugin binary executable")
+                        throw IllegalStateException(context.getString(R.string.deckymgr_bundled_not_executable))
                     }
                 }
                 zip.closeEntry()
@@ -220,42 +227,49 @@ object DeckyManager {
         }
     }
 
-    private fun downloadRemoteBinaries(metadata: JSONObject, plugin: File, progress: (String, Int) -> Unit) {
+    private fun downloadRemoteBinaries(context: Context, metadata: JSONObject, plugin: File, progress: (String, Int) -> Unit) {
         val binaries = metadata.optJSONArray("remote_binary") ?: return
         val bin = File(plugin, "bin")
         for (i in 0 until binaries.length()) {
-            val binary = binaries.optJSONObject(i) ?: throw IllegalArgumentException("Invalid remote_binary entry")
+            val binary = binaries.optJSONObject(i) ?: throw IllegalArgumentException(context.getString(R.string.deckymgr_remote_entry_invalid))
             val name = binary.optString("name")
             val url = binary.optString("url")
             val hash = binary.optString("sha256hash")
-            require(name.isNotBlank() && name != "." && name != ".." && !name.contains('/') && !name.contains('\\')) { "Invalid remote binary name" }
-            require(url.startsWith("https://")) { "Remote binary URL must use HTTPS" }
-            require(hash.matches(Regex("(?i)[0-9a-f]{64}"))) { "Remote binary $name has an invalid SHA-256 hash" }
-            require(bin.mkdirs() || bin.isDirectory) { "Could not create plugin bin directory" }
+            require(name.isNotBlank() && name != "." && name != ".." && !name.contains('/') && !name.contains('\\')) { context.getString(R.string.deckymgr_remote_name_invalid) }
+            require(url.startsWith("https://")) { context.getString(R.string.deckymgr_remote_url_https) }
+            require(hash.matches(Regex("(?i)[0-9a-f]{64}"))) { context.getString(R.string.deckymgr_remote_hash_invalid, name) }
+            require(bin.mkdirs() || bin.isDirectory) { context.getString(R.string.deckymgr_bin_dir_failed) }
             val temp = File(bin, ".$name.download")
-            progress("Downloading plugin binary · $name", -1)
-            if (!Downloader.downloadFile(url, temp, false) { fraction ->
-                    progress("Downloading plugin binary · $name", if (fraction < 0) -1 else (fraction * 100).toInt().coerceIn(0, 100))
-                }) {
+            val downloading = context.getString(R.string.deckymgr_downloading_binary, name)
+            downloadingBinary = true
+            progress(downloading, -1)
+            val downloaded = try {
+                Downloader.downloadFile(url, temp, false) { fraction ->
+                    progress(downloading, if (fraction < 0) -1 else (fraction * 100).toInt().coerceIn(0, 100))
+                }
+            } finally {
+                downloadingBinary = false
+            }
+            if (!downloaded) {
                 temp.delete()
-                throw IllegalStateException("Could not download plugin binary $name")
+                throw IllegalStateException(context.getString(R.string.deckymgr_binary_download_failed, name))
             }
             if (!hash.equals(Hashes.sha256(temp), ignoreCase = true)) {
                 temp.delete()
-                throw IllegalStateException("Plugin binary checksum mismatch · $name")
+                throw IllegalStateException(context.getString(R.string.deckymgr_binary_checksum_mismatch, name))
             }
             if (!temp.setExecutable(true, false)) {
                 temp.delete()
-                throw IllegalStateException("Could not mark plugin binary executable · $name")
+                throw IllegalStateException(context.getString(R.string.deckymgr_binary_not_executable, name))
             }
             val target = File(bin, name)
             if (target.exists() && !target.delete()) {
                 temp.delete()
-                throw IllegalStateException("Could not replace plugin binary · $name")
+                throw IllegalStateException(context.getString(R.string.deckymgr_binary_replace_failed, name))
             }
             if (!temp.renameTo(target)) {
                 temp.delete()
-                throw IllegalStateException("Could not install plugin binary · $name")
+                throw IllegalStateException(context.getString(R.string.deckymgr_binary_install_failed, name))
             }
         }
     }

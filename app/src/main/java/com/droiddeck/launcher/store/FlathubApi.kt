@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.store
 
 import android.util.Log
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -32,13 +34,13 @@ object FlathubApi {
     )
 
     /** A category as Flathub's search filters it, with the name shown for it. */
-    class Category(val id: String, val label: String)
+    class Category(val id: String, @StringRes val label: Int)
 
     val categories = listOf(
-        Category("Game", "Games"), Category("AudioVideo", "Audio & Video"), Category("Graphics", "Graphics"),
-        Category("Network", "Internet"), Category("Office", "Office"), Category("Development", "Developer"),
-        Category("Education", "Education"), Category("Science", "Science"), Category("System", "System"),
-        Category("Utility", "Utilities"),
+        Category("Game", R.string.store_cat_games), Category("AudioVideo", R.string.store_cat_audio_video), Category("Graphics", R.string.store_cat_graphics),
+        Category("Network", R.string.store_cat_internet), Category("Office", R.string.store_cat_office), Category("Development", R.string.store_cat_developer),
+        Category("Education", R.string.store_cat_education), Category("Science", R.string.store_cat_science), Category("System", R.string.store_cat_system),
+        Category("Utility", R.string.store_cat_utilities),
     )
 
     /** Front-page collections: popular, trending, recently-updated, recently-added. */

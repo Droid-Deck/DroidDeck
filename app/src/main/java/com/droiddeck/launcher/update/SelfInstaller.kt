@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.Hashes
 import java.io.File
@@ -46,7 +47,7 @@ object SelfInstaller {
         c.setRequestProperty("User-Agent", "DroidDeck-app")
         c.instanceFollowRedirects = true
         try {
-            if (c.responseCode != 200) throw IOException("The download answered HTTP ${c.responseCode}")
+            if (c.responseCode != 200) throw IOException(context.getString(R.string.selfinst_http, c.responseCode))
             val total = c.contentLengthLong.takeIf { it > 0 } ?: apk.size
             c.inputStream.use { input ->
                 FileOutputStream(target).use { out ->
@@ -64,10 +65,10 @@ object SelfInstaller {
                 }
             }
             if (apk.size > 0 && target.length() != apk.size) {
-                throw IOException("The download size didn't match the published APK and was discarded - try again")
+                throw IOException(context.getString(R.string.selfinst_size_mismatch))
             }
             if (!apk.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
-                throw IOException("The download didn't match its checksum and was discarded - try again")
+                throw IOException(context.getString(R.string.selfinst_checksum_mismatch))
             }
             validateDownloaded(context, target, apk)
             return target
@@ -82,10 +83,10 @@ object SelfInstaller {
     /** Inspect the actual downloaded APK before giving it to Android's installer. */
     private fun validateDownloaded(context: Context, file: File, apk: AppUpdates.Apk) {
         if (apk.packageName != context.packageName) {
-            throw IOException("The update is for Android package ${apk.packageName}, not ${context.packageName}")
+            throw IOException(context.getString(R.string.selfinst_wrong_package, apk.packageName, context.packageName))
         }
         if (!apk.signerSha256.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true)) {
-            throw IOException("The update metadata doesn't name DroidDeck's release signing key")
+            throw IOException(context.getString(R.string.selfinst_metadata_signer))
         }
         @Suppress("DEPRECATION")
         val flags = if (Build.VERSION.SDK_INT >= 28) {
@@ -94,29 +95,29 @@ object SelfInstaller {
             PackageManager.GET_SIGNATURES
         }
         val info = context.packageManager.getPackageArchiveInfo(file.absolutePath, flags)
-            ?: throw IOException("Android couldn't read the downloaded APK")
+            ?: throw IOException(context.getString(R.string.selfinst_unreadable))
         if (info.packageName != context.packageName) {
-            throw IOException("The downloaded APK is for ${info.packageName}, not ${context.packageName}")
+            throw IOException(context.getString(R.string.selfinst_apk_wrong_package, info.packageName, context.packageName))
         }
         @Suppress("DEPRECATION")
         val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
         if (code != apk.versionCode.toLong()) {
-            throw IOException("The downloaded APK says versionCode $code, not the published ${apk.versionCode}")
+            throw IOException(context.getString(R.string.selfinst_version_mismatch, code, apk.versionCode))
         }
         if (code < BuildConfig.VERSION_CODE.toLong()) {
-            throw IOException("Android won't install versionCode $code over the installed ${BuildConfig.VERSION_CODE}")
+            throw IOException(context.getString(R.string.selfinst_downgrade, code, BuildConfig.VERSION_CODE))
         }
 
         // Before Android 9 this lineage intentionally presents the public legacy test key. Android
         // 9+ understands the v3 hand-over and must see DroidDeck's private release key as current.
         if (Build.VERSION.SDK_INT >= 28) {
-            val signing = info.signingInfo ?: throw IOException("The downloaded APK has no signing information")
+            val signing = info.signingInfo ?: throw IOException(context.getString(R.string.selfinst_no_signing))
             val digests = signing.apkContentsSigners.orEmpty().map { cert ->
                 MessageDigest.getInstance("SHA-256").digest(cert.toByteArray())
                     .joinToString("") { "%02x".format(it) }
             }
             if (digests.none { it.equals(BuildConfig.RELEASE_SIGNER, ignoreCase = true) }) {
-                throw IOException("The downloaded APK isn't signed with DroidDeck's release key")
+                throw IOException(context.getString(R.string.selfinst_wrong_signer))
             }
         }
     }
@@ -145,13 +146,12 @@ object SelfInstaller {
     }
 
     /** What went wrong, in words for the user, from PackageInstaller's status and message. */
-    fun describeFailure(status: Int, message: String?): String = when {
-        message?.contains("VERSION_DOWNGRADE") == true ->
-            "Android won't install an older version over a newer one. Stay on this build until the channel catches up."
+    fun describeFailure(context: Context, status: Int, message: String?): String = when {
+        message?.contains("VERSION_DOWNGRADE") == true -> context.getString(R.string.upd_fail_downgrade)
         status == PackageInstaller.STATUS_FAILURE_CONFLICT || message?.contains("UPDATE_INCOMPATIBLE") == true ->
-            "This copy of DroidDeck is signed differently (a local build?), so Android won't update it in place."
-        status == PackageInstaller.STATUS_FAILURE_STORAGE -> "There isn't enough free space for the update."
-        status == PackageInstaller.STATUS_FAILURE_ABORTED -> "The update was cancelled."
-        else -> "The update didn't install" + (message?.let { ": $it" } ?: ".")
+            context.getString(R.string.upd_fail_signature)
+        status == PackageInstaller.STATUS_FAILURE_STORAGE -> context.getString(R.string.upd_fail_storage)
+        status == PackageInstaller.STATUS_FAILURE_ABORTED -> context.getString(R.string.upd_fail_aborted)
+        else -> message?.let { context.getString(R.string.upd_fail_with_message, it) } ?: context.getString(R.string.upd_fail_generic)
     }
 }

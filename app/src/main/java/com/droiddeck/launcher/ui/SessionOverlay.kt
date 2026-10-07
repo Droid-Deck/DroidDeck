@@ -191,6 +191,7 @@ class DrawerActions(
     val oscMode: String,
     val onScreenButtonsVisible: Boolean,
     val suspendPolicy: String,
+    val steamDownloadsInBackground: Boolean = false,
     val backActionsInverted: Boolean,
     val touchMode: String,
     val touchAuto: String,
@@ -221,6 +222,7 @@ class DrawerActions(
     val onQamButton: (Boolean) -> Unit = {},
     val onKeyboardButton: (Boolean) -> Unit = {},
     val onSuspendPolicy: (String) -> Unit,
+    val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
@@ -397,7 +399,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
-                                    SessionPrefs.upscalerChoices, a.upscaler,
+                                    SessionPrefs.upscalerChoices(LocalContext.current), a.upscaler,
                                     note = stringResource(R.string.display_filter_note),
                                     chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
                                 if (SessionPrefs.upscalerHasSharpness(a.upscaler)) SliderRow(
@@ -433,7 +435,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     }
                                 }
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
-                                    listOf(false to SessionPrefs.BACK_MENU_THEN_QAM, true to SessionPrefs.BACK_QAM_THEN_MENU),
+                                    listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
@@ -499,11 +501,19 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                                         SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                                    ) + if (a.steam) listOf(SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native)) else emptyList(),
+                                    ) + if (a.steam) listOf(
+                                        SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native),
+                                    ) else emptyList(),
                                     a.suspendPolicy,
                                     note = stringResource(if (a.steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
                                     chipModifier = focus.track(page, "suspend"),
                                     onPick = a.onSuspendPolicy,
+                                )
+                                if (a.steam && a.suspendPolicy != SessionPrefs.SUSPEND_NEVER) ToggleRow(
+                                    host, "background-downloads", stringResource(R.string.mode_background_downloads),
+                                    stringResource(R.string.mode_background_downloads_hint),
+                                    a.steamDownloadsInBackground,
+                                    onChange = a.onSteamDownloadsInBackground,
                                 )
                             }
                             SettingsGroup(stringResource(R.string.drawer_support)) {
@@ -747,7 +757,7 @@ private fun ScreenEffectsGroup(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     SettingsGroup(stringResource(R.string.drawer_effects)) {
-        val presets = ScreenEffectLooks.LOOKS.map { it.name to it.name }
+        val presets = ScreenEffectLooks.LOOKS.map { it.name to stringResource(it.label) }
         ChoiceRow(host, "look", stringResource(R.string.drawer_look), null,
             if (preset == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + presets else presets,
             preset?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
@@ -825,7 +835,7 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
                         .controllerConfirm(onClick = pick)
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
-                    Text(mode.label, fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
+                    Text(stringResource(mode.label), fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
                     RadioButton(selected, onClick = null,
                         colors = RadioButtonDefaults.colors(selectedColor = pal.signal, unselectedColor = colors.onSurfaceVariant))
                 }
@@ -842,9 +852,9 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
 private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     SettingsGroup(stringResource(R.string.drawer_texture)) {
         ChoiceRow(host, "anisotropy", stringResource(R.string.drawer_anisotropy), null,
-            SessionPrefs.textureAnisotropyChoices, a.textureAnisotropy, chipModifier = track("anisotropy"), onPick = a.onTextureAnisotropy)
+            SessionPrefs.textureAnisotropyChoices(LocalContext.current), a.textureAnisotropy, chipModifier = track("anisotropy"), onPick = a.onTextureAnisotropy)
         ChoiceRow(host, "texture-sharpness", stringResource(R.string.drawer_texture_sharpness), null,
-            SessionPrefs.textureLodBiasChoices, a.textureLodBias, note = stringResource(R.string.drawer_texture_sharpness_note),
+            SessionPrefs.textureLodBiasChoices(LocalContext.current), a.textureLodBias, note = stringResource(R.string.drawer_texture_sharpness_note),
             chipModifier = track("texture-sharpness"), onPick = a.onTextureLodBias)
     }
 }

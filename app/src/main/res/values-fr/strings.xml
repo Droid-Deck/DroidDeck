@@ -950,4 +950,6 @@
     <string name="game_file_folder">Choisir un dossier pour les fichiers du jeu frontal</string>
     <string name="game_file_exported">Fichiers du jeu enregistrés dans %1$s</string>
     <string name="game_frontend_files">Fichiers frontaux</string>
+    <string name="fm_up_one_level">Remonter d\'un niveau</string>
+    <string name="fm_drive_linux">Système Linux</string>
 </resources>

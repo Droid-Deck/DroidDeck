@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.FlatpakManager
 
 /**
@@ -49,7 +50,7 @@ object StoreState {
         private set
     private var searchSeq = 0
 
-    val SECTIONS = listOf("popular" to "Popular", "trending" to "Trending", "recently-added" to "New", "recently-updated" to "Updated")
+    val SECTIONS = listOf("popular" to R.string.store_section_popular, "trending" to R.string.store_section_trending, "recently-added" to R.string.store_section_new, "recently-updated" to R.string.store_section_updated)
 
     fun refresh(context: Context) {
         val app = context.applicationContext
@@ -97,7 +98,7 @@ object StoreState {
     private fun run(context: Context, what: String, label: String, work: (Context, (String, Int) -> Unit) -> String?) {
         if (busy != null) return
         val app = context.applicationContext
-        busy = what; stage = "Starting…"; percent = -1
+        busy = what; stage = app.getString(R.string.store_starting); percent = -1
         Thread({
             val problem = try {
                 work(app) { s, p -> main.post { stage = s; percent = p } }
@@ -109,12 +110,12 @@ object StoreState {
             main.post {
                 busy = null; stage = null; percent = -1
                 ready = r; installed = list
-                if (problem != null) Toast.makeText(app, "$label: $problem", Toast.LENGTH_LONG).show()
+                if (problem != null) Toast.makeText(app, app.getString(R.string.store_problem, label, problem), Toast.LENGTH_LONG).show()
             }
         }, "store-$what").start()
     }
 
-    fun setup(context: Context) = run(context, "setup", "Flatpak setup") { c, p -> FlatpakManager.setup(c, p) }
+    fun setup(context: Context) = run(context, "setup", context.getString(R.string.store_flatpak_setup)) { c, p -> FlatpakManager.setup(c, p) }
 
     fun install(context: Context, id: String, name: String) =
         run(context, id, name) { c, p -> FlatpakManager.install(c, id, p) }
@@ -135,7 +136,7 @@ object StoreState {
             val u = FlatpakManager.updates(app)
             main.post {
                 checkingUpdates = false
-                if (u != null) { updates = u; updatesChecked = true } else Toast.makeText(app, "Could not check Flathub for updates", Toast.LENGTH_SHORT).show()
+                if (u != null) { updates = u; updatesChecked = true } else Toast.makeText(app, R.string.store_updates_check_failed, Toast.LENGTH_SHORT).show()
             }
         }, "store-updates").start()
     }

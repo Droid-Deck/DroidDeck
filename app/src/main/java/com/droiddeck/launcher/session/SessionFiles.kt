@@ -45,6 +45,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
+            "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
             "usr/local/bin/droiddeck-steam-library" to "usr/local/bin/droiddeck-steam-library",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
