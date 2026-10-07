@@ -575,12 +575,14 @@ x64_exec() {
   # Only while both clients are one build: the helper talks to the client over IPC, and one of another
   # build never comes up - the client restarted it every 10 s (device: 1790721607 against 1790904859).
   # Otherwise the client keeps its own (x86, software) helper. The session updates the arm64 parts first.
+  # Neither manifest is there before that client's first run (a fresh install): no build to compare,
+  # and under set -e the failed read would end this script with rc=2 before the client starts.
   if [ "${BL_X64_X86_WEBHELPER:-0}" != 1 ] && [ -x /usr/local/bin/droiddeck-x64-arm-webhelper ] &&
      [ -x "$ARM_STEAM/steamrtarm64/steamwebhelper" ]; then
     local chan x86_build arm_build
     chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo publicbeta)
-    x86_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_ubuntu12.manifest" 2>/dev/null)
-    arm_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$ARM_STEAM/package/steam_client_${chan}_linuxarm64.manifest" 2>/dev/null)
+    x86_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_ubuntu12.manifest" 2>/dev/null || true)
+    arm_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$ARM_STEAM/package/steam_client_${chan}_linuxarm64.manifest" 2>/dev/null || true)
     if [ -n "$x86_build" ] && [ "$x86_build" = "$arm_build" ]; then
       export BL_X64_ARM_WEBHELPER=/usr/local/bin/droiddeck-x64-arm-webhelper
     else
