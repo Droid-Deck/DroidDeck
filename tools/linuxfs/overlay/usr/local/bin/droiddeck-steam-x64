@@ -589,6 +589,19 @@ x64_exec() {
       echo "== x86-64 client build ${x86_build:-?}, arm64 web helper's ${arm_build:-?}: keeping the x86 web helper" >&2
     fi
   fi
+  # The session asks for the GPU on the arm64 helper's behalf; the x86 one has no driver for this GPU
+  # and its GPU process dies at once (exit_code=11), the client restarting the helper without end
+  # (device: a fresh install's first start, -startcount=15 in three minutes). It draws in software.
+  if [ -z "${BL_X64_ARM_WEBHELPER:-}" ] && [ "${BL_X64_CEF_GPU:-0}" != 1 ]; then
+    local a args=() soft=0
+    for a in "$@"; do
+      case $a in
+        -cef-force-gpu|-cef-ozone-platform=*|-cef-use-gl=*|-cef-use-angle=*) soft=1 ;;
+        *) args+=("$a") ;;
+      esac
+    done
+    [ "$soft" = 1 ] && set -- "${args[@]}" -cef-disable-gpu
+  fi
   exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
 }
 
