@@ -593,8 +593,25 @@ object SessionPrefs {
     /** The .exe the user chose for one game folder (by its path), "" = the scanner's pick. */
     fun addedGameExe(context: Context, folderPath: String): String = prefs(context).getString("addedExe:$folderPath", "") ?: ""
 
+    private val addedGameLock = Any()
+
     fun setAddedGameExe(context: Context, folderPath: String, path: String) {
-        prefs(context).edit().putString("addedExe:$folderPath", path).apply()
+        synchronized(addedGameLock) { prefs(context).edit().putString("addedExe:$folderPath", path).apply() }
+    }
+
+    fun addedGameExeSeen(context: Context, folderPath: String): Int = prefs(context).getInt("addedExeSeen:$folderPath", 0)
+
+    fun adoptAddedGameExe(context: Context, folderPath: String, expected: String, path: String, seen: Int): Boolean =
+        synchronized(addedGameLock) {
+            val unchanged = addedGameExe(context, folderPath) == expected
+            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
+            unchanged
+        }
+
+    fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
+        val p = prefs(context)
+        p.getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
+            ?: first.also { p.edit().putLong("addedAppId:$folderPath", it).apply() }
     }
 
     /** The app's colour theme (ui/Themes ids); Graphite unless chosen otherwise. */
