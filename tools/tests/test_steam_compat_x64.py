@@ -29,6 +29,12 @@ CONFIG = '''"InstallConfigStore"
 \t\t\t\t\t\t"config"\t\t""
 \t\t\t\t\t\t"priority"\t\t"250"
 \t\t\t\t\t}
+\t\t\t\t\t"880"
+\t\t\t\t\t{
+\t\t\t\t\t\t"name"\t\t"droiddeck-proton-arm64"
+\t\t\t\t\t\t"config"\t\t""
+\t\t\t\t\t\t"priority"\t\t"250"
+\t\t\t\t\t}
 \t\t\t\t\t"730"
 \t\t\t\t\t{
 \t\t\t\t\t\t"name"\t\t"steamlinuxruntime"
@@ -71,16 +77,18 @@ class X64RepointTest(unittest.TestCase):
 
     def test_repoints_valve_proton_only(self):
         moved = COMPAT["x64_repoint"](str(self.root), "GE-Proton11-7-a64")
-        self.assertEqual(moved, ["550"])
+        self.assertEqual(moved, ["550", "880"])
         m = self.mapping()
         self.assertEqual(m["550"], "GE-Proton11-7-a64")
         self.assertEqual(m["620"], "proton-cachyos-a64")
         self.assertEqual(m["730"], "steamlinuxruntime")
+        # The arm64 client's own Proton name, which this client ignores.
+        self.assertEqual(m["880"], "GE-Proton11-7-a64")
         self.assertEqual(m["0"], "GE-Proton11-7-a64")
 
     def test_live_notes_pending_restart(self):
         COMPAT["x64_repoint"](str(self.root), "GE-Proton11-7-a64", live=True)
-        self.assertEqual((Path(self.home.name) / ".bl-compat-pending").read_text(), "550\n")
+        self.assertEqual((Path(self.home.name) / ".bl-compat-pending").read_text(), "550\n880\n")
 
     def test_no_tool_changes_nothing(self):
         before = (self.root / "config" / "config.vdf").read_text()

@@ -289,8 +289,8 @@ RUN
 # container, which needs user namespaces no Android app has, and the game would not start. The
 # client's own appinfo cache says which games have a Linux build and which runtime Valve gives them
 # (config/app_mappings: SteamLinuxRuntime_sniper or _soldier; none = scout). Those ids go to
-# direct-sniper for the tool's run script. A title already on another tool (chosen in Properties)
-# keeps it, except BL_X64_DIRECT_APPS (Left 4 Dead 2 by default), which is always taken back.
+# direct-sniper for the tool's run script. A title on a tool chosen in Properties keeps it, except
+# BL_X64_DIRECT_APPS (Left 4 Dead 2 by default), which is always taken back.
 # direct-auto.json lists what this mapped.
 import json, re, struct, sys
 path, appinfo, auto_file, sniper_file, extra = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:]
@@ -396,8 +396,11 @@ for app in sorted(games, key=int):
     if old:
         name = re.search(r'"name"\s*"([^"]*)"', inner[old[1]:old[2]])
         name = name.group(1) if name else ""
-        # Another tool chosen for it (in Properties, or by Steam) stays; the forced ones are retaken.
-        if name and name != "droiddeck-direct" and app not in extra:
+        # Another tool chosen for it in Properties stays; the forced ones are retaken, and so are the
+        # automatic ones: Valve's own Proton names and droiddeck-proton-arm64, the arm64 client's
+        # name for its Proton, which only its live compat pass writes (here the wrapper is -a64).
+        automatic = name in ("", "droiddeck-direct", "droiddeck-proton-arm64") or name.startswith("proton_")
+        if not automatic and app not in extra:
             continue
         inner = inner[:old[0]] + inner[old[2] + 1:]
     entry = ('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"droiddeck-direct"\n'

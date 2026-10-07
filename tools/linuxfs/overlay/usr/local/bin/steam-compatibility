@@ -1177,7 +1177,10 @@ def x64_repoint(steam_root, tool, live=False):
         set_mapping(tokens, mapping, "0", tool)
     for app, name in current.items():
         named = name.lower()
-        if named.startswith("proton") and named != tool.lower() and named not in keep:
+        # droiddeck-proton-arm64: the arm64 client's name for its Proton, which this client ignores
+        # (its wrapper is -a64), left by an arm64 compat pass that once ran against it.
+        if (named.startswith("proton") or named == "droiddeck-proton-arm64") and named != tool.lower() \
+                and named not in keep:
             set_mapping(tokens, mapping, app, tool)
             if app != "0":
                 moved.append(app)
