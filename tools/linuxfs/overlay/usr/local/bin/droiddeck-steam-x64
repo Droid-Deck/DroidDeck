@@ -284,7 +284,8 @@ RUN
   # here, while no x86 client runs.
   if [ -f "$STEAM_X64/config/config.vdf" ] && ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
     python3 - "$STEAM_X64/config/config.vdf" "$STEAM_X64/appcache/appinfo.vdf" "$X64_HOME/direct-auto.json" \
-      "$X64_HOME/direct-sniper" ${BL_X64_DIRECT_APPS:-550} <<'PY' || step "could not map titles to DroidDeck direct"
+      "$X64_HOME/direct-sniper" "$STEAM_X64/steamapps" "$(x64_default_tool)" ${BL_X64_DIRECT_APPS:-550} \
+      <<'PY' || step "could not map titles to DroidDeck direct"
 # Every game with a Linux build goes to DroidDeck direct: Steam would run it in its Linux runtime
 # container, which needs user namespaces no Android app has, and the game would not start. The
 # client's own appinfo cache says which games have a Linux build and which runtime Valve gives them
@@ -292,8 +293,14 @@ RUN
 # direct-sniper for the tool's run script. A title on a tool chosen in Properties keeps it, except
 # BL_X64_DIRECT_APPS (Left 4 Dead 2 by default), which is always taken back.
 # direct-auto.json lists what this mapped.
-import json, re, struct, sys
-path, appinfo, auto_file, sniper_file, extra = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:]
+# A game whose Windows build is the one installed (it ran on a Proton before) stays a Windows game, on
+# the client's default Proton: Steam does not swap an installed build when the tool changes, so
+# DroidDeck direct was handed Launcher.exe and the game ended at once (device: Borderlands 2), and
+# getting the Linux build back means downloading the game again.
+import json, os, re, struct, sys
+path, appinfo, auto_file, sniper_file, steamapps, proton = sys.argv[1:7]
+extra = sys.argv[7:]
+WINDOWS_DEPOTS = {}
 
 
 def read_kv(buf, pos, strings):
@@ -362,7 +369,25 @@ def linux_games(file):
                 tool = str(m.get("tool", "")).lower()
                 runtime = "sniper" if "sniper" in tool else "soldier" if "soldier" in tool else runtime
         games[str(appid)] = runtime
+        WINDOWS_DEPOTS[str(appid)] = {
+            d for d, v in (info.get("depots") or {}).items()
+            if isinstance(v, dict) and "windows" in str((v.get("config") or {}).get("oslist", ""))
+            and "linux" not in str((v.get("config") or {}).get("oslist", ""))
+        }
     return games
+
+
+def windows_installed(app):
+    """Whether the installed build of `app` is its Windows one (a Windows depot among those installed)."""
+    try:
+        text = open(os.path.join(steamapps, "appmanifest_%s.acf" % app), encoding="utf-8", errors="replace").read()
+    except OSError:
+        return False
+    found = block(text, "InstalledDepots")
+    if not found:
+        return False
+    installed = set(re.findall(r'"(\d+)"\s*\{', text[found[1]:found[2]]))
+    return bool(installed & WINDOWS_DEPOTS.get(app, set()))
 
 
 def block(text, key):
@@ -388,8 +413,9 @@ if not block(s, "CompatToolMapping"):
     if not st:
         sys.exit("no Steam section")
     s = s[:st[1]] + '\n\t\t\t\t"CompatToolMapping"\n\t\t\t\t{\n\t\t\t\t}' + s[st[1]:]
-mapped = []
+mapped, windows = [], []
 for app in sorted(games, key=int):
+    on_windows = windows_installed(app)
     _, open_, close = block(s, "CompatToolMapping")
     inner = s[open_:close]
     old = block(inner, app)
@@ -402,16 +428,22 @@ for app in sorted(games, key=int):
         automatic = name in ("", "droiddeck-direct", "droiddeck-proton-arm64") or name.startswith("proton_")
         if not automatic and app not in extra:
             continue
+        if on_windows and (name == proton or not proton):
+            continue
         inner = inner[:old[0]] + inner[old[2] + 1:]
-    entry = ('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"droiddeck-direct"\n'
-             '\t\t\t\t\t\t"config"\t\t""\n\t\t\t\t\t\t"priority"\t\t"250"\n\t\t\t\t\t}' % app)
+    elif on_windows and not proton:
+        continue
+    tool = proton if on_windows else "droiddeck-direct"
+    entry = ('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"%s"\n'
+             '\t\t\t\t\t\t"config"\t\t""\n\t\t\t\t\t\t"priority"\t\t"250"\n\t\t\t\t\t}' % (app, tool))
     s = s[:open_] + entry + inner + s[close:]
-    mapped.append(app)
+    (windows if on_windows else mapped).append(app)
 open(path, "w", encoding="utf-8", errors="surrogateescape").write(s)
 json.dump(mapped, open(auto_file, "w"))
 open(sniper_file, "w").write("".join("%s\n" % a for a in mapped if games[a] != "scout"))
-print("droiddeck-steam-x64: %d Linux title(s) on DroidDeck direct (%d on the newer runtime)"
-      % (len(mapped), sum(games[a] != "scout" for a in mapped)))
+print("droiddeck-steam-x64: %d Linux title(s) on DroidDeck direct (%d on the newer runtime)%s"
+      % (len(mapped), sum(games[a] != "scout" for a in mapped),
+         "; %d installed as Windows games kept on %s" % (len(windows), proton) if windows else ""))
 PY
   fi
   # The arm64 client's Proton tools (droiddeck-proton-arm64, GE-Proton, CachyOS): one wrapper per
