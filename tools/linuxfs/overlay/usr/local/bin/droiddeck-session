@@ -358,6 +358,10 @@ case $mode in
       droiddeck-steam-install || exit $?
       step "Steam client ready"
       steam_root=$XDG_DATA_HOME/Steam
+      # One sign-in for both clients: a newer one from the x86-64 client, when it has been used.
+      if [ -f "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam/local.vdf" ]; then
+        droiddeck-steam-x64 --sync-login || true
+      fi
       steam_client=("$steam_root/steamrtarm64/steam")
       steam_cef=(-cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan)
     fi
@@ -459,10 +463,10 @@ case $mode in
     # them as already run keeps those x86 installers from starting under emulation at all.
     droiddeck-seed-redists "$steam_root" || true
     else
-    # The x86-64 client: the arm64 client's library folders are its own too (droiddeck-steam-x64),
-    # and its Windows titles run the arm64 Protons through wrappers. A per-app entry the client aims
-    # at one of Valve's x86 Protons is pointed at the wrapper it defaults to, the app's own games are
-    # its shortcuts too, and redistributables are marked in both clients' prefixes.
+    # The x86-64 client: its own library (the clients share the sign-in, not games; see
+    # droiddeck-steam-x64), and its Windows titles run the arm64 Protons through wrappers. A per-app
+    # entry the client aims at one of Valve's x86 Protons is pointed at the wrapper it defaults to,
+    # the app's own games are its shortcuts too, and redistributables are marked in its prefixes.
     _bl_x64_tool=$(droiddeck-steam-x64 --default-tool)
     if [ -n "$_bl_x64_tool" ]; then
       step "pointing the x86-64 client's Windows titles at $_bl_x64_tool"
@@ -472,7 +476,6 @@ case $mode in
         BL_COMPAT_TOOL=$_bl_x64_tool droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
       fi
     fi
-    droiddeck-seed-redists "$XDG_DATA_HOME/Steam" || true
     droiddeck-seed-redists "$steam_root" || true
     fi
     # The compatibility tool runs Valve's arm64 Proton, which the client fetches like any depot.
@@ -629,10 +632,9 @@ case $mode in
     # reads from has changed since its last run - a new manifest, a new depot or tool, the client
     # rewriting config.vdf - which [ -nt ] answers without starting anything, and once a minute
     # regardless.
-    # The x86-64 client: the same beat over both clients' libraries (it installs Windows titles into
-    # the arm64 client's), its compat pass the --x64 one (droiddeck-steam-compat).
+    # The x86-64 client: the same beat over its own library (the clients do not share games), its
+    # compat pass the --x64 one (steam-compatibility).
     _bl_beat_roots=("$steam_root")
-    [ "$steam_x64" = 1 ] && _bl_beat_roots+=("$XDG_DATA_HOME/Steam")
     (
       beat=0
       compat_stamp=$HOME/.bl-compat-beat

@@ -2,6 +2,7 @@
 # EXPERIMENT, opt-in: Valve's x86-64 Linux Steam client under FEX, beside the default arm64 one.
 #   droiddeck-steam-x64 [steam:// URL or client arguments]   run it (the desktop menu entry)
 #   droiddeck-steam-x64 --prepare                            install and set up, then exit
+#   droiddeck-steam-x64 --sync-login                         copy the newer sign-in to the other client
 #   droiddeck-steam-x64 --exec ARGS...                       run the client binary with ARGS in
 #                                                              its environment (droiddeck-session
 #                                                              with BL_STEAM_CLIENT_ARCH=x86_64)
@@ -10,8 +11,9 @@
 # server", no VAC line in any client log) - VAC modules are x86 code. The x86-64 client under FEX
 # has a module it can run, the way SteamLite does in Wine. This runs Valve's client unchanged.
 #
-# Everything lives in its own home ($X64_HOME): the x86 client gets its own ~/.steam links, its
-# own login, config and library, and never touches the arm64 client's. Only one client runs at a
+# Everything lives in its own home ($X64_HOME): the x86 client gets its own ~/.steam links, config
+# and library, and never touches the arm64 client's games. The sign-in is the one thing shared
+# (x64_sync_login), so the user signs in once. Only one client runs at a
 # time (same account), so the arm64 one is shut down first.
 #
 # First run downloads FEX (this repo's release), FEX's Ubuntu 24.04 x86 rootfs (~525 MB, unpacked
@@ -145,8 +147,7 @@ if [ ! -x "$STEAM_X64/steamrt64/steam" ] || [ ! -f "$STEAM_X64/package/droiddeck
   echo "$version" > "$STEAM_X64/package/droiddeck-installed"
   chmod +x "$STEAM_X64/steam.sh" "$STEAM_X64/steamrt64/steam" "$STEAM_X64/ubuntu12_32/steam" 2>/dev/null || true
 fi
-# Its own library: the arm64 client's Windows installs are not what this client runs (it would
-# switch a shared install to the Linux build and the arm64 client would download it again).
+# Its own library (see the library folders below): the arm64 client's installs are not this one's.
 [ -L "$STEAM_X64/steamapps" ] && rm -f "$STEAM_X64/steamapps"
 mkdir -p "$STEAM_X64/steamapps"
 # They still enumerate /dev/dri, find the session's KGSL node there, and spin on it (x86 Turnip
@@ -358,58 +359,47 @@ VDF
       "$name" "$X64_HOME/arm64/env" "$name" > "$dst/run"
     chmod 755 "$dst/run"
   done
-  # Signed in once: a client with no sign-in of its own takes the arm64 client's remembered one (its
-  # account list, the token in local.vdf and the auto-login name), so it starts signed in like that
-  # one. Same device, same account files the client keeps; a sign-in this client already has is never
-  # replaced. The token works while it is current (device: one copied right after the arm64 client
-  # signed in logged on; a 3-day-old one was refused, and the client asked for the password).
-  if [ ! -f "$STEAM_X64/config/loginusers.vdf" ] && [ -f "$ARM_STEAM/config/loginusers.vdf" ] &&
-     [ -f "$ARM_STEAM/local.vdf" ] && ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
-    mkdir -p "$STEAM_X64/config" "$X64_HOME/.steam"
-    cp -f "$ARM_STEAM/config/loginusers.vdf" "$STEAM_X64/config/loginusers.vdf"
-    cp -f "$ARM_STEAM/local.vdf" "$STEAM_X64/local.vdf"
-    if [ -f "$REAL_HOME/.steam/registry.vdf" ] &&
-       ! grep -q '"AutoLoginUser"[[:space:]]*"[^"]' "$X64_HOME/.steam/registry.vdf" 2>/dev/null; then
-      cp -f "$REAL_HOME/.steam/registry.vdf" "$X64_HOME/.steam/registry.vdf"
-    fi
-    step "using the arm64 client's sign-in"
-  fi
-  # One library with the arm64 client: its library folders become this client's too, so a Windows
-  # game installed by either is installed for both. Titles this client runs as Linux builds (the
-  # DroidDeck direct ones) keep their own copy in its own folder - the arm64 client needs the
-  # Windows build of the same title. Written while no x86 client runs: it rewrites these on exit.
+  x64_sync_login
+  # Its own library only. The arm64 client's folders (internal storage and the card) are not this
+  # client's: with them shared, each client could update, verify or switch the other's games - a
+  # title with a Linux build runs as that here and as the Windows build there, so opening it in the
+  # other client switched the files and the first one downloaded its version again (Left 4 Dead 2,
+  # 8.6 GB). A game wanted in both clients is installed in both. Folders an earlier version shared
+  # are taken out of this client's lists; the games stay where they are, in the arm64 client's
+  # library. Written while no x86 client runs: it rewrites these files on exit.
   if ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
-    python3 - "$ARM_STEAM/config/libraryfolders.vdf" \
-      "$STEAM_X64/config/libraryfolders.vdf" "$STEAM_X64/steamapps/libraryfolders.vdf" <<'PY' || step "could not share the arm64 client's library folders"
+    python3 - "$STEAM_X64" "$STEAM_X64/config/libraryfolders.vdf" "$STEAM_X64/steamapps/libraryfolders.vdf" <<'PY' || step "could not check the x86-64 client's library folders"
 import os, re, sys
-src, dsts = sys.argv[1], sys.argv[2:]
-if not os.path.isfile(src):
-    sys.exit(0)
-want = re.findall(r'"path"\s*"([^"]+)"', open(src, encoding="utf-8", errors="replace").read())
-for dst in dsts:
-    if os.path.isfile(dst):
-        s = open(dst, encoding="utf-8", errors="surrogateescape").read()
-    else:
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        s = '"libraryfolders"\n{\n}\n'
-    have = set(re.findall(r'"path"\s*"([^"]+)"', s))
-    nums = [int(n) for n in re.findall(r'^\t"(\d+)"\s*$', s, re.M)]
-    n = max(nums) + 1 if nums else 0
-    add = ""
-    for path in want:
-        if path in have:
+own = os.path.realpath(sys.argv[1])
+for path in sys.argv[2:]:
+    if not os.path.isfile(path):
+        continue
+    s = open(path, encoding="utf-8", errors="surrogateescape").read()
+    out, removed, i = [], [], 0
+    # Each library is a numbered block: "N" { "path" "..." ... "apps" { ... } }.
+    for m in re.finditer(r'^\t"(\d+)"\s*\n\t\{', s, re.M):
+        if m.start() < i:
             continue
-        add += ('\t"%d"\n\t{\n\t\t"path"\t\t"%s"\n\t\t"label"\t\t""\n\t\t"contentid"\t\t"0"\n'
-                '\t\t"totalsize"\t\t"0"\n\t\t"apps"\n\t\t{\n\t\t}\n\t}\n' % (n, path))
-        n += 1
-    if add:
-        end = s.rstrip().rfind("}")
-        s = s[:end] + add + s[end:]
-        open(dst, "w", encoding="utf-8", errors="surrogateescape").write(s)
+        depth, k = 1, m.end()
+        while depth and k < len(s):
+            depth += s[k] == "{"
+            depth -= s[k] == "}"
+            k += 1
+        block = s[m.start():k]
+        p = re.search(r'"path"\s*"([^"]*)"', block)
+        if p and os.path.realpath(p.group(1)) != own:
+            out.append(s[i:m.start()])
+            i = k + (1 if s[k:k + 1] == "\n" else 0)
+            removed.append(p.group(1))
+    if not removed:
+        continue
+    out.append(s[i:])
+    open(path, "w", encoding="utf-8", errors="surrogateescape").write("".join(out))
+    print("droiddeck-steam-x64: no longer shared with the arm64 client: %s" % ", ".join(removed))
 PY
   fi
-  # Steam Play for every title not mapped otherwise: one of the arm64 client's own ARM64 Protons, so a
-  # shared install stays the Windows build the arm64 client also runs. The newest GE-Proton first:
+  # Steam Play for every title not mapped otherwise: one of the arm64 client's own ARM64 Protons. The
+  # newest GE-Proton first:
   # with droiddeck-proton-arm64 (Proton Experimental) Xwayland never got its window buffers back
   # and FlatOut took the device's RAM with it (10.5 GB of dma-buf in 35 s); GE-Proton, same game,
   # same client, stayed flat. droiddeck-proton-a64 when no GE-Proton is installed.
@@ -600,7 +590,58 @@ x64_exec() {
   exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
 }
 
+# One sign-in for both clients, games kept apart. Before either client starts, the newer sign-in -
+# the account list, the login token in local.vdf, the auto-login name - is copied to the other, so
+# signing in (or switching accounts) in one counts for both. Steam renews its token every few days and
+# an old copy is refused (device: a 3-day-old one asked for the password), which is why it is the
+# newest that is copied, every start, and not once. Never while either client runs: each rewrites
+# these files. The rest of registry.vdf (language, skin) and everything else stay each client's.
+x64_sync_login() {
+  pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1 && return 0
+  pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1 && return 0
+  python3 - "$ARM_STEAM" "$STEAM_X64" "$REAL_HOME/.steam/registry.vdf" "$X64_HOME/.steam/registry.vdf" <<'PY' || step "could not share the sign-in between the clients"
+import os, re, shutil, sys
+arm, x64, arm_reg, x64_reg = sys.argv[1:5]
+FILES = ("config/loginusers.vdf", "local.vdf")
+
+
+def stamp(root):
+    if not all(os.path.isfile(os.path.join(root, f)) for f in FILES):
+        return None
+    return os.path.getmtime(os.path.join(root, "local.vdf"))
+
+
+a, x = stamp(arm), stamp(x64)
+if a is None and x is None:
+    sys.exit(0)
+if a is not None and x is not None and abs(a - x) < 1:
+    sys.exit(0)
+if x is None or (a is not None and a > x):
+    src, dst, sreg, dreg, who = arm, x64, arm_reg, x64_reg, "arm64"
+else:
+    src, dst, sreg, dreg, who = x64, arm, x64_reg, arm_reg, "x86-64"
+for f in FILES:
+    os.makedirs(os.path.dirname(os.path.join(dst, f)), exist_ok=True)
+    # copy2 keeps the time stamp, so both match until one client signs in again.
+    shutil.copy2(os.path.join(src, f), os.path.join(dst, f))
+if os.path.isfile(sreg):
+    st = open(sreg, encoding="utf-8", errors="surrogateescape").read()
+    if not os.path.isfile(dreg):
+        os.makedirs(os.path.dirname(dreg), exist_ok=True)
+        shutil.copy2(sreg, dreg)
+    else:
+        dt = open(dreg, encoding="utf-8", errors="surrogateescape").read()
+        for key in ("AutoLoginUser", "RememberPassword"):
+            v = re.search(r'"%s"\s*"([^"]*)"' % key, st)
+            if v and re.search(r'"%s"\s*"' % key, dt):
+                dt = re.sub(r'("%s"\s*")[^"]*(")' % key, lambda m: m.group(1) + v.group(1) + m.group(2), dt, count=1)
+        open(dreg, "w", encoding="utf-8", errors="surrogateescape").write(dt)
+print("droiddeck-steam-x64: sign-in shared from the %s client (the newer one)" % who)
+PY
+}
+
 case "${1:-}" in
+  --sync-login) x64_sync_login; exit 0 ;;
   --prepare) x64_prepare; exit 0 ;;
   --exec) shift; x64_exec "$@" ;;
   --gpu) x64_gpu; exit $? ;;
