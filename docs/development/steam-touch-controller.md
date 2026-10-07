@@ -75,3 +75,41 @@ Run in order; each one either rules an approach out or narrows the next.
 6. **Injection points.** How the stream server hands touches to `steamclient.so`, to size approach B.
 
 ## Experiment log
+
+### 1. Host side alive: yes (2026-10-07, Thor, Steam 1791249696)
+
+- With a Steam session READY, the client listens on TCP 27036 and UDP 27036 (`/proc/net`, app
+  uid). A discovery probe built from `steammessages_remoteclient_discovery.proto` sent to
+  `127.0.0.1:27036` from the device gets a `CMsgRemoteClientBroadcastStatus` back: hostname
+  `DroidDeck`, `enabled_services` 98 (game streaming on), the signed-in user, `steam_deck`
+  unset, `gaming_device_type` 541.
+- The official Steam Link app (Play Store, on the Thor's bottom screen while the session runs on
+  the top one) finds "DroidDeck" by itself, shows a PIN, and the session's Big Picture shows
+  **Authorize Device**. After the PIN the app runs its network test and lists DroidDeck as
+  paired. Pairing to the session's own client over loopback works with no changes.
+- Launching Steam Link on display 0 instead puts DroidDeck's session activity into PiP; use
+  `am start --display 4`. On first start Steam Link sits on its splash until BLUETOOTH_CONNECT
+  is answered, and the permission dialog does not render on the second screen (granted with
+  `pm grant`).
+
+### 2. Touch controller over the stream: partly
+
+Starting a stream (`streaming_log.txt`, `console_log.txt` in the session's Steam `logs/`):
+
+```
+CLIENT: Sending HID device 2020/0112/-1  Xbox Wireless Controller at sdl://3
+CLIENT: Sending HID device 0000/11fb/-1  Mobile Touch Control at touch://0
+...
+Remote Device Found  type: 0000 11fb  path: touch://0  Product: Mobile Touch Control
+!! Steam controller device opened for index 1.
+Controller device closed after hid_read failure
+Controller 1 disconnected
+```
+
+- **The touch controller reaches the host as a remote HID device, 0000:11fb**, opened by the
+  same controller code that opens the Deck pad, and turned into a virtual controller. The
+  streaming client is what makes the reports; Steam on the host only sees a HID device.
+- Video fails on the host: `PipeWire: Could not connect PipeWire context` (the session runs no
+  PipeWire), so the app gets audio but a black screen and keeps its loading spinner.
+- The app then re-sends only the Thor's built-in pad and drops the touch device; it seems to
+  withdraw touch controls when a physical controller is present, or until video arrives.
