@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s: сбой движка</string>
     <string name="hud_fg_needs_lossless">%1$s: требуется Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · Запуск</string>
-    <string name="added_games_import_hint">Папка, содержащая несколько подпапок, каждая из которых соответствует игре Windows. Игры, которыми вы владеете в Steam, будут использовать соответствующие записи Steam после перезапуска Steam, остальные игры станут ярлыками, отличными от Steam.</string>
+    <string name="added_games_import_hint">Папка, содержащая несколько подпапок, каждая из которых соответствует игре Windows. Игры, которыми вы владеете в Steam, будут использовать соответствующие записи Steam после перезапуска Steam, остальные игры станут ярлыками, отличными от Steam. Если для параметра «Вторая библиотека» выбрано «Авто», Steam также может устанавливать игры в эту папку.</string>
     <string name="second_library_import_hint">Добавьте библиотеку Steam и отсканируйте в ней игры Windows. Имеющиеся игры будут использовать соответствующие записи Steam, остальные станут ярлыками, отличными от Steam.</string>
     <string name="added_games_forget_hint">«Забыть» удалит эти ярлыки в следующей сессии. Но файлы останутся на диске.</string>
     <string name="game_env_title">Игровая среда</string>
@@ -300,8 +300,8 @@
     <string name="mode_wifi_explain_title">Включить обнаружение Wi-Fi?</string>
     <string name="mode_wifi_explain_text">Android требует разрешение на определение местоположения для чтения имен Wi-Fi и обнаружения ближайших сетей. DroidDeck использует это разрешение для отображения этих сетей в Steam. Мы не отслеживаем ваше местоположение. Доступ в интернет возможен и без этого разрешения.</string>
     <string name="mode_storage">Хранилище игр</string>
-    <string name="mode_storage_auto">Авто - Использовать SD-карту при наличии</string>
-    <string name="mode_storage_auto_none">Авто - Использовать SD-карту при наличии (сейчас нет SD-карты)</string>
+    <string name="mode_storage_auto">Авто - Использовать SD-карту при наличии, а также ваши папки с играми</string>
+    <string name="mode_storage_auto_none">Авто - Использовать ваши папки с играми, а также SD-карту при наличии (сейчас нет SD-карты)</string>
     <string name="mode_storage_internal">Только внутреннее хранилище</string>
     <string name="mode_storage_folder">Папка: %1$s</string>
     <string name="mode_second_library">Вторая библиотека</string>

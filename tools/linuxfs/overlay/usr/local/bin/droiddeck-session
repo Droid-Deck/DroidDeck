@@ -576,7 +576,7 @@ case $mode in
         local d
         [ -e "$compat_stamp" ] && [ "$((beat % 12))" -ne 0 ] || return 0
         for d in "$steam_root/steamapps" "$steam_root/steamapps/common" "$steam_root/config" \
-                 "$steam_root/compatibilitytools.d" /mnt/droiddeck-sd/steamapps; do
+                 "$steam_root/compatibilitytools.d" /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps; do
           [ "$d" -nt "$compat_stamp" ] && return 0
         done
         return 1
@@ -852,12 +852,12 @@ BUSCONF
          && [ -x /usr/local/bin/droiddeck-steam-account ]; then
         droiddeck-steam-account check "$steam_root" || true
       fi
+      if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
+        droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
+      fi
       collect_steam_logs
       if [ -f "$HOME/.config/droiddeck/fex-wanted" ] && [ -x /usr/local/bin/droiddeck-fex ]; then
         /usr/local/bin/droiddeck-fex status >/dev/null 2>&1 || true
-      fi
-      if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
-        droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
       fi
       if [ -f "$HOME/.bl-stop-requested" ]; then
         rm -f "$HOME/.bl-stop-requested" "$HOME/.bl-restart-once"
