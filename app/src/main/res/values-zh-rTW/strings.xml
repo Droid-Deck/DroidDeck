@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s：引擎失敗</string>
     <string name="hud_fg_needs_lossless">%1$s：需要 Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · 正在啟動</string>
-    <string name="added_games_import_hint">一個包含多個子資料夾的資料夾，每個子資料夾對應一個 Windows 遊戲。你在 Steam 上擁有的遊戲會在 Steam 重啟後使用對應的 Steam 項目，其餘遊戲會成為非 Steam 捷徑。</string>
+    <string name="added_games_import_hint">一個包含多個子資料夾的資料夾，每個子資料夾對應一個 Windows 遊戲。你在 Steam 上擁有的遊戲會在 Steam 重啟後使用對應的 Steam 項目，其餘遊戲會成為非 Steam 捷徑。第二收藏庫設為自動時，Steam 也可以將遊戲安裝到此資料夾。</string>
     <string name="second_library_import_hint">新增一個 Steam 收藏庫，並掃描其中的 Windows 遊戲。已擁有的遊戲會使用對應的 Steam 項目，其餘遊戲會成為非 Steam 捷徑。</string>
     <string name="added_games_forget_hint">「忘記」會在下次工作階段中移除這些捷徑。但檔案仍保留在磁碟上。</string>
     <string name="game_env_title">遊戲環境</string>
@@ -353,8 +353,8 @@
     <string name="mode_wifi_explain_title">啟用 Wi-Fi 探索？</string>
     <string name="mode_wifi_explain_text">Android 需要定位權限才能讀取 Wi-Fi 名稱並探索附近網路。DroidDeck 使用此權限在 Steam 中顯示這些網路。我們不會追蹤你的位置。沒有此權限也可以存取網際網路。</string>
     <string name="mode_storage">遊戲儲存空間</string>
-    <string name="mode_storage_auto">自動 - 有 SD 卡時使用 SD 卡</string>
-    <string name="mode_storage_auto_none">自動 - 有 SD 卡時使用 SD 卡（目前無 SD 卡）</string>
+    <string name="mode_storage_auto">自動 - 有 SD 卡時使用 SD 卡，以及你的遊戲資料夾</string>
+    <string name="mode_storage_auto_none">自動 - 使用你的遊戲資料夾，有 SD 卡時也使用 SD 卡（目前無 SD 卡）</string>
     <string name="mode_storage_internal">僅內部儲存空間</string>
     <string name="mode_storage_folder">資料夾：%1$s</string>
     <string name="mode_second_library">第二收藏庫</string>

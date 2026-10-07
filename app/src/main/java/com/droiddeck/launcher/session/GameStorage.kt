@@ -6,6 +6,7 @@ import android.os.StatFs
 import android.os.storage.StorageManager
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 
 /**
@@ -64,6 +65,25 @@ object GameStorage {
             else -> Option(SessionPrefs.gameStorageLabel(context), pref)
         }
     }
+
+    class Library(val host: File, val guest: String, val label: String)
+
+    fun gamesFolderLibraries(context: Context): List<Library> {
+        if (SessionPrefs.gameStorage(context).isNotEmpty()) return emptyList()
+        val card = effective(context)?.let { canonical(File(it.path)) }
+        val sm = context.getSystemService(StorageManager::class.java)
+        return AddedGames.roots(context).mapNotNull { root ->
+            val host = canonical(root.host)
+            if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null
+            if (card != null && (host == card || host.startsWith("$card/") || card.startsWith("$host/"))) return@mapNotNull null
+            val volume = try { sm?.getStorageVolume(root.host)?.getDescription(context) } catch (e: Exception) { null }
+            val name = root.host.name.ifEmpty { context.getString(R.string.gstore_folder) }
+            val label = if (volume.isNullOrBlank()) name else context.getString(R.string.gstore_folder_on_volume, name, volume)
+            Library(root.host, root.guest, label.replace('"', ' ').replace('\\', ' '))
+        }
+    }
+
+    private fun canonical(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
 
     /** The label the client shows for a chosen folder: its last name, or the volume's. */
     fun labelFor(context: Context, path: String): String =

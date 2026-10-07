@@ -568,7 +568,7 @@ case $mode in
         local d
         [ -e "$compat_stamp" ] && [ "$((beat % 12))" -ne 0 ] || return 0
         for d in "$steam_root/steamapps" "$steam_root/steamapps/common" "$steam_root/config" \
-                 "$steam_root/compatibilitytools.d" /mnt/droiddeck-sd/steamapps; do
+                 "$steam_root/compatibilitytools.d" /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps; do
           [ "$d" -nt "$compat_stamp" ] && return 0
         done
         return 1

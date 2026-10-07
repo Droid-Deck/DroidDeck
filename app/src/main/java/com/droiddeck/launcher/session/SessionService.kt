@@ -407,7 +407,7 @@ class SessionService : Service() {
         // whatever a session leaves behind. The client abandons tens of megabytes of streams a run.
         FileUtils.clear(File(cacheDir, "shm"))
 
-        val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest)
+        val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
         // The fast path is told exactly the rootfs and binds proot is given (ProotFastPath).
         val fastPathKey = if (ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
@@ -757,6 +757,8 @@ class SessionService : Service() {
         fakeInputDir: File,
         sessionDir: File,
         guest: MutableList<String>,
+        sessionRoot: File,
+        runtimeDir: File,
     ): ArrayList<String> {
         val binds = ArrayList<String>()
         if (controllersOn) binds.add(fakeInputDir.path + ":/dev/input")
@@ -876,6 +878,45 @@ class SessionService : Service() {
             Log.i(TAG, "roms: $roms -> /root/ROMs")
         } else if (roms != null) {
             Log.w(TAG, "roms: $roms is not a readable folder; /root/ROMs not offered this session")
+        }
+        val libraries = ArrayList<Pair<String, String>>()
+        if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
+        val gamesLibraries = GameStorage.gamesFolderLibraries(this)
+        if (gamesLibraries.isNotEmpty()) {
+            var room = if (ProotFastPath.enabled(this)) {
+                ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+            } else Int.MAX_VALUE
+            for (games in gamesLibraries) {
+                if (games.host.path + ":" + games.guest !in binds) continue
+                val problem = GameStorage.prepare(this, games.host.path)
+                if (problem != null) {
+                    Log.w(TAG, "steam library: $problem")
+                    continue
+                }
+                try {
+                    val extra = SecondaryLibrary.binds(filesDir, games.host, listOf(games.guest)).drop(1)
+                    if (extra.size > room) {
+                        Log.w(TAG, "steam library: ${games.host} needs ${extra.size} binds, $room left for the fast path; not a library this session")
+                        continue
+                    }
+                    binds.addAll(extra)
+                    room -= extra.size
+                    libraries.add(games.guest to games.label)
+                    Log.i(TAG, "steam library: ${games.host} -> ${games.guest} (\"${games.label}\")")
+                } catch (e: Exception) {
+                    Log.w(TAG, "steam library: ${games.host} private directories could not be prepared", e)
+                }
+            }
+        }
+        try {
+            val listing = File(filesDir, "session/steam-libraries.json").apply { parentFile?.mkdirs() }
+            val json = org.json.JSONArray()
+            for ((path, label) in libraries) json.put(org.json.JSONObject().put("path", path).put("label", label.replace('"', ' ').replace('\\', ' ')))
+            listing.writeText(json.toString())
+            val envAt = guest.indexOf(LinuxRuntime.SESSION_SCRIPT).takeIf { it >= 0 } ?: guest.size
+            guest.add(envAt, "BL_STEAM_LIBRARIES=" + listing.path)
+        } catch (e: Exception) {
+            Log.w(TAG, "steam library: the list could not be written; the card alone this session", e)
         }
         return binds
     }

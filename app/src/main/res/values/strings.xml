@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s: engine failed</string>
     <string name="hud_fg_needs_lossless">%1$s: needs Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · starting</string>
-    <string name="added_games_import_hint">A folder with one subfolder per Windows game. Games you own on Steam use their Steam entries after Steam restarts; the rest become non-Steam shortcuts.</string>
+    <string name="added_games_import_hint">A folder with one subfolder per Windows game. Games you own on Steam use their Steam entries after Steam restarts; the rest become non-Steam shortcuts. With Second library on Automatic, Steam can install games into this folder too.</string>
     <string name="second_library_import_hint">Adds a Steam library and scans it for Windows games. Owned games use their Steam entries; the rest become non-Steam shortcuts.</string>
     <string name="added_games_forget_hint">Forget removes the shortcuts next session. Files stay on disk.</string>
     <string name="game_env_title">Game environment</string>
@@ -353,8 +353,8 @@
     <string name="mode_wifi_explain_title">Enable Wi-Fi discovery?</string>
     <string name="mode_wifi_explain_text">Android requires Location permission to read Wi-Fi names and discover nearby networks. DroidDeck uses this access to show those networks in Steam. We don\'t track your location. Internet access works without this permission.</string>
     <string name="mode_storage">Game storage</string>
-    <string name="mode_storage_auto">Automatic - the SD card when present</string>
-    <string name="mode_storage_auto_none">Automatic - the SD card when present (none now)</string>
+    <string name="mode_storage_auto">Automatic - the SD card when present, plus your Games folders</string>
+    <string name="mode_storage_auto_none">Automatic - your Games folders, plus the SD card when present (none now)</string>
     <string name="mode_storage_internal">Internal only</string>
     <string name="mode_storage_folder">Folder: %1$s</string>
     <string name="mode_second_library">Second library</string>
@@ -1846,6 +1846,7 @@
     <string name="gstore_sd_card">SD card</string>
     <!-- %1$s is a size, like 12.3 GB -->
     <string name="gstore_folder">Folder</string>
+    <string name="gstore_folder_on_volume" translatable="false">%1$s (%2$s)</string>
 
     <string name="logshare_chooser">Share session logs</string>
     <!-- Stands in for the Steam account name when the client did not record one -->

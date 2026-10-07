@@ -72,6 +72,7 @@ cache="$steam_root/.droiddeck-game-scripts"
 libraries="$steam_root"
 for library in $LIBRARIES; do libraries="$libraries
 $library"; done
+libraries=$(printf '%s\n%s\n' "$libraries" "$(sed -n 's/^[[:space:]]*"path"[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$steam_root/steamapps/libraryfolders.vdf" 2>/dev/null)" | awk 'NF && !seen[$0]++')
 sig=$(while IFS= read -r library; do ls -l --time-style=+%s "$library"/steamapps/appmanifest_*.acf 2>/dev/null; done <<<"$libraries" | cksum)
 if [ "$(head -n 1 "$cache" 2>/dev/null)" != "$sig" ]; then
   {
@@ -133,9 +134,12 @@ $(vcrt "$(date +%s)")"
 # prefix moments later, so the template carries the markers too. Its date is kept: Proton reads a
 # changed one as a new template and upgrades every prefix made from the old.
 for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            "$steam_root"/compatibilitytools.d/*/files/share/default_pfx*/system.reg \
            "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
-           /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg; do
+           /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
+           /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
   [ -f "$reg" ] || continue
   seeded=$(dirname "$reg")/.droiddeck-redists
   legacy=$(dirname "$reg")/.bannerlator-redists

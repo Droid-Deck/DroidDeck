@@ -175,6 +175,16 @@ class MainActivity : ComponentActivity() {
             refreshWifiDiscovery()
         }
     }
+    private val mediaRefresh = Runnable {
+        refresh()
+        refreshAddedGames()
+    }
+    private val mediaReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            ui.removeCallbacks(mediaRefresh)
+            ui.postDelayed(mediaRefresh, MEDIA_SETTLE_MS)
+        }
+    }
     private val wifiLocationPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         SessionPrefs.setWifiDiscoveryEnabled(this, WifiDiscovery.permissionGranted(this))
         refreshWifiDiscovery()
@@ -926,6 +936,11 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         registerReceiver(wifiLocationReceiver, android.content.IntentFilter(android.location.LocationManager.MODE_CHANGED_ACTION))
+        registerReceiver(mediaReceiver, android.content.IntentFilter().apply {
+            for (action in listOf(Intent.ACTION_MEDIA_MOUNTED, Intent.ACTION_MEDIA_UNMOUNTED, Intent.ACTION_MEDIA_REMOVED,
+                Intent.ACTION_MEDIA_EJECT, Intent.ACTION_MEDIA_BAD_REMOVAL)) addAction(action)
+            addDataScheme("file")
+        })
         displayManager.registerDisplayListener(secondScreenDisplayListener, ui)
         refreshSecondScreenDisplays()
     }
@@ -937,6 +952,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         unregisterReceiver(wifiLocationReceiver)
+        unregisterReceiver(mediaReceiver)
+        ui.removeCallbacks(mediaRefresh)
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         // The session covers the page by now; coming back finds it as it was.
         flood = null
@@ -1618,6 +1635,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val MEDIA_SETTLE_MS = 1500L
         /** What the picker offers for a driver zip; some file apps label a zip as a plain stream. */
         private val ZIP_EXT = listOf("zip")
         private val WCP_EXT = listOf("wcp")
