@@ -948,7 +948,8 @@ BUSCONF
                   [ "$game_id_length" -eq 20 ] && [[ "$game_id" < "18446744073709551616" ]];
                 }; then
                   echo "== steam: launching requested game $game_id in the running client"
-                  "$steam_root/steamrtarm64/steam" "steam://rungameid/$game_id" >/dev/null 2>&1 &
+                  # The running client, whichever it is: steamrtarm64/steam is not the x86-64 one.
+                  "${steam_client[@]}" "steam://rungameid/$game_id" >/dev/null 2>&1 &
                 else
                   echo "== steam: ignored out-of-range game launch request"
                 fi
@@ -972,7 +973,12 @@ BUSCONF
       fi
       # Between starts only: the client holds registry.vdf in memory and writes it back on exit.
       if [ -n "${BL_STEAM_LANGUAGE:-}" ]; then
-        droiddeck-steam-language "$HOME" "$BL_STEAM_LANGUAGE" || true
+        # The registry of the client that starts: the x86-64 one has its own home.
+        if [ "$steam_x64" = 1 ]; then
+          droiddeck-steam-language "${BL_X64_HOME:-$HOME/.droiddeck-x64}" "$BL_STEAM_LANGUAGE" || true
+        else
+          droiddeck-steam-language "$HOME" "$BL_STEAM_LANGUAGE" || true
+        fi
       fi
       step "starting the Steam client${BL_STEAM_UI:+ ($BL_STEAM_UI UI)}"
       "${steam_client[@]}" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
