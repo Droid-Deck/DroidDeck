@@ -263,6 +263,8 @@
     <string name="mode_deck_mode_hint">Interface Steam Deck et contrôles de performance à accès rapide. Prendra effet à la prochaine session.</string>
     <string name="mode_mangoapp">Superposition de performance</string>
     <string name="mode_mangoapp_hint">Désactivez cette option si les jeux plantent ou affichent un écran noir en mode Deck. Prendra effet à la prochaine session.</string>
+    <string name="mode_return_after_game">Revenir à DroidDeck après un jeu</string>
+    <string name="mode_return_after_game_hint">Quand un jeu lancé depuis DroidDeck ou un autre lanceur se ferme, Steam se ferme proprement (après la synchronisation des sauvegardes cloud) et vous y revenez. Désactivé : vous restez dans Steam.</string>
     <string name="mode_branch">Branche du client</string>
     <string name="mode_branch_deck">Bêta Steam Deck (requis pour le mode Deck).</string>
     <string name="mode_branch_hint">Prendra effet à la prochaine session. Steam peut se mettre à jour une fois de lui-même.</string>

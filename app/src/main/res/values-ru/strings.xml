@@ -263,6 +263,8 @@
     <string name="mode_deck_mode_hint">Интерфейс Steam Deck и управление производительностью через быстрый доступ. Вступит в силу в следующей сессии.</string>
     <string name="mode_mangoapp">Оверлей производительности</string>
     <string name="mode_mangoapp_hint">Отключите, если игры падают или появляется черный экран в режиме Deck. Вступит в силу в следующей сессии.</string>
+    <string name="mode_return_after_game">Возвращаться в DroidDeck после игры</string>
+    <string name="mode_return_after_game_hint">Когда игра, запущенная из DroidDeck или другого лаунчера, закрывается, Steam корректно завершает работу (сначала синхронизирует облачные сохранения), и вы возвращаетесь туда. Выкл.: остаётесь в Steam.</string>
     <string name="mode_branch">Ветка клиента</string>
     <string name="mode_branch_deck">Бета-версия Steam Deck (требуется для режима Deck).</string>
     <string name="mode_branch_hint">Вступит в силу в следующей сессии. Steam может обновиться самостоятельно один раз.</string>

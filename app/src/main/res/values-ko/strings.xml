@@ -289,6 +289,8 @@
     <string name="mode_deck_mode_hint">Steam Deck UI 및 빠른 액세스 성능 제어. 다음 세션에 적용됩니다.</string>
     <string name="mode_mangoapp">성능 오버레이</string>
     <string name="mode_mangoapp_hint">Deck 모드에서 게임이 충돌하거나 화면이 검게 변하면 이 옵션을 끄세요. 다음 세션에 적용됩니다.</string>
+    <string name="mode_return_after_game">게임 종료 후 DroidDeck으로 돌아가기</string>
+    <string name="mode_return_after_game_hint">DroidDeck 또는 다른 런처에서 실행한 게임을 닫으면 Steam이 정상적으로 종료되고(클라우드 저장 동기화를 먼저 완료) 실행한 곳으로 돌아갑니다. 끄면 Steam에 머무릅니다.</string>
     <string name="mode_branch">클라이언트 브랜치</string>
     <string name="mode_branch_deck">Steam Deck 베타(Deck 모드에 필요).</string>
     <string name="mode_branch_hint">다음 세션에 적용됩니다. Steam이 자체적으로 한 번 업데이트될 수 있습니다.</string>

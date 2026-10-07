@@ -170,6 +170,16 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("clientDirectAudio", on).apply()
     }
 
+    /**
+     * After a game launched from the front end (or another launcher's link) closes, the client
+     * exits cleanly and the session returns there, instead of staying in Big Picture.
+     */
+    fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
+
+    fun setReturnAfterGame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("returnAfterGame", on).apply()
+    }
+
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
 
     fun setStretch16x9(context: Context, on: Boolean) {

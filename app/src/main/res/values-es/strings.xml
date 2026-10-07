@@ -289,6 +289,8 @@
     <string name="mode_deck_mode_hint">La interfaz Deck de Steam y los controles de rendimiento de Quick Access. Se aplica en la próxima sesión.</string>
     <string name="mode_mangoapp">Overlay de rendimiento</string>
     <string name="mode_mangoapp_hint">Desactívalo si los juegos fallan o se quedan en negro en modo Deck. Se aplica en la próxima sesión.</string>
+    <string name="mode_return_after_game">Volver a DroidDeck al cerrar un juego</string>
+    <string name="mode_return_after_game_hint">Cuando se cierra un juego que iniciaste desde DroidDeck u otro lanzador, Steam se cierra correctamente (primero termina de sincronizar las partidas en la nube) y vuelves allí. Desactivado: te quedas en Steam.</string>
     <string name="mode_branch">Rama del cliente</string>
     <string name="mode_branch_deck">Beta pública de Steam Deck (requerida por el modo Deck).</string>
     <string name="mode_branch_hint">Se aplica en la próxima sesión. Steam puede actualizarse una vez.</string>

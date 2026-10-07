@@ -289,6 +289,8 @@
     <string name="mode_deck_mode_hint">Steam 的 Deck 介面及快速存取效能控制。下次會話生效。</string>
     <string name="mode_mangoapp">效能疊加層</string>
     <string name="mode_mangoapp_hint">如果在 Deck 模式下遊戲當機或黑畫面，請關閉此項。下次會話生效。</string>
+    <string name="mode_return_after_game">遊戲結束後返回 DroidDeck</string>
+    <string name="mode_return_after_game_hint">從 DroidDeck 或其他啟動器啟動的遊戲關閉後，Steam 會正常退出（先完成雲端存檔同步），並返回啟動位置。關閉：留在 Steam 中。</string>
     <string name="mode_branch">用戶端分支</string>
     <string name="mode_branch_deck">Steam Deck 公開測試版（Deck 模式需要）。</string>
     <string name="mode_branch_hint">下次會話生效。Steam 可能會自行更新一次。</string>
