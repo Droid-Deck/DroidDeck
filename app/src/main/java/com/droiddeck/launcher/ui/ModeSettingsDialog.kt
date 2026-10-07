@@ -97,6 +97,8 @@ class ModeSettings(
     val mangoapp: Boolean = true,
     /** Steam only: what the pad is to the client (SessionPrefs.CONTROLLER_*); null outside Steam. */
     val steamController: String? = null,
+    /** Unfolded controls (Steam only; null hides the row). */
+    val unfoldedControls: Boolean? = null,
     /** Steam only: start a Steam session when DroidDeck opens. */
     val runSteamAtStartup: Boolean = false,
     /** Null outside Steam; the saved choice is separate from Android's access and device switch. */
@@ -155,6 +157,7 @@ class ModeSettingsActions(
     val onSteamDeckMode: (Boolean) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
+    val onUnfoldedControls: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onWifiDiscovery: (Boolean) -> Unit = {},
     val onWifiDiscoverySettings: () -> Unit = {},
@@ -285,6 +288,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     ), s.steamController,
                     note = stringResource(R.string.mode_controller_note),
                     onPick = a.onSteamController,
+                )
+                if (steam && s.unfoldedControls != null) ToggleRow(
+                    host, "unfolded-controls", stringResource(R.string.unfolded_controls),
+                    stringResource(R.string.unfolded_controls_hint),
+                    s.unfoldedControls, onChange = a.onUnfoldedControls,
                 )
                 if (steam) ChoiceRow(
                     host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),

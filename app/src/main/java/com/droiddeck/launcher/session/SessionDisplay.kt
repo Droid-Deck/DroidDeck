@@ -52,6 +52,25 @@ object SessionDisplay {
     fun followSize(width: Int, height: Int): Pair<Int, Int>? =
         if (minOf(width, height) < FOLLOW_MIN_SIDE) null else (width and 1.inv()) to (height and 1.inv())
 
+    /** Unfolded controls: the most of the window the game may take, so a window near 16:9 itself
+     *  still leaves the Deck controls room. */
+    const val UNFOLDED_MAX_GAME_SHARE = 0.8f
+
+    /** A foldable: Android 11's hinge angle sensor, which foldables report and slates do not. Unfolded
+     *  controls are offered only there - untested on tablets, whose 16:10 landscape leaves them
+     *  little room under a 16:9 game. */
+    fun foldable(context: Context): Boolean =
+        context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")
+
+    /** A panel at least this wide on its shortest side (dp) is a foldable's unfolded inner screen. */
+    const val UNFOLDED_MIN_DP = 600
+
+    /** Unfolded controls: the game's height in a window of this size - 16:9 across the full width,
+     *  held either way, with even sides - and the Deck controls take the rest below it, laid out to
+     *  whatever that leaves (DeckControlsPanel's GamepadLayout). */
+    fun unfoldedGameHeight(width: Int, height: Int): Int =
+        minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt()) and 1.inv()
+
     fun panelSize(context: Context): Pair<Int, Int> {
         val manager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         @Suppress("DEPRECATION")

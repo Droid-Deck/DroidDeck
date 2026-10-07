@@ -239,6 +239,9 @@ class DrawerActions(
     val pipAutoEnter: Boolean = false,
     val onPip: () -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
+    /** Unfolded controls (on a foldable; null hides the row). */
+    val unfoldedControls: Boolean? = null,
+    val onUnfoldedControls: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     /** Stop with the dialog's button's bounds on screen, for the flood to grow out of; null falls back to [onStop]. */
@@ -437,6 +440,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
+                                if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
+                                    stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
+                                    chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {

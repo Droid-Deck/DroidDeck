@@ -798,6 +798,26 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
     }
 
+    /** A foldable's unfolded panel shows the game above the Deck controls (SessionDisplay.unfoldedGameHeight). */
+    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", false)
+
+    fun setUnfoldedControls(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
+    }
+
+    const val SURFACE_STICK = "stick"
+    const val SURFACE_TRACKPAD = "trackpad"
+
+    /** The Deck controls' gamepad tab: what each side is - an analog stick or a Steam trackpad.
+     *  Left a stick and right a trackpad until changed, as a Deck is mostly played. */
+    fun gamepadSurface(context: Context, right: Boolean): String =
+        prefs(context).getString(if (right) "gamepadRight" else "gamepadLeft", null)
+            ?: if (right) SURFACE_TRACKPAD else SURFACE_STICK
+
+    fun setGamepadSurface(context: Context, right: Boolean, surface: String) {
+        prefs(context).edit().putString(if (right) "gamepadRight" else "gamepadLeft", surface).apply()
+    }
+
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
             ?.let { if (it == LEGACY_SUSPEND_DOWNLOADS) SUSPEND_AUTO else it }
