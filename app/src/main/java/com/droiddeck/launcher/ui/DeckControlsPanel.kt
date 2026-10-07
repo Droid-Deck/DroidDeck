@@ -59,6 +59,15 @@ class DeckControlsPanel(
         select(if (pad != null) selectedWithPad else selected)
     }
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        // Held flat the gamepad has no Panels button, so another tab would have no way back:
+        // turning the phone from upright onto its side returns to the gamepad.
+        if (pad != null && selectedWithPad != Tab.GAMEPAD && !GamepadGeometry.tall(w.toFloat(), h.toFloat())) {
+            post { if (selectedWithPad != Tab.GAMEPAD) select(Tab.GAMEPAD) }
+        }
+    }
+
     override fun onDetachedFromWindow() {
         DeckControls.releaseAll()
         super.onDetachedFromWindow()

@@ -42,6 +42,10 @@ object GamepadGeometry {
     private val middle = listOf(Slot.VIEW, Slot.STEAM, Slot.QAM, Slot.MENU)
     private val twoByTwo = mapOf(Slot.VIEW to 0, Slot.MENU to 1, Slot.STEAM to 2, Slot.QAM to 3)
 
+    /** A panel this shape is laid out as a tall panel (held upright), which has room for Panels;
+     *  anything flatter is a wide strip. */
+    fun tall(w: Float, h: Float): Boolean = h >= w * 0.45f
+
     fun layout(w: Float, h: Float, density: Float): Map<Slot, Box> {
         if (w <= 0f || h <= 0f) return emptyMap()
         val pad = 8 * density
@@ -64,7 +68,7 @@ object GamepadGeometry {
                 boxes[slot] = Box(x, top + buttonH / 2f + (index / columns) * (buttonH + 10 * density), each - gutter, buttonH)
             }
         }
-        if (h < w * 0.45f) {
+        if (!tall(w, h)) {
             val reach = min(h - pad, w * 0.33f)
             val main = reach * 0.66f
             val second = reach * 0.54f
