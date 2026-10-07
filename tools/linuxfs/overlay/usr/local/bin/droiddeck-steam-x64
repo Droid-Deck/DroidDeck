@@ -623,6 +623,12 @@ FILES = ("config/loginusers.vdf", "local.vdf")
 def stamp(root):
     if not all(os.path.isfile(os.path.join(root, f)) for f in FILES):
         return None
+    # A client that refused its token rewrites local.vdf with an empty ConnectCache: newest, and
+    # nothing to share - copied over the other it would sign that one out too (device: the x86-64
+    # client's "Invalid Password" left one newer than the arm64 client's working sign-in).
+    text = open(os.path.join(root, "local.vdf"), encoding="utf-8", errors="surrogateescape").read()
+    if not re.search(r'"ConnectCache"\s*\{\s*"[^"]+"\s*"[^"]+"', text):
+        return None
     return os.path.getmtime(os.path.join(root, "local.vdf"))
 
 
