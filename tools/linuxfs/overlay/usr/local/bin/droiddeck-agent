@@ -1,0 +1,593 @@
+#!/usr/bin/python3
+"""The guest side of the agent bridge (docs/agent-control.md).
+
+Started by droiddeck-session inside the session, so whatever it runs has the session's own
+environment: DISPLAY, the games' Xwayland, XDG_RUNTIME_DIR, and the preloads every guest process
+gets - which is what lets it reach the Steam client's DevTools port, open to guest processes only.
+
+The app talks to it through files under $BL_LAUNCH_DIR/agent (the session root, the same path on
+both sides):
+
+    req/<id>.json    a request the app wrote (tmp + rename)
+    resp/<id>.json   the answer, written the same way
+    hello.json       this daemon is up: pid, version, what it can do
+    focus.json       gamescope's focus and every server's top-level windows, rewritten on change
+    cdp-port         the client's DevTools port, written by droiddeck-session
+
+Requests: ping, exec, focus, cdp, quit. Each answer is {"ok": true, ...} or
+{"ok": false, "error": {"code", "message"}}.
+"""
+
+import base64
+import json
+import os
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+from pathlib import Path
+
+VERSION = 1
+OUTPUT_CAP = 256 * 1024
+FOCUS_PROPS = (
+    "GAMESCOPE_FOCUSED_APP", "GAMESCOPE_FOCUSED_WINDOW", "GAMESCOPE_FOCUSABLE_APPS",
+    "GAMESCOPE_FOCUSABLE_WINDOWS", "GAMESCOPECTRL_BASELAYER_APPID",
+)
+WINDOW_PROPS = (
+    "STEAM_GAME", "WM_STATE", "_NET_WM_PID", "WM_CLASS", "_NET_WM_WINDOW_OPACITY", "STEAM_OVERLAY",
+    "GAMESCOPE_EXTERNAL_OVERLAY", "STEAM_INPUT_FOCUS", "_NET_WM_STATE",
+)
+MAP_STATE = ("unmapped", "unviewable", "viewable")
+WM_STATES = {0: "withdrawn", 1: "normal", 3: "iconic"}
+
+
+def log(message):
+    print("== agent: " + message, flush=True)
+
+
+def write_json(path, value):
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(value, separators=(",", ":")))
+    os.replace(tmp, path)
+
+
+class AgentError(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+# --- X11: just enough of the protocol for root properties, the window tree and events ---------
+
+class X:
+    """One connection to an Xwayland server. The rootfs has xprop but no python X library."""
+
+    def __init__(self, display):
+        num = display.lstrip(":").split(".")[0]
+        last = None
+        for address in ("\0/tmp/.X11-unix/X" + num, "/tmp/.X11-unix/X" + num):
+            try:
+                self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.s.settimeout(3)
+                self.s.connect(address)
+                break
+            except OSError as e:
+                last = e
+                self.s.close()
+        else:
+            raise last
+        self.s.sendall(struct.pack("<BxHHHHxx", 0x6C, 11, 0, 0, 0))
+        head = self._read(8)
+        if head[0] != 1:
+            raise OSError("X connection refused on " + display)
+        setup = self._read(struct.unpack_from("<H", head, 6)[0] * 4)
+        vendor = struct.unpack_from("<H", setup, 16)[0]
+        formats = setup[21]
+        self.root = struct.unpack_from("<I", setup, 32 + (vendor + 3) // 4 * 4 + formats * 8)[0]
+        self.events = []
+        self._atoms = {}
+        self._names = {}
+
+    def close(self):
+        try:
+            self.s.close()
+        except OSError:
+            pass
+
+    def _read(self, n):
+        buf = b""
+        while len(buf) < n:
+            chunk = self.s.recv(n - len(buf))
+            if not chunk:
+                raise OSError("X connection closed")
+            buf += chunk
+        return buf
+
+    def request(self, data):
+        """Send one request and return its reply, or None for an X error (a window that went)."""
+        self.s.sendall(data)
+        while True:
+            head = self._read(32)
+            if head[0] == 0:
+                return None
+            if head[0] == 1:
+                return head + self._read(struct.unpack_from("<I", head, 4)[0] * 4)
+            self.events.append(head)
+
+    def next_event(self):
+        if self.events:
+            return self.events.pop(0)
+        while True:
+            head = self._read(32)
+            if head[0] > 1:
+                return head
+
+    def atom(self, name):
+        if name not in self._atoms:
+            n = name.encode()
+            pad = (4 - len(n) % 4) % 4
+            r = self.request(struct.pack("<BBHHxx", 16, 0, 2 + (len(n) + pad) // 4, len(n)) + n + b"\0" * pad)
+            self._atoms[name] = struct.unpack_from("<I", r, 8)[0] if r else 0
+        return self._atoms[name]
+
+    def atom_name(self, atom):
+        if atom not in self._names:
+            r = self.request(struct.pack("<BxHI", 17, 2, atom))
+            self._names[atom] = r[32:32 + struct.unpack_from("<H", r, 8)[0]].decode(errors="replace") if r else str(atom)
+        return self._names[atom]
+
+    def select(self, window, mask):
+        self.s.sendall(struct.pack("<BxHIII", 2, 4, window, 0x800, mask))
+
+    def children(self, window):
+        r = self.request(struct.pack("<BxHI", 15, 2, window))
+        if not r:
+            return []
+        n = struct.unpack_from("<H", r, 16)[0]
+        return list(struct.unpack_from("<%dI" % n, r, 32))
+
+    def attributes(self, window):
+        r = self.request(struct.pack("<BxHI", 3, 2, window))
+        return (r[26], r[27], struct.unpack_from("<H", r, 12)[0]) if r else None
+
+    def geometry(self, window):
+        r = self.request(struct.pack("<BxHI", 14, 2, window))
+        return struct.unpack_from("<hhHH", r, 12) if r else None
+
+    def prop(self, window, name, length=1024):
+        atom = self.atom(name)
+        if not atom:
+            return None
+        r = self.request(struct.pack("<BBHIIIII", 20, 0, 6, window, atom, 0, 0, length))
+        if not r or r[1] == 0:
+            return None
+        fmt, n = r[1], struct.unpack_from("<I", r, 16)[0]
+        data = r[32:32 + n * fmt // 8]
+        if fmt == 32:
+            return list(struct.unpack("<%dI" % n, data))
+        return data
+
+
+def windows(x):
+    """Top-level windows that are mapped or carry an app id: what gamescope picks focus from."""
+    out = []
+    for win in x.children(x.root):
+        attrs = x.attributes(win)
+        if not attrs:
+            continue
+        props = {name: x.prop(win, name) for name in WINDOW_PROPS}
+        if attrs[0] != 2 and not props["STEAM_GAME"]:
+            continue
+        geo = x.geometry(win) or (0, 0, 0, 0)
+        cls = props["WM_CLASS"]
+        state = props["WM_STATE"]
+        entry = {
+            "window": win,
+            "map": MAP_STATE[attrs[0]] if attrs[0] < 3 else attrs[0],
+            "overrideRedirect": bool(attrs[1]),
+            "inputOnly": attrs[2] == 2,
+            "geometry": [geo[0], geo[1], geo[2], geo[3]],
+            "appId": props["STEAM_GAME"][0] if props["STEAM_GAME"] else None,
+            "wmState": WM_STATES.get(state[0], state[0]) if state else None,
+            "pid": props["_NET_WM_PID"][0] if props["_NET_WM_PID"] else None,
+            "class": cls.split(b"\0")[-2].decode(errors="replace") if cls and b"\0" in cls else None,
+        }
+        if props["_NET_WM_WINDOW_OPACITY"]:
+            entry["opacity"] = props["_NET_WM_WINDOW_OPACITY"][0]
+        for key, name in (("overlay", "STEAM_OVERLAY"), ("externalOverlay", "GAMESCOPE_EXTERNAL_OVERLAY"),
+                          ("inputFocus", "STEAM_INPUT_FOCUS")):
+            if props[name]:
+                entry[key] = props[name][0]
+        if props["_NET_WM_STATE"]:
+            entry["netState"] = [x.atom_name(a).replace("_NET_WM_STATE_", "") for a in props["_NET_WM_STATE"]]
+        out.append(entry)
+    return out
+
+
+def displays():
+    seen = []
+    for d in (os.environ.get("DISPLAY"), os.environ.get("STEAM_GAME_DISPLAY_0")):
+        if d and d not in seen:
+            seen.append(d)
+    return seen
+
+
+def focus_snapshot():
+    """gamescope's focus as Steam sees it (root properties on the client's server) and every
+    server's windows. GAMESCOPE_FOCUSABLE_WINDOWS is the list the client orders the base layer
+    from: a game missing there stays behind the client however healthy its window looks."""
+    shown = displays()
+    if not shown:
+        raise AgentError("NO_DISPLAY", "This session has no X display")
+    snap = {"t": int(time.time() * 1000), "displays": {}}
+    for i, d in enumerate(shown):
+        x = X(d)
+        try:
+            if i == 0:
+                values = {name: x.prop(x.root, name) for name in FOCUS_PROPS}
+                trip = values["GAMESCOPE_FOCUSABLE_WINDOWS"] or []
+                snap["focusedApp"] = (values["GAMESCOPE_FOCUSED_APP"] or [None])[0]
+                snap["focusedWindow"] = (values["GAMESCOPE_FOCUSED_WINDOW"] or [None])[0]
+                snap["focusableApps"] = values["GAMESCOPE_FOCUSABLE_APPS"] or []
+                snap["focusableWindows"] = [
+                    {"window": trip[k], "appId": trip[k + 1], "pid": trip[k + 2]} for k in range(0, len(trip) - 2, 3)
+                ]
+                snap["baselayerAppIds"] = values["GAMESCOPECTRL_BASELAYER_APPID"] or []
+            snap["displays"][d] = windows(x)
+        finally:
+            x.close()
+    return snap
+
+
+class FocusWatcher(threading.Thread):
+    """Rewrites focus.json when gamescope's focus properties change, and every few seconds when
+    the windows do (a window can change without any root property moving)."""
+
+    def __init__(self, path):
+        super().__init__(daemon=True, name="focus")
+        self.path = path
+        self.changed = threading.Event()
+        self.last = None
+        self.seq = 0
+
+    def run(self):
+        threading.Thread(target=self.listen, daemon=True, name="focus-events").start()
+        while True:
+            self.changed.wait(timeout=5)
+            self.changed.clear()
+            time.sleep(0.2)  # let a burst of property changes settle
+            try:
+                snap = focus_snapshot()
+            except (OSError, AgentError) as e:
+                log("focus snapshot failed: %s" % e)
+                time.sleep(2)
+                continue
+            body = {k: v for k, v in snap.items() if k != "t"}
+            if body == self.last:
+                continue
+            self.last = body
+            self.seq += 1
+            snap["seq"] = self.seq
+            write_json(self.path, snap)
+
+    def listen(self):
+        while True:
+            try:
+                x = X(os.environ["DISPLAY"])
+                wanted = {x.atom(name) for name in FOCUS_PROPS}
+                x.select(x.root, 0x400000)  # PropertyChangeMask
+                self.changed.set()
+                while True:
+                    event = x.next_event()
+                    if event[0] & 0x7F == 28 and struct.unpack_from("<I", event, 8)[0] in wanted:
+                        self.changed.set()
+            except OSError as e:
+                log("focus events: %s; reconnecting" % e)
+                time.sleep(2)
+
+
+# --- Steam client DevTools (CDP) -----------------------------------------------------------------
+
+class WebSocket:
+    """A minimal RFC 6455 client: text frames out, text frames in. Enough for CDP."""
+
+    def __init__(self, url, timeout):
+        assert url.startswith("ws://")
+        hostport, _, path = url[5:].partition("/")
+        host, _, port = hostport.partition(":")
+        self.s = socket.create_connection((host, int(port or 80)), timeout=timeout)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.s.sendall((
+            "GET /%s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (path, hostport, key)
+        ).encode())
+        head = b""
+        while b"\r\n\r\n" not in head:
+            chunk = self.s.recv(4096)
+            if not chunk:
+                raise OSError("DevTools closed the connection during the handshake")
+            head += chunk
+        status = head.split(b"\r\n", 1)[0]
+        if b" 101 " not in status:
+            raise OSError("DevTools refused the WebSocket: " + status.decode(errors="replace"))
+        self.buffer = head.split(b"\r\n\r\n", 1)[1]
+
+    def _read(self, n):
+        while len(self.buffer) < n:
+            chunk = self.s.recv(65536)
+            if not chunk:
+                raise OSError("DevTools closed the connection")
+            self.buffer += chunk
+        data, self.buffer = self.buffer[:n], self.buffer[n:]
+        return data
+
+    def send(self, text):
+        payload = text.encode()
+        header = bytearray([0x81])
+        n = len(payload)
+        if n < 126:
+            header.append(0x80 | n)
+        elif n < 65536:
+            header.append(0x80 | 126)
+            header += struct.pack(">H", n)
+        else:
+            header.append(0x80 | 127)
+            header += struct.pack(">Q", n)
+        mask = os.urandom(4)
+        header += mask
+        self.s.sendall(bytes(header) + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
+
+    def recv(self):
+        message = b""
+        while True:
+            b0, b1 = self._read(2)
+            n = b1 & 0x7F
+            if n == 126:
+                n = struct.unpack(">H", self._read(2))[0]
+            elif n == 127:
+                n = struct.unpack(">Q", self._read(8))[0]
+            mask = self._read(4) if b1 & 0x80 else None
+            data = self._read(n)
+            if mask:
+                data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+            op = b0 & 0x0F
+            if op == 8:
+                raise OSError("DevTools closed the WebSocket")
+            if op == 9:  # ping
+                continue
+            if op in (0, 1, 2):
+                message += data
+                if b0 & 0x80:
+                    return message.decode(errors="replace")
+
+    def close(self):
+        try:
+            self.s.close()
+        except OSError:
+            pass
+
+
+def cdp_port(agent_dir):
+    try:
+        port = (agent_dir / "cdp-port").read_text().strip()
+    except OSError:
+        port = os.environ.get("BL_CDP_PORT", "")
+    if not port.isdigit():
+        raise AgentError("NO_DEVTOOLS", "The Steam client's DevTools port is not known (no Steam client in this session yet)")
+    return int(port)
+
+
+def cdp_targets(agent_dir, timeout=5):
+    url = "http://127.0.0.1:%d/json" % cdp_port(agent_dir)
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return json.loads(r.read().decode())
+    except OSError as e:
+        raise AgentError("DEVTOOLS_UNREACHABLE", "Could not reach the client's DevTools at %s: %s" % (url, e))
+
+
+def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15):
+    targets = [t for t in cdp_targets(agent_dir) if t.get("webSocketDebuggerUrl")]
+    want = target or "SharedJSContext"
+    match = [t for t in targets if want in (t.get("title") or "") or want in (t.get("url") or "")]
+    if not match:
+        names = ", ".join(sorted({t.get("title") or t.get("url") or "?" for t in targets}))
+        raise AgentError("NO_TARGET", "No DevTools target matches '%s' (have: %s)" % (want, names))
+    ws = WebSocket(match[0]["webSocketDebuggerUrl"], timeout)
+    try:
+        ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
+            "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
+            "userGesture": True,
+        }}))
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            message = json.loads(ws.recv())
+            if message.get("id") != 1:
+                continue
+            if "error" in message:
+                raise AgentError("CDP_ERROR", json.dumps(message["error"]))
+            result = message.get("result", {})
+            if result.get("exceptionDetails"):
+                details = result["exceptionDetails"]
+                text = (details.get("exception") or {}).get("description") or details.get("text") or "exception"
+                raise AgentError("JS_EXCEPTION", text)
+            value = result.get("result", {})
+            return {"target": match[0].get("title"), "type": value.get("type"),
+                    "value": value.get("value"), "description": value.get("description")}
+        raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
+    finally:
+        ws.close()
+
+
+# --- Game processes ------------------------------------------------------------------------------
+
+def game_pids(app_id):
+    """Our processes started for this Steam app (Steam sets SteamAppId / SteamGameId in their
+    environment, and Proton's wine processes inherit it)."""
+    wanted = [("SteamAppId=%s" % app_id).encode(), ("SteamGameId=%s" % app_id).encode()]
+    me = os.getpid()
+    pids = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit() or int(entry) == me:
+            continue
+        try:
+            with open("/proc/%s/environ" % entry, "rb") as f:
+                env = f.read().split(b"\0")
+        except OSError:
+            continue
+        if any(w in env for w in wanted):
+            pids.append(int(entry))
+    return pids
+
+
+def quit_game(agent_dir, app_id, timeout):
+    if not str(app_id).isdigit():
+        raise AgentError("INVALID_APP_ID", "appId must be a decimal Steam app id")
+    steps = []
+    if game_pids(app_id):
+        try:
+            cdp_eval(agent_dir, "SteamClient.Apps.TerminateApp(%s, false)" % json.dumps(str(app_id)), timeout=5)
+            steps.append("client")
+        except AgentError as e:
+            steps.append("client unavailable: %s" % e)
+    deadline = time.monotonic() + timeout
+    while game_pids(app_id) and time.monotonic() < deadline:
+        time.sleep(0.5)
+    left = game_pids(app_id)
+    if left:
+        steps.append("SIGTERM %s" % left)
+        for pid in left:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        end = time.monotonic() + 5
+        while game_pids(app_id) and time.monotonic() < end:
+            time.sleep(0.5)
+        left = game_pids(app_id)
+        if left:
+            steps.append("SIGKILL %s" % left)
+            for pid in left:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            time.sleep(1)
+    return {"appId": int(app_id), "steps": steps, "remaining": game_pids(app_id)}
+
+
+# --- Requests ------------------------------------------------------------------------------------
+
+def run_exec(req):
+    argv = req.get("argv")
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv):
+        raise AgentError("INVALID_REQUEST", "exec needs argv, a non-empty list of strings")
+    timeout = float(req.get("timeout", 30))
+    env = dict(os.environ)
+    env.update({str(k): str(v) for k, v in (req.get("env") or {}).items()})
+    stdin = req.get("stdin")
+    started = time.monotonic()
+    try:
+        proc = subprocess.Popen(
+            argv, cwd=req.get("cwd") or None, env=env, start_new_session=True,
+            stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+    except OSError as e:
+        raise AgentError("EXEC_FAILED", "%s: %s" % (argv[0], e))
+    timed_out = False
+    try:
+        out, err = proc.communicate(stdin.encode() if stdin is not None else None, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        out, err = proc.communicate()
+
+    def text(data):
+        return {"text": data[:OUTPUT_CAP].decode(errors="replace"), "truncated": len(data) > OUTPUT_CAP}
+
+    return {"exitCode": proc.returncode, "timedOut": timed_out,
+            "seconds": round(time.monotonic() - started, 3), "stdout": text(out), "stderr": text(err)}
+
+
+def handle(agent_dir, req):
+    kind = req.get("kind")
+    if kind == "ping":
+        return {"pid": os.getpid(), "version": VERSION, "displays": displays()}
+    if kind == "exec":
+        return run_exec(req)
+    if kind == "focus":
+        return focus_snapshot()
+    if kind == "cdp":
+        if req.get("op") == "targets":
+            return {"targets": [{k: t.get(k) for k in ("title", "url", "type")} for t in cdp_targets(agent_dir)]}
+        expression = req.get("expression")
+        if not isinstance(expression, str) or not expression:
+            raise AgentError("INVALID_REQUEST", "cdp eval needs an expression")
+        return cdp_eval(agent_dir, expression, req.get("target"), bool(req.get("awaitPromise", True)),
+                        float(req.get("timeout", 15)))
+    if kind == "quit":
+        return quit_game(agent_dir, req.get("appId"), float(req.get("timeout", 15)))
+    raise AgentError("UNKNOWN_REQUEST", "Unknown agent request '%s'" % kind)
+
+
+def answer(agent_dir, path):
+    rid = path.stem
+    try:
+        req = json.loads(path.read_text())
+    except (OSError, ValueError) as e:
+        req = None
+        result = {"ok": False, "error": {"code": "INVALID_REQUEST", "message": str(e)}}
+    finally:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    if req is not None:
+        try:
+            result = dict(handle(agent_dir, req), ok=True)
+        except AgentError as e:
+            result = {"ok": False, "error": {"code": e.code, "message": str(e)}}
+        except Exception as e:  # an answer of some kind always goes back
+            result = {"ok": False, "error": {"code": "AGENT_FAILED", "message": "%s: %s" % (type(e).__name__, e)}}
+    write_json(agent_dir / "resp" / (rid + ".json"), result)
+
+
+def serve(agent_dir, focus=True, poll=0.1):
+    (agent_dir / "req").mkdir(parents=True, exist_ok=True)
+    (agent_dir / "resp").mkdir(parents=True, exist_ok=True)
+    can_focus = focus and bool(os.environ.get("DISPLAY"))
+    if can_focus:
+        FocusWatcher(agent_dir / "focus.json").start()
+    write_json(agent_dir / "hello.json", {"pid": os.getpid(), "version": VERSION, "started": int(time.time() * 1000),
+                                          "displays": displays(), "focus": can_focus})
+    log("serving %s (focus %s)" % (agent_dir, "on" if can_focus else "off"))
+    taken = set()
+    while True:
+        for path in sorted((agent_dir / "req").glob("*.json")):
+            if path.name in taken:
+                continue
+            taken.add(path.name)
+            threading.Thread(target=lambda p=path: (answer(agent_dir, p), taken.discard(p.name)),
+                             daemon=True, name="req").start()
+        time.sleep(poll)
+
+
+def main(argv):
+    base = os.environ.get("BL_LAUNCH_DIR")
+    if not base:
+        print("BL_LAUNCH_DIR is not set", file=sys.stderr)
+        return 2
+    serve(Path(base) / "agent", focus="--no-focus" not in argv)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
