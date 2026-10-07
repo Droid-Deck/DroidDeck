@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.ScreenEffects
 import org.json.JSONObject
@@ -8,6 +10,7 @@ import org.json.JSONObject
 /** The in-session switches: the HUD and how the on-screen controls decide to appear. */
 object SessionPrefs {
     const val SUSPEND_AUTO = "auto"
+    const val SUSPEND_NATIVE = "native"
     const val SUSPEND_MANUAL = "manual"
     const val SUSPEND_NEVER = "never"
 
@@ -18,10 +21,12 @@ object SessionPrefs {
     const val OSC_STEAM_QAM = "steam-qam"
     const val OSC_NEVER = "never"
 
-    const val BACK_MENU_THEN_QAM = "1: menu 2: QAM"
-    const val BACK_QAM_THEN_MENU = "1: QAM 2: menu"
+    /** What Back does in a Steam session, first press then second: the labels of the two orders. */
+    val BACK_MENU_THEN_QAM = R.string.back_menu_then_qam
+    val BACK_QAM_THEN_MENU = R.string.back_qam_then_menu
 
-    fun backActionsOrder(inverted: Boolean): String =
+    @StringRes
+    fun backActionsOrder(inverted: Boolean): Int =
         if (inverted) BACK_QAM_THEN_MENU else BACK_MENU_THEN_QAM
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
@@ -106,26 +111,15 @@ object SessionPrefs {
     const val SHAPE_WIDE = "16:9"
     const val SHAPE_EXACT = "exact"
 
-    /** The choices the settings offer, in order. */
-    val shapeChoices = listOf(
-        SHAPE_AUTO to "Auto (16:9+)",
-        SHAPE_EXACT to "Match screen",
-        SHAPE_WIDE to "Always 16:9",
-    )
-
     /**
      * The shape of the display the session presents: the panel's own (never narrower than 16:9),
      * exactly the panel's (a 4:3 or 3:2 handheld, drawn edge to edge), or a fixed 16:9. A foldable defaults to 16:9, which sits with modest bars on either of its
      * panels; the panel's own shape would fit one and leave a strip on the other, and gamescope's
      * display cannot change size once the session is up.
      */
-    fun shapeMode(context: Context): String =
+    private fun shapeMode(context: Context): String =
         prefs(context).getString("shape", null)
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
-
-    fun setShapeMode(context: Context, mode: String) {
-        prefs(context).edit().putString("shape", mode).apply()
-    }
 
     fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
 
@@ -184,26 +178,12 @@ object SessionPrefs {
 
     /**
      * The Steam client's own sound through the DirectAudio relay instead of the classic AAudio
-     * sink. Off by default: on an AYN Thor (Android 13, 20 ms bursts) the relay path stayed choppy
-     * where the classic sink - the one 0.1.5 shipped - was fine.
+     * sink. On unless the user picked Classic.
      */
-    fun clientDirectAudio(context: Context): Boolean = prefs(context).getBoolean("clientDirectAudio", false)
+    fun clientDirectAudio(context: Context): Boolean = prefs(context).getBoolean("clientDirectAudio", true)
 
     fun setClientDirectAudio(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("clientDirectAudio", on).apply()
-    }
-
-    /**
-     * Steam only: gamescope makes every game window the size of the screen. A game that resizes
-     * its own window when it loses focus (FlatOut) otherwise comes back smaller, drawn in a
-     * corner; a game that sets its own resolution and never looks at its window again (Quake 3)
-     * instead draws small in the bottom-left of the stretched one. On unless turned off.
-     */
-    fun forceFullscreen(context: Context): Boolean = prefs(context).getBoolean("forceFullscreen", true)
-
-    fun setForceFullscreen(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("forceFullscreen", on).apply()
-        writeForceFullscreenFlag(context)
     }
 
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
@@ -212,18 +192,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("stretch16x9", on).apply()
     }
 
-    /**
-     * The same choice as a file the running session watches, so the drawer can change it live:
-     * the session hands every change to gamescope, which reads GAMESCOPE_FORCE_WINDOWS_FULLSCREEN
-     * off its root window whenever it changes. Written again at every session start so a file left
-     * by an earlier session never disagrees with the setting.
-     */
-    fun writeForceFullscreenFlag(context: Context) {
-        runCatching {
-            java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.droiddeck-fill")
-                .writeText(if (forceFullscreen(context)) "1\n" else "0\n")
-        }
-    }
 
     /**
      * DirectAudio for games: their Wine audio driver talks to the relay helper on this side. On
@@ -530,11 +498,33 @@ object SessionPrefs {
      * and the emulators under it get the same GPU headroom. Read once, when the session's display
      * is sized; a cap the user chose wins over the default.
      */
-    fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", defaultResolutionCap(mode))
+    private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)
 
     /** Whether the user chose the mode's resolution (a cap or a custom size) rather than the default. */
     fun resolutionChosen(context: Context, mode: String): Boolean =
-        prefs(context).contains("resolutionCap.$mode") || customResolution(context, mode) != null
+        prefs(context).contains("displayResolution.$mode") ||
+            prefs(context).contains("resolutionCap.$mode") || customResolution(context, mode) != null
+
+    /** One per-mode choice now owns both dimensions; old caps/shapes are read only for migration. */
+    fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
+        val saved = prefs(context)
+        saved.getString("displayResolution.$mode", null)?.let { value ->
+            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(value) != null) return value
+            parseResolution(value)?.let { return "${it.first}x${it.second}" }
+        }
+        if (!resolutionChosen(context, mode) && !saved.contains("shape")) return SessionDisplay.DEFAULT_RESOLUTION
+        val legacy = SessionDisplay.resolve(panel, resolutionCap(context, mode), shapeMode(context), customResolution(context, mode))
+        return if (legacy == SessionDisplay.screenSize(panel)) SessionDisplay.MATCH_SCREEN
+        else "${legacy.first}x${legacy.second}"
+    }
+
+    fun setResolutionChoice(context: Context, mode: String, choice: String) {
+        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(choice) != null) choice else {
+            val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
+            "${size.first}x${size.second}"
+        }
+        prefs(context).edit().putString("displayResolution.$mode", value).apply()
+    }
 
     /**
      * The FEXCore preset for the games the client launches (core/FexPreset ids); "" = FEX's defaults.
@@ -545,6 +535,22 @@ object SessionPrefs {
     fun fexPreset(context: Context): String = prefs(context).getString("fexPreset", DEFAULT_FEX_PRESET) ?: DEFAULT_FEX_PRESET
 
     private const val DEFAULT_FEX_PRESET = "PERFORMANCE_TSO"
+
+    /**
+     * Force SSBS for Proton games: Wine resumes threads from a Windows CONTEXT that never carries
+     * PSTATE.SSBS, so they run with speculative store bypass disabled; libssbs.so keeps it set
+     * (on DiRT 3 / GE-Proton: from ~99% of a game's threads running without it to none). The
+     * speed-up is reported on Oryon cores (Snapdragon 8 Elite) and was not measurable on an
+     * 8 Gen 3, so it is off unless turned on. A game's own environment can still say
+     * DROIDDECK_FORCE_SSBS=0.
+     */
+    fun forceSsbs(context: Context): Boolean = prefs(context).getBoolean("forceSsbs", false)
+
+    fun setForceSsbs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("forceSsbs", on).apply()
+        runCatching { GameEnvironmentStore.publish(context) }
+            .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
+    }
 
     fun setFexPreset(context: Context, id: String) {
         prefs(context).edit().putString("fexPreset", id).apply()
@@ -614,24 +620,12 @@ object SessionPrefs {
         prefs(context).edit().putString("theme", id).apply()
     }
 
-    /** What a mode gets when nothing was chosen. */
-    @Suppress("UNUSED_PARAMETER")
-    fun defaultResolutionCap(mode: String): Int = 720
-
-    fun setResolutionCap(context: Context, mode: String, cap: Int) {
-        prefs(context).edit().putInt("resolutionCap.$mode", cap).apply()
-    }
-
     /**
      * A fixed size for the session's display, per mode, or null. When set it replaces both the
      * cap and the shape: the compositor fits it to the panel with bars where the shapes differ.
      */
-    fun customResolution(context: Context, mode: String): Pair<Int, Int>? =
+    private fun customResolution(context: Context, mode: String): Pair<Int, Int>? =
         parseResolution(prefs(context).getString("customRes.$mode", null))
-
-    fun setCustomResolution(context: Context, mode: String, size: Pair<Int, Int>?) {
-        prefs(context).edit().putString("customRes.$mode", size?.let { "${it.first}x${it.second}" }).apply()
-    }
 
     /** "1024x768" (or ×, or *) to an even size inside 320x240..3840x2160; anything else is null. */
     fun parseResolution(text: String?): Pair<Int, Int>? {
@@ -685,22 +679,43 @@ object SessionPrefs {
 
     val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
 
+    /** [fpsLimitChoices] labelled in the app's language. */
+    fun fpsLimitChoices(context: Context): List<Pair<Int, String>> =
+        fpsLimitChoices.map { (fps, label) -> fps to if (fps == 0) context.getString(R.string.frame_gen_off) else label }
+
     /**
      * How the compositor resizes the session onto the panel (WaylandCompositor.nativeSetUpscaler's
-     * modes): Off and Linear both filter bilinearly, Nearest keeps pixels square for 2D and old
-     * titles, the rest sharpen where the picture is enlarged; FSR (fit) rounds the picture to
-     * FSR's preferred size first. Sharpen only works at any size.
+     * modes). Linear is the default; Nearest preserves hard pixel edges. Spatial filters work
+     * when enlarged; Sharpen only works at any size. The old Off/Linear and FSR/FSR Fit pairs
+     * are equivalent on Wayland, so saved aliases resolve to one choice.
      */
     val upscalerChoices = listOf(
-        0 to "Off", 1 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 5 to "AMD FSR 1 (fit)", 3 to "Snapdragon GSR",
+        0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
 
-    fun upscaler(context: Context): Int =
-        prefs(context).getInt("upscaler", 0).takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+    /** The [upscalerChoices] labels that are words rather than product names. */
+    private val upscalerLabels = mapOf(
+        0 to R.string.sprefs_upscaler_linear, 2 to R.string.sprefs_upscaler_nearest,
+        8 to R.string.sprefs_upscaler_gsr_quality, 6 to R.string.sprefs_upscaler_sharpen,
+    )
+
+    /** [upscalerChoices] labelled in the app's language; the English list stays for the device report. */
+    fun upscalerChoices(context: Context): List<Pair<Int, String>> =
+        upscalerChoices.map { (mode, label) -> mode to (upscalerLabels[mode]?.let(context::getString) ?: label) }
+
+    fun canonicalUpscaler(mode: Int): Int = when (mode) {
+        1 -> 0
+        5 -> 4
+        else -> mode.takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+    }
+
+    fun upscalerHasSharpness(mode: Int): Boolean = canonicalUpscaler(mode) in 3..8
+
+    fun upscaler(context: Context): Int = canonicalUpscaler(prefs(context).getInt("upscaler", 0))
 
     fun setUpscaler(context: Context, mode: Int) {
-        prefs(context).edit().putInt("upscaler", mode).apply()
+        prefs(context).edit().putInt("upscaler", canonicalUpscaler(mode)).apply()
     }
 
     fun upscaleSharpness(context: Context): Int = prefs(context).getInt("upscaleSharpness", 75).coerceIn(0, 100)
@@ -723,11 +738,24 @@ object SessionPrefs {
 
     val textureAnisotropyChoices = TextureFiltering.ANISOTROPY.map { it to if (it == 0) "Off" else "${it}x" }
 
+    /** [textureAnisotropyChoices] labelled in the app's language. */
+    fun textureAnisotropyChoices(context: Context): List<Pair<Int, String>> =
+        textureAnisotropyChoices.map { (value, label) -> value to if (value == 0) context.getString(R.string.frame_gen_off) else label }
+
     val textureLodBiasChoices = TextureFiltering.LOD_BIAS.map {
         it to when (it) {
             TextureFiltering.LOD_BIAS_OFF -> "Off"
             TextureFiltering.LOD_BIAS_AUTO -> "Auto (match scaling)"
             else -> it
+        }
+    }
+
+    /** [textureLodBiasChoices] labelled in the app's language. */
+    fun textureLodBiasChoices(context: Context): List<Pair<String, String>> = textureLodBiasChoices.map { (value, label) ->
+        value to when (value) {
+            TextureFiltering.LOD_BIAS_OFF -> context.getString(R.string.frame_gen_off)
+            TextureFiltering.LOD_BIAS_AUTO -> context.getString(R.string.sprefs_lod_bias_auto)
+            else -> label
         }
     }
 
@@ -769,11 +797,14 @@ object SessionPrefs {
 
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
-            ?.takeIf { it == SUSPEND_AUTO || it == SUSPEND_MANUAL || it == SUSPEND_NEVER }
+            ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
+            // Direct games share Steam's settings but have no Steam client to prepare.
+            ?.let { if (it == SUSPEND_NATIVE && mode != SessionService.MODE_STEAM) SUSPEND_AUTO else it }
             ?: SUSPEND_MANUAL
 
     fun setSuspendPolicy(context: Context, mode: String, policy: String) {
-        val normalized = policy.takeIf { it == SUSPEND_AUTO || it == SUSPEND_MANUAL || it == SUSPEND_NEVER }
+        val normalized = policy.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_MANUAL, SUSPEND_NEVER) ||
+            (it == SUSPEND_NATIVE && mode == SessionService.MODE_STEAM) }
             ?: SUSPEND_MANUAL
         prefs(context).edit().putString("suspendPolicy.${prefMode(mode)}", normalized).apply()
     }

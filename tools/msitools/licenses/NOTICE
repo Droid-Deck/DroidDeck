@@ -1,0 +1,14 @@
+Windows components installer tools (usr/local/lib/droiddeck-msitools), Arch Linux ARM's aarch64
+builds, unchanged:
+
+  msiinfo, libmsi-1.0.so.0   msitools 0.106    GPL-2.0-or-later / LGPL-2.1-or-later
+                             https://gitlab.gnome.org/GNOME/msitools
+  libgsf-1.so.114            libgsf 1.14.60    LGPL-2.1-only
+                             https://gitlab.gnome.org/GNOME/libgsf
+  libgcab-1.0.so.0           gcab 1.6          LGPL-2.1-or-later
+                             https://gitlab.gnome.org/GNOME/gcab
+  cabextract                 cabextract 1.11   GPL-3.0-or-later
+                             https://www.cabextract.org.uk/
+
+The packages and their sources: https://github.com/Droid-Deck/DroidDeck/releases/tag/msitools-0.106-r1,
+https://github.com/archlinuxarm/PKGBUILDs. The licence texts are beside this file.

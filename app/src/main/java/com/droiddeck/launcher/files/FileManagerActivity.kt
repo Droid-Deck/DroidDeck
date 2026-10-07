@@ -15,6 +15,11 @@ import java.io.File
 
 /** The File Manager as a screen of its own, from the Files tile on the main screen. */
 class FileManagerActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(newBase)
+        com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -22,7 +27,7 @@ class FileManagerActivity : ComponentActivity() {
         }
         val initialDir = intent.getStringExtra(EXTRA_START_DIR)?.let(::File)
         setContent {
-            DroidDeckTheme {
+            DroidDeckTheme(appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)) {
                 Surface(modifier = Modifier.fillMaxSize().systemBarsPadding(), color = MaterialTheme.colorScheme.background) {
                     FileManagerScreen(initialDir = initialDir)
                 }

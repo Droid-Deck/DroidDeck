@@ -52,13 +52,13 @@ import kotlinx.coroutines.withContext
 // dialog, with each variable's actions in a menu off its value as everywhere else.
 
 @Composable
-fun GameEnvironmentRow(modifier: Modifier = Modifier) {
+fun GameEnvironmentRow(modifier: Modifier = Modifier, showHint: Boolean = true) {
     var open by remember { mutableStateOf(false) }
     // Opened with a pad, the editor starts with focus in it; the dialog is a window of its own and
     // would otherwise give the pad nothing to move from.
     var byPad by remember { mutableStateOf(false) }
     val inputMode = LocalInputModeManager.current
-    SettingsRow(stringResource(R.string.game_env_title), stringResource(R.string.game_env_hint)) {
+    SettingsRow(stringResource(R.string.game_env_title), if (showHint) stringResource(R.string.game_env_hint) else null) {
         SecondaryButton(stringResource(R.string.game_env_edit), modifier = modifier) {
             byPad = inputMode.inputMode == InputMode.Keyboard
             open = true
@@ -70,7 +70,7 @@ fun GameEnvironmentRow(modifier: Modifier = Modifier) {
 /** With a pad driving, focus [target] once the dialog is laid out, and keep the dialog in pad mode. */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun PadFocus(byPad: Boolean, target: FocusRequester) {
+internal fun PadFocus(byPad: Boolean, target: FocusRequester) {
     val inputMode = LocalInputModeManager.current
     LaunchedEffect(Unit) {
         if (!byPad) return@LaunchedEffect
@@ -95,6 +95,7 @@ private fun GameEnvironmentEditor(byPad: Boolean, onClose: () -> Unit) {
     var error by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Pair<String, String>?>(null) }
     val preset = SessionPrefs.fexPreset(context)
+    val forceSsbs = SessionPrefs.forceSsbs(context)
     val firstFocus = remember { FocusRequester() }
     var editByPad by remember { mutableStateOf(false) }
     val dialogInput = LocalInputModeManager.current
@@ -159,7 +160,7 @@ private fun GameEnvironmentEditor(byPad: Boolean, onClose: () -> Unit) {
         if (current == null && !error) Small(stringResource(R.string.game_env_loading))
         if (current != null) {
             val own = current.entries(scope)
-            val entries = GameEnvironment.effective(current, preset, scope).toSortedMap()
+            val entries = GameEnvironment.effective(current, preset, scope, forceSsbs).toSortedMap()
             if (entries.isEmpty()) Small(stringResource(R.string.game_env_empty))
             else Panel {
                 entries.entries.forEachIndexed { i, (name, value) ->

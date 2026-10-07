@@ -43,6 +43,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 /**
  * Owns the running session: the proot tree, the audio daemon, the network link and the locks that
@@ -59,6 +60,9 @@ import java.util.Locale
  * The activity comes and goes on top of this; see [com.droiddeck.launcher.wayland.CompositorHost].
  */
 class SessionService : Service() {
+    override fun attachBaseContext(newBase: android.content.Context) =
+        super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(newBase))
+
     private val components = java.util.concurrent.CopyOnWriteArrayList<SessionPart>()
     /** The Steam Deck controller's sysfs binds (SteamDeckPad), when this session has one. */
     private var deckBinds: List<String> = emptyList()
@@ -77,6 +81,10 @@ class SessionService : Service() {
     private var manualPauseRequested = false
     /** An explicit Steam sleep request is independent of the background policy. */
     private var steamSleepToken: String? = null
+    private var nativeSleepToken: String? = null
+    private var nativeSleepReady = false
+    private var nativeSleepFallback = false
+    private var nativeSleepTimeout: Runnable? = null
     private var suspendOperationPending = false
     private var pipTask = false
     private var suspendAttemptFailed = false
@@ -195,6 +203,7 @@ class SessionService : Service() {
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
         manualPauseRequested = false
         steamSleepToken = null
+        completeNativeSleep()
         suspendOperationPending = false
         suspendAttemptFailed = false
         suspendController = null
@@ -303,6 +312,14 @@ class SessionService : Service() {
         // The desktop's Steam launchers start the client there (droiddeck-steam-launch), through the
         // same set-up as a Steam session: it gets what the client and its games are started with.
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        // Some GPUs need a component Proton does not ship. Apply those before the guest, so the
+        // next game launch copies them into the prefix. A download failure is logged and the
+        // session still starts; the next session tries again.
+        if (steamHere) {
+            runCatching { ComponentsManager.ensureForcedPackages(this) }
+                .onSuccess { if (it != null) Log.i(TAG, it) }
+                .onFailure { Log.w(TAG, "forced components", it) }
+        }
         addClientEnvironment(guest, steamHere)
         // Where the fast path's description of proot's view goes, once the binds are known.
         val fastPathAt = guest.size
@@ -402,6 +419,9 @@ class SessionService : Service() {
                 guest.addAll(fastPathAt, env)
                 shellGuest.addAll(fastPathAt, env)
                 Log.i(TAG, "proot: fast path on (${prootBinds.size} binds)")
+            } ?: run {
+                Log.w(TAG, "proot: fast path off - ${prootBinds.size} binds (it holds ${ProotFastPath.MAX_BINDS}) or a path it cannot be told")
+                null
             }
         } else null
 
@@ -537,6 +557,12 @@ class SessionService : Service() {
         guest.add("PATH=/usr/local/bin:/usr/bin:/bin")
         guest.add("TERM=xterm-256color")
         guest.add("LANG=C.UTF-8")
+        // Steam's interface language: the app's (Setup's choice, or the system's). The system's
+        // region decides between Spain's and Latin American Spanish, which the app has one of.
+        guest.add("BL_STEAM_LANGUAGE=" + SteamLanguage.forLocale(
+            com.droiddeck.launcher.core.AppLanguage.effective(this),
+            com.droiddeck.launcher.core.AppLanguage.system(this).country,
+        ))
         // Without this the session is UTC: the client's clock, its logs and every timestamp in a
         // session bundle sit hours off the device's. Bannerlator carries the same line.
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
@@ -590,9 +616,7 @@ class SessionService : Service() {
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
         if (steamHere) guest.add("BL_STEAM_CHANNEL=" + SessionPrefs.steamChannel(this))
         if (SessionState.mode == MODE_STEAM) {
-            guest.add("BL_GAMESCOPE_FORCE_FULLSCREEN=" + (if (SessionPrefs.forceFullscreen(this)) "1" else "0"))
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
-            SessionPrefs.writeForceFullscreenFlag(this)
             SessionPrefs.writeGameTouchFlag(this)
         }
         // Proton's own gate for its xalia helper (its `proton` script reads this, and sets
@@ -605,6 +629,7 @@ class SessionService : Service() {
         // gamescope's realtime Vulkan queues (the session script turns this into
         // GAMESCOPE_FORCE_VULKAN_REALTIME); off unless the user turns it on.
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
+        guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
         // Anything else, for a device that cannot be reached with a debugger: Downloads/droiddeck-env
         // holds KEY=VALUE lines that go into the session's environment as written, after ours, so a
         // line here wins. Zink and Turnip tunables (ZINK_DESCRIPTORS=lazy, MESA_*), gamescope's,
@@ -794,7 +819,7 @@ class SessionService : Service() {
         val library = GameStorage.effective(this)
         var storageDiagnosticLibrary: File? = null
         if (library != null) {
-            val problem = GameStorage.prepare(library.path)
+            val problem = GameStorage.prepare(this, library.path)
             if (problem == null) {
                 File(LinuxRuntime.rootDir(this), "mnt/droiddeck-sd").mkdirs()
                 // Links, prefixes and Steam entries made before the rename still name the old path.
@@ -993,6 +1018,8 @@ class SessionService : Service() {
         activityVisible = true
         screenOn = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: screenOn
         manualPauseRequested = false
+        if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback)) requestSteamWake()
+        completeNativeSleep()
         completeSteamSleep()
         suspendAttemptFailed = false
         updateSuspendPolicy()
@@ -1071,11 +1098,28 @@ class SessionService : Service() {
 
     private fun watchLaunchRequests(dir: File) {
         launchWatcher?.stopWatching()
-        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready").forEach { File(dir, it).delete() }
+        listOf("steam-sleep", "steam-sleep-state", "steam-sleep-ready", "steam-wake", "steam-wake.tmp",
+            "steam-native-sleep", "steam-native-sleep.tmp", "steam-native-ready", "steam-native-ready.tmp"
+        ).forEach { File(dir, it).delete() }
         val gen = sessionGen
         @Suppress("DEPRECATION")
         val watcher = object : android.os.FileObserver(dir.path, CLOSE_WRITE or MOVED_TO) {
             override fun onEvent(event: Int, path: String?) {
+                if (path == "steam-native-ready") {
+                    val request = File(dir, path)
+                    val token = runCatching { request.readText().trim() }.getOrNull() ?: return
+                    request.delete()
+                    mainHandler.post {
+                        if (gen != sessionGen || !SessionState.running || token != nativeSleepToken) return@post
+                        nativeSleepReady = true
+                        nativeSleepTimeout?.let { mainHandler.removeCallbacks(it) }
+                        nativeSleepTimeout = null
+                        writeSteamSleepState(token, "paused")
+                        SessionEvents.record("steam.native_sleep_prepared")
+                        updateSuspendPolicy()
+                    }
+                    return
+                }
                 if (path == "steam-sleep") {
                     val request = File(dir, path)
                     val token = runCatching { request.readText().trim() }.getOrNull() ?: return
@@ -1143,18 +1187,27 @@ class SessionService : Service() {
         if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && (!activityVisible || !screenOn)) {
             manualPauseRequested = true
         }
+        val controller = suspendController ?: return
+        val hidden = !activityVisible || !screenOn
+        if (suspendPolicy != SessionPrefs.SUSPEND_NATIVE || !hidden) {
+            completeNativeSleep()
+        } else if (nativeSleepToken == null && steamSleepToken == null &&
+            !SessionState.suspended && !suspendAttemptFailed) {
+            prepareNativeSleep()
+        }
         val shouldSuspend = steamSleepToken != null || when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO -> !activityVisible || !screenOn
+            SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
             else -> false
         }
-        val controller = suspendController ?: return
         if (suspendOperationPending || suspendAttemptFailed || shouldSuspend == SessionState.suspended) return
         val gen = sessionGen
         suspendOperationPending = true
         SessionEvents.record(if (shouldSuspend) "session.suspend_requested" else "session.resume_requested", mapOf(
             "policy" to suspendPolicy, "activityVisible" to activityVisible,
             "screenOn" to screenOn, "steamSleep" to (steamSleepToken != null),
+            "nativeSleep" to (nativeSleepToken != null),
         ))
         if (shouldSuspend) {
             controller.freeze { success ->
@@ -1167,6 +1220,7 @@ class SessionService : Service() {
                         releaseLocks()
                         refreshNotification()
                     } else {
+                        completeNativeSleep()
                         completeSteamSleep()
                         suspendAttemptFailed = true
                         Log.w(TAG, "could not confirm that the session stopped")
@@ -1212,7 +1266,63 @@ class SessionService : Service() {
     }
 
     private fun resumeSteamSleepOnReturn() {
-        if (suspendPolicy == SessionPrefs.SUSPEND_AUTO && activityVisible && screenOn) completeSteamSleep()
+        if (suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && activityVisible && screenOn) {
+            if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback)) requestSteamWake()
+            completeNativeSleep()
+            completeSteamSleep()
+        }
+    }
+
+    /** Let Steam prepare before freezing; retain the wake lock until that freeze completes. */
+    private fun prepareNativeSleep() {
+        val token = UUID.randomUUID().toString().replace("-", "")
+        nativeSleepToken = token
+        nativeSleepReady = false
+        nativeSleepFallback = false
+        val dir = LinuxRuntime.sessionRoot(this)
+        runCatching {
+            val staged = File(dir, "steam-native-sleep.tmp")
+            staged.writeText("$token\n")
+            check(staged.renameTo(File(dir, "steam-native-sleep")))
+        }.onFailure { Log.w(TAG, "could not request Native sleep; using timed pause", it) }
+        SessionEvents.record("steam.native_sleep_requested")
+        val gen = sessionGen
+        val timeout = Runnable {
+            if (gen != sessionGen || !SessionState.running || nativeSleepToken != token) return@Runnable
+            nativeSleepTimeout = null
+            nativeSleepReady = true
+            nativeSleepFallback = true
+            writeSteamSleepState(token, "paused")
+            SessionEvents.record("steam.native_sleep_timeout")
+            updateSuspendPolicy()
+        }
+        nativeSleepTimeout = timeout
+        // A missing or stalled guest helper must not keep the device awake indefinitely.
+        mainHandler.postDelayed(timeout, 4000L)
+    }
+
+    private fun completeNativeSleep() {
+        nativeSleepTimeout?.let { mainHandler.removeCallbacks(it) }
+        nativeSleepTimeout = null
+        val token = nativeSleepToken ?: return
+        writeSteamSleepState(token, "awake")
+        val dir = LinuxRuntime.sessionRoot(this)
+        File(dir, "steam-native-sleep").delete()
+        File(dir, "steam-native-ready").delete()
+        nativeSleepToken = null
+        nativeSleepReady = false
+        nativeSleepFallback = false
+    }
+
+    /** Resume must also recover a Steam sleep whose request never reached Android. */
+    private fun requestSteamWake() {
+        if (!SessionState.running || SessionState.mode != MODE_STEAM) return
+        val dir = LinuxRuntime.sessionRoot(this)
+        runCatching {
+            val staged = File(dir, "steam-wake.tmp")
+            staged.writeText("wake\n")
+            check(staged.renameTo(File(dir, "steam-wake")))
+        }.onFailure { Log.w(TAG, "could not request Steam wake", it) }
     }
 
     private fun finishSessionStop(status: Int, stoppedGen: Int) {
@@ -1267,6 +1377,7 @@ class SessionService : Service() {
 
     private fun stopSession(status: Int) {
         cancelQueuedSteamGame()
+        completeNativeSleep()
         synchronized(stopLock) {
             if (!SessionState.running) return
             SessionState.running = false

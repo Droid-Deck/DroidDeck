@@ -79,8 +79,8 @@ android {
         // file out of its own data directory, and this app's entire job is to exec a rootfs:
         // proot, gamescope, the Steam client and everything it launches all live under files/.
         targetSdkVersion 28
-        versionCode 10
-        versionName "0.3.0"
+        versionCode 11
+        versionName "0.3.1"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -165,6 +165,8 @@ android {
     testOptions {
         // Plain JVM tests: a stray android.util.Log call returns a default instead of throwing.
         unitTests.returnDefaultValues = true
+        // Robolectric tests start activities whose text is now all string resources.
+        unitTests.includeAndroidResources = true
     }
 
     compileOptions {
@@ -190,6 +192,8 @@ dependencies {
     // The runtime tarball is a zstd-compressed tar.
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
+    // Bannerlator's Windows components come as .tar.xz (WinComponents).
+    implementation 'org.tukaani:xz:1.10'
     // The UI: every menu, dialog and overlay is Compose. The session's SurfaceView and the
     // on-screen pad are Views underneath it, which is what they are in every Compose app.
     implementation platform('androidx.compose:compose-bom:2024.02.00')

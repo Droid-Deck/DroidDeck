@@ -76,6 +76,17 @@ public final class PadBridge {
     private final java.util.Set<Integer> seenDevices = new java.util.HashSet<>();
     private int lastDeviceId = Integer.MIN_VALUE;
 
+    /** No physical controller is driving the pad: nothing yet, or the on-screen controls were last. */
+    public static final int NO_CONTROLLER = -1;
+    /**
+     * The Android input device id of the physical controller that last drove the pad, or
+     * {@link #NO_CONTROLLER}. Every pad feeds the one exported slot, so this is how a game's rumble
+     * on that slot finds the motors in the player's hands (RumbleComponent).
+     */
+    private static volatile int activeControllerId = NO_CONTROLLER;
+
+    public static int activeControllerId() { return activeControllerId; }
+
     public PadBridge(File fakeInputDir) {
         writer = new FakeInputWriter(fakeInputDir.getAbsolutePath(), SLOT);
     }
@@ -90,6 +101,7 @@ public final class PadBridge {
     }
 
     public synchronized void stop() {
+        activeControllerId = NO_CONTROLLER;
         systemGuidePressed = false;
         systemQamPressed = false;
         qamChordActive = false;
@@ -218,6 +230,7 @@ public final class PadBridge {
      */
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
         mutation.accept(state);
+        activeControllerId = NO_CONTROLLER;
         notePlayerInput();
         statOnScreen++;
         scheduleStats();
@@ -299,6 +312,7 @@ public final class PadBridge {
 
     /** Per event, so the common case - the same pad as last time - is a single compare. */
     private void noteDevice(InputDevice device) {
+        activeControllerId = device.getId();
         if (device.getId() == lastDeviceId) return;
         lastDeviceId = device.getId();
         statDevice = device.getName();

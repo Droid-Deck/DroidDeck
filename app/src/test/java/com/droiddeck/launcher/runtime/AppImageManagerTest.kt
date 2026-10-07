@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.runtime
 
+import com.droiddeck.launcher.R
 import java.io.File
 import java.nio.file.Files
 import org.junit.After
@@ -30,15 +31,15 @@ class AppImageManagerTest {
 
     @Test fun acceptsAnI386ImageForFex() = assertNull(AppImageManager.problem(image(3)))
 
-    @Test fun refusesOtherProcessors() = assertTrue(AppImageManager.problem(image(40))!!.contains("neither"))
+    @Test fun refusesOtherProcessors() = assertTrue(AppImageManager.problem(image(40))!!.text == R.string.appimg_wrong_arch)
 
-    @Test fun refusesTypeOne() = assertTrue(AppImageManager.problem(image(183, type = 1))!!.contains("type 2"))
+    @Test fun refusesTypeOne() = assertTrue(AppImageManager.problem(image(183, type = 1))!!.text == R.string.appimg_wrong_type)
 
-    @Test fun refusesAPlainProgram() = assertTrue(AppImageManager.problem(image(183, magic = false))!!.contains("not an AppImage"))
+    @Test fun refusesAPlainProgram() = assertTrue(AppImageManager.problem(image(183, magic = false))!!.text == R.string.appimg_not_appimage)
 
     @Test fun refusesSomethingElse() {
         val f = File(dir, "notes.AppImage").apply { writeText("hello, this is not a program at all") }
-        assertTrue(AppImageManager.problem(f)!!.contains("not an AppImage"))
+        assertTrue(AppImageManager.problem(f)!!.text == R.string.appimg_not_linux)
     }
 
     @Test fun idsAreTidyAndUnique() {

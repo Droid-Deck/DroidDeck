@@ -8,6 +8,7 @@ import android.os.Looper
 import android.os.Vibrator
 import android.os.VibratorManager
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.PadBridge
 import java.io.IOException
 import org.junit.After
 import org.junit.Before
@@ -68,11 +69,73 @@ class RumbleComponentTest {
         assertTrue(shadowOf(vibrator).isVibrating)
     }
 
-    private fun effect() {
-        // Inject a decoded force-feedback packet; transport is outside this preference test.
-        RumbleComponent::class.java.getDeclaredMethod("buzz", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-            .apply { isAccessible = true }.invoke(rumble, 65535, 5000)
+    @Test fun aControllerWithMotorsGetsTheEffectInsteadOfThePhone() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) pad else null }
+        activeController(PAD_ID)
+        effect(strong = 40000, weak = 1000)
+        assertEquals(listOf(Triple(40000, 1000, 5000L)), pad.played)
+        assertFalse("the phone buzzed as well", shadowOf(vibrator).isVibrating)
     }
+
+    @Test fun aControllerWithoutMotorsFallsBackToThePhone() {
+        rumble.controllerMotors = { null }
+        activeController(PAD_ID)
+        effect()
+        assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun theOnScreenPadTakingOverMovesTheEffectBackToThePhone() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect()
+        assertTrue(pad.vibrating)
+        activeController(PadBridge.NO_CONTROLLER)
+        effect()
+        assertFalse("the controller kept rumbling after the switch", pad.vibrating)
+        assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun aStopPacketDisablingAndStoppingAllEndTheControllersEffect() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect()
+        effect(strong = 0, weak = 0)
+        assertFalse(pad.vibrating)
+        effect()
+        ControllerPrefs.setRumble(context, false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(pad.vibrating)
+        ControllerPrefs.setRumble(context, true)
+        shadowOf(Looper.getMainLooper()).idle()
+        effect()
+        rumble.stop()
+        assertFalse(pad.vibrating)
+    }
+
+    @After fun clearActiveController() { activeController(PadBridge.NO_CONTROLLER) }
+
+    private fun activeController(id: Int) {
+        PadBridge::class.java.getDeclaredField("activeControllerId").apply { isAccessible = true }.setInt(null, id)
+    }
+
+    private fun effect(strong: Int = 65535, weak: Int = 65535) {
+        // Inject a decoded force-feedback packet; transport is outside these tests.
+        RumbleComponent::class.java.getDeclaredMethod("buzz", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(rumble, strong, weak, 5000)
+    }
+
+    private class FakeMotors : RumbleComponent.Motors {
+        override val name = "fake pad"
+        val played = mutableListOf<Triple<Int, Int, Long>>()
+        var vibrating = false
+        override fun play(strong: Int, weak: Int, ms: Long) { played += Triple(strong, weak, ms); vibrating = true }
+        override fun cancel() { vibrating = false }
+    }
+
+    private companion object { const val PAD_ID = 7 }
 
     @Implements(LocalServerSocket::class)
     class NoPacketsSocket {

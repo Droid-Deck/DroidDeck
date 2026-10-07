@@ -71,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.droiddeck.launcher.core.AppLanguage
 import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
@@ -158,12 +159,10 @@ internal fun SetupPanel(
     // Tested hardware passes; an Adreno below it (a 610, say) warns rather than claiming support.
     val gpu = remember { com.droiddeck.launcher.gpu.GpuInfo.detect() }
     val gpuOk = gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED
-    val gpuName = remember { DeviceSupport.gpuName() }
+    val gpuName = remember { DeviceSupport.gpuName(ctx) }
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
-    val checks = 4
-    val readyCount = listOf(gpuOk, s.ready && !s.busy, !limitBlocks, signedIn).count { it }
     // Four tabs instead of one long scroll; LB and RB turn them from anywhere on the page. Build
     // and credits are on the Updates page.
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_session), stringResource(R.string.setup_tab_launcher))
@@ -187,9 +186,8 @@ internal fun SetupPanel(
             ),
         ) {
             PageHeader(stringResource(R.string.setup_title)) {
-                Chip(if (readyCount == checks) stringResource(R.string.setup_all_set) else stringResource(R.string.setup_n_ready, readyCount, checks), ok = readyCount == checks)
+                TabStrip(tabs, tab, pick, Modifier.weight(1f), tabFocus)
             }
-            TabStrip(tabs, tab, pick, Modifier.padding(bottom = 4.dp), tabFocus)
             Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 when (tab) {
                     0 -> {
@@ -205,8 +203,8 @@ internal fun SetupPanel(
                                     else -> stringResource(R.string.setup_gpu_unsupported)
                                 },
                                 when (gpu.support) {
-                                    com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.name, gpuName)
-                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested_detail, gpu.name, gpu.supportText.replaceFirstChar { it.lowercase() })
+                                    com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
+                                    com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
                                     else -> stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
                                 },
                             )
@@ -240,7 +238,7 @@ internal fun SetupPanel(
                                     PhantomProcessStatus.ENABLED -> stringResource(R.string.setup_limit_on)
                                     PhantomProcessStatus.UNSET -> stringResource(R.string.setup_limit_unset)
                                     PhantomProcessStatus.UNREADABLE -> stringResource(R.string.setup_limit_unknown)
-                                    else -> PhantomProcessLimit.title(s.phantomProcessStatus)
+                                    else -> PhantomProcessLimit.title(ctx, s.phantomProcessStatus)
                                 },
                             ) {
                                 if (limitBlocks) PrimaryButton(if (showLimitDetails) stringResource(R.string.common_hide) else stringResource(R.string.setup_fix_it), compact = true) { showLimitDetails = !showLimitDetails }
@@ -253,8 +251,8 @@ internal fun SetupPanel(
                                 // raw command live on the full page Wireless debugging opens.
                                 Column(modifier = Modifier.fillMaxWidth().padding(start = 56.dp, end = 14.dp, top = 4.dp, bottom = 10.dp)) {
                                     Text(
-                                        if (limitBlocks) PhantomProcessLimit.gateInstructions(s.phantomProcessStatus)
-                                        else PhantomProcessLimit.instructions(s.phantomProcessStatus),
+                                        if (limitBlocks) PhantomProcessLimit.gateInstructions(ctx, s.phantomProcessStatus)
+                                        else PhantomProcessLimit.instructions(ctx, s.phantomProcessStatus),
                                         fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp),
                                     )
                                     Actions {
@@ -273,7 +271,13 @@ internal fun SetupPanel(
                             CheckRow(
                                 if (signedIn) CheckState.OK else CheckState.WARN,
                                 stringResource(R.string.setup_account),
-                                s.offlineAccount?.let { if (s.offline) stringResource(R.string.setup_signed_in_offline, it) else stringResource(R.string.setup_signed_in, it) } ?: stringResource(R.string.setup_sign_in),
+                                s.offlineAccount?.let {
+                                    when {
+                                        it.isEmpty() -> stringResource(if (s.offline) R.string.setup_signed_in_offline_unnamed else R.string.setup_signed_in_unnamed)
+                                        s.offline -> stringResource(R.string.setup_signed_in_offline, it)
+                                        else -> stringResource(R.string.setup_signed_in, it)
+                                    }
+                                } ?: stringResource(R.string.setup_sign_in),
                                 divider = false,
                             )
                         }
@@ -290,10 +294,10 @@ internal fun SetupPanel(
                     2 -> {
                         SettingsGroup(stringResource(R.string.setup_session)) {
                             ChoiceRow(
-                                host, "back-actions", stringResource(R.string.mode_back), SessionPrefs.backActionsOrder(s.backActionsInverted),
+                                host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),
                                 listOf(
-                                    false to SessionPrefs.BACK_MENU_THEN_QAM,
-                                    true to SessionPrefs.BACK_QAM_THEN_MENU,
+                                    false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM),
+                                    true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU),
                                 ), s.backActionsInverted, onPick = a.onBackActionsInverted,
                             )
                             SettingsRow(stringResource(R.string.frame_gen_title), stringResource(R.string.frame_gen_hint)) {
@@ -303,23 +307,34 @@ internal fun SetupPanel(
                                 }
                             }
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
-                            ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs)
+                            ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,
+                                progress = com.droiddeck.launcher.session.SessionLogShare.progress)
                             ActionRow(stringResource(R.string.setup_saved_logs), stringResource(R.string.setup_saved_logs_hint, com.droiddeck.launcher.session.SessionPaths.KEEP_SESSIONS), stringResource(R.string.setup_clear_logs), a.onClearLogs)
                             ToggleRow(
                                 host, "offline", stringResource(R.string.setup_offline),
-                                s.offlineAccount?.let { stringResource(R.string.setup_signed_in, it) } ?: stringResource(R.string.setup_sign_in_first),
+                                s.offlineAccount?.let { if (it.isEmpty()) stringResource(R.string.setup_signed_in_unnamed) else stringResource(R.string.setup_signed_in, it) } ?: stringResource(R.string.setup_sign_in_first),
                                 s.offline, enabled = s.offlineAccount != null,
                             ) { a.onOffline() }
                         }
                     }
                     3 -> {
                         SettingsGroup(stringResource(R.string.setup_launcher)) {
+                            LanguageRow(host, s.language, a.onLanguage)
+                            ChoiceRow(
+                                host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
+                                com.droiddeck.launcher.core.AppUiPrefs.scales.map { percent ->
+                                    percent to stringResource(
+                                        if (percent == com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE) R.string.setup_app_scale_default
+                                        else R.string.ctrl_percent, percent,
+                                    )
+                                }, s.appScale, onPick = a.onAppScale,
+                            )
                             SettingsRow(stringResource(R.string.setup_theme), stringResource(R.string.setup_theme_hint)) {
                                 Box {
-                                    ValueChip(Themes.byId(s.theme).label, host.open == "theme") { host.open = if (host.open == "theme") null else "theme" }
+                                    ValueChip(stringResource(Themes.byId(s.theme).label), host.open == "theme") { host.open = if (host.open == "theme") null else "theme" }
                                     AnchoredMenu(host.open == "theme", onDismiss = { if (host.open == "theme") host.open = null }, title = stringResource(R.string.setup_theme)) { firstItemFocus ->
                                         Themes.all.forEachIndexed { index, theme ->
-                                            MenuItem(theme.label, checked = s.theme == theme.id, focusRequester = if (index == 0) firstItemFocus else null) {
+                                            MenuItem(stringResource(theme.label), checked = s.theme == theme.id, focusRequester = if (index == 0) firstItemFocus else null) {
                                                 a.onTheme(theme.id)
                                                 host.open = null
                                             }
@@ -415,10 +430,20 @@ private fun FrameGenMenu(s: FrontEndState, a: FrontEndActions, host: MenuHost) {
  * app-wide settings - each card opens the same page or menu Setup does.
  */
 @Composable
-internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost) {
+internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost, game: com.droiddeck.launcher.frontend.Library.SteamGame? = null) {
     // Three across, two on a narrow page; each row's cards share one height.
     val columns = if (LocalNarrowPane.current) 2 else 3
     val controller = a.controller
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    // The game's prefix is compatdata/<id>, as droiddeck-game-env reads it: a Steam title's appid, an
+    // added game's shortcut appid (unsigned). Recommended scans the game's own folder either way.
+    val wincompKey = game?.let {
+        if (it.library == com.droiddeck.launcher.frontend.Library.ADDED) Integer.toUnsignedString(it.appId)
+        else it.appId.takeIf { id -> id > 0 }?.toString()
+    }
+    var wincompOpen by remember(wincompKey) { mutableStateOf<Boolean?>(null) }
+    val wincompPicks = remember(wincompKey, wincompOpen) { wincompKey?.let { com.droiddeck.launcher.session.WinComponents.picks(context, it) }.orEmpty() }
     val cards = buildList<@Composable (Modifier) -> Unit> {
         add { m -> SettingCard(stringResource(R.string.setup_card_components), stringResource(R.string.setup_card_components_hint), "card:components", m) { a.onComponents(true) } }
         add { m ->
@@ -430,7 +455,19 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
             }
         }
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
+        if (wincompKey != null) add { m ->
+            SettingCard(
+                stringResource(R.string.wincomp_title),
+                if (wincompPicks.isEmpty()) stringResource(R.string.wincomp_card_none) else wincompPicks.joinToString(", ") { com.droiddeck.launcher.session.WinComponentNames.of(it) },
+                "card:wincomp", m,
+            ) { wincompOpen = inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard }
+        }
     }
+    val opened = wincompOpen
+    if (opened != null && wincompKey != null && game != null) WinComponentsDialog(
+        wincompKey, game.name, game.gameFiles, opened, compat = game.protonPrefix,
+        steamAppId = game.appId.takeIf { game.library != com.droiddeck.launcher.frontend.Library.ADDED },
+    ) { wincompOpen = null }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
         for (row in cards.chunked(columns)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -462,5 +499,34 @@ private fun SettingCard(label: String, value: String, id: String, modifier: Modi
     ) {
         Text(label, fontSize = 13.sp, color = if (hot) pal.signal else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(value, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * The app's language: "System default" (what Android uses, named in brackets) or one of the
+ * languages the app ships, each in its own script. Steam is set to the same language when it starts.
+ */
+@Composable
+private fun LanguageRow(host: MenuHost, chosen: String, onPick: (String) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val systemName = AppLanguage.displayName(AppLanguage.system(context))
+    val systemLabel = stringResource(R.string.setup_language_system, systemName)
+    SettingsRow(stringResource(R.string.setup_language), stringResource(R.string.setup_language_hint)) {
+        Box {
+            ValueChip(if (chosen == AppLanguage.SYSTEM) stringResource(R.string.setup_language_system_short) else AppLanguage.nativeName(chosen),
+                host.open == "language") { host.open = if (host.open == "language") null else "language" }
+            AnchoredMenu(host.open == "language", onDismiss = { if (host.open == "language") host.open = null }, title = stringResource(R.string.setup_language)) { firstItemFocus ->
+                MenuItem(systemLabel, checked = chosen == AppLanguage.SYSTEM, focusRequester = firstItemFocus) {
+                    host.open = null
+                    onPick(AppLanguage.SYSTEM)
+                }
+                AppLanguage.supported.forEach { tag ->
+                    MenuItem(AppLanguage.nativeName(tag), checked = chosen == tag) {
+                        host.open = null
+                        onPick(tag)
+                    }
+                }
+            }
+        }
     }
 }

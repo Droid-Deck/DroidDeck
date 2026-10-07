@@ -5,6 +5,11 @@ games should keep running under proot, run directly on glibc, or a mix of the tw
 fastest correct setup is. Everything below was measured on a Snapdragon 8 Elite Gen 5 (SM8850, kernel
 6.12.38-android16, Android 16) over adb, unless it says otherwise.
 
+For Steam SD allocation measurements on AYN Thor (Android 13), see the
+[Thor storage investigation](thor-sd-storage-investigation.md). It separates
+observed allocation-wrapper time, FUSE directory access and native exFAT metadata
+waits; it does not establish a full-install PRoot overhead percentage.
+
 ## Short answer
 
 - **Don't drop proot.** On Android it does two jobs. It translates paths. It also answers every

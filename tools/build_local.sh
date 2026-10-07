@@ -301,6 +301,7 @@ fi
 
 sink_output="${staging_dir}/sink-out"
 "${repo_root}/tools/aaudio-sink/build.sh" "${pa_source}" "${sink_output}"
+"${repo_root}/tools/directaudio-relay/build.sh" "${repo_root}/app/src/main/jniLibs/arm64-v8a"
 # proot is rebuilt only when its sources (source.env, the patches, the build script) changed since
 # the libraries in jniLibs were built.
 proot_out="${repo_root}/app/src/main/jniLibs/arm64-v8a"
