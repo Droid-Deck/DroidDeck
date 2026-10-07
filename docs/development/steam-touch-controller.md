@@ -92,7 +92,7 @@ Run in order; each one either rules an approach out or narrows the next.
   is answered, and the permission dialog does not render on the second screen (granted with
   `pm grant`).
 
-### 2. Touch controller over the stream: partly
+### 2. Touch controller over the stream: works end to end
 
 Starting a stream (`streaming_log.txt`, `console_log.txt` in the session's Steam `logs/`):
 
@@ -113,3 +113,70 @@ Controller 1 disconnected
   PipeWire), so the app gets audio but a black screen and keeps its loading spinner.
 - The app then re-sends only the Thor's built-in pad and drops the touch device; it seems to
   withdraw touch controls when a physical controller is present, or until video arrives.
+
+With video fixed (below), **Steam's touch controller runs against the session's own client**:
+
+- Steam Link withholds its touch controls while a physical pad is attached (the Thor's own pad
+  shows up as "Xbox Wireless Controller"). A four-finger tap opens its stream menu, which has
+  **Enable Touch Controls** (injected with `sendevent` on `/dev/input/event5`, the bottom panel).
+- The client then re-sends `touch://0`; the host opens it as controller type 43, product 0x11fb,
+  serial `MT-<Steam Link device id>`, capabilities `0000007f83045bff`, creates a virtual controller
+  for it, and sends the client `TouchConfigActive`, `TouchActionSetActive` and
+  `SetTouchConfigData`. The app draws Big Picture's touch layout (d-pad, ABXY, Steam button,
+  keyboard, `...`).
+- Touching the controls drives the session: the touch Steam button opens Big Picture's main
+  menu on the Thor's top screen, touch B closes it, and the session's glyphs switch to the touch
+  controller's. (D-pad taps from `input tap` did not register; not chased.)
+- Cost: the host encodes with libx264 in software (`/dev/video-enc0` missing), 4 threads,
+  1240x698. CPU sat at 72-85 % in the overlay and `k_EStreamControlVideoOverflow` flooded the log;
+  the app's picture froze within a minute while input kept working. **Video loopback is not a
+  shippable path**; only the input half of the stream is useful.
+
+Video fix used for this test only: PipeWire and WirePlumber are in the rootfs and gamescope is
+built with PipeWire, so a `gamescope` wrapper on `PATH` (via `Download/droiddeck-env`) that starts
+`pipewire` and `wireplumber` first gives gamescope a capture node (`stream available on node ID`)
+and the client a picture. (Editing `droiddeck-session` on the device does not stick: the app
+re-syncs the overlay each session.)
+
+### Where Steam keeps touch configs
+
+In the session's Steam, `steamapps/common/Steam Controller Configs/<account id>/config/`:
+
+- `<appid>/controller_mobile_touch.vdf` for each game with a saved touch config (dozens already
+  there for this account, synced down from Steam Cloud), plus named copies like
+  `<appid>/default touch_0.vdf`;
+- `configset_controller_mobile_touch.vdf`: which config each app uses (`autosave` = the per-app
+  file above, otherwise a template or workshop id);
+- `configset_MT-<serial>.vdf`, `preferences_MT-<serial>.vdf` and `config/MT-<serial>_gyro.vdf`:
+  per touch device.
+
+A touch config is an ordinary `controller_mappings` VDF (`controller_type` `controller_mobile_touch`,
+bindings per action set and layer) with one extra key, **`touch_layout`: the on-screen layout as
+a hex-encoded `CVirtualControllerLayouts` protobuf**: one layout per action set, each a list of
+elements (`EControllerElementType`, visible, x/y position normalised to the screen, x/y scale)
+and a colour, plus input mode, mouse mode and pinch-zoom settings. Bindings and layout travel
+together in the one file that syncs and is shared as a community config.
+
+### The touch device's HID protocol
+
+From Steam Link for Android (`libmain.so`, exported symbols; `CVirtualController` is both the
+renderer and the HID device behind `touch://0`):
+
+- **Input report: 40 bytes** (`CVirtualController::Read`), kept at `this+200` and marked dirty
+  at `this+240` by every setter. Bytes 0-7: button/touch bits (e.g. bit 27, 19, 20: trackpads
+  0, 1, 2 touched). Bytes 16, 20, 24: trackpads 0-2 as int16 x (centred, `x*65535 ^ 0x8000`) and
+  y (inverted). Remaining fields (sticks, triggers, gyro) not yet mapped.
+  `CHIDDeviceReportGenerator::BInjectGamepadStateMobileTouch` is a stub; the report is the
+  controller's own format, not the generic SDL gamepad state.
+- **Output reports from Steam** (`Write` → `QueueFeatureReport` → `HandleFeatureReports`),
+  at least 17 bytes, first byte the type:
+  - 1: rumble (u16 low, u16 high, u32 duration);
+  - 3: setting `0x30` with a u16 value (a flag at `this+1488`, likely gyro);
+  - **4: action set change** (u32 appid, u32 action set id): switches the layout shown;
+  - **5 / 6: action set layer added / removed** (u32 appid, u32 layer id).
+- **Feature report 2**: battery (level, from `SDL_GetPowerInfo`), 17 bytes.
+
+So Steam drives action sets, layers and rumble over HID. The only things that come solely over
+the stream are the config and layout blobs (`SetTouchConfigData`), the active config's
+appid/revision/creator (`TouchConfigActive`) and custom icons (`SetTouchIconData`); the first two
+are on disk in the VDF above.
