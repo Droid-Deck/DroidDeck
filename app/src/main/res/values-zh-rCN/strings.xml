@@ -638,7 +638,7 @@
     <string name="setup_choose">选择</string>
     <string name="setup_linux_apps">Linux 应用（测试版）</string>
     <string name="setup_store">Flathub 商店</string>
-    <string name="setup_store_on">显示在菜单中。部分应用可能无法启动；日志位于 Download/DroidDeck。</string>
+    <string name="setup_store_on">显示在菜单中。部分应用可能无法启动。</string>
     <string name="setup_store_off">从 Flathub 安装 Linux 应用和游戏</string>
     <string name="setup_tool_files">文件</string>
     <string name="setup_tool_files_hint">浏览和管理文件</string>

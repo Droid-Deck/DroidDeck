@@ -638,7 +638,7 @@
     <string name="setup_choose">선택</string>
     <string name="setup_linux_apps">Linux 앱(베타)</string>
     <string name="setup_store">Flathub 스토어</string>
-    <string name="setup_store_on">메뉴에 표시됩니다. 일부 앱은 실행되지 않을 수 있습니다. 로그는 Download/DroidDeck에 있습니다.</string>
+    <string name="setup_store_on">메뉴에 표시됩니다. 일부 앱은 실행되지 않을 수 있습니다.</string>
     <string name="setup_store_off">Flathub에서 Linux 앱 및 게임 설치</string>
     <string name="setup_tool_files">파일</string>
     <string name="setup_tool_files_hint">파일 탐색 및 관리</string>

@@ -49,7 +49,7 @@ object SessionLogCapture {
             ) { line ->
                 synchronized(this) {
                     try {
-                        writer?.apply { write(line); newLine(); flush() }
+                        if (writer === out) out.apply { write(line); newLine(); flush() }
                     } catch (e: Exception) {
                         // A full or unmounted card must not take the session with it.
                     }

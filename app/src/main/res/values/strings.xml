@@ -643,7 +643,7 @@
     <string name="setup_choose">Choose</string>
     <string name="setup_linux_apps">Linux apps (beta)</string>
     <string name="setup_store">Flathub Store</string>
-    <string name="setup_store_on">In the menu. Some apps may not start; logs are in Download/DroidDeck.</string>
+    <string name="setup_store_on">In the menu. Some apps may not start.</string>
     <string name="setup_store_off">Install Linux apps and games from Flathub</string>
     <string name="setup_tool_files">Files</string>
     <string name="setup_tool_files_hint">Browse and manage files</string>

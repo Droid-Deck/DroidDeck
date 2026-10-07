@@ -536,7 +536,7 @@
     <string name="setup_choose">Выбрать</string>
     <string name="setup_linux_apps">Приложения Linux (бета)</string>
     <string name="setup_store">Магазин Flathub</string>
-    <string name="setup_store_on">Показывается в меню. Некоторые приложения могут не запускаться; журналы в Download/DroidDeck.</string>
+    <string name="setup_store_on">Показывается в меню. Некоторые приложения могут не запускаться.</string>
     <string name="setup_store_off">Устанавливать приложения и игры Linux из Flathub</string>
     <string name="setup_tool_files">Файлы</string>
     <string name="setup_tool_files_hint">Просмотр и управление файлами</string>

@@ -17,11 +17,6 @@ import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-/**
- * Zips the most recent session's log folder and hands it to Android's share sheet. Works where
- * the folder could not be written to Downloads (no storage permission, or a device that refuses
- * it) and landed in the app's private files instead, which a user cannot otherwise reach.
- */
 object SessionLogShare {
     private val main = Handler(Looper.getMainLooper())
 
@@ -51,70 +46,56 @@ object SessionLogShare {
     /** The newest session folder in either place logs are written, or null if there is none. */
     fun latest(context: Context): File? = SessionPaths.sessionFolders(context).lastOrNull()
 
-    /** Builds the zip (blocking). Returns null when there is no session to share. */
-
-    /** Builds a zip for one specific session folder (blocking). */
+    @Synchronized
     fun zipFolder(context: Context, folder: File, onProgress: ((Float) -> Unit)? = null): File? {
-        if (!folder.isDirectory) return null
-        // The client's logs past STEAM_LOG_MAX_BYTES stay out, as they do from the app's own copy: a
-        // CEF debug log or an old *.previous.txt reached 17 MB, every share scrubbed them line by
-        // line, and the share sheet took ten seconds to appear.
-        val files = folder.walkTopDown().filter { it.isFile }
-            .filterNot { it.parentFile?.name == "steam" && it.length() > STEAM_LOG_MAX_BYTES }.toList()
-        if (files.isEmpty()) return null
-        val out = File(context.cacheDir, "shared-logs").apply { deleteRecursively(); mkdirs() }
-        val zip = File(out, "DroidDeck-${folder.name}.zip")
-        // Scrubbed on the way into the zip: a session shared while it runs has not had its end-of-
-        // session pass yet, and the redactor changes nothing in a line that is already clean.
+        if (!folder.isDirectory || java.nio.file.Files.isSymbolicLink(folder.toPath())) return null
+        val files = SessionLogFiles.candidates(folder).map { Triple(folder, it, it.relativeTo(folder).invariantSeparatorsPath) }
+        val liveRoot = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs")
+        val live = if (folder == SessionPaths.current()) SessionLogFiles.steamNames
+            .filter { name -> files.none { it.third == "steam/$name" } }
+            .map { File(liveRoot, it) }.filter { java.nio.file.Files.exists(it.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) }
+            .map { Triple(liveRoot, it, "steam/${it.name}") } else emptyList()
+        val sources = files + live
+        if (sources.isEmpty()) return null
+        val out = File(context.cacheDir, "shared-logs").apply { SessionLogFiles.deleteTree(this); check(mkdirs()) }
+        val name = folder.name.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val zip = File(out, "DroidDeck-$name.zip")
+        val partial = File(out, ".export")
+        val stage = File.createTempFile("redacted-", ".tmp", context.cacheDir)
+        val omitted = ArrayList<String>()
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-        // A finished folder was scrubbed whole when it ended. A file its record lists, unchanged
-        // since, goes in as it is; anything else (added or changed since, hidden, or any file of a
-        // session still running) is scrubbed again. Scrubbing tens of MB of the client's logs on
-        // every share kept the share sheet from appearing for ten seconds or more.
-        val scrubbed = SessionArtifacts.scrubbedFiles(folder)
-        val live = liveSteamLogs(context, folder)
-        val total = (files + live).sumOf { it.length() }.coerceAtLeast(1L)
-        var done = 0L
-        var shown = -1
-        fun advance(f: File) {
-            done += f.length()
-            val percent = (done * 100 / total).toInt()
-            if (percent != shown) { shown = percent; onProgress?.invoke(percent / 100f) }
+        try {
+            ZipOutputStream(partial.outputStream().buffered()).use { z ->
+                sources.forEachIndexed { index, (root, src, relative) ->
+                    val limit = if (relative.startsWith("steam/")) SessionLogFiles.STEAM_MAX_BYTES else SessionLogFiles.MAX_BYTES
+                    val failure = runCatching {
+                        stage.bufferedWriter().use { SessionLogFiles.scrubTo(root, src, it, limit) }
+                    }.exceptionOrNull()
+                    if (failure == null) {
+                        z.putNextEntry(ZipEntry("$name/$relative"))
+                        stage.inputStream().use { it.copyTo(z) }
+                        z.closeEntry()
+                    } else {
+                        omitted += "$relative: omitted because it could not be safely sanitized."
+                    }
+                    onProgress?.invoke((index + 1).toFloat() / sources.size)
+                }
+                if (omitted.isNotEmpty()) {
+                    z.putNextEntry(ZipEntry("$name/omitted.txt"))
+                    z.write((omitted.joinToString("\n") + "\n").toByteArray(Charsets.UTF_8))
+                    z.closeEntry()
+                }
+            }
+            check(partial.renameTo(zip))
+            return zip
+        } catch (e: Exception) {
+            partial.delete()
+            zip.delete()
+            throw e
+        } finally {
+            stage.delete()
         }
-        ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f, f.relativeTo(folder).path in scrubbed); advance(f) }
-            live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f, false); advance(f) }
-        }
-        return zip
     }
-
-    private fun addEntry(z: ZipOutputStream, name: String, f: File, scrubbed: Boolean) {
-        z.putNextEntry(ZipEntry(name))
-        if (!scrubbed && LogRedactor.isText(f)) {
-            val w = z.bufferedWriter()
-            LogRedactor.scrubTo(f, w)
-            w.flush()
-        } else {
-            f.inputStream().use { it.copyTo(z) }
-        }
-        z.closeEntry()
-    }
-
-    /**
-     * The client's own logs as they stand, for a session shared while it runs. The session script
-     * copies them into steam/ only as it exits, so a zip made from the drawer had none - and
-     * controller.txt (which pad the client opened, the touch mode it set) is what a controller or
-     * touch report needs most. Only for the running session: an older folder would get this
-     * session's logs. The same files the script copies; nothing holding credentials is in logs/.
-     */
-    private fun liveSteamLogs(context: Context, folder: File): List<File> {
-        if (folder != SessionPaths.current() || File(folder, "steam").exists()) return emptyList()
-        val logs = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs")
-        return logs.listFiles()?.filter { it.isFile && it.length() <= STEAM_LOG_MAX_BYTES }.orEmpty()
-    }
-
-    /** The client's content and bootstrap logs grow large over months and say nothing about a session. */
-    private const val STEAM_LOG_MAX_BYTES = 8L * 1024 * 1024
 
     fun shareIntent(context: Context, zip: File): Intent {
         val uri = FileProvider.getUriForFile(context, context.packageName + ".logs", zip)

@@ -36,11 +36,16 @@ object LogRedactor {
      * WebAPI key is caught by [WEBAPI_KEY]. The value class excludes `<` and `>` so running this
      * twice over an already-scrubbed line changes nothing.
      */
-    private val SECRET_KV = Regex(
-        "(?i)\\b(access[_-]?token|refresh[_-]?token|auth[_-]?token|authtoken|token|authcode|" +
+    private const val SECRET_KEYS =
+        "access[_-]?token|refresh[_-]?token|auth[_-]?token|authtoken|token|authcode|" +
             "auth[_-]?ticket|ticket|sessionid|steamloginsecure|webapikey|api[_-]?key|" +
-            "machine[_-]?auth(?:[_-]?token)?|machineauth|password|passwd|pwd|secret)" +
-            "(\\s*[=:]\\s*|=)([^\\s\"'<>&;,]{4,})"
+            "machine[_-]?auth(?:[_-]?token)?|machineauth|password|passwd|pwd|secret"
+    private val SECRET_KV = Regex(
+        "(?i)\\b($SECRET_KEYS)" +
+            "([\"']?\\s*[=:]\\s*[\"']?)([^\\s\"'<>&;,]{1,})"
+    )
+    private val QUOTED_SECRET = Regex(
+        "(?i)\\b($SECRET_KEYS)([\"']?\\s*[=:]\\s*)(\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*')"
     )
     /** A Steam Guard code, only where the text around it says that is what it is. */
     private val GUARD_CODE = Regex(
@@ -53,6 +58,7 @@ object LogRedactor {
         "(?i)\\b(jwt|token|ticket|sessionid|steamloginsecure|machineauth)\\b[\\s=:]*([A-Za-z0-9+/=_\\-]{12,})"
     )
     private val LONG_TOKEN = Regex("[A-Za-z0-9_\\-]{88,}")
+    private val AUTHORIZATION = Regex("(?i)(\\b(?:proxy-)?authorization[\"']?\\s*[:=]\\s*[\"']?)[^\\r\\n\"']+")
     private val STEAMID64 = Regex("\\b(76561)(\\d{8})(\\d{4})\\b")
     private val STEAMID3 = Regex("\\[U:1:(\\d+)]")
     /** "external address 2607:..." / "external IP: 203.0.113.9" - the client stating ours. */
@@ -179,30 +185,6 @@ object LogRedactor {
         return out
     }
 
-    /** A file worth scrubbing: text (no NUL in its first 4 KB) and not huge. */
-    fun isText(file: java.io.File): Boolean = try {
-        file.isFile && file.length() < 64L * 1024 * 1024 && file.inputStream().use { input ->
-            val buf = ByteArray(4096)
-            val n = input.read(buf)
-            n <= 0 || (0 until n).none { buf[it].toInt() == 0 }
-        }
-    } catch (e: Exception) {
-        false
-    }
-
-    /**
-     * Bump whenever a pattern is added or tightened. A session folder records the version it was
-     * scrubbed under (SessionArtifacts.SCRUBBED_TREE_MARKER), and a share copies a file as it is
-     * only when that matches, so a folder scrubbed under older rules is scrubbed again on the way
-     * out.
-     */
-    const val RULES_VERSION = 1
-
-    /** [src]'s lines, scrubbed, to [out]. */
-    fun scrubTo(src: java.io.File, out: java.io.Writer) {
-        src.forEachLine { line -> out.write(redact(line)); out.write("\n") }
-    }
-
     /** [line] with every credential shape replaced. Null- and exception-safe by construction. */
     fun redact(line: String): String {
         if (line.isEmpty()) return line
@@ -211,6 +193,11 @@ object LogRedactor {
             out = GUID.replace(out, "<redacted:guid>")
             out = JWT_LABELLED.replace(out) { "${it.groupValues[1]}<redacted:jwt>" }
             out = JWT_BASE64.replace(out, "<redacted:jwt>")
+            out = AUTHORIZATION.replace(out) { "${it.groupValues[1]}<redacted:authorization>" }
+            out = QUOTED_SECRET.replace(out) {
+                val quote = it.groupValues[3].first()
+                "${it.groupValues[1]}${it.groupValues[2]}$quote<redacted:token>$quote"
+            }
             out = SECRET_KV.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>" }
             out = GUARD_CODE.replace(out) { "${it.groupValues[1]}<redacted:code>" }
             out = WEBAPI_KEY.replace(out, "<redacted:key>")

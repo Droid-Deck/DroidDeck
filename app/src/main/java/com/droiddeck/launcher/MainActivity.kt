@@ -822,9 +822,6 @@ class MainActivity : ComponentActivity() {
 
         if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
 
-        // The session's logs land in Downloads so a failed run can be handed over as a folder
-        // rather than dug out of app-private storage. targetSdk 28 means the old permission still
-        // grants exactly that.
         val wanted = ArrayList<String>()
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             wanted.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)

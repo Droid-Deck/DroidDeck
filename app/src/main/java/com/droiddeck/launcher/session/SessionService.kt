@@ -277,9 +277,6 @@ class SessionService : Service() {
         try {
             SessionArtifacts.collect(this, dir, "session stopped")
         } finally {
-            // Last, so everything above is in the file it is about - and only this session's:
-            // a session that replaced this one may already own the capture and the folder.
-            SessionLogCapture.stopFor(dir)
             SessionPaths.release(this, dir)
         }
     }

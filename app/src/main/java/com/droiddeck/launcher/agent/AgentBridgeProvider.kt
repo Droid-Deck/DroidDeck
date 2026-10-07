@@ -15,6 +15,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionEvents
+import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionService
@@ -50,6 +51,7 @@ class AgentBridgeProvider : ContentProvider() {
         val response = try {
             when (method) {
                 "state" -> state(context).put("ok", true)
+                "logs" -> exportLogs(context)
                 "start" -> error("USE_DROIDDECKCTL", "Start sessions with tools/droiddeckctl so Android launches a visible Activity")
                 "stop" -> stop(context)
                 "resume" -> resume(context)
@@ -63,7 +65,7 @@ class AgentBridgeProvider : ContentProvider() {
 
     private fun state(context: Context): JSONObject {
         val runtimeVersion = LinuxRuntimeInstaller.installedVersion(context)
-        val dir = SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: latestSessionDirectory()
+        val dir = SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: SessionPaths.sessionFolders(context).lastOrNull()
         val session = JSONObject()
             .put("id", SessionState.sessionId ?: dir?.name ?: JSONObject.NULL)
             .put("phase", SessionState.phase.name)
@@ -101,10 +103,12 @@ class AgentBridgeProvider : ContentProvider() {
             .put("session", session)
     }
 
-    private fun latestSessionDirectory(): File? {
-        val parent = LinuxRuntime.debugLogDir()
-        return parent.listFiles { file -> file.isDirectory && file.name.startsWith("session-") }
-            ?.maxWithOrNull(compareBy<File> { it.lastModified() }.thenBy { it.name })
+    private fun exportLogs(context: Context): JSONObject {
+        val dir = SessionState.logDirectory ?: SessionLogShare.latest(context)
+            ?: return error("NO_SESSION_LOGS", "No session logs are available")
+        val zip = SessionLogShare.zipFolder(context, dir)
+            ?: return error("NO_SESSION_LOGS", "No diagnostic logs are available")
+        return JSONObject().put("ok", true).put("sessionId", dir.name).put("path", zip.absolutePath)
     }
 
     private fun stop(context: Context): JSONObject {

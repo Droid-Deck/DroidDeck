@@ -71,14 +71,14 @@ def _content_result(output: str) -> dict:
         raise ControlError("Could not decode the agent provider response", "INVALID_PROVIDER_RESPONSE") from exc
 
 
-def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None) -> dict:
+def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None, timeout: int = 30) -> dict:
     command = ["shell", "content", "call", "--uri", AUTHORITY, "--method", method]
     if arg is not None:
         command.extend(["--arg", arg])
     if request is not None:
         encoded = base64.b64encode(json.dumps(request, separators=(",", ":")).encode()).decode()
         command.extend(["--extra", f"request:s:{encoded}"])
-    result = run_adb(adb, serial, *command)
+    result = run_adb(adb, serial, *command, timeout=timeout)
     output = (result.stdout + result.stderr).decode(errors="replace")
     response = _content_result(output)
     if result.returncode != 0 and response.get("ok") is not False:
@@ -248,15 +248,18 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
         if not session.get("running") and session.get("artifactsAvailable") and not session.get("artifactsComplete"):
             state = wait_for_artifacts(adb, serial, state, args.timeout)
             session = state.get("session", {})
-        remote_dir = session.get("logDir")
-        if not remote_dir or not session.get("id") or not session.get("artifactsAvailable"):
-            raise ControlError("No session artifact directory is available", "NO_SESSION_LOGS")
-        destination = Path(args.destination or session["id"]).expanduser().resolve()
-        result = run_adb(adb, serial, "pull", remote_dir, str(destination), timeout=120)
+        response = provider_call(adb, serial, "logs", timeout=120)
+        if response.get("ok") is False:
+            error = response.get("error", {})
+            raise ControlError(error.get("message", "log export failed"), error.get("code", "LOG_EXPORT_FAILED"))
+        destination = Path(args.destination or f"{response['sessionId']}.zip").expanduser().resolve()
+        result = run_adb(adb, serial, "exec-out", "run-as", "com.droiddeck.launcher", "cat", response["path"], timeout=120)
         if result.returncode != 0:
-            detail = (result.stderr or result.stdout).decode(errors="replace").strip()
-            raise ControlError(detail or "adb pull failed", "LOG_PULL_FAILED")
-        return add_serial({"ok": True, "command": "logs", "sessionId": session["id"], "path": str(destination)}, serial)
+            detail = result.stderr.decode(errors="replace").strip()
+            raise ControlError(detail or "log export failed", "LOG_PULL_FAILED")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(result.stdout)
+        return add_serial({"ok": True, "command": "logs", "sessionId": response["sessionId"], "path": str(destination)}, serial)
 
     if args.command == "screenshot":
         destination = Path(args.path).expanduser().resolve()
@@ -302,7 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
     stop.add_argument("--timeout", type=float, default=90)
     commands.add_parser("resume", help="resume a suspended session")
 
-    logs = commands.add_parser("logs", help="pull the latest session artifact directory")
+    logs = commands.add_parser("logs", help="export sanitized session logs as a ZIP")
     logs.add_argument("which", choices=["latest"])
     logs.add_argument("destination", nargs="?")
     logs.add_argument("--timeout", type=float, default=90)

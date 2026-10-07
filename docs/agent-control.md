@@ -28,7 +28,7 @@ tools/droiddeckctl start desktop
 tools/droiddeckctl run /usr/bin/foo -- arg1 arg2
 tools/droiddeckctl stop
 tools/droiddeckctl resume
-tools/droiddeckctl logs latest ./session-artifacts
+tools/droiddeckctl logs latest ./session-logs.zip
 tools/droiddeckctl screenshot ./screen.png
 ```
 
@@ -39,3 +39,5 @@ Every command writes JSON to stdout and reports its resolved ADB serial to stder
 The `state` response uses schema 1 and includes the build label, runtime version, session ID and phase, mode, requested program, suspend and first-frame state, output size, guest PID, failure details, and artifact paths. Phases are `IDLE`, `PREPARING`, `INSTALLING_RUNTIME`, `STARTING_COMPOSITOR`, `STARTING_GUEST`, `STARTING_STEAM`, `READY`, `SUSPENDED`, `STOPPING`, and `FAILED`. Each session also writes `events.jsonl` alongside its existing artifacts.
 
 `tools/deploy_local.sh` uses the same device resolver. If multiple distinct devices are connected, select one with `ADB_SERIAL` or `ANDROID_SERIAL`.
+
+`logs latest` exports the same sanitized ZIP as Share logs. Working logs stay in app-private storage; the command retrieves the ZIP through `run-as` on debug builds.

@@ -25,7 +25,7 @@ object GuestCommand {
             linkDir: File? = null, onLine: (String) -> Unit): Int {
         val log = logName?.let {
             try {
-                File(File(LinuxRuntime.debugLogDir(), SessionPaths.TOOLS_DIR).apply { mkdirs() }, "$it.log").printWriter()
+                File(File(LinuxRuntime.debugLogDir(context), SessionPaths.TOOLS_DIR).apply { mkdirs() }, "$it.log").printWriter()
             } catch (e: Exception) { null }
         }
         log?.println("== ${java.util.Date()} ${argv.joinToString(" ")}")

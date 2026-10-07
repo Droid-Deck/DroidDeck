@@ -55,4 +55,37 @@ class LogRedactorTest {
             assertEquals(once, LogRedactor.redact(once))
         }
     }
+    @Test fun quotedAndShortSecretsAreRedacted() {
+        for (line in listOf("\"access_token\": \"short-secret\"", "\"password\"=\"abc\"", "pwd=x")) {
+            val out = LogRedactor.redact(line)
+            assertTrue(out.contains("<redacted:token>"))
+            assertEquals(out, LogRedactor.redact(out))
+        }
+    }
+
+    @Test fun authorizationHeadersAreRedacted() {
+        for (line in listOf("Authorization: Bearer secret-value", "Proxy-Authorization: Basic dXNlcjpwYXNz",
+            "\"Authorization\":\"Bearer secret-value\"")) {
+            val out = LogRedactor.redact(line)
+            assertFalse(out.contains("secret-value"))
+            assertFalse(out.contains("dXNlcjpwYXNz"))
+            assertTrue(out.contains("<redacted:authorization>"))
+            assertEquals(out, LogRedactor.redact(out))
+        }
+    }
+
+    @Test fun quotedSecretsWithSpacesAndEscapedQuotesAreFullyWithheld() {
+        val lines = listOf(
+            "password=\"my secret phrase\"",
+            "password='my secret phrase'",
+            "\"access_token\":\"my \\\"secret\\\" phrase\"",
+        )
+        for (line in lines) {
+            val out = LogRedactor.redact(line)
+            assertFalse(out.contains("phrase"))
+            assertFalse(out.contains("secret"))
+            assertTrue(out.contains("<redacted:token>"))
+            assertEquals(out, LogRedactor.redact(out))
+        }
+    }
 }

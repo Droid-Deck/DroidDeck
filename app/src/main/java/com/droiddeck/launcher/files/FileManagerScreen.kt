@@ -1020,7 +1020,6 @@ fun FileManagerScreen(
             // The ROMs folder chosen on the main screen: what the session shows as /root/ROMs.
             SessionPrefs.romsDir(context).takeIf { it.isNotEmpty() }?.let(::File)?.takeIf { it.isDirectory }
                 ?.let { add(locItem(stringResource(R.string.fm_rail_roms), Icons.Filled.SportsEsports, it)) }
-            File("/storage/emulated/0/Download/DroidDeck").takeIf { it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_session_logs), Icons.Filled.Description, it)) }
             File("/storage/emulated/0/Pictures").takeIf { it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_pictures), Icons.Filled.Image, it)) }
         }
         val favItems = remember(favTick) { FavoritesStore.list(context).map(::File).filter { it.exists() } }

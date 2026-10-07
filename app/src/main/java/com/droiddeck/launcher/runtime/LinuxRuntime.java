@@ -44,12 +44,10 @@ public final class LinuxRuntime {
     public static final String GUEST_RUNTIME_DIR = "/run/droiddeck";
     private static final String SYSTEM_FONTS = "/system/fonts";
     private static final String GUEST_SYSTEM_FONTS = "/usr/local/share/fonts/android";
-    /** Where every Linux session's debug log lands: public, so a user can just hand the folder over. */
     public static final String DEBUG_LOG_DIR = "DroidDeck";
 
-    public static File debugLogDir() {
-        return new File(android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOWNLOADS), DEBUG_LOG_DIR);
+    public static File debugLogDir(Context context) {
+        return new File(context.getFilesDir(), "logs");
     }
 
     private LinuxRuntime() {}
