@@ -583,6 +583,16 @@ object SessionPrefs {
         prefs(context).edit().putString("steamClientArch", id).apply()
     }
 
+    /**
+     * The Steam folder of the client [steamClientArch] picks: its logs, library and settings. What
+     * reads one client's files for "the" Steam client goes through this, so the x86-64 client's
+     * session shows and reports its own (droiddeck-steam-x64 keeps it under ~/.droiddeck-x64).
+     */
+    fun activeSteamRoot(context: Context): java.io.File = java.io.File(
+        com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context),
+        if (steamClientArch(context) == "x86_64") "root/.droiddeck-x64/.local/share/Steam" else "root/.local/share/Steam",
+    )
+
     /** Whether opening DroidDeck starts a Steam session instead of showing the front end. */
     fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
 

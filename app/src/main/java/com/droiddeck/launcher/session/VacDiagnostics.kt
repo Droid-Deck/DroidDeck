@@ -150,7 +150,7 @@ object VacDiagnostics {
 
     private fun libraryRoots(context: Context): List<File> {
         val root = LinuxRuntime.rootDir(context)
-        val steam = File(root, "root/.local/share/Steam")
+        val steam = SessionPrefs.activeSteamRoot(context)
         val roots = mutableListOf(steam)
         GameStorage.effective(context)?.let { roots.add(File(it.path)) }
         runCatching {
