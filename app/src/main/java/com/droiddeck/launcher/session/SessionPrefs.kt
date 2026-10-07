@@ -91,11 +91,12 @@ object SessionPrefs {
     }
 
     /**
-     * Steam only: the client turns touch off whenever a game has focus, which left a phone with
-     * nothing but the controller in game. While touch is direct (Direct, or Auto, which is direct
-     * in Steam) the session answers that with a left-click mouse - a tap clicks where it lands.
-     * Touchpad and Off send the guest no touches, so the client's choice stands. Changed live
-     * through a file the session watches, like [writeForceFullscreenFlag].
+     * Steam only: a game whose appinfo turns the Steam Deck's touchscreen off (Monster Train 2)
+     * has touch disabled while it has focus, which left a phone with nothing but the controller in
+     * it. While touch is direct (Direct, or Auto, which is direct in Steam) the session answers that
+     * with a left-click mouse - a tap clicks where it lands. Touchpad and Off send the guest no
+     * touches, so the client's choice stands. Changed live through a file the session watches
+     * (~/.droiddeck-game-touch).
      */
     fun gameTouch(context: Context): Boolean = touchMode(context).let { it == TOUCH_AUTO || it == TOUCH_DIRECT }
 

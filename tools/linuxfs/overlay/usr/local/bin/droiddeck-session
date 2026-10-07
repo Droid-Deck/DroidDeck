@@ -507,15 +507,16 @@ case $mode in
     # A finger that clicks but won't scroll, or touch that stops once a pad is used, shows here as
     # the mode in force at that moment. 4 is touch passed through, 1 a left-click mouse.
     #
-    # The client also sets 5 - touch disabled - whenever a game takes focus (Monster Train 2 under
-    # Proton, 2026-10-04, while Big Picture kept 4), so a finger did nothing in a game and only the
-    # controller reached it. On a phone the screen is the main input, so a Disabled that still
-    # stands with a game in focus is answered with BL_GAME_TOUCH_MODE (default 1: a tap clicks where
-    # it lands and a drag drags, as touch works in WinNative and GameNative; 4 passes real touch
-    # through). Any other mode the client picks is left alone. The app's Touch setting turns this on
-    # and off live: it writes 1 to ~/.droiddeck-game-touch while touch is direct (Direct, or Auto)
-    # and 0 for Touchpad or Off, and 0 puts the client's 5 back. BL_GAME_TOUCH_MODE=steam turns it
-    # off for the whole session.
+    # Each game gets the touch mode its appinfo sets for the Steam Deck (steamdecktouchscreen; the
+    # client logs it as "Touchscreen DefaultMode" in controller.txt). Most games have 1 or 4, but
+    # Monster Train 2 has 5 - touch disabled - so a finger did nothing in it and only the controller
+    # reached it (2026-10-04, while Big Picture kept 4). On a phone the screen is the main input, so
+    # a Disabled that still stands with a game in focus is answered with BL_GAME_TOUCH_MODE (default
+    # 1: a tap clicks where it lands and a drag drags, as touch works in WinNative and GameNative; 4
+    # passes real touch through). Any other mode the client picks is left alone. The app's Touch
+    # setting turns this on and off live: it writes 1 to ~/.droiddeck-game-touch while touch is
+    # direct (Direct, or Auto) and 0 for Touchpad or Off, and 0 puts the client's 5 back.
+    # BL_GAME_TOUCH_MODE=steam turns it off for the whole session.
     # What follows "=" in an xprop line, or $2 for a property that is missing or has no value
     # yet ("NAME(CARDINAL) =", which read leaves with nothing after the "=").
     xprop_value() {
