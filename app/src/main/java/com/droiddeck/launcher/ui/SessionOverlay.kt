@@ -191,6 +191,7 @@ class DrawerActions(
     val oscMode: String,
     val onScreenButtonsVisible: Boolean,
     val suspendPolicy: String,
+    val steamDownloadsInBackground: Boolean = false,
     val backActionsInverted: Boolean,
     val touchMode: String,
     val touchAuto: String,
@@ -221,6 +222,7 @@ class DrawerActions(
     val onQamButton: (Boolean) -> Unit = {},
     val onKeyboardButton: (Boolean) -> Unit = {},
     val onSuspendPolicy: (String) -> Unit,
+    val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
@@ -499,11 +501,19 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                                         SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                                    ) + if (a.steam) listOf(SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native)) else emptyList(),
+                                    ) + if (a.steam) listOf(
+                                        SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native),
+                                    ) else emptyList(),
                                     a.suspendPolicy,
                                     note = stringResource(if (a.steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
                                     chipModifier = focus.track(page, "suspend"),
                                     onPick = a.onSuspendPolicy,
+                                )
+                                if (a.steam && a.suspendPolicy != SessionPrefs.SUSPEND_NEVER) ToggleRow(
+                                    host, "background-downloads", stringResource(R.string.mode_background_downloads),
+                                    stringResource(R.string.mode_background_downloads_hint),
+                                    a.steamDownloadsInBackground,
+                                    onChange = a.onSteamDownloadsInBackground,
                                 )
                             }
                             SettingsGroup(stringResource(R.string.drawer_support)) {

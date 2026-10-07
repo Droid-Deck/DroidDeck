@@ -1377,6 +1377,7 @@
 
     <!-- File manager -->
     <string name="fm_drive_internal">内部</string>
+    <string name="fm_drive_linux">Linux システム</string>
     <string name="fm_drive_sd">SDカード</string>
     <string name="fm_drive_storage">ストレージ</string>
     <string name="fm_select">選択</string>

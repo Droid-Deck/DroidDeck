@@ -1401,6 +1401,7 @@
 
     <!-- File manager -->
     <string name="fm_drive_internal">Interno</string>
+    <string name="fm_drive_linux">Sistema Linux</string>
     <string name="fm_drive_sd">Tarjeta SD</string>
     <string name="fm_drive_storage">Almacenamiento</string>
     <string name="fm_select">Seleccionar</string>

@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
@@ -430,6 +431,9 @@ fun FileManagerScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val drives = remember(storageTick) { StorageRoots.list(context) }
+    val linuxRoot = remember(storageTick) {
+        com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context).takeIf { File(it, "usr").isDirectory }
+    }
 
     // ── Dialogs ──
 
@@ -688,6 +692,16 @@ fun FileManagerScreen(
                                     ).show()
                                 }
                             },
+                        )
+                    }
+                    linuxRoot?.let { root ->
+                        MenuItemDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.fm_drive_linux)) },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Terminal, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            },
+                            onClick = { showDriveMenu = false; openDrive(root) },
                         )
                     }
                 }
@@ -998,6 +1012,8 @@ fun FileManagerScreen(
                     showFavorites = false; if (d.readable) openDrive(d.dir)
                 })
             }
+            // The Linux system the sessions run in: its own / (the desktop's root), once installed.
+            linuxRoot?.let { add(locItem(stringResource(R.string.fm_drive_linux), Icons.Filled.Terminal, it)) }
         }
         val quickItems = buildList {
             File("/storage/emulated/0/Download").takeIf { it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_downloads), Icons.Filled.Download, it, stringResource(R.string.fm_rail_downloads_short))) }
