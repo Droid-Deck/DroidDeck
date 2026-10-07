@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s：引擎失败</string>
     <string name="hud_fg_needs_lossless">%1$s：需要 Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · 启动中</string>
-    <string name="added_games_import_hint">一个文件夹，其中每个 Windows 游戏各占一个子文件夹。你在 Steam 拥有的游戏会在 Steam 重启后使用其 Steam 条目；其余会变成非 Steam 快捷方式。</string>
+    <string name="added_games_import_hint">一个文件夹，其中每个 Windows 游戏各占一个子文件夹。你在 Steam 拥有的游戏会在 Steam 重启后使用其 Steam 条目；其余会变成非 Steam 快捷方式。第二个库设为自动时，Steam 也可以把游戏安装到此文件夹。</string>
     <string name="second_library_import_hint">添加一个 Steam 库并扫描其中的 Windows 游戏。已拥有的游戏使用其 Steam 条目；其余变成非 Steam 快捷方式。</string>
     <string name="added_games_forget_hint">“移除”会在下次会话删除这些快捷方式。文件仍保留在磁盘上。</string>
     <string name="game_env_title">游戏环境</string>
@@ -353,8 +353,8 @@
     <string name="mode_wifi_explain_title">启用 Wi-Fi 网络发现？</string>
     <string name="mode_wifi_explain_text">Android 需要位置权限才能读取 Wi-Fi 名称并发现附近网络。DroidDeck 用此权限在 Steam 中显示这些网络。我们不会跟踪你的位置。没有此权限互联网访问也能正常工作。</string>
     <string name="mode_storage">游戏存储</string>
-    <string name="mode_storage_auto">自动 — 有 SD 卡时使用 SD 卡</string>
-    <string name="mode_storage_auto_none">自动 — 有 SD 卡时使用 SD 卡（当前没有）</string>
+    <string name="mode_storage_auto">自动 — 有 SD 卡时使用 SD 卡，以及你的游戏文件夹</string>
+    <string name="mode_storage_auto_none">自动 — 使用你的游戏文件夹，有 SD 卡时也使用 SD 卡（当前没有）</string>
     <string name="mode_storage_internal">仅内部存储</string>
     <string name="mode_storage_folder">文件夹：%1$s</string>
     <string name="mode_second_library">第二个库</string>
@@ -1377,6 +1377,7 @@
 
     <!-- File manager -->
     <string name="fm_drive_internal">内部存储</string>
+    <string name="fm_drive_linux">Linux 系统</string>
     <string name="fm_drive_sd">SD 卡</string>
     <string name="fm_drive_storage">存储</string>
     <string name="fm_select">选择</string>

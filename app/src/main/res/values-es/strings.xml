@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s: falló el motor</string>
     <string name="hud_fg_needs_lossless">%1$s: requiere Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · iniciando</string>
-    <string name="added_games_import_hint">Una carpeta con una subcarpeta por cada juego de Windows. Los juegos que tienes en Steam usan sus entradas de Steam tras reiniciar Steam; el resto se convierten en accesos directos ajenos a Steam.</string>
+    <string name="added_games_import_hint">Una carpeta con una subcarpeta por cada juego de Windows. Los juegos que tienes en Steam usan sus entradas de Steam tras reiniciar Steam; el resto se convierten en accesos directos ajenos a Steam. Con Segunda biblioteca en Automático, Steam también puede instalar juegos en esta carpeta.</string>
     <string name="second_library_import_hint">Añade una biblioteca de Steam y busca juegos de Windows en ella. Los juegos que tienes usan sus entradas de Steam; el resto se convierten en accesos directos ajenos a Steam.</string>
     <string name="added_games_forget_hint">Olvidar quita los accesos directos en la próxima sesión. Los archivos se conservan.</string>
     <string name="game_env_title">Entorno del juego</string>
@@ -353,8 +353,8 @@
     <string name="mode_wifi_explain_title">¿Activar la detección de Wi-Fi?</string>
     <string name="mode_wifi_explain_text">Android exige el permiso de ubicación para leer los nombres de Wi-Fi y detectar redes cercanas. DroidDeck usa este acceso para mostrar esas redes en Steam. No rastreamos tu ubicación. El acceso a internet funciona sin este permiso.</string>
     <string name="mode_storage">Almacenamiento de juegos</string>
-    <string name="mode_storage_auto">Automático - la tarjeta SD si está presente</string>
-    <string name="mode_storage_auto_none">Automático - la tarjeta SD si está presente (ninguna ahora)</string>
+    <string name="mode_storage_auto">Automático - la tarjeta SD si está presente, y tus carpetas de juegos</string>
+    <string name="mode_storage_auto_none">Automático - tus carpetas de juegos, y la tarjeta SD si está presente (ninguna ahora)</string>
     <string name="mode_storage_internal">Solo interno</string>
     <string name="mode_storage_folder">Carpeta: %1$s</string>
     <string name="mode_second_library">Segunda biblioteca</string>
@@ -1401,6 +1401,7 @@
 
     <!-- File manager -->
     <string name="fm_drive_internal">Interno</string>
+    <string name="fm_drive_linux">Sistema Linux</string>
     <string name="fm_drive_sd">Tarjeta SD</string>
     <string name="fm_drive_storage">Almacenamiento</string>
     <string name="fm_select">Seleccionar</string>

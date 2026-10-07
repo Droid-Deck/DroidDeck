@@ -1,6 +1,7 @@
 import importlib.machinery
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -230,6 +231,45 @@ class ImportsTest(unittest.TestCase):
         self.exe.unlink()
         self.folder.rmdir()
         self.assertEqual(([self.game], {}), imports.route(self.steam, self.acct, [self.game]))
+
+    def test_absent_folder_sets_its_install_aside_until_it_returns(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        manifest = self.steam / 'steamapps/appmanifest_42.acf'
+        manifest.write_text(manifest.read_text().replace('}', '    "buildid" "99"\n}'))
+        state = manifest.read_text()
+        away = self.root / 'unplugged'
+        self.folder.rename(away)
+        with patch('builtins.print'):
+            self.assertEqual(([], {}), imports.route(self.steam, self.acct, []))
+        self.assertFalse(manifest.exists())
+        self.assertEqual(state, (self.steam / 'steamapps' / imports.PARKED / manifest.name).read_text())
+        away.rename(self.folder)
+        self.assertEqual(([], {str(self.game['appid']): 42}), imports.route(self.steam, self.acct, [self.game]))
+        self.assertEqual(state, manifest.read_text())
+        self.assertFalse((self.steam / 'steamapps' / imports.PARKED / manifest.name).exists())
+
+    def test_steam_installs_are_never_set_aside(self):
+        manifest = self.steam / 'steamapps/appmanifest_42.acf'
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text('"AppState"\n{\n    "appid" "42"\n    "installdir" "Example"\n}\n')
+        link = self.steam / 'steamapps/common/DroidDeck-42'
+        link.parent.mkdir(parents=True)
+        link.symlink_to(self.root / 'missing', target_is_directory=True)
+        imports.route(self.steam, self.acct, [])
+        self.assertTrue(manifest.is_file())
+
+    def test_install_in_another_library_is_used_as_is(self):
+        other = self.root / 'Games/PC'
+        (other / 'steamapps').mkdir(parents=True)
+        (other / 'steamapps/appmanifest_42.acf').write_text('Steam installed it here')
+        vdf = self.steam / 'steamapps/libraryfolders.vdf'
+        vdf.parent.mkdir(parents=True)
+        vdf.write_text('"libraryfolders"\n{\n\t"1"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n}\n' % other)
+        self.snapshot()
+        self.assertEqual(([], {str(self.game['appid']): 42}), imports.route(self.steam, self.acct, [self.game]))
+        self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
+        self.assertFalse(os.path.lexists(self.steam / 'steamapps/common/DroidDeck-42'))
 
     def test_replaced_game_does_not_inherit_cached_ownership(self):
         self.snapshot()
