@@ -72,7 +72,7 @@ object AddedGames {
         return null
     }
 
-    /** The .exe files a game folder offers, best first. */
+    /** The .exe files a game folder offers, best first; a Store package's declared game leads. */
     fun candidates(folder: File): List<File> {
         val exes = ArrayList<File>()
         val roots = listOf(folder) + (folder.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList())
@@ -81,12 +81,32 @@ object AddedGames {
                 ?.let { exes.addAll(it) }
         }
         val key = folder.name.lowercase().replace(Regex("[^a-z0-9]"), "")
-        return exes.sortedWith(
+        val declared = declaredExes(folder)
+        return declared + exes.filter { exe -> declared.none { it.path == exe.path } }.sortedWith(
             compareByDescending<File> { it.parentFile == folder }
                 .thenByDescending { it.nameWithoutExtension.lowercase().replace(Regex("[^a-z0-9]"), "").let { n -> n == key || key.startsWith(n) || n.startsWith(key) } }
                 .thenByDescending { it.length() },
         )
     }
+
+    /** The executables MicrosoftGame.config or appxmanifest.xml declares that exist inside [folder]. */
+    internal fun declaredExes(folder: File): List<File> {
+        val names = DECLARED.flatMap { (file, pattern) ->
+            runCatching { pattern.findAll(File(folder, file).readText()).map { it.groupValues[1] }.toList() }.getOrDefault(emptyList())
+        }
+        val root = runCatching { folder.canonicalPath + File.separator }.getOrNull() ?: return emptyList()
+        return names.asSequence()
+            .map { File(folder, it.trim().replace('\\', '/').trimStart('/')) }
+            .filter { it.name.endsWith(".exe", ignoreCase = true) && !SKIP.matches(it.name) && it.isFile }
+            .filter { runCatching { it.canonicalPath.startsWith(root) }.getOrDefault(false) }
+            .distinctBy { it.path }
+            .toList()
+    }
+
+    private val DECLARED = listOf(
+        "MicrosoftGame.config" to Regex("<Executable\\b[^>]*?\\bName\\s*=\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE),
+        "appxmanifest.xml" to Regex("<Application\\b[^>]*?\\bExecutable\\s*=\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE),
+    )
 
     fun scan(context: Context): List<Game> {
         val out = ArrayList<Game>()
