@@ -51,9 +51,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,6 +71,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -146,6 +151,7 @@ internal fun Modifier.bumpers(onPrevious: () -> Unit, onNext: () -> Unit): Modif
  * [bumpers]); the keycaps are for touch and stay out of the d-pad's path. The row scrolls sideways
  * when a narrow page cannot fit every tab.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun TabStrip(
     tabs: List<String>, selected: Int, onSelect: (Int) -> Unit,
@@ -154,11 +160,17 @@ internal fun TabStrip(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(12.dp)
+    // Tabs that overflow (long labels on a small phone) first close up; only what still does not
+    // fit scrolls. Once tight the row stays tight, so it cannot flip back and forth.
+    val scroll = rememberScrollState()
+    var tight by remember(tabs) { mutableStateOf(false) }
+    LaunchedEffect(scroll.maxValue) { if (scroll.maxValue in 1 until Int.MAX_VALUE) tight = true }
+    val tabPadding = if (tight) 10.dp else 16.dp
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
         BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
         Row(
             modifier = Modifier.weight(1f, fill = false).clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
-                .horizontalScroll(rememberScrollState()).padding(3.dp),
+                .horizontalScroll(scroll).padding(3.dp),
         ) {
             tabs.forEachIndexed { i, label ->
                 val on = i == selected
@@ -166,17 +178,21 @@ internal fun TabStrip(
                 val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
                 val pick = { onSelect(i) }
                 val tabShape = RoundedCornerShape(9.dp)
+                // The chosen tab scrolls fully into view, so one at the end is not left cut off.
+                val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+                if (on) LaunchedEffect(Unit) { reveal.bringIntoView() }
                 Text(
                     label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1,
                     color = if (on) pal.onSignal else if (hot) colors.onBackground else colors.onSurfaceVariant,
                     modifier = Modifier
+                        .bringIntoViewRequester(reveal)
                         .then(focusRequesters?.getOrNull(i)?.let { Modifier.focusRequester(it) } ?: Modifier)
                         .clip(tabShape)
                         .background(if (on) pal.signal else if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
                         .glideBorder(hot, tabShape, if (on) colors.onBackground else pal.signal)
                         .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
                         .controllerConfirm(onClick = pick)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = tabPadding, vertical = 12.dp),
                 )
             }
         }
@@ -269,7 +285,34 @@ fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, no
                     title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant,
                     modifier = Modifier.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
                 )
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { content(firstItemFocus) }
+                // While entries remain below the fold the list fades out at the bottom over a down
+                // arrow, so a short screen (a phone in landscape) shows that the menu goes on.
+                val scroll = rememberScrollState()
+                Box(Modifier.weight(1f, fill = false)) {
+                    Column(
+                        Modifier
+                            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                            .drawWithContent {
+                                drawContent()
+                                if (scroll.canScrollForward) {
+                                    val fade = 36.dp.toPx().coerceAtMost(size.height / 3)
+                                    drawRect(
+                                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                                            listOf(Color.Black, Color.Transparent), startY = size.height - fade, endY = size.height,
+                                        ),
+                                        topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - fade),
+                                        size = androidx.compose.ui.geometry.Size(size.width, fade),
+                                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                                    )
+                                }
+                            }
+                            .verticalScroll(scroll),
+                    ) { content(firstItemFocus) }
+                    if (scroll.canScrollForward) Icon(
+                        Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = colors.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.BottomCenter).size(20.dp),
+                    )
+                }
                 if (note != null) {
                     Spacer(Modifier.height(4.dp))
                     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
@@ -280,6 +323,7 @@ fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, no
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MenuItem(
     label: String, checked: Boolean, enabled: Boolean = true, detail: String? = null,
@@ -291,9 +335,13 @@ fun MenuItem(
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val shift by animateFloatAsState(if (hot) 2f else 0f, Motion.sp(0.5f), label = "miShift")
+    // A menu taller than the screen opens scrolled to the current choice, not past it.
+    val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    if (checked) LaunchedEffect(Unit) { reveal.bringIntoView() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth()
+            .bringIntoViewRequester(reveal)
             .graphicsLayer { translationX = shift.dp.toPx() }
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .clip(RoundedCornerShape(8.dp))

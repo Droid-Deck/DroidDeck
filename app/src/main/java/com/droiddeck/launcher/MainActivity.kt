@@ -84,6 +84,11 @@ import com.droiddeck.launcher.input.SecondScreenDisplays
  * the store, downloads, settings - is the client's own job once [SessionActivity] has it on screen.
  */
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(newBase)
+        com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
+    }
+
     private val ui = Handler(Looper.getMainLooper())
     private val drivers = DriverMenus(this, ui)
     private val components = ComponentsMenu(this, ui)
@@ -107,7 +112,7 @@ class MainActivity : ComponentActivity() {
     private var stage by mutableStateOf("")
     private var percent by mutableIntStateOf(-1)
     private var failed by mutableStateOf(false)
-    private var frameGenLabel by mutableStateOf("Off")
+    private var frameGenLabel by mutableStateOf("")
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
     private var showNonAdreno by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
@@ -254,29 +259,32 @@ class MainActivity : ComponentActivity() {
     /** Import a save zip into [game]: pick it in the app's file picker, then back up and unzip off the main thread. */
     private fun importSaves(name: String, game: () -> GameSaves.Game) {
         if (SessionState.running) {
-            android.widget.Toast.makeText(this, "Close the Steam session first, so the game can't save over the import", android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(this, R.string.main_saves_close_session, android.widget.Toast.LENGTH_LONG).show()
             return
         }
         onSavePicked = { zip ->
-            saveAction("Importing into $name") {
-                val (written, backup) = GameSaves.import(game(), zip)
-                val kind = GameSaves.layoutOf(zip)?.label ?: "zip"
-                "Imported $written files from the $kind into $name" + (backup?.let { ". Old saves backed up to Download/DroidDeck/Saves/backups" } ?: "")
+            saveAction(getString(R.string.main_saves_importing, name)) {
+                val (written, backup) = GameSaves.import(this, game(), zip)
+                val kind = GameSaves.layoutOf(zip)?.label(this) ?: getString(R.string.saves_zip)
+                resources.getQuantityString(
+                    if (backup != null) R.plurals.main_saves_imported_backup else R.plurals.main_saves_imported,
+                    written, written, kind, name,
+                )
             }
         }
-        pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), "Choose a save zip for $name", GameSaves.savesDir().parentFile?.parentFile?.path))
+        pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_saves_pick_zip, name), GameSaves.savesDir().parentFile?.parentFile?.path))
     }
 
     /** Export [game]'s saves in [layout] to a folder picked in the app's file picker. */
     private fun exportSaves(name: String, layout: GameSaves.Layout, game: () -> GameSaves.Game) {
         onSavePicked = { dir ->
-            saveAction("Exporting $name") {
-                val (zip, count) = GameSaves.export(game(), layout, dir)
-                "Exported $count files as a ${layout.label}: ${zip.path.removePrefix("/storage/emulated/0/")}"
+            saveAction(getString(R.string.main_saves_exporting, name)) {
+                val (zip, count) = GameSaves.export(this, game(), layout, dir)
+                resources.getQuantityString(R.plurals.main_saves_exported, count, count, layout.label(this), zip.path.removePrefix("/storage/emulated/0/"))
             }
         }
         GameSaves.savesDir().mkdirs()
-        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, "Choose where to save $name (${layout.label})", GameSaves.savesDir().path))
+        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_saves_pick_folder, name, layout.label(this)), GameSaves.savesDir().path))
     }
     private val pickAddedGamesDir = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path ->
@@ -328,7 +336,7 @@ class MainActivity : ComponentActivity() {
     private var renderer by mutableStateOf("vulkan")
     private var gameStorage by mutableStateOf("")
     private var storageDiagnostics by mutableStateOf(false)
-    private var storageOptions by mutableStateOf<List<Pair<String, String>>>(emptyList())
+    private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
     }
@@ -359,15 +367,15 @@ class MainActivity : ComponentActivity() {
         if (intent?.component?.className == SessionActivity::class.java.name) {
             when {
                 busy || LinuxRuntimeInstaller.isBusy() -> {
-                    android.widget.Toast.makeText(this, "Wait for the runtime operation to finish", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
                 protons.protonBusyId != null || ProtonExtras.installInProgress -> {
-                    android.widget.Toast.makeText(this, "Wait for the compatibility tool install to finish", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this, R.string.main_wait_proton_install, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
                 pkgStage != null -> {
-                    android.widget.Toast.makeText(this, "Wait for the desktop app install to finish", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
             }
@@ -403,7 +411,7 @@ class MainActivity : ComponentActivity() {
     private fun pickGameExport(game: Library.SteamGame?) {
         onSavePicked = { folder ->
             saveAction(getString(R.string.game_frontend_files)) {
-                val saved = if (game != null) GameFiles.export(folder, game)
+                val saved = if (game != null) GameFiles.export(this, folder, game)
                 else {
                     GameFileSync.enable(this, folder)
                     folder
@@ -443,7 +451,7 @@ class MainActivity : ComponentActivity() {
 
     private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false): Boolean {
         if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
-            android.widget.Toast.makeText(this, "Wait for the install to finish before launching a game", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
         if (SessionState.running) {
@@ -496,6 +504,7 @@ class MainActivity : ComponentActivity() {
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
         theme = SessionPrefs.theme(this)
+        frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
         // Last start's game list, so the Steam wall is up on the first frame; refresh() replaces it.
         steamGames = if (shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.LibraryCache.load(this)
@@ -533,6 +542,7 @@ class MainActivity : ComponentActivity() {
                         lossless = lossless,
                         pageKey = sm?.let { "settings:$it" } ?: if (showPerformance) "performance" else if (showProtons) "protons" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
                         theme = theme,
+                        language = com.droiddeck.launcher.core.AppLanguage.chosen(this),
                         appScale = appScale,
                         isHomeApp = homeAppSelected,
                         homeScreenEnabled = homeScreenEnabled,
@@ -640,7 +650,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
-                                if (zip == null) android.widget.Toast.makeText(this, "No session logs yet: run a session first.", android.widget.Toast.LENGTH_LONG).show()
+                                if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()
                                 else startActivity(SessionLogShare.shareIntent(this, zip))
                             }
                         },
@@ -649,7 +659,7 @@ class MainActivity : ComponentActivity() {
                                 val cleared = runCatching { SessionArtifacts.clearAll(this) }.getOrDefault(0)
                                 ui.post {
                                     android.widget.Toast.makeText(this,
-                                        if (cleared == 0) "No session logs to clear." else "Cleared $cleared session log folder${if (cleared == 1) "" else "s"}.",
+                                        if (cleared == 0) getString(R.string.main_no_logs_to_clear) else resources.getQuantityString(R.plurals.main_logs_cleared, cleared, cleared),
                                         android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             }, "clear-logs").start()
@@ -660,6 +670,13 @@ class MainActivity : ComponentActivity() {
                         },
                         onPageBack = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
+                        onLanguage = { tag ->
+                            if (tag != com.droiddeck.launcher.core.AppLanguage.chosen(this)) {
+                                com.droiddeck.launcher.core.AppLanguage.setChosen(this, tag)
+                                // Redrawn in the new language; Setup's page and tab are saved state.
+                                recreate()
+                            }
+                        },
                         onAppScale = { percent ->
                             com.droiddeck.launcher.core.AppUiPrefs.setScale(this, percent)
                             appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
@@ -692,7 +709,7 @@ class MainActivity : ComponentActivity() {
                                 val result = runCatching {
                                     kotlinx.coroutines.runBlocking { WirelessAdbFix.pair(this@MainActivity, host, port, code) }
                                 }
-                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: "Wireless debugging pairing failed" }
+                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_pair_failed) }
                                 ui.post { complete(error) }
                             }, "wireless-adb-pair").start()
                         },
@@ -705,7 +722,7 @@ class MainActivity : ComponentActivity() {
                         onWirelessAdbApply = { host, port, enabled, complete ->
                             Thread({
                                 val result = runCatching { WirelessAdbFix.setChildProcessLimit(this@MainActivity, host, port, enabled) }
-                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: "Wireless debugging command failed" }
+                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_command_failed) }
                                 ui.post {
                                     if (error == null) refreshPhantomStatus()
                                     complete(error)
@@ -715,7 +732,7 @@ class MainActivity : ComponentActivity() {
                         onSetPhantomProcessLimit = { enabled, complete ->
                             Thread({
                                 val result = runCatching { WirelessAdbFix.setUsingSavedPairing(this@MainActivity, enabled) }
-                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: "Wireless debugging is unavailable" }
+                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_unavailable) }
                                 ui.post {
                                     if (error == null) refreshPhantomStatus()
                                     complete(error)
@@ -724,9 +741,9 @@ class MainActivity : ComponentActivity() {
                         },
                         onCopyPhantomCommand = { enabled ->
                             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(
-                                ClipData.newPlainText("DroidDeck child-process setting", PhantomProcessLimit.adbCommand(enabled)),
+                                ClipData.newPlainText(getString(R.string.main_adb_clip_label), PhantomProcessLimit.adbCommand(enabled)),
                             )
-                            android.widget.Toast.makeText(this, "ADB command copied", android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(this, R.string.main_adb_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
                         onDismissPhantomGate = { showPhantomGate = false },
                         onStartWirelessAdbPairing = { WirelessAdbPairingService.start(this) },
@@ -760,24 +777,24 @@ class MainActivity : ComponentActivity() {
                     path = romsDir,
                     onChoose = {
                         showRoms = false
-                        pickRomsDir.launch(InAppFilePicker.buildDirIntent(this, "Choose the ROMs folder", romsDir))
+                        pickRomsDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_roms), romsDir))
                     },
                     onClear = { SessionPrefs.setRomsDir(this, ""); romsDir = null; showRoms = false },
                     onDismiss = { showRoms = false },
                 )
                 showNonAdreno?.let { release ->
                     ConfirmDialog(
-                        title = "Not an Adreno GPU",
-                        text = "Turnip supports Adreno GPUs. On ${com.droiddeck.launcher.core.DeviceSupport.gpuName()}, Steam may show a black screen. Download: ${"%.0f".format(release.size / 1e6)} MB.",
-                        confirm = "Install anyway",
+                        title = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_title),
+                        text = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_text, com.droiddeck.launcher.core.DeviceSupport.gpuName(this@MainActivity), release.size / 1e6),
+                        confirm = androidx.compose.ui.res.stringResource(R.string.main_install_anyway),
                         onConfirm = { showNonAdreno = null; install(release) },
                         onDismiss = { showNonAdreno = null },
                     )
                 }
                 if (showRemove) ConfirmDialog(
-                    title = "Remove Linux runtime",
-                    text = "This deletes the runtime, the Steam client inside it, and every game installed there.",
-                    confirm = "Remove",
+                    title = androidx.compose.ui.res.stringResource(R.string.main_remove_runtime_title),
+                    text = androidx.compose.ui.res.stringResource(R.string.main_remove_runtime_text),
+                    confirm = androidx.compose.ui.res.stringResource(R.string.store_remove),
                     onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
                 )
@@ -887,7 +904,7 @@ class MainActivity : ComponentActivity() {
         if (!SessionState.running) Thread({
             val applied = runCatching { ComponentsManager.applyQueued(this) }.getOrDefault(emptyList())
             if (applied.isNotEmpty()) ui.post {
-                android.widget.Toast.makeText(this, "Applied: " + applied.joinToString(", "), android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(this, getString(R.string.main_applied, applied.joinToString(", ")), android.widget.Toast.LENGTH_LONG).show()
             }
             ui.post { if (showComponents) components.refreshComponents() }
         }, "components-queue").start()
@@ -946,9 +963,13 @@ class MainActivity : ComponentActivity() {
         try {
             HomeApp.launch(this, app, displayId)
         } catch (_: Exception) {
-            val target = if (displayId == null || displayId == Display.DEFAULT_DISPLAY) "the primary screen"
-                else secondScreenDisplays.firstOrNull { it.id == displayId }?.label ?: "display $displayId"
-            android.widget.Toast.makeText(this, "Could not open ${app.label} on $target", android.widget.Toast.LENGTH_SHORT).show()
+            val label = secondScreenDisplays.firstOrNull { it.id == displayId }?.label
+            val message = when {
+                displayId == null || displayId == Display.DEFAULT_DISPLAY -> getString(R.string.android_app_open_failed_primary, app.label)
+                label != null -> getString(R.string.android_app_open_failed_on, app.label, label)
+                else -> getString(R.string.android_app_open_failed_display, app.label, displayId)
+            }
+            android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -979,7 +1000,7 @@ class MainActivity : ComponentActivity() {
         if (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null) return
         saveBusy = label
         Thread({
-            val message = runCatching(work).getOrElse { e -> "$label failed: ${e.message ?: e.javaClass.simpleName}" }
+            val message = runCatching(work).getOrElse { e -> getString(R.string.main_action_failed, label, e.message ?: e.javaClass.simpleName) }
             ui.post {
                 saveBusy = null
                 android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
@@ -1025,10 +1046,10 @@ class MainActivity : ComponentActivity() {
 
     private fun importComponent(uri: Uri) {
         val name = displayNameOf(uri) ?: "imported.wcp"
-        components.componentAction("Importing") {
+        components.componentAction(getString(R.string.comp_busy_importing)) {
             val tmp = File(cacheDir, "component-import.wcp")
-            contentResolver.openInputStream(uri)?.use { input -> tmp.outputStream().use { input.copyTo(it) } } ?: error("cannot read the file")
-            try { "Imported ${ComponentsManager.importPackage(this, tmp, name).version}" } finally { tmp.delete() }
+            contentResolver.openInputStream(uri)?.use { input -> tmp.outputStream().use { input.copyTo(it) } } ?: error(getString(R.string.comp_cannot_read))
+            try { getString(R.string.comp_imported, ComponentsManager.importPackage(this, tmp, name).version) } finally { tmp.delete() }
         }
     }
 
@@ -1046,14 +1067,14 @@ class MainActivity : ComponentActivity() {
             requestInitialFocus = focusComponentsContent,
             onProton = { components.chooseProton(it) },
             onComp = { components.compComp = it },
-            onSwap = { file -> components.compProton?.let { pid -> components.componentAction("Swapping") { ComponentsManager.swap(this, pid, file) } } },
-            onRestore = { version -> components.compProton?.let { pid -> components.componentAction("Restoring") { ComponentsManager.restore(this, pid, components.compComp, version) } } },
-            onCancelQueued = { components.compProton?.let { pid -> components.componentAction("Cancelling") { ComponentsManager.cancelQueued(this, pid, components.compComp); "The waiting swap was cancelled." } } },
-            onDeletePackage = { file -> components.componentAction("Deleting") { ComponentsManager.deletePackage(this, file) } },
-            onDeleteOriginal = { version -> components.compProton?.let { pid -> components.componentAction("Deleting") { ComponentsManager.deleteOriginal(this, pid, components.compComp, version) } } },
+            onSwap = { file -> components.compProton?.let { pid -> components.componentAction(getString(R.string.comp_busy_swapping)) { ComponentsManager.swap(this, pid, file) } } },
+            onRestore = { version -> components.compProton?.let { pid -> components.componentAction(getString(R.string.comp_busy_restoring)) { ComponentsManager.restore(this, pid, components.compComp, version) } } },
+            onCancelQueued = { components.compProton?.let { pid -> components.componentAction(getString(R.string.comp_busy_cancelling)) { ComponentsManager.cancelQueued(this, pid, components.compComp); getString(R.string.comp_swap_cancelled) } } },
+            onDeletePackage = { file -> components.componentAction(getString(R.string.comp_busy_deleting)) { ComponentsManager.deletePackage(this, file) } },
+            onDeleteOriginal = { version -> components.compProton?.let { pid -> components.componentAction(getString(R.string.comp_busy_deleting)) { ComponentsManager.deleteOriginal(this, pid, components.compComp, version) } } },
             onDownload = { components.downloadComponent(it) },
             onRefresh = { components.refreshComponentCatalog() },
-            onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, "Choose a component package (-linux .wcp)")) },
+            onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, getString(R.string.comp_pick_wcp))) },
             onBack = { showComponents = false },
             gpu = drivers.state(),
             gpuActions = com.droiddeck.launcher.ui.GpuDriversActions(
@@ -1066,9 +1087,9 @@ class MainActivity : ComponentActivity() {
                 onRemoveLinux = { id -> drivers.deleteDriver(id, linux = true) },
                 onRemoveAndroid = { id -> drivers.deleteDriver(id, linux = false) },
                 onDownloadDriver = { name -> drivers.downloadReleaseDriver(name) },
-                onImportLinux = { pickLinuxDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a Linux runtime driver (-Linux zip or Android + Linux bundle)")) },
-                onImportAndroid = { pickAndroidDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a display driver (AdrenoTools zip or Android + Linux bundle)")) },
-                onImportZip = { pickAnyDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a driver zip or an Android + Linux bundle")) },
+                onImportLinux = { pickLinuxDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.drivers_pick_linux))) },
+                onImportAndroid = { pickAndroidDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.drivers_pick_android))) },
+                onImportZip = { pickAnyDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.drivers_pick_any))) },
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
             ),
         )
@@ -1104,14 +1125,14 @@ class MainActivity : ComponentActivity() {
     private fun installPackage(id: String) {
         val entry = catalog?.firstOrNull { it.id == id } ?: return
         if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
-        pkgId = id; pkgStage = "Starting…"; pkgPercent = -1
+        pkgId = id; pkgStage = getString(R.string.store_starting); pkgPercent = -1
         Thread({
             val problem = DesktopCatalog.install(this, entry) { stage, percent ->
                 ui.post { pkgStage = stage; pkgPercent = percent }
             }
             ui.post {
                 pkgStage = null; pkgId = null
-                if (problem != null) android.widget.Toast.makeText(this, "${entry.name}: $problem", android.widget.Toast.LENGTH_LONG).show()
+                if (problem != null) android.widget.Toast.makeText(this, getString(R.string.main_pkg_problem, entry.name, problem), android.widget.Toast.LENGTH_LONG).show()
                 refreshPackages()
                 refresh()
             }
@@ -1121,7 +1142,7 @@ class MainActivity : ComponentActivity() {
     private fun removePackage(id: String) {
         val entry = catalog?.firstOrNull { it.id == id } ?: return
         if (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null || SessionState.running) return
-        pkgId = id; pkgStage = if (entry.kind == "appimage") "Removing ${entry.name}…" else "Forgetting ${entry.name}…"; pkgPercent = -1
+        pkgId = id; pkgStage = getString(if (entry.kind == "appimage") R.string.main_removing_named else R.string.main_forgetting_named, entry.name); pkgPercent = -1
         Thread({
             DesktopCatalog.remove(this, entry)
             ui.post {
@@ -1176,6 +1197,7 @@ class MainActivity : ComponentActivity() {
                 deckyInstalled = if (mode == SessionService.MODE_STEAM) decky.deckyInstalled else null,
                 deckyLatestRelease = if (mode == SessionService.MODE_STEAM) decky.deckyReleases.firstOrNull() else null,
                 deckyChecking = decky.deckyChecking, deckyStage = decky.deckyStage, deckyPercent = decky.deckyPercent,
+                deckyDownloadingBinary = decky.deckyDownloadingBinary,
                 deckyEnabled = decky.deckySupervisor, deckySessionRunning = SessionState.running,
             ),
             ModeSettingsActions(
@@ -1223,7 +1245,7 @@ class MainActivity : ComponentActivity() {
                 onRenderer = { r -> SessionPrefs.setDesktopRenderer(this, r); renderer = r },
                 onGameStorage = { path, label -> setGameStorage(path, label) },
                 onPickGameStorageFolder = {
-                    pickGameStorage.launch(InAppFilePicker.buildDirIntent(this, "Choose the game storage folder", gameStorage.ifEmpty { null }))
+                    pickGameStorage.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_game_storage), gameStorage.ifEmpty { null }))
                 },
                 onStorageDiagnostics = { on ->
                     SessionPrefs.setStorageDiagnosticsEnabled(this, on)
@@ -1251,13 +1273,13 @@ class MainActivity : ComponentActivity() {
                     SessionPrefs.setRunSteamAtStartup(this, on)
                     runSteamAtStartup = on
                 },
-                onPickAddedGamesDir = { pickAddedGamesDir.launch(InAppFilePicker.buildDirIntent(this, "Choose a folder of your own games", addedGamesDirs.lastOrNull())) },
+                onPickAddedGamesDir = { pickAddedGamesDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_added_games), addedGamesDirs.lastOrNull())) },
                 onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
                 onForgetAddedGamesDir = { dir -> SessionPrefs.setAddedGamesDirs(this, addedGamesDirs - dir); addedGamesDirs = SessionPrefs.addedGamesDirs(this); refreshAddedGames(); refresh() },
                 onAddedGameExe = { folder, path -> SessionPrefs.setAddedGameExe(this, folder, path); refreshAddedGames(); refresh() },
                 onPickAddedGameExe = { folder ->
                     pendingAddedGame = folder
-                    pickAddedGameExe.launch(InAppFilePicker.buildIntent(this, listOf("exe"), "Choose the game's .exe", folder))
+                    pickAddedGameExe.launch(InAppFilePicker.buildIntent(this, listOf("exe"), getString(R.string.main_pick_game_exe), folder))
                 },
                 onDeckyInstall = { release -> decky.installDecky(release) },
                 onDeckyCheck = { decky.refreshDecky() },
@@ -1268,7 +1290,7 @@ class MainActivity : ComponentActivity() {
                     decky.deckySupervisor = false
                 },
                 onPickDeckyPluginZip = {
-                    pickDeckyPluginZip.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, "Choose a Decky plugin ZIP"))
+                    pickDeckyPluginZip.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.main_pick_decky_zip)))
                 },
                 onDismiss = { settingsMode = null },
             ),
@@ -1388,7 +1410,7 @@ class MainActivity : ComponentActivity() {
         Thread({
             drivers.refreshDrivers()
             val games = scanAddedGames()
-            val storage = GameStorage.options(this).map { it.label to it.path }
+            val storage = GameStorage.options(this)
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
             val deckySupervisor = mode == SessionService.MODE_STEAM && DeckyManager.supervisorEnabled(this)
             ui.post {
@@ -1407,9 +1429,9 @@ class MainActivity : ComponentActivity() {
     /** A second Steam library, proven writable first; "" = internal only. */
     private fun setGameStorage(path: String, label: String) {
         if (path.isNotEmpty() && path != SessionPrefs.GAME_STORAGE_OFF) {
-            val problem = GameStorage.prepare(path)
+            val problem = GameStorage.prepare(this, path)
             if (problem != null) {
-                android.widget.Toast.makeText(this, "Not usable: $problem", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, problem), android.widget.Toast.LENGTH_LONG).show()
                 return
             }
         }
@@ -1451,9 +1473,9 @@ class MainActivity : ComponentActivity() {
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {
-            SessionService.MODE_DESKTOP -> "Desktop"
+            SessionService.MODE_DESKTOP -> getString(R.string.rail_desktop)
             SessionService.MODE_RUN -> Library.nameForProgram(SessionState.program)
-                ?: SessionState.program?.substringAfterLast('/')?.substringBefore('.') ?: "Program"
+                ?: SessionState.program?.substringAfterLast('/')?.substringBefore('.') ?: getString(R.string.main_running_program)
             else -> "Steam"
         } else null
         // The libraries, off the main thread: manifests and a folder scan.
@@ -1520,7 +1542,10 @@ class MainActivity : ComponentActivity() {
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
-            "${PhantomProcessLimit.title(phantomProcessStatus)}. ${PhantomProcessLimit.instructions(phantomProcessStatus)}\n\n${PhantomProcessLimit.adbCommand()}"
+            getString(
+                R.string.phantom_warning, PhantomProcessLimit.title(this, phantomProcessStatus),
+                PhantomProcessLimit.instructions(this, phantomProcessStatus), PhantomProcessLimit.adbCommand(),
+            )
         } else null
     }
 
@@ -1536,10 +1561,10 @@ class MainActivity : ComponentActivity() {
         } catch (error: Exception) {
             if (displayId != null) {
                 runCatching { startActivity(intent) }
-                android.widget.Toast.makeText(this, "Could not open Settings on the bottom screen; opened it on the main screen.", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(this, R.string.main_settings_main_screen, android.widget.Toast.LENGTH_LONG).show()
             } else {
                 startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                android.widget.Toast.makeText(this, "Open Developer options in Settings", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(this, R.string.main_open_dev_options, android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -1572,7 +1597,7 @@ class MainActivity : ComponentActivity() {
     private fun followRuntimeOperation(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
         busy = true
         failed = false
-        stage = if (LinuxRuntimeInstaller.isRemoving()) "Removing Linux runtime" else "Starting…"
+        stage = getString(if (LinuxRuntimeInstaller.isRemoving()) R.string.main_removing_runtime else R.string.store_starting)
         percent = -1
         Thread({
             val ok = run(LinuxRuntimeInstaller.ProgressListener { s, p ->

@@ -37,7 +37,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     /** The latest Banners-Turnip release as each driver menu offers it (see [refreshReleaseRows]). */
     var linuxDownloads by mutableStateOf<List<com.droiddeck.launcher.ui.DownloadRow>>(emptyList())
     var androidDownloads by mutableStateOf<List<com.droiddeck.launcher.ui.DownloadRow>>(emptyList())
-    var releaseStatus by mutableStateOf("Not checked yet - tap refresh to look for new drivers")
+    // Empty until the first refresh: the activity has no context yet while its fields are made.
+    var releaseStatus by mutableStateOf("")
     var releaseChecking by mutableStateOf(false)
     var canRestoreBundled by mutableStateOf(false)
     /** Asset name -> download percent, while it downloads. */
@@ -57,10 +58,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     private var autoCheckedThisProcess = false
 
     fun state() = GpuDriversState(
-        gpuName = gpu.name, gpuFamily = gpu.family.label, soc = gpu.soc, supportText = gpu.supportText,
+        gpuName = gpu.displayName(activity), gpuFamily = gpu.family.label(activity), soc = gpu.soc, supportText = gpu.supportText(activity),
         supported = gpu.support == GpuInfo.Support.TESTED, unsupported = gpu.support == GpuInfo.Support.UNSUPPORTED,
         auto = mode == SessionPrefs.GPU_DRIVERS_AUTO, pairs = pairRows, busy = pairBusy, percent = pairPercent,
-        autoStatus = autoStatus, releaseStatus = releaseStatus, checking = releaseChecking,
+        autoStatus = autoStatus, releaseStatus = releaseStatus.ifEmpty { activity.getString(R.string.drivers_not_checked) }, checking = releaseChecking,
         linuxRows = linuxRows, linuxSelected = linuxSelected, androidRows = androidRows, androidSelected = androidSelected,
         linuxDownloads = linuxDownloads, androidDownloads = androidDownloads, canRestoreBundled = canRestoreBundled,
         activeBundle = activeBundle,
@@ -73,10 +74,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         fun origin(id: String) = if (TurnipReleases.isDownloaded(activity, id)) DriverRow.DOWNLOADED else DriverRow.IMPORTED
         val bundles = DriverBundle.all(activity)
         fun bundleRow(id: String, linux: Boolean) = bundles.firstOrNull { (if (linux) it.linuxId else it.androidId) == id }?.let {
-            DriverRow(id, it.label, "Android + Linux: sets the ${if (linux) "display" else "runtime"} driver with it", true, DriverRow.BUNDLE)
+            DriverRow(id, it.label, activity.getString(if (linux) R.string.drivers_bundle_sets_display else R.string.drivers_bundle_sets_runtime), true, DriverRow.BUNDLE)
         }
         linuxRows = LinuxVulkanDriver.optionValues(activity).map { id ->
-            if (id.isEmpty()) DriverRow("", "Runtime default", "the Turnip built into the runtime", false)
+            if (id.isEmpty()) DriverRow("", activity.getString(R.string.gpu_runtime_default), activity.getString(R.string.drivers_runtime_builtin), false)
             else bundleRow(id, linux = true) ?: DriverRow(
                 id, lm.getDriverName(id),
                 listOfNotNull(
@@ -92,8 +93,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         val auto = td.autoId()
         androidRows = buildList {
             add(DriverRow(
-                TurnipDriver.AUTO, "Auto - picked by GPU",
-                if (auto == "system") "system Vulkan: no bundled build for this GPU" else "${td.displayName(auto)} (bundled)",
+                TurnipDriver.AUTO, activity.getString(R.string.gpu_auto_by_gpu),
+                if (auto == "system") activity.getString(R.string.drivers_system_vulkan) else activity.getString(R.string.drivers_bundled, td.displayName(auto)),
                 false,
             ))
             for (id in td.visibleBundled()) add(DriverRow(id, td.displayName(id), td.driverVersion(id), true, DriverRow.BUNDLED))
@@ -109,7 +110,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     /** One line for the settings row that opens this: "Auto · WinNative · Balanced". */
     fun summary(): String {
         val active = pairRows.firstOrNull { it.active }?.name ?: activeBundle
-        return (if (mode == SessionPrefs.GPU_DRIVERS_AUTO) "Auto" else "Manual") + (active?.let { " · $it" } ?: "")
+        val label = activity.getString(if (mode == SessionPrefs.GPU_DRIVERS_AUTO) R.string.common_auto else R.string.drivers_manual)
+        return active?.let { activity.getString(R.string.drivers_summary, label, it) } ?: label
     }
 
     /** The pairs the last check found, with what is installed and in use; this GPU's first. */
@@ -125,7 +127,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             val mb = p.assets.sumOf { it.size } / 1_048_576.0
             PairRow(
                 key = p.key, name = p.name, version = p.version,
-                detail = if (!p.complete) "Only one half is published right now" else "%.0f MB for both".format(mb),
+                detail = if (!p.complete) activity.getString(R.string.drivers_half_published) else activity.getString(R.string.drivers_pair_size, mb),
                 recommended = p.key == recommended, suits = p.suits(gpu), complete = p.complete,
                 installed = displayId != null && linuxId != null,
                 active = displayId != null && linuxId != null &&
@@ -153,11 +155,11 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (!force && autoCheckedThisProcess) return
         autoCheckedThisProcess = true
         if (DriverPairs.recommendedKey(gpu, emptyList()) == null) {
-            autoStatus = "No drivers to set: ${gpu.supportText.lowercase()}"
+            autoStatus = activity.getString(R.string.drivers_none_to_set, gpu.supportText(activity).lowercase())
             return
         }
         releaseChecking = true
-        autoStatus = "Checking for the latest drivers…"
+        autoStatus = activity.getString(R.string.drivers_checking_latest)
         Thread({
             val cached = TurnipReleases.cached(activity)
             val stale = cached == null || System.currentTimeMillis() - cached.checkedAt > 24 * 3_600_000L ||
@@ -172,9 +174,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 val pair = pairs.firstOrNull { it.key == key }
                 val row = pairRows.firstOrNull { it.key == key }
                 when {
-                    row?.active == true -> autoStatus = "Up to date" + (problem?.let { " (couldn't check: $it)" } ?: "")
+                    row?.active == true -> autoStatus = problem?.let { activity.getString(R.string.drivers_up_to_date_check_failed, it) }
+                        ?: activity.getString(R.string.upd_current_status)
                     pair == null || !pair.complete ->
-                        autoStatus = problem?.let { "Couldn't check: $it" } ?: "The recommended drivers aren't published right now"
+                        autoStatus = problem?.let { activity.getString(R.string.upd_couldnt_check, it) } ?: activity.getString(R.string.drivers_recommended_unpublished)
                     else -> installPair(pair, auto = true)
                 }
             }
@@ -197,7 +200,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (!pair.complete) return
         pairBusy = pair.key
         pairPercent = 0
-        if (auto) autoStatus = "Downloading ${pair.name} ${pair.version}…"
+        if (auto) autoStatus = activity.getString(R.string.drivers_downloading_pair, pair.name, pair.version)
         Thread({
             val lm = LinuxVulkanDriverManager(activity)
             val td = TurnipDriver(activity)
@@ -217,7 +220,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     val displayChanged = SessionPrefs.androidDriver(activity) != displayId
                     SessionPrefs.setAndroidDriver(activity, displayId)
                     SessionPrefs.setLinuxDriver(activity, linuxId)
-                    val restart = if (displayChanged && CompositorHost.isStarted) " The display driver applies after DroidDeck restarts." else ""
+                    val restart = displayChanged && CompositorHost.isStarted
                     if (auto) {
                         val previous = SessionPrefs.gpuAutoInstalled(activity)
                         for (id in previous - setOf(displayId, linuxId)) {
@@ -230,14 +233,18 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                             TurnipReleases.forget(activity, id)
                         }
                         SessionPrefs.setGpuAutoInstalled(activity, setOf(displayId, linuxId))
-                        autoStatus = (if (downloaded) "Updated to" else "Switched to") + " ${pair.name} ${pair.version}.$restart"
+                        autoStatus = activity.getString(
+                            if (downloaded) { if (restart) R.string.drivers_updated_to_restart else R.string.drivers_updated_to }
+                            else { if (restart) R.string.drivers_switched_to_restart else R.string.drivers_switched_to },
+                            pair.name, pair.version,
+                        )
                     } else {
-                        android.widget.Toast.makeText(activity, "Using ${pair.name} ${pair.version}.$restart", android.widget.Toast.LENGTH_LONG).show()
+                        android.widget.Toast.makeText(activity, activity.getString(if (restart) R.string.drivers_using_restart else R.string.drivers_using, pair.name, pair.version), android.widget.Toast.LENGTH_LONG).show()
                     }
                 }.onFailure { e ->
                     Log.w(TAG, "driver pair ${pair.key}", e)
-                    val why = if (e is IllegalArgumentException) e.message else "Download failed: ${e.message}"
-                    if (auto) autoStatus = why ?: "Download failed"
+                    val why = if (e is IllegalArgumentException) e.message else activity.getString(R.string.comp_download_failed, e.message)
+                    if (auto) autoStatus = why ?: activity.getString(R.string.user_apps_download_failed)
                     else android.widget.Toast.makeText(activity, why, android.widget.Toast.LENGTH_LONG).show()
                 }
                 refreshDrivers()
@@ -298,7 +305,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                         try {
                             LinuxVulkanDriverManager(activity).installDriver(uri, name)
                         } catch (runtime: IllegalArgumentException) {
-                            throw IllegalArgumentException("Not a driver zip: neither an AdrenoTools driver, a -Linux Turnip nor an Android + Linux bundle")
+                            throw IllegalArgumentException(activity.getString(R.string.drivers_not_a_driver))
                         }
                     }
                 }
@@ -307,10 +314,11 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 e.message
             } catch (e: Exception) {
                 Log.w(TAG, "driver import", e)
-                "Import failed: ${e.message}"
+                activity.getString(R.string.drivers_import_failed, e.message)
             }
             ui.post {
-                val done = bundle?.let { useBundle(it) } ?: "Imported ${name ?: "driver"}"
+                val done = bundle?.let { useBundle(it) }
+                    ?: name?.let { activity.getString(R.string.comp_imported, it) } ?: activity.getString(R.string.drivers_imported_unnamed)
                 android.widget.Toast.makeText(
                     activity, problem ?: done,
                     if (problem != null || bundle != null) android.widget.Toast.LENGTH_LONG else android.widget.Toast.LENGTH_SHORT,
@@ -340,8 +348,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         val displayChanged = SessionPrefs.androidDriver(activity) != bundle.androidId
         DriverBundle.select(activity, bundle)
         if (mode == SessionPrefs.GPU_DRIVERS_AUTO) setMode(false)
-        return "Using ${bundle.label} as both the runtime and display driver." +
-            if (displayChanged && CompositorHost.isStarted) " The display driver applies after DroidDeck restarts." else ""
+        return activity.getString(
+            if (displayChanged && CompositorHost.isStarted) R.string.drivers_using_bundle_restart else R.string.drivers_using_bundle,
+            bundle.label,
+        )
     }
 
     /**
@@ -354,7 +364,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (bundle != null) {
             DriverBundle.remove(activity, bundle)
             TurnipReleases.forget(activity, bundle.id)
-            android.widget.Toast.makeText(activity, "Deleted ${bundle.label} (both drivers)", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(activity, activity.getString(R.string.drivers_deleted_bundle, bundle.label), android.widget.Toast.LENGTH_SHORT).show()
             refreshDrivers()
             return
         }
@@ -367,7 +377,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             if (SessionPrefs.androidDriver(activity) == id) SessionPrefs.setAndroidDriver(activity, TurnipDriver.AUTO)
         }
         TurnipReleases.forget(activity, id)
-        android.widget.Toast.makeText(activity, "Deleted ${id}", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(activity, activity.getString(R.string.drivers_deleted, id), android.widget.Toast.LENGTH_SHORT).show()
         refreshDrivers()
     }
 
@@ -378,26 +388,28 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             .filter { it.bundle || it.linux == linux }
             .filter { a -> installedIdOf(a) == null }
             .map { a ->
-                val mb = "%.1f MB".format(a.size / 1_048_576.0)
+                val mb = activity.getString(R.string.common_size_mb, a.size / 1_048_576.0)
                 com.droiddeck.launcher.ui.DownloadRow(a.name, "${a.source} ${a.tag}", "${a.label} · $mb", releaseProgress[a.name])
             }
         linuxDownloads = rows(linux = true)
         androidDownloads = rows(linux = false)
         if (!releaseChecking) releaseStatus = when (check) {
-            null -> "Not checked yet - tap refresh to look for new drivers"
-            else -> "Latest: " + check.latest.joinToString(" · ") { "${it.first} ${it.second}" } +
-                (if (check.failed.isEmpty()) "" else " · ${check.failed.joinToString()} unreachable") +
-                " · checked ${ago(check.checkedAt)}"
+            null -> activity.getString(R.string.drivers_not_checked)
+            else -> {
+                val latest = check.latest.joinToString(" · ") { "${it.first} ${it.second}" }
+                if (check.failed.isEmpty()) activity.getString(R.string.drivers_release_status, latest, ago(check.checkedAt))
+                else activity.getString(R.string.drivers_release_status_failed, latest, check.failed.joinToString(), ago(check.checkedAt))
+            }
         }
     }
 
     private fun ago(t: Long): String {
         val m = ((System.currentTimeMillis() - t) / 60_000).coerceAtLeast(0)
         return when {
-            m < 1 -> "just now"
-            m < 60 -> "$m min ago"
-            m < 48 * 60 -> "${m / 60} h ago"
-            else -> "${m / (24 * 60)} days ago"
+            m < 1 -> activity.getString(R.string.upd_just_now)
+            m < 60 -> activity.resources.getQuantityString(R.plurals.drivers_ago_minutes, m.toInt(), m)
+            m < 48 * 60 -> activity.resources.getQuantityString(R.plurals.drivers_ago_hours, (m / 60).toInt(), m / 60)
+            else -> activity.resources.getQuantityString(R.plurals.drivers_ago_days, (m / (24 * 60)).toInt(), m / (24 * 60))
         }
     }
 
@@ -405,16 +417,16 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     fun checkLatestTurnip() {
         if (releaseChecking) return
         releaseChecking = true
-        releaseStatus = "Checking Banners-Turnip, WinNative and DroidDeck…"
+        releaseStatus = activity.getString(R.string.drivers_checking_sources)
         Thread({
             val problem = try { TurnipReleases.refresh(activity); null } catch (e: Exception) {
-                Log.w(TAG, "latest Turnip check", e); e.message ?: "check failed"
+                Log.w(TAG, "latest Turnip check", e); e.message ?: activity.getString(R.string.drivers_check_failed)
             }
             ui.post {
                 releaseChecking = false
                 refreshReleaseRows()
                 refreshPairs()
-                if (problem != null) releaseStatus = "Couldn't check: $problem"
+                if (problem != null) releaseStatus = activity.getString(R.string.upd_couldnt_check, problem)
             }
         }, "turnip-release-check").start()
     }
@@ -433,13 +445,16 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 e.message
             } catch (e: Exception) {
                 Log.w(TAG, "release driver download", e)
-                "Download failed: ${e.message}"
+                activity.getString(R.string.comp_download_failed, e.message)
             }
             ui.post {
                 releaseProgress.remove(assetName)
-                val pick = if (asset.bundle) "pick it in either list to set both drivers" else "pick it in the menu"
+                val installed = activity.getString(
+                    if (asset.bundle) R.string.drivers_installed_pick_either else R.string.drivers_installed_pick,
+                    asset.name.removeSuffix(".zip"),
+                )
                 android.widget.Toast.makeText(
-                    activity, problem ?: "Installed ${asset.name.removeSuffix(".zip")} - $pick",
+                    activity, problem ?: installed,
                     android.widget.Toast.LENGTH_LONG,
                 ).show()
                 refreshDrivers()

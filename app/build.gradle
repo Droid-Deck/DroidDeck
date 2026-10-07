@@ -165,6 +165,8 @@ android {
     testOptions {
         // Plain JVM tests: a stray android.util.Log call returns a default instead of throwing.
         unitTests.returnDefaultValues = true
+        // Robolectric tests start activities whose text is now all string resources.
+        unitTests.includeAndroidResources = true
     }
 
     compileOptions {

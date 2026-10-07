@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.ScreenEffects
 import org.json.JSONObject
@@ -19,10 +21,12 @@ object SessionPrefs {
     const val OSC_STEAM_QAM = "steam-qam"
     const val OSC_NEVER = "never"
 
-    const val BACK_MENU_THEN_QAM = "1: menu 2: QAM"
-    const val BACK_QAM_THEN_MENU = "1: QAM 2: menu"
+    /** What Back does in a Steam session, first press then second: the labels of the two orders. */
+    val BACK_MENU_THEN_QAM = R.string.back_menu_then_qam
+    val BACK_QAM_THEN_MENU = R.string.back_qam_then_menu
 
-    fun backActionsOrder(inverted: Boolean): String =
+    @StringRes
+    fun backActionsOrder(inverted: Boolean): Int =
         if (inverted) BACK_QAM_THEN_MENU else BACK_MENU_THEN_QAM
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
@@ -665,6 +669,10 @@ object SessionPrefs {
 
     val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
 
+    /** [fpsLimitChoices] labelled in the app's language. */
+    fun fpsLimitChoices(context: Context): List<Pair<Int, String>> =
+        fpsLimitChoices.map { (fps, label) -> fps to if (fps == 0) context.getString(R.string.frame_gen_off) else label }
+
     /**
      * How the compositor resizes the session onto the panel (WaylandCompositor.nativeSetUpscaler's
      * modes). Linear is the default; Nearest preserves hard pixel edges. Spatial filters work
@@ -675,6 +683,16 @@ object SessionPrefs {
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
+
+    /** The [upscalerChoices] labels that are words rather than product names. */
+    private val upscalerLabels = mapOf(
+        0 to R.string.sprefs_upscaler_linear, 2 to R.string.sprefs_upscaler_nearest,
+        8 to R.string.sprefs_upscaler_gsr_quality, 6 to R.string.sprefs_upscaler_sharpen,
+    )
+
+    /** [upscalerChoices] labelled in the app's language; the English list stays for the device report. */
+    fun upscalerChoices(context: Context): List<Pair<Int, String>> =
+        upscalerChoices.map { (mode, label) -> mode to (upscalerLabels[mode]?.let(context::getString) ?: label) }
 
     fun canonicalUpscaler(mode: Int): Int = when (mode) {
         1 -> 0
@@ -710,11 +728,24 @@ object SessionPrefs {
 
     val textureAnisotropyChoices = TextureFiltering.ANISOTROPY.map { it to if (it == 0) "Off" else "${it}x" }
 
+    /** [textureAnisotropyChoices] labelled in the app's language. */
+    fun textureAnisotropyChoices(context: Context): List<Pair<Int, String>> =
+        textureAnisotropyChoices.map { (value, label) -> value to if (value == 0) context.getString(R.string.frame_gen_off) else label }
+
     val textureLodBiasChoices = TextureFiltering.LOD_BIAS.map {
         it to when (it) {
             TextureFiltering.LOD_BIAS_OFF -> "Off"
             TextureFiltering.LOD_BIAS_AUTO -> "Auto (match scaling)"
             else -> it
+        }
+    }
+
+    /** [textureLodBiasChoices] labelled in the app's language. */
+    fun textureLodBiasChoices(context: Context): List<Pair<String, String>> = textureLodBiasChoices.map { (value, label) ->
+        value to when (value) {
+            TextureFiltering.LOD_BIAS_OFF -> context.getString(R.string.frame_gen_off)
+            TextureFiltering.LOD_BIAS_AUTO -> context.getString(R.string.sprefs_lod_bias_auto)
+            else -> label
         }
     }
 

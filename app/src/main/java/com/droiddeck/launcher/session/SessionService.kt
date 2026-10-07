@@ -60,6 +60,9 @@ import java.util.UUID
  * The activity comes and goes on top of this; see [com.droiddeck.launcher.wayland.CompositorHost].
  */
 class SessionService : Service() {
+    override fun attachBaseContext(newBase: android.content.Context) =
+        super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(newBase))
+
     private val components = java.util.concurrent.CopyOnWriteArrayList<SessionPart>()
     /** The Steam Deck controller's sysfs binds (SteamDeckPad), when this session has one. */
     private var deckBinds: List<String> = emptyList()
@@ -554,6 +557,12 @@ class SessionService : Service() {
         guest.add("PATH=/usr/local/bin:/usr/bin:/bin")
         guest.add("TERM=xterm-256color")
         guest.add("LANG=C.UTF-8")
+        // Steam's interface language: the app's (Setup's choice, or the system's). The system's
+        // region decides between Spain's and Latin American Spanish, which the app has one of.
+        guest.add("BL_STEAM_LANGUAGE=" + SteamLanguage.forLocale(
+            com.droiddeck.launcher.core.AppLanguage.effective(this),
+            com.droiddeck.launcher.core.AppLanguage.system(this).country,
+        ))
         // Without this the session is UTC: the client's clock, its logs and every timestamp in a
         // session bundle sit hours off the device's. Bannerlator carries the same line.
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
@@ -810,7 +819,7 @@ class SessionService : Service() {
         val library = GameStorage.effective(this)
         var storageDiagnosticLibrary: File? = null
         if (library != null) {
-            val problem = GameStorage.prepare(library.path)
+            val problem = GameStorage.prepare(this, library.path)
             if (problem == null) {
                 File(LinuxRuntime.rootDir(this), "mnt/droiddeck-sd").mkdirs()
                 // Links, prefixes and Steam entries made before the rename still name the old path.

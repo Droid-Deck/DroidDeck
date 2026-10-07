@@ -11,6 +11,14 @@ import com.droiddeck.launcher.session.GpuClockPin
  * sandboxes are started through (BwrapSpawner).
  */
 class App : Application() {
+    override fun attachBaseContext(base: android.content.Context) =
+        super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(base))
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        com.droiddeck.launcher.core.AppLanguage.systemChanged(newConfig)
+    }
+
     override fun onCreate() {
         super.onCreate()
         CrashHandler.install(this)

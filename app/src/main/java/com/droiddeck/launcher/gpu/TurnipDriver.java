@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.os.Environment;
 import android.util.Log;
 
+import com.droiddeck.launcher.R;
 import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.core.TarZst;
 import com.droiddeck.launcher.session.SessionPrefs;
@@ -218,7 +219,7 @@ public final class TurnipDriver {
      */
     String adopt(File tmpDir, String displayName) throws IOException {
         String rejected = rejectionReason(tmpDir);
-        if (rejected != null) throw new IllegalArgumentException("Not an AdrenoTools driver: " + rejected);
+        if (rejected != null) throw new IllegalArgumentException(context.getString(R.string.turnip_not_adrenotools, rejected));
 
         JSONObject meta = readMetaFile(new File(tmpDir, "meta.json"));
         String name = meta != null ? meta.optString("name", "") : "";
@@ -245,31 +246,31 @@ public final class TurnipDriver {
      * Why a just-extracted zip is not something adrenotools can be pointed at, or null when it is.
      * The kinds refused by name are the other driver lists' zips, which carry a meta.json too.
      */
-    private static String rejectionReason(File dir) {
+    private String rejectionReason(File dir) {
         File metaFile = new File(dir, "meta.json");
-        if (!metaFile.isFile()) return "no meta.json";
+        if (!metaFile.isFile()) return context.getString(R.string.turnip_reject_no_meta);
         String libraryName, kind;
         try {
             JSONObject meta = new JSONObject(FileUtils.readString(metaFile));
             libraryName = meta.optString("libraryName", "");
             kind = meta.optString("kind", "");
         } catch (Exception e) {
-            return "meta.json is unreadable (" + e.getMessage() + ")";
+            return context.getString(R.string.turnip_reject_meta_unreadable, e.getMessage());
         }
         if ("linux-vulkan-icd".equals(kind))
-            return "this is a Linux runtime driver (import it under \"Linux runtime driver\")";
+            return context.getString(R.string.turnip_reject_linux_driver);
         if ("wayland-game-driver".equals(kind))
-            return "this is a Wayland game driver, which this app has no use for";
+            return context.getString(R.string.turnip_reject_wayland);
         if (libraryName.isEmpty())
-            return "meta.json names no libraryName, so nothing could be handed to AdrenoTools";
+            return context.getString(R.string.turnip_reject_no_library_name);
         File library = new File(dir, libraryName);
         if (!library.isFile())
-            return "meta.json names " + libraryName + ", which is not in the zip";
+            return context.getString(R.string.turnip_reject_library_missing, libraryName);
         if (!LinuxVulkanDriverManager.isAarch64Elf(library))
-            return libraryName + " is not a 64-bit AArch64 ELF shared library";
+            return context.getString(R.string.turnip_reject_not_aarch64, libraryName);
         // A glibc build that happens to carry a libraryName would load nothing in this process.
         if (LinuxVulkanDriverManager.containsAscii(library, "libc.so.6"))
-            return libraryName + " links glibc - a \"-Linux\" Turnip, which belongs under \"Linux runtime driver\"";
+            return context.getString(R.string.turnip_reject_glibc, libraryName);
         return null;
     }
 

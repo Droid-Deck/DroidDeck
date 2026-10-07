@@ -15,6 +15,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,25 +105,31 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(top = 6.dp),
             )
             val checked = u.catalog?.checkedAt?.takeIf { it > 0 }
+            // The relative time comes capitalized to stand alone (Spanish "Hace 5 minutos"); here it
+            // ends a sentence.
             if (!LocalNarrowPane.current) Text(
-                if (u.checking) stringResource(R.string.common_checking) else if (checked != null) stringResource(R.string.upd_checked, ago(checked)) else stringResource(R.string.upd_not_checked),
+                if (u.checking) stringResource(R.string.common_checking) else if (checked != null) stringResource(R.string.upd_checked, ago(checked).replaceFirstChar { it.lowercase() }) else stringResource(R.string.upd_not_checked),
                 fontSize = 13.sp, color = colors.onSurfaceVariant,
             )
             ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.store_check_updates), busy = u.checking, enabled = !u.checking && u.stage == null, onClick = ua.onCheck)
         }
-        Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
-            // Landscape has the width for channels and status side by side; a narrow pane stacks them.
-            if (LocalNarrowPane.current) {
-                StatusPanel(s, u, ua, me)
-                Box(Modifier.height(18.dp))
-                ChannelLabel()
-                ChannelPicker(u, ua)
-            } else {
-                // The label sits over both columns, so the status card lines up with the first channel.
-                ChannelLabel()
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Box(Modifier.weight(1f)) { ChannelPicker(u, ua) }
-                    Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            // Landscape has the width for channels and status side by side; a narrow pane, or a small
+            // phone's (where each channel's name and date would be cut to a word), stacks them.
+            val stacked = LocalNarrowPane.current || maxWidth < 720.dp
+            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
+                if (stacked) {
+                    StatusPanel(s, u, ua, me)
+                    Box(Modifier.height(18.dp))
+                    ChannelLabel()
+                    ChannelPicker(u, ua)
+                } else {
+                    // The label sits over both columns, so the status card lines up with the first channel.
+                    ChannelLabel()
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                        Box(Modifier.weight(1f)) { ChannelPicker(u, ua) }
+                        Box(Modifier.weight(1.15f)) { StatusPanel(s, u, ua, me) }
+                    }
                 }
             }
         }
@@ -179,7 +186,7 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         }
         if (look.detail != null) Text(look.detail, fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
         if (installBlock != null && offered) {
-            Text(installBlock, fontSize = 13.sp, color = AttentionAmber, modifier = Modifier.padding(top = 10.dp))
+            Text(installBlock.message(androidx.compose.ui.platform.LocalContext.current), fontSize = 13.sp, color = AttentionAmber, modifier = Modifier.padding(top = 10.dp))
         }
         if (u.error != null) Text(u.error, fontSize = 13.sp, color = pal.error, modifier = Modifier.padding(top = 12.dp))
         val installable = release?.apk != null && installBlock == null && !s.sessionRunning
