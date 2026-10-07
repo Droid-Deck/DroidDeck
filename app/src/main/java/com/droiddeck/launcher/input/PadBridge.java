@@ -237,6 +237,23 @@ public final class PadBridge {
         publish();
     }
 
+    /**
+     * A controller the app reads itself rather than through Android's input (the Steam Controller
+     * over Bluetooth, SteamControllerBle): its whole state, merged into the one exported slot as a
+     * physical pad's events are. Android has no device for it, so a game's rumble cannot reach it.
+     * It streams its state whether or not anything moved; {@code changed} is whether this one did.
+     */
+    public synchronized void applyExternal(java.util.function.Consumer<PadState> mutation, boolean changed) {
+        mutation.accept(state);
+        if (changed) {
+            activeControllerId = NO_CONTROLLER;
+            notePlayerInput();
+            statButtons++;
+            scheduleStats();
+        }
+        publish();
+    }
+
     /** Touch-only Steam and QAM buttons, merged with physical input without changing its state. */
     public synchronized void setSystemButtons(boolean guidePressed, boolean qamPressed) {
         if (systemGuidePressed == guidePressed && systemQamPressed == qamPressed) return;
