@@ -269,7 +269,13 @@ else
   export mesa_glthread=false
 fi
 case $verb in
-  run|waitforexitandrun) exec "$rt/run.sh" "$@" ;;
+  run|waitforexitandrun)
+    # Titles Valve gives a newer runtime (sniper, soldier; the launcher lists them in direct-sniper)
+    # are built for newer libraries than scout's: they run on the rootfs (Ubuntu 24.04) as it is.
+    if grep -qx "${STEAM_COMPAT_APP_ID:-${SteamAppId:-none}}" "$HOME/direct-sniper" 2>/dev/null; then
+      exec "$@"
+    fi
+    exec "$rt/run.sh" "$@" ;;
   *) exec "$@" ;;
 esac
 RUN
@@ -277,10 +283,87 @@ RUN
   # The mapping lives in config.vdf, which the client rewrites from memory as it exits: written
   # here, while no x86 client runs.
   if [ -f "$STEAM_X64/config/config.vdf" ] && ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
-    python3 - "$STEAM_X64/config/config.vdf" ${BL_X64_DIRECT_APPS:-550} <<'PY' || step "could not map titles to DroidDeck direct"
-import re, sys
-path, apps = sys.argv[1], sys.argv[2:]
-s = open(path, encoding="utf-8", errors="surrogateescape").read()
+    python3 - "$STEAM_X64/config/config.vdf" "$STEAM_X64/appcache/appinfo.vdf" "$X64_HOME/direct-auto.json" \
+      "$X64_HOME/direct-sniper" ${BL_X64_DIRECT_APPS:-550} <<'PY' || step "could not map titles to DroidDeck direct"
+# Every game with a Linux build goes to DroidDeck direct: Steam would run it in its Linux runtime
+# container, which needs user namespaces no Android app has, and the game would not start. The
+# client's own appinfo cache says which games have a Linux build and which runtime Valve gives them
+# (config/app_mappings: SteamLinuxRuntime_sniper or _soldier; none = scout). Those ids go to
+# direct-sniper for the tool's run script. A title already on another tool (chosen in Properties)
+# keeps it, except BL_X64_DIRECT_APPS (Left 4 Dead 2 by default), which is always taken back.
+# direct-auto.json lists what this mapped.
+import json, re, struct, sys
+path, appinfo, auto_file, sniper_file, extra = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:]
+
+
+def read_kv(buf, pos, strings):
+    out = {}
+    while True:
+        t = buf[pos]
+        pos += 1
+        if t == 0x08:
+            return out, pos
+        if strings is not None:
+            key = strings[struct.unpack_from("<I", buf, pos)[0]]
+            pos += 4
+        else:
+            end = buf.index(b"\0", pos)
+            key = buf[pos:end].decode("utf-8", "replace")
+            pos = end + 1
+        if t == 0x00:
+            out[key], pos = read_kv(buf, pos, strings)
+        elif t == 0x01:
+            end = buf.index(b"\0", pos)
+            out[key] = buf[pos:end].decode("utf-8", "replace")
+            pos = end + 1
+        elif t in (0x02, 0x03, 0x04, 0x06):
+            pos += 4
+        elif t in (0x07, 0x0A):
+            pos += 8
+        else:
+            raise ValueError("type %#x" % t)
+
+
+def linux_games(file):
+    """{appid: runtime} for the games with a Linux build in the client's appinfo cache."""
+    try:
+        buf = open(file, "rb").read()
+    except OSError:
+        return {}
+    magic = struct.unpack_from("<I", buf, 0)[0]
+    strings, pos = None, 8
+    if magic == 0x07564429:
+        table = struct.unpack_from("<q", buf, 8)[0]
+        count, p = struct.unpack_from("<I", buf, table)[0], table + 4
+        strings = []
+        for _ in range(count):
+            end = buf.index(b"\0", p)
+            strings.append(buf[p:end].decode("utf-8", "replace"))
+            p = end + 1
+        pos = 16
+    elif magic != 0x07564428:
+        return {}
+    games = {}
+    while True:
+        appid, size = struct.unpack_from("<II", buf, pos)
+        if appid == 0:
+            break
+        try:
+            info = read_kv(buf, pos + 8 + 60, strings)[0].get("appinfo", {})
+        except (ValueError, IndexError, struct.error):
+            info = {}
+        pos += 8 + size
+        common = info.get("common", {})
+        if str(common.get("type", "")).lower() != "game" or "linux" not in str(common.get("oslist", "")):
+            continue
+        runtime = "scout"
+        for m in (info.get("config", {}).get("app_mappings") or {}).values():
+            if isinstance(m, dict) and m.get("platform") == "linux":
+                tool = str(m.get("tool", "")).lower()
+                runtime = "sniper" if "sniper" in tool else "soldier" if "soldier" in tool else runtime
+        games[str(appid)] = runtime
+    return games
+
 
 def block(text, key):
     """(start of the key, index after its opening brace, index of its closing brace) or None."""
@@ -295,21 +378,37 @@ def block(text, key):
         k += 1
     return m.start(), m.end(), k - 1
 
+
+games = linux_games(appinfo)
+for app in extra:
+    games.setdefault(app, "scout")
+s = open(path, encoding="utf-8", errors="surrogateescape").read()
 if not block(s, "CompatToolMapping"):
     st = block(s, "Steam")
     if not st:
         sys.exit("no Steam section")
     s = s[:st[1]] + '\n\t\t\t\t"CompatToolMapping"\n\t\t\t\t{\n\t\t\t\t}' + s[st[1]:]
-for app in apps:
+mapped = []
+for app in sorted(games, key=int):
     _, open_, close = block(s, "CompatToolMapping")
     inner = s[open_:close]
     old = block(inner, app)
     if old:
+        name = re.search(r'"name"\s*"([^"]*)"', inner[old[1]:old[2]])
+        name = name.group(1) if name else ""
+        # Another tool chosen for it (in Properties, or by Steam) stays; the forced ones are retaken.
+        if name and name != "droiddeck-direct" and app not in extra:
+            continue
         inner = inner[:old[0]] + inner[old[2] + 1:]
     entry = ('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"droiddeck-direct"\n'
              '\t\t\t\t\t\t"config"\t\t""\n\t\t\t\t\t\t"priority"\t\t"250"\n\t\t\t\t\t}' % app)
     s = s[:open_] + entry + inner + s[close:]
+    mapped.append(app)
 open(path, "w", encoding="utf-8", errors="surrogateescape").write(s)
+json.dump(mapped, open(auto_file, "w"))
+open(sniper_file, "w").write("".join("%s\n" % a for a in mapped if games[a] != "scout"))
+print("droiddeck-steam-x64: %d Linux title(s) on DroidDeck direct (%d on the newer runtime)"
+      % (len(mapped), sum(games[a] != "scout" for a in mapped)))
 PY
   fi
   # The arm64 client's Proton tools (droiddeck-proton-arm64, GE-Proton, CachyOS): one wrapper per
