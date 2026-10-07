@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -143,7 +144,14 @@ fun FileManagerScreen(
                 val name = abs.removePrefix("/storage/").substringBefore('/')
                 if (name.isNotEmpty() && name != "emulated" && name != "self") File("/storage/$name") else rootDir
             }
-            else -> rootDir
+            // A game's own folder or Proton prefix lives in the app's private storage, which has no
+            // volume above it: floor at the app's files dir so up/back still reach the library roots.
+            else -> {
+                val appFiles = runCatching { context.filesDir.canonicalPath }.getOrNull()
+                generateSequence(rootDir) { it.parentFile }
+                    .firstOrNull { appFiles != null && runCatching { it.canonicalPath }.getOrNull() == appFiles }
+                    ?: rootDir
+            }
         }
         mutableStateOf(vol)
     }
@@ -232,7 +240,9 @@ fun FileManagerScreen(
         loadDirectory(dir)
     }
 
-    LaunchedEffect(Unit) { openDrive(rootDir) }
+    // Open the start dir without openDrive(): that pins the floor to the start dir itself, which
+    // greyed out up/back whenever the manager was opened at a game's folder.
+    LaunchedEffect(Unit) { loadDirectory(rootDir) }
 
     // System/gesture Back: while the Favorites view is open it closes that first; otherwise
     // it goes up one directory. Only at the current drive's root with Favorites closed is it
@@ -244,6 +254,14 @@ fun FileManagerScreen(
         }
         val parent = currentDir.parentFile
         if (parent != null && parent.exists()) loadDirectory(parent)
+    }
+
+    // One level up, never above the current drive's root: shared by the toolbar arrow and the
+    // ".." row at the top of the list.
+    val canGoUp = currentDir != currentRoot && currentDir.parentFile?.exists() == true
+    fun goUp() {
+        val parent = currentDir.parentFile
+        if (currentDir != currentRoot && parent != null && parent.exists()) loadDirectory(parent)
     }
 
     // Resolve a non-colliding destination in [dir] for [name] (foo.txt -> "foo (1).txt").
@@ -617,11 +635,7 @@ fun FileManagerScreen(
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
-            IconButton(onClick = {
-                val parent = currentDir.parentFile
-                // Don't climb above the current drive's root.
-                if (currentDir != currentRoot && parent != null && parent.exists()) loadDirectory(parent)
-            }, enabled = currentDir != currentRoot) {
+            IconButton(onClick = { goUp() }, enabled = canGoUp) {
                 Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary)
             }
 
@@ -1044,6 +1058,9 @@ fun FileManagerScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(8.dp),
                 ) {
+                    if (canGoUp) item(key = "..", span = { GridItemSpan(maxLineSpan) }) {
+                        ParentFolderRow(compact = compactRows, onTap = { goUp() })
+                    }
                     items(shownEntries, key = { it.absolutePath }) { file ->
                         val isFav = remember(file.absolutePath, favTick) {
                             FavoritesStore.isFavorite(context, file.absolutePath)
@@ -1109,6 +1126,9 @@ fun FileManagerScreen(
                 }
             } else
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                if (canGoUp) item(key = "..") {
+                    ParentFolderRow(compact = compactRows, onTap = { goUp() })
+                }
                 if (entries.isEmpty()) {
                     item {
                         Box(

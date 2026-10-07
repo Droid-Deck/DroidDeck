@@ -1531,6 +1531,7 @@
     <!-- %1$s is a folder name -->
     <string name="fm_favorite_removed">已将“%1$s”从收藏夹移除</string>
     <string name="fm_empty_directory">空文件夹</string>
+    <string name="fm_up_one_level">返回上一级</string>
     <string name="fm_choose_folder">选择文件夹</string>
     <string name="fm_choose_file">选择文件</string>
 

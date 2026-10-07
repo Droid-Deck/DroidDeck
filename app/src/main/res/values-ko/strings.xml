@@ -1531,6 +1531,7 @@
     <!-- %1$s is a folder name -->
     <string name="fm_favorite_removed">\"%1$s\"을(를) 즐겨찾기에서 제거했습니다</string>
     <string name="fm_empty_directory">빈 폴더</string>
+    <string name="fm_up_one_level">상위 폴더로</string>
     <string name="fm_choose_folder">폴더 선택</string>
     <string name="fm_choose_file">파일 선택</string>
 

@@ -1531,6 +1531,7 @@
     <!-- %1$s is a folder name -->
     <string name="fm_favorite_removed">「%1$s」をお気に入りから削除しました</string>
     <string name="fm_empty_directory">空のフォルダ</string>
+    <string name="fm_up_one_level">1つ上の階層へ</string>
     <string name="fm_choose_folder">フォルダを選択</string>
     <string name="fm_choose_file">ファイルを選択</string>
 

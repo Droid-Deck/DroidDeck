@@ -1481,6 +1481,7 @@
     <!-- %1$s is a folder name -->
     <string name="fm_favorite_removed">Removed \"%1$s\" from Favorites</string>
     <string name="fm_empty_directory">Empty directory</string>
+    <string name="fm_up_one_level">Up one level</string>
     <string name="fm_choose_folder">Choose a folder</string>
     <string name="fm_choose_file">Choose a file</string>
     <!-- On-screen controller tint colors -->

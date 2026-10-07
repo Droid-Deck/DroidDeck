@@ -1567,6 +1567,7 @@
     <!-- %1$s is a folder name -->
     <string name="fm_favorite_removed">Se quitó \"%1$s\" de Favoritos</string>
     <string name="fm_empty_directory">Carpeta vacía</string>
+    <string name="fm_up_one_level">Subir un nivel</string>
     <string name="fm_choose_folder">Elige una carpeta</string>
     <string name="fm_choose_file">Elige un archivo</string>
 
