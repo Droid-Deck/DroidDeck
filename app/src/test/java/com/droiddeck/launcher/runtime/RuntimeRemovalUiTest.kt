@@ -31,7 +31,7 @@ class RuntimeRemovalUiTest {
     }
 
     @Test fun directSessionLaunchDuringRemovalFinishesWithoutStartingTheGuest() {
-        val removal = LinuxRuntimeInstaller.beginUninstall(File(dir, "linuxfs"))!!
+        val removal = LinuxRuntimeInstaller.beginUninstall(null, File(dir, "linuxfs"))!!
         try {
             val activity = Robolectric.buildActivity(SessionActivity::class.java).create()
             assertTrue(activity.get().isFinishing)

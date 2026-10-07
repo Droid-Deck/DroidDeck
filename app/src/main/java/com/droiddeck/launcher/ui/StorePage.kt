@@ -185,7 +185,7 @@ private fun Discover(onOpen: (String) -> Unit, onCategory: (String) -> Unit) {
     Rise(3) { SectionTitle(stringResource(R.string.store_categories), null) }
     Rise(3) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
-            FlathubApi.categories.forEach { c -> PillButton(c.label, selected = false) { onCategory(c.id) } }
+            FlathubApi.categories.forEach { c -> PillButton(stringResource(c.label), selected = false) { onCategory(c.id) } }
         }
     }
     if (StoreState.sectionsFailed && StoreState.sections.values.all { it.isEmpty() }) {
@@ -195,7 +195,7 @@ private fun Discover(onOpen: (String) -> Unit, onCategory: (String) -> Unit) {
     }
     StoreState.SECTIONS.forEachIndexed { i, (key, title) ->
         val apps = StoreState.sections[key]
-        Rise(4 + i) { SectionTitle(title, apps?.let { if (it.isEmpty()) null else it.size.toString() } ?: "loading…") }
+        Rise(4 + i) { SectionTitle(stringResource(title), apps?.let { if (it.isEmpty()) null else it.size.toString() } ?: stringResource(R.string.store_section_loading)) }
         if (apps != null && apps.isNotEmpty()) Rise(4 + i) { AppGrid(apps.take(12), first = i == 0, onOpen = onOpen) }
     }
 }
@@ -222,7 +222,7 @@ private fun Search(query: String, category: String?, onQuery: (String) -> Unit, 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 4.dp)) {
             PillButton(stringResource(R.string.store_all), selected = category == null) { onCategory(null); StoreState.search(query.trim(), null) }
             FlathubApi.categories.forEach { c ->
-                PillButton(c.label, selected = category == c.id) { onCategory(c.id); StoreState.search(query.trim(), c.id) }
+                PillButton(stringResource(c.label), selected = category == c.id) { onCategory(c.id); StoreState.search(query.trim(), c.id) }
             }
         }
     }

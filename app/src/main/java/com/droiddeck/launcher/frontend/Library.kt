@@ -33,6 +33,8 @@ object Library {
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
+        /** The shown name of [system] when it is words rather than a platform name, else 0. */
+        val systemRes: Int get() = if (id == "retroarch") R.string.content_system_many else 0
         /** The emulator's own icon, bundled (the runtime keeps them as theme SVGs the app cannot draw). */
         val iconRes: Int get() = when (id) {
             "rpcs3" -> R.drawable.emu_rpcs3; "armsx2" -> R.drawable.emu_pcsx2; "dolphin" -> R.drawable.emu_dolphin
@@ -109,7 +111,7 @@ object Library {
         for ((library, label) in libraries) {
             val steamapps = File(library, "steamapps")
             val manifests = steamapps.listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }
-            if (strictRead && steamapps.isDirectory) check(manifests != null) { "Steam manifests are unavailable" }
+            if (strictRead && steamapps.isDirectory) check(manifests != null) { context.getString(R.string.game_sync_err_manifests) }
             manifests?.sortedBy { it.name }?.forEach { manifest ->
                     val appId = manifest.name.removePrefix("appmanifest_").removeSuffix(".acf").toIntOrNull() ?: return@forEach
                     if (appId in NOT_GAMES || out.containsKey(appId)) return@forEach

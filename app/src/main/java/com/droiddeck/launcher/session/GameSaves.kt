@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
+import android.content.Context
 import android.os.Environment
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -25,9 +27,12 @@ import java.util.zip.ZipOutputStream
  * Ported from Bannerlator's GameSaveBackup and SaveLocator.
  */
 object GameSaves {
-    enum class Layout(val label: String, val rootPrefix: String, val user: String) {
-        GAMEHUB("GameHub zip", "/drive_c/", "steamuser"),
-        WINLATOR("Winlator zip", "drive_c/", "xuser"),
+    enum class Layout(val app: String, val rootPrefix: String, val user: String) {
+        GAMEHUB("GameHub", "/drive_c/", "steamuser"),
+        WINLATOR("Winlator", "drive_c/", "xuser");
+
+        /** "GameHub zip", in the app's language. */
+        fun label(context: Context): String = context.getString(R.string.saves_layout_zip, app)
     }
 
     /** A game, its prefix, and the save folders found in it. */
@@ -127,12 +132,12 @@ object GameSaves {
      * Zips the game's saves into [dir] as "<Game>_<date>.zip" in [layout]. The found save folders when
      * there are any, else the whole steamuser profile minus Temp and crash dumps. Returns the zip.
      */
-    fun export(game: Game, layout: Layout, dir: File): Pair<File, Int> {
-        val prefix = game.prefix ?: error("${game.game.name} has not been launched yet")
+    fun export(context: Context, game: Game, layout: Layout, dir: File): Pair<File, Int> {
+        val prefix = game.prefix ?: error(context.getString(R.string.saves_not_launched, game.game.name))
         dir.mkdirs()
         val out = File(dir, "${safe(game.game.name)}_${stamp()}.zip")
         val count = zipProfile(profile(prefix), game.saves.map { it.relPath }.ifEmpty { null }, layout, out)
-        if (count == 0) { out.delete(); error("No save files found for ${game.game.name}") }
+        if (count == 0) { out.delete(); error(context.getString(R.string.saves_none_found, game.game.name)) }
         return out to count
     }
 
@@ -162,11 +167,11 @@ object GameSaves {
      * profile holds now into Download/DroidDeck/Saves/backups. Entries outside drive_c, launcher
      * shortcuts and anything escaping drive_c are skipped. Returns (files written, backup or null).
      */
-    fun import(game: Game, zip: File): Pair<Int, File?> {
-        val prefix = game.prefix ?: error("${game.game.name} has not been launched yet")
+    fun import(context: Context, game: Game, zip: File): Pair<Int, File?> {
+        val prefix = game.prefix ?: error(context.getString(R.string.saves_not_launched, game.game.name))
         val driveC = File(prefix, "drive_c")
-        if (!driveC.isDirectory) error("${game.game.name} has not been launched yet")
-        if (!looksLikeSaveZip(zip)) error("${zip.name} has no drive_c folder, so it isn't a GameHub or Winlator save zip")
+        if (!driveC.isDirectory) error(context.getString(R.string.saves_not_launched, game.game.name))
+        if (!looksLikeSaveZip(zip)) error(context.getString(R.string.saves_not_save_zip, zip.name))
 
         backupsDir().mkdirs()
         val backup = File(backupsDir(), "${safe(game.game.name)}_${stamp()}.zip")

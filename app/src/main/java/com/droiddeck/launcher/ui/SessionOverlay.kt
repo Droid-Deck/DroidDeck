@@ -399,7 +399,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
-                                    SessionPrefs.upscalerChoices, a.upscaler,
+                                    SessionPrefs.upscalerChoices(LocalContext.current), a.upscaler,
                                     note = stringResource(R.string.display_filter_note),
                                     chipModifier = focus.track(page, "upscaler"), onPick = a.onUpscaler)
                                 if (SessionPrefs.upscalerHasSharpness(a.upscaler)) SliderRow(
@@ -435,7 +435,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     }
                                 }
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
-                                    listOf(false to SessionPrefs.BACK_MENU_THEN_QAM, true to SessionPrefs.BACK_QAM_THEN_MENU),
+                                    listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
@@ -518,7 +518,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             }
                             SettingsGroup(stringResource(R.string.drawer_support)) {
                                 SettingsRow(stringResource(R.string.drawer_logs), stringResource(R.string.drawer_logs_hint)) {
-                                    DrawerOutlineButton(stringResource(R.string.drawer_share_logs), modifier = focus.track(page, "share-logs")) {
+                                    DrawerOutlineButton(stringResource(R.string.drawer_share_logs), modifier = focus.track(page, "share-logs"),
+                                        progress = com.droiddeck.launcher.session.SessionLogShare.progress) {
                                         host.open = null
                                         a.onShareLogs()
                                     }
@@ -594,7 +595,7 @@ private fun DrawerActionButton(text: String, icon: androidx.compose.ui.graphics.
 }
 
 @Composable
-private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, progress: Float? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val source = remember { MutableInteractionSource() }
@@ -607,7 +608,7 @@ private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, onC
         contentPadding = PaddingValues(horizontal = 12.dp),
         border = BorderStroke(if (hot) 2.dp else 1.dp, if (hot) pal.signal else colors.outline),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent),
-    ) { Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+    ) { ProgressLabel({ m -> Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = m) }, progress, fontSize = 13.sp) }
 }
 
 @Composable
@@ -756,7 +757,7 @@ private fun ScreenEffectsGroup(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     SettingsGroup(stringResource(R.string.drawer_effects)) {
-        val presets = ScreenEffectLooks.LOOKS.map { it.name to it.name }
+        val presets = ScreenEffectLooks.LOOKS.map { it.name to stringResource(it.label) }
         ChoiceRow(host, "look", stringResource(R.string.drawer_look), null,
             if (preset == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + presets else presets,
             preset?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
@@ -834,7 +835,7 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
                         .controllerConfirm(onClick = pick)
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
-                    Text(mode.label, fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
+                    Text(stringResource(mode.label), fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
                     RadioButton(selected, onClick = null,
                         colors = RadioButtonDefaults.colors(selectedColor = pal.signal, unselectedColor = colors.onSurfaceVariant))
                 }
@@ -851,9 +852,9 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
 private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     SettingsGroup(stringResource(R.string.drawer_texture)) {
         ChoiceRow(host, "anisotropy", stringResource(R.string.drawer_anisotropy), null,
-            SessionPrefs.textureAnisotropyChoices, a.textureAnisotropy, chipModifier = track("anisotropy"), onPick = a.onTextureAnisotropy)
+            SessionPrefs.textureAnisotropyChoices(LocalContext.current), a.textureAnisotropy, chipModifier = track("anisotropy"), onPick = a.onTextureAnisotropy)
         ChoiceRow(host, "texture-sharpness", stringResource(R.string.drawer_texture_sharpness), null,
-            SessionPrefs.textureLodBiasChoices, a.textureLodBias, note = stringResource(R.string.drawer_texture_sharpness_note),
+            SessionPrefs.textureLodBiasChoices(LocalContext.current), a.textureLodBias, note = stringResource(R.string.drawer_texture_sharpness_note),
             chipModifier = track("texture-sharpness"), onPick = a.onTextureLodBias)
     }
 }
