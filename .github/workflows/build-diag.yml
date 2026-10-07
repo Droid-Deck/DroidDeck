@@ -1,0 +1,25 @@
+name: Build diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/diag/**'
+      - '.github/workflows/build-diag.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq gcc-multilib >/dev/null
+          mkdir -p out
+          gcc -m32 -O1 -fPIC -shared -fno-omit-frame-pointer -o out/libsegvlog-i386.so tools/diag/segvlog.c -ldl
+          gcc -O1 -fPIC -shared -fno-omit-frame-pointer -o out/libsegvlog-x86_64.so tools/diag/segvlog.c -ldl
+          file out/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: diag
+          path: out/

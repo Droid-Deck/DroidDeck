@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PRELOAD_CACHE_VERSION: v3
+  PRELOAD_CACHE_VERSION: v6
 
 jobs:
   build:

@@ -56,6 +56,7 @@ object SessionArtifacts {
             LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
             val record = Record(dir)
             copySteamLogs(context, dir, record)
+            VacDiagnostics.collect(context, dir)
             // A session the system killed leaves its trace here and nowhere else.
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
             markScrubbed(scrubTree(record))
@@ -245,7 +246,10 @@ object SessionArtifacts {
                         "session died of a crash, the entry is in there unless the device rebooted.\n"
                 )
                 val record = Record(dir)
-                if (newest) copySteamLogs(context, dir, record)
+                if (newest) {
+                    copySteamLogs(context, dir, record)
+                    VacDiagnostics.collect(context, dir)
+                }
                 SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
                 SessionEvents.record("session.artifacts_recovered", mapOf("newest" to newest), dir)
                 markScrubbed(scrubTree(record))
