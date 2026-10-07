@@ -12,6 +12,7 @@ A scenario is JSON (stdlib only, no YAML):
                    {"assert": "session.focus.focusedApp", "equals": "${appId}"},
                    {"screenshot": "in-game"},
                    ["quit", "${appId}"]],
+      "after":    [["quit", "${appId}"]],
       "teardown": [["stop"]]
     }
 
@@ -19,7 +20,9 @@ A list step is a droiddeckctl command line; its JSON answer becomes "last". An a
 a dotted path in the last answer ("equals", "in", "contains", "exists", "not"); {"sleep": s},
 {"screenshot": "name"} and {"record": "name", "seconds": s} do what they say. ${var} is replaced
 from "vars" and --var KEY=VALUE. setup and teardown run once; steps run "repeat" times (or
---repeat). A failing run gets a screenshot, the focus state and the session's logs in its folder.
+--repeat), each followed by "after" whether it passed or not, so a failed run cannot leave a game
+running into the next. A failing run gets a screenshot, the focus state and the session's logs in
+its folder.
 
     tools/droiddeck-scenario tools/scenarios/steam-game-focus.json --var appId=489830 --out ./runs
 
@@ -199,6 +202,12 @@ def main(argv: list[str] | None = None) -> int:
                 result["error"] = str(exc)
                 result["evidence"] = runner.evidence(folder)
                 status = 1
+            after: list = []
+            try:
+                runner.run_steps(scenario.get("after", []), folder, after)
+            except StepFailed as exc:
+                result["afterError"] = str(exc)
+            log.extend({**entry, "after": True} for entry in after)
             result["seconds"] = round(time.monotonic() - started, 2)
             (folder / "steps.json").write_text(json.dumps(log, indent=2, sort_keys=True))
             report["runs"].append(result)

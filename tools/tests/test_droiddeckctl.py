@@ -292,6 +292,16 @@ class ScenarioTest(FakeAdbTest):
         evidence = json.loads((Path(report["runs"][0]["folder"]) / "evidence.json").read_text())
         self.assertEqual(769, evidence["focus"]["focusedApp"])
 
+    def test_after_steps_run_after_a_failure(self):
+        self.configure({"state": state(focused=769), "quit": {"ok": True, "remaining": []}})
+        path = self.write({"name": "t", "repeat": 2, "vars": {"appId": 7},
+                           "steps": [["state"], {"assert": "session.focus.focusedApp", "equals": 7}],
+                           "after": [["quit", "${appId}"]]})
+        code, report = self.run_scenario(path, "--keep-going")
+        self.assertEqual(1, code)
+        self.assertEqual(2, len(report["runs"]))
+        self.assertEqual([{"appId": 7, "timeout": 15.0}] * 2, [c["request"] for c in self.calls("quit")])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,6 +17,9 @@
     {"assert": "remaining", "equals": []},
     {"sleep": 5}
   ],
+  "after": [
+    ["quit", "${appId}", "--timeout", "20"]
+  ],
   "teardown": [
     ["stop", "--timeout", "120"]
   ]

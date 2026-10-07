@@ -146,8 +146,9 @@ Automator show them:
 
 ## Scenarios
 
-`tools/droiddeck-scenario` runs a JSON scenario: `setup` once, `steps` `repeat` times, `teardown`
-once. A list step is a droiddeckctl command line; `{"assert": "dotted.path", "equals"|"in"|
+`tools/droiddeck-scenario` runs a JSON scenario: `setup` once, `steps` `repeat` times (each followed
+by `after`, whether it passed or not, so a failed run cannot leave a game running into the next),
+`teardown` once. A list step is a droiddeckctl command line; `{"assert": "dotted.path", "equals"|"in"|
 "contains"|"not"|"exists": ...}` checks the last answer; `{"sleep"}`, `{"screenshot"}` and
 `{"record"}` do what they say. A failing run keeps a screenshot, the focus snapshot and the
 session's logs in its folder, and `report.json` sums up the runs.
