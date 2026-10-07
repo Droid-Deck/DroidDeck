@@ -359,10 +359,10 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     if command == "stop":
         current = get_state(adb, serial)
         if current["session"].get("phase") in {"IDLE", "FAILED"}:
-            return add_serial(wait_for_artifacts(adb, serial, current, args.timeout), serial)
+            return add_serial(wait_for_artifacts(adb, serial, current, args.artifact_timeout), serial)
         checked(provider_call(adb, serial, "stop"), "STOP_FAILED")
         state = wait_for_phase(adb, serial, "IDLE", args.timeout)
-        return add_serial(wait_for_artifacts(adb, serial, state, args.timeout), serial)
+        return add_serial(wait_for_artifacts(adb, serial, state, args.artifact_timeout), serial)
 
     if command == "resume":
         return add_serial(checked(provider_call(adb, serial, "resume"), "RESUME_FAILED"), serial)
@@ -532,6 +532,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     stop = commands.add_parser("stop", help="stop the session and wait for IDLE")
     stop.add_argument("--timeout", type=float, default=90)
+    # Collecting the client's logs and redacting them took about two minutes after a Skyrim session.
+    stop.add_argument("--artifact-timeout", type=float, default=300)
     commands.add_parser("resume", help="resume a suspended session")
 
     launch = commands.add_parser("launch", help="launch a Steam game in the running Steam session")
