@@ -322,6 +322,14 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                 if not args.url.startswith("steam://"):
                     raise ControlError("Steam URL must start with steam://", "INVALID_STEAM_URL")
                 request["steamUrl"] = args.url
+        if args.reuse:
+            # A scenario's per-run "before": keep a session of this mode that is already up, so only
+            # a run after one that ended (a crash, the low-memory killer) starts a new one.
+            current = get_state(adb, serial)["session"]
+            wanted = {"steam": "steam", "desktop": "lxqt"}[args.mode]
+            if current.get("running") and current.get("mode") == wanted and current.get("phase") not in {"STOPPING", "FAILED"}:
+                state = wait_for_phase(adb, serial, "READY", args.timeout) if args.wait else get_state(adb, serial)
+                return add_serial(dict(state, reused=True), serial)
         started = start_session(adb, serial, request)
         if args.wait:
             return add_serial(wait_for_phase(adb, serial, "READY", args.timeout), serial)
@@ -510,6 +518,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--ui", choices=["bigpicture", "desktop"], default="bigpicture")
     start.add_argument("--url", help="steam:// URL to pass to the client")
     start.add_argument("--wait", action="store_true", help="wait for READY after starting")
+    start.add_argument("--reuse", action="store_true", help="keep a running session of this mode instead of failing")
     start.add_argument("--timeout", type=float, default=90)
 
     run = commands.add_parser("run", help="run a guest program under Gamescope")

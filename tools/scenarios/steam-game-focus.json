@@ -1,23 +1,70 @@
 {
   "name": "steam-game-focus",
-  "vars": {"appId": 489830},
+  "vars": {
+    "appId": 489830
+  },
   "repeat": 6,
   "setup": [
-    ["start", "steam", "--wait", "--timeout", "240"]
+    [
+      "wake"
+    ]
+  ],
+  "before": [
+    [
+      "start",
+      "steam",
+      "--wait",
+      "--reuse",
+      "--timeout",
+      "240"
+    ]
   ],
   "steps": [
-    ["launch", "${appId}", "--wait", "--timeout", "240"],
-    {"assert": "focus.focusedApp", "equals": "${appId}"},
-    {"assert": "focus.focusableApps", "contains": "${appId}"},
-    {"screenshot": "focused"},
-    ["quit", "${appId}", "--timeout", "20"],
-    {"assert": "remaining", "equals": []},
-    {"sleep": 5}
+    [
+      "launch",
+      "${appId}",
+      "--wait",
+      "--timeout",
+      "240"
+    ],
+    {
+      "assert": "focus.focusedApp",
+      "equals": "${appId}"
+    },
+    {
+      "assert": "focus.focusableApps",
+      "contains": "${appId}"
+    },
+    {
+      "screenshot": "focused"
+    },
+    [
+      "quit",
+      "${appId}",
+      "--timeout",
+      "20"
+    ],
+    {
+      "assert": "remaining",
+      "equals": []
+    },
+    {
+      "sleep": 5
+    }
   ],
   "after": [
-    ["quit", "${appId}", "--timeout", "20"]
+    [
+      "quit",
+      "${appId}",
+      "--timeout",
+      "20"
+    ]
   ],
   "teardown": [
-    ["stop", "--timeout", "120"]
+    [
+      "stop",
+      "--timeout",
+      "120"
+    ]
   ]
 }

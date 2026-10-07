@@ -7,7 +7,8 @@ A scenario is JSON (stdlib only, no YAML):
       "name": "skyrim-focus",
       "vars": {"appId": 489830},
       "repeat": 6,
-      "setup":    [["start", "steam", "--wait", "--timeout", "180"]],
+      "setup":    [["wake"]],
+      "before":   [["start", "steam", "--wait", "--reuse", "--timeout", "180"]],
       "steps":    [["launch", "${appId}", "--wait", "--timeout", "240"],
                    {"assert": "session.focus.focusedApp", "equals": "${appId}"},
                    {"screenshot": "in-game"},
@@ -20,8 +21,9 @@ A list step is a droiddeckctl command line; its JSON answer becomes "last". An a
 a dotted path in the last answer ("equals", "in", "contains", "exists", "not"); {"sleep": s},
 {"screenshot": "name"} and {"record": "name", "seconds": s} do what they say. ${var} is replaced
 from "vars" and --var KEY=VALUE. setup and teardown run once; steps run "repeat" times (or
---repeat), each followed by "after" whether it passed or not, so a failed run cannot leave a game
-running into the next. A failing run gets a screenshot, the focus state and the session's logs in
+--repeat), each preceded by "before" (a failure there fails the run) and followed by "after"
+whether it passed or not, so a failed run cannot leave a game running into the next and a session
+that died in one run is started again for the next. A failing run gets a screenshot, the focus state and the session's logs in
 its folder.
 
     tools/droiddeck-scenario tools/scenarios/steam-game-focus.json --var appId=489830 --out ./runs
@@ -195,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
             started = time.monotonic()
             result = {"run": run, "folder": str(folder)}
             try:
-                runner.run_steps(scenario.get("steps", []), folder, log)
+                runner.run_steps(scenario.get("before", []) + scenario.get("steps", []), folder, log)
                 result["ok"] = True
             except StepFailed as exc:
                 result["ok"] = False

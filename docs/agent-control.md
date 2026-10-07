@@ -52,6 +52,7 @@ artifact or file error, 7 agent commands disabled.
 ```sh
 tools/droiddeckctl state                         # schema 2, below
 tools/droiddeckctl start steam --wait            # --ui desktop, --url steam://..., --timeout
+tools/droiddeckctl start steam --wait --reuse    # keep a Steam session that is already up
 tools/droiddeckctl start desktop
 tools/droiddeckctl run /usr/bin/foo -- arg1 arg2
 tools/droiddeckctl wait ready|idle|failed        # --timeout (default 90 s)
@@ -146,9 +147,10 @@ Automator show them:
 
 ## Scenarios
 
-`tools/droiddeck-scenario` runs a JSON scenario: `setup` once, `steps` `repeat` times (each followed
-by `after`, whether it passed or not, so a failed run cannot leave a game running into the next),
-`teardown` once. A list step is a droiddeckctl command line; `{"assert": "dotted.path", "equals"|"in"|
+`tools/droiddeck-scenario` runs a JSON scenario: `setup` once, `steps` `repeat` times, `teardown`
+once. Each run starts with `before` (typically `start steam --wait --reuse`, so a session that died
+in one run, to a crash or the low-memory killer, is started again for the next) and ends with
+`after`, whether it passed or not, so a failed run cannot leave a game running into the next. A list step is a droiddeckctl command line; `{"assert": "dotted.path", "equals"|"in"|
 "contains"|"not"|"exists": ...}` checks the last answer; `{"sleep"}`, `{"screenshot"}` and
 `{"record"}` do what they say. A failing run keeps a screenshot, the focus snapshot and the
 session's logs in its folder, and `report.json` sums up the runs.

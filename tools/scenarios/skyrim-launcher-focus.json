@@ -1,26 +1,83 @@
 {
   "name": "skyrim-launcher-focus",
-  "vars": {"appId": 489830},
+  "vars": {
+    "appId": 489830
+  },
   "repeat": 6,
   "setup": [
-    ["wake"],
-    ["start", "steam", "--wait", "--timeout", "240"]
+    [
+      "wake"
+    ]
+  ],
+  "before": [
+    [
+      "start",
+      "steam",
+      "--wait",
+      "--reuse",
+      "--timeout",
+      "240"
+    ]
   ],
   "steps": [
-    ["launch", "${appId}", "--wait", "--timeout", "240"],
-    {"sleep": 8},
-    ["input", "tap", "0.927", "0.111", "--space", "fraction"],
-    {"sleep": 30},
-    ["wait", "focused", "${appId}", "--timeout", "60"],
-    {"screenshot": "in-game"},
-    ["quit", "${appId}", "--timeout", "20"],
-    {"assert": "remaining", "equals": []},
-    {"sleep": 5}
+    [
+      "launch",
+      "${appId}",
+      "--wait",
+      "--timeout",
+      "240"
+    ],
+    {
+      "sleep": 8
+    },
+    [
+      "input",
+      "tap",
+      "0.927",
+      "0.111",
+      "--space",
+      "fraction"
+    ],
+    {
+      "sleep": 30
+    },
+    [
+      "wait",
+      "focused",
+      "${appId}",
+      "--timeout",
+      "60"
+    ],
+    {
+      "screenshot": "in-game"
+    },
+    [
+      "quit",
+      "${appId}",
+      "--timeout",
+      "20"
+    ],
+    {
+      "assert": "remaining",
+      "equals": []
+    },
+    {
+      "sleep": 5
+    }
   ],
   "after": [
-    ["quit", "${appId}", "--timeout", "20"]
+    [
+      "quit",
+      "${appId}",
+      "--timeout",
+      "20"
+    ]
   ],
   "teardown": [
-    ["stop", "--timeout", "120"]
+    [
+      "stop",
+      "--timeout",
+      "120"
+    ]
   ]
 }

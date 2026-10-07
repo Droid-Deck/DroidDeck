@@ -145,6 +145,23 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(0, code)
         self.assertEqual(489830, out["focus"]["focusedApp"])
 
+    def test_start_reuse_keeps_a_running_session(self):
+        running = state(focused=769)
+        running["session"]["mode"] = "steam"
+        self.configure({"state": running})
+        code, out = self.run_ctl("start", "steam", "--reuse", "--wait")
+        self.assertEqual(0, code)
+        self.assertTrue(out["reused"])
+        self.assertFalse([c for c in self.calls() if c["args"][:2] == ["shell", "am"]])
+
+    def test_start_without_reuse_refuses_a_running_session(self):
+        running = state()
+        running["session"]["mode"] = "steam"
+        self.configure({"state": running})
+        code, out = self.run_ctl("start", "steam")
+        self.assertEqual(4, code)
+        self.assertEqual("SESSION_ACTIVE", out["error"]["code"])
+
     def test_wait_game_ignores_the_client(self):
         self.configure({"state": [state(focused=769), state(focused=752590, focusable=[752590])]})
         code, out = self.run_ctl("wait", "game", "--timeout", "5")
