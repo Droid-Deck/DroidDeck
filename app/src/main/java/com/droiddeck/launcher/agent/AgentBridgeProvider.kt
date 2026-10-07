@@ -10,13 +10,14 @@ import android.net.Uri
 import android.os.Binder
 import android.os.Bundle
 import android.os.Process
+import android.util.Base64
 import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.frontend.GameLaunchLink
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionPhase
-import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import org.json.JSONArray
@@ -25,7 +26,14 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** A shell-only control surface, installed only by debug builds. */
+/**
+ * The shell's control surface (docs/agent-control.md), in every build: the provider and its start
+ * Activity need android.permission.DUMP, which only the shell and the system hold. Commands that
+ * reach into the app's sandbox are further gated by [AgentAccess].
+ *
+ * A method's request is JSON, base64-encoded in the "request" extra; every answer is JSON in the
+ * "json" key of the returned Bundle, {"ok": true, ...} or {"ok": false, "error": {code, message}}.
+ */
 class AgentBridgeProvider : ContentProvider() {
     override fun onCreate(): Boolean {
         val appContext = context?.applicationContext ?: return false
@@ -48,17 +56,50 @@ class AgentBridgeProvider : ContentProvider() {
         }
 
         val response = try {
-            when (method) {
-                "state" -> state(context).put("ok", true)
-                "start" -> error("USE_DROIDDECKCTL", "Start sessions with tools/droiddeckctl so Android launches a visible Activity")
-                "stop" -> stop(context)
-                "resume" -> resume(context)
-                else -> error("UNKNOWN_COMMAND", "Unknown agent command '$method'")
+            val request = decode(extras?.getString(EXTRA_REQUEST))
+            // Binder identity is the shell's; everything below acts as the app.
+            val token = Binder.clearCallingIdentity()
+            try {
+                dispatch(context, method, request)
+            } finally {
+                Binder.restoreCallingIdentity(token)
             }
+        } catch (e: AgentException) {
+            error(e.code, e.message ?: e.code)
         } catch (e: Exception) {
             error("COMMAND_FAILED", e.message ?: e.javaClass.simpleName)
         }
         return Bundle().apply { putString(RESULT_JSON, response.toString()) }
+    }
+
+    private fun dispatch(context: Context, method: String, request: JSONObject): JSONObject = when (method) {
+        "state" -> state(context).put("ok", true)
+        "start" -> error("USE_DROIDDECKCTL", "Start sessions with tools/droiddeckctl so Android launches a visible Activity")
+        "stop" -> stop(context)
+        "resume" -> resume(context)
+        "launch" -> launch(context, request)
+        "focus" -> guest(context, JSONObject().put("kind", "focus"), 15_000)
+        "quit" -> guest(context, JSONObject().put("kind", "quit").put("appId", request.opt("appId"))
+            .put("timeout", request.optDouble("timeout", 15.0)), timeoutMs(request, 15.0, 30_000))
+        "input" -> AgentInput.handle(request)
+        "ui" -> AgentUi.handle(request)
+        "guest" -> {
+            AgentAccess.requireCommands(context)
+            guest(context, JSONObject(request.toString()).put("kind", "exec"), timeoutMs(request, 30.0, 10_000))
+        }
+        "cdp" -> {
+            AgentAccess.requireCommands(context)
+            guest(context, JSONObject(request.toString()).put("kind", "cdp"), timeoutMs(request, 15.0, 5_000))
+        }
+        "env" -> env(context, request)
+        "override" -> {
+            AgentAccess.requireCommands(context)
+            AgentEnv.override(context, request.optString("name")).put("ok", true).put("command", "override")
+        }
+        "prefs" -> prefs(context, request)
+        "access" -> JSONObject().put("ok", true).put("commands", AgentAccess.commandsAllowed(context))
+            .put("debugBuild", BuildConfig.DEBUG).put("inbox", AgentEnv.inbox(context).absolutePath)
+        else -> error("UNKNOWN_COMMAND", "Unknown agent command '$method'")
     }
 
     private fun state(context: Context): JSONObject {
@@ -91,13 +132,31 @@ class AgentBridgeProvider : ContentProvider() {
             .put("status", SessionState.failureStatus ?: JSONObject.NULL)
         session.put("failure", failure)
 
+        // gamescope's focus as last published by the guest agent, without the window lists
+        // (the focus command returns those, fresh).
+        val focus = AgentGuest.focus(context)?.let { snap ->
+            JSONObject()
+                .put("focusedApp", snap.opt("focusedApp") ?: JSONObject.NULL)
+                .put("focusedWindow", snap.opt("focusedWindow") ?: JSONObject.NULL)
+                .put("focusableApps", snap.optJSONArray("focusableApps") ?: JSONArray())
+                .put("baselayerAppIds", snap.optJSONArray("baselayerAppIds") ?: JSONArray())
+                .put("seq", snap.optInt("seq"))
+                .put("t", snap.optLong("t"))
+        }
+        session.put("focus", focus ?: JSONObject.NULL)
+
+        val hello = AgentGuest.hello(context)
         return JSONObject()
-            .put("schema", 1)
+            .put("schema", SCHEMA)
             .put("build", BuildConfig.BUILD_LABEL)
             .put("appVersion", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
             .put("runtime", JSONObject()
                 .put("installed", LinuxRuntime.isInstalled(context))
                 .put("version", runtimeVersion ?: JSONObject.NULL))
+            .put("agent", JSONObject()
+                .put("guest", hello != null)
+                .put("guestFocus", hello?.optBoolean("focus") ?: false)
+                .put("commands", AgentAccess.commandsAllowed(context)))
             .put("session", session)
     }
 
@@ -131,6 +190,60 @@ class AgentBridgeProvider : ContentProvider() {
         return JSONObject().put("ok", true).put("command", "resume")
     }
 
+    private fun launch(context: Context, request: JSONObject): JSONObject {
+        val appId = request.optString("appId")
+        if (!GameLaunchLink.validId(appId)) throw AgentException("INVALID_APP_ID", "appId must be a decimal Steam app id")
+        if (!SessionState.running || SessionState.mode != SessionService.MODE_STEAM) {
+            throw AgentException("NO_STEAM_SESSION", "Games launch inside a running Steam session")
+        }
+        if (!SessionService.launchGame(context, appId)) throw AgentException("LAUNCH_REJECTED", "The session did not accept the launch")
+        SessionEvents.record("agent.launch_requested", mapOf("appId" to appId))
+        return JSONObject().put("ok", true).put("command", "launch").put("appId", appId)
+    }
+
+    private fun env(context: Context, request: JSONObject): JSONObject {
+        val result = when (val op = request.optString("op", "list")) {
+            "list" -> AgentEnv.list(context)
+            "set" -> {
+                AgentAccess.requireCommands(context)
+                val lines = request.optJSONArray("lines") ?: JSONArray()
+                AgentEnv.set(context, List(lines.length()) { lines.optString(it) }, request.optBoolean("persistent"))
+            }
+            "clear" -> AgentEnv.clear(context, request.optString("scope", "next"))
+            else -> throw AgentException("INVALID_REQUEST", "env op '$op' is not list, set or clear")
+        }
+        return result.put("ok", true).put("command", "env")
+    }
+
+    private fun prefs(context: Context, request: JSONObject): JSONObject {
+        AgentAccess.requireCommands(context)
+        val file = request.optString("file")
+        val result = when (val op = request.optString("op", "get")) {
+            "get" -> AgentPrefs.get(context, file)
+            "set" -> AgentPrefs.set(context, file, request.optString("key"), request.optString("type", "string"),
+                if (request.isNull("value")) null else request.optString("value"))
+            else -> throw AgentException("INVALID_REQUEST", "prefs op '$op' is not get or set")
+        }
+        return result.put("ok", true).put("command", "prefs")
+    }
+
+    /** A guest agent request; its own answer already carries ok or error. */
+    private fun guest(context: Context, request: JSONObject, timeoutMs: Long): JSONObject =
+        AgentGuest.call(context, request, timeoutMs)
+
+    /** The guest's own timeout plus slack for the round trip. */
+    private fun timeoutMs(request: JSONObject, defaultSeconds: Double, slackMs: Long): Long =
+        (request.optDouble("timeout", defaultSeconds).coerceIn(1.0, 600.0) * 1000).toLong() + slackMs
+
+    private fun decode(encoded: String?): JSONObject {
+        if (encoded.isNullOrBlank()) return JSONObject()
+        return try {
+            JSONObject(String(Base64.decode(encoded, Base64.DEFAULT), Charsets.UTF_8))
+        } catch (e: Exception) {
+            throw AgentException("INVALID_REQUEST", "The request extra is not base64 JSON")
+        }
+    }
+
     private fun error(code: String, message: String) = JSONObject()
         .put("ok", false)
         .put("error", JSONObject().put("code", code).put("message", message))
@@ -143,6 +256,9 @@ class AgentBridgeProvider : ContentProvider() {
 
     companion object {
         const val RESULT_JSON = "json"
+        const val EXTRA_REQUEST = "request"
+        /** 2 added agent and session.focus; everything in 1 is unchanged. */
+        const val SCHEMA = 2
         private val recoveryComplete = CountDownLatch(1)
 
         fun awaitRecovery() {

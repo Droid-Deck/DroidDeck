@@ -611,6 +611,8 @@
     <string name="setup_session">工作階段</string>
     <string name="setup_logs">工作階段日誌</string>
     <string name="setup_logs_hint">每次工作階段結束後儲存</string>
+    <string name="setup_agent_commands">代理指令</string>
+    <string name="setup_agent_commands_hint">允許透過 USB 偵錯連接的電腦在工作階段中執行指令（用於測試）</string>
     <string name="setup_latest_logs">最新工作階段日誌</string>
     <string name="setup_saved_logs">已儲存的工作階段日誌</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 個</string>

@@ -613,6 +613,8 @@
     <string name="setup_session">Sesión</string>
     <string name="setup_logs">Registros de sesión</string>
     <string name="setup_logs_hint">Se guardan tras cada sesión</string>
+    <string name="setup_agent_commands">Comandos de agente</string>
+    <string name="setup_agent_commands_hint">Permite que un ordenador conectado por depuración USB ejecute comandos en la sesión, para pruebas</string>
     <string name="setup_latest_logs">Últimos registros de sesión</string>
     <string name="setup_saved_logs">Registros de sesión guardados</string>
     <string name="setup_saved_logs_hint">Conserva los %1$d más recientes</string>
