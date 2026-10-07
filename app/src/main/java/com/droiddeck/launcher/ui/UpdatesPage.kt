@@ -92,10 +92,10 @@ class UpdatesActions(
 )
 
 @Composable
-internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
+internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier, installed: AppUpdates.Installed? = null) {
     val u = s.updates
     val ua = a.updates
-    val me = remember { AppUpdates.installed() }
+    val me = remember(installed) { installed ?: AppUpdates.installed() }
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier) {
         PageHeader(stringResource(R.string.upd_title)) {

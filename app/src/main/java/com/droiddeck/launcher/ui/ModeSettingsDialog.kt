@@ -181,12 +181,12 @@ private enum class ModeSettingsTab(val label: Int) {
 }
 
 @Composable
-fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
+fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions, initialTab: Int = 0) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
     var confirmDeckyRemoval by remember { mutableStateOf(false) }
     var explainWifiDiscovery by remember { mutableStateOf(false) }
-    var tabIndex by androidx.compose.runtime.saveable.rememberSaveable(s.mode) { mutableStateOf(0) }
+    var tabIndex by androidx.compose.runtime.saveable.rememberSaveable(s.mode) { mutableStateOf(initialTab.coerceIn(0, if (steam) ModeSettingsTab.entries.lastIndex else 2)) }
     val tabs = if (steam) ModeSettingsTab.entries else listOf(
         ModeSettingsTab.DISPLAY, ModeSettingsTab.CONTROLS, ModeSettingsTab.SESSION,
     )

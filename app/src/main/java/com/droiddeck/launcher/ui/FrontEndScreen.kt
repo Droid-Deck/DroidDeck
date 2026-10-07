@@ -2,6 +2,7 @@ package com.droiddeck.launcher.ui
 
 import java.io.File
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -224,7 +225,8 @@ internal fun artBrush(h: Float) = Brush.linearGradient(listOf(tint(h), tint((h +
 
 @Composable
 internal fun Rise(i: Int, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val state = remember { MutableTransitionState(false) }.apply { targetState = true }
+    val inspecting = LocalInspectionMode.current
+    val state = remember { MutableTransitionState(inspecting) }.apply { targetState = true }
     AnimatedVisibility(
         visibleState = state, modifier = modifier,
         enter = fadeIn(Motion.tw(450, i * 60)) + slideInVertically(Motion.tw(450, i * 60)) { it / 3 },
@@ -235,6 +237,7 @@ internal fun Rise(i: Int, modifier: Modifier = Modifier, content: @Composable ()
 
 @Composable
 private fun Modifier.staggerIn(i: Int): Modifier {
+    if (LocalInspectionMode.current) return this
     val t = remember { Animatable(0f) }
     LaunchedEffect(Unit) { t.animateTo(1f, Motion.tw(360, i * 30)) }
     return graphicsLayer { alpha = t.value; translationY = (1f - t.value) * 10.dp.toPx() }
@@ -343,15 +346,16 @@ internal suspend fun focusWithinFrames(done: () -> Boolean, target: () -> FocusR
 }
 
 @Composable
-fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)? = null) {
+fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)? = null, initialSelection: String = if (s.shortcutPicker) "games" else "steam") {
     val frontFocus = remember { FrontFocus() }
-    CompositionLocalProvider(LocalFrontFocus provides frontFocus) { FrontEndScreenBody(s, a, page, frontFocus) }
+    CompositionLocalProvider(LocalFrontFocus provides frontFocus) { FrontEndScreenBody(s, a, page, frontFocus, initialSelection) }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
-    var selected by rememberSaveable { mutableStateOf(if (s.shortcutPicker) "games" else "steam") }
+private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus, initialSelection: String) {
+    val inspecting = LocalInspectionMode.current
+    var selected by rememberSaveable { mutableStateOf(initialSelection) }
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
@@ -394,7 +398,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:")) selected = "games"
     }
-    remember { Motion.refresh(ctx); true }
+    remember { if (!inspecting) Motion.refresh(ctx); true }
 
     val railSelection = when {
         s.pageKey == "performance" || s.pageKey == "protons" || s.pageKey == "controller-mapping" -> "setup"

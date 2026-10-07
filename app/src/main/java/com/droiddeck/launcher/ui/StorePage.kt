@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.BackHandler
@@ -69,8 +70,10 @@ import com.droiddeck.launcher.store.StoreState
 private val TABS = listOf(R.string.store_tab_discover, R.string.store_tab_search, R.string.store_tab_installed)
 
 @Composable
-internal fun StorePage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
+internal fun StorePage(s: FrontEndState, a: FrontEndActions, modifier: Modifier, previewSections: Map<String, List<FlathubApi.AppSummary>>? = null) {
     val ctx = LocalContext.current
+    val inspecting = LocalInspectionMode.current
+    val sections = previewSections.takeIf { inspecting } ?: StoreState.sections
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 16.dp else 22.dp
     val padV = if (narrow) 12.dp else 18.dp
@@ -78,8 +81,8 @@ internal fun StorePage(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     var openApp by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf<String?>(null) }
-    LaunchedEffect(s.ready) { StoreState.refresh(ctx) }
-    LaunchedEffect(Unit) { StoreState.loadSections() }
+    LaunchedEffect(s.ready) { if (!inspecting) StoreState.refresh(ctx) }
+    LaunchedEffect(Unit) { if (!inspecting) StoreState.loadSections() }
     // A pad's focus sits on something the page is about to replace - the tile that opens an app,
     // a tab's contents - and would be lost with it. Each move says where focus goes next.
     val ff = LocalFrontFocus.current
@@ -132,7 +135,7 @@ internal fun StorePage(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         }
         BusyBar()
         when (tab) {
-            0 -> Discover(onOpen = { openApp = it }, onCategory = { category = it; query = ""; tab = 1; StoreState.search("", it) })
+            0 -> Discover(onOpen = { openApp = it }, onCategory = { category = it; query = ""; tab = 1; if (!inspecting) StoreState.search("", it) }, sections = sections)
             1 -> Search(query, category, { query = it }, { category = it }, onOpen = { openApp = it })
             else -> Installed(a, onOpen = { openApp = it })
         }
@@ -142,6 +145,7 @@ internal fun StorePage(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
 /** Flatpak is not in the runtime yet: one button puts it there. */
 @Composable
 private fun SetupCard() {
+    val inspecting = LocalInspectionMode.current
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -156,7 +160,7 @@ private fun SetupCard() {
             fontSize = 14.sp, color = colors.onSurfaceVariant,
         )
         Actions {
-            PrimaryButton(if (busy) stringResource(R.string.store_setting_up) else stringResource(R.string.store_setup_title), enabled = StoreState.busy == null, main = true) { StoreState.setup(ctx) }
+            PrimaryButton(if (busy) stringResource(R.string.store_setting_up) else stringResource(R.string.store_setup_title), enabled = StoreState.busy == null, main = true) { if (!inspecting) StoreState.setup(ctx) }
         }
     }
 }
@@ -181,20 +185,21 @@ private fun BusyBar() {
 }
 
 @Composable
-private fun Discover(onOpen: (String) -> Unit, onCategory: (String) -> Unit) {
+private fun Discover(onOpen: (String) -> Unit, onCategory: (String) -> Unit, sections: Map<String, List<FlathubApi.AppSummary>>) {
+    val inspecting = LocalInspectionMode.current
     Rise(3) { SectionTitle(stringResource(R.string.store_categories), null) }
     Rise(3) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
             FlathubApi.categories.forEach { c -> PillButton(stringResource(c.label), selected = false) { onCategory(c.id) } }
         }
     }
-    if (StoreState.sectionsFailed && StoreState.sections.values.all { it.isEmpty() }) {
+    if (StoreState.sectionsFailed && sections.values.all { it.isEmpty() }) {
         Rise(4) { Note(stringResource(R.string.store_unreachable)) }
-        Actions { SecondaryButton(stringResource(R.string.store_try_again)) { StoreState.loadSections(force = true) } }
+        Actions { SecondaryButton(stringResource(R.string.store_try_again)) { if (!inspecting) StoreState.loadSections(force = true) } }
         return
     }
     StoreState.SECTIONS.forEachIndexed { i, (key, title) ->
-        val apps = StoreState.sections[key]
+        val apps = sections[key]
         Rise(4 + i) { SectionTitle(stringResource(title), apps?.let { if (it.isEmpty()) null else it.size.toString() } ?: stringResource(R.string.store_section_loading)) }
         if (apps != null && apps.isNotEmpty()) Rise(4 + i) { AppGrid(apps.take(12), first = i == 0, onOpen = onOpen) }
     }
@@ -202,12 +207,13 @@ private fun Discover(onOpen: (String) -> Unit, onCategory: (String) -> Unit) {
 
 @Composable
 private fun Search(query: String, category: String?, onQuery: (String) -> Unit, onCategory: (String?) -> Unit, onOpen: (String) -> Unit) {
+    val inspecting = LocalInspectionMode.current
     val view = androidx.compose.ui.platform.LocalView.current
     val run = {
         // The field is an Android EditText; Done leaves its keyboard over the results otherwise.
         (view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
             ?.hideSoftInputFromWindow(view.windowToken, 0)
-        StoreState.search(query.trim(), category)
+        if (!inspecting) StoreState.search(query.trim(), category)
     }
     Rise(3) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
@@ -220,9 +226,9 @@ private fun Search(query: String, category: String?, onQuery: (String) -> Unit, 
     }
     Rise(4) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 4.dp)) {
-            PillButton(stringResource(R.string.store_all), selected = category == null) { onCategory(null); StoreState.search(query.trim(), null) }
+            PillButton(stringResource(R.string.store_all), selected = category == null) { onCategory(null); if (!inspecting) StoreState.search(query.trim(), null) }
             FlathubApi.categories.forEach { c ->
-                PillButton(stringResource(c.label), selected = category == c.id) { onCategory(c.id); StoreState.search(query.trim(), c.id) }
+                PillButton(stringResource(c.label), selected = category == c.id) { onCategory(c.id); if (!inspecting) StoreState.search(query.trim(), c.id) }
             }
         }
     }
@@ -240,6 +246,7 @@ private fun Search(query: String, category: String?, onQuery: (String) -> Unit, 
 
 @Composable
 private fun Installed(a: FrontEndActions, onOpen: (String) -> Unit) {
+    val inspecting = LocalInspectionMode.current
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -247,10 +254,10 @@ private fun Installed(a: FrontEndActions, onOpen: (String) -> Unit) {
     Rise(3) {
         Actions {
             SecondaryButton(if (StoreState.checkingUpdates) stringResource(R.string.common_checking) else stringResource(R.string.store_check_updates), enabled = StoreState.ready && !StoreState.checkingUpdates && StoreState.busy == null) {
-                StoreState.checkUpdates(ctx)
+                if (!inspecting) StoreState.checkUpdates(ctx)
             }
             if (StoreState.updates.isNotEmpty()) PrimaryButton(stringResource(R.string.store_update_all, StoreState.updates.size), enabled = StoreState.busy == null) {
-                StoreState.update(ctx, null, ctx.getString(R.string.store_updates))
+                if (!inspecting) StoreState.update(ctx, null, ctx.getString(R.string.store_updates))
             } else if (StoreState.updatesChecked && !StoreState.checkingUpdates) ActionChip(stringResource(R.string.store_all_current), ok = true)
         }
     }
@@ -276,7 +283,7 @@ private fun Installed(a: FrontEndActions, onOpen: (String) -> Unit) {
                             )
                         }
                         PrimaryButton(stringResource(R.string.store_open), compact = true, enabled = !s_busyFor(app.id)) { a.onFlatpakApp(app.id, app.name) }
-                        if (app.id in StoreState.updates) SecondaryButton(stringResource(R.string.common_update), compact = true, enabled = StoreState.busy == null) { StoreState.update(ctx, app.id, app.name) }
+                        if (app.id in StoreState.updates) SecondaryButton(stringResource(R.string.common_update), compact = true, enabled = StoreState.busy == null) { if (!inspecting) StoreState.update(ctx, app.id, app.name) }
                         SecondaryButton(stringResource(R.string.store_details), compact = true) { onOpen(app.id) }
                     }
                 }
@@ -292,7 +299,8 @@ private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: 
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
-    LaunchedEffect(id) { StoreState.loadDetails(id) }
+    val inspecting = LocalInspectionMode.current
+    LaunchedEffect(id) { if (!inspecting) StoreState.loadDetails(id) }
     val d = StoreState.details[id]
     val local = StoreState.installed.firstOrNull { it.id == id }
     val name = d?.name ?: local?.name ?: id
@@ -317,15 +325,15 @@ private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: 
         Actions {
             if (installed) {
                 PrimaryButton(stringResource(R.string.store_open), enabled = !busyHere, main = true) { a.onFlatpakApp(id, name) }
-                if (id in StoreState.updates) SecondaryButton(stringResource(R.string.common_update), enabled = StoreState.busy == null) { StoreState.update(ctx, id, name) }
+                if (id in StoreState.updates) SecondaryButton(stringResource(R.string.common_update), enabled = StoreState.busy == null) { if (!inspecting) StoreState.update(ctx, id, name) }
                 SecondaryButton(if (busyHere) stringResource(R.string.common_working) else if (confirmRemove) stringResource(R.string.store_press_again) else stringResource(R.string.store_remove), enabled = StoreState.busy == null) {
-                    if (confirmRemove) { confirmRemove = false; StoreState.uninstall(ctx, id, name) } else confirmRemove = true
+                    if (confirmRemove) { confirmRemove = false; if (!inspecting) StoreState.uninstall(ctx, id, name) } else confirmRemove = true
                 }
             } else {
                 PrimaryButton(
                     if (busyHere) stringResource(R.string.store_installing) else stringResource(R.string.store_install), main = true,
                     enabled = StoreState.ready && StoreState.busy == null && s.ready && (d == null || d.arches.isEmpty() || "aarch64" in d.arches),
-                ) { StoreState.install(ctx, id, name) }
+                ) { if (!inspecting) StoreState.install(ctx, id, name) }
                 if (!StoreState.ready) ActionChip(stringResource(R.string.store_setup_first), ok = false)
             }
             d?.version?.let { ActionChip("v$it", ok = false) }

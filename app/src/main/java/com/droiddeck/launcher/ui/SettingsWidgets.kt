@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
@@ -244,7 +245,8 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
 
 @Composable
 fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null, content: @Composable ColumnScope.(FocusRequester) -> Unit) {
-    val state = remember { MutableTransitionState(false) }
+    val inspecting = LocalInspectionMode.current
+    val state = remember { MutableTransitionState(inspecting && open) }
     state.targetState = open
     if (!state.currentState && !state.targetState && state.isIdle) return
     val firstItemFocus = remember { FocusRequester() }

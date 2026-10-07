@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.files
 
+import androidx.compose.ui.platform.LocalInspectionMode
 import android.content.res.Configuration
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -122,7 +123,8 @@ class RailState internal constructor(
 fun rememberRailState(screenKey: String): RailState {
     val context = LocalContext.current
     // The same file the File Manager keeps its own browse settings in (no androidx.preference here).
-    val prefs = remember { context.getSharedPreferences("file_manager", android.content.Context.MODE_PRIVATE) }
+    val inspecting = LocalInspectionMode.current
+    val prefs = remember { if (inspecting) null else context.getSharedPreferences("file_manager", android.content.Context.MODE_PRIVATE) }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val choseKey = "rail_${screenKey}_userChose"
@@ -130,9 +132,9 @@ fun rememberRailState(screenKey: String): RailState {
 
     // Keep the landscape choice in saveable state regardless of orientation so portrait→landscape
     // restores it. In portrait we simply report collapsed+locked and ignore it.
-    var userChose by rememberSaveable(screenKey) { mutableStateOf(prefs.getBoolean(choseKey, false)) }
+    var userChose by rememberSaveable(screenKey) { mutableStateOf((prefs?.getBoolean(choseKey, false) ?: false)) }
     var landscapeCollapsed by rememberSaveable(screenKey) {
-        mutableStateOf(if (prefs.getBoolean(choseKey, false)) prefs.getBoolean(collapsedKey, false) else false)
+        mutableStateOf(if ((prefs?.getBoolean(choseKey, false) ?: false)) (prefs?.getBoolean(collapsedKey, false) ?: false) else false)
     }
 
     if (!isLandscape) {
@@ -144,10 +146,7 @@ fun rememberRailState(screenKey: String): RailState {
         onToggle = {
             landscapeCollapsed = !landscapeCollapsed
             userChose = true
-            prefs.edit()
-                .putBoolean(choseKey, true)
-                .putBoolean(collapsedKey, landscapeCollapsed)
-                .apply()
+            prefs?.edit()?.putBoolean(choseKey, true)?.putBoolean(collapsedKey, landscapeCollapsed)?.apply()
         },
     )
 }

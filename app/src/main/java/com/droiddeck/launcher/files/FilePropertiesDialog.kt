@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,11 +59,13 @@ internal fun FilePropertiesDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val inspecting = LocalInspectionMode.current
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
-    var attrs by remember(file.absolutePath) { mutableStateOf<FileAttrState?>(null) }
+    var attrs by remember(file.absolutePath) { mutableStateOf<FileAttrState?>(if (inspecting) FileAttrState(false, false, false) else null) }
     // Guards against a second toggle landing while the first is still being applied off-thread.
     var busy by remember(file.absolutePath) { mutableStateOf(false) }
     LaunchedEffect(file.absolutePath) {
+        if (inspecting) return@LaunchedEffect
         attrs = withContext(Dispatchers.IO) { readFileAttrs(file) }
     }
 
@@ -101,7 +104,11 @@ internal fun FilePropertiesDialog(
                     description = stringResource(R.string.fm_read_only_hint),
                     checked = state?.readOnly == true,
                     enabled = state != null && !busy,
-                    onToggle = { want ->
+                    onToggle = toggle@{ want ->
+                        if (inspecting) {
+                            attrs = attrs?.copy(readOnly = want)
+                            return@toggle
+                        }
                         busy = true
                         scope.launch {
                             val ok = withContext(Dispatchers.IO) { setReadOnly(file, want) }
@@ -125,7 +132,11 @@ internal fun FilePropertiesDialog(
                     else stringResource(R.string.fm_hidden_hint),
                     checked = state?.hidden == true,
                     enabled = state != null && hiddenSupported && !busy,
-                    onToggle = { want ->
+                    onToggle = toggle@{ want ->
+                        if (inspecting) {
+                            attrs = attrs?.copy(hidden = want)
+                            return@toggle
+                        }
                         busy = true
                         scope.launch {
                             val ok = withContext(Dispatchers.IO) { setHidden(file, want) }

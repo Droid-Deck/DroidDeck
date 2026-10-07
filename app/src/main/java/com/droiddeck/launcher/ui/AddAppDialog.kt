@@ -88,6 +88,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.files.InAppFilePicker
@@ -288,7 +289,8 @@ internal fun EditAppDialog(app: UserApps.App, onDismiss: () -> Unit, onSave: (St
 /** Open from the first frame; [onDismiss] once the closing animation has run. */
 @Composable
 internal fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolean> {
-    val shown = remember { MutableTransitionState(false).apply { targetState = true } }
+    val inspecting = LocalInspectionMode.current
+    val shown = remember { MutableTransitionState(inspecting).apply { targetState = true } }
     LaunchedEffect(shown.currentState, shown.isIdle) { if (shown.isIdle && !shown.currentState && !shown.targetState) onDismiss() }
     return shown
 }
@@ -482,7 +484,9 @@ private fun IconActions(onChoose: () -> Unit, clear: Pair<Int, () -> Unit>?) {
 /** Icons found in [repo], looked up off the main thread once the name has settled; [selected] is ringed. */
 @Composable
 private fun IconSuggestions(repo: String, selected: String?, onPick: (String) -> Unit) {
+    val inspecting = LocalInspectionMode.current
     val found by produceState<List<String>?>(null, repo) {
+        if (inspecting) { value = emptyList(); return@produceState }
         value = null
         delay(500)
         value = withContext(Dispatchers.IO) { runCatching { UserApps.githubIcons(repo) }.getOrDefault(emptyList()) }
@@ -545,8 +549,10 @@ private fun FileRow(path: String?, onChoose: () -> Unit) {
 /** Whether the script's folder will be linked or copied in, worked out off the main thread. */
 @Composable
 private fun FolderNote(scriptPath: String) {
+    val inspecting = LocalInspectionMode.current
     var plan by remember(scriptPath) { mutableStateOf<UserApps.ScriptPlan?>(null) }
     LaunchedEffect(scriptPath) {
+        if (inspecting) return@LaunchedEffect
         plan = withContext(Dispatchers.IO) { runCatching { UserApps.planScript(File(scriptPath)) }.getOrNull() }
     }
     val p = plan

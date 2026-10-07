@@ -38,6 +38,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.GameEnvironmentOptions
@@ -81,12 +82,13 @@ internal fun PadFocus(byPad: Boolean, target: FocusRequester) {
 }
 
 @Composable
-private fun GameEnvironmentEditor(byPad: Boolean, onClose: () -> Unit) {
+internal fun GameEnvironmentEditor(byPad: Boolean, initialConfig: GameEnvironment.Config = GameEnvironment.Config(), onClose: () -> Unit) {
     val context = LocalContext.current
     val coroutine = rememberCoroutineScope()
+    val inspecting = LocalInspectionMode.current
     val shown = rememberShown(onClose)
     val close = { shown.targetState = false }
-    var config by remember { mutableStateOf<GameEnvironment.Config?>(null) }
+    var config by remember { mutableStateOf<GameEnvironment.Config?>(if (inspecting) initialConfig else null) }
     var games by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
     var scope by remember { mutableStateOf("") }
     var otherId by remember { mutableStateOf<String?>(null) }
@@ -94,12 +96,13 @@ private fun GameEnvironmentEditor(byPad: Boolean, onClose: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Pair<String, String>?>(null) }
-    val preset = SessionPrefs.fexPreset(context)
-    val forceSsbs = SessionPrefs.forceSsbs(context)
+    val preset = if (inspecting) com.droiddeck.launcher.core.FexPreset.all.first().id else SessionPrefs.fexPreset(context)
+    val forceSsbs = !inspecting && SessionPrefs.forceSsbs(context)
     val firstFocus = remember { FocusRequester() }
     var editByPad by remember { mutableStateOf(false) }
     val dialogInput = LocalInputModeManager.current
     LaunchedEffect(Unit) {
+        if (inspecting) return@LaunchedEffect
         runCatching {
             withContext(Dispatchers.IO) {
                 GameEnvironmentStore.read(context) to Library.steamGames(context).map { it.appId.toString() to it.name }
@@ -108,6 +111,7 @@ private fun GameEnvironmentEditor(byPad: Boolean, onClose: () -> Unit) {
             .onFailure { error = true }
     }
     fun save(next: GameEnvironment.Config) {
+        if (inspecting) { config = next; return }
         busy = true
         coroutine.launch {
             val result = runCatching { withContext(Dispatchers.IO) { GameEnvironmentStore.save(context, next) } }

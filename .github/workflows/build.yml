@@ -431,6 +431,9 @@ jobs:
       - name: Unit tests
         run: ./gradlew testReleaseUnitTest --console=plain -PndkVersion="$NDK_VERSION"
 
+      - name: Render Compose previews
+        run: ./gradlew testDebugUnitTest --tests '*PreviewRenderTest' --console=plain -PndkVersion="$NDK_VERSION"
+
       - name: Check the native dependency closure
         run: |
           set -euo pipefail

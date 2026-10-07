@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.LocalInspectionMode
 import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -69,7 +70,8 @@ internal class Tile(
 @Composable
 internal fun Poster(art: File?, name: String, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
-    val t = remember { Animatable(0f) }
+    val inspecting = LocalInspectionMode.current
+    val t = remember { Animatable(if (inspecting) 1f else 0f) }
     LaunchedEffect(Unit) { t.animateTo(1f, Motion.sp(0.6f, Spring.StiffnessLow)) }
     Box(
         modifier = modifier.padding(start = 16.dp).aspectRatio(2f / 3f)

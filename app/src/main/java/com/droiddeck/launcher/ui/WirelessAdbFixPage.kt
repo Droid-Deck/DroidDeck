@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import android.text.Editable
@@ -61,7 +62,8 @@ fun WirelessAdbFixPage(
     onApply: (String, Int, Boolean, (String?) -> Unit) -> Unit,
 ) {
     val context = LocalContext.current
-    val savedAddress = remember { WirelessAdbFix.savedConnectionAddress(context) }
+    val inspecting = LocalInspectionMode.current
+    val savedAddress = remember { if (inspecting) null else WirelessAdbFix.savedConnectionAddress(context) }
     var step by rememberSaveable { mutableStateOf(if (savedAddress == null) 0 else 1) }
     var pairingAddress by rememberSaveable { mutableStateOf("") }
     var connectionAddress by rememberSaveable { mutableStateOf(savedAddress.orEmpty()) }

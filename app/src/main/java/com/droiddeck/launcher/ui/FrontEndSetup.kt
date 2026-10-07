@@ -76,6 +76,7 @@ import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 
 // The Setup page: runtime and device checks, tools, frame generation and launch settings.
@@ -129,6 +130,7 @@ internal fun SetupPanel(
     a: FrontEndActions,
     onOpenDeveloperOptions: () -> Unit,
     onRequestWirelessAdb: (Boolean) -> Unit,
+    initialTab: Int = 0,
 ) {
     val host = rememberMenuHost()
     val ctx = LocalContext.current
@@ -157,16 +159,17 @@ internal fun SetupPanel(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     // Tested hardware passes; an Adreno below it (a 610, say) warns rather than claiming support.
-    val gpu = remember { com.droiddeck.launcher.gpu.GpuInfo.detect() }
+    val inspecting = LocalInspectionMode.current
+    val gpu = remember { if (inspecting) com.droiddeck.launcher.gpu.GpuInfo("Adreno 740", 740, com.droiddeck.launcher.gpu.GpuInfo.Family.A7XX, "Snapdragon 8 Gen 2", false) else com.droiddeck.launcher.gpu.GpuInfo.detect() }
     val gpuOk = gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED
-    val gpuName = remember { DeviceSupport.gpuName(ctx) }
+    val gpuName = remember { if (inspecting) gpu.name else DeviceSupport.gpuName(ctx) }
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
     // Four tabs instead of one long scroll; LB and RB turn them from anywhere on the page. Build
     // and credits are on the Updates page.
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_session), stringResource(R.string.setup_tab_launcher))
-    var tab by rememberSaveable { mutableStateOf(0) }
+    var tab by rememberSaveable { mutableStateOf(initialTab.coerceIn(0, tabs.lastIndex)) }
     val tabFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
     val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true }

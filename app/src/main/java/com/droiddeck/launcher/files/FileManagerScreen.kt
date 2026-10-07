@@ -80,6 +80,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -109,8 +110,11 @@ fun FileManagerScreen(
     initialDir: File? = null,
     pickerTitle: String? = null,
     onPick: ((File) -> Unit)? = null,
+    preview: FileManagerPreviewState? = null,
 ) {
     val context = LocalContext.current
+    val inspecting = LocalInspectionMode.current
+    val sample = preview.takeIf { inspecting }
     val scope = rememberCoroutineScope()
 
     // Only matching files are shown in pick mode (directories are always shown). Empty = all files.
@@ -121,14 +125,15 @@ fun FileManagerScreen(
         return lowerExts.any { name.endsWith(".$it") }
     }
 
-    val pickPrefs = remember { context.getSharedPreferences("file_manager", android.content.Context.MODE_PRIVATE) }
+    val pickPrefs = remember { if (inspecting) null else context.getSharedPreferences("file_manager", android.content.Context.MODE_PRIVATE) }
     val browsePrefs = pickPrefs
     val rootDir = remember {
         // Both modes: honour an explicit caller-supplied start dir (e.g. Log Manager's game-log
         // folder), else open at the INTERNAL STORAGE ROOT. Selection screens (drive-folder pick,
         // local component pick, imports) previously defaulted to Download which - combined with the
         // currentRoot floor below - trapped users in Download with no way up (reported bug).
-        initialDir?.takeIf { it.isDirectory } ?: File("/storage/emulated/0")
+        if (inspecting) sample?.directory ?: File("/storage/emulated/0")
+        else initialDir?.takeIf { it.isDirectory } ?: File("/storage/emulated/0")
     }
 
     var currentDir by remember { mutableStateOf(rootDir) }
@@ -156,7 +161,7 @@ fun FileManagerScreen(
         }
         mutableStateOf(vol)
     }
-    var entries by remember { mutableStateOf(listOf<File>()) }
+    var entries by remember { mutableStateOf(sample?.entries.orEmpty()) }
     var selectedEntry by remember { mutableStateOf<File?>(null) }
     var showMenuFor by remember { mutableStateOf<File?>(null) }
     // Clipboard holds a LIST so one paste can carry a whole selection. Cut/copy semantics are a
@@ -177,9 +182,9 @@ fun FileManagerScreen(
     // Browse controls. Persisted so the list doesn't reset its order every time you open a folder.
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
-    var sortBy by remember { mutableStateOf(browsePrefs.getString("fmSortBy", "name") ?: "name") }
-    var sortDesc by remember { mutableStateOf(browsePrefs.getBoolean("fmSortDesc", false)) }
-    var showHidden by remember { mutableStateOf(browsePrefs.getBoolean("fmShowHidden", true)) }
+    var sortBy by remember { mutableStateOf(browsePrefs?.getString("fmSortBy", "name") ?: "name") }
+    var sortDesc by remember { mutableStateOf(browsePrefs?.getBoolean("fmSortDesc", false) ?: false) }
+    var showHidden by remember { mutableStateOf(browsePrefs?.getBoolean("fmShowHidden", true) ?: true) }
     var showSortMenu by remember { mutableStateOf(false) }
     // View mode: list of cards (default) or a thumbnail grid. Density applies to the list only -
     // a grid tile has no second line to compact.
@@ -187,9 +192,9 @@ fun FileManagerScreen(
     // choice persists across rotation). Grid is the default - most useful in landscape, and in
     // portrait GridCells.Adaptive naturally renders fewer columns (~2). Do NOT force portrait to list:
     // that broke the toggle on-device (tapping it did nothing in portrait).
-    var gridView by remember { mutableStateOf(browsePrefs.getBoolean("fmGridView", true)) }
+    var gridView by remember { mutableStateOf(sample?.grid ?: (browsePrefs?.getBoolean("fmGridView", true) ?: true)) }
     val showGrid = gridView
-    var compactRows by remember { mutableStateOf(browsePrefs.getBoolean("fmCompactRows", false)) }
+    var compactRows by remember { mutableStateOf(browsePrefs?.getBoolean("fmCompactRows", false) ?: false) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<File?>(null) }
     // Properties sheet (basic info + Read-only / Hidden toggles) target; null when closed.
@@ -203,7 +208,7 @@ fun FileManagerScreen(
 
     // Favorites view: when on, a dedicated bookmarks list replaces the file list.
     // favTick is bumped on any add/remove/toggle so the favorites view + per-row star recompute.
-    var showFavorites by remember { mutableStateOf(false) }
+    var showFavorites by remember { mutableStateOf(sample?.favorites == true) }
     var favTick by remember { mutableIntStateOf(0) }
 
     // resetScroll: jump to the top of the list (true for navigation; false for in-place reloads
@@ -211,7 +216,8 @@ fun FileManagerScreen(
     fun loadDirectory(dir: File, resetScroll: Boolean = true) {
         currentDir = dir
         // Remember the browsed directory so the next pick resumes here.
-        if (pickMode) pickPrefs.edit().putString("lastFilePickerDir", dir.absolutePath).apply()
+        if (inspecting) return
+        if (pickMode) pickPrefs?.edit()?.putString("lastFilePickerDir", dir.absolutePath)?.apply()
         scope.launch {
             val list = withContext(Dispatchers.IO) {
                 dir.listFiles()?.toList()
@@ -281,6 +287,7 @@ fun FileManagerScreen(
     }
 
     fun performDelete(file: File) {
+        if (inspecting) return
         scope.launch {
             isOperationRunning = true
             operationLabel = context.getString(R.string.fm_op_deleting)
@@ -302,6 +309,7 @@ fun FileManagerScreen(
     }
 
     fun performPaste() {
+        if (inspecting) return
         val sources = clipboardFiles
         if (sources.isEmpty()) return
         val dstDir = currentDir
@@ -387,6 +395,7 @@ fun FileManagerScreen(
     }
 
     fun performRename(file: File, newName: String) {
+        if (inspecting) return
         val target = File(file.parentFile, newName)
         if (target.exists()) {
             Toast.makeText(context, context.getString(R.string.fm_already_exists, newName), Toast.LENGTH_SHORT).show()
@@ -403,6 +412,7 @@ fun FileManagerScreen(
     }
 
     fun createFolder(parent: File, name: String) {
+        if (inspecting) return
         val target = File(parent, name)
         if (target.exists()) {
             Toast.makeText(context, context.getString(R.string.fm_already_exists, name), Toast.LENGTH_SHORT).show()
@@ -430,9 +440,9 @@ fun FileManagerScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val drives = remember(storageTick) { StorageRoots.list(context) }
+    val drives = remember(storageTick) { if (inspecting) emptyList() else StorageRoots.list(context) }
     val linuxRoot = remember(storageTick) {
-        com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context).takeIf { File(it, "usr").isDirectory }
+        if (inspecting) null else com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context).takeIf { File(it, "usr").isDirectory }
     }
 
     // ── Dialogs ──
@@ -537,6 +547,7 @@ fun FileManagerScreen(
                     pendingBulkDelete = emptyList()
                     selectionMode = false
                     selectedPaths = emptySet()
+                    if (inspecting) return@TextButton
                     operationJob = scope.launch {
                         isOperationRunning = true
                         var failed = 0
@@ -754,7 +765,7 @@ fun FileManagerScreen(
                 }
                 IconButton(onClick = {
                     gridView = !gridView
-                    browsePrefs.edit().putBoolean("fmGridView", gridView).apply()
+                    browsePrefs?.edit()?.putBoolean("fmGridView", gridView)?.apply()
                 }) {
                     Icon(
                         if (gridView) Icons.Filled.ViewList else Icons.Filled.GridView,
@@ -780,8 +791,8 @@ fun FileManagerScreen(
                                         // Tapping the active field flips direction; a different
                                         // field switches to it ascending.
                                         if (sortBy == key) sortDesc = !sortDesc else { sortBy = key; sortDesc = false }
-                                        browsePrefs.edit().putString("fmSortBy", sortBy)
-                                            .putBoolean("fmSortDesc", sortDesc).apply()
+                                        browsePrefs?.edit()?.putString("fmSortBy", sortBy)
+                                            ?.putBoolean("fmSortDesc", sortDesc)?.apply()
                                         showSortMenu = false
                                         loadDirectory(currentDir, resetScroll = false)
                                     },
@@ -792,7 +803,7 @@ fun FileManagerScreen(
                             text = { Text(if (compactRows) stringResource(R.string.fm_rows_comfortable) else stringResource(R.string.fm_rows_compact)) },
                             onClick = {
                                 compactRows = !compactRows
-                                browsePrefs.edit().putBoolean("fmCompactRows", compactRows).apply()
+                                browsePrefs?.edit()?.putBoolean("fmCompactRows", compactRows)?.apply()
                                 showSortMenu = false
                             },
                         )
@@ -800,7 +811,7 @@ fun FileManagerScreen(
                             text = { Text(if (showHidden) stringResource(R.string.fm_hide_hidden) else stringResource(R.string.fm_show_hidden)) },
                             onClick = {
                                 showHidden = !showHidden
-                                browsePrefs.edit().putBoolean("fmShowHidden", showHidden).apply()
+                                browsePrefs?.edit()?.putBoolean("fmShowHidden", showHidden)?.apply()
                                 showSortMenu = false
                                 loadDirectory(currentDir, resetScroll = false)
                             },
@@ -1016,14 +1027,14 @@ fun FileManagerScreen(
             linuxRoot?.let { add(locItem(stringResource(R.string.fm_drive_linux), Icons.Filled.Terminal, it)) }
         }
         val quickItems = buildList {
-            File("/storage/emulated/0/Download").takeIf { it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_downloads), Icons.Filled.Download, it, stringResource(R.string.fm_rail_downloads_short))) }
+            File("/storage/emulated/0/Download").takeIf { !inspecting && it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_downloads), Icons.Filled.Download, it, stringResource(R.string.fm_rail_downloads_short))) }
             // The ROMs folder chosen on the main screen: what the session shows as /root/ROMs.
-            SessionPrefs.romsDir(context).takeIf { it.isNotEmpty() }?.let(::File)?.takeIf { it.isDirectory }
+            (if (inspecting) "" else SessionPrefs.romsDir(context)).takeIf { it.isNotEmpty() }?.let(::File)?.takeIf { it.isDirectory }
                 ?.let { add(locItem(stringResource(R.string.fm_rail_roms), Icons.Filled.SportsEsports, it)) }
-            File("/storage/emulated/0/Download/DroidDeck").takeIf { it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_session_logs), Icons.Filled.Description, it)) }
-            File("/storage/emulated/0/Pictures").takeIf { it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_pictures), Icons.Filled.Image, it)) }
+            File("/storage/emulated/0/Download/DroidDeck").takeIf { !inspecting && it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_session_logs), Icons.Filled.Description, it)) }
+            File("/storage/emulated/0/Pictures").takeIf { !inspecting && it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_pictures), Icons.Filled.Image, it)) }
         }
-        val favItems = remember(favTick) { FavoritesStore.list(context).map(::File).filter { it.exists() } }
+        val favItems = remember(favTick) { if (inspecting) sample?.entries.orEmpty().filter { it.isDirectory } else FavoritesStore.list(context).map(::File).filter { it.exists() } }
             .map { d -> RailItem(d.name, Icons.Filled.Star, false) { showFavorites = false; openDrive(d) } }
         val locationSections = buildList {
             add(RailSection(stringResource(R.string.fm_rail_storage), storageItems))
@@ -1042,8 +1053,9 @@ fun FileManagerScreen(
             FavoritesList(
                 currentDir = currentDir,
                 favTick = favTick,
+                previewFavorites = sample?.entries.orEmpty().filter { it.isDirectory },
                 onPinCurrent = {
-                    FavoritesStore.add(context, currentDir.absolutePath)
+                    if (!inspecting) FavoritesStore.add(context, currentDir.absolutePath)
                     favTick++
                     Toast.makeText(context, context.getString(R.string.fm_favorite_added, currentDir.name), Toast.LENGTH_SHORT).show()
                 },
@@ -1052,7 +1064,7 @@ fun FileManagerScreen(
                     openDrive(dir)
                 },
                 onUnpin = { dir ->
-                    FavoritesStore.remove(context, dir.absolutePath)
+                    if (!inspecting) FavoritesStore.remove(context, dir.absolutePath)
                     favTick++
                     Toast.makeText(context, context.getString(R.string.fm_favorite_removed, dir.name), Toast.LENGTH_SHORT).show()
                 },
@@ -1079,7 +1091,7 @@ fun FileManagerScreen(
                     }
                     items(shownEntries, key = { it.absolutePath }) { file ->
                         val isFav = remember(file.absolutePath, favTick) {
-                            FavoritesStore.isFavorite(context, file.absolutePath)
+                            (!inspecting && FavoritesStore.isFavorite(context, file.absolutePath))
                         }
                         FileGridTile(
                             file = file,
@@ -1107,7 +1119,7 @@ fun FileManagerScreen(
                                 if (file.isDirectory) loadDirectory(file)
                                 else if (pickMode) {
                                     if (matchesPickExt(file)) {
-                                        pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
+                                        pickPrefs?.edit()?.putString("lastFilePickerDir", currentDir.absolutePath)?.apply()
                                         onPick?.invoke(file)
                                     }
                                 }
@@ -1126,7 +1138,7 @@ fun FileManagerScreen(
                             onCut = { clipboardFiles = listOf(file); isCutOperation = true; showMenuFor = null },
                             onDelete = { selectedEntry = file; showMenuFor = null },
                             onToggleFavorite = {
-                                val nowFav = FavoritesStore.toggle(context, file.absolutePath)
+                                val nowFav = if (inspecting) false else FavoritesStore.toggle(context, file.absolutePath)
                                 favTick++
                                 showMenuFor = null
                                 Toast.makeText(
@@ -1158,7 +1170,7 @@ fun FileManagerScreen(
                     val shown = shownEntries
                     items(shown, key = { it.absolutePath }) { file ->
                         val isFav = remember(file.absolutePath, favTick) {
-                            FavoritesStore.isFavorite(context, file.absolutePath)
+                            (!inspecting && FavoritesStore.isFavorite(context, file.absolutePath))
                         }
                         FileItemRow(
                             file = file,
@@ -1188,7 +1200,7 @@ fun FileManagerScreen(
                                 if (file.isDirectory) loadDirectory(file)
                                 else if (pickMode) {
                                     if (matchesPickExt(file)) {
-                                        pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
+                                        pickPrefs?.edit()?.putString("lastFilePickerDir", currentDir.absolutePath)?.apply()
                                         onPick?.invoke(file)
                                     }
                                 }
@@ -1207,7 +1219,7 @@ fun FileManagerScreen(
                             onRename = { renameTarget = file; showMenuFor = null },
                             isFavorite = isFav,
                             onToggleFavorite = {
-                                val nowFav = FavoritesStore.toggle(context, file.absolutePath)
+                                val nowFav = if (inspecting) false else FavoritesStore.toggle(context, file.absolutePath)
                                 favTick++
                                 showMenuFor = null
                                 Toast.makeText(

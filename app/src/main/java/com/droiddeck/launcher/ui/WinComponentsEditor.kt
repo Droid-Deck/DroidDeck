@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.DependencyDetector
 import com.droiddeck.launcher.frontend.PrefixInstalledDetector
@@ -68,10 +69,12 @@ internal fun WinComponentsDialog(
     appKey: String, gameName: String, gameDir: File?, byPad: Boolean,
     /** compatdata/<id>: what the prefix already has. [steamAppId]: a Steam title, whose appmanifest lists Steam's own redists. */
     compat: File? = null, steamAppId: Int? = null,
+    previewComponents: List<WinComponents.Component> = emptyList(),
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
     val coroutine = rememberCoroutineScope()
+    val inspecting = LocalInspectionMode.current
     val shown = rememberShown(onClose)
     val close = { shown.targetState = false }
     // null while the catalog loads; empty when it could not be had.
@@ -81,7 +84,7 @@ internal fun WinComponentsDialog(
     var installed by remember { mutableStateOf(emptySet<String>()) }
     // Detector names (oalinst, physx...) already in the prefix from elsewhere.
     var present by remember { mutableStateOf(emptySet<String>()) }
-    var picks by remember { mutableStateOf(WinComponents.picks(context, appKey)) }
+    var picks by remember { mutableStateOf(if (inspecting) emptyList() else WinComponents.picks(context, appKey)) }
     var progress by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     // The component the error is about, so it shows on its own row and not only at the bottom.
@@ -98,6 +101,7 @@ internal fun WinComponentsDialog(
     var switchFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        if (inspecting) { catalog = previewComponents.associateBy { it.name }; return@LaunchedEffect }
         val (entries, found) = withContext(Dispatchers.IO) {
             // The folder's own installers first, then what Steam installs with the game.
             val own = gameDir?.let { DependencyDetector.detect(it) } ?: emptyList()
@@ -112,9 +116,10 @@ internal fun WinComponentsDialog(
     }
     fun setPicks(next: List<String>) {
         picks = next
-        coroutine.launch(Dispatchers.IO) { WinComponents.setPicks(context, appKey, next) }
+        if (!inspecting) coroutine.launch(Dispatchers.IO) { WinComponents.setPicks(context, appKey, next) }
     }
     fun toggle(id: String, on: Boolean) {
+        if (inspecting) { picks = if (on) picks + id else picks - id; return }
         // Switches stay enabled during a download - a disabled one drops the pad's focus - so a press
         // then is ignored here.
         if (progress != null) return

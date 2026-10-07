@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.HomeApp
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.UserApps
@@ -259,7 +260,8 @@ private fun Content(
                 val installed = s.emulators.filter { it.installed }
                 val available = s.emulators.filter { !it.installed }
                 val ctx = LocalContext.current
-                LaunchedEffect(Unit) { UserAppsState.refresh(ctx) }
+                val inspecting = LocalInspectionMode.current
+                LaunchedEffect(Unit) { if (!inspecting) UserAppsState.refresh(ctx) }
                 val apps = UserAppsState.items
                 var adding by rememberSaveable { mutableStateOf(false) }
                 Rise(0) {

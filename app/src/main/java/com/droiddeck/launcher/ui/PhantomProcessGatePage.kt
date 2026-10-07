@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import android.content.Context
@@ -53,8 +54,10 @@ fun PhantomProcessGatePage(
 ) {
     BackHandler(onBack = onDismiss)
     val context = LocalContext.current
+    val inspecting = LocalInspectionMode.current
     val stage by WirelessAdbPairingService.stage.collectAsState()
-    val environment by produceState(GateEnvironment.read(context)) {
+    val environment by produceState(if (inspecting) GateEnvironment(true, true) else GateEnvironment.read(context)) {
+        if (inspecting) return@produceState
         while (true) {
             value = GateEnvironment.read(context)
             kotlinx.coroutines.delay(2_000)

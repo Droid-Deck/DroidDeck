@@ -69,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalInspectionMode
 import com.droiddeck.launcher.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -187,6 +188,7 @@ internal fun FileItemRow(
 ) {
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
     val context = LocalContext.current
+    val inspecting = LocalInspectionMode.current
     val isDir = file.isDirectory
     val isExe = !isDir && file.name.lowercase().let { it.endsWith(".exe") || it.endsWith(".bat") || it.endsWith(".msi") || it.endsWith(".sh") }
     // Image files show a real thumbnail instead of the generic file icon (handy when picking a
@@ -195,7 +197,7 @@ internal fun FileItemRow(
 
     // For real PE executables, try to pull out the embedded application icon (async, off the main thread).
     var exeIcon by remember(file.absolutePath) { mutableStateOf<ImageBitmap?>(null) }
-    if (!isDir && file.name.lowercase().endsWith(".exe")) {
+    if (!inspecting && !isDir && file.name.lowercase().endsWith(".exe")) {
         LaunchedEffect(file.absolutePath) {
             val bmp = withContext(Dispatchers.IO) { PeIconExtractor.extract(file) }
             if (bmp != null) exeIcon = bmp.asImageBitmap()
@@ -364,13 +366,15 @@ internal fun FavoritesList(
     onJump: (File) -> Unit,
     onUnpin: (File) -> Unit,
     modifier: Modifier = Modifier,
+    previewFavorites: List<File> = emptyList(),
 ) {
     val context = LocalContext.current
+    val inspecting = LocalInspectionMode.current
     val favorites = remember(favTick) {
-        FavoritesStore.list(context).map(::File).filter { it.exists() }
+        if (inspecting) previewFavorites else FavoritesStore.list(context).map(::File).filter { it.exists() }
     }
     val currentAlreadyPinned = remember(favTick, currentDir.absolutePath) {
-        FavoritesStore.isFavorite(context, currentDir.absolutePath)
+        if (inspecting) currentDir in previewFavorites else FavoritesStore.isFavorite(context, currentDir.absolutePath)
     }
 
     LazyColumn(modifier = modifier) {
@@ -545,10 +549,11 @@ internal fun FileGridTile(
     onToggleFavorite: () -> Unit = {},
     onProperties: () -> Unit = {},
 ) {
+    val inspecting = LocalInspectionMode.current
     val isDir = file.isDirectory
     val isImage = !isDir && file.extension.lowercase() in IMAGE_THUMB_EXTS
     var exeIcon by remember(file.absolutePath) { mutableStateOf<ImageBitmap?>(null) }
-    if (!isDir && file.name.lowercase().endsWith(".exe")) {
+    if (!inspecting && !isDir && file.name.lowercase().endsWith(".exe")) {
         LaunchedEffect(file.absolutePath) {
             val bmp = withContext(Dispatchers.IO) { PeIconExtractor.extract(file) }
             if (bmp != null) exeIcon = bmp.asImageBitmap()
