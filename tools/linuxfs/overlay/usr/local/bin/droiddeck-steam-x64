@@ -322,12 +322,15 @@ PY
   for w in "$STEAM_X64"/compatibilitytools.d/*/.droiddeck-arm64-proton; do
     [ -e "$w" ] || continue
     d=${w%/.droiddeck-arm64-proton}
-    [ -d "$arm_tools/${d##*/}" ] || rm -rf "$d"
+    [ -d "$arm_tools/${d##*/}" ] && [ "${d##*/}" != droiddeck-fex ] || rm -rf "$d"
   done
   for src in "$arm_tools"/*/; do
     src=${src%/}; name=${src##*/}
     [ -f "$src/compatibilitytool.vdf" ] && [ -f "$src/toolmanifest.vdf" ] || continue
-    [ "$name" = droiddeck-direct ] && continue
+    # droiddeck-fex is the arm64 client's way to x86 Linux titles; this client runs them itself. Its
+    # wrapper ran the arm64 client's droiddeck-fex when the client probed its tools after logon, which
+    # took that for an x86 program wanting FEX and had the arm64 client install Valve's FEX (device).
+    case $name in droiddeck-direct|droiddeck-fex) continue ;; esac
     dst=$STEAM_X64/compatibilitytools.d/$name
     mkdir -p "$dst"
     : > "$dst/.droiddeck-arm64-proton"
