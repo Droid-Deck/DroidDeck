@@ -335,6 +335,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             )
         }
         Log.i(TAG, "perf: " + PerfMode.apply(this, SessionState.fpsLimit))
+        if (!SessionState.running) SessionState.followScreen = followChoice()
+        applyFollowOrientation(resources.configuration)
         goFullscreen()
         // The device's volume keys change the stream the session plays on (the relay and
         // PulseAudio are media playback); they are never forwarded to the guest.
@@ -960,7 +962,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // sized once when the session starts and cannot change. A foldable recreates the Surface
         // on the other panel, and recomputing the size there told the compositor a 21:9 buffer
         // was 16:9 - the picture came back squashed sideways. While a session runs, keep its size.
-        val size = if (SessionState.running) SessionState.outputSize else outputSize()
+        // Follow screen is the exception: there the compositor tells gamescope the new size, so the
+        // session takes the shape of the Surface it now has.
+        val previous = SessionState.outputSize
+        val live = if (SessionState.followScreen && !isInPictureInPictureMode)
+            com.droiddeck.launcher.session.SessionDisplay.followSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
+        else null
+        val size = live ?: if (SessionState.running) previous else outputSize()
         SessionState.outputSize = size
         if (!SessionState.running) SessionState.refreshHz = refreshHz()
         // How far the panel enlarges the session, for texture sharpness "Auto" (TextureFiltering):
@@ -1019,6 +1027,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
             applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), SessionState.fpsLimit,
         )
+        if (SessionState.running && size != previous) {
+            Log.i(TAG, "follow screen: ${previous.first}x${previous.second} -> ${size.first}x${size.second} on a new surface")
+            WaylandCompositor.nativeResizeOutput(size.first, size.second)
+        }
         if (!SessionState.running) SessionEvents.record("compositor.started")
         // The service owns everything below the compositor. It is started whenever no session is
         // running - NOT only when the compositor was just started: the compositor lives for the
@@ -1047,7 +1059,49 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (resized) {
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
             CompositorHost.resize(holder.surface) { applyFrameGen() }
+            followWindow(width, height)
         }
+    }
+
+    /**
+     * Follow screen: the session's display takes the window's new size (a Fold opening onto its
+     * inner panel, or closing onto the cover), so the picture fills the panel instead of being
+     * letterboxed onto it. Not in picture-in-picture: that window is a preview of the session,
+     * and resizing the guest to it would leave Steam laid out for a thumbnail.
+     */
+    private fun followWindow(width: Int, height: Int) {
+        if (!SessionState.followScreen || isInPictureInPictureMode || !CompositorHost.isStarted) return
+        val size = com.droiddeck.launcher.session.SessionDisplay.followSize(width, height) ?: return
+        if (size == SessionState.outputSize) return
+        Log.i(TAG, "follow screen: ${SessionState.outputSize.first}x${SessionState.outputSize.second} -> ${size.first}x${size.second}")
+        SessionState.outputSize = size
+        val panel = panelBounds()
+        SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
+        WaylandCompositor.nativeResizeOutput(size.first, size.second)
+    }
+
+    /** Whether this session's resolution is Follow screen; decided once, when it starts. */
+    private fun followChoice(): Boolean {
+        val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+        return SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this)) ==
+            com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN
+    }
+
+    /**
+     * Follow screen on a large panel (a Fold's inner screen) may turn with the device: a window
+     * locked to landscape on a squarer panel is letterboxed by the system itself, which no output
+     * size can undo. A phone-sized panel (the cover screen) stays landscape as before.
+     */
+    private fun applyFollowOrientation(config: android.content.res.Configuration) {
+        if (!SessionState.followScreen) return
+        val wanted = if (config.smallestScreenWidthDp >= 600) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
+            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        if (requestedOrientation != wanted) requestedOrientation = wanted
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyFollowOrientation(newConfig)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -1894,6 +1948,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(inPip, newConfig)
         if (::pip.isInitialized) pip.changed(inPip)
+        // The panel may have changed while the session was a thumbnail (folded or unfolded in PiP).
+        if (!inPip && surfaceW > 0) followWindow(surfaceW, surfaceH)
     }
 
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
@@ -2021,10 +2077,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+        // ALWAYS from Android 11: SHORT_EDGES left a black strip along a camera on the long edge,
+        // which is where a Fold's inner-screen camera sits with the device held in landscape.
         if (Build.VERSION.SDK_INT >= 28) {
             window.attributes = window.attributes.apply {
-                layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= 30)
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                else WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
     }

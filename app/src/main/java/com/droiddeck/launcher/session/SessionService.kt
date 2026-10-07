@@ -347,6 +347,9 @@ class SessionService : Service() {
 
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
+        // Follow screen: the output is resized under gamescope when a foldable opens or closes,
+        // and the session script asks gamescope to resize Steam's X screen along with it.
+        if (SessionState.followScreen) guest.add("BL_FOLLOW_OUTPUT=1")
         if (SessionState.hdr) {
             // The activity opened the compositor's HDR gate: gamescope offers HDR to its clients
             // and DXVK takes the HDR10 swapchain when a game asks for one.

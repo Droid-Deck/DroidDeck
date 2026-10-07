@@ -312,6 +312,11 @@ public final class WaylandCompositor {
      *  list stops at the desktop size, as the X server's does on X11. Set before the compositor starts. */
     public static native void nativeSetOutputSize(int width, int height);
 
+    /** A new output size for a running compositor ("Follow screen": a foldable opening or closing).
+     *  The compositor thread re-sends the wl_output mode and an xdg_toplevel configure to every
+     *  client, and gamescope / labwc resize their output to it. Any thread. */
+    public static native void nativeResizeOutput(int width, int height);
+
     /** Re-arms the one-shot first-frame notice, for a new session under a compositor that has
      *  already presented a previous one. */
     public static native void nativeResetFirstFrame();

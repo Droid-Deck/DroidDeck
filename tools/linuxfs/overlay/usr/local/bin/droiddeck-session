@@ -177,7 +177,12 @@ if [ -z "${BL_INSIDE:-}" ]; then
   width=${BL_WIDTH:-1280}
   height=${BL_HEIGHT:-720}
   nested=$width
-  if [ "$mode" = steam ] && [ "${BL_GAMESCOPE_STRETCH_16X9:-0}" = 1 ]; then
+  # Follow screen (BL_FOLLOW_OUTPUT=1): the app resizes gamescope's output when a foldable opens or
+  # closes, and with Steam on its own Xwayland gamescope resizes Steam's X screen with it, as on a
+  # Steam Deck docking. A stretched 16:9 nested size would pin it, so the two are exclusive.
+  if [ "${BL_FOLLOW_OUTPUT:-0}" = 1 ]; then
+    echo "== gamescope: the output follows the screen (${width}x${height} to start)"
+  elif [ "$mode" = steam ] && [ "${BL_GAMESCOPE_STRETCH_16X9:-0}" = 1 ]; then
     wide=$(( (height * 16 + 4) / 9 / 2 * 2 ))
     if [ "$wide" -gt "$width" ]; then
       nested=$wide
