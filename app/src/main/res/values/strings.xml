@@ -287,6 +287,8 @@
     <string name="mode_deck_mode_hint">Steam\'s Deck interface and Quick Access performance controls. Applies next session.</string>
     <string name="mode_mangoapp">Performance overlay</string>
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
+    <string name="mode_dual_xwayland">Two Xwayland servers</string>
+    <string name="mode_dual_xwayland_hint">Runs games on their own X server, as SteamOS does. Turn off if a game opens behind Steam and never takes focus. Applies next session.</string>
     <string name="mode_branch">Client branch</string>
     <string name="mode_branch_deck">Steam Deck public beta (required by Deck mode).</string>
     <string name="mode_branch_hint">Applies next session. Steam may update itself once.</string>

@@ -263,6 +263,8 @@
     <string name="mode_deck_mode_hint">Интерфейс Steam Deck и управление производительностью через быстрый доступ. Вступит в силу в следующей сессии.</string>
     <string name="mode_mangoapp">Оверлей производительности</string>
     <string name="mode_mangoapp_hint">Отключите, если игры падают или появляется черный экран в режиме Deck. Вступит в силу в следующей сессии.</string>
+    <string name="mode_dual_xwayland">Два сервера Xwayland</string>
+    <string name="mode_dual_xwayland_hint">Запускает игры на отдельном X-сервере, как в SteamOS. Отключите, если игра открывается позади Steam и не получает фокус. Вступит в силу в следующей сессии.</string>
     <string name="mode_branch">Ветка клиента</string>
     <string name="mode_branch_deck">Бета-версия Steam Deck (требуется для режима Deck).</string>
     <string name="mode_branch_hint">Вступит в силу в следующей сессии. Steam может обновиться самостоятельно один раз.</string>

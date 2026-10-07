@@ -269,6 +269,8 @@
     <string name="mode_deck_mode_hint">La interfaz Deck de Steam y los controles de rendimiento de Quick Access. Se aplica en la próxima sesión.</string>
     <string name="mode_mangoapp">Overlay de rendimiento</string>
     <string name="mode_mangoapp_hint">Desactívalo si los juegos fallan o se quedan en negro en modo Deck. Se aplica en la próxima sesión.</string>
+    <string name="mode_dual_xwayland">Dos servidores Xwayland</string>
+    <string name="mode_dual_xwayland_hint">Ejecuta los juegos en su propio servidor X, como SteamOS. Desactívalo si un juego se abre detrás de Steam y nunca toma el foco. Se aplica en la próxima sesión.</string>
     <string name="mode_branch">Rama del cliente</string>
     <string name="mode_branch_deck">Beta pública de Steam Deck (requerida por el modo Deck).</string>
     <string name="mode_branch_hint">Se aplica en la próxima sesión. Steam puede actualizarse una vez.</string>

@@ -263,6 +263,8 @@
     <string name="mode_deck_mode_hint">Steam DeckのUIとクイックアクセスパフォーマンスコントロール。次回のセッションで有効になります。</string>
     <string name="mode_mangoapp">パフォーマンスオーバーレイ</string>
     <string name="mode_mangoapp_hint">Deckモードでゲームがクラッシュしたり画面が真っ暗になる場合は、これをオフにしてください。次回のセッションで有効になります。</string>
+    <string name="mode_dual_xwayland">2つのXwaylandサーバー</string>
+    <string name="mode_dual_xwayland_hint">SteamOSと同様に、ゲームを専用のXサーバーで実行します。ゲームがSteamの背後で開き、フォーカスされない場合はオフにしてください。次回のセッションで有効になります。</string>
     <string name="mode_branch">クライアントブランチ</string>
     <string name="mode_branch_deck">Steam Deckベータ版（Deckモードに必要）。</string>
     <string name="mode_branch_hint">次回のセッションで有効になります。Steamが自動的に一度アップデートされる場合があります。</string>

@@ -116,6 +116,7 @@ class MainActivity : ComponentActivity() {
     private var steamDeckMode by mutableStateOf(false)
     private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
+    private var dualXwayland by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var showProtons by mutableStateOf(false)
     // Components page: FEX / DXVK / VKD3D-Proton per Proton (ComponentsManager).
@@ -1161,6 +1162,7 @@ class MainActivity : ComponentActivity() {
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
                 steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
+                dualXwayland = dualXwayland,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
                 wifiDiscovery = if (mode == SessionService.MODE_STEAM) wifiDiscovery else null,
@@ -1243,6 +1245,7 @@ class MainActivity : ComponentActivity() {
                     steamChannel = SessionPrefs.steamChannel(this)
                 },
                 onMangoapp = { on -> SessionPrefs.setMangoapp(this, on); mangoapp = on },
+                onDualXwayland = { on -> SessionPrefs.setDualXwayland(this, on); dualXwayland = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
                 onRunSteamAtStartup = { on ->
                     SessionPrefs.setRunSteamAtStartup(this, on)
@@ -1358,6 +1361,7 @@ class MainActivity : ComponentActivity() {
         steamDeckMode = SessionPrefs.steamDeckMode(this)
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
+        dualXwayland = SessionPrefs.dualXwayland(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         addedGamesDirs = SessionPrefs.addedGamesDirs(this)

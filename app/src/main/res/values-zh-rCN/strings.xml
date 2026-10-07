@@ -285,6 +285,8 @@
     <string name="mode_deck_mode_hint">Steam 的 Deck 界面和快捷访问性能控制。将在下次会话生效。</string>
     <string name="mode_mangoapp">性能覆盖层</string>
     <string name="mode_mangoapp_hint">若游戏在 Deck 模式下崩溃或黑屏，请关闭性能覆盖层。将在下次会话生效。</string>
+    <string name="mode_dual_xwayland">双 Xwayland 服务器</string>
+    <string name="mode_dual_xwayland_hint">像 SteamOS 一样在独立的 X 服务器上运行游戏。若游戏在 Steam 后面打开且始终无法获得焦点，请关闭此项。将在下次会话生效。</string>
     <string name="mode_branch">客户端分支</string>
     <string name="mode_branch_deck">Steam Deck 公开测试版（Deck 模式所必需）。</string>
     <string name="mode_branch_hint">将在下次会话生效。Steam 可能会自行更新一次。</string>

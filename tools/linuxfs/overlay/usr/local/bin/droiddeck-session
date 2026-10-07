@@ -182,7 +182,8 @@ if [ -z "${BL_INSIDE:-}" ]; then
   # Resolution never reaches its display (docs/development/steam-display-scaling.md). The client's
   # overlay is also on another server than the game, so opening it no longer takes the game's X
   # keyboard focus, which made games like FlatOut shrink their window.
-  # BL_XWAYLAND_COUNT=1 in Download/droiddeck-env goes back to one.
+  # The app sends BL_XWAYLAND_COUNT from Steam settings (Two Xwayland servers); 1 goes back to one,
+  # and a line in Download/droiddeck-env still wins.
   if [ "$mode" = steam ] && [ "${BL_XWAYLAND_COUNT:-2}" -gt 1 ]; then
     args+=(--xwayland-count "${BL_XWAYLAND_COUNT:-2}")
     export STEAM_MULTIPLE_XWAYLANDS=1

@@ -263,6 +263,8 @@
     <string name="mode_deck_mode_hint">Steam Deck 介面和快速存取效能控制。下次工作階段生效。</string>
     <string name="mode_mangoapp">效能重疊層</string>
     <string name="mode_mangoapp_hint">如果 Deck 模式下遊戲崩潰或黑畫面，請關閉此項。下次工作階段生效。</string>
+    <string name="mode_dual_xwayland">雙 Xwayland 伺服器</string>
+    <string name="mode_dual_xwayland_hint">像 SteamOS 一樣在獨立的 X 伺服器上執行遊戲。如果遊戲在 Steam 後面開啟且一直無法取得焦點，請關閉此項。下次工作階段生效。</string>
     <string name="mode_branch">用戶端分支</string>
     <string name="mode_branch_deck">Steam Deck 公開測試版（Deck 模式所需）。</string>
     <string name="mode_branch_hint">下次工作階段生效。Steam 可能會自行更新一次。</string>

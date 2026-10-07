@@ -415,6 +415,14 @@ object SessionPrefs {
     fun setMangoapp(context: Context, on: Boolean) { prefs(context).edit().putBoolean("mangoapp", on).apply() }
 
     /**
+     * Steam on two Xwayland servers, as SteamOS runs it: the client on one, its games on the other
+     * (droiddeck-session, BL_XWAYLAND_COUNT). Off puts both back on one server, for a game whose
+     * window opens behind the client and never takes focus. On by default.
+     */
+    fun dualXwayland(context: Context): Boolean = prefs(context).getBoolean("dualXwayland", true)
+    fun setDualXwayland(context: Context, on: Boolean) { prefs(context).edit().putBoolean("dualXwayland", on).apply() }
+
+    /**
      * Zink's lazy descriptor mode (ZINK_DESCRIPTORS=lazy) with its compact set layout
      * (ZINK_DEBUG=compact) for the client's GL-on-Vulkan UI, as WinNative runs it. On by default.
      */
