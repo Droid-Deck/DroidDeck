@@ -5,8 +5,8 @@
 # class. Then whatever is set of what else gamescope weighs before it counts a mapped window as
 # focusable: an InputOnly class, _NET_WM_WINDOW_OPACITY (0 is never focusable), STEAM_OVERLAY,
 # GAMESCOPE_EXTERNAL_OVERLAY, STEAM_INPUT_FOCUS and _NET_WM_STATE (skip taskbar and pager without
-# fullscreen is left out of the focusable list the client reads). Windows that are neither mapped nor tagged with an app id are left out - wine keeps many
-# hidden ones. The rootfs has xprop but no xwininfo, so this speaks the X protocol itself.
+# fullscreen is left out of the focusable list the client reads). Windows that are neither mapped
+# nor tagged with an app id are left out - wine keeps many hidden ones. The rootfs has xprop but no xwininfo, so this speaks the X protocol itself.
 #
 #   droiddeck-xwindows :1
 import os
