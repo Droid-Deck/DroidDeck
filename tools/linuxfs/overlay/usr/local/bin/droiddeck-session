@@ -516,6 +516,26 @@ case $mode in
         v=${v# }
         echo "${v:-$2}"
       }
+      # What gamescope had to choose from when focus moved, and again as late windows map:
+      # the apps and windows it counts as focusable (window, app id, pid; on the client's
+      # server, for every server), the one it picked, and the client's base-layer order; then
+      # each server's top-level windows with the app id they carry (STEAM_GAME) and their
+      # WM_STATE (droiddeck-xwindows). A game window that opens behind the client and never
+      # takes focus shows here as missing from the focusable list, or listed with no app id.
+      focus_snapshot() {
+        local d
+        echo "== focus state (after $1 at $2s):" \
+          $(xprop -root GAMESCOPE_FOCUSED_APP GAMESCOPE_FOCUSED_WINDOW GAMESCOPE_FOCUSABLE_APPS \
+            GAMESCOPE_FOCUSABLE_WINDOWS GAMESCOPECTRL_BASELAYER_APPID 2>/dev/null | sed 's/(CARDINAL)//' | tr '\n' ' ')
+        for d in $(bl_displays); do droiddeck-xwindows "$d" 2>/dev/null; done
+      }
+      focus_snapshots() {
+        local at=0 t
+        for t in 0 5 15 30; do
+          nap $((t - at)); at=$t
+          focus_snapshot "$1" "$t"
+        done
+      }
       tmode= app=
       xprop -spy -root STEAM_TOUCH_CLICK_MODE GAMESCOPE_FOCUSED_APP 2>/dev/null | while read -r line; do
         case $line in
@@ -530,6 +550,7 @@ case $mode in
             [ "$v" = "$app" ] && continue
             app=$v
             echo "== focused app: $app (touch mode ${tmode:-unset}) at $(date +%T)"
+            focus_snapshots "$app" &
             ;;
         esac
       done

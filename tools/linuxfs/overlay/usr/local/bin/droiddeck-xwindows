@@ -1,0 +1,117 @@
+#!/usr/bin/python3
+# The top-level windows of one Xwayland server, one line each, for the session log: what gamescope
+# had to pick focus from. Each line has the window, whether it is mapped, override-redirect, its
+# geometry, the app id it carries (STEAM_GAME, which gamescope focuses by), its WM_STATE, pid and
+# class. Windows that are neither mapped nor tagged with an app id are left out - wine keeps many
+# hidden ones. The rootfs has xprop but no xwininfo, so this speaks the X protocol itself.
+#
+#   droiddeck-xwindows :1
+import os
+import socket
+import struct
+import sys
+
+MAP_STATE = ("unmapped", "unviewable", "viewable")
+WM_STATES = {0: "Withdrawn", 1: "Normal", 3: "Iconic"}
+
+
+class X:
+    def __init__(self, display):
+        num = display.lstrip(":").split(".")[0]
+        self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.s.settimeout(2)
+        self.s.connect("/tmp/.X11-unix/X" + num)
+        self.s.sendall(struct.pack("<BxHHHHxx", 0x6C, 11, 0, 0, 0))
+        head = self.read(8)
+        if head[0] != 1:
+            raise OSError("X connection refused")
+        setup = self.read(struct.unpack_from("<H", head, 6)[0] * 4)
+        vendor_len = struct.unpack_from("<H", setup, 16)[0]
+        formats = setup[21]
+        self.root = struct.unpack_from("<I", setup, 32 + (vendor_len + 3) // 4 * 4 + formats * 8)[0]
+
+    def read(self, n):
+        buf = b""
+        while len(buf) < n:
+            chunk = self.s.recv(n - len(buf))
+            if not chunk:
+                raise OSError("X connection closed")
+            buf += chunk
+        return buf
+
+    def request(self, data):
+        """Send one request and return its reply, or None for an X error (a window that went)."""
+        self.s.sendall(data)
+        while True:
+            head = self.read(32)
+            if head[0] == 0:
+                return None
+            if head[0] == 1:
+                return head + self.read(struct.unpack_from("<I", head, 4)[0] * 4)
+            # an event; none are selected, but skip anything that arrives
+
+    def atom(self, name):
+        n = name.encode()
+        pad = (4 - len(n) % 4) % 4
+        r = self.request(struct.pack("<BBHHxx", 16, 1, 2 + (len(n) + pad) // 4, len(n)) + n + b"\0" * pad)
+        return struct.unpack_from("<I", r, 8)[0] if r else 0
+
+    def children(self, win):
+        r = self.request(struct.pack("<BxHI", 15, 2, win))
+        if not r:
+            return []
+        n = struct.unpack_from("<H", r, 16)[0]
+        return list(struct.unpack_from("<%dI" % n, r, 32))
+
+    def attributes(self, win):
+        r = self.request(struct.pack("<BxHI", 3, 2, win))
+        return (r[26], r[27]) if r else None
+
+    def geometry(self, win):
+        r = self.request(struct.pack("<BxHI", 14, 2, win))
+        return struct.unpack_from("<hhHH", r, 12) if r else None
+
+    def prop(self, win, atom):
+        if not atom:
+            return None
+        r = self.request(struct.pack("<BBHIIIII", 20, 0, 6, win, atom, 0, 0, 64))
+        if not r or r[1] == 0:
+            return None
+        fmt, n = r[1], struct.unpack_from("<I", r, 16)[0]
+        data = r[32:32 + n * fmt // 8]
+        if fmt == 32:
+            return list(struct.unpack("<%dI" % n, data))
+        return data
+
+
+def main():
+    display = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("DISPLAY", ":0")
+    try:
+        x = X(display)
+    except OSError as e:
+        print("==   %s: %s" % (display, e))
+        return
+    atoms = {name: x.atom(name) for name in ("STEAM_GAME", "WM_STATE", "_NET_WM_PID", "WM_CLASS")}
+    for win in x.children(x.root):
+        attrs = x.attributes(win)
+        if not attrs:
+            continue
+        game = x.prop(win, atoms["STEAM_GAME"])
+        if attrs[0] != 2 and not game:
+            continue
+        geo = x.geometry(win)
+        state = x.prop(win, atoms["WM_STATE"])
+        pid = x.prop(win, atoms["_NET_WM_PID"])
+        cls = x.prop(win, atoms["WM_CLASS"])
+        print("==   %s window 0x%x: %s%s %s app %s state %s pid %s class %s" % (
+            display, win, MAP_STATE[attrs[0]] if attrs[0] < 3 else attrs[0],
+            " override-redirect" if attrs[1] else "",
+            "%dx%d+%d+%d" % (geo[2], geo[3], geo[0], geo[1]) if geo else "?",
+            game[0] if game else "-",
+            WM_STATES.get(state[0], state[0]) if state else "-",
+            pid[0] if pid else "-",
+            cls.split(b"\0")[-2].decode(errors="replace") if cls and b"\0" in cls else "-",
+        ))
+
+
+main()
