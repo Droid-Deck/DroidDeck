@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Control a debug DroidDeck build over ADB."""
+"""Control a DroidDeck build over ADB (docs/agent-control.md)."""
 
 from __future__ import annotations
 
@@ -7,16 +7,20 @@ import argparse
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-from adb_device import DeviceResolutionError, resolve_serial
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from adb_device import DeviceResolutionError, resolve_serial  # noqa: E402
 
 
 AUTHORITY = "content://com.droiddeck.launcher.agent"
+PACKAGE = "com.droiddeck.launcher"
+STEAM_CLIENT_APP = 769
 
 
 class ControlError(RuntimeError):
@@ -46,7 +50,7 @@ def adb_path(configured: str | None) -> str:
     raise ControlError("adb not found; set ADB, ANDROID_HOME, or ANDROID_SDK_ROOT", "ADB_NOT_FOUND")
 
 
-def run_adb(adb: str, serial: str, *args: str, timeout: int = 30) -> subprocess.CompletedProcess[bytes]:
+def run_adb(adb: str, serial: str, *args: str, timeout: float = 30) -> subprocess.CompletedProcess[bytes]:
     try:
         return subprocess.run(
             [adb, "-s", serial, *args], capture_output=True, check=False, timeout=timeout
@@ -59,7 +63,7 @@ def _content_result(output: str) -> dict:
     marker = "json="
     start = output.find(marker)
     if start < 0:
-        detail = output.strip() or "The debug agent provider returned no result"
+        detail = output.strip() or "The agent provider returned no result"
         raise ControlError(detail, "INVALID_PROVIDER_RESPONSE")
     raw = output[start + len(marker):].lstrip()
     try:
@@ -71,18 +75,27 @@ def _content_result(output: str) -> dict:
         raise ControlError("Could not decode the agent provider response", "INVALID_PROVIDER_RESPONSE") from exc
 
 
-def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None) -> dict:
+def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None,
+                  timeout: float = 30) -> dict:
     command = ["shell", "content", "call", "--uri", AUTHORITY, "--method", method]
     if arg is not None:
         command.extend(["--arg", arg])
     if request is not None:
         encoded = base64.b64encode(json.dumps(request, separators=(",", ":")).encode()).decode()
         command.extend(["--extra", f"request:s:{encoded}"])
-    result = run_adb(adb, serial, *command)
+    result = run_adb(adb, serial, *command, timeout=timeout)
     output = (result.stdout + result.stderr).decode(errors="replace")
     response = _content_result(output)
     if result.returncode != 0 and response.get("ok") is not False:
         raise ControlError(output.strip() or "ADB content call failed", "ADB_FAILED")
+    return response
+
+
+def checked(response: dict, default_code: str) -> dict:
+    """A provider or guest answer, raised as a ControlError when it carries ok: false."""
+    if response.get("ok") is False:
+        error = response.get("error", {})
+        raise ControlError(error.get("message", default_code), error.get("code", default_code))
     return response
 
 
@@ -96,7 +109,7 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
         "start",
         "-W",
         "-n",
-        "com.droiddeck.launcher/.agent.AgentStartActivity",
+        f"{PACKAGE}/.agent.AgentStartActivity",
         "--es",
         "request",
         encoded,
@@ -126,23 +139,18 @@ def confirm_start(adb: str, serial: str, request: dict, previous: dict) -> dict:
 
 
 def get_state(adb: str, serial: str) -> dict:
-    response = provider_call(adb, serial, "state")
-    if response.get("ok") is False:
-        error = response.get("error", {})
-        raise ControlError(error.get("message", "state failed"), error.get("code", "STATE_FAILED"))
-    return response
+    return checked(provider_call(adb, serial, "state"), "STATE_FAILED")
 
 
-def wait_for_phase(adb: str, serial: str, wanted: str, timeout: float) -> dict:
+def wait_until(adb: str, serial: str, describe: str, done, timeout: float, poll: float = 1.0) -> dict:
+    """Poll state until done(state) is true. A failed session ends the wait at once."""
     deadline = time.monotonic() + timeout
-    last_state: dict | None = None
     while True:
-        last_state = get_state(adb, serial)
-        session = last_state.get("session", {})
-        phase = session.get("phase")
-        if phase == wanted:
-            return last_state
-        if phase == "FAILED" and wanted != "FAILED":
+        state = get_state(adb, serial)
+        session = state.get("session", {})
+        if done(state):
+            return state
+        if session.get("phase") == "FAILED":
             failure = session.get("failure") or {}
             raise ControlError(
                 f"Session failed ({failure.get('code', 'FAILED')}): {failure.get('message', 'unknown error')}",
@@ -150,10 +158,35 @@ def wait_for_phase(adb: str, serial: str, wanted: str, timeout: float) -> dict:
             )
         remaining = deadline - time.monotonic()
         if remaining <= 0:
+            focus = session.get("focus") or {}
             raise ControlError(
-                f"Timed out waiting for {wanted}; last phase was {phase}", "TIMEOUT"
+                f"Timed out waiting for {describe}; phase {session.get('phase')}, focused app {focus.get('focusedApp')}",
+                "TIMEOUT",
             )
-        time.sleep(min(1.0, remaining))
+        time.sleep(min(poll, remaining))
+
+
+def wait_for_phase(adb: str, serial: str, wanted: str, timeout: float) -> dict:
+    if wanted == "FAILED":
+        deadline = time.monotonic() + timeout
+        while True:
+            state = get_state(adb, serial)
+            if state.get("session", {}).get("phase") == "FAILED":
+                return state
+            if time.monotonic() > deadline:
+                raise ControlError("Timed out waiting for FAILED", "TIMEOUT")
+            time.sleep(1)
+    return wait_until(adb, serial, wanted, lambda s: s.get("session", {}).get("phase") == wanted, timeout)
+
+
+def focused(state: dict, app_id: int | None) -> bool:
+    """The game has focus the way a player sees it: gamescope focuses it and it is in the list the
+    Steam client orders the base layer from. app_id None means any game (not the client)."""
+    focus = state.get("session", {}).get("focus") or {}
+    current = focus.get("focusedApp")
+    if app_id is None:
+        return current not in (None, 0, STEAM_CLIENT_APP)
+    return current == app_id and app_id in (focus.get("focusableApps") or [])
 
 
 def wait_for_artifacts(adb: str, serial: str, state: dict, timeout: float) -> dict:
@@ -174,14 +207,113 @@ def add_serial(response: dict, serial: str) -> dict:
     return response
 
 
+# --- displays ------------------------------------------------------------------------------------
+
+def displays(adb: str, serial: str) -> list[dict]:
+    """Logical displays with the SurfaceFlinger (physical) id screencap and screenrecord want."""
+    result = run_adb(adb, serial, "shell", "dumpsys", "display", timeout=30)
+    text = result.stdout.decode(errors="replace")
+    devices = dict(re.findall(r'DisplayDeviceInfo\{"([^"]+)": uniqueId="local:(\d+)"', text))
+    out = []
+    for block in re.split(r"\n  Display (?=\d+:)", text)[1:]:
+        logical = int(block.split(":", 1)[0])
+        device = re.search(r"mPrimaryDisplayDevice=(.+)", block)
+        size = re.search(r"real (\d+) x (\d+)", block)
+        name = device.group(1).strip() if device else None
+        out.append({
+            "display": logical,
+            "name": name,
+            "physicalId": devices.get(name) if name else None,
+            "size": [int(size.group(1)), int(size.group(2))] if size else None,
+        })
+    return out
+
+
+def physical_display(adb: str, serial: str, logical: int | None) -> str | None:
+    if logical is None:
+        return None
+    for d in displays(adb, serial):
+        if d["display"] == logical:
+            if not d["physicalId"]:
+                raise ControlError(f"Display {logical} has no physical id to capture", "NO_SUCH_DISPLAY")
+            return d["physicalId"]
+    raise ControlError(f"No display {logical}; see `droiddeckctl displays`", "NO_SUCH_DISPLAY")
+
+
+def screenshot(adb: str, serial: str, path: str, display: int | None) -> dict:
+    destination = Path(path).expanduser().resolve()
+    physical = physical_display(adb, serial, display)
+    command = ["exec-out", "screencap", "-p"] + (["-d", physical] if physical else [])
+    result = run_adb(adb, serial, *command, timeout=30)
+    if result.returncode != 0 or not result.stdout.startswith(b"\x89PNG"):
+        detail = result.stderr.decode(errors="replace").strip()
+        raise ControlError(detail or "screencap failed", "SCREENSHOT_FAILED")
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(result.stdout)
+    except OSError as exc:
+        raise ControlError(str(exc), "FILE_IO") from exc
+    return {"ok": True, "command": "screenshot", "path": str(destination), "display": display}
+
+
+def record(adb: str, serial: str, path: str, seconds: float, display: int | None) -> dict:
+    destination = Path(path).expanduser().resolve()
+    remote = "/data/local/tmp/droiddeckctl-record.mp4"
+    physical = physical_display(adb, serial, display)
+    command = ["shell", "screenrecord", "--time-limit", str(max(1, min(180, int(seconds))))]
+    if physical:
+        command += ["--display-id", physical]
+    result = run_adb(adb, serial, *command, remote, timeout=seconds + 30)
+    if result.returncode != 0:
+        raise ControlError(result.stderr.decode(errors="replace").strip() or "screenrecord failed", "RECORD_FAILED")
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ControlError(str(exc), "FILE_IO") from exc
+    pulled = run_adb(adb, serial, "pull", remote, str(destination), timeout=120)
+    run_adb(adb, serial, "shell", "rm", "-f", remote)
+    if pulled.returncode != 0:
+        raise ControlError(pulled.stderr.decode(errors="replace").strip() or "adb pull failed", "RECORD_FAILED")
+    return {"ok": True, "command": "record", "path": str(destination), "seconds": seconds, "display": display}
+
+
+# --- commands ------------------------------------------------------------------------------------
+
+def start_session(adb: str, serial: str, request: dict) -> dict:
+    current = get_state(adb, serial)
+    if current["session"].get("phase") not in {"IDLE", "FAILED"} or current["session"].get("running"):
+        raise ControlError("A session is already starting or running", "SESSION_ACTIVE")
+    start_agent_activity(adb, serial, request)
+    return confirm_start(adb, serial, request, current["session"])
+
+
+def input_request(args: argparse.Namespace) -> dict:
+    kind = args.input_type
+    if kind == "key":
+        return {"type": "key", "key": args.key, "action": args.action, "modifiers": args.mod or [], "holdMs": args.hold}
+    if kind == "text":
+        return {"type": "text", "text": args.text, "commit": args.commit}
+    if kind == "tap":
+        return {"type": "tap", "x": args.x, "y": args.y, "space": args.space, "holdMs": args.hold}
+    if kind == "swipe":
+        return {"type": "swipe", "x": args.x, "y": args.y, "x2": args.x2, "y2": args.y2,
+                "space": args.space, "durationMs": args.duration}
+    if kind == "pad":
+        return {"type": "pad", "button": args.button, "action": args.action, "holdMs": args.hold}
+    if kind == "stick":
+        return {"type": "stick", "stick": args.stick, "x": args.x, "y": args.y, "holdMs": args.hold}
+    if kind == "trigger":
+        return {"type": "trigger", "trigger": args.trigger, "value": args.value, "holdMs": args.hold}
+    raise ControlError(f"Unknown input type {kind}", "INVALID_INPUT")
+
+
 def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
-    if args.command == "state":
+    command = args.command
+
+    if command == "state":
         return add_serial(get_state(adb, serial), serial)
 
-    if args.command == "start":
-        current = get_state(adb, serial)
-        if current["session"].get("phase") not in {"IDLE", "FAILED"} or current["session"].get("running"):
-            raise ControlError("A session is already starting or running", "SESSION_ACTIVE")
+    if command == "start":
         request = {"mode": args.mode}
         if args.mode == "steam":
             if args.ui == "desktop":
@@ -190,59 +322,145 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                 if not args.url.startswith("steam://"):
                     raise ControlError("Steam URL must start with steam://", "INVALID_STEAM_URL")
                 request["steamUrl"] = args.url
-        start_agent_activity(adb, serial, request)
-        started = confirm_start(adb, serial, request, current["session"])
+        started = start_session(adb, serial, request)
         if args.wait:
             return add_serial(wait_for_phase(adb, serial, "READY", args.timeout), serial)
         session = started["session"]
-        return add_serial({
-            "ok": True,
-            "command": "start",
-            "mode": args.mode,
-            "sessionId": session.get("id"),
-            "phase": session.get("phase"),
-        }, serial)
+        return add_serial({"ok": True, "command": "start", "mode": args.mode,
+                           "sessionId": session.get("id"), "phase": session.get("phase")}, serial)
 
-    if args.command == "run":
-        current = get_state(adb, serial)
-        if current["session"].get("phase") not in {"IDLE", "FAILED"} or current["session"].get("running"):
-            raise ControlError("A session is already starting or running", "SESSION_ACTIVE")
+    if command == "run":
         program_args = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
-        request = {"mode": "run", "program": args.program, "programArgs": program_args}
-        start_agent_activity(adb, serial, request)
-        started = confirm_start(adb, serial, request, current["session"])
+        started = start_session(adb, serial, {"mode": "run", "program": args.program, "programArgs": program_args})
         session = started["session"]
-        return add_serial({
-            "ok": True,
-            "command": "start",
-            "mode": "run",
-            "sessionId": session.get("id"),
-            "phase": session.get("phase"),
-        }, serial)
+        return add_serial({"ok": True, "command": "start", "mode": "run",
+                           "sessionId": session.get("id"), "phase": session.get("phase")}, serial)
 
-    if args.command == "wait":
+    if command == "wait":
+        if args.phase == "focused":
+            if args.app_id is None:
+                raise ControlError("wait focused needs an app id", "INVALID_ARGUMENTS")
+            return add_serial(wait_until(adb, serial, f"app {args.app_id} to have focus",
+                                         lambda s: focused(s, args.app_id), args.timeout, 0.5), serial)
+        if args.phase == "game":
+            return add_serial(wait_until(adb, serial, "a game to have focus",
+                                         lambda s: focused(s, None), args.timeout, 0.5), serial)
         phases = {"ready": "READY", "idle": "IDLE", "failed": "FAILED"}
         return add_serial(wait_for_phase(adb, serial, phases[args.phase], args.timeout), serial)
 
-    if args.command == "stop":
+    if command == "stop":
         current = get_state(adb, serial)
         if current["session"].get("phase") in {"IDLE", "FAILED"}:
             return add_serial(wait_for_artifacts(adb, serial, current, args.timeout), serial)
-        response = provider_call(adb, serial, "stop")
-        if response.get("ok") is False:
-            error = response.get("error", {})
-            raise ControlError(error.get("message", "stop failed"), error.get("code", "STOP_FAILED"))
+        checked(provider_call(adb, serial, "stop"), "STOP_FAILED")
         state = wait_for_phase(adb, serial, "IDLE", args.timeout)
         return add_serial(wait_for_artifacts(adb, serial, state, args.timeout), serial)
 
-    if args.command == "resume":
-        response = provider_call(adb, serial, "resume")
-        if response.get("ok") is False:
-            error = response.get("error", {})
-            raise ControlError(error.get("message", "resume failed"), error.get("code", "RESUME_FAILED"))
+    if command == "resume":
+        return add_serial(checked(provider_call(adb, serial, "resume"), "RESUME_FAILED"), serial)
+
+    if command == "launch":
+        response = checked(provider_call(adb, serial, "launch", request={"appId": str(args.app_id)}), "LAUNCH_FAILED")
+        if args.wait:
+            state = wait_until(adb, serial, f"app {args.app_id} to have focus",
+                               lambda s: focused(s, args.app_id), args.timeout, 0.5)
+            response["focus"] = state["session"].get("focus")
         return add_serial(response, serial)
 
-    if args.command == "logs":
+    if command == "quit":
+        response = provider_call(adb, serial, "quit", request={"appId": args.app_id, "timeout": args.timeout},
+                                 timeout=args.timeout + 40)
+        return add_serial(checked(response, "QUIT_FAILED"), serial)
+
+    if command == "focus":
+        return add_serial(checked(provider_call(adb, serial, "focus", timeout=40), "FOCUS_FAILED"), serial)
+
+    if command == "guest":
+        argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+        if not argv:
+            raise ControlError("guest needs a command after --", "INVALID_ARGUMENTS")
+        env = {}
+        for item in args.env or []:
+            key, sep, value = item.partition("=")
+            if not sep:
+                raise ControlError(f"--env takes KEY=VALUE, not {item}", "INVALID_ARGUMENTS")
+            env[key] = value
+        request = {"argv": argv, "timeout": args.timeout, "env": env}
+        if args.cwd:
+            request["cwd"] = args.cwd
+        if args.stdin is not None:
+            request["stdin"] = args.stdin
+        response = checked(provider_call(adb, serial, "guest", request=request, timeout=args.timeout + 40), "GUEST_FAILED")
+        if args.check and response.get("exitCode") != 0:
+            raise ControlError(f"{argv[0]} exited with {response.get('exitCode')}: "
+                               f"{(response.get('stderr') or {}).get('text', '')[-400:]}", "GUEST_EXIT")
+        return add_serial(response, serial)
+
+    if command == "cdp":
+        if args.cdp_op == "targets":
+            request = {"op": "targets"}
+        else:
+            request = {"op": "eval", "expression": args.expression, "awaitPromise": not args.no_await,
+                       "timeout": args.timeout}
+            if args.target:
+                request["target"] = args.target
+        timeout = getattr(args, "timeout", 15)
+        return add_serial(checked(provider_call(adb, serial, "cdp", request=request, timeout=timeout + 40),
+                                  "CDP_FAILED"), serial)
+
+    if command == "input":
+        return add_serial(checked(provider_call(adb, serial, "input", request=input_request(args), timeout=60),
+                                  "INPUT_FAILED"), serial)
+
+    if command == "ui":
+        if args.ui_op == "dump":
+            request = {"op": "dump", "all": args.all}
+        else:
+            request = {"op": args.ui_op, "index": args.index}
+            if args.match:
+                request["match"] = args.match
+            else:
+                request["tag"] = args.tag
+            if args.ui_op == "set-text":
+                request["text"] = args.text
+        return add_serial(checked(provider_call(adb, serial, "ui", request=request), "UI_FAILED"), serial)
+
+    if command == "env":
+        if args.env_op == "set":
+            request = {"op": "set", "lines": args.lines, "persistent": args.persistent}
+        elif args.env_op == "clear":
+            request = {"op": "clear", "scope": args.scope}
+        else:
+            request = {"op": "list"}
+        return add_serial(checked(provider_call(adb, serial, "env", request=request), "ENV_FAILED"), serial)
+
+    if command == "override":
+        access = checked(provider_call(adb, serial, "access"), "ACCESS_FAILED")
+        if not access.get("commands"):
+            raise ControlError("Agent commands are off: turn on Setup > Session > Agent commands on the device",
+                               "AGENT_COMMANDS_DISABLED")
+        source = Path(args.path).expanduser()
+        if not source.is_file():
+            raise ControlError(f"No such file: {source}", "FILE_IO")
+        inbox = access["inbox"]
+        run_adb(adb, serial, "shell", "mkdir", "-p", inbox)
+        pushed = run_adb(adb, serial, "push", str(source), f"{inbox}/{args.name}", timeout=300)
+        if pushed.returncode != 0:
+            raise ControlError(pushed.stderr.decode(errors="replace").strip() or "adb push failed", "PUSH_FAILED")
+        return add_serial(checked(provider_call(adb, serial, "override", request={"name": args.name}),
+                                  "OVERRIDE_FAILED"), serial)
+
+    if command == "prefs":
+        if args.prefs_op == "set":
+            request = {"op": "set", "file": args.file, "key": args.key, "type": args.type, "value": args.value}
+        else:
+            request = {"op": "get", "file": args.file}
+        return add_serial(checked(provider_call(adb, serial, "prefs", request=request), "PREFS_FAILED"), serial)
+
+    if command == "access":
+        return add_serial(checked(provider_call(adb, serial, "access"), "ACCESS_FAILED"), serial)
+
+    if command == "logs":
         state = get_state(adb, serial)
         session = state.get("session", {})
         if not session.get("running") and session.get("artifactsAvailable") and not session.get("artifactsComplete"):
@@ -258,20 +476,24 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
             raise ControlError(detail or "adb pull failed", "LOG_PULL_FAILED")
         return add_serial({"ok": True, "command": "logs", "sessionId": session["id"], "path": str(destination)}, serial)
 
-    if args.command == "screenshot":
-        destination = Path(args.path).expanduser().resolve()
-        result = run_adb(adb, serial, "exec-out", "screencap", "-p", timeout=30)
-        if result.returncode != 0:
-            detail = result.stderr.decode(errors="replace").strip()
-            raise ControlError(detail or "screencap failed", "SCREENSHOT_FAILED")
-        try:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(result.stdout)
-        except OSError as exc:
-            raise ControlError(str(exc), "FILE_IO") from exc
-        return add_serial({"ok": True, "command": "screenshot", "path": str(destination)}, serial)
+    if command == "screenshot":
+        return add_serial(screenshot(adb, serial, args.path, args.display), serial)
 
-    raise ControlError(f"Unknown command: {args.command}", "UNKNOWN_COMMAND")
+    if command == "record":
+        return add_serial(record(adb, serial, args.path, args.seconds, args.display), serial)
+
+    if command == "wake":
+        # A sleeping device stops the session and hides the app's windows from ui dump.
+        run_adb(adb, serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP")
+        run_adb(adb, serial, "shell", "wm", "dismiss-keyguard")
+        power = run_adb(adb, serial, "shell", "dumpsys", "power").stdout.decode(errors="replace")
+        awake = re.search(r"mWakefulness=(\w+)", power)
+        return add_serial({"ok": True, "command": "wake", "wakefulness": awake.group(1) if awake else None}, serial)
+
+    if command == "displays":
+        return add_serial({"ok": True, "command": "displays", "displays": displays(adb, serial)}, serial)
+
+    raise ControlError(f"Unknown command: {command}", "UNKNOWN_COMMAND")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -294,43 +516,163 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("program")
     run.add_argument("arguments", nargs=argparse.REMAINDER)
 
-    wait = commands.add_parser("wait", help="wait for a session phase")
-    wait.add_argument("phase", choices=["ready", "idle", "failed"])
+    wait = commands.add_parser("wait", help="wait for a session phase, or for a game to have focus")
+    wait.add_argument("phase", choices=["ready", "idle", "failed", "focused", "game"])
+    wait.add_argument("app_id", nargs="?", type=int, help="with focused: the Steam app id")
     wait.add_argument("--timeout", type=float, default=90)
 
     stop = commands.add_parser("stop", help="stop the session and wait for IDLE")
     stop.add_argument("--timeout", type=float, default=90)
     commands.add_parser("resume", help="resume a suspended session")
 
+    launch = commands.add_parser("launch", help="launch a Steam game in the running Steam session")
+    launch.add_argument("app_id", type=int)
+    launch.add_argument("--wait", action="store_true", help="wait until the game has focus")
+    launch.add_argument("--timeout", type=float, default=180)
+
+    quit_ = commands.add_parser("quit", help="quit a running game (through the client, then signals)")
+    quit_.add_argument("app_id", type=int)
+    quit_.add_argument("--timeout", type=float, default=15)
+
+    commands.add_parser("focus", help="gamescope's focus and every Xwayland server's windows, fresh")
+
+    guest = commands.add_parser("guest", help="run a command inside the session (agent commands)")
+    guest.add_argument("--timeout", type=float, default=30)
+    guest.add_argument("--env", action="append", metavar="KEY=VALUE")
+    guest.add_argument("--cwd")
+    guest.add_argument("--stdin")
+    guest.add_argument("--check", action="store_true", help="fail unless the command exits 0")
+    guest.add_argument("argv", nargs=argparse.REMAINDER)
+
+    cdp = commands.add_parser("cdp", help="the Steam client's DevTools (agent commands)")
+    cdp_ops = cdp.add_subparsers(dest="cdp_op", required=True)
+    cdp_ops.add_parser("targets", help="list DevTools targets")
+    evaluate = cdp_ops.add_parser("eval", help="evaluate JavaScript (default target SharedJSContext)")
+    evaluate.add_argument("expression")
+    evaluate.add_argument("--target", help="title or URL substring of the target")
+    evaluate.add_argument("--no-await", action="store_true", help="do not await a returned promise")
+    evaluate.add_argument("--timeout", type=float, default=15)
+
+    inp = commands.add_parser("input", help="keys, text, touch and pad input into the session")
+    kinds = inp.add_subparsers(dest="input_type", required=True)
+    key = kinds.add_parser("key", help="a key by name (ENTER, ESC, A, F1...) or evdev code")
+    key.add_argument("key")
+    key.add_argument("--action", choices=["tap", "down", "up"], default="tap")
+    key.add_argument("--mod", action="append", help="modifier held around a tap (CTRL, SHIFT, ALT, META)")
+    key.add_argument("--hold", type=int, default=40, help="ms between down and up")
+    text = kinds.add_parser("text", help="type text (US layout keys; --commit for text-input)")
+    text.add_argument("text")
+    text.add_argument("--commit", action="store_true")
+    tap = kinds.add_parser("tap", help="touch at a point of the session's output")
+    tap.add_argument("x", type=float)
+    tap.add_argument("y", type=float)
+    tap.add_argument("--space", choices=["output", "fraction"], default="output")
+    tap.add_argument("--hold", type=int, default=60)
+    swipe = kinds.add_parser("swipe", help="drag a touch from one point to another")
+    for name in ("x", "y", "x2", "y2"):
+        swipe.add_argument(name, type=float)
+    swipe.add_argument("--space", choices=["output", "fraction"], default="output")
+    swipe.add_argument("--duration", type=int, default=300)
+    pad = kinds.add_parser("pad", help="a virtual pad button (a, b, x, y, lb, rb, start, select, guide, qam, up...)")
+    pad.add_argument("button")
+    pad.add_argument("--action", choices=["tap", "down", "up"], default="tap")
+    pad.add_argument("--hold", type=int, default=120)
+    stick = kinds.add_parser("stick", help="hold a stick at x, y (-1..1)")
+    stick.add_argument("stick", choices=["left", "right"])
+    stick.add_argument("x", type=float)
+    stick.add_argument("y", type=float)
+    stick.add_argument("--hold", type=int, default=300)
+    trigger = kinds.add_parser("trigger", help="hold a trigger (0..1)")
+    trigger.add_argument("trigger", choices=["left", "right"])
+    trigger.add_argument("value", type=float, nargs="?", default=1.0)
+    trigger.add_argument("--hold", type=int, default=200)
+
+    ui = commands.add_parser("ui", help="the app's own UI: dump nodes, click or type by test tag")
+    ui_ops = ui.add_subparsers(dest="ui_op", required=True)
+    dump = ui_ops.add_parser("dump", help="tagged, labelled and clickable nodes of every app window")
+    dump.add_argument("--all", action="store_true", help="every node")
+    for name in ("click", "set-text"):
+        op = ui_ops.add_parser(name)
+        op.add_argument("tag", nargs="?", help="test tag, e.g. rail-steam")
+        op.add_argument("--match", help="instead of a tag: text or description containing this")
+        op.add_argument("--index", type=int, default=0, help="which match, in tree order")
+        if name == "set-text":
+            op.add_argument("--text", required=True)
+
+    env = commands.add_parser("env", help="session environment lines (agent commands)")
+    env_ops = env.add_subparsers(dest="env_op", required=True)
+    env_ops.add_parser("list")
+    env_set = env_ops.add_parser("set", help="KEY=VALUE lines for the next session")
+    env_set.add_argument("lines", nargs="+")
+    env_set.add_argument("--persistent", action="store_true", help="every session until cleared")
+    env_clear = env_ops.add_parser("clear")
+    env_clear.add_argument("scope", nargs="?", choices=["next", "persistent", "all"], default="next")
+
+    override = commands.add_parser("override", help="put a binary first on the next session's PATH (agent commands)")
+    override.add_argument("name", help="the program name, e.g. gamescope")
+    override.add_argument("path", help="the local file to push")
+
+    prefs = commands.add_parser("prefs", help="the app's preferences (agent commands)")
+    prefs_ops = prefs.add_subparsers(dest="prefs_op", required=True)
+    prefs_get = prefs_ops.add_parser("get")
+    prefs_get.add_argument("file", help="preferences file, e.g. session")
+    prefs_set = prefs_ops.add_parser("set")
+    prefs_set.add_argument("file")
+    prefs_set.add_argument("key")
+    prefs_set.add_argument("value", nargs="?")
+    prefs_set.add_argument("--type", choices=["bool", "int", "long", "float", "string", "remove"], default="string")
+
+    commands.add_parser("access", help="whether agent commands are allowed on the device")
+
     logs = commands.add_parser("logs", help="pull the latest session artifact directory")
     logs.add_argument("which", choices=["latest"])
     logs.add_argument("destination", nargs="?")
     logs.add_argument("--timeout", type=float, default=90)
 
-    screenshot = commands.add_parser("screenshot", help="save a device screenshot")
-    screenshot.add_argument("path")
+    shot = commands.add_parser("screenshot", help="save a device screenshot")
+    shot.add_argument("path")
+    shot.add_argument("--display", type=int, help="logical display id (see displays); default the default display")
+
+    rec = commands.add_parser("record", help="record the screen to an mp4")
+    rec.add_argument("path")
+    rec.add_argument("--seconds", type=float, default=10)
+    rec.add_argument("--display", type=int)
+
+    commands.add_parser("displays", help="the device's displays and their capture ids")
+    commands.add_parser("wake", help="wake the device and dismiss the keyguard")
     return parser
+
+
+EXIT_ADB = {"ADB_NOT_FOUND", "ADB_FAILED", "INVALID_PROVIDER_RESPONSE"}
+EXIT_SESSION = {
+    "SESSION_ACTIVE", "NO_ACTIVE_SESSION", "SESSION_NOT_SUSPENDED", "SESSION_FAILED", "GUEST_EXIT",
+    "GUEST_START_FAILED", "RUNTIME_INSTALL_FAILED", "DESKTOP_INSTALL_FAILED", "ACTIVITY_START_FAILED",
+    "NO_STEAM_SESSION", "SESSION_NOT_READY", "AGENT_UNAVAILABLE", "LAUNCH_REJECTED", "NO_PAD",
+}
+EXIT_TIMEOUT = {"TIMEOUT", "ARTIFACT_TIMEOUT"}
+EXIT_FILE = {"NO_SESSION_LOGS", "LOG_PULL_FAILED", "SCREENSHOT_FAILED", "FILE_IO", "RECORD_FAILED", "PUSH_FAILED"}
+EXIT_DENIED = {"AGENT_COMMANDS_DISABLED", "PROTECTED_PREFS", "PROTECTED_CONTROL"}
 
 
 def exit_code(exc: Exception) -> int:
     if isinstance(exc, DeviceResolutionError):
         return 3
     code = getattr(exc, "code", "")
-    if code in {"ADB_NOT_FOUND", "ADB_FAILED", "INVALID_PROVIDER_RESPONSE"}:
+    if code in EXIT_ADB:
         return 3
-    if code in {"SESSION_ACTIVE", "NO_ACTIVE_SESSION", "SESSION_NOT_SUSPENDED", "SESSION_FAILED",
-                "GUEST_EXIT", "GUEST_START_FAILED", "RUNTIME_INSTALL_FAILED", "DESKTOP_INSTALL_FAILED",
-                "ACTIVITY_START_FAILED"}:
+    if code in EXIT_SESSION:
         return 4
-    if code in {"TIMEOUT", "ARTIFACT_TIMEOUT"}:
+    if code in EXIT_TIMEOUT:
         return 5
-    if code in {"NO_SESSION_LOGS", "LOG_PULL_FAILED", "SCREENSHOT_FAILED", "FILE_IO"}:
+    if code in EXIT_FILE:
         return 6
+    if code in EXIT_DENIED:
+        return 7
     return 2
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     serial = None
     try:
         adb = adb_path(args.adb)
@@ -340,11 +682,15 @@ def main() -> int:
         return 0
     except (ControlError, DeviceResolutionError) as exc:
         error = {"code": getattr(exc, "code", "DEVICE_RESOLUTION_FAILED"), "message": str(exc)}
-        response = {"ok": False, "error": error}
-        if serial:
-            response["deviceSerial"] = serial
-        print(json.dumps(response, indent=2, sort_keys=True))
-        return exit_code(exc)
+        code = exit_code(exc)
+    except Exception as exc:  # the contract is JSON on stdout, even for a bug in this tool
+        error = {"code": "INTERNAL_ERROR", "message": f"{type(exc).__name__}: {exc}"}
+        code = 2
+    response = {"ok": False, "error": error}
+    if serial:
+        response["deviceSerial"] = serial
+    print(json.dumps(response, indent=2, sort_keys=True))
+    return code
 
 
 if __name__ == "__main__":
