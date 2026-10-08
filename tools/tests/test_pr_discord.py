@@ -127,6 +127,32 @@ class PrDiscordTest(unittest.TestCase):
         self.assertIn(r"\~\~Retired\~\~", content)
         self.assertLessEqual(len(module.retired_content(content, True)), 2000)
 
+    def test_description_uses_first_useful_paragraph(self):
+        body = "## Summary\n\n<!-- private template guidance -->\n\nFixes the [Store import](https://example.com).\n\nMore implementation detail."
+        content = module.build_content("Droid-Deck/DroidDeck", "400", "Store import", "a" * 40, "apk", "release", body)
+        self.assertIn("\n\nFixes the Store import.\n\n", content)
+        self.assertNotIn("private template", content)
+        self.assertNotIn("More implementation", content)
+
+    def test_empty_and_template_descriptions_are_omitted(self):
+        for body in (None, "", "## Summary\n\n<!-- fill this out -->\n\n- [ ] Tests\n- [x] Code review", "N/A"):
+            self.assertEqual("", module.description_excerpt(body))
+
+    def test_description_cannot_override_status_or_ping(self):
+        self.pull["body"] = "~~Closed~~ @everyone\n\n```\nsecret template code\n```"
+        self.publish()
+        payload = self.discord.request.call_args.args[2]
+        self.assertIn(r"\~\~Closed\~\~ @everyone", payload["content"])
+        self.assertNotIn("secret template", payload["content"])
+        self.assertEqual({"parse": []}, payload["allowed_mentions"])
+
+    def test_long_description_leaves_room_for_retirement(self):
+        content = module.build_content("Droid-Deck/DroidDeck", "410", "*" * 300, "a" * 40,
+                                       "https://github.com/Droid-Deck/DroidDeck-CI/releases/download/pr-410/build.apk",
+                                       "https://github.com/Droid-Deck/DroidDeck-CI/releases/tag/pr-410", "~" * 10000)
+        self.assertLessEqual(len(content), 1800)
+        self.assertLessEqual(len(module.retired_content(content, True)), 2000)
+
 
 original_report = module.report_comment
 

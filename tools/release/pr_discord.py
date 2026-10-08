@@ -83,9 +83,29 @@ def plain_title(title):
     return re.sub(r"([\\`*_~|\[\]<>])", r"\\\1", title)
 
 
-def build_content(repo, number, title, sha, apk, release):
+def description_excerpt(body):
+    body = re.sub(r"<!--.*?-->", "", body or "", flags=re.DOTALL)
+    body = re.sub(r"```.*?```", "", body, flags=re.DOTALL)
+    for paragraph in re.split(r"\n\s*\n", body):
+        lines = [line.strip() for line in paragraph.splitlines()]
+        lines = [line for line in lines if line and not re.match(r"^(#{1,6}\s|[-*]\s+\[[ xX]\]|🤖)", line)]
+        text = " ".join(lines)
+        if not text or text.strip("*_` :.").lower() in (
+                "summary", "description", "checklist", "testing", "n/a", "none",
+                "please describe your changes here", "describe your changes"):
+            continue
+        text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+        if len(text) > 300:
+            text = text[:297].rsplit(" ", 1)[0] + "..."
+        return plain_title(text)
+    return ""
+
+
+def build_content(repo, number, title, sha, apk, release, description=None):
+    excerpt = description_excerpt(description)
     return (f"**Signed PR test build** `pr-{number}` · `{sha[:7]}`\n"
             f"[#{number}](https://github.com/{repo}/pull/{number}): {plain_title(title)}\n"
+            + (f"\n{excerpt}\n\n" if excerpt else "") +
             "_Not merged — for testing._\n"
             f"Download: [standard APK](<{apk}>) · [all variants](<{release}>)")
 
@@ -123,7 +143,7 @@ def sync(mode, repo, number, discord, sha="", apk="", release=""):
                                 {"content": retired_content(message["content"], pull.get("merged", False)),
                                  "allowed_mentions": {"parse": []}, "flags": 4})
         return
-    content = build_content(repo, number, pull["title"], sha, apk, release)
+    content = build_content(repo, number, pull["title"], sha, apk, release, pull.get("body"))
     if len(content) > 1800:
         raise RuntimeError("Discord announcement is too long")
     payload = {"content": content, "allowed_mentions": {"parse": []}, "flags": 4}
