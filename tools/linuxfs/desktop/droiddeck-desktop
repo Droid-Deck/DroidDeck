@@ -16,6 +16,11 @@ export QT_QPA_PLATFORMTHEME=lxqt
 # The prefs for this are only advisory and a profile can override them; the environment is not.
 export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
 export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
+# Firefox seals the size of the shared memory it hands a tab; on Android 16 (Galaxy S25/S26,
+# RedMagic) adding the seal fails, Firefox only warns, and the tab refuses the unsealed memory
+# ("Shared memory PlatformHandle is not safe to map") and dies on signal 11 - every page. Firefox's
+# own switch skips the seals. (#280; the line went missing in the fontconfig move of #252.)
+export MOZ_SHM_NO_SEALS=1
 # pixman composites in software and gives programs shm buffers only, so a Vulkan program on it
 # fails at its swapchain. vulkan (or gles2) composite on the GPU and give programs DMA-BUFs, but
 # stock wlroots allocates through gbm on a real DRM node and the KGSL stand-in is not one ("unable
