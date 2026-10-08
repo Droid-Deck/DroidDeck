@@ -445,6 +445,24 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertEqual(self.reg.read_text(), before)
         self.assertEqual(sorted(os.listdir(self.windows / "system32")), ["winedirectaudio.drv"])
 
+    def test_a_first_launch_has_proton_make_the_prefix_so_directaudio_applies_at_once(self):
+        proton = self.tool / "proton"
+        proton.write_text("#!/bin/sh\n[ \"$1\" = run ] && [ \"$2\" = wineboot ] || exit 2\n"
+                          "mkdir -p \"$STEAM_COMPAT_DATA_PATH/pfx/drive_c/windows/system32\" \"$STEAM_COMPAT_DATA_PATH/pfx/drive_c/windows/syswow64\"\n"
+                          "printf 'WINE REGISTRY Version 2\\n\\n#arch=win64\\n' > \"$STEAM_COMPAT_DATA_PATH/pfx/user.reg\"\n")
+        proton.chmod(0o755)
+        result = self.run_setup()
+        self.assertIn("having Proton create it now", result.stderr)
+        self.assertIn("DirectAudio selected in the prefix", result.stderr)
+        self.assertNotIn("takes effect the next time", result.stderr)
+        self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
+        self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
+
+    def test_without_a_prefix_and_without_proton_it_waits_for_the_next_launch(self):
+        result = self.run_setup()
+        self.assertIn("takes effect the next time this game starts", result.stderr)
+        self.assertEqual(self.link("system32"), None)
+
     def test_a_running_wineserver_is_written_through_so_its_save_keeps_the_value(self):
         import socket
         self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")

@@ -42,6 +42,9 @@ Three things were wrong with audio at once, and one tidy-up Kurt asked for.
   Deleted: `app/src/main/assets/directaudio/` (now generated, ignored), `tools/directaudio-relay/`,
   `tools/aaudio-sink/module-directaudio-sink.c` + `da_relay_proto.h`. `tools/aaudio-sink` keeps
   only `module-aaudio-sink` (the fallback). The release carries Max's #338 fixes, credited there.
+- **First launch of a non-Steam shortcut** played through Proton's PulseAudio because the prefix
+  did not exist when the wrapper ran. With no prefix the wrapper now has Proton make it first
+  (`proton run wineboot`, Proton's own setup) and selects DirectAudio in the same launch. Test.
 - Audio bundle stamp bumped so an installed app re-unpacks the modules.
 - Open: device runs of the native sink on the FIT and a Thor (20 ms bursts); 0.3.2 so #204/#192
   reporters get #338 at all.

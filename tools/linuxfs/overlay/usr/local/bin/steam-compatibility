@@ -238,6 +238,15 @@ bl_directaudio() {
   # than written with `wine reg`, which would start a wineserver here just to set one value.
   pfx="${STEAM_COMPAT_DATA_PATH:-}/pfx"
   reg="$pfx/user.reg"
+  if [ ! -f "$reg" ] && [ -n "${STEAM_COMPAT_DATA_PATH:-}" ] && [ -x "$base/proton" ]; then
+    # A prefix that does not exist yet would be made by Proton moments from now, after this ran,
+    # and the value would only land on the NEXT launch: the first run of a non-Steam shortcut
+    # played through Proton's own PulseAudio (Steam titles escape it because Steam's install step
+    # makes the prefix before the game's verb). So the prefix is made first, by Proton itself
+    # (its own setup, nothing hand-rolled), and the selection below then finds it.
+    echo "droiddeck-proton: no prefix yet - having Proton create it now so DirectAudio applies to this first launch" >&2
+    "$base/proton" run wineboot >/dev/null 2>&1 || echo "droiddeck-proton: prefix creation returned an error; carrying on" >&2
+  fi
   if [ -f "$reg" ]; then
     for pair in system32:aarch64-windows syswow64:i386-windows; do
       dir="$pfx/drive_c/windows/${pair%%:*}"
@@ -267,9 +276,9 @@ bl_directaudio() {
       fi
     fi
   else
-    # A prefix that does not exist yet is created by Proton moments from now, after this runs, so
-    # the key lands on the NEXT launch of that game. Said out loud because silent audio on a first
-    # launch would otherwise look like a fault.
+    # Still no prefix (creation failed or could not be attempted): Proton makes it moments from
+    # now and the value lands on the NEXT launch. Said out loud so a first launch on Proton's own
+    # audio does not look like a fault.
     echo "droiddeck-proton: no prefix yet - DirectAudio takes effect the next time this game starts" >&2
   fi
   echo "droiddeck-proton: DirectAudio ready (Wine $major, $set)" >&2
