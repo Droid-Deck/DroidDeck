@@ -50,8 +50,12 @@ Three things were wrong with audio at once, and one tidy-up @xXJSONDeruloXx aske
   did not exist when the wrapper ran. With no prefix the wrapper now has Proton make it first
   (`proton run wineboot`, Proton's own setup) and selects DirectAudio in the same launch. Test.
 - Audio bundle stamp bumped so an installed app re-unpacks the modules.
-- Open: device runs of the native sink on the FIT and a Thor (20 ms bursts); 0.3.2 so #204/#192
-  reporters get #338 at all.
+- **Device-proven on the FIT (build `aea5137`):** the client's sink opened at 12 ms / 4 ms bursts
+  with 0 underruns after 10 s (`client sink: DirectAudio (module-directaudio-native-sink)`), and FEZ
+  on `cachyos-11.0-20261005-slr` took the system-thread set - Proton log `Loading driver list
+  L"directaudio,pulse"` → `Selecting driver L"directaudio"`, relay `hello from FEZ.exe`, 12 ms
+  buffer. Open: a first-launch shortcut, an Experimental regression pass, a Thor (20 ms bursts);
+  0.3.2 so #204/#192 reporters get #338 at all.
 
 ## 2026-09-29 - `feat/controller-input`: the pad the way SteamOS has it
 
