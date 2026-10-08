@@ -269,15 +269,9 @@ pub fn run_assemble(
                 return outcome;
             }
         }
-        outcome.files_done += 1;
-        progress(
-            outcome.bytes_written,
-            plan.bytes_total,
-            outcome.files_done,
-            files_total,
-        );
         // Scratch cache: this file was the last user of a chunk → the chunk goes now, not at the
-        // end, so the cache holds only what is still owed to files not yet written.
+        // end, so the cache holds only what is still owed to files not yet written. Released
+        // before the progress event, so "file done" also means "its chunks are freed".
         if plan.scratch_cache {
             for guid in distinct_guids(f) {
                 let Some(count) = refs.get_mut(&guid) else {
@@ -292,6 +286,13 @@ pub fn run_assemble(
                 }
             }
         }
+        outcome.files_done += 1;
+        progress(
+            outcome.bytes_written,
+            plan.bytes_total,
+            outcome.files_done,
+            files_total,
+        );
     }
 
     outcome.success = true;
