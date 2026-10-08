@@ -167,7 +167,6 @@ object DeviceReport {
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
         k("Stretch 16:9 to panel", SessionPrefs.stretch16x9(context))
-        k("Client audio", if (SessionPrefs.clientDirectAudio(context)) "DirectAudio" else "classic")
         k("Microphone", SessionPrefs.micEnabled(context))
         k("On-screen controls", SessionPrefs.oscMode(context))
         k("Touch mode", SessionPrefs.touchMode(context))
@@ -181,8 +180,14 @@ object DeviceReport {
         h("Android process limits")
         k("Phantom proc monitor", PhantomProcessLimit.reportValue(PhantomProcessLimit.read(context)))
 
-        h("Device switch files in Download")
-        for (name in listOf("droiddeck-env", "droiddeck-tu-debug", "droiddeck-driver",
+        h("Device switch files")
+        SessionService.envSwitchFile(context)?.takeIf { it.isFile }?.let { f ->
+            k("droiddeck-env", FileUtils.readString(f)?.trim()?.replace('\n', ' ')?.ifEmpty { "(present, empty)" } ?: "(present)")
+        }
+        if (File(Environment.getExternalStorageDirectory(), "Download/droiddeck-env").isFile) {
+            k("Download/droiddeck-env", "(ignored - it moved to Android/data/${context.packageName}/files)")
+        }
+        for (name in listOf("droiddeck-tu-debug", "droiddeck-driver",
                             "droiddeck-osc", "droiddeck-no-pad",
                             "droiddeck-no-hud", "droiddeck-wlr-renderer")) {
             val f = File(Environment.getExternalStorageDirectory(), "Download/$name")

@@ -69,6 +69,7 @@ object UserApps {
         class AppImage(val file: File) : Source()
         class GitHub(val repo: String) : Source()
         class Flatpak(val id: String) : Source()
+        class FlatpakBundle(val file: File) : Source()
     }
 
     /** [icon]: a picked file's path or a suggested icon's URL. */
@@ -124,6 +125,7 @@ object UserApps {
                 is Source.AppImage -> AppImageManager.import(context, s.file, name, icon) { onProgress(it, -1) }
                 is Source.GitHub -> addFromGitHub(context, s.repo, name, icon, onProgress)
                 is Source.Flatpak -> addFlatpak(context, s.id, name, icon, onProgress)
+                is Source.FlatpakBundle -> addFlatpakBundle(context, s.file, name, icon, onProgress)
             }
         }
     }
@@ -422,9 +424,36 @@ object UserApps {
     private fun addFlatpak(context: Context, id: String, name: String?, icon: File?, onProgress: (String, Int) -> Unit): String? {
         if (!FlatpakManager.ready(context)) FlatpakManager.setup(context, onProgress)?.let { return it }
         FlatpakManager.install(context, id, onProgress)?.let { return it }
+        customiseFlatpak(context, id, name, icon)
+        return null
+    }
+
+    private fun addFlatpakBundle(context: Context, file: File, name: String?, icon: File?, onProgress: (String, Int) -> Unit): String? {
+        if (!file.isFile) return context.getString(R.string.user_apps_file_gone)
+        if (!FlatpakManager.ready(context)) FlatpakManager.setup(context, onProgress)?.let { return it }
+        // Shared storage is bound into the runtime at its own path; a file anywhere else is copied in.
+        val shared = Environment.getExternalStorageDirectory().canonicalPath
+        val copy = File(LinuxRuntime.rootDir(context), "tmp/droiddeck-bundle.flatpak").takeIf { !file.canonicalPath.startsWith("$shared/") }
+        try {
+            if (copy != null) {
+                onProgress(context.getString(R.string.user_apps_copying, file.name), -1)
+                file.copyTo(copy.apply { parentFile?.mkdirs() }, overwrite = true)
+            }
+            val (id, problem) = FlatpakManager.installBundle(context, copy?.let { "/tmp/${it.name}" } ?: file.canonicalPath, onProgress)
+            problem?.let { return it }
+            if (id != null) customiseFlatpak(context, id, name, icon)
+            return null
+        } catch (e: Exception) {
+            Log.e(TAG, "bundle ${file.path}", e)
+            return e.message ?: context.getString(R.string.user_apps_failed)
+        } finally {
+            copy?.delete()
+        }
+    }
+
+    private fun customiseFlatpak(context: Context, id: String, name: String?, icon: File?) {
         val custom = overrides(context, id)
         if (name != null) FileUtils.writeString(File(custom.apply { mkdirs() }, "name"), name)
-        if (icon != null && !saveIcon(icon, File(custom, "icon.png"))) Log.w(TAG, "icon ${icon.path} could not be read")
-        return null
+        if (icon != null && !saveIcon(icon, File(custom.apply { mkdirs() }, "icon.png"))) Log.w(TAG, "icon ${icon.path} could not be read")
     }
 }

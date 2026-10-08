@@ -80,6 +80,9 @@ object SessionState {
     /** Told (on the thread that changed it) whenever [deckPad] changes. */
     @Volatile var deckPadListener: (() -> Unit)? = null
 
+    /** The session screen's virtual pad, for the agent bridge's pad input (AgentInput). */
+    @Volatile var padBridge: com.droiddeck.launcher.input.PadBridge? = null
+
     /** What the second screen shows, and on which display: kept for the session, so a screen
      *  turned off (sleep, a closed lid) or an activity recreated brings it back as it was. */
     @Volatile var secondScreenMode = com.droiddeck.launcher.input.SecondScreenMode.NONE
