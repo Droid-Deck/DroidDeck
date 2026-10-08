@@ -1235,6 +1235,8 @@ static constexpr const char *TOUCH_NAME = "Mobile Touch Control";
 static constexpr const char *TOUCH_SERIAL = "MT-DROIDDECK0001";
 static constexpr const char *TOUCHCTL_REPORT_FILE = "/tmp/touchctl.report";
 static constexpr const char *TOUCHCTL_OUT_FILE = "/tmp/touchctl.out";
+// While this file exists the device is unplugged: the open stream ends and new opens fail.
+static constexpr const char *TOUCHCTL_OFF_FILE = "/tmp/touchctl.off";
 // Generic Desktop / Game Pad: one 40-byte input report, one 64-byte output report, one 64-byte feature report.
 static const uint8_t kTouchReportDescriptor[] = {
     0x05, 0x01, 0x09, 0x05, 0xa1, 0x01,
@@ -1541,6 +1543,10 @@ __attribute__((visibility("hidden"))) static void *touch_report_thread(void *arg
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
   uint8_t last[TOUCH_REPORT_BYTES] = {};
   for (;;) {
+    if (access(TOUCHCTL_OFF_FILE, F_OK) == 0) {
+      Logger::log("touchctl: unplugged\n");
+      break;
+    }
     uint8_t report[TOUCH_REPORT_BYTES] = {};
     int fd = my_open(TOUCHCTL_REPORT_FILE, O_RDONLY | O_CLOEXEC);
     if (fd >= 0) {
@@ -1595,6 +1601,11 @@ __attribute__((visibility("hidden"))) static bool is_touch_hidraw_path(const cha
 }
 
 __attribute__((visibility("hidden"))) static int open_touch_hidraw(int flags) {
+  if (access(TOUCHCTL_OFF_FILE, F_OK) == 0) {
+    Logger::log("touchctl: open refused while unplugged\n");
+    errno = ENOENT;
+    return -1;
+  }
   if (!process_is_steam_client()) {
     errno = ENOENT;
     return -1;
@@ -2368,6 +2379,8 @@ EXPORT int inotify_add_watch(int fd, const char *pathname, uint32_t mask) {
   }
 
   int ret = my_inotify_add_watch(fd, pathname, mask);
+  if (fake_touchctl_enabled() && process_is_steam_client())
+    Logger::log("touchctl: client watches %s (mask 0x%x) -> %d\n", pathname ? pathname : "(null)", mask, ret);
   if (fake_path)
     free(fake_path);
   return ret;

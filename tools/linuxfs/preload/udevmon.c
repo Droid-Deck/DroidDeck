@@ -32,6 +32,10 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <endian.h>
+#include <stdio.h>
+#include <time.h>
 
 struct stand_in {
   int fd;       /* the descriptor handed out, -1 when the slot is free */
@@ -95,8 +99,11 @@ static int is_wine_process(void) {
   return known == 1;
 }
 
+static void start_injector(void);
+
 static int make_stand_in(int type) {
   int sv[2];
+  start_injector();
   int saved = errno;
   int flags = SOCK_DGRAM | (type & (SOCK_CLOEXEC | SOCK_NONBLOCK));
   if (socketpair(AF_UNIX, flags, 0, sv) != 0) {
@@ -188,4 +195,181 @@ int setsockopt(int fd, int level, int optname, const void *optval, socklen_t opt
     return -1;
   }
   return real_setsockopt(fd, level, optname, optval, optlen);
+}
+
+/* EXPERIMENT (docs/development/steam-touch-controller.md): hotplug through the stand-in.
+ *
+ * A file dropped in INJECT_DIR is a udev event: KEY=VALUE lines (ACTION, DEVPATH, SUBSYSTEM,
+ * DEVNAME, MAJOR, MINOR...). It is sent to every stand-in as udevd would send it to the "udev"
+ * group, and recvmsg below dresses it as udevd's: the udev multicast group as the sender address
+ * and root credentials, without which libudev drops a message. SDL's HID discovery counts an
+ * add or remove and enumerates again, so a hidraw node can come and go while the client runs. */
+#define INJECT_DIR "/tmp/udev-inject"
+
+struct monitor_netlink_header {
+  char prefix[8];
+  unsigned magic;
+  unsigned header_size;
+  unsigned properties_off;
+  unsigned properties_len;
+  unsigned filter_subsystem_hash;
+  unsigned filter_devtype_hash;
+  unsigned filter_tag_bloom_hi;
+  unsigned filter_tag_bloom_lo;
+};
+
+static unsigned murmur_hash2(const char *key, size_t len) {
+  /* systemd's string_hash32 (MurmurHash2, seed 0) */
+  const unsigned m = 0x5bd1e995;
+  const int r = 24;
+  unsigned h = (unsigned)len;
+  const unsigned char *data = (const unsigned char *)key;
+  while (len >= 4) {
+    unsigned k;
+    memcpy(&k, data, 4);
+    k *= m; k ^= k >> r; k *= m;
+    h *= m; h ^= k;
+    data += 4; len -= 4;
+  }
+  switch (len) {
+  case 3: h ^= data[2] << 16; /* fallthrough */
+  case 2: h ^= data[1] << 8; /* fallthrough */
+  case 1: h ^= data[0]; h *= m;
+  }
+  h ^= h >> 13; h *= m; h ^= h >> 15;
+  return h;
+}
+
+static void inject_file(const char *path, unsigned long long seqnum) {
+  char text[2048];
+  FILE *f = fopen(path, "re");
+  if (f == NULL) return;
+  size_t n = fread(text, 1, sizeof(text) - 1, f);
+  fclose(f);
+  text[n] = '\0';
+  char props[2300];
+  size_t used = 0;
+  char subsystem[64] = "";
+  char *save = NULL;
+  for (char *line = strtok_r(text, "\n", &save); line != NULL; line = strtok_r(NULL, "\n", &save)) {
+    size_t len = strlen(line);
+    if (len == 0 || used + len + 1 > sizeof(props) - 64) continue;
+    if (strncmp(line, "SUBSYSTEM=", 10) == 0) snprintf(subsystem, sizeof(subsystem), "%s", line + 10);
+    memcpy(props + used, line, len + 1);
+    used += len + 1;
+  }
+  used += (size_t)snprintf(props + used, sizeof(props) - used, "SEQNUM=%llu", seqnum) + 1;
+  struct monitor_netlink_header header;
+  memset(&header, 0, sizeof(header));
+  memcpy(header.prefix, "libudev", 8);
+  header.magic = htobe32(0xfeedcafe);
+  header.header_size = sizeof(header);
+  header.properties_off = sizeof(header);
+  header.properties_len = (unsigned)used;
+  header.filter_subsystem_hash = htobe32(murmur_hash2(subsystem, strlen(subsystem)));
+  char message[sizeof(header) + sizeof(props)];
+  memcpy(message, &header, sizeof(header));
+  memcpy(message + sizeof(header), props, used);
+  int sent = 0;
+  pthread_mutex_lock(&lock);
+  for (size_t i = 0; i < sizeof(stand_ins) / sizeof(stand_ins[0]); i++) {
+    if (stand_ins[i].fd == -1) continue;
+    if (send(stand_ins[i].peer, message, sizeof(header) + used, MSG_DONTWAIT | MSG_NOSIGNAL) > 0) sent++;
+  }
+  pthread_mutex_unlock(&lock);
+  FILE *done = fopen(INJECT_DIR "/.log", "ae");
+  if (done) {
+    char exe[PATH_MAX] = "";
+    ssize_t len = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+    if (len > 0) exe[len] = '\0';
+    fprintf(done, "%s: pid %d (%s) sent to %d stand-in(s)\n", path, (int)getpid(), exe, sent);
+    fclose(done);
+  }
+}
+
+static void *injector(void *arg) {
+  (void)arg;
+  unsigned long long seqnum = 900000;
+  /* Every process with a stand-in sends each event file once (the client is one of several), so
+   * files are never claimed; whoever sees one older than a few seconds removes it. */
+  static char seen[32][128];
+  size_t next_seen = 0;
+  for (;;) {
+    DIR *dir = opendir(INJECT_DIR);
+    if (dir != NULL) {
+      struct dirent *entry;
+      while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') continue;
+        char path[300];
+        snprintf(path, sizeof(path), INJECT_DIR "/%s", entry->d_name);
+        struct stat st;
+        if (stat(path, &st) != 0) continue;
+        if (time(NULL) - st.st_mtime > 5) {
+          unlink(path);
+          continue;
+        }
+        char key[128];
+        snprintf(key, sizeof(key), "%s:%lu", entry->d_name, (unsigned long)st.st_ino);
+        int done = 0;
+        for (size_t i = 0; i < 32; i++)
+          if (strcmp(seen[i], key) == 0) done = 1;
+        if (done) continue;
+        snprintf(seen[next_seen++ % 32], sizeof(seen[0]), "%s", key);
+        inject_file(path, ++seqnum);
+      }
+      closedir(dir);
+    }
+    struct timespec interval = {0, 100 * 1000 * 1000};
+    nanosleep(&interval, NULL);
+  }
+  return NULL;
+}
+
+static void spawn_injector(void) {
+  pthread_t thread;
+  if (pthread_create(&thread, NULL, injector, NULL) == 0) pthread_detach(thread);
+}
+
+static void start_injector(void) {
+  static pthread_once_t once = PTHREAD_ONCE_INIT;
+  pthread_once(&once, spawn_injector);
+}
+
+/* For ntsync.c's recvmsg(), which owns the symbol: 1 when fd was a stand-in and was answered here
+ * (*result holds what recvmsg returns), 0 when it is not one. */
+__attribute__((visibility("hidden"))) int bl_udevmon_recvmsg(int fd, struct msghdr *msg, int flags,
+                                                             ssize_t (*real_recvmsg)(int, struct msghdr *, int),
+                                                             ssize_t *result) {
+  if (!is_stand_in(fd)) return 0;
+  size_t control_room = msg->msg_controllen;
+  socklen_t name_room = msg->msg_namelen;
+  ssize_t n = real_recvmsg(fd, msg, flags);
+  *result = n;
+  if (n >= 0) {
+    FILE *log = fopen(INJECT_DIR "/.recv", "ae");
+    if (log) {
+      fprintf(log, "pid %d fd %d got %zd bytes, name room %u, control room %zu\n", (int)getpid(), fd, n,
+              (unsigned)name_room, control_room);
+      fclose(log);
+    }
+  }
+  if (n < 0) return 1;
+  if (msg->msg_name != NULL && name_room >= sizeof(struct sockaddr_nl)) {
+    struct sockaddr_nl nl;
+    memset(&nl, 0, sizeof(nl));
+    nl.nl_family = AF_NETLINK;
+    nl.nl_groups = 2; /* udev's multicast group */
+    memcpy(msg->msg_name, &nl, sizeof(nl));
+    msg->msg_namelen = sizeof(nl);
+  }
+  if (msg->msg_control != NULL && control_room >= CMSG_SPACE(sizeof(struct ucred))) {
+    struct cmsghdr *cmsg = (struct cmsghdr *)msg->msg_control;
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_CREDENTIALS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(struct ucred));
+    struct ucred cred = {.pid = 1, .uid = 0, .gid = 0};
+    memcpy(CMSG_DATA(cmsg), &cred, sizeof(cred));
+    msg->msg_controllen = CMSG_SPACE(sizeof(struct ucred));
+  }
+  return 1;
 }

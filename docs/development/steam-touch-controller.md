@@ -264,3 +264,29 @@ What the stream gives that the local device does not:
 
 Everything else (bindings, action sets, layers, touch menus, rumble, the configurator, community
 configs, cloud sync) is Steam's own and works with the local device.
+
+### 4. Two controllers, and hotplug
+
+With the touch device present beside the Deck pad, Steam creates a virtual pad for each
+(`Created virtual controller at slot 0 for controller 0` / `slot 1 for controller 1`): a game
+sees two players. Steam Link avoids this by withdrawing its touch controls while a physical pad is
+in use, and a local device has to do the same, which needs hotplug.
+
+- **Unplug works as is.** Ending the device's report stream (`/tmp/touchctl.off` in the experiment)
+  gives `Controller device closed after hid_read failure`, `Controller 0 disconnected`, and the
+  virtual pad is destroyed. Steam re-enumerates at once, and an open refused then keeps it off.
+- **Plugging back in needs an event.** The client watches only `/dev/input` with inotify (already
+  redirected by libfakeinput) and never rescans hidraw on its own; an inotify event in
+  `/dev/input` did not trigger a HID rescan. Its HID discovery is SDL's, driven by a udev monitor,
+  and the session's monitor is `udevmon.c`'s silent stand-in (the sandbox refuses netlink).
+- **Injected udev events work.** The experiment extends the stand-in: a file in `/tmp/udev-inject`
+  (`ACTION`, `DEVPATH`, `SUBSYSTEM=hidraw`, `DEVNAME`, `MAJOR`, `MINOR`) is sent by every process
+  with a stand-in as udevd's message format (`libudev` header, magic `0xfeedcafe`, properties plus
+  `SEQNUM`), and the stand-in's `recvmsg` (through `ntsync.c`, which owns the symbol) reports the
+  udev multicast group as the sender and root credentials, as libudev requires. An injected `add`
+  for `hidraw17` made the client open the node again within a second and rebuild the touch
+  controller (type 43) and its virtual pad, mid-session. (The sender address has to be written
+  from the room `msg_namelen` had before the call; a unix socket sets it to 0.)
+
+So DroidDeck can show and hide Steam's touch controller the way Steam Link does: plug the device
+in when the on-screen controls are shown, unplug it when a physical pad takes over.
