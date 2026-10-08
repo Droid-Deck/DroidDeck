@@ -45,6 +45,7 @@ import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.input.EvdevKeys
+import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
@@ -367,6 +368,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
         padBridge = bridge
+        SessionState.padBridge = bridge
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -1503,18 +1505,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun movePointer(x: Float, y: Float) {
-        val width = surfaceView.width.takeIf { it > 0 } ?: return
-        val height = surfaceView.height.takeIf { it > 0 } ?: return
-        val out = SessionState.outputSize
-        val scale = minOf(width / out.first.toFloat(), height / out.second.toFloat())
-        val drawnW = out.first * scale
-        val drawnH = out.second * scale
-        val left = (width - drawnW) / 2f
-        val top = (height - drawnH) / 2f
-        val px = ((x - left) / drawnW * 1920f).toInt().coerceIn(0, 1919)
-        val py = ((y - top) / drawnH * 1080f).toInt().coerceIn(0, 1079)
-        WaylandCompositor.nativeSendPointer(1, px, py)
-        showCursor(x.coerceIn(left, left + drawnW), y.coerceIn(top, top + drawnH))
+        val rect = drawnRect() ?: return
+        val cx = x.coerceIn(rect.left, rect.right)
+        val cy = y.coerceIn(rect.top, rect.bottom)
+        WaylandCompositor.nativeSendPointer(1, InputSpace.x(cx, surfaceView.width), InputSpace.y(cy, surfaceView.height))
+        showCursor(cx, cy)
     }
 
     /**
@@ -1661,10 +1656,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (width <= 0f || height <= 0f) return
         val nx = (x / width).coerceIn(0f, 1f)
         val ny = (y / height).coerceIn(0f, 1f)
-        WaylandCompositor.nativeSendPointer(1, (nx * 1919f).toInt(), (ny * 1079f).toInt())
-        drawnRect()?.let { rect ->
-            showCursor(rect.left + nx * rect.width(), rect.top + ny * rect.height())
-        }
+        val rect = drawnRect() ?: return
+        val px = rect.left + nx * rect.width()
+        val py = rect.top + ny * rect.height()
+        WaylandCompositor.nativeSendPointer(1, InputSpace.x(px, surfaceView.width), InputSpace.y(py, surfaceView.height))
+        showCursor(px, py)
     }
 
     private fun closeSecondScreen(reset: Boolean) {
@@ -1711,9 +1707,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         val rect = drawnRect() ?: return false
         fun sendTouch(action: Int, index: Int) {
-            val x = ((event.getX(index) - rect.left) / rect.width()).coerceIn(0f, 1f)
-            val y = ((event.getY(index) - rect.top) / rect.height()).coerceIn(0f, 1f)
-            WaylandCompositor.nativeSendTouch(action, event.getPointerId(index), (x * 1919f).toInt(), (y * 1079f).toInt())
+            val x = event.getX(index).coerceIn(rect.left, rect.right)
+            val y = event.getY(index).coerceIn(rect.top, rect.bottom)
+            WaylandCompositor.nativeSendTouch(action, event.getPointerId(index),
+                InputSpace.x(x, surfaceView.width), InputSpace.y(y, surfaceView.height))
         }
         when (event.actionMasked) {
             // A first finger starts a new gesture, and Android has ended every earlier one: whatever
@@ -2122,6 +2119,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         closeSecondScreen(reset = false)
         if (::hud.isInitialized) hud.stop()
         padBridge?.stop()
+        if (SessionState.padBridge === padBridge) SessionState.padBridge = null
         padMotion?.stop()
         if (SessionState.deckPadListener === deckPadListener) SessionState.deckPadListener = null
         if (SessionState.endListener === endListener) SessionState.endListener = null

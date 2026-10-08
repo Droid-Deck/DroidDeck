@@ -293,7 +293,7 @@ class SessionService : Service() {
         val lines = FileUtils.readString(file)?.lines().orEmpty()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('=') && !it.startsWith("=") }
-        if (lines.isNotEmpty()) Log.i(TAG, "extra environment from ${file.path}: $lines")
+        if (lines.isNotEmpty()) Log.i(TAG, "extra environment keys from ${file.path}: ${lines.map { it.substringBefore('=') }}")
         return lines
     }
 
@@ -324,6 +324,7 @@ class SessionService : Service() {
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
         SessionFiles.stage(this, root)
+        com.droiddeck.launcher.agent.AgentGuest.reset(this)
 
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
@@ -423,7 +424,7 @@ class SessionService : Service() {
             }
             guest.add(program)
             guest.addAll(SessionState.programArgs)
-            Log.i(TAG, "run: $program ${SessionState.programArgs.joinToString(" ")} under gamescope")
+            Log.i(TAG, "run: $program (${SessionState.programArgs.size} arguments) under gamescope")
         }
 
         // Android has no /dev/shm; the cache stands in for it and, unlike the real thing, keeps
@@ -659,6 +660,8 @@ class SessionService : Service() {
         // (ZINK_DESCRIPTORS=lazy, MESA_*), gamescope's, the client's - whatever the experiment
         // needs, without a build per attempt.
         extraEnv().forEach { guest.add(it) }
+        // The agent bridge's experiment lines (AgentEnv), after the user's so an agent's win.
+        com.droiddeck.launcher.agent.AgentEnv.beginSession(this).forEach { guest.add(it) }
         // Core masks, Bannerlator's two (cfca3912). The client's is sent whenever the override is
         // on, even naming every core: it exists to undo the pin Steam applies to its own interface
         // renderer, and the scheduler's default is exactly what that pin takes away. A game's is
@@ -691,16 +694,13 @@ class SessionService : Service() {
 
         val audioLog = File(sessionDir, "audio.log")
         val pulse = PulseAudioComponent(this, micFifo?.absolutePath)
-        // With DirectAudio on, the client's own sound goes through the relay too: the daemon
-        // fills the relay's ring and the relay, outside proot, drives the device.
-        // The client's own sound: the classic AAudio sink unless the user chose the relay.
-        val clientDirectAudio = SessionState.mode == MODE_STEAM && SessionPrefs.clientDirectAudio(this)
-        if (clientDirectAudio) pulse.setRelaySocket(relaySocket.absolutePath)
+        // The client's own sound: DirectAudio's engine inside the daemon, one step from Android (the
+        // daemon runs on the Android side). The relay below is for games and the microphone only.
         pulse.setLogFile(audioLog)
         pulse.attach(this)
         guest.add("PULSE_SERVER=unix:" + pulse.socket().absolutePath)
         components.add(pulse)
-        if (wantsDirectAudio || wantsMic || clientDirectAudio) {
+        if (wantsDirectAudio || wantsMic) {
             // After the daemon in the list, so it can wait for the pipe the daemon makes.
             val relay = DirectAudioRelayComponent(relaySocket, micFifo)
             relay.setLogFile(audioLog)
@@ -714,7 +714,7 @@ class SessionService : Service() {
             guest.add("BL_DIRECTAUDIO=/" + SessionFiles.DIRECTAUDIO_DIR)
             guest.add("BANNER_AUDIO_DIRECT_RELAY=" + relaySocket.absolutePath)
         }
-        Log.i(TAG, "audio: client " + (if (clientDirectAudio) "DirectAudio" else "classic AAudio sink") + (if (wantsDirectAudio) " + DirectAudio for games" else "")
+        Log.i(TAG, "audio: client DirectAudio (in-process sink)" + (if (wantsDirectAudio) " + DirectAudio for games" else "")
             + (if (wantsMic) " + microphone" else "") +
             (if (SessionPrefs.micEnabled(this) && !wantsMic) " (microphone wanted but RECORD_AUDIO not granted)" else ""))
         return pulse
@@ -1410,6 +1410,9 @@ class SessionService : Service() {
             SessionState.pipActive = false
             pipTask = false
             SessionState.guestPid = -1
+            com.droiddeck.launcher.agent.AgentGuest.stop()
+            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
+                .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))

@@ -7,6 +7,61 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-08 - `feat/directaudio-from-release`: DirectAudio from its own release, picked by interface, and the client gets the real engine
+
+Three things were wrong with audio at once, and one tidy-up @xXJSONDeruloXx asked for.
+
+- **Proton-CachyOS games never got DirectAudio.** Both CachyOS Protons we offer carry Wine's newer
+  *system-thread* audio interface (`dlls/mmdevapi/unixlib.h` differs from Valve's); the one driver
+  we shipped was built for the classic table, and the wrapper only asked "is this Wine 11?", which
+  CachyOS passes. Now two driver sets ship (`linux-wine11` for Valve Proton 11 / Experimental /
+  GE-Proton, `linux-wine11-systhread` for Proton-CachyOS) and `steam-compatibility` picks by what
+  the Proton's own `winepulse.so` imports (`PsCreateSystemThread` only on the system-thread table) -
+  never by the version string. No set for the interface, or no `winepulse.so`: DirectAudio stays
+  off and Proton's audio runs. Confirmed on the FIT: Experimental 20260924 and GE-Proton11-7
+  classic, cachyos-11.0-20261005-slr system-thread.
+- **CachyOS also overrode the registry** (device log: `init_driver Loading driver list
+  L"pulse,alsa"`): its launcher sets `WINE_AUDIO_DRIVER=pulse,alsa` (setdefault) and its mmdevapi
+  reads that variable before the registry; Valve's and GE's mmdevapi ignore it. The wrapper now
+  exports `WINE_AUDIO_DRIVER=directaudio,pulse` as well as writing the registry. On CachyOS that
+  also means DirectAudio engages on a game's first launch, no registry value needed.
+- **Some games ran on PulseAudio while the log said DirectAudio.** Two prefixes on the FIT had the
+  driver linked into `system32` but a pristine `user.reg` with no `Audio` value: Steam runs the
+  compat tool several times per launch, and a wineserver from an earlier verb still holding the
+  registry saves its copy over the line we appended. The wrapper now says so when a server is
+  live. Two stronger fixes were tried on the device and withdrawn the same day: writing the value
+  through the live server with a bare `wine reg add`, and having Proton create a missing prefix
+  first (`proton run wineboot`) - the second Proton run inside Steam's launch sequence got the
+  launch aborted (`KeyboardInterrupt` in Proton, games bounced back to their page, a half-made
+  prefix). On Valve/GE a first launch therefore still takes DirectAudio from the second run.
+- **The Steam client's own sound was "DirectAudio" in name only.** PulseAudio → sink → relay →
+  AAudio is one hop more than a plain AAudio sink; the only gain was sharing the games' stream.
+  The daemon runs on the Android side, so DirectAudio's engine can run *in* it:
+  `module-directaudio-native-sink` (from the DirectAudio release) - the game driver's adaptive
+  buffer, two-burst floor, primed ring with fades, route-change reopen, watchdog and limiter, one
+  step from Android. It is now the only route: the *Steam client audio* choice is gone from the
+  menu (the relay route was one hop more for no gain, and the old "Classic" sink is the automatic
+  fallback). If the native sink cannot open its stream the daemon keeps running (`.nofail`) and
+  `PulseAudioComponent.ensureClientSink` loads the plain AAudio sink instead, saying so in
+  `audio.log`. The relay helper now starts only for games and the microphone.
+- **Binaries out of tree** (@xXJSONDeruloXx): the driver sets, the relay helper and both sinks come
+  from the pinned release in `tools/directaudio/release.env` (`directaudio-linux-v1.1.0`, four
+  zips, sha256-checked) through `tools/directaudio/fetch.sh`, in CI and `build_local.sh`, like
+  gamescope. Deleted: `app/src/main/assets/directaudio/` (now generated, ignored),
+  `tools/directaudio-relay/`, `tools/aaudio-sink/module-directaudio-sink.c` + `da_relay_proto.h`.
+  `tools/aaudio-sink` keeps only `module-aaudio-sink` (the fallback). The release carries
+  MaxsTechReview's #338 fixes, credited there.
+- Audio bundle stamp bumped so an installed app re-unpacks the modules.
+- **Device-proven on the FIT, four cases:** the client's sink opened at 12 ms / 4 ms bursts with
+  0 underruns after 10 s (`client sink: DirectAudio (module-directaudio-native-sink)`); FEZ on
+  `cachyos-11.0-20261005-slr` took the system-thread set - Proton log `Loading driver list
+  L"directaudio,pulse"` → `Selecting driver L"directaudio"`, relay `hello from FEZ.exe`, 12 ms;
+  FEZ on Proton Experimental 20260924 on `linux-wine11`, relay hello, 12 ms (no regression);
+  Curse of the Dead Gods on CachyOS from a cold prefix - DirectAudio on its first launch, one
+  early xrun and the buffer grew 12 → 16 ms. Open: a Thor (20 ms bursts). An added game (Noita,
+  a Winlator-era folder never launched here before) bounced on launch with and without this
+  branch's wrapper steps, before Proton wrote a log - its own issue.
+
 ## 2026-09-29 - `feat/controller-input`: the pad the way SteamOS has it
 
 Device-tested on the AYN Thor (Katamari under Proton Experimental ARM64).

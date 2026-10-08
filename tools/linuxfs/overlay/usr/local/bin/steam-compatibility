@@ -206,7 +206,7 @@ BL_DIRECTAUDIO_SETUP = """
 bl_directaudio() {
   base=$1
   [ -n "${BL_DIRECTAUDIO:-}" ] || return 0
-  [ -d "$BL_DIRECTAUDIO/lib/wine" ] || return 0
+  [ -d "$BL_DIRECTAUDIO" ] || return 0
   version=$("$base/files/bin-arm64/wine" --version 2>/dev/null)
   major=${version#wine-}
   major=${major%%.*}
@@ -214,10 +214,32 @@ bl_directaudio() {
     echo "droiddeck-proton: DirectAudio left off - it is built for Wine 11 and this Proton is '${version:-unknown}'. Pairing them would be silent rather than broken, so it is not worth guessing." >&2
     return 0
   fi
+  # Two builds of the driver ship, one per Wine audio interface, and both Wines call themselves
+  # 11.0: the private mmdevapi table is not versioned, and the wrong set plays silence, not an
+  # error. Proton's own winepulse.so tells them apart - it imports PsCreateSystemThread only on
+  # the system-thread table (Proton-CachyOS), never on the classic one (Valve, GE-Proton).
+  winepulse="$base/files/lib/wine/aarch64-unix/winepulse.so"
+  if [ ! -f "$winepulse" ]; then
+    echo "droiddeck-proton: DirectAudio left off - no winepulse.so to read this Proton's audio interface from" >&2
+    return 0
+  fi
+  if grep -aq PsCreateSystemThread "$winepulse"; then set=linux-wine11-systhread; else set=linux-wine11; fi
+  da="$BL_DIRECTAUDIO/$set"
+  if [ ! -d "$da/lib/wine" ]; then
+    echo "droiddeck-proton: DirectAudio left off - no driver set for the $set interface is staged" >&2
+    return 0
+  fi
   # Wine appends the per-architecture subdirectory to each entry, so the directory holding
   # aarch64-unix/ and aarch64-windows/ is what goes here.
-  WINEDLLPATH="$BL_DIRECTAUDIO/lib/wine${WINEDLLPATH:+:$WINEDLLPATH}"
+  WINEDLLPATH="$da/lib/wine${WINEDLLPATH:+:$WINEDLLPATH}"
   export WINEDLLPATH
+  # Proton-CachyOS's launcher sets WINE_AUDIO_DRIVER=pulse,alsa (setdefault, so an existing value
+  # wins), and its mmdevapi reads that variable BEFORE the registry - so the selection below was
+  # being overridden to pulse on every CachyOS game. Valve's and GE's mmdevapi do not read the
+  # variable at all and take the registry, which is why both are done. A value the user set for
+  # the game still wins: the per-game environment is applied after this.
+  WINE_AUDIO_DRIVER="directaudio,pulse"
+  export WINE_AUDIO_DRIVER
   # mmdevapi only tries the drivers named in the registry; its built-in list is pulse, alsa, oss and
   # coreaudio and knows nothing about this one. The key is appended to the prefix's user.reg rather
   # than written with `wine reg`, which would start a wineserver here just to set one value.
@@ -226,25 +248,36 @@ bl_directaudio() {
   if [ -f "$reg" ]; then
     for pair in system32:aarch64-windows syswow64:i386-windows; do
       dir="$pfx/drive_c/windows/${pair%%:*}"
-      src="$BL_DIRECTAUDIO/lib/wine/${pair#*:}/winedirectaudio.drv"
+      src="$da/lib/wine/${pair#*:}/winedirectaudio.drv"
       if [ -d "$dir" ] && [ -f "$src" ] && [ "$(readlink "$dir/winedirectaudio.drv" 2>/dev/null)" != "$src" ]; then
         ln -sfn "$src" "$dir/winedirectaudio.drv.bl-new" && mv -f "$dir/winedirectaudio.drv.bl-new" "$dir/winedirectaudio.drv"
       fi
     done
     key='[Software\\\\Wine\\\\Drivers]'
-    if [ "$(readlink "$pfx/drive_c/windows/system32/winedirectaudio.drv" 2>/dev/null)" != "$BL_DIRECTAUDIO/lib/wine/aarch64-windows/winedirectaudio.drv" ]; then
+    if [ "$(readlink "$pfx/drive_c/windows/system32/winedirectaudio.drv" 2>/dev/null)" != "$da/lib/wine/aarch64-windows/winedirectaudio.drv" ]; then
       echo "droiddeck-proton: DirectAudio could not be placed in the prefix; Proton's own audio stays" >&2
     elif ! BL_KEY="$key" awk 'index($0, "[") == 1 { inside = index($0, ENVIRON["BL_KEY"] " ") == 1 } inside && index($0, "\\"Audio\\"=") == 1 { last = $0 } END { exit last != "\\"Audio\\"=\\"directaudio,pulse\\"" }' "$reg" 2>/dev/null; then
       printf '\\n%s %s\\n"Audio"="directaudio,pulse"\\n' "$key" "$(date +%s)" >> "$reg"
       echo "droiddeck-proton: DirectAudio selected in the prefix" >&2
+      # Steam runs this tool several times per launch (getcompatpath, run, waitforexitandrun); a
+      # wineserver from an earlier verb that still holds the registry saves its own copy on exit
+      # and drops this line. Said out loud so a game that stays on pulse once is explained; it
+      # takes on the next launch. (Writing through the live server with a bare `wine reg add` was
+      # tried and withdrawn: a second Wine invocation inside Steam's launch sequence is not safe.)
+      srv="${BL_WINE_SERVER_BASE:-/tmp/.wine-$(id -u)}/server-$(printf '%x-%x' $(stat -c '%d %i' "$pfx" 2>/dev/null || echo 0 0))/socket"
+      if [ -S "$srv" ]; then
+        echo "droiddeck-proton: a wineserver is already running for this prefix; DirectAudio may only engage on the next launch" >&2
+      fi
     fi
   else
     # A prefix that does not exist yet is created by Proton moments from now, after this runs, so
-    # the key lands on the NEXT launch of that game. Said out loud because silent audio on a first
-    # launch would otherwise look like a fault.
+    # the value lands on the NEXT launch of that game. Said out loud so a first launch on Proton's
+    # own audio does not look like a fault. (Having Proton create the prefix from here first was
+    # tried and withdrawn: a second Proton run inside Steam's launch sequence got the launch
+    # aborted - Steam games bounced back to their page with a half-made prefix.)
     echo "droiddeck-proton: no prefix yet - DirectAudio takes effect the next time this game starts" >&2
   fi
-  echo "droiddeck-proton: DirectAudio ready (Wine $major)" >&2
+  echo "droiddeck-proton: DirectAudio ready (Wine $major, $set)" >&2
 }
 """
 

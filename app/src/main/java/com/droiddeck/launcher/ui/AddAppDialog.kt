@@ -124,6 +124,7 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
     var imagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var repo by rememberSaveable { mutableStateOf("") }
     var flatpak by rememberSaveable { mutableStateOf("") }
+    var bundlePath by rememberSaveable { mutableStateOf<String?>(null) }
     var name by rememberSaveable { mutableStateOf("") }
     var iconPath by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -132,6 +133,9 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
     }
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { imagePath = it.path }
+    }
+    val pickBundle = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { bundlePath = it.path; flatpak = "" }
     }
     val pickIcon = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { iconPath = it.path }
@@ -146,7 +150,9 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
         AddSource.APPIMAGE -> imagePath?.takeIf { it.endsWith(".appimage", ignoreCase = true) }?.let { File(it) }
             ?.let { UserApps.Request(UserApps.Source.AppImage(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
         AddSource.GITHUB -> repoId?.let { UserApps.Request(UserApps.Source.GitHub(it), custom, iconPath) to (custom ?: it) }
-        AddSource.FLATPAK -> flatpakId?.let { UserApps.Request(UserApps.Source.Flatpak(it), custom, iconPath) to (custom ?: it) }
+        AddSource.FLATPAK -> bundlePath?.takeIf { it.endsWith(".flatpak", ignoreCase = true) }?.let { File(it) }
+            ?.let { UserApps.Request(UserApps.Source.FlatpakBundle(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
+            ?: flatpakId?.let { UserApps.Request(UserApps.Source.Flatpak(it), custom, iconPath) to (custom ?: it) }
     }
     val busy = UserAppsState.working
     val tabFocus = remember { AddSource.entries.map { FocusRequester() } }
@@ -192,11 +198,17 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
                                     stringResource(R.string.add_app_repository_placeholder),
                                     stringResource(R.string.add_app_repository_invalid).takeIf { repo.isNotBlank() && repoId == null },
                                 )
-                                AddSource.FLATPAK -> CheckedField(
-                                    flatpak, { flatpak = it.take(200) }, stringResource(R.string.add_app_flatpak_id),
-                                    stringResource(R.string.add_app_flatpak_placeholder),
-                                    stringResource(R.string.add_app_flatpak_invalid).takeIf { flatpak.isNotBlank() && flatpakId == null },
-                                )
+                                AddSource.FLATPAK -> {
+                                    CheckedField(
+                                        flatpak, { flatpak = it.take(200); bundlePath = null }, stringResource(R.string.add_app_flatpak_id),
+                                        stringResource(R.string.add_app_flatpak_placeholder),
+                                        stringResource(R.string.add_app_flatpak_invalid).takeIf { flatpak.isNotBlank() && flatpakId == null },
+                                    )
+                                    Small(stringResource(R.string.add_app_flatpak_bundle_hint))
+                                    FileRow(bundlePath) {
+                                        pickBundle.launch(InAppFilePicker.buildIntent(ctx, listOf("flatpak"), ctx.getString(R.string.add_app_pick_flatpak)))
+                                    }
+                                }
                             }
                         }
                     }

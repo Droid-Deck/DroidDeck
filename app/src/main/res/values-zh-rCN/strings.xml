@@ -337,10 +337,6 @@
     <string name="mode_audio">音频</string>
     <string name="mode_directaudio">游戏使用 DirectAudio</string>
     <string name="mode_directaudio_hint">绕过 PulseAudio 以降低延迟。</string>
-    <string name="mode_client_audio">Steam 客户端音频</string>
-    <string name="mode_client_audio_hint">将在下次会话生效。</string>
-    <string name="mode_client_audio_classic">经典</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">麦克风</string>
     <string name="mode_mic_hint">用于语音聊天。</string>
     <string name="mode_network">网络</string>
@@ -611,6 +607,7 @@
     <string name="setup_session">会话</string>
     <string name="setup_logs">会话日志</string>
     <string name="setup_logs_hint">每次会话后保存</string>
+    <string name="setup_agent_commands">调试工具</string>
     <string name="setup_latest_logs">最新会话日志</string>
     <string name="setup_saved_logs">已保存的会话日志</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 个</string>

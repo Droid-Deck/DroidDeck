@@ -16,11 +16,6 @@ export QT_QPA_PLATFORMTHEME=lxqt
 # The prefs for this are only advisory and a profile can override them; the environment is not.
 export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
 export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
-# Firefox seals the size of the shared memory it hands a tab; on Android 16 (Galaxy S25/S26,
-# RedMagic) adding the seal fails, Firefox only warns, and the tab refuses the unsealed memory
-# ("Shared memory PlatformHandle is not safe to map") and dies on signal 11 - every page. Firefox's
-# own switch skips the seals.
-export MOZ_SHM_NO_SEALS=1
 # pixman composites in software and gives programs shm buffers only, so a Vulkan program on it
 # fails at its swapchain. vulkan (or gles2) composite on the GPU and give programs DMA-BUFs, but
 # stock wlroots allocates through gbm on a real DRM node and the KGSL stand-in is not one ("unable
@@ -89,35 +84,9 @@ fi
 # already running and exit without a word - a desktop with a wallpaper and nothing on it.
 # Only the app's own compositor socket (wayland-0) is kept.
 find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' -exec rm -rf {} + 2>/dev/null
-# fontconfig's rules (sans-serif -> DejaVu Sans and the rest) live as links in /etc/fonts/conf.d,
-# and the rootfs has none: applications then find fonts but no default font. Firefox logs
-# "no fonts" and draws pages without text.
-if [ -d /usr/share/fontconfig/conf.default ] && ! ls /etc/fonts/conf.d/*.conf 2>/dev/null | grep -qv droiddeck; then
-  for f in /usr/share/fontconfig/conf.default/*.conf; do ln -sf "$f" /etc/fonts/conf.d/; done
-  echo "== fontconfig: linked $(ls /etc/fonts/conf.d/*.conf | wc -l) default rules"
-fi
-# Those rules map sans-serif and friends onto whatever a full distribution installs, and this
-# rootfs has one family. Naming it outright is what gives every toolkit a default font: without
-# one Gecko reports "no fonts" with families found, and draws pages with no text at all.
-if [ ! -f /etc/fonts/local.conf ]; then
-  { echo '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd"><fontconfig>'
-    for generic in sans-serif sans serif monospace mono cursive fantasy system-ui ui-sans-serif; do
-      case $generic in
-        serif) face="DejaVu Serif" ;;
-        mono*|ui-mono) face="DejaVu Sans Mono" ;;
-        *) face="DejaVu Sans" ;;
-      esac
-      printf '<alias binding="weak"><family>%s</family><prefer><family>%s</family></prefer></alias>\n' "$generic" "$face"
-    done
-    echo '</fontconfig>'
-  } > /etc/fonts/local.conf
-  echo "== fontconfig: wrote local.conf (DejaVu as the default family)"
-fi
-# The cache in the image was built before those rules existed; rebuild it once, and only once.
-if [ ! -f /var/cache/fontconfig/.droiddeck-built ] && command -v fc-cache >/dev/null 2>&1; then
-  fc-cache -f >/dev/null 2>&1 && touch /var/cache/fontconfig/.droiddeck-built
-  echo "== fontconfig: cache rebuilt, default sans is $(fc-match sans-serif 2>/dev/null)"
-fi
+# Fontconfig defaults and Android language fallbacks are set up by droiddeck-session before this
+# script or any desktop program starts. The generated defaults live in conf.d, leaving local.conf
+# available for the user's own final overrides.
 # The menu's "Steam" / "Steam Big Picture" entries and one entry per installed game: all of them
 # hand off to the app (droiddeck-steam-launch), since the client cannot draw on this desktop.
 export BL_DESKTOP=1
