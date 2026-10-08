@@ -95,15 +95,15 @@ pub fn chunk_cache_dir(install_dir: &str) -> PathBuf {
     Path::new(install_dir).join(super::CHUNK_CACHE_DIR)
 }
 
-/// Where this run's chunks go: `chunk_cache_dir` when the caller named one, else the default
+/// Where this run's chunks go: `cache_dir` when the caller named one, else the default
 /// `<installDir>/.chunks`. A separate directory exists so the cache can sit on internal storage
 /// while the game installs to an SD card: a chunk is written once into the cache and once into
 /// the assembled file, and with both on a 26 MB/s card the second write starved the fetchers.
-pub fn resolve_cache_dir(install_dir: &str, chunk_cache_dir: &str) -> PathBuf {
-    if chunk_cache_dir.is_empty() {
+pub fn resolve_cache_dir(install_dir: &str, cache_dir: &str) -> PathBuf {
+    if cache_dir.is_empty() {
         chunk_cache_dir(install_dir)
     } else {
-        PathBuf::from(chunk_cache_dir)
+        PathBuf::from(cache_dir)
     }
 }
 
