@@ -249,7 +249,7 @@ class SteamTouchControls(
      */
     private fun drawFace(canvas: Canvas, type: Int, binding: SteamTouchBindings.Binding?, x: Float, y: Float, r: Float,
                          baseAlpha: Int, pressed: Boolean) {
-        val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let { SteamTouchBindings.cachedIcon(appId, it, ICON_PX) }
+        val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let(::iconOrLoad)
         if (icon != null) {
             val alpha = min(255, baseAlpha + if (pressed) 150 else 90)
             val disc = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -258,8 +258,7 @@ class SteamTouchControls(
             }
             canvas.drawCircle(x, y, r, disc)
             val s = r * 0.62f
-            SteamTouchIconPicker.drawSteamIcon(canvas, icon, RectF(x - s, y - s, x + s, y + s),
-                parseColor(binding.foreground, SteamTouchBindings.DEFAULT_FOREGROUND),
+            canvas.drawBitmap(tinted(binding.icon, icon, binding.foreground), null, RectF(x - s, y - s, x + s, y + s),
                 Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { this.alpha = alpha })
             canvas.drawCircle(x, y, r, stroke)
             return
@@ -276,6 +275,35 @@ class SteamTouchControls(
         if (shown == own) LABEL_COLORS[type]?.let { text.color = it }
         val line = if (shown.length > 10) shown.take(9) + "…" else shown
         canvas.drawText(line, x, y - (text.descent() + text.ascent()) / 2, text)
+    }
+
+    private val iconsLoading = HashSet<String>()
+
+    // Icons already in their foreground colour. Drawn plain: a colour filter on the icon bitmap
+    // itself stopped drawing on the hardware canvas once a dialog had been over the view.
+    private val tintedIcons = android.util.LruCache<String, android.graphics.Bitmap>(48)
+
+    private fun tinted(name: String, icon: android.graphics.Bitmap, foreground: String): android.graphics.Bitmap {
+        val key = "$name|$foreground|${icon.width}"
+        tintedIcons.get(key)?.let { return it }
+        val out = android.graphics.Bitmap.createBitmap(icon.width, icon.height, android.graphics.Bitmap.Config.ARGB_8888)
+        SteamTouchIconPicker.drawSteamIcon(Canvas(out), icon, RectF(0f, 0f, icon.width.toFloat(), icon.height.toFloat()),
+            parseColor(foreground, SteamTouchBindings.DEFAULT_FOREGROUND), Paint(Paint.FILTER_BITMAP_FLAG))
+        tintedIcons.put(key, out)
+        return out
+    }
+
+    /** An icon from the cache, or null while it is (re)loaded; the view redraws when it comes in. */
+    private fun iconOrLoad(name: String): android.graphics.Bitmap? {
+        SteamTouchBindings.cachedIcon(appId, name, ICON_PX)?.let { return it }
+        if (iconsLoading.add(name)) {
+            val app = appId
+            loader.execute {
+                SteamTouchBindings.icon(context, app, name, ICON_PX)
+                handler.post { iconsLoading.remove(name); invalidate() }
+            }
+        }
+        return null
     }
 
     private fun parseColor(hex: String, fallback: String) =
@@ -299,7 +327,7 @@ class SteamTouchControls(
             if (dirs and bit != 0L) fill.color = Color.argb(200, 20, 24, 30)
             if (isSelected && armIndex == selectedArm) stroke.color = Color.rgb(255, 200, 60)
             val binding = armVisuals.getOrNull(armIndex)?.binding
-            val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let { SteamTouchBindings.cachedIcon(appId, it, ICON_PX) }
+            val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let(::iconOrLoad)
             if (icon != null) {
                 val disc = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = parseColor(binding.background, SteamTouchBindings.DEFAULT_BACKGROUND)
@@ -307,8 +335,8 @@ class SteamTouchControls(
                 }
                 canvas.drawRoundRect(rect, arm * 0.4f, arm * 0.4f, disc)
                 val s = min(rect.width(), rect.height()) * 0.42f
-                SteamTouchIconPicker.drawSteamIcon(canvas, icon, RectF(rect.centerX() - s, rect.centerY() - s, rect.centerX() + s, rect.centerY() + s),
-                    parseColor(binding.foreground, SteamTouchBindings.DEFAULT_FOREGROUND),
+                canvas.drawBitmap(tinted(binding.icon, icon, binding.foreground), null,
+                    RectF(rect.centerX() - s, rect.centerY() - s, rect.centerX() + s, rect.centerY() + s),
                     Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { alpha = disc.alpha })
                 canvas.drawRoundRect(rect, arm * 0.4f, arm * 0.4f, stroke)
                 fill.color = old
@@ -604,7 +632,8 @@ class SteamTouchControls(
             return
         }
         val name = if (e.type == SteamTouchConfig.DPAD) "D-pad " + listOf("up", "down", "left", "right")[selectedArm] else label(e.type)
-        SteamTouchIconPicker(context, appId, "Icon for $name", binding) { picked ->
+        val host = parent as? android.view.ViewGroup ?: return
+        SteamTouchIconPicker(context, host, appId, "Icon for $name", binding) { picked ->
             pendingBindings[ref] = picked
             rebuildVisuals()
             invalidate()
@@ -647,11 +676,8 @@ class SteamTouchControls(
             })
         }
         root.addView(android.widget.HorizontalScrollView(context).apply { addView(opacityRow) })
-        android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Touch layout colour")
-            .setView(root)
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        val host = parent as? android.view.ViewGroup ?: return
+        SteamTouchIconPicker.showPanel(host, "Touch layout colour", root, listOf("Done" to {}))
     }
 
     private fun save() {

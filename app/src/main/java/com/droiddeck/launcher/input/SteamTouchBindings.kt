@@ -234,7 +234,7 @@ object SteamTouchBindings {
 
     // ---- Icons ----
 
-    private val cache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
+    private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
     private val missing = HashSet<String>()

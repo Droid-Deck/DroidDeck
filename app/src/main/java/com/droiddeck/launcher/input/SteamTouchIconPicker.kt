@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.input
 
-import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -31,6 +30,7 @@ import java.util.concurrent.Executors
  */
 class SteamTouchIconPicker(
     private val context: Context,
+    private val host: ViewGroup,
     private val appId: Int,
     private val title: String,
     private val current: SteamTouchBindings.Binding,
@@ -46,14 +46,16 @@ class SteamTouchIconPicker(
     private fun dp(v: Int) = (v * density).toInt()
 
     fun show() {
-        val root = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), 0) }
+        // Side by side, for a landscape screen: what is picked on the left, the icons on the right.
+        val root = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(16), dp(8), dp(16), 0) }
+        val left = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val label = EditText(context).apply {
             hint = "Label (optional)"
             setText(current.label)
             inputType = InputType.TYPE_CLASS_TEXT
             setSingleLine()
         }
-        root.addView(label)
+        left.addView(label)
         val preview = ImageView(context)
         val names = SteamTouchBindings.iconNames(context, appId)
         val grid = GridView(context).apply {
@@ -70,31 +72,30 @@ class SteamTouchIconPicker(
             adapter.notifyDataSetChanged()
             updatePreview(preview)
         }
-        root.addView(LinearLayout(context).apply {
+        left.addView(LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
             addView(preview, LinearLayout.LayoutParams(dp(56), dp(56)))
             addView(TextView(context).apply {
                 text = if (names.isEmpty()) "Steam's icons were not found" else "${names.size} icons from Steam"
                 setPadding(dp(12), 0, 0, 0)
             })
         })
-        root.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(220)))
-        root.addView(paletteRow("Icon colour", { foreground }) { foreground = it; adapter.notifyDataSetChanged(); updatePreview(preview) })
-        root.addView(paletteRow("Button colour", { background }) { background = it; adapter.notifyDataSetChanged(); updatePreview(preview) })
+        left.addView(paletteRow("Icon colour", { foreground }) { foreground = it; adapter.notifyDataSetChanged(); updatePreview(preview) })
+        left.addView(paletteRow("Button colour", { background }) { background = it; adapter.notifyDataSetChanged(); updatePreview(preview) })
+        root.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        root.addView(grid, LinearLayout.LayoutParams(0, dp(250), 1.2f).apply { marginStart = dp(16) })
         updatePreview(preview)
-        AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle(title)
-            .setView(root)
-            .setPositiveButton("Use") { _, _ ->
+        showPanel(host, title, root, listOf(
+            "No icon" to {
+                onPicked(current.copy(label = label.text.toString().replace(",", " ").trim(), icon = "", foreground = "", background = ""))
+            },
+            "Cancel" to {},
+            "Use" to {
                 onPicked(current.copy(label = label.text.toString().replace(",", " ").trim(), icon = icon,
                     foreground = if (icon.isEmpty()) "" else foreground, background = if (icon.isEmpty()) "" else background))
-            }
-            .setNeutralButton("No icon") { _, _ ->
-                onPicked(current.copy(label = label.text.toString().replace(",", " ").trim(), icon = "", foreground = "", background = ""))
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .setOnDismissListener { loader.shutdown() }
-            .show()
+            },
+        )) { loader.shutdown() }
     }
 
     private fun paletteRow(name: String, value: () -> String, onPick: (String) -> Unit): View {
@@ -142,6 +143,23 @@ class SteamTouchIconPicker(
     }
 
     private inner class IconAdapter(val names: List<String>) : BaseAdapter() {
+        private val loading = HashSet<String>()
+        private var refreshQueued = false
+
+        /** Loads an icon in the background; the grid redraws from the cache once some have come in. */
+        private fun load(name: String) {
+            if (!loading.add(name)) return
+            loader.execute {
+                SteamTouchBindings.icon(context, appId, name, 96)
+                main.post {
+                    loading.remove(name)
+                    if (refreshQueued) return@post
+                    refreshQueued = true
+                    main.postDelayed({ refreshQueued = false; notifyDataSetChanged() }, 120)
+                }
+            }
+        }
+
         override fun getCount() = names.size
         override fun getItem(position: Int) = names[position]
         override fun getItemId(position: Int) = position.toLong()
@@ -159,25 +177,80 @@ class SteamTouchIconPicker(
             }
             view.colorFilter = null
             val cached = SteamTouchBindings.cachedIcon(appId, name, 96)
-            if (cached != null) view.setImageBitmap(tinted(cached)) else {
+            if (cached != null) {
+                val t = tinted(name, cached)
+                if ((view.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap !== t) view.setImageBitmap(t)
+            } else {
                 view.setImageDrawable(null)
-                loader.execute {
-                    val bitmap = SteamTouchBindings.icon(context, appId, name, 96)
-                    main.post { if (view.tag == name && bitmap != null) view.setImageBitmap(tinted(bitmap)) }
-                }
+                load(name)
             }
             return view
         }
 
-        private fun tinted(icon: Bitmap): Bitmap {
+        // One thumbnail per icon and colour, reused when the grid rebinds.
+        private val thumbs = android.util.LruCache<String, Bitmap>(64)
+
+        private fun tinted(name: String, icon: Bitmap): Bitmap {
+            val key = "$name|$foreground"
+            thumbs.get(key)?.let { return it }
             val out = Bitmap.createBitmap(icon.width, icon.height, Bitmap.Config.ARGB_8888)
             drawSteamIcon(Canvas(out), icon, android.graphics.RectF(0f, 0f, icon.width.toFloat(), icon.height.toFloat()),
                 Color.parseColor(foreground), Paint(Paint.FILTER_BITMAP_FLAG))
+            thumbs.put(key, out)
             return out
         }
     }
 
     companion object {
+        /**
+         * A panel over the session, in the session's own window: a dialog's window of its own left
+         * new bitmaps and layers undrawn in the session window afterwards on the Thor.
+         */
+        fun showPanel(host: ViewGroup, title: String, content: View, buttons: List<Pair<String, () -> Unit>>, onClose: () -> Unit = {}) {
+            val context = host.context
+            val density = context.resources.displayMetrics.density
+            fun dp(v: Int) = (v * density).toInt()
+            val scrim = android.widget.FrameLayout(context).apply {
+                setBackgroundColor(Color.argb(140, 0, 0, 0))
+                isClickable = true
+                isFocusable = true
+            }
+            val card = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(Color.rgb(32, 34, 30)) }
+                setPadding(dp(12), dp(14), dp(12), dp(8))
+                isClickable = true
+            }
+            card.addView(TextView(context).apply {
+                text = title
+                textSize = 20f
+                setTextColor(Color.WHITE)
+                setPadding(dp(16), 0, dp(16), dp(4))
+            })
+            card.addView(content)
+            val row = LinearLayout(context).apply { gravity = Gravity.END; setPadding(dp(8), dp(4), dp(8), 0) }
+            fun close() {
+                (scrim.parent as? ViewGroup)?.removeView(scrim)
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                imm.hideSoftInputFromWindow(host.windowToken, 0)
+                onClose()
+            }
+            buttons.forEachIndexed { i, (name, action) ->
+                row.addView(android.widget.Button(context, null, android.R.attr.borderlessButtonStyle).apply {
+                    text = name
+                    setTextColor(Color.rgb(200, 230, 160))
+                    setOnClickListener { close(); action() }
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    if (i == 0 && buttons.size > 2) marginEnd = dp(120)
+                })
+            }
+            card.addView(row)
+            val width = minOf(dp(640), (context.resources.displayMetrics.widthPixels * 0.9f).toInt())
+            scrim.addView(card, android.widget.FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+            scrim.setOnClickListener { close() }
+            host.addView(scrim, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+
         /** Steam's binding icon look (steamui: the icon multiplied with its foreground colour,
          *  background-blend-mode: multiply, keeping the icon's own alpha). */
         fun drawSteamIcon(canvas: Canvas, icon: Bitmap, into: android.graphics.RectF, foreground: Int, paint: Paint) {

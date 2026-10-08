@@ -75,3 +75,23 @@ the client reads it again. Steam Cloud uploads the file like any autosaved confi
   (calibration, an enable setting).
 - Custom touch icons (`SetTouchIconData` on Steam Link) are not drawn; controls use text labels.
 - Not tried on a retail phone with SELinux enforcing (the Deck pad's sysfs works there).
+
+## Icons, labels and colours
+
+Each control shows what its binding carries, as Steam Link does: a binding is
+`<action>, <label>, <icon>, <#foreground #background>` (e.g.
+`xinput_button A, Attack, ghost_010_wpn_0070.png, #FFFFFF #AD0000`). Icons are looked up as Steam does:
+the game's own `TouchMenuIcons` folder, then `tenfoot/resource/images/library/controller/binding_icons`
+(459 icons). They are drawn as Steam draws binding icons: the icon multiplied by the foreground colour
+on a disc of the background colour. A binding with no icon shows its label, else a glyph for what it
+presses (LB, Esc, ⏎…), else the button's own name.
+
+In the layout editor, **Icon** opens a picker for the selected control (a D-pad direction: the one
+tapped): label, an icon from the game's own and Steam's library, foreground and background from Steam's
+binding-icon palette. **Colour** sets the layout's colour and opacity. Save rewrites only those binding
+strings in the game's touch config (byte for byte otherwise) along with `touch_layout`. Verified with
+Castle Crashers (its config ships icons on the shoulders and stick click): icons drawn; A set to a knife,
+white on red, "Attack" and B to another icon; both written in Steam's format and loaded back after a
+session restart.
+
+The pickers are panels in the session's window, not dialogs.
