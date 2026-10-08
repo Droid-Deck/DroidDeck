@@ -60,6 +60,7 @@ pub struct AssembleOutcome {
 
 /// The parsed plan: manifest, the files to write, and how many of them still need each chunk.
 /// Built up front so a bad index fails before anything is written.
+#[derive(Debug)]
 pub struct AssemblePlan {
     pub manifest: Manifest,
     pub install_dir: PathBuf,
