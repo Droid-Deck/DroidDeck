@@ -1276,7 +1276,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return super.dispatchKeyEvent(event)
         }
         if (pipUi) return true
-        val fromController = event.device != null && PadBridge.isFromController(event.device)
+        val fromController = PadBridge.isControllerKeyEvent(event)
         if (fromController && event.action == KeyEvent.ACTION_DOWN) {
             if (drawerOpen && !drawerControllerActive) sessionOverlay.requestFocus()
             drawerControllerActive = true
@@ -1328,12 +1328,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             return true
         }
-        if (pcKeyboardOpen && event.device != null && PadBridge.isFromController(event.device)) return super.dispatchKeyEvent(event)
+        if (pcKeyboardOpen && fromController) return super.dispatchKeyEvent(event)
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
         // A hardware keyboard, forwarded to the compositor's wl_keyboard. Back is left to the
         // activity, which opens the drawer.
-        val fromPad = event.device != null && PadBridge.isFromController(event.device)
-        if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromPad) {
+        if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
             if (down || event.action == KeyEvent.ACTION_UP) {
                 var evdev = EvdevKeys.fromKeyCode(event.keyCode)
@@ -1371,7 +1370,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
-        if (drawerOpen && event.device != null && PadBridge.isFromController(event.device)) {
+        if (drawerOpen && PadBridge.isControllerMotionEvent(event)) {
             if (!drawerControllerActive) sessionOverlay.requestFocus()
             drawerControllerActive = true
             if (event.actionMasked == MotionEvent.ACTION_MOVE &&
@@ -1382,7 +1381,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if (drawerDirectionKey != KeyEvent.KEYCODE_UNKNOWN) releaseDrawerDirection()
-        if (pcKeyboardOpen && event.device != null && PadBridge.isFromController(event.device)) return super.dispatchGenericMotionEvent(event)
+        if (pcKeyboardOpen && PadBridge.isControllerMotionEvent(event)) return super.dispatchGenericMotionEvent(event)
         if (padBridge?.onMotionEvent(event) == true) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen && onMouse(event)) return true
         return super.dispatchGenericMotionEvent(event)
