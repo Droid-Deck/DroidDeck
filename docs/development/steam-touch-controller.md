@@ -6,8 +6,38 @@ the Steam Link app, so that touch layouts are per game, synced to the Steam acco
 through Steam's community configs?
 
 This page records what the Steam client contains, the candidate approaches, and the experiments
-run on the Thor to decide between them. Findings are appended as they come in; see
-[Experiment log](#experiment-log).
+run on the Thor to decide between them; details are in the [Experiment log](#experiment-log).
+
+## Conclusion
+
+**Yes, and without streaming anything.** Steam's touch controller is a Steam Input controller type
+(Mobile Touch, `controller_mobile_touch`) that Steam builds for any HID device with the ids
+0000:11fb. Steam Link only supplies that device remotely; libfakeinput can supply it locally, the
+way it already supplies the Deck pad. Shown on the Thor with an experimental build:
+
+- Steam opens a local `/dev/hidraw17` 0000:11fb, builds the touch controller (type 43, the same
+  attributes as Steam Link's), loads the game's touch config for it (Valve's touch templates,
+  official per-game touch configs, the user's own synced ones, community ones), and games get
+  its input through Steam Input's virtual pad. A touch-controller stick report flew the ship in
+  Geometry Wars.
+- Steam tells the device which app and action set are active (output report 4) and when action
+  set layers come and go (5, 6), live, plus rumble (1). That is what decides which layout to show.
+- Big Picture treats it as a touch controller: the in-game menu shows the touch layout preview,
+  bindings are edited in Steam's own configurator.
+- It can be plugged and unplugged mid-session (injected udev events), so it can step aside when
+  a physical pad is used, as Steam Link does.
+- The layout is part of the config file (`touch_layout`, a `CVirtualControllerLayouts` protobuf),
+  so it syncs and is shared with the config. Steam loads a touch config written to disk.
+
+**Recommended: approach D below.** DroidDeck draws the controls (from Steam's layout) and sends
+the device's 40-byte report; Steam does everything else. It needs no stream, no pairing, no video
+and no patching of Steam, and the parts it depends on are the ones Valve has to keep stable for
+the Steam Link apps already installed on phones and TVs: the device's ids and report format.
+
+Not settled yet: saving an edited layout goes through a file write rather than a Steam call (Steam
+did load the written file; whether it uploads it to Steam Cloud is untested); the overlay must
+reproduce Steam Link's default layout and its hiding of unbound controls; touch menus and gyro
+were not exercised.
 
 ## How Steam Link's touch controller works
 
@@ -52,27 +82,26 @@ the touch-specific community configs.
 
 ## Candidate approaches
 
-| | How | For | Against |
-|---|---|---|---|
-| **A. Local Remote Play** | DroidDeck streams from its own Steam client the way the Steam Link app does (pairing, start stream, touch input negotiated), using Valve's `streaming_client` or a minimal client of our own. | Valve's controller, editor, sync and sharing unchanged. Leans on a protocol Valve keeps compatible with shipped Steam Link apps. | Host captures and encodes video nobody needs; the client may refuse to stream to itself. |
-| **B. In-process injection** | Feed touches straight into the path between the stream server (`steamui.so`) and `CMobileTouchControllerAbstraction` (`steamclient.so`), with no stream. | No video cost. | Reverse engineering stripped arm64 binaries; breaks when Steam updates; layout drawing is still ours. |
-| **C. Data only** | Read Steam's touch configs and layouts, draw them ourselves, keep feeding the Deck pad. | Simple. | Touch configs bind straight to keys, mouse and actions; honouring them means reimplementing Steam Input. |
+| | How | Verdict |
+|---|---|---|
+| **A. Local Remote Play** | DroidDeck streams from its own Steam client the way the Steam Link app does (pairing, start stream, touch input negotiated). | **Works, not worth it.** The official Steam Link app on the Thor pairs with the session's Steam over loopback and its touch controls drive the session (experiment 2). But the host captures and software-encodes video (libx264, 72-85 % CPU, frames froze), the Steam Link app cannot turn video off, and an input-only client of our own means reimplementing the Remote Play transport and crypto. The protocol does have `enable_video_streaming` in the streaming request. Kept as a fallback only. |
+| **B. In-process injection** | Feed touches into the path between the stream server (`steamui.so`) and `CMobileTouchControllerAbstraction` (`steamclient.so`). | **Not needed.** That path is a HID device; D supplies the device instead of patching Steam. |
+| **C. Data only** | Read Steam's touch configs and layouts, draw them ourselves, keep feeding the Deck pad. | **Rejected.** Touch configs bind straight to keys, mouse and actions; honouring them would mean reimplementing Steam Input. (D still reads the layout from the config, but Steam does the bindings.) |
+| **D. Local Mobile Touch device** | libfakeinput serves 0000:11fb as a local hidraw node; DroidDeck draws Steam's layout and writes the 40-byte report. | **Works (experiments 3, 4). Recommended.** |
 
 ## Experiments
 
-Run in order; each one either rules an approach out or narrows the next.
-
-1. **Host side alive?** Does the arm64 client in a DroidDeck session run the stream server, answer
-   discovery on the network and accept a Steam Link pairing?
-2. **Touch controller instantiated?** Stream to the official Steam Link app (same phone or another
-   device) and check that the touch controller appears, takes a game config and drives a game.
-3. **Loopback.** Can a client on the same device (127.0.0.1 / the device's own address) stream from
-   the session's Steam, and what does it cost (capture, encode)?
-4. **Input without video.** Does input keep flowing with the stream paused or captured tiny
-   (`k_EStreamControlPause`, `SetCaptureSize`), or with a client that never decodes video?
-5. **Valve's renderer as an overlay.** Can `streaming_client` itself run inside the session as an
-   overlay over the game, rather than the phone app?
-6. **Injection points.** How the stream server hands touches to `steamclient.so`, to size approach B.
+1. **Host side alive?** Yes: discovery answers on loopback and Steam Link pairs.
+2. **Touch controller over a stream?** Yes, end to end, with Steam Link on the same device.
+3. **Loopback cost.** Too high: software video encode (part of 2).
+4. **Input without video.** Not run: needs our own Remote Play client; superseded by D.
+5. **Valve's renderer as an overlay.** Not run: `streaming_client` draws over decoded video and
+   lives behind the stream; superseded by D.
+6. **Injection points.** The touch controller enters Steam as a HID device (0000:11fb), which is
+   approach D.
+7. **Local 0000:11fb device.** Works: controller built, config loaded, games driven (section 3).
+8. **Hotplug.** Works with injected udev events (section 4).
+9. **Layout written to disk.** Steam loads it (section 5).
 
 ## Experiment log
 
@@ -290,3 +319,61 @@ in use, and a local device has to do the same, which needs hotplug.
 
 So DroidDeck can show and hide Steam's touch controller the way Steam Link does: plug the device
 in when the on-screen controls are shown, unplug it when a physical pad takes over.
+
+### 5. Configs and layouts written by DroidDeck
+
+With the session stopped, a `config/8400/controller_mobile_touch.vdf` was written (Valve's gamepad
+template plus a `touch_layout` taken from another config) and `"8400" { "autosave" "1" }` added to
+`configset_controller_mobile_touch.vdf`. Launching the game:
+
+```
+Loaded Config for Local Selection Path for App ID 8400, Controller 0:
+  .../Steam Controller Configs/392297941/config/8400/controller_mobile_touch.vdf
+```
+
+Steam used it as the game's touch config and left the file (and its `touch_layout`) as written.
+Whether a file changed this way is uploaded to Steam Cloud was not checked. Both files were put
+back afterwards.
+
+Also seen: pressing A on the touch device logged `Seating controller 1 in slot 0`. Steam moves the
+controller in use to the first player slot, which softens the two-controller problem even before
+the device is unplugged.
+
+### 6. Steam Link's default layout
+
+Stock templates carry no `touch_layout`. Steam Link then places each control from a built-in table
+(`CVirtualController::BInitializeDefaultElement`, table at `0x463d48`, positions on a 1280x720
+reference):
+
+| Element | Position (of 1280x720) |
+|---|---|
+| Thumb (menu) | 75, 75 |
+| Select / Steam / Start | 516, 75 / 636, 75 / 756, 75 |
+| Paste / Keyboard | 1115, 75 / 1205, 75 |
+| Magnifying glass / record / playback | 1205, 165 / 255 / 345 |
+| D-pad | 200, 525 |
+| X / Y / B / A | 1003, 527 / 1083, 447 / 1163, 527 / 1083, 607 |
+
+Sticks, triggers, bumpers and macros are not in the table; they appear when the config binds them
+(`UpdateElementAvailability`), and the overlay has to reproduce that rule.
+
+## What building D would take
+
+- **libfakeinput:** the 0000:11fb node as in the experiment (Generic Desktop / Game Pad report
+  descriptor, 40-byte input reports, output reports 1, 3-6 and feature report 2), fed from a
+  ring the app writes, like the Deck pad's.
+- **SteamDeckPad.kt:** the second device's sysfs, as in the experiment.
+- **udevmon.c:** event injection for plug and unplug, with a proper channel from the app instead of
+  the experiment's file drop.
+- **The overlay (Kotlin):** read the active config (configset per app, else the template Steam
+  logged loading), decode `touch_layout` (or the default table above), show the elements of the
+  action set Steam names in report 4 and the layers in 5/6, hit-test touches into the report
+  (buttons, sticks, trackpads; motion from PadMotion into the gyro fields), rumble from report 1.
+  Hide the unbound controls as Steam Link does.
+- **Editing:** move/scale in the overlay, saved by writing `touch_layout` into the app's autosave
+  config, as Steam does when Steam Link saves a layout.
+- **Policy:** plug the device in while the on-screen controls are up and no physical pad is in use;
+  unplug it otherwise.
+
+The experimental pieces on this branch (`FAKE_EVDEV_TOUCHCTL`, `/tmp/touchctl.*`,
+`/tmp/udev-inject`) are research scaffolding to be replaced, not shipped.
