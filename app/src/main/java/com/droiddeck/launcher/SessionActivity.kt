@@ -148,7 +148,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
     private var oscStyle by mutableStateOf(SessionPrefs.OSC_STYLE_DROIDDECK)
     private var steamTouchAvailable by mutableStateOf(false)
-    private var steamTouchRetries = 0
     private val steamTouchRetry = Runnable { updateOnScreenControls() }
     private var keyboard: KeyboardHost? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
@@ -1866,7 +1865,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val steam = if (wantsSteam) steamTouch() else null
         // The service makes the device while the session starts, after this activity: the app's
         // own pad until then, and another look in a moment.
-        if (wantsSteam && steam == null && steamTouchRetries++ < 120) {
+        if (wantsSteam && steam == null && !isFinishing && !isDestroyed) {
             uiHandler.removeCallbacks(steamTouchRetry)
             uiHandler.postDelayed(steamTouchRetry, 1000)
         }
@@ -2111,6 +2110,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        uiHandler.removeCallbacks(steamTouchRetry)
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
         // Deliberately does NOT end the session: this activity can be destroyed while the user is
         // in another app, and the whole point of the service is that Steam survives that.

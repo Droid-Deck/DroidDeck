@@ -68,6 +68,8 @@ object SteamTouchConfig {
         val layouts: Layouts?,
         /** Bound controls per preset (action set id - 1). */
         val available: Map<Int, Set<Int>>,
+        /** The parsed config, for its bindings (SteamTouchBindings). */
+        val mappings: KeyValues.Node? = null,
     ) {
         /** The controls to show for [actionSet] (as the device is told it) and [layers]. */
         fun availableFor(actionSet: Int, layers: List<Int>): Set<Int> {
@@ -126,7 +128,7 @@ object SteamTouchConfig {
             val mappings = kv.child("controller_mappings") ?: kv
             val layouts = mappings.string("touch_layout")?.let { hex -> decodeLayouts(hexToBytes(hex)) }
             Log.i(TAG, "steam touch: app $appId uses ${file.path} (${layouts?.layouts?.size ?: 0} layouts)")
-            Config(file, text, layouts, availability(mappings))
+            Config(file, text, layouts, availability(mappings), mappings)
         } catch (e: Exception) {
             Log.w(TAG, "steam touch: ${file.path} unreadable: $e")
             Config(file, null, null, emptyMap())
@@ -293,15 +295,27 @@ object SteamTouchConfig {
      * app has none) and selected for the app in the configset, as the client saves a layout Steam
      * Link sends it. Returns the file written, or null.
      */
-    fun saveLayout(context: Context, appId: Int, config: Config, actionSet: Int, elements: List<Element>): File? {
+    fun saveLayout(
+        context: Context,
+        appId: Int,
+        config: Config,
+        actionSet: Int,
+        elements: List<Element>,
+        color: FloatArray? = null,
+        bindings: Map<SteamTouchBindings.Ref, (SteamTouchBindings.Binding) -> SteamTouchBindings.Binding> = emptyMap(),
+    ): File? {
         val dir = configDir(context) ?: return null
-        val source = config.text ?: return null
+        // Icons, labels and colours live in the binding strings (SteamTouchBindings), as the
+        // configurator writes them.
+        val source = bindings.entries.fold(config.text ?: return null) { text, (ref, change) ->
+            SteamTouchBindings.rewrite(text, ref, change) ?: text
+        }
         val target = File(dir, "$appId/controller_mobile_touch.vdf")
         val id = layoutIdOf(actionSet)
         val old = config.layouts
         val keep = old?.layouts?.filter { it.actionSet != id }.orEmpty()
-        val color = old?.forActionSet(id)?.color ?: floatArrayOf(1f, 1f, 1f, 0.4f)
-        val layouts = Layouts(keep + Layout(id, elements, color, old?.forActionSet(id)?.version),
+        val layoutColor = color ?: old?.forActionSet(id)?.color ?: floatArrayOf(1f, 1f, 1f, 0.4f)
+        val layouts = Layouts(keep + Layout(id, elements, layoutColor, old?.forActionSet(id)?.version),
             old?.rest ?: byteArrayOf(0x10, 0x02)) // input_mode = controller
         val hex = bytesToHex(encodeLayouts(layouts))
         val line = "\t\"touch_layout\"\t\t\"$hex\""

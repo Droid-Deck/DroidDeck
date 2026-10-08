@@ -28,8 +28,10 @@ import kotlin.math.min
  * (SteamTouchDevice.State, SteamTouchConfig), placed where the config's layout puts each control or
  * where Steam Link would by default, and only the controls the config binds. Touches become the
  * touch controller's input report; the client does the rest - bindings, action sets, the virtual
- * pad the game reads. [startEditing] moves, resizes and hides controls and saves the layout into
- * the game's touch config, as Steam Link does.
+ * pad the game reads. Each control shows its binding's icon, label and colours, as Steam keeps them
+ * (SteamTouchBindings). [startEditing] moves, resizes and hides controls, picks their icons and the
+ * layout's colour, and saves all of it into the game's touch config, as Steam Link and Steam's
+ * configurator do.
  */
 @SuppressLint("ViewConstructor")
 class SteamTouchControls(
@@ -53,6 +55,10 @@ class SteamTouchControls(
     private var tint = Color.WHITE
     private var alphaScale = 0.45f
 
+    // What each control is bound to (its icon, label, colours), per element type; the D-pad has four.
+    private class Visual(val ref: SteamTouchBindings.Ref?, val binding: SteamTouchBindings.Binding?)
+    private var visuals: Map<Int, List<Visual>> = emptyMap()
+
     // Touch state.
     private class Finger(val element: Element?, var x: Float, var y: Float, val toolbar: Int = -1)
     private val fingers = HashMap<Int, Finger>()
@@ -66,6 +72,10 @@ class SteamTouchControls(
     private var pinchStart = 0f
     private var pinchScale = 1f
     private var saving = false
+    // Icon and colour edits not saved yet.
+    private val pendingBindings = HashMap<SteamTouchBindings.Ref, SteamTouchBindings.Binding>()
+    private var pendingColor: FloatArray? = null
+    private var selectedArm = 0
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -130,14 +140,37 @@ class SteamTouchControls(
 
     private fun rebuild() {
         elements = SteamTouchConfig.elementsFor(config, actionSet, layers)
-        val color = SteamTouchConfig.layoutColor(config, actionSet)
-        tint = if (color != null) Color.rgb((color[0] * 255).toInt(), (color[1] * 255).toInt(), (color[2] * 255).toInt()) else Color.WHITE
-        alphaScale = color?.get(3)?.coerceIn(0.15f, 1f) ?: 0.45f
+        applyColor(pendingColor ?: SteamTouchConfig.layoutColor(config, actionSet))
+        rebuildVisuals()
         if (!editing) {
             Log.i(TAG, "steam touch: app $appId, action set $actionSet, layers $layers: ${elements.size} controls")
             releaseAll()
         }
         invalidate()
+    }
+
+    private fun applyColor(color: FloatArray?) {
+        tint = if (color != null) Color.rgb((color[0] * 255).toInt(), (color[1] * 255).toInt(), (color[2] * 255).toInt()) else Color.WHITE
+        alphaScale = color?.get(3)?.coerceIn(0.15f, 1f) ?: 0.45f
+    }
+
+    /** Each control's bindings for the action set and layers in use, with edits not saved yet. */
+    private fun rebuildVisuals() {
+        val mappings = config.mappings
+        val preset = SteamTouchConfig.layoutIdOf(actionSet) - 1
+        val types = (elements + editElements).map { it.type }.toSet()
+        visuals = if (mappings == null) emptyMap() else types.associateWith { type ->
+            SteamTouchBindings.refsFor(mappings, type, preset, layers).map { ref ->
+                Visual(ref, ref?.let { pendingBindings[it] ?: SteamTouchBindings.bindingAt(mappings, it) })
+            }
+        }
+        val icons = visuals.values.flatten().mapNotNull { it.binding?.icon?.takeIf(String::isNotEmpty) }.toSet()
+        if (icons.isEmpty()) return
+        val app = appId
+        loader.execute {
+            icons.forEach { SteamTouchBindings.icon(context, app, it, ICON_PX) }
+            handler.post { invalidate() }
+        }
     }
 
     // ---- Geometry ----
@@ -206,32 +239,86 @@ class SteamTouchControls(
                 canvas.drawRoundRect(rect, r * 0.25f, r * 0.25f, fill)
                 canvas.drawRoundRect(rect, r * 0.25f, r * 0.25f, stroke)
             }
-            else -> {
-                canvas.drawCircle(x, y, r, fill)
-                canvas.drawCircle(x, y, r, stroke)
-                val label = label(e.type)
-                if (label.length > 3) text.textSize = r * 0.36f
-                LABEL_COLORS[e.type]?.let { text.color = it }
-                canvas.drawText(label, x, y - (text.descent() + text.ascent()) / 2, text)
-            }
+            else -> drawFace(canvas, e.type, visuals[e.type]?.firstOrNull()?.binding, x, y, r, baseAlpha, pressed)
         }
     }
+
+    /**
+     * A button: its binding's icon on a disc of its background colour, as Steam draws binding icons;
+     * else its label; else a glyph for what it presses; else the button's own name.
+     */
+    private fun drawFace(canvas: Canvas, type: Int, binding: SteamTouchBindings.Binding?, x: Float, y: Float, r: Float,
+                         baseAlpha: Int, pressed: Boolean) {
+        val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let { SteamTouchBindings.cachedIcon(appId, it, ICON_PX) }
+        if (icon != null) {
+            val alpha = min(255, baseAlpha + if (pressed) 150 else 90)
+            val disc = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = parseColor(binding.background, SteamTouchBindings.DEFAULT_BACKGROUND)
+                this.alpha = alpha
+            }
+            canvas.drawCircle(x, y, r, disc)
+            val s = r * 0.62f
+            SteamTouchIconPicker.drawSteamIcon(canvas, icon, RectF(x - s, y - s, x + s, y + s),
+                parseColor(binding.foreground, SteamTouchBindings.DEFAULT_FOREGROUND),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { this.alpha = alpha })
+            canvas.drawCircle(x, y, r, stroke)
+            return
+        }
+        canvas.drawCircle(x, y, r, fill)
+        canvas.drawCircle(x, y, r, stroke)
+        val own = label(type)
+        val shown = binding?.label?.takeIf { it.isNotEmpty() } ?: SteamTouchBindings.glyph(binding) ?: own
+        text.textSize = when {
+            shown.length <= 2 -> r * 0.7f
+            shown.length <= 4 -> r * 0.42f
+            else -> r * 0.3f
+        }
+        if (shown == own) LABEL_COLORS[type]?.let { text.color = it }
+        val line = if (shown.length > 10) shown.take(9) + "…" else shown
+        canvas.drawText(line, x, y - (text.descent() + text.ascent()) / 2, text)
+    }
+
+    private fun parseColor(hex: String, fallback: String) =
+        try { Color.parseColor(hex.ifEmpty { fallback }) } catch (_: IllegalArgumentException) { Color.parseColor(fallback) }
 
     private fun drawDpad(canvas: Canvas, e: Element, x: Float, y: Float, r: Float) {
         val arm = r * 0.36f
         val dirs = if (editing) 0 else dpadBits(e)
         val arms = listOf(DPAD_UP to (0f to -1f), DPAD_DOWN to (0f to 1f), DPAD_LEFT to (-1f to 0f), DPAD_RIGHT to (1f to 0f))
-        for ((bit, d) in arms) {
+        val armVisuals = visuals[SteamTouchConfig.DPAD].orEmpty()
+        val isSelected = editing && editElements.indexOf(e) == selected
+        for ((armIndex, armEntry) in arms.withIndex()) {
+            val (bit, d) = armEntry
             val (dx, dy) = d
             val cxArm = x + dx * r * 0.6f
             val cyArm = y + dy * r * 0.6f
             val rect = RectF(cxArm - if (dx == 0f) arm else r * 0.4f, cyArm - if (dy == 0f) arm else r * 0.4f,
                 cxArm + if (dx == 0f) arm else r * 0.4f, cyArm + if (dy == 0f) arm else r * 0.4f)
             val old = fill.color
+            val oldStroke = stroke.color
             if (dirs and bit != 0L) fill.color = Color.argb(200, 20, 24, 30)
+            if (isSelected && armIndex == selectedArm) stroke.color = Color.rgb(255, 200, 60)
+            val binding = armVisuals.getOrNull(armIndex)?.binding
+            val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let { SteamTouchBindings.cachedIcon(appId, it, ICON_PX) }
+            if (icon != null) {
+                val disc = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = parseColor(binding.background, SteamTouchBindings.DEFAULT_BACKGROUND)
+                    alpha = min(255, (255 * alphaScale).toInt() + if (dirs and bit != 0L) 150 else 90)
+                }
+                canvas.drawRoundRect(rect, arm * 0.4f, arm * 0.4f, disc)
+                val s = min(rect.width(), rect.height()) * 0.42f
+                SteamTouchIconPicker.drawSteamIcon(canvas, icon, RectF(rect.centerX() - s, rect.centerY() - s, rect.centerX() + s, rect.centerY() + s),
+                    parseColor(binding.foreground, SteamTouchBindings.DEFAULT_FOREGROUND),
+                    Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { alpha = disc.alpha })
+                canvas.drawRoundRect(rect, arm * 0.4f, arm * 0.4f, stroke)
+                fill.color = old
+                stroke.color = oldStroke
+                continue
+            }
             canvas.drawRoundRect(rect, arm * 0.4f, arm * 0.4f, fill)
             canvas.drawRoundRect(rect, arm * 0.4f, arm * 0.4f, stroke)
             fill.color = old
+            stroke.color = oldStroke
             val tri = Path()
             val s = arm * 0.5f
             val tx = cxArm + dx * r * 0.08f
@@ -390,20 +477,25 @@ class SteamTouchControls(
         hidden = available.filter { type -> editElements.none { it.type == type } }
             .mapNotNull { SteamTouchConfig.defaultElement(it, available)?.copy(visible = false) }.toMutableList()
         selected = -1
+        pendingBindings.clear()
+        pendingColor = null
+        rebuildVisuals()
         invalidate()
     }
 
     private fun stopEditing() {
         editing = false
         selected = -1
+        pendingBindings.clear()
+        pendingColor = null
         rebuild()
     }
 
-    private val toolbarLabels = listOf("−", "+", "Hide", "Reset", "Cancel", "Save")
+    private val toolbarLabels = listOf("−", "+", "Hide", "Icon", "Colour", "Reset", "Cancel", "Save")
 
     private fun toolbarRects(): List<RectF> {
         val u = max(unit(), 0.6f)
-        val w = 120f * u
+        val w = 112f * u
         val h = 56f * u
         val gap = 12f * u
         val total = toolbarLabels.size * w + (toolbarLabels.size - 1) * gap
@@ -416,12 +508,12 @@ class SteamTouchControls(
         val bar = Paint(Paint.ANTI_ALIAS_FLAG)
         val rects = toolbarRects()
         val title = Paint(text).apply { color = Color.WHITE; textSize = 26f * max(unit(), 0.6f) }
-        canvas.drawText(if (saving) "Saving…" else "Editing touch layout for ${if (appId == BIG_PICTURE) "Steam" else "app $appId"} - drag, pinch or use −/+",
+        canvas.drawText(if (saving) "Saving…" else "Editing touch layout for ${if (appId == BIG_PICTURE) "Steam" else "app $appId"} - drag, pinch, or pick a control's icon",
             width / 2f, rects[0].top - 18f * unit(), title)
         rects.forEachIndexed { i, r ->
-            val enabled = i > 2 || selected >= 0
+            val enabled = i > 3 || selected >= 0
             bar.color = when (i) {
-                5 -> Color.rgb(26, 159, 255)
+                7 -> Color.rgb(26, 159, 255)
                 else -> Color.argb(if (enabled) 230 else 120, 50, 56, 66)
             }
             canvas.drawRoundRect(r, 10f, 10f, bar)
@@ -444,6 +536,12 @@ class SteamTouchControls(
                 val e = hit(editElements, x, y)
                 selected = if (e != null) editElements.indexOf(e) else -1
                 if (e != null) dragOffset = (x - cx(e)) to (y - cy(e))
+                // The D-pad's icons are per direction: a tap picks the one under the finger.
+                if (e?.type == SteamTouchConfig.DPAD) {
+                    val dx = x - cx(e)
+                    val dy = y - cy(e)
+                    selectedArm = if (abs(dx) > abs(dy)) (if (dx < 0) 2 else 3) else (if (dy < 0) 0 else 1)
+                }
                 invalidate()
             }
             MotionEvent.ACTION_POINTER_DOWN -> if (selected >= 0 && event.pointerCount == 2) {
@@ -481,16 +579,79 @@ class SteamTouchControls(
                 hidden += editElements.removeAt(selected).copy(visible = false)
                 selected = -1
             }
-            3 -> {
+            3 -> if (selected >= 0) pickIcon(editElements[selected])
+            4 -> pickColor()
+            5 -> {
                 val available = config.availableFor(actionSet, layers)
                 editElements = available.mapNotNull { SteamTouchConfig.defaultElement(it, available) }.sortedBy { it.type }.toMutableList()
                 hidden.clear()
                 selected = -1
             }
-            4 -> stopEditing()
-            5 -> save()
+            6 -> stopEditing()
+            7 -> save()
         }
         invalidate()
+    }
+
+    /** The selected control's icon, label and colours (a D-pad direction: the one tapped). */
+    private fun pickIcon(e: Element) {
+        val list = visuals[e.type].orEmpty()
+        val visual = list.getOrNull(if (e.type == SteamTouchConfig.DPAD) selectedArm else 0)
+        val ref = visual?.ref
+        val binding = visual?.binding
+        if (ref == null || binding == null) {
+            Toast.makeText(context, "This control has no binding in Steam to put an icon on", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val name = if (e.type == SteamTouchConfig.DPAD) "D-pad " + listOf("up", "down", "left", "right")[selectedArm] else label(e.type)
+        SteamTouchIconPicker(context, appId, "Icon for $name", binding) { picked ->
+            pendingBindings[ref] = picked
+            rebuildVisuals()
+            invalidate()
+        }.show()
+    }
+
+    /** The layout's colour and opacity, as Steam Link's colour picker sets them. */
+    private fun pickColor() {
+        val current = pendingColor ?: SteamTouchConfig.layoutColor(config, actionSet) ?: floatArrayOf(1f, 1f, 1f, 0.45f)
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+        var chosen = current.copyOf()
+        val root = android.widget.LinearLayout(context).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), 0) }
+        val swatchRow = android.widget.LinearLayout(context)
+        SteamTouchBindings.PALETTE.forEach { hex ->
+            val c = Color.parseColor(hex)
+            swatchRow.addView(View(context).apply {
+                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(c); setStroke(dp(1), Color.GRAY) }
+                setOnClickListener {
+                    chosen = floatArrayOf(Color.red(c) / 255f, Color.green(c) / 255f, Color.blue(c) / 255f, chosen[3])
+                    pendingColor = chosen
+                    applyColor(chosen)
+                    invalidate()
+                }
+            }, android.widget.LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(6) })
+        }
+        root.addView(android.widget.TextView(context).apply { text = "Colour" })
+        root.addView(android.widget.HorizontalScrollView(context).apply { addView(swatchRow) })
+        root.addView(android.widget.TextView(context).apply { text = "Opacity"; setPadding(0, dp(12), 0, 0) })
+        val opacityRow = android.widget.LinearLayout(context)
+        listOf(20, 35, 50, 65, 80, 100).forEach { percent ->
+            opacityRow.addView(android.widget.Button(context).apply {
+                text = "$percent%"
+                setOnClickListener {
+                    chosen = floatArrayOf(chosen[0], chosen[1], chosen[2], percent / 100f)
+                    pendingColor = chosen
+                    applyColor(chosen)
+                    invalidate()
+                }
+            })
+        }
+        root.addView(android.widget.HorizontalScrollView(context).apply { addView(opacityRow) })
+        android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Touch layout colour")
+            .setView(root)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun save() {
@@ -500,9 +661,17 @@ class SteamTouchControls(
         val set = actionSet
         val cfg = config
         val layout = editElements.map { it.copy(visible = true) } + hidden.filter { h -> editElements.none { it.type == h.type } }
+        val color = pendingColor
+        // A picked icon replaces the label, icon and colours of every binding of that input; what
+        // the binding does stays as it is.
+        val bindings = pendingBindings.mapValues { (_, picked) ->
+            { old: SteamTouchBindings.Binding ->
+                old.copy(label = picked.label, icon = picked.icon, foreground = picked.foreground, background = picked.background)
+            }
+        }
         loader.execute {
             val file = try {
-                SteamTouchConfig.saveLayout(context, app, cfg, set, layout)
+                SteamTouchConfig.saveLayout(context, app, cfg, set, layout, color, bindings)
             } catch (e: Exception) {
                 Log.w(TAG, "steam touch: saving failed: $e")
                 null
@@ -529,6 +698,7 @@ class SteamTouchControls(
         private const val TAG = "SteamTouch"
         private const val POLL_MS = 150L
         const val BIG_PICTURE = 769
+        private const val ICON_PX = 128
 
         private const val DPAD_UP = 1L shl 8
         private const val DPAD_RIGHT = 1L shl 9
