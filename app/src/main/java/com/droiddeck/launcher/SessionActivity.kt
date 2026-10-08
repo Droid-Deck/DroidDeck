@@ -304,6 +304,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = SessionPrefs.orientation(this)
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving()) {
             runtimeRemovalBlocked = true
             android.widget.Toast.makeText(this, R.string.session_wait_removal, android.widget.Toast.LENGTH_SHORT).show()
@@ -1950,6 +1951,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        requestedOrientation = SessionPrefs.orientation(this)
         if (runtimeRemovalBlocked) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()

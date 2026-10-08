@@ -635,6 +635,10 @@
     <string name="setup_home">Use as Home screen</string>
     <string name="setup_home_on">DroidDeck can be the Home app</string>
     <string name="setup_home_off">DroidDeck is never offered as a Home app</string>
+    <string name="setup_orientation">Orientation</string>
+    <string name="setup_orientation_auto">Automatic landscape</string>
+    <string name="setup_orientation_landscape">Landscape</string>
+    <string name="setup_orientation_reverse">Reverse landscape</string>
     <string name="setup_fullscreen">Fullscreen</string>
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>

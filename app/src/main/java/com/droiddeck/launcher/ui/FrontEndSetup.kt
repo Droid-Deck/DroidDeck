@@ -347,6 +347,11 @@ internal fun SetupPanel(
                                 if (s.homeScreenEnabled) stringResource(R.string.setup_home_on) else stringResource(R.string.setup_home_off),
                                 s.homeScreenEnabled,
                             ) { a.onHomeScreen(it) }
+                            ChoiceRow(
+                                host, "orientation", stringResource(R.string.setup_orientation), null,
+                                SessionPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },
+                                s.orientation, onPick = a.onOrientation,
+                            )
                             ToggleRow(
                                 host, "launcher-fullscreen", stringResource(R.string.setup_fullscreen),
                                 if (s.launcherFullscreen) stringResource(R.string.setup_fullscreen_on) else stringResource(R.string.setup_fullscreen_off),

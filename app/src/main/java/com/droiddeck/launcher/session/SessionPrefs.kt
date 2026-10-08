@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.TextureFiltering
@@ -32,6 +33,22 @@ object SessionPrefs {
         if (inverted) BACK_QAM_THEN_MENU else BACK_MENU_THEN_QAM
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+
+    val orientationOptions = listOf(
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE to R.string.setup_orientation_auto,
+        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE to R.string.setup_orientation_landscape,
+        ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE to R.string.setup_orientation_reverse,
+    )
+
+    fun orientation(context: Context): Int =
+        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            .takeIf { value -> orientationOptions.any { it.first == value } }
+            ?: ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+    fun setOrientation(context: Context, orientation: Int) {
+        require(orientationOptions.any { it.first == orientation })
+        prefs(context).edit().putInt("orientation", orientation).apply()
+    }
 
     /** Whether the launcher hides Android's status and navigation bars. */
     fun launcherFullscreen(context: Context): Boolean = prefs(context).getBoolean("launcherFullscreen", true)
