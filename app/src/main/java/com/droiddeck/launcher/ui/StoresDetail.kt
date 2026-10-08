@@ -1,18 +1,14 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
@@ -115,59 +111,5 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()
     if (description.isNotBlank()) Rise(2) {
         Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
-    }
-    Rise(3) {
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 16.dp)) {
-            val wide = maxWidth >= 640.dp
-            val launchSettings: @Composable () -> Unit = {
-                Column {
-                    SectionTitle(stringResource(R.string.games_launch_settings), null)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        InfoCard(stringResource(R.string.stores_card_proton), stringResource(R.string.stores_card_proton_value), Modifier.weight(1f))
-                        InfoCard(stringResource(R.string.stores_card_audio), stringResource(R.string.stores_card_audio_value), Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        InfoCard(stringResource(R.string.stores_card_components), stringResource(R.string.stores_card_components_value), Modifier.weight(1f))
-                        InfoCard(stringResource(R.string.stores_card_engine), if (StoresState.engine.isNullOrEmpty()) stringResource(R.string.stores_card_engine_java, store.shortLabel) else stringResource(R.string.stores_card_engine_value, store.shortLabel), Modifier.weight(1f))
-                    }
-                }
-            }
-            val howItRuns: @Composable () -> Unit = {
-                Column {
-                    SectionTitle(stringResource(R.string.stores_how_it_runs), null)
-                    KeyValue(stringResource(R.string.stores_kv_fetched), stringResource(R.string.stores_kv_fetched_value, store.label))
-                    KeyValue(stringResource(R.string.stores_kv_installed_to), installed?.folder?.path ?: stringResource(R.string.stores_kv_installed_to_value, store.shortLabel, com.droiddeck.launcher.stores.StoreInstallRoot.folderName(title, id)))
-                    KeyValue(stringResource(R.string.stores_kv_launched_by), when (store) {
-                        Store.EPIC -> stringResource(R.string.stores_kv_launched_by_epic)
-                        Store.AMAZON -> stringResource(R.string.stores_kv_launched_by_amazon)
-                        Store.GOG -> stringResource(R.string.stores_kv_launched_by_value)
-                    })
-                    KeyValue(stringResource(R.string.stores_kv_steam), stringResource(R.string.stores_kv_steam_on))
-                }
-            }
-            if (wide) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                Box(Modifier.weight(2f)) { launchSettings() }
-                Box(Modifier.weight(1.2f)) { howItRuns() }
-            } else Column { launchSettings(); howItRuns() }
-        }
-    }
-}
-
-@Composable
-private fun InfoCard(label: String, value: String, modifier: Modifier) {
-    val colors = MaterialTheme.colorScheme
-    Column(modifier = modifier.clip(Shape12).background(colors.surface).border(1.dp, LocalPalette.current.line, Shape12).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Text(label, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-    }
-}
-
-@Composable
-private fun KeyValue(k: String, v: String) {
-    val colors = MaterialTheme.colorScheme
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-        Text(k, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.width(110.dp))
-        Text(v, fontSize = 13.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
     }
 }
