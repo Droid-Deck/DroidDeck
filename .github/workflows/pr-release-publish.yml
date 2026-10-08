@@ -312,8 +312,8 @@ jobs:
           $NEXT
           EOF
           )
-          comment=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate --slurp \
-            --jq "[.[][] | select(.user.login == \"github-actions[bot]\") | select(.body | startswith(\"$mark\"))] | first // {}")
+          comment=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate --slurp | \
+            jq "[.[][] | select(.user.login == \"github-actions[bot]\") | select(.body | startswith(\"$mark\"))] | first // {}")
           id=$(jq -r '.id // empty' <<<"$comment")
           if [ -n "$id" ]; then
             state=$(jq -r '.body | split("\n")[] | select(startswith("<!-- droiddeck-discord: ") and endswith(" -->"))' <<<"$comment")
