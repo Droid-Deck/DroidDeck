@@ -904,6 +904,14 @@ object SessionPrefs {
         updateGameTextureFiltering(context, scope) { it.copy(lodBias = choice) }
     }
 
+    fun clearGameTextureFiltering(context: Context, scope: String) {
+        require(GameEnvironment.validScope(scope))
+        val choices = gameTextureFiltering(context).toMutableMap()
+        if (choices.remove(scope) == null) return
+        saveGameTextureFiltering(context, choices)
+        publishGameEnvironment(context)
+    }
+
     private fun updateGameTextureFiltering(
         context: Context,
         scope: String,
@@ -913,6 +921,11 @@ object SessionPrefs {
         val choices = gameTextureFiltering(context).toMutableMap()
         val next = change(choices[scope] ?: GameTextureFiltering())
         if (next.anisotropy == null && next.lodBias == null) choices.remove(scope) else choices[scope] = next
+        saveGameTextureFiltering(context, choices)
+        publishGameEnvironment(context)
+    }
+
+    private fun saveGameTextureFiltering(context: Context, choices: Map<String, GameTextureFiltering>) {
         val json = JSONObject()
         choices.forEach { (id, choice) ->
             json.put(id, JSONObject().apply {
@@ -921,7 +934,6 @@ object SessionPrefs {
             })
         }
         prefs(context).edit().putString("gameTextureFiltering", json.toString()).apply()
-        publishGameEnvironment(context)
     }
 
     /** Hands the change to the next game launch (GameEnvironmentStore); the running game keeps its own. */

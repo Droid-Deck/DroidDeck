@@ -65,6 +65,7 @@ import com.droiddeck.launcher.core.FexPreset
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.session.GameProfileManager
 import com.droiddeck.launcher.session.ProtonDefault
 import com.droiddeck.launcher.session.WinComponents
 import kotlinx.coroutines.Dispatchers
@@ -81,6 +82,13 @@ private class InstalledItem(
     val file: String?,
     /** The Proton build an original belongs to. */
     val protonVersion: String?,
+)
+
+private data class ProfileEditorState(
+    val environment: GameEnvironment.Config,
+    val protonChoice: ProtonDefault.GameChoice?,
+    val protonId: String?,
+    val components: Map<String, String>,
 )
 
 private val GOLD = Color(0xFFF2C66D)
@@ -144,6 +152,7 @@ fun ComponentsPage(
     var environment by remember { mutableStateOf<GameEnvironment.Config?>(null) }
     var environmentBusy by remember { mutableStateOf(false) }
     var environmentError by remember { mutableStateOf(false) }
+    var profileNotice by remember { mutableStateOf<String?>(null) }
     var confirmVerb by remember { mutableStateOf(R.string.comp_swap) }
     val ctx = LocalContext.current
     val coroutine = rememberCoroutineScope()
@@ -157,6 +166,8 @@ fun ComponentsPage(
         if (selectedGameKey != null && games.none { it.profileKey == selectedGameKey }) selectedGameKey = null
     }
     LaunchedEffect(selectedGame?.profileKey, snapshot) {
+        profileNotice = null
+        environmentError = false
         selectedGame?.let { game ->
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -183,10 +194,22 @@ fun ComponentsPage(
         val current = environment ?: return
         val next = GameEnvironment.withGameFexPreset(current, game.profileKey, preset)
         environmentBusy = true
+        profileNotice = null
         coroutine.launch {
             runCatching { withContext(Dispatchers.IO) { GameEnvironmentStore.save(ctx, next) } }
-                .onSuccess { environment = next; environmentError = false }
-                .onFailure { environmentError = true }
+                .onSuccess {
+                    environment = next
+                    if (selectedGameKey == game.profileKey) {
+                        environmentError = false
+                        profileNotice = ctx.getString(R.string.comp_game_saved_next, game.name)
+                    }
+                }
+                .onFailure {
+                    if (selectedGameKey == game.profileKey) {
+                        environmentError = true
+                        profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
+                    }
+                }
             environmentBusy = false
         }
     }
@@ -194,30 +217,97 @@ fun ComponentsPage(
         val game = selectedGame ?: return
         val proton = id?.let { wanted -> snapshot?.protons?.firstOrNull { it.proton.id == wanted }?.proton }
         environmentBusy = true
+        profileNotice = null
         coroutine.launch {
             runCatching { withContext(Dispatchers.IO) { ProtonDefault.requestGame(ctx, game.profileKey, proton) } }
-                .onSuccess {
+                .onSuccess { outcome ->
                     if (selectedGameKey == game.profileKey) {
                         gameProtonChoice = proton?.let { ProtonDefault.GameChoice(it.valve, it.dir.name) }
                         gameProtonId = id
+                        environmentError = false
+                        profileNotice = ctx.getString(
+                            when (outcome) {
+                                ProtonDefault.Outcome.LIVE -> R.string.comp_game_proton_live
+                                ProtonDefault.Outcome.NEXT_START -> R.string.comp_game_proton_next
+                                ProtonDefault.Outcome.NOT_RUNNABLE -> R.string.comp_game_proton_not_runnable
+                            },
+                            game.name,
+                        )
                     }
-                    environmentError = false
                 }
-                .onFailure { environmentError = true }
+                .onFailure {
+                    if (selectedGameKey == game.profileKey) {
+                        environmentError = true
+                        profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
+                    }
+                }
             environmentBusy = false
         }
     }
     fun setGameComponent(comp: String, file: String?) {
         val game = selectedGame ?: return
         environmentBusy = true
+        profileNotice = null
         coroutine.launch {
             runCatching { withContext(Dispatchers.IO) { ComponentsManager.setGameComponent(ctx, game.profileKey, comp, file) } }
                 .onSuccess {
                     val components = ComponentsManager.gameComponents(ctx, game.profileKey)
-                    if (selectedGameKey == game.profileKey) gameComponents = components
-                    environmentError = false
+                    if (selectedGameKey == game.profileKey) {
+                        gameComponents = components
+                        environmentError = false
+                        profileNotice = ctx.getString(R.string.comp_game_saved_next, game.name)
+                    }
                 }
-                .onFailure { environmentError = true }
+                .onFailure {
+                    if (selectedGameKey == game.profileKey) {
+                        environmentError = true
+                        profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
+                    }
+                }
+            environmentBusy = false
+        }
+    }
+    fun resetGameProfile() {
+        val game = selectedGame ?: return
+        environmentBusy = true
+        profileNotice = null
+        coroutine.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val resetFailure = runCatching { GameProfileManager.reset(ctx, game.profileKey) }.exceptionOrNull()
+                    val config = GameEnvironmentStore.read(ctx)
+                    val choice = ProtonDefault.gameChoice(ctx, game.profileKey)
+                    val id = ProtonDefault.gameSelectedId(
+                        ctx,
+                        game.profileKey,
+                        snapshot?.protons.orEmpty().map { it.proton },
+                    )
+                    val components = ComponentsManager.gameComponents(ctx, game.profileKey)
+                    ProfileEditorState(config, choice, id, components) to resetFailure
+                }
+            }.onSuccess { (state, resetFailure) ->
+                if (selectedGameKey == game.profileKey) {
+                    environment = state.environment
+                    gameProtonChoice = state.protonChoice
+                    gameProtonId = state.protonId
+                    gameComponents = state.components
+                    winComponentsRevision++
+                    environmentError = resetFailure != null
+                    profileNotice = if (resetFailure == null) {
+                        ctx.getString(R.string.comp_game_reset_done, game.name)
+                    } else {
+                        ctx.getString(
+                            R.string.comp_game_reset_failed,
+                            resetFailure.message ?: resetFailure.javaClass.simpleName,
+                        )
+                    }
+                }
+            }.onFailure {
+                if (selectedGameKey == game.profileKey) {
+                    environmentError = true
+                    profileNotice = ctx.getString(R.string.comp_game_reset_failed, it.message ?: it.javaClass.simpleName)
+                }
+            }
             environmentBusy = false
         }
     }
@@ -376,6 +466,7 @@ fun ComponentsPage(
                 fexMenu = fexMenu,
                 busy = environmentBusy,
                 error = environmentError,
+                notice = profileNotice,
                 winComponentsRevision = winComponentsRevision,
                 onFexMenu = { fexMenu = it },
                 onFexPreset = ::setGameFexPreset,
@@ -385,6 +476,14 @@ fun ComponentsPage(
                 onComponent = ::setGameComponent,
                 onEnvironment = { environmentEditor = true },
                 onWinComponents = { winComponentsOpen = false },
+                onReset = {
+                    ask(
+                        ctx.getString(R.string.comp_game_reset_title, selectedGame.name),
+                        ctx.getString(R.string.comp_game_reset_body),
+                        R.string.comp_game_reset,
+                        ::resetGameProfile,
+                    )
+                },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
         } else {
@@ -520,7 +619,7 @@ fun ComponentsPage(
             text = { Text(body, fontSize = 14.sp) },
             // Opens on Cancel, so a stray A press on a controller never swaps or deletes anything.
             confirmButton = {
-                val del = confirmVerb == R.string.common_delete
+                val del = confirmVerb == R.string.common_delete || confirmVerb == R.string.comp_game_reset
                 FocusText(stringResource(confirmVerb), if (del) colors.error else pal.signal) { confirm = null; action() }
             },
             dismissButton = {
@@ -575,6 +674,7 @@ private fun GameComponentOverrides(
     fexMenu: Boolean,
     busy: Boolean,
     error: Boolean,
+    notice: String?,
     winComponentsRevision: Int,
     onFexMenu: (Boolean) -> Unit,
     onFexPreset: (String?) -> Unit,
@@ -584,6 +684,7 @@ private fun GameComponentOverrides(
     onComponent: (String, String?) -> Unit,
     onEnvironment: () -> Unit,
     onWinComponents: () -> Unit,
+    onReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -692,7 +793,21 @@ private fun GameComponentOverrides(
                 SecondaryButton(stringResource(R.string.game_env_edit), onClick = onWinComponents)
             }
         }
-        if (error) Text(stringResource(R.string.game_env_error), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+        notice?.let {
+            Text(
+                it,
+                fontSize = 13.sp,
+                color = if (error) MaterialTheme.colorScheme.error else LocalPalette.current.good,
+            )
+        }
+        if (error && notice == null) Text(stringResource(R.string.game_env_error), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+        if (!busy) {
+            FocusText(
+                stringResource(R.string.comp_game_reset),
+                MaterialTheme.colorScheme.error,
+                onClick = onReset,
+            )
+        }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
     }
 }

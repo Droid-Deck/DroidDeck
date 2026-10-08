@@ -6,6 +6,7 @@ import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.github.luben.zstd.ZstdInputStream
@@ -168,6 +169,13 @@ object ComponentsManager {
             for (proton in protons(context)) ensureOriginal(context, proton, comp, state)
             profile.put(comp, name)
         }
+        saveState(context, state)
+    }
+
+    fun clearGameComponents(context: Context, scope: String) = synchronized(lock) {
+        require(GameEnvironment.validScope(scope))
+        val state = loadState(context)
+        state.sub("profiles").remove(scope)
         saveState(context, state)
     }
 

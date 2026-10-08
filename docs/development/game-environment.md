@@ -21,12 +21,18 @@ selection, and restores Default component choices for the next game. **Use
 Default** removes the game override. Component packages must first be downloaded
 or imported on the Default Components page.
 
+**Reset game profile** removes all overrides owned by the selected game: Proton,
+FEX preset, component packages, environment variables, texture filtering and
+Windows components. The game then inherits the Default profile again.
+
 The order is inherited process environment, selected FEX preset and built-in
 settings, shared edits, then game-specific edits. Editor entries therefore win
 over matching Steam launch-option variables. **Remove** explicitly unsets a
-variable. **Restore inherited settings** removes the override. **Reset this
-profile** clears only that profile's overrides. Values are literal strings, with
-no shell expansion; quotes are only needed when the consuming program expects them.
+variable. **Restore inherited settings** removes the override. The environment
+editor's **Clear environment overrides** action clears only the selected
+environment entries and is intentionally narrower than **Reset game profile**.
+Values are literal strings, with no shell expansion; quotes are only needed when
+the consuming program expects them.
 
 ## Defaults and available suggestions
 

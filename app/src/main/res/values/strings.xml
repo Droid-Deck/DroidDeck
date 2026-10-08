@@ -58,7 +58,7 @@
     <string name="game_env_save">Save</string>
     <string name="game_env_remove">Remove</string>
     <string name="game_env_restore">Inherit again</string>
-    <string name="game_env_reset">Reset this profile</string>
+    <string name="game_env_reset">Clear environment overrides</string>
     <string name="game_env_unset">Unset for this profile</string>
     <string name="game_env_empty">No variables set.</string>
     <string name="game_env_inherited">Inherited</string>
@@ -425,6 +425,16 @@
     <string name="comp_game_component_override">Uses %1$s only for this game.</string>
     <string name="comp_game_runtime_options">Runtime options</string>
     <string name="comp_game_environment_other_hint">Other per-game Proton, DXVK, VKD3D-Proton and synchronization environment options.</string>
+    <string name="comp_game_saved_next">%1$s\'s profile is saved for the next game launch.</string>
+    <string name="comp_game_proton_live">%1$s\'s Proton choice is saved and available in Steam now.</string>
+    <string name="comp_game_proton_next">%1$s\'s Proton choice is saved. Restart Steam before launching the game.</string>
+    <string name="comp_game_proton_not_runnable">%1$s cannot use the selected Proton on this device.</string>
+    <string name="comp_game_save_failed">The game profile could not be saved: %1$s</string>
+    <string name="comp_game_reset">Reset game profile</string>
+    <string name="comp_game_reset_title">Reset %1$s\'s profile?</string>
+    <string name="comp_game_reset_body">Remove this game\'s Proton, FEX, component package, environment, texture filtering, and Windows component overrides? It will use the Default profile.</string>
+    <string name="comp_game_reset_done">%1$s now uses the Default profile.</string>
+    <string name="comp_game_reset_failed">The game profile could not be reset completely: %1$s</string>
     <string name="comp_default_live">%1$s now runs every game that has not picked its own Proton in Steam.</string>
     <string name="comp_default_next">%1$s will run every game that has not picked its own Proton, from the next time Steam starts.</string>
     <string name="comp_default_not_runnable">%1$s cannot start games here, so it cannot be the default.</string>
