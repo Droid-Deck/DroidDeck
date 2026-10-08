@@ -29,13 +29,16 @@ real (`ESYNC_DIRS`). The fast path bug itself is tracked separately.
 
 ## Community library (bundled `default.json`, 2026-10-08)
 
+Steam's idle screensaver takes focus from a running game, so captures need a key press first.
+`droiddeckctl input tap` reaches Skyrim's launcher; Enter does not.
+
 With no override file, the app published the bundled library for `A7XX`: 209 recipes, 3
 packages fetched. Three installed games have a library entry. Each received exactly its FEX
 variables, and the Auto launch path ran.
 
 | Game | Recipe | Result |
 | --- | --- | --- |
-| The Elder Scrolls V: Skyrim Special Edition (489830) | `FEX_HALFBARRIERTSOENABLED=0`, `FEX_X87REDUCEDPRECISION=1` (65 sources) | Recipe applied; Skyrim's launcher (`SkyrimSELauncher.exe`) and its first-run video detection dialog came up. Gameplay not yet checked. |
+| The Elder Scrolls V: Skyrim Special Edition (489830) | `FEX_HALFBARRIERTSOENABLED=0`, `FEX_X87REDUCEDPRECISION=1` (65 sources) | Main menu at 60 FPS (DXVK 3.1.1), but the whole frame showed fine vertical stripe artifacts. A stock launch rendered cleanly (59.5 FPS while loading). Likely candidate for `overrides.json`; repeat the comparison on a fully loaded menu and in gameplay before blocking. |
 | Portal 2 (620) | `FEX_X87REDUCEDPRECISION=1` (15 sources) | Recipe applied; `portal2.exe` created its Vulkan device. Not yet checked on screen. |
 | OCTOPATH TRAVELER II (1971650) | `FEX_HALFBARRIERTSOENABLED=0`, `FEX_X87REDUCEDPRECISION=1` (7 sources) | Recipe applied; the game stopped before creating a Vulkan device. Not yet compared with a stock launch, so the cause is open. |
 
