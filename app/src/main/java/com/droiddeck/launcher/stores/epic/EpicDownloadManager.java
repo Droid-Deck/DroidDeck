@@ -115,9 +115,11 @@ public final class EpicDownloadManager {
 
     /**
      * Installs the app the manifest API JSON describes into {@code installDir}. {@code installTags}
-     * null = every file. Returns null when cancelled; throws when it fails.
+     * null = every file. {@code chunkCacheDirPath} "" keeps the chunk cache beside the game
+     * ({@code <installDir>/.chunks}); a path puts it there instead - the app's cache when the game
+     * goes to a card. Returns null when cancelled; throws when it fails.
      */
-    public static Result install(Context ctx, String manifestApiJson, String installDirPath, List<String> installTags, AtomicBoolean cancel, Callback cb) throws InstallException {
+    public static Result install(Context ctx, String manifestApiJson, String installDirPath, String chunkCacheDirPath, List<String> installTags, AtomicBoolean cancel, Callback cb) throws InstallException {
         try {
             if (cancel.get()) return null;
             cb.onProgress("Reading CDN list…", 0);
@@ -136,7 +138,12 @@ public final class EpicDownloadManager {
 
             File installDir = new File(installDirPath);
             installDir.mkdirs();
-            File chunkCacheDir = new File(installDir, ".chunks");
+            // The native engine keeps its cache beside the game (its contract names <installDir>/.chunks);
+            // the scratch path is honoured by the Java pool and the assembly. A path on a card and a
+            // native run therefore still cache on the card until the engine takes the parameter.
+            boolean scratch = chunkCacheDirPath != null && !chunkCacheDirPath.isEmpty();
+            File engineCacheDir = new File(installDir, ".chunks");
+            File chunkCacheDir = scratch ? new File(chunkCacheDirPath) : engineCacheDir;
             chunkCacheDir.mkdirs();
 
             List<FileInfo> selected = resolveInstallFiles(manifest, installTags);
@@ -183,6 +190,7 @@ public final class EpicDownloadManager {
                         completedBytes, completedCount, lastSpeedMs, lastSpeedBytes, speedBps);
                 if (r.started) {
                     javaPool = false;
+                    chunkCacheDir = engineCacheDir;
                     if (r.cancelled) return null;
                     if (!r.success) { cb.onLog("epic: engine failed: " + r.error); failCount.incrementAndGet(); }
                 } else cb.onLog("epic: engine not started (" + r.error + "); using the built-in pool");
@@ -190,11 +198,12 @@ public final class EpicDownloadManager {
             if (javaPool) {
                 cb.onLog("epic: engine=built-in (8 threads)");
                 ExecutorService pool = Executors.newFixedThreadPool(8);
+                final File poolCacheDir = chunkCacheDir;
                 for (ChunkInfo chunk : needed) {
                     final ChunkInfo fc = chunk;
                     pool.submit(() -> {
                         if (cancel.get()) return;
-                        File cached = new File(chunkCacheDir, fc.guidStr());
+                        File cached = new File(poolCacheDir, fc.guidStr());
                         if (!cached.exists() && !downloadChunkStreaming(fc, manifest.chunkDir, cdnUrls, cached)) {
                             cb.onLog("FAIL chunk=" + fc.guidStr());
                             failCount.incrementAndGet();
@@ -239,7 +248,8 @@ public final class EpicDownloadManager {
                 }
                 doneFiles++;
             }
-            deleteDir(chunkCacheDir);
+            deleteDir(engineCacheDir);
+            if (scratch) deleteDir(new File(chunkCacheDirPath));
             cb.onProgress("Complete", 100);
             return new Result(manifest.launchExe, manifest.buildVersion, planned);
         } catch (InstallException e) {

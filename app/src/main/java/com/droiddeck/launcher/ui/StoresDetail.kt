@@ -65,8 +65,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.5f to colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp)) {
+                // An install names where it went (internal storage, the card), a download where it is going.
                 val state = when {
-                    installed != null -> stringResource(R.string.stores_eyebrow_installed)
+                    installed != null -> stringResource(R.string.stores_eyebrow_installed) + " · " + com.droiddeck.launcher.stores.StoreInstallRoot.labelFor(ctx, installed.folder)
+                    download != null && download.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + download.location
                     item?.owned == true -> stringResource(R.string.stores_eyebrow_library)
                     else -> stringResource(R.string.stores_eyebrow_store)
                 }
@@ -93,7 +95,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                         }
                         item?.owned == true -> PrimaryButton(
                             if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install), main = true,
-                        ) { StoresState.install(ctx, item) }
+                        ) { StoresState.requestInstall(ctx, item) }
                         item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true) { openStoreUrl(ctx, item) }
                         item != null -> PrimaryButton(if (item.hasPrice && item.finalPrice.isNotBlank()) stringResource(R.string.stores_buy_price, item.finalPrice) else stringResource(R.string.stores_view_on, store.shortLabel), main = true) { openStoreUrl(ctx, item) }
                     }

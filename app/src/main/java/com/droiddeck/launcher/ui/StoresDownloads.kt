@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
@@ -83,12 +86,18 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
         modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).border(1.dp, pal.line, Shape12).padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            // The game's art, small and fixed, so the row stays one line tall on a narrow page.
+            CardArt(CatalogItem(d.store, d.id, d.name, d.cover), Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(6.dp)))
             Column(modifier = Modifier.weight(1f)) {
                 Text(d.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                SourceChip(d.store.id, small = true, modifier = Modifier.padding(top = 2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 2.dp)) {
+                    SourceChip(d.store.id, small = true)
+                    if (d.location.isNotBlank()) Text(d.location, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
-            Stages(d)
+            if (!LocalNarrowPane.current) Stages(d)
         }
+        if (LocalNarrowPane.current) Stages(d)
         ProgressBarThin(
             if (d.state == DownloadState.INSTALLED) 1f else d.fraction, paused = d.state == DownloadState.PAUSED,
             verify = d.stage == DownloadStage.VERIFY, height = 8.dp, done = d.state == DownloadState.INSTALLED,

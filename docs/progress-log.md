@@ -103,6 +103,17 @@ without it and Setup says "Stores engine not built").
   from it, for all three stores; the engine's own figure stays in its log lines, and the detail
   line under the bar has it stripped. The tier and downloads-at-a-time controls sit on one compact
   row with a single caption, on the Downloads page and in the cog's popup.
+- **Install location (user decision):** the default is the app's internal storage for all three
+  stores, whatever the session's Game storage says. With a card in the device, Install asks
+  "Install to" first (internal / the card, free space per target, pad-focusable, last pick as the
+  default only). A card that is not the Steam library gets a bind of its own in the session
+  (`/mnt/droiddeck-stores/<volume uuid>`; the library's own bind covers a library card, so installs
+  already registered there keep their appid); every root is scanned and uninstall works for
+  either. The Downloads
+  row shows where a game is going, with its art as a small 16:9 thumbnail; the game page names the
+  place. Epic installs on a card keep their in-flight chunks in the app's cache (Java pool and
+  assembly; the native engine's `chunkCacheDir` parameter is not in JNI.md yet and is wired the
+  moment it lands), cleaned on cancel and uninstall.
 - **Device-proven on the AYANEO Pocket FIT, 2026-10-08 (GOG):** sign-in, the library (33 owned),
   DOOM I Enhanced installed through the GOG engine to the SD Games root, shown in Games with the
   GOG chip and real art, registered as a non-Steam game in the Steam client (grid art present), and

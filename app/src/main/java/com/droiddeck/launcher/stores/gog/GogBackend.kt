@@ -65,19 +65,19 @@ object GogBackend : StoreBackend {
         return com.droiddeck.launcher.stores.StoreShelves(mark(s.whatsNew), mark(s.deals), mark(s.free), mark(s.trending))
     }
 
-    override fun install(context: Context, item: CatalogItem) {
+    override fun install(context: Context, item: CatalogItem, root: File) {
         val app = context.applicationContext
         val game = GogGame(item.id, item.title, item.imageUrl ?: "", item.description, item.developer, item.tags, 2, item.tallImageUrl)
-        val entry = DownloadEntry(store, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes)
-        DownloadQueue.enqueue(app, entry) { InstallJob(app, game, item) }
+        val folder = StoreInstallRoot.folderFor(app, Store.GOG, game.gameId, game.title, root)
+        val entry = DownloadEntry(store, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes, location = StoreInstallRoot.labelFor(app, folder))
+        DownloadQueue.enqueue(app, entry) { InstallJob(app, game, item, folder) }
     }
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
 
     /** One GOG install, as the queue runs it. */
-    private class InstallJob(val app: Context, val game: GogGame, val item: CatalogItem) : DownloadQueue.DownloadJob {
+    private class InstallJob(val app: Context, val game: GogGame, val item: CatalogItem, val folder: File) : DownloadQueue.DownloadJob {
         private val cancelled = AtomicBoolean(false)
-        private val folder: File = StoreInstallRoot.folderFor(app, Store.GOG, game.gameId, game.title)
 
         override fun run(handle: DownloadQueue.JobHandle): String? {
             handle.stage(DownloadStage.MANIFEST)

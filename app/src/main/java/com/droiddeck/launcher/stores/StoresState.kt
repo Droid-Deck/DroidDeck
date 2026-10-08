@@ -115,8 +115,24 @@ object StoresState {
         }, "stores-signout").start()
     }
 
-    fun install(context: Context, item: CatalogItem) {
-        backends[item.store]?.install(context.applicationContext, item) ?: logLine("${item.store.label}: this build cannot install yet")
+    /** An install waiting for the user to say where: the page shows the choice while this is set. */
+    var pendingInstall by mutableStateOf<CatalogItem?>(null)
+
+    /**
+     * The way a page starts an install: with a card in the device the user is asked where (the
+     * dialog's default is last time's pick, never a silent choice); with none it goes to internal
+     * storage at once.
+     */
+    fun requestInstall(context: Context, item: CatalogItem) {
+        val targets = StoreInstallRoot.targets(context)
+        if (targets.size > 1) pendingInstall = item else install(context, item, targets.first().root)
+    }
+
+    /** Starts an install into [root] (the internal root when null). */
+    fun install(context: Context, item: CatalogItem, root: java.io.File? = null) {
+        val app = context.applicationContext
+        val target = root ?: StoreInstallRoot.installRoot(app)
+        backends[item.store]?.install(app, item, target) ?: logLine("${item.store.label}: this build cannot install yet")
     }
 
     /** Removes the game's folder and its shortcut, then [onDone] on the main thread. */
@@ -160,7 +176,8 @@ interface StoreBackend {
     fun signOut(context: Context)
     fun syncLibrary(context: Context, force: Boolean)
     fun loadShelves(context: Context, force: Boolean)
-    fun install(context: Context, item: CatalogItem)
+    /** Queues an install of [item] under [root] (a StoreInstallRoot target). */
+    fun install(context: Context, item: CatalogItem, root: java.io.File)
     /** The store's own records of the install, before the folder goes (the queue row, cached ids). */
     fun uninstall(context: Context, game: InstalledStoreGame)
 }

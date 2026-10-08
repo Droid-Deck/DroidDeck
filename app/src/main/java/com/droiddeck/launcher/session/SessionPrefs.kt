@@ -78,6 +78,13 @@ object SessionPrefs {
     const val STORES_OPEN_LIBRARY = "library"
     const val STORES_OPEN_STORE = "store"
 
+    /** The install root picked last time the Stores asked where (a StoreInstallRoot target's path); only the dialog's default, never a silent choice. */
+    fun storesInstallTarget(context: Context): String = prefs(context).getString("storesInstallTarget", "") ?: ""
+
+    fun setStoresInstallTarget(context: Context, path: String) {
+        prefs(context).edit().putString("storesInstallTarget", path).apply()
+    }
+
     /** How many store downloads run at once, 1..3; one by default (a single download already fills the link). */
     fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
 

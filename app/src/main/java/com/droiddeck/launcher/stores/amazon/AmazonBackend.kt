@@ -76,19 +76,19 @@ object AmazonBackend : StoreBackend {
         if (!StoresState.library.containsKey(store)) syncLibrary(context, force)
     }
 
-    override fun install(context: Context, item: CatalogItem) {
+    override fun install(context: Context, item: CatalogItem, root: File) {
         val app = context.applicationContext
         val entitlementId = item.extra["entitlementId"] ?: ""
         if (entitlementId.isEmpty()) { StoresState.logLine("Amazon: \"${item.title}\" has no entitlement to download with"); return }
         val game = AmazonGame().apply { productId = item.id; this.entitlementId = entitlementId; title = item.title; productSku = item.extra["sku"] ?: ""; heroUrl = item.imageUrl ?: ""; artUrl = item.tallImageUrl ?: "" }
-        DownloadQueue.enqueue(app, DownloadEntry(store, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes)) { InstallJob(app, game, item) }
+        val folder = StoreInstallRoot.folderFor(app, Store.AMAZON, game.productId, game.title, root)
+        DownloadQueue.enqueue(app, DownloadEntry(store, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes, location = StoreInstallRoot.labelFor(app, folder))) { InstallJob(app, game, item, folder) }
     }
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
 
-    private class InstallJob(val app: Context, val game: AmazonGame, val item: CatalogItem) : DownloadQueue.DownloadJob {
+    private class InstallJob(val app: Context, val game: AmazonGame, val item: CatalogItem, val folder: File) : DownloadQueue.DownloadJob {
         private val cancelled = AtomicBoolean(false)
-        private val folder: File = StoreInstallRoot.folderFor(app, Store.AMAZON, game.productId, game.title)
 
         override fun run(handle: DownloadQueue.JobHandle): String? {
             handle.stage(DownloadStage.MANIFEST, "Checking sign-in…")

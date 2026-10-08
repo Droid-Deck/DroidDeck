@@ -13,12 +13,20 @@ the rest of the app, and the on-disk contract that makes a store game an ordinar
     .droiddeck-epic-code       one-shot, written right before an Epic launch, read and deleted by the .bat
 ```
 
-`<Games storage>` is the second Steam library when one is chosen (the SD card's app folder, bound
-into the session at `/mnt/droiddeck-sd`), else the runtime's own tree, where the folder is
-`/root/Games/Stores` (`StoreInstallRoot`). Both roots are always scanned; new installs go to the
-current one. `<Store>` is `GOG`, `Epic` or `Amazon`; `<title>` is the title with unsafe characters
-dropped, at most 60 characters (`StoreInstallRoot.folderName`), chosen once and read back from the
-sidecar afterwards.
+The default root is the app's internal storage - the runtime's tree, `/root/Games/Stores`, no bind
+needed - whatever the session's Game storage setting says. When a card the app may write is in the
+device (`GameStorage.options`), Install asks "Install to" (internal / the card, free space shown;
+the last pick is only the dialog's default). A card's root is `<card app folder>/Games`; when the
+card is the Steam library the library's bind (`/mnt/droiddeck-sd`) already covers it, otherwise
+`SessionService` binds the root at `/mnt/droiddeck-stores/<volume uuid>`, so a shortcut's guest
+path - and its appid - is the same from one session to the next. Every root is
+scanned (`StoreInstallRoot.roots`): internal, every card, and the Steam library's `Games` folder for
+installs an earlier build put there. `<Store>` is `GOG`, `Epic` or `Amazon`; `<title>` is the title
+with unsafe characters dropped, at most 60 characters (`StoreInstallRoot.folderName`), chosen once;
+a rerun (repair, update) lands on the folder whose sidecar carries the game's id, wherever it is.
+An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/` (the Java pool
+and the assembly honour it; the native engine's own cache stays `<installDir>/.chunks` until its
+contract takes a cache path); the scratch folder is removed on cancel and uninstall.
 
 ## The sidecar
 
@@ -88,6 +96,7 @@ each manager runs its Java fetch loop.
 | Open a store on: Library · Store | `SessionPrefs.storesOpenTab` (library) | the chip row's cog, Setup › Stores |
 | Download speed tier | `SessionPrefs.gameStoresSpeedTier` (fast) | the cog, Setup › Stores, Downloads |
 | Downloads at a time | `SessionPrefs.gameStoresParallel` (1) | Downloads |
+| Install to (last pick, dialog default only) | `SessionPrefs.storesInstallTarget` | the Install dialog |
 
 Credentials live in `filesDir/stores/<store>/credentials.json` only (`StoreAccounts`); store URLs
 are logged through `StoreLog.redactUrl`, which drops the query string where the signed tokens live.

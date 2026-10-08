@@ -76,6 +76,9 @@ object AddedGames {
         SessionPrefs.romsDir(context).takeIf { it.isNotEmpty() }?.let { roms ->
             if (path.startsWith("$roms/")) return "/root/ROMs/" + path.removePrefix("$roms/")
         }
+        // A store root on a card has a bind of its own, before the library rule: the same folder
+        // keeps the same guest path (and appid) whether or not that card is also the Steam library.
+        StoreInstallRoot.externalGuestPath(context, host)?.let { return it }
         GameStorage.effective(context)?.let { lib ->
             if (path.startsWith("${lib.path}/")) return "$LIBRARY/" + path.removePrefix("${lib.path}/")
         }

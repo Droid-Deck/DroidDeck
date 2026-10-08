@@ -41,6 +41,8 @@ data class DownloadEntry(
     /** When the entry reached a terminal state, for ordering and ageing out. */
     val finishedAt: Long = 0L,
     val startedAt: Long = 0L,
+    /** Where it is going: the install target's name ("Internal storage", the card's name). */
+    val location: String = "",
 ) {
     val key: String get() = "${store.id}:$id"
     val isActive: Boolean get() = state == DownloadState.QUEUED || state == DownloadState.RUNNING || state == DownloadState.PAUSED

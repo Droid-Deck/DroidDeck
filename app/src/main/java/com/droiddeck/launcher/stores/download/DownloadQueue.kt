@@ -45,7 +45,7 @@ object DownloadQueue {
     }
 
     /** "Downloading: data.pak  12.3 MB/s" → "Downloading: data.pak": the engine's burst rate is not shown twice. */
-    private fun stripSpeed(s: String): String = s.replace(Regex("\\s+\\S+ [KM]B/s\\s*$"), "").trimEnd()
+    private fun stripSpeed(s: String): String = s.replace(Regex("\\s+\\S+ [KMG]B/s\\s*$"), "").trimEnd()
 
     /** How far back the shown speed looks: a few seconds, so the figure settles instead of following each file. */
     private const val SPEED_WINDOW_MS = 3000.0

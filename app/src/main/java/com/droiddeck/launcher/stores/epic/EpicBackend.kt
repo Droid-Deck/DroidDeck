@@ -79,13 +79,14 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         return StoreShelves(mark(s.whatsNew), mark(s.deals), mark(s.free), mark(s.trending))
     }
 
-    override fun install(context: Context, item: CatalogItem) {
+    override fun install(context: Context, item: CatalogItem, root: File) {
         val app = context.applicationContext
         val namespace = item.extra["namespace"] ?: ""
         val catalogItemId = item.extra["catalogItemId"] ?: ""
         if (namespace.isEmpty() || catalogItemId.isEmpty()) { StoresState.logLine("Epic: \"${item.title}\" is not in your library"); return }
-        val entry = DownloadEntry(store, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes)
-        DownloadQueue.enqueue(app, entry) { InstallJob(app, item, namespace, catalogItemId) }
+        val folder = StoreInstallRoot.folderFor(app, Store.EPIC, item.id, item.title, root)
+        val entry = DownloadEntry(store, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes, location = StoreInstallRoot.labelFor(app, folder))
+        DownloadQueue.enqueue(app, entry) { InstallJob(app, item, namespace, catalogItemId, folder) }
     }
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
@@ -96,9 +97,12 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         return EpicAuthClient.getExchangeCode(token)
     }
 
-    private class InstallJob(val app: Context, val item: CatalogItem, val namespace: String, val catalogItemId: String) : DownloadQueue.DownloadJob {
+    private class InstallJob(val app: Context, val item: CatalogItem, val namespace: String, val catalogItemId: String, val folder: File) : DownloadQueue.DownloadJob {
         private val cancelled = AtomicBoolean(false)
-        private val folder: File = StoreInstallRoot.folderFor(app, Store.EPIC, item.id, item.title)
+        // On a card the in-flight chunks go to the app's cache instead: the card's write rate paces
+        // the whole install, and chunks are read back once at assembly. Internal installs keep the
+        // cache beside the game, as the engine's contract has it today.
+        private val scratch: File? = if (StoreInstallRoot.isRemovable(app, folder)) StoreInstallRoot.scratchDir(app, Store.EPIC, item.id) else null
 
         override fun run(handle: DownloadQueue.JobHandle): String? {
             handle.stage(DownloadStage.MANIFEST, "Checking sign-in…")
@@ -107,7 +111,7 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                 ?: throw EpicDownloadManager.InstallException("The manifest could not be fetched")
             val tags = EpicInstallTags.tagsForDevice()
             var downloading = false
-            val result = EpicDownloadManager.install(app, manifestJson, folder.path, tags, cancelled, object : EpicDownloadManager.Callback {
+            val result = EpicDownloadManager.install(app, manifestJson, folder.path, scratch?.path ?: "", tags, cancelled, object : EpicDownloadManager.Callback {
                 override fun onProgress(message: String, pct: Int) {
                     when {
                         message.startsWith("Writing") || message.startsWith("Complete") -> handle.stage(DownloadStage.INSTALL, message)
@@ -138,7 +142,7 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
 
         override fun cancel(deleteFiles: Boolean) {
             cancelled.set(true)
-            if (deleteFiles) Thread({ StoreInstalls.deleteTree(folder) }, "epic-cancel-clean").start()
+            if (deleteFiles) Thread({ StoreInstalls.deleteTree(folder); scratch?.let { StoreInstalls.deleteTree(it) } }, "epic-cancel-clean").start()
         }
     }
 

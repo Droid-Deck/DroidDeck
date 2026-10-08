@@ -54,6 +54,8 @@ object StoreInstalls {
         val app = context.applicationContext
         val appId = AddedGames.scan(app).firstOrNull { it.folder.absolutePath == game.folder.absolutePath }?.appId
         deleteTree(game.folder)
+        // The scratch cache an install on a card may have left in the app's cache.
+        deleteTree(StoreInstallRoot.scratchDir(app, game.sidecar.store, game.sidecar.id))
         register(app)
         if (appId != null) SteamLiveShortcuts.remove(app, appId)
         StoresState.logLine("uninstalled \"${game.sidecar.title}\"")

@@ -894,6 +894,15 @@ class SessionService : Service() {
                 Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
             }
         }
+        // Store games installed on a card: each card's Games root at its own fixed place, so the
+        // shortcuts point somewhere whether or not the card is also the Steam library.
+        for ((host, guest) in com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(this)) {
+            if (host.isDirectory && host.canRead()) {
+                File(LinuxRuntime.rootDir(this), guest.removePrefix("/")).mkdirs()
+                binds.add(host.path + ":" + guest)
+                Log.i(TAG, "store games: $host -> $guest")
+            }
+        }
         // Folders of added scripts outside internal storage, where their links point.
         binds.addAll(com.droiddeck.launcher.runtime.UserApps.binds(this))
         val roms = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }?.let { File(it) }
