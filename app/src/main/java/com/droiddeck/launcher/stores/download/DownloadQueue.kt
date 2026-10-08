@@ -207,8 +207,13 @@ object DownloadQueue {
             publishLocked()
         }
         when (item.entry.state) {
-            DownloadState.INSTALLED -> StoresState.logLine("installed \"${item.entry.name}\" → ${result}")
+            DownloadState.INSTALLED -> {
+                StoresState.logLine("installed \"${item.entry.name}\" → ${result}")
+                // The folder is on disk and registered: the Installed tab and the Games list follow.
+                StoresState.notifyLibraryChanged(context)
+            }
             DownloadState.FAILED -> StoresState.logLine("${item.entry.store.label}: \"${item.entry.name}\" failed: $error")
+            DownloadState.CANCELLED -> StoresState.notifyLibraryChanged(context)
             else -> {}
         }
         StoreDownloadService.finish(context, item.entry.key)

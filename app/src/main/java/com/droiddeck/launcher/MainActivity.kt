@@ -922,8 +922,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshWifiDiscovery()
-        // Back from a store's sign-in page: the Stores chips show the account at once.
+        // Back from a store's sign-in page: the Stores chips show the account at once. A store
+        // install finishing while this screen is up rebuilds the Games list through the listener.
         if (gameStoresEnabled) com.droiddeck.launcher.stores.StoresState.refresh(this)
+        com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
         com.droiddeck.launcher.ui.Motion.refresh(this)
         // Back from a session stopped behind a flood: open on its blue, before the first frame.
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
@@ -981,6 +983,8 @@ class MainActivity : ComponentActivity() {
         unregisterReceiver(wifiLocationReceiver)
         unregisterReceiver(mediaReceiver)
         ui.removeCallbacks(mediaRefresh)
+        // An install finishing while this screen is away is picked up by onResume's refresh.
+        com.droiddeck.launcher.stores.StoresState.libraryListener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         // The session covers the page by now; coming back finds it as it was.
         flood = null

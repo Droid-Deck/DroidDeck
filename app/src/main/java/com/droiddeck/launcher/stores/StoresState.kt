@@ -129,6 +129,15 @@ object StoresState {
         }, "stores-uninstall").start()
     }
 
+    /** Told on the main thread when an install or removal changed what is on disk; the launcher rebuilds its Games list. */
+    @Volatile var libraryListener: (() -> Unit)? = null
+
+    /** A game landed or went: the installed set is re-read and the launcher told. Any thread. */
+    fun notifyLibraryChanged(context: Context) {
+        refresh(context)
+        main.post { libraryListener?.invoke() }
+    }
+
     /** Appends to the engine log with a clock, keeping the last 80 lines. Any thread. */
     fun logLine(text: String) {
         val stamped = "${CLOCK.format(Date())}  $text"
