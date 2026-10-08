@@ -300,6 +300,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
             Log.i(TAG, "input device $deviceId disconnected")
+            padBridge?.onDeviceRemoved(deviceId)
             updateOnScreenControls()
             updatePointerCapture()
         }

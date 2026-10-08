@@ -1317,13 +1317,15 @@ __attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char
   return pathname && fake_deck_enabled() && !strcmp(pathname, DECK_HIDRAW_PATH);
 }
 
-// The app's own pads are the Deck now; their evdev nodes are withdrawn from everyone.
+// The app's first pad is the Deck now: its evdev node is withdrawn from everyone. Further players'
+// pads are left to the client alone, which hands them to games through Steam Input.
 __attribute__((visibility("hidden"))) static bool is_withdrawn_pad_path(const char *pathname) {
   if (!fake_deck_enabled() || !pathname || strncmp(pathname, "/dev/input/", 11)) return false;
   const char *event = strrchr(pathname, '/') + 1;
   if (strncmp(event, "event", 5) && strncmp(event, "js", 2)) return false;
   int number = get_event_number(event);
-  return number >= 0 && number < UINPUT_EVENT_BASE;
+  if (number < 0 || number >= UINPUT_EVENT_BASE) return false;
+  return number == 0 || !process_is_steam_client();
 }
 
 static inline void put16(uint8_t *at, int value) {
