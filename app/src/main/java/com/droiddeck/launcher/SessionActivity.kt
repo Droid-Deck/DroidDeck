@@ -74,6 +74,7 @@ import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.ProtonDefault
 import com.droiddeck.launcher.session.SelectedGameProfile
+import com.droiddeck.launcher.session.WinComponents
 import com.droiddeck.launcher.ui.CursorOverlay
 import androidx.compose.ui.graphics.asImageBitmap
 import com.droiddeck.launcher.ui.DrawerActions
@@ -828,6 +829,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             gameProtonChoice = gameChoice,
             gameProtonId = ProtonDefault.gameSelectedId(this, game.profileKey, protons),
             gameComponents = ComponentsManager.gameComponents(this, game.profileKey),
+            gameWindowsComponents = WinComponents.picks(this, game.profileKey),
         )
     }
 
