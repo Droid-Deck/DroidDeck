@@ -812,10 +812,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val options = games.mapNotNull { game ->
                 game.profileKey.toLongOrNull()?.let { it to game.name }
             }.sortedBy { it.second.lowercase() }
-            val selectedAppId = if (refresh.followsSteam) AgentGuest.selectedSteamAppId(this) else refresh.requestedAppId
+            val installedAppIds = options.mapTo(mutableSetOf()) { it.first }
+            val activeAppId = AgentGuest.activeSteamAppId(this, installedAppIds)
+            val selectedAppId = if (refresh.followsSteam) {
+                activeAppId ?: AgentGuest.selectedSteamAppId(this)
+            } else {
+                refresh.requestedAppId
+            }
             val profile = selectedAppId?.let { resolveDrawerGameProfile(it, games) }
             DrawerGameProfileResult(options, selectedAppId, profile)
-        }.getOrElse { DrawerGameProfileResult(emptyList(), refresh.requestedAppId, null) }
+        }.getOrElse {
+            DrawerGameProfileResult(emptyList(), refresh.requestedAppId, null)
+        }
 
     private fun applyDrawerGameProfileRefresh(
         refresh: DrawerGameProfileRefresh,
