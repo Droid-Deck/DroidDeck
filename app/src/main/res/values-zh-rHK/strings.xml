@@ -339,7 +339,6 @@
     <string name="mode_directaudio_hint">繞過 PulseAudio 以減低延遲。</string>
     <string name="mode_client_audio">Steam 用戶端音訊</string>
     <string name="mode_client_audio_hint">下次會話生效。</string>
-    <string name="mode_client_audio_classic">經典</string>
     <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">麥克風</string>
     <string name="mode_mic_hint">用於語音聊天。</string>

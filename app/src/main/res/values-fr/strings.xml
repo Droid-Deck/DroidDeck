@@ -286,7 +286,6 @@
     <string name="mode_directaudio_hint">Contourne PulseAudio pour réduire la latence.</string>
     <string name="mode_client_audio">Audio du client Steam</string>
     <string name="mode_client_audio_hint">Prendra effet à la prochaine session.</string>
-    <string name="mode_client_audio_classic">Classique</string>
     <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">Microphone</string>
     <string name="mode_mic_hint">Utilisé pour le chat vocal.</string>
