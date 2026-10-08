@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.focusRequester
@@ -162,6 +163,7 @@ private fun RailItem(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.railFor(key)) else Modifier)
+            .testTag("rail-$key")
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .size(width = if (iconOnly) 52.dp else 80.dp, height = height)
             .clip(Shape14)

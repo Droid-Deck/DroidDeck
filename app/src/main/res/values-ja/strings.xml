@@ -611,6 +611,7 @@
     <string name="setup_session">セッション</string>
     <string name="setup_logs">セッションログ</string>
     <string name="setup_logs_hint">各セッション終了後に保存</string>
+    <string name="setup_agent_commands">デバッグツール</string>
     <string name="setup_latest_logs">最新のセッションログ</string>
     <string name="setup_saved_logs">保存されたセッションログ</string>
     <string name="setup_saved_logs_hint">最新の%1$d件を保持</string>
