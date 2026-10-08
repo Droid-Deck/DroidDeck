@@ -342,6 +342,8 @@ class MainActivity : ComponentActivity() {
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
+    private var zramCompression by mutableStateOf(false)
+    private var zramSupported by mutableStateOf<Boolean?>(null)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
     private var backActionsInverted by mutableStateOf(false)
     private var renderer by mutableStateOf("vulkan")
@@ -1188,6 +1190,8 @@ class MainActivity : ComponentActivity() {
                 touchMode = touchMode,
                 suspendPolicy = suspendPolicy,
                 steamDownloadsInBackground = steamDownloadsInBackground,
+                zramCompression = if (mode == SessionService.MODE_STEAM) zramCompression else null,
+                zramSupported = zramSupported,
                 pipSupported = com.droiddeck.launcher.session.SessionPipController.supported(this),
                 pipAutoEnter = pipAutoEnter,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
@@ -1251,6 +1255,7 @@ class MainActivity : ComponentActivity() {
                     SessionPrefs.setSteamDownloadsInBackground(this, enabled)
                     steamDownloadsInBackground = enabled
                 },
+                onZramCompression = { on -> SessionPrefs.setZramCompression(this, on); zramCompression = on },
                 onPipAutoEnter = { on -> SessionPrefs.setPipAutoEnter(this, on); pipAutoEnter = on },
                 onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },
                 onBackActionsInverted = { inverted ->
@@ -1420,6 +1425,7 @@ class MainActivity : ComponentActivity() {
         touchMode = SessionPrefs.touchMode(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
+        zramCompression = SessionPrefs.zramCompression(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         directAudio = SessionPrefs.directAudio(this)
@@ -1434,6 +1440,8 @@ class MainActivity : ComponentActivity() {
         // The page opens at once, on what was last read; the slow part (driver files, a walk of the
         // added-games folders, the storage volumes) lands while it animates in.
         Thread({
+            val zram = com.droiddeck.launcher.core.ZramSupport.supported()
+            ui.post { zramSupported = zram }
             drivers.refreshDrivers()
             val games = scanAddedGames()
             val storage = GameStorage.options(this)

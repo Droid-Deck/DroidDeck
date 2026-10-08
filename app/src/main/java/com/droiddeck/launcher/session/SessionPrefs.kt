@@ -835,6 +835,13 @@ object SessionPrefs {
         }.apply()
     }
 
+    /** Steam only: the client's memory goes to the device's zram while a game runs (ZramSupport). */
+    fun zramCompression(context: Context): Boolean = prefs(context).getBoolean("zramCompression", false)
+
+    fun setZramCompression(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("zramCompression", on).apply()
+    }
+
     // ── Game storage ────────────────────────────────────────────────────────────────────────
 
     /**

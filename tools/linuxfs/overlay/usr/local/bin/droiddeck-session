@@ -403,6 +403,60 @@ case $mode in
         done
       ) &
     fi
+    # zRAM compression (BL_ZRAM): 20 s into a game the client and its web helpers page their memory
+    # out to the device's zram (libblsession zram.c), again every 5 minutes, and read it back once
+    # the game has exited. A game is running while Steam's reaper is.
+    if [ "${BL_ZRAM:-0}" = 1 ]; then
+      printf 0 > /tmp/.bl-zram
+      step "zRAM compression: on"
+      (
+        bl_zram_scan() {
+          _bl_game=0 _bl_pids=()
+          for _d in /proc/[0-9]*; do
+            IFS= read -r -d '' _c 2>/dev/null < "$_d/cmdline" || continue
+            case ${_c##*/} in
+              reaper) _bl_game=1 ;;
+              steam|steamwebhelper) _bl_pids+=("${_d#/proc/}") ;;
+            esac
+          done
+        }
+        bl_zram_usage() {
+          local _p _k _v _u _rss=0 _swap=0
+          for _p in "${_bl_pids[@]}"; do
+            while read -r _k _v _u; do
+              case $_k in VmRSS:) _rss=$((_rss + _v)) ;; VmSwap:) _swap=$((_swap + _v)) ;; esac
+            done 2>/dev/null < "/proc/$_p/status"
+          done
+          echo "${#_bl_pids[@]} processes, resident $((_rss / 1024)) MB, in zram $((_swap / 1024)) MB"
+        }
+        bl_zram_send() {
+          step "zRAM: $2 ($(bl_zram_usage))"
+          printf '%s' "$1" > /tmp/.bl-zram
+          [ "${#_bl_pids[@]}" = 0 ] || kill -URG "${_bl_pids[@]}" 2>/dev/null
+          nap 5
+          bl_zram_scan
+          step "zRAM: done ($(bl_zram_usage))"
+        }
+        _bl_since=-1 _bl_packed=-1
+        while kill -0 $$ 2>/dev/null; do
+          bl_zram_scan
+          if [ "$_bl_game" = 1 ]; then
+            [ "$_bl_since" -ge 0 ] || _bl_since=$SECONDS
+            if [ $((SECONDS - _bl_since)) -ge 20 ] && [ "${#_bl_pids[@]}" -gt 0 ] &&
+               { [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 300 ]; }; then
+              bl_zram_send 1 "compressing the client"
+              _bl_packed=$SECONDS
+            fi
+          elif [ "$_bl_since" -ge 0 ]; then
+            [ "$_bl_packed" -lt 0 ] || bl_zram_send 0 "game closed, reading the client back"
+            _bl_since=-1 _bl_packed=-1
+          fi
+          nap 5
+        done
+      ) &
+    else
+      rm -f /tmp/.bl-zram
+    fi
 
     step "registering the app's game library with Steam"
     droiddeck-steam-library "$steam_root" || true
