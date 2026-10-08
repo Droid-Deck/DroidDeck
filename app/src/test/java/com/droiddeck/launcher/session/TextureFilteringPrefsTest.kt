@@ -58,4 +58,15 @@ class TextureFilteringPrefsTest {
         assertEquals("", published.getJSONObject(GameEnvironmentStore.DXVK_CONFIG_GAMES).getString("42"))
         assertNull(SessionPrefs.gameTextureFiltering(context, "43").anisotropy)
     }
+
+    @Test fun clearingGameChoicesPreservesOtherProfiles() {
+        SessionPrefs.setGameTextureAnisotropy(context, "42", 4)
+        SessionPrefs.setGameTextureLodBias(context, "42", "-0.5")
+        SessionPrefs.setGameTextureAnisotropy(context, "43", 8)
+
+        SessionPrefs.clearGameTextureFiltering(context, "42")
+
+        assertEquals(SessionPrefs.GameTextureFiltering(), SessionPrefs.gameTextureFiltering(context, "42"))
+        assertEquals(8, SessionPrefs.gameTextureFiltering(context, "43").anisotropy)
+    }
 }
