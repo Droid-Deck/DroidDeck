@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import socket
 import struct
+import subprocess
 import sys
 import tempfile
 import threading
@@ -218,23 +219,28 @@ class AgentTest(unittest.TestCase):
         self.assertIn("ReferenceError", answer["error"]["message"])
 
     def test_serve_answers_request_files(self):
-        os.environ.pop("DISPLAY", None)
-        thread = threading.Thread(target=agent.serve, args=(self.dir, False, 0.02), daemon=True)
-        thread.start()
+        server = subprocess.Popen([sys.executable, str(SCRIPT), "--no-focus"],
+                                  env=dict(os.environ, BL_LAUNCH_DIR=str(self.dir)),
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        def stop_server():
+            server.terminate()
+            server.wait(timeout=5)
+        self.addCleanup(stop_server)
+        agent_dir = self.dir / "agent"
         for _ in range(100):
-            if (self.dir / "hello.json").exists():
+            if (agent_dir / "hello.json").exists():
                 break
             time.sleep(0.02)
-        hello = json.loads((self.dir / "hello.json").read_text())
-        self.assertEqual(os.getpid(), hello["pid"])
+        hello = json.loads((agent_dir / "hello.json").read_text())
+        self.assertEqual(server.pid, hello["pid"])
         self.assertFalse(hello["focus"])
-        (self.dir / "req" / "a.json.tmp").write_text(json.dumps({"kind": "ping"}))
-        os.replace(self.dir / "req" / "a.json.tmp", self.dir / "req" / "a.json")
+        (agent_dir / "req" / "a.json.tmp").write_text(json.dumps({"kind": "ping"}))
+        os.replace(agent_dir / "req" / "a.json.tmp", agent_dir / "req" / "a.json")
         for _ in range(200):
-            if (self.dir / "resp" / "a.json").exists():
+            if (agent_dir / "resp" / "a.json").exists():
                 break
             time.sleep(0.02)
-        self.assertEqual(agent.VERSION, json.loads((self.dir / "resp" / "a.json").read_text())["version"])
+        self.assertEqual(agent.VERSION, json.loads((agent_dir / "resp" / "a.json").read_text())["version"])
 
     def test_game_pids_reads_the_steam_environment(self):
         import subprocess
