@@ -220,3 +220,47 @@ Button bits (Steam Link's `CVirtualController` table at `0x463e70`, indexed by
 | Right bumper | 2 | | Macro 0-7 | 32-39 |
 | Left trigger | 1 | | 1-finger / 2-finger macro | 48, 49 |
 | Right trigger | 0 | | Trackpad 0 / 1 / 2 touched | 27 / 19 / 20 |
+
+Report layout, all little-endian (Steam Link `CVirtualController`: `TouchControl_JoyButton`,
+`TouchControl_JoyStick`, `SetTrackpad`, `UpdateControllerState`):
+
+| Bytes | Field |
+|---|---|
+| 0-7 | u64 buttons and touch flags (table above; d-pad as the Deck's: up 8, right 9, left 10, down 11; left / right stick touched 46 / 47) |
+| 8-15 | int16 left X, left Y, right X, right Y: `x * 32767`, Y stored inverted (`~(y * 32767)`) |
+| 16-27 | three trackpads, int16 x (`x * 65535 ^ 0x8000`) and y (`0x7fff - y * 65535`) |
+| 28-33 | accelerometer xyz, int16, ±2 g (19.61 m/s²) to ±32767 |
+| 34-39 | gyro xyz, int16 |
+
+**Games, through Steam Input, with no stream.** With the session started on Geometry Wars:
+Retro Evolved (8400) and the game launched by pressing A twice on the local device, the client
+loaded `controller_base/templates/controller_mobile_touch_gamepad_joystick.vdf` for app 8400 on the
+touch controller (Valve's stock touch template), told the device `04 d0 20 00 00 ...` (app 8400),
+and a left-stick report flew the ship across the screen. Steam's own path end to end:
+DroidDeck → `/dev/hidraw17` → Mobile Touch controller → the game's touch config → Steam Input's
+virtual Xbox pad → the game. D-pad bits navigated the Steam menu the same way.
+
+What the stream gives that the local device does not:
+
+- **The active config and its layout.** Steam Link asks for it (`GetTouchConfigData`) and the host
+  answers with the config and the layout. Locally the device is told only the app id and action
+  set (report 4), so the overlay has to resolve the config itself: `configset_controller_mobile_touch.vdf`
+  per app (`autosave` = `<appid>/controller_mobile_touch.vdf`, otherwise a template or workshop
+  config), and the console log line `Loaded Config for ... App ID <n>, Controller <i>: <path>`
+  names the file Steam actually loaded. Stock templates carry no `touch_layout`; Steam Link draws
+  its built-in default layout for them (`CVirtualController::ResetLayoutToDefault`), hiding
+  elements the config leaves unbound (`UpdateElementAvailability`).
+- **Saving an edited layout.** Steam Link sends `SaveTouchConfigLayout`; the host writes it into
+  the app's autosave config, which is what syncs. The local device has no such message. Big
+  Picture's `SteamClient.Input` API (seen in `steamui/sp.js`) has the config editing calls
+  (`StartEditingControllerConfigurationForAppIDAndControllerIndex`,
+  `SetEditingControllerConfigurationMiscSetting`, `SaveEditingControllerConfiguration`,
+  `GetConfigForAppAndController`, `QueryControllerConfigsForApp`, `SetSelectedConfigForApp`,
+  `GetTouchMenuIconsForApp`, `RegisterForTouchMenuMessages`) but no layout call; whether
+  `touch_layout` goes through the misc-setting call is untested. The session's devtools port only
+  admits guest processes (`BL_CDP_GUARD`), so this needs the agent bridge's guest commands rather
+  than a probe from adb.
+- **Custom icons** (`SetTouchIconData`).
+
+Everything else (bindings, action sets, layers, touch menus, rumble, the configurator, community
+configs, cloud sync) is Steam's own and works with the local device.
