@@ -60,6 +60,15 @@ object LogRedactor {
     private val IPV4 = Regex("(?<![0-9.])(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})(?![0-9.])")
     /** An IPv6 literal: "::" somewhere, or all eight groups (a clock's 10:03:05 is neither). */
     private val IPV6 = Regex("(?<![0-9A-Za-z:])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%[A-Za-z0-9_.]+)?(?![0-9A-Za-z:])")
+    private val MAC = Regex("(?i)(?<![0-9a-z:-])[0-9a-f]{2}([:-])(?:[0-9a-f]{2}\\1){4}[0-9a-f]{2}(?![0-9a-z:-])")
+    private val MAC_FIELD = Regex(
+        "(?i)(\\bmac(?:[_ ]?address)?[\"']?\\s*[:=]\\s*[\"']?)[0-9a-f]{2}([:-])" +
+            "(?:[0-9a-f]{2}\\2){4}[0-9a-f]{2}(?![0-9a-z:-])"
+    )
+    private val DEVICE_IDENTIFIER = Regex(
+        "(?i)(\\b(?:android[_ ]?id|(?:device|controller)[_ ]?serial|serial(?:[_ ]?number)?|build\\.serial)" +
+            "[\"']?\\s*[:=]\\s*)(\"[^\"\\r\\n<>]+\"|'[^'\\r\\n<>]+'|[^\\s\"'<>&;,\\[\\]{}]+)"
+    )
 
     /**
      * The account a Steam UI login line names ("Login: OnLoginStateChange <account> 2 1 0 0"): a
@@ -196,7 +205,7 @@ object LogRedactor {
      * only when that matches, so a folder scrubbed under older rules is scrubbed again on the way
      * out.
      */
-    const val RULES_VERSION = 1
+    const val RULES_VERSION = 2
 
     /** [src]'s lines, scrubbed, to [out]. */
     fun scrubTo(src: java.io.File, out: java.io.Writer) {
@@ -208,6 +217,13 @@ object LogRedactor {
         if (line.isEmpty()) return line
         return try {
             var out = line
+            out = MAC_FIELD.replace(out) { "${it.groupValues[1]}<redacted:mac>" }
+            out = MAC.replace(out, "<redacted:mac>")
+            out = DEVICE_IDENTIFIER.replace(out) {
+                val value = it.groupValues[2]
+                val quote = value.first().takeIf { char -> char == '\"' || char == '\'' }?.toString().orEmpty()
+                "${it.groupValues[1]}${quote}<redacted:serial>${quote}"
+            }
             out = GUID.replace(out, "<redacted:guid>")
             out = JWT_LABELLED.replace(out) { "${it.groupValues[1]}<redacted:jwt>" }
             out = JWT_BASE64.replace(out, "<redacted:jwt>")
