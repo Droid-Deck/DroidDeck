@@ -39,6 +39,8 @@ class SelectedGameProfileTest {
         assertEquals("DXVK General", profile.components.getValue("dxvk").value)
         assertTrue(profile.components.getValue("dxvk").inherited)
         assertEquals(0, profile.environmentOverrides)
+        assertEquals(emptyList<String>(), profile.windowsComponentNames)
+        assertFalse(profile.hasOverrides)
     }
 
     @Test fun explicitValuesOverrideGeneralProfile() {
@@ -56,6 +58,14 @@ class SelectedGameProfileTest {
         assertEquals("DXVK Game", profile.components.getValue("dxvk").value)
         assertFalse(profile.components.getValue("dxvk").inherited)
         assertEquals(1, profile.environmentOverrides)
+        assertTrue(profile.hasOverrides)
+    }
+
+    @Test fun windowsComponentsMakeProfileCustom() {
+        val profile = resolve(gameWindowsComponents = listOf("oalinst_dll", "vcredist2010_dll"))
+
+        assertEquals(listOf("OpenAL", "Visual C++ 2010"), profile!!.windowsComponentNames)
+        assertTrue(profile.hasOverrides)
     }
 
     @Test fun unknownSelectedAppIsIgnored() {
@@ -67,6 +77,7 @@ class SelectedGameProfileTest {
         environment: GameEnvironment.Config = GameEnvironment.Config(),
         gameChoice: ProtonDefault.GameChoice? = null,
         gameComponents: Map<String, String> = emptyMap(),
+        gameWindowsComponents: List<String> = emptyList(),
     ) = SelectedGameProfile.resolve(
         selectedAppId = selectedAppId,
         games = listOf(game),
@@ -77,6 +88,7 @@ class SelectedGameProfileTest {
         gameProtonChoice = gameChoice,
         gameProtonId = "p1",
         gameComponents = gameComponents,
+        gameWindowsComponents = gameWindowsComponents,
     )
 
     private fun component(label: String) = ComponentsManager.Component(label, "", label, null, null)

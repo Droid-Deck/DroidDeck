@@ -943,10 +943,7 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
             )
             return@SettingsGroup
         }
-        val hasOverrides = !profile.fexPreset.inherited ||
-            !profile.proton.inherited ||
-            profile.components.values.any { !it.inherited } ||
-            profile.environmentOverrides > 0 ||
+        val hasOverrides = profile.hasOverrides ||
             a.textureAnisotropy != null ||
             a.textureLodBias != null
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp)) {
@@ -979,6 +976,12 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
                         profile.environmentOverrides,
                         profile.environmentOverrides,
                     ),
+                )
+            }
+            if (profile.windowsComponentNames.isNotEmpty()) {
+                ProfileSummaryRow(
+                    stringResource(R.string.wincomp_title),
+                    profile.windowsComponentNames.joinToString(", "),
                 )
             }
             a.textureAnisotropy?.let { value ->

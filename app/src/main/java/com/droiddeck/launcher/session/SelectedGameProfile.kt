@@ -13,7 +13,15 @@ data class SelectedGameProfile(
     val proton: ProfileValue,
     val components: Map<String, ProfileValue>,
     val environmentOverrides: Int,
+    val windowsComponentNames: List<String>,
 ) {
+    val hasOverrides: Boolean
+        get() = !fexPreset.inherited ||
+            !proton.inherited ||
+            components.values.any { !it.inherited } ||
+            environmentOverrides > 0 ||
+            windowsComponentNames.isNotEmpty()
+
     companion object {
         fun resolve(
             selectedAppId: Long,
@@ -25,6 +33,7 @@ data class SelectedGameProfile(
             gameProtonChoice: ProtonDefault.GameChoice?,
             gameProtonId: String?,
             gameComponents: Map<String, String>,
+            gameWindowsComponents: List<String>,
         ): SelectedGameProfile? {
             val game = games.firstOrNull { it.profileKey == selectedAppId.toString() } ?: return null
             val fexOverride = GameEnvironment.gameFexPreset(environment, game.profileKey)
@@ -50,6 +59,7 @@ data class SelectedGameProfile(
                 ),
                 components = components,
                 environmentOverrides = otherEnvironment.size,
+                windowsComponentNames = gameWindowsComponents.map(WinComponentNames::of),
             )
         }
     }
