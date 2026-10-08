@@ -63,7 +63,9 @@ FEX_FILES = {
 # never one that names a file, a directory or a library to load: a recipe can tune a game, not run
 # code in it.
 ENV_PREFIXES = ("DXVK_", "VKD3D_", "FEX_", "MESA_", "PROTON_")
-ENV_EXACT = frozenset(("mesa_glthread", "WINEDLLOVERRIDES"))
+# OPENSSL_ia32cap masks CPU features OpenSSL would otherwise pick from what FEX reports.
+ENV_EXACT = frozenset(("mesa_glthread", "WINEDLLOVERRIDES", "OPENSSL_ia32cap"))
+IA32CAP = re.compile(r"~?0x[0-9a-fA-F]{1,16}(?::~?0x[0-9a-fA-F]{1,16})?")
 ENV_DENIED_PARTS = ("PATH", "_DIR", "_FILE", "LIBRARY", "ROOTFS", "THUNK", "PRELOAD")
 ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 DLL_OVERRIDE = re.compile(r"[A-Za-z0-9_.*-]+(?:,[A-Za-z0-9_.*-]+)*=(?:n|b|n,b|b,n|d)?")
@@ -85,6 +87,8 @@ def env_allowed(name, value):
         return False
     if name == "WINEDLLOVERRIDES":
         return all(DLL_OVERRIDE.fullmatch(entry) for entry in value.split(";") if entry)
+    if name == "OPENSSL_ia32cap":
+        return bool(IA32CAP.fullmatch(value))
     return True
 
 

@@ -144,7 +144,7 @@ class LookupTest(RecipeTestCase):
         self.assertEqual(self.lookup()[0]["skipped"], ["dxvk", "fex"])
 
     def test_environment_is_limited_to_tuning_variables(self):
-        allowed = {"DXVK_HUD": "version", "VKD3D_FEATURE_LEVEL": "12_1", "FEX_TSOENABLED": "1", "MESA_SHADER_CACHE_MAX_SIZE": "1G",
+        allowed = {"OPENSSL_ia32cap": "~0x20000000:~0x0", "DXVK_HUD": "version", "VKD3D_FEATURE_LEVEL": "12_1", "FEX_TSOENABLED": "1", "MESA_SHADER_CACHE_MAX_SIZE": "1G",
                    "PROTON_USE_WINED3D": "1", "mesa_glthread": "true", "WINEDLLOVERRIDES": "xinput1_3=n,b;d3dx9_43=n;libsentry=d;dinput8="}
         denied = {"LD_PRELOAD": "/x.so", "WINEDLLPATH": "/x", "PROTON_LOG_DIR": "/x", "DXVK_CONFIG_FILE": "/x",
                   "VKD3D_SHADER_CACHE_PATH": "/x", "MESA_SHADER_CACHE_DIR": "/x", "FEX_ROOTFS": "/x", "FEX_THUNKHOSTLIBS": "/x",
@@ -154,6 +154,7 @@ class LookupTest(RecipeTestCase):
         self.assertEqual(found["env"], allowed)
         for name in denied:
             self.assertIn(name, said)
+        self.assertFalse(RECIPE["env_allowed"]("OPENSSL_ia32cap", "/tmp/x"))
         for value in ("../evil.dll=n", "a=n;b=x", "a=native", "a"):
             self.assertFalse(RECIPE["env_allowed"]("WINEDLLOVERRIDES", value), value)
         self.assertFalse(RECIPE["env_allowed"]("DXVK_HUD", "x" * 8193))

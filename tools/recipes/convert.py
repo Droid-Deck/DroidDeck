@@ -15,7 +15,8 @@ to Valve's ARM64 Proton under DroidDeck is kept, and only where independent uplo
   DXVK    Per Adreno family. A build most uploads carry on that family is the app's default of
   VKD3D   its day, not a choice, and is ignored. A build must exist as a Nightlies "-Linux" package
           (async forks map to gplasync with DXVK_ASYNC=1).
-  env     Variables a recipe may set (droiddeck-recipe's allowlist), on agreement.
+  env     Variables a recipe may set (droiddeck-recipe's allowlist), on agreement; Wine's own esync
+          and fsync switches become Proton's (WINEESYNC=0 -> PROTON_NO_ESYNC=1).
 
 "Agree" means: at least MIN_SOURCES independent uploads (distinct upload tokens, or devices for
 uploads without one) choose the same value, AGREEMENT of those that chose anything for it, and for
@@ -62,6 +63,8 @@ FEX_FIELDS = {
     "MonoHacks": (True, "FEX_MONOHACKS"),
 }
 SMC_VALUES = ("none", "mtrack", "full")
+# Variables GameHub's Wine reads under another name than Proton does: (name, value) -> (name, value).
+ENV_TRANSLATE = {("WINEESYNC", "0"): ("PROTON_NO_ESYNC", "1"), ("WINEFSYNC", "0"): ("PROTON_NO_FSYNC", "1")}
 # GameHub's per-game recommendation: not the player's choice.
 RECOMMENDED_PROFILE = "game_recommend_id"
 FAMILIES = {"6": "A6XX", "8": "A8XX"}
@@ -289,9 +292,12 @@ def game_variants(uploads, catalog, defaults):
             env_votes[name][upload.source] = value
     for name, votes in sorted(env_votes.items()):
         found = agreed(votes, len({u.source for u in uploads}), FEX_SHARE)
-        if found and RECIPE["env_allowed"](name, found[0]):
-            fex[name] = found[0]
-            evidence.append("%s=%s (%d of %d sources)" % (name, found[0], found[1], len(votes)))
+        if not found:
+            continue
+        kept, value = ENV_TRANSLATE.get((name, found[0]), (name, found[0]))
+        if RECIPE["env_allowed"](kept, value):
+            fex[kept] = value
+            evidence.append("%s=%s (%s=%s, %d of %d sources)" % (kept, value, name, found[0], found[1], len(votes)))
     if fex:
         variants.append({"env": fex})
     for fam in ("A6XX", "A7XX_LOW", "A7XX", "A8XX"):

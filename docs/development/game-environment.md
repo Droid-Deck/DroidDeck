@@ -83,11 +83,12 @@ entries. They are limited to tuning names: the `DXVK_`, `VKD3D_`, `FEX_`, `MESA_
 families, `mesa_glthread` and `WINEDLLOVERRIDES`. Names that refer to a path, directory, file,
 library or preload are refused. The app (`DdProtonRecipes`) and the guest both enforce this.
 
-Recipes come from the app's `files/recipes.json` when present, otherwise from the bundled
-`assets/recipes/default.json`, which is empty for now. At session start the app fetches each
-named package from the Nightlies "-Linux" releases, the same way Components does. It unpacks
-them into `droiddeck-recipes/store/` and publishes `~/.config/droiddeck/recipes.json` with those
-paths:
+Recipes come from the app's `files/recipes.json` when present (for development), otherwise
+from the bundled community library, `assets/recipes/default.json`. At session start the app
+picks each game's variants for the device's GPU family (`GpuInfo.Family`). It then fetches each
+named package from the Nightlies "-Linux" releases, the same way Components does, unpacks them
+into `droiddeck-recipes/store/` and publishes `~/.config/droiddeck/recipes.json` with those
+paths. A hand-written file can use version 1, which has one recipe per game:
 
 ```json
 {"version": 1, "games": {"<app or shortcut id>": {
@@ -95,6 +96,54 @@ paths:
   "env": {"DXVK_HUD": "version"},
   "note": "why this game needs it"}}}
 ```
+
+The library uses version 2. Each game has a list of variants, and a variant can be limited to GPU
+families. Matching variants are merged in order: the first to name a component provides it, and
+later variables win.
+
+```json
+{"version": 2, "games": {"489830": {"name": "The Elder Scrolls V: Skyrim Special Edition",
+  "variants": [
+    {"env": {"FEX_X87REDUCEDPRECISION": "1"}, "note": "community: 66 uploads, 65 sources"},
+    {"gpu": ["A6XX"], "dxvk": {"file": "dxvk-gplasync-2.7.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"}, "env": {"DXVK_ASYNC": "1"}}]}}}
+```
+
+### The community library
+
+`tools/recipes/convert.py` builds the library from The412Banner's
+[bannerhub-game-configs](https://github.com/The412Banner/bannerhub-game-configs) (GameHub and
+BannerHub uploads) and [bannerlator-game-configs](https://github.com/The412Banner/bannerlator-game-configs)
+(which upload folder is which Steam app). Those configs describe Android Wine containers, so
+most of what they hold does not apply to Valve's ARM64 Proton under DroidDeck. The converter
+keeps only what carries over, and only where independent uploads agree:
+
+- **FEX:** taken from arm64x containers on any GPU; arm64x is the same ARM64 Wine with FEX that
+  Valve's ARM64 Proton uses. Only uploads where the player chose a FEX profile or changed a
+  setting count; GameHub's own per-game recommendation does not. A value is kept when it differs
+  from FEX's default.
+- **DXVK and VKD3D-Proton:** chosen per Adreno family. A build carried by at least 10% of that
+  family's uploads is the app default of its day, not a choice, and is ignored. The build must
+  exist as a Nightlies Linux package. Async forks map to gplasync with `DXVK_ASYNC=1`.
+- **Other variables:** only names the recipe allowlist accepts. Turnip's `TU_DEBUG` and file
+  paths are dropped.
+
+"Agree" means at least 3 independent sources, counted as distinct upload tokens (or devices for
+older uploads). At least 75% of the sources that chose something must pick the same value. For
+FEX they must also cover at least half of the game's sources. Folders without a Steam app ID
+(repacks, tools) are left out. Games tested by hand are recorded in `tools/recipes/overrides.json`:
+kept, replaced or blocked. The converter applies that file last.
+
+The library and [dd-proton-library.md](dd-proton-library.md), which lists every game with its
+evidence, are generated together. Refresh them with:
+
+```bash
+git clone --depth 1 https://github.com/The412Banner/bannerhub-game-configs /tmp/bh
+git clone --depth 1 https://github.com/The412Banner/bannerlator-game-configs /tmp/bl
+python3 tools/recipes/convert.py --bannerhub /tmp/bh --bannerlator /tmp/bl
+```
+
+Results from games tested on the Thor are in [dd-proton-testing.md](dd-proton-testing.md).
 
 ## Launch path and references
 
@@ -129,6 +178,7 @@ Upstream references: [VKD3D capability parsing](https://github.com/HansKristian-
 
 Validation: `./gradlew testDebugUnitTest`,
 `python3 -m unittest discover -s tools/tests -p test_game_environment.py` and
-`python3 -m unittest discover -s tools/tests -p test_recipe.py`.
+`python3 -m unittest discover -s tools/tests -p test_recipe.py` and
+`python3 -m unittest discover -s tools/tests -p test_recipe_convert.py`.
 Actual game compatibility depends on the installed Proton, VKD3D and Vulkan driver;
 these checks do not establish that every device supports feature level 12_2 or SM 6_9.

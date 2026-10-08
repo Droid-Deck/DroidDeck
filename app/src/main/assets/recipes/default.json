@@ -251,7 +251,8 @@
      "env": {
       "FEX_HALFBARRIERTSOENABLED": "0",
       "FEX_TSOENABLED": "0",
-      "FEX_X87REDUCEDPRECISION": "1"
+      "FEX_X87REDUCEDPRECISION": "1",
+      "OPENSSL_ia32cap": "~0x20000000"
      },
      "note": "community: 8 uploads, 8 sources, latest 2026-06"
     }
@@ -2710,6 +2711,17 @@
       "FEX_X87REDUCEDPRECISION": "1"
      },
      "note": "community: 7 uploads, 7 sources, latest 2026-10"
+    }
+   ]
+  },
+  "814380": {
+   "name": "Sekiro™: Shadows Die Twice - GOTY Edition",
+   "variants": [
+    {
+     "env": {
+      "PROTON_NO_ESYNC": "1"
+     },
+     "note": "community: 59 uploads, 58 sources, latest 2026-09"
     }
    ]
   },

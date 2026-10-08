@@ -96,6 +96,8 @@ class DdProtonRecipesTest {
             assertFalse(value, DdProtonRecipes.envAllowed("WINEDLLOVERRIDES", value))
         }
         assertFalse(DdProtonRecipes.envAllowed("DXVK_HUD", "a\u0000b"))
+        assertTrue(DdProtonRecipes.envAllowed("OPENSSL_ia32cap", "~0x20000000"))
+        assertFalse(DdProtonRecipes.envAllowed("OPENSSL_ia32cap", "/tmp/x"))
     }
 
     @Test fun thePublishedFileNamesStorePathsAndLeavesOutWhatIsMissing() {

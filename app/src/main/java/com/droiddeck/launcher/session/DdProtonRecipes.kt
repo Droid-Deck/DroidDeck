@@ -30,7 +30,8 @@ object DdProtonRecipes {
     private const val STORE = "root/.local/share/droiddeck-recipes/store"
 
     private val ENV_PREFIXES = listOf("DXVK_", "VKD3D_", "FEX_", "MESA_", "PROTON_")
-    private val ENV_EXACT = setOf("mesa_glthread", "WINEDLLOVERRIDES")
+    private val ENV_EXACT = setOf("mesa_glthread", "WINEDLLOVERRIDES", "OPENSSL_ia32cap")
+    private val IA32CAP = Regex("~?0x[0-9a-fA-F]{1,16}(?::~?0x[0-9a-fA-F]{1,16})?")
     private val ENV_DENIED_PARTS = listOf("PATH", "_DIR", "_FILE", "LIBRARY", "ROOTFS", "THUNK", "PRELOAD")
     private val DLL_OVERRIDE = Regex("[A-Za-z0-9_.*-]+(?:,[A-Za-z0-9_.*-]+)*=(?:n|b|n,b|b,n|d)?")
 
@@ -43,6 +44,7 @@ object DdProtonRecipes {
         if (name !in ENV_EXACT && ENV_PREFIXES.none { name.startsWith(it) }) return false
         if (!GameEnvironment.validValue(value)) return false
         if (name == "WINEDLLOVERRIDES") return value.split(';').filter { it.isNotEmpty() }.all { DLL_OVERRIDE.matches(it) }
+        if (name == "OPENSSL_ia32cap") return IA32CAP.matches(value)
         return true
     }
 

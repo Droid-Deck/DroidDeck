@@ -143,6 +143,12 @@ class ConvertTest(unittest.TestCase):
                         env='TU_DEBUG="noconform" WINEDLLOVERRIDES=xinput1_3=n,b DXVK_CONFIG_FILE=/sdcard/x.conf')
         self.assertEqual(self.build()[0]["games"]["42"]["variants"][0]["env"], {"WINEDLLOVERRIDES": "xinput1_3=n,b"})
 
+    def test_wine_switches_become_protons_and_openssl_masks_are_kept(self):
+        for token in "abc":
+            self.upload("Game", "42", token, fex=RECOMMENDED, env="WINEESYNC=0 OPENSSL_ia32cap=~0x20000000 WINEMU_CPU_AFFINITY=127")
+        self.assertEqual(self.build()[0]["games"]["42"]["variants"][0]["env"],
+                         {"PROTON_NO_ESYNC": "1", "OPENSSL_ia32cap": "~0x20000000"})
+
     def test_uploads_without_an_appid_are_left_out(self):
         for token in "abc":
             self.upload("Repack", None, token)
