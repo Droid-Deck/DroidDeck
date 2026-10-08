@@ -337,10 +337,6 @@
     <string name="mode_audio">오디오</string>
     <string name="mode_directaudio">게임에서 DirectAudio 사용</string>
     <string name="mode_directaudio_hint">PulseAudio를 우회하여 지연 시간을 줄입니다.</string>
-    <string name="mode_client_audio">Steam 클라이언트 오디오</string>
-    <string name="mode_client_audio_hint">다음 세션에 적용됩니다.</string>
-    <string name="mode_client_audio_classic">클래식</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">마이크</string>
     <string name="mode_mic_hint">음성 채팅에 사용됩니다.</string>
     <string name="mode_network">네트워크</string>
@@ -611,6 +607,7 @@
     <string name="setup_session">세션</string>
     <string name="setup_logs">세션 로그</string>
     <string name="setup_logs_hint">각 세션 종료 후 저장</string>
+    <string name="setup_agent_commands">디버깅 도구</string>
     <string name="setup_latest_logs">최신 세션 로그</string>
     <string name="setup_saved_logs">저장된 세션 로그</string>
     <string name="setup_saved_logs_hint">최신 %1$d개 유지</string>

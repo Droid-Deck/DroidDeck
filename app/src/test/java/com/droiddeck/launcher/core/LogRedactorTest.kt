@@ -42,6 +42,34 @@ class LogRedactorTest {
         assertEquals(line, LogRedactor.redact(line))
     }
 
+    @Test fun macAddressesAreRedactedInAnyLog() {
+        assertEquals("  mac <redacted:mac>", LogRedactor.redact("  mac 02:ab:cd:ef:12:34"))
+        assertEquals("controller <redacted:mac> connected", LogRedactor.redact("controller A2-B3-C4-D5-E6-F7 connected"))
+        assertEquals("mac=<redacted:mac>, peer=<redacted:mac>", LogRedactor.redact("mac=02:ab:cd:ef:12:34, peer=a2:b3:c4:d5:e6:f7"))
+        assertEquals("MAC:<redacted:mac>", LogRedactor.redact("MAC:02:ab:cd:ef:12:34"))
+        assertEquals("MacAddress:<redacted:mac>", LogRedactor.redact("MacAddress:A2-B3-C4-D5-E6-F7"))
+        assertEquals("{\"mac_address\":\"<redacted:mac>\"}", LogRedactor.redact("{\"mac_address\":\"02:ab:cd:ef:12:34\"}"))
+    }
+
+    @Test fun macRedactionPreservesOtherDiagnosticValues() {
+        val line = "[12:34:56] server ab:cd:ef:12:34:56:78:90 partial=ab:cd:ef:12:34 mixed=ab:cd-ef:12:34:56"
+        assertEquals(line, LogRedactor.redact(line))
+    }
+
+    @Test fun labelledDeviceIdentifiersAreRedacted() {
+        for (label in listOf("Serial number", "serial_number", "serialNumber", "serial", "device_serial", "Controller Serial", "ANDROID_ID", "build.serial")) {
+            assertEquals("$label: <redacted:serial>", LogRedactor.redact("$label: controller-123456"))
+        }
+        assertEquals("Serial number: <redacted:serial> connected", LogRedactor.redact("Serial number: 12345678901234567 connected"))
+        assertEquals("{\"serial_number\":\"<redacted:serial>\",\"result\":0}", LogRedactor.redact("{\"serial_number\":\"controller 123456\",\"result\":0}"))
+        assertEquals("device_serial = '<redacted:serial>'", LogRedactor.redact("device_serial = 'controller 123456'"))
+    }
+
+    @Test fun serialRedactionPreservesUnlabelledDiagnostics() {
+        val line = "serial port initialized; serial_number_count=2; controller=12345678901234567"
+        assertEquals(line, LogRedactor.redact(line))
+    }
+
     @Test fun redactingTwiceChangesNothing() {
         val lines = listOf(
             "Using JWT 25484942796017334",
@@ -49,6 +77,10 @@ class LogRedactorTest {
             "user 76561198012341234 [U:1:52075506]",
             "external address 2607:f8b0:4005:80a::200e",
             "OnLoginStateChange someaccount 2 1 0 0",
+            "mac 02:ab:cd:ef:12:34 controller A2-B3-C4-D5-E6-F7",
+            "MAC:02:ab:cd:ef:12:34",
+            "Serial number: 12345678901234567",
+            "{\"ANDROID_ID\":\"0123456789abcdef\"}",
         )
         for (line in lines) {
             val once = LogRedactor.redact(line)

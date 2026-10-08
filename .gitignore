@@ -35,3 +35,4 @@ __pycache__/
 
 # Local signing with the release key (tools/build_local.sh); holds a password.
 .signing.env
+app/src/main/assets/directaudio/

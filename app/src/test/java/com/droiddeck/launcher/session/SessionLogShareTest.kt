@@ -66,6 +66,18 @@ class SessionLogShareTest {
         assertFalse(zip(folder).getValue("session.log").contains(leaked))
     }
 
+    @Test fun olderRuleRecordReScrubsDeviceIdentifiers() {
+        val folder = tmp.newFolder("2026-10-07-01-steam")
+        File(folder, "network.txt").writeText("mac 02:ab:cd:ef:12:34\n")
+        File(folder, "steam").mkdirs()
+        File(folder, "steam/controller_support.txt").writeText("Serial number: controller-123456\n")
+        record(folder, "network.txt", "steam/controller_support.txt", rules = 1)
+
+        val out = zip(folder)
+        assertEquals("mac <redacted:mac>\n", out.getValue("network.txt"))
+        assertEquals("Serial number: <redacted:serial>\n", out.getValue("steam/controller_support.txt"))
+    }
+
     @Test fun withoutARecordEveryFileIsScrubbed() {
         val folder = tmp.newFolder("2026-10-06-04-steam")
         File(folder, "session.log").writeText("$secret\n")

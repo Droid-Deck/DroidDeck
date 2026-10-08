@@ -186,6 +186,8 @@
     <string name="add_app_flatpak_id">App ID</string>
     <string name="add_app_flatpak_placeholder">org.ppsspp.PPSSPP</string>
     <string name="add_app_flatpak_invalid">Not a Flathub app ID</string>
+    <string name="add_app_flatpak_bundle_hint">Or a .flatpak file, for an app not on Flathub.</string>
+    <string name="add_app_pick_flatpak">Choose a .flatpak file</string>
     <string name="add_app_source">Source</string>
     <string name="add_app_appearance">On your Desktop</string>
     <string name="add_app_preview_name">New app</string>
@@ -341,10 +343,6 @@
     <string name="mode_audio">Audio</string>
     <string name="mode_directaudio">DirectAudio for games</string>
     <string name="mode_directaudio_hint">Bypasses PulseAudio for lower latency.</string>
-    <string name="mode_client_audio">Steam client audio</string>
-    <string name="mode_client_audio_hint">Applies next session.</string>
-    <string name="mode_client_audio_classic">Classic</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">Microphone</string>
     <string name="mode_mic_hint">For voice chat.</string>
     <string name="mode_network">Network</string>
@@ -616,6 +614,7 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Session logs</string>
     <string name="setup_logs_hint">Saved after each session</string>
+    <string name="setup_agent_commands">Debugging tools</string>
     <string name="setup_latest_logs">Latest session logs</string>
     <string name="setup_saved_logs">Saved session logs</string>
     <string name="setup_saved_logs_hint">Keeps the newest %1$d</string>
