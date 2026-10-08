@@ -226,14 +226,14 @@ object SteamTouchConfig {
     fun defaultElement(type: Int, available: Set<Int>): Element? {
         val leftStick = JOYSTICK_LEFT in available
         val rightStick = JOYSTICK_RIGHT in available
-        val faceY = if (rightStick) -0.33f else 0f
+        val faceY = if (rightStick) -0.30f else 0f
         val p: Pair<Float, Float> = when (type) {
             THUMB -> 75f / 1280 to 75f / 720
             STEAM -> 636f / 1280 to 75f / 720
             SELECT -> 516f / 1280 to 75f / 720
             START -> 756f / 1280 to 75f / 720
             KEYBOARD -> 1205f / 1280 to 75f / 720
-            DPAD -> if (leftStick) 0.147f to 0.43f else 200f / 1280 to 525f / 720
+            DPAD -> if (leftStick) 0.147f to 0.47f else 200f / 1280 to 525f / 720
             A -> 1083f / 1280 to 607f / 720 + faceY
             B -> 1163f / 1280 to 527f / 720 + faceY
             X -> 1003f / 1280 to 527f / 720 + faceY
@@ -242,10 +242,10 @@ object SteamTouchConfig {
             JOYSTICK_RIGHT -> 0.85f to 0.76f
             JOYSTICK_LEFT_BUTTON -> 0.29f to 0.88f
             JOYSTICK_RIGHT_BUTTON -> 0.71f to 0.88f
-            BUMPER_LEFT -> 0.06f to 0.25f
-            TRIGGER_LEFT -> 0.16f to 0.25f
-            BUMPER_RIGHT -> 0.94f to 0.25f
-            TRIGGER_RIGHT -> 0.84f to 0.25f
+            BUMPER_LEFT -> 0.06f to 0.205f
+            TRIGGER_LEFT -> 0.16f to 0.205f
+            BUMPER_RIGHT -> 0.94f to 0.205f
+            TRIGGER_RIGHT -> 0.84f to 0.205f
             TRACKPAD_LEFT -> 0.3f to 0.55f
             TRACKPAD_CENTER -> 0.5f to 0.55f
             TRACKPAD_RIGHT -> 0.7f to 0.55f

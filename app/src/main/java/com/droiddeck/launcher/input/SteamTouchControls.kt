@@ -206,6 +206,7 @@ class SteamTouchControls(
                 canvas.drawCircle(x, y, r, fill)
                 canvas.drawCircle(x, y, r, stroke)
                 val label = label(e.type)
+                if (label.length > 3) text.textSize = r * 0.36f
                 LABEL_COLORS[e.type]?.let { text.color = it }
                 canvas.drawText(label, x, y - (text.descent() + text.ascent()) / 2, text)
             }
@@ -259,7 +260,7 @@ class SteamTouchControls(
         SteamTouchConfig.MACRO_2_FINGER -> "2F"
         in SteamTouchConfig.MACRO_0..SteamTouchConfig.MACRO_0 + 7 -> "M${type - SteamTouchConfig.MACRO_0 + 1}"
         else -> "?"
-    }.let { if (it == "STEAM") "S" else it }
+    }
 
     // ---- The report ----
 

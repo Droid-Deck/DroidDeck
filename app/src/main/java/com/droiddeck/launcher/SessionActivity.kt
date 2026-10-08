@@ -148,6 +148,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
     private var oscStyle by mutableStateOf(SessionPrefs.OSC_STYLE_DROIDDECK)
     private var steamTouchAvailable by mutableStateOf(false)
+    private var steamTouchRetries = 0
+    private val steamTouchRetry = Runnable { updateOnScreenControls() }
     private var keyboard: KeyboardHost? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
@@ -1853,8 +1855,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val buttonsOnly = forced == SessionPrefs.OSC_STEAM_QAM
         // Steam's touch controller stands in for the app's pad, and is plugged into the client only
         // while it is shown - as Steam Link withdraws its controls when a physical pad is in use.
-        val steam = if (!buttonsOnly && SessionState.mode == SessionService.MODE_STEAM &&
-            SessionPrefs.oscStyle(this) == SessionPrefs.OSC_STYLE_STEAM) steamTouch() else null
+        val wantsSteam = !buttonsOnly && SessionState.mode == SessionService.MODE_STEAM &&
+            SessionPrefs.oscStyle(this) == SessionPrefs.OSC_STYLE_STEAM
+        val steam = if (wantsSteam) steamTouch() else null
+        // The service makes the device while the session starts, after this activity: the app's
+        // own pad until then, and another look in a moment.
+        if (wantsSteam && steam == null && steamTouchRetries++ < 120) {
+            uiHandler.removeCallbacks(steamTouchRetry)
+            uiHandler.postDelayed(steamTouchRetry, 1000)
+        }
         if (steam == null) {
             steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
