@@ -380,3 +380,23 @@ Sticks, triggers, bumpers and macros are not in the table; they appear when the 
 
 The experimental pieces on this branch (`FAKE_EVDEV_TOUCHCTL`, `/tmp/touchctl.*`,
 `/tmp/udev-inject`) are research scaffolding to be replaced, not shipped.
+
+### 7. Several controllers
+
+`FAKE_EVDEV_TOUCHCTL=2` serves two touch devices (`/dev/hidraw17` and `18`, serials
+`MT-DROIDDECK0001` and `0002`, each with its own sysfs `usb2`/`usb3` and report file). With the
+Deck pad that is three controllers, and Steam takes all three:
+
+```
+Controller 15  Type 4   (Deck pad, /dev/hidraw16)
+Controller 0   Type 43  Serial MT-MT-DROIDDECK0001
+Controller 1   Type 43  Serial MT-MT-DROIDDECK0002
+Created virtual controller at slot 0 / 1 / 2
+uinput: "Microsoft X-Box 360 pad 0" / "pad 1" / "pad 2" is /dev/input/event16 / 17 / 18
+```
+
+Each gets its own Steam Input config and its own virtual pad, so a game sees three players; a
+Steam press on the second device alone opened the Steam menu (Steam answered it with report 4 for
+the menu's action set). Several touch controllers would allow, say, a second player on the Thor's
+bottom screen. The other physical pads DroidDeck passes through (ring slots 1-3 as evdev pads) sit
+beside these as ordinary gamepads; no external pad was connected for this test.
