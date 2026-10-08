@@ -13,6 +13,7 @@ permissions:
 concurrency:
   group: update-app-catalog
   cancel-in-progress: false
+  queue: max
 
 jobs:
   catalog:

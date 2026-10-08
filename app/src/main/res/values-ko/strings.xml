@@ -611,6 +611,7 @@
     <string name="setup_session">세션</string>
     <string name="setup_logs">세션 로그</string>
     <string name="setup_logs_hint">각 세션 종료 후 저장</string>
+    <string name="setup_agent_commands">디버깅 도구</string>
     <string name="setup_latest_logs">최신 세션 로그</string>
     <string name="setup_saved_logs">저장된 세션 로그</string>
     <string name="setup_saved_logs_hint">최신 %1$d개 유지</string>

@@ -611,6 +611,7 @@
     <string name="setup_session">会话</string>
     <string name="setup_logs">会话日志</string>
     <string name="setup_logs_hint">每次会话后保存</string>
+    <string name="setup_agent_commands">调试工具</string>
     <string name="setup_latest_logs">最新会话日志</string>
     <string name="setup_saved_logs">已保存的会话日志</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 个</string>

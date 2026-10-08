@@ -514,6 +514,7 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Journaux de session</string>
     <string name="setup_logs_hint">Enregistré après chaque fin de session</string>
+    <string name="setup_agent_commands">Outils de débogage</string>
     <string name="setup_latest_logs">Derniers journaux de session</string>
     <string name="setup_saved_logs">Journaux de session enregistrés</string>
     <string name="setup_saved_logs_hint">Conserver les %1$d plus récents</string>

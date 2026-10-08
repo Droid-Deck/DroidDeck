@@ -79,7 +79,7 @@
     <string name="game_env_no_fsync">Pon 1 para que este juego no use droiddeck-fsync; usa droiddeck-esync si hay un paquete y, si no, droiddeck-ntsync.</string>
     <string name="game_env_fsync_first">Pon 1 para que este juego use droiddeck-fsync, o 0 para dar prioridad a droiddeck-esync cuando haya un paquete para su Proton.</string>
     <string name="game_env_xalia">Pon 0 para desactivar el asistente de navegación con mando de Proton en este juego.</string>
-    <string name="game_env_hud">Overlay de DXVK para D3D9–11. fps muestra la tasa de fotogramas; sin definir la oculta.</string>
+    <string name="game_env_hud">Superposición de DXVK para D3D9–11. fps muestra la tasa de fotogramas; sin definir la oculta.</string>
     <string name="game_env_dxvk_config">Ajustes de DXVK separados por punto y coma. Las versiones recientes usan dxvk.maxFrameRate para limitar fotogramas; para el uso normal prefiere el límite de fotogramas de la sesión.</string>
     <string name="game_env_vkd3d_limit">Límite de fotogramas de D3D12. 0 desactiva el límite.</string>
     <string name="game_env_glthread">Subprocesos de OpenGL de Mesa. true puede ayudar a juegos OpenGL limitados por la CPU; pruébalo en cada juego.</string>
@@ -287,7 +287,7 @@
     <string name="mode_client">Cliente</string>
     <string name="mode_deck_mode">Modo Steam Deck</string>
     <string name="mode_deck_mode_hint">La interfaz Deck de Steam y los controles de rendimiento de Quick Access. Se aplica en la próxima sesión.</string>
-    <string name="mode_mangoapp">Overlay de rendimiento</string>
+    <string name="mode_mangoapp">Superposición de rendimiento</string>
     <string name="mode_mangoapp_hint">Desactívalo si los juegos fallan o se quedan en negro en modo Deck. Se aplica en la próxima sesión.</string>
     <string name="mode_branch">Rama del cliente</string>
     <string name="mode_branch_deck">Beta pública de Steam Deck (requerida por el modo Deck).</string>
@@ -344,13 +344,13 @@
     <string name="mode_mic">Micrófono</string>
     <string name="mode_mic_hint">Para el chat de voz.</string>
     <string name="mode_network">Red</string>
-    <string name="mode_wifi_discovery">Detección de Wi-Fi</string>
+    <string name="mode_wifi_discovery">Detección de redes Wi-Fi</string>
     <string name="mode_wifi_discovery_hint">Muestra en Steam los nombres de Wi-Fi y las redes cercanas.</string>
     <string name="mode_wifi_location_off">Los servicios de ubicación están desactivados.</string>
     <string name="mode_wifi_permission_denied">No se concedió el permiso de ubicación.</string>
     <string name="mode_wifi_open_settings">Abrir ajustes</string>
     <string name="mode_wifi_continue">Continuar</string>
-    <string name="mode_wifi_explain_title">¿Activar la detección de Wi-Fi?</string>
+    <string name="mode_wifi_explain_title">¿Activar la detección de redes Wi-Fi?</string>
     <string name="mode_wifi_explain_text">Android exige el permiso de ubicación para leer los nombres de Wi-Fi y detectar redes cercanas. DroidDeck usa este acceso para mostrar esas redes en Steam. No rastreamos tu ubicación. El acceso a internet funciona sin este permiso.</string>
     <string name="mode_storage">Almacenamiento de juegos</string>
     <string name="mode_storage_auto">Automático - la tarjeta SD si está presente, y tus carpetas de juegos</string>
@@ -392,7 +392,7 @@
     <string name="comp_display_driver_hint">Dibuja los fotogramas en pantalla en ambos modos. Reinicia la app para aplicarlo.</string>
     <string name="comp_import_adrenotools">Importar un zip de AdrenoTools…</string>
     <string name="comp_never">nunca</string>
-    <string name="comp_nightlies_checked">Nightlies comprobadas %1$s</string>
+    <string name="comp_nightlies_checked">Última comprobación de Nightlies: %1$s</string>
     <string name="comp_title">Componentes</string>
     <string name="comp_about">Acerca de Componentes</string>
     <string name="comp_check_drivers">Buscar controladores nuevos</string>
@@ -613,6 +613,7 @@
     <string name="setup_session">Sesión</string>
     <string name="setup_logs">Registros de sesión</string>
     <string name="setup_logs_hint">Se guardan tras cada sesión</string>
+    <string name="setup_agent_commands">Herramientas de depuración</string>
     <string name="setup_latest_logs">Últimos registros de sesión</string>
     <string name="setup_saved_logs">Registros de sesión guardados</string>
     <string name="setup_saved_logs_hint">Conserva los %1$d más recientes</string>

@@ -97,6 +97,14 @@ export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
 # A sleep that starts no process. Under proot every exec is a traced execve plus the loader's
 # opens and maps, and the watchers below poll for the whole session: `sleep 1` in a loop was 60
 # execs a minute each. read -t on a pipe nothing ever writes to waits in bash itself.
+# The agent bridge's guest side (docs/agent-control.md): runs what the app's agent provider asks
+# for inside this session and publishes gamescope's focus. Its files live under the session root
+# ($BL_LAUNCH_DIR/agent), which the app empties before each session.
+start_agent() {
+  [ -n "${BL_LAUNCH_DIR:-}" ] && [ -x /usr/local/bin/droiddeck-agent ] || return 0
+  mkdir -p "$BL_LAUNCH_DIR/agent"
+  /usr/local/bin/droiddeck-agent "$@" 2>&1 &
+}
 nap() {
   [ -n "${bl_nap_fd:-}" ] || exec {bl_nap_fd}<> <(:)
   read -r -t "$1" -u "$bl_nap_fd" _ 2>/dev/null || :
@@ -136,6 +144,9 @@ program_cores() {
 }
 
 if [ -z "${BL_INSIDE:-}" ]; then
+  # Install the shared default-family aliases before Steam, gamescope or the desktop queries fonts.
+  /usr/local/bin/droiddeck-fonts 2>&1 | sed 's/^/[fonts] /'
+  # Android's directory binding and language-specific family matches handle CJK and Thai fonts.
   device_fonts=/usr/local/share/fonts/android
   if [ -d "$device_fonts" ] && [ -d /etc/fonts/conf.d ] && command -v fc-cache >/dev/null 2>&1; then
     fonts_rules=$(
@@ -166,6 +177,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
   # into the app's: no gamescope in between.
   if [ "$mode" = lxqt ]; then
     step "starting the desktop"
+    start_agent --no-focus
     [ -x /usr/local/bin/droiddeck-desktop ] || { echo "== the desktop package is not installed"; exit 66; }
     cores=$(program_cores)
     if [ -n "$cores" ]; then
@@ -283,6 +295,8 @@ reap_orphans() {
 if [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
   /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
 fi
+
+start_agent
 
 case $mode in
   desktop)
@@ -710,6 +724,8 @@ BUSCONF
       export BL_CDP_GUARD=$BL_CDP_PORT
       echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     fi
+    # The agent bridge drives the client through it (droiddeck-agent's cdp requests).
+    [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
     droiddeck-steam-compat "$steam_root" 2>&1 &
     # The client exits 42 when it has updated itself and wants a fresh start (steam.sh does this).
     # BL_STEAM_UI=desktop = the client's desktop UI (a window, the library as a list), which the
