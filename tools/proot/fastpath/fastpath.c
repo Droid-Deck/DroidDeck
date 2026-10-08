@@ -391,6 +391,12 @@ static long fp_open(int dirfd, const char *path, int flags, mode_t mode) {
   /* The last component is never followed here: a symlink there is proot's to resolve. */
   long fd = sc(SYS_openat, AT_FDCWD, (long)host, flags | O_NOFOLLOW, (flags & O_CREAT) ? mode : 0, 0);
   if (fd == -ELOOP && !(flags & O_NOFOLLOW)) return FP_SLOW;
+  /* With O_DIRECTORY the kernel checks for a directory before it gets to the symlink, so a link to
+   * a directory (opendir() of it) fails ENOTDIR rather than ELOOP. A real non-directory stays here. */
+  if (fd == -ENOTDIR && (flags & O_DIRECTORY) && !(flags & O_NOFOLLOW)) {
+    struct stat st;
+    if (kind(host, &st) == 1) return FP_SLOW;
+  }
   if (fd >= 0 && (flags & O_PATH) && !(flags & O_NOFOLLOW)) {
     struct stat st;
     if (sc(SYS_fstat, fd, (long)&st, 0, 0, 0) != 0 || S_ISLNK(st.st_mode)) {
