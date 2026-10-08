@@ -88,11 +88,11 @@ import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import com.droiddeck.launcher.session.ComponentsManager
+import com.droiddeck.launcher.session.LatestRequestCoordinator
 import com.droiddeck.launcher.ui.SessionDrawerPage
 import com.droiddeck.launcher.ui.sessionDrawerPages
 import com.droiddeck.launcher.ui.step
 import kotlin.math.abs
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The session's screen: our Wayland compositor presenting onto this activity's Surface, and the
@@ -247,7 +247,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private var drawerGameProfile by mutableStateOf<SelectedGameProfile?>(null)
     private var drawerGameProfileFollowsSteam = true
-    private val drawerGameProfileRefreshing = AtomicBoolean()
+    private data class DrawerGameProfileRefresh(val followsSteam: Boolean, val requestedAppId: Long?)
+    private data class DrawerGameProfileResult(
+        val profiles: List<Pair<Long, String>>,
+        val selectedAppId: Long?,
+        val profile: SelectedGameProfile?,
+    )
+    private val drawerGameProfileRefreshes = LatestRequestCoordinator<DrawerGameProfileRefresh>()
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
     private var backActionsInverted by mutableStateOf(false)
@@ -782,33 +788,49 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun refreshDrawerGameProfile() {
-        if (!drawerGameProfileRefreshing.compareAndSet(false, true)) return
-        val followsSteam = drawerGameProfileFollowsSteam
-        val requestedAppId = drawerGameProfileId
+        val refresh = DrawerGameProfileRefresh(drawerGameProfileFollowsSteam, drawerGameProfileId)
+        if (!drawerGameProfileRefreshes.submit(refresh)) return
         Thread({
-            val result = runCatching {
-                val games = Library.launchableGames(this)
-                val options = games.mapNotNull { game ->
-                    game.profileKey.toLongOrNull()?.let { it to game.name }
-                }.sortedBy { it.second.lowercase() }
-                val selectedAppId = if (followsSteam) AgentGuest.selectedSteamAppId(this) else requestedAppId
-                val profile = selectedAppId?.let { resolveDrawerGameProfile(it, games) }
-                Triple(options, selectedAppId, profile)
-            }.getOrElse { Triple(emptyList(), requestedAppId, null) }
-            uiHandler.post {
-                drawerGameProfiles = result.first
-                if (followsSteam) {
-                    if (drawerGameProfileFollowsSteam) {
-                        drawerGameProfileId = result.second
-                        drawerGameProfile = result.third
-                        readDrawerTextureFiltering(result.second)
-                    }
-                } else if (!drawerGameProfileFollowsSteam && drawerGameProfileId == result.second) {
-                    drawerGameProfile = result.third
+            var request = drawerGameProfileRefreshes.takeLatest()
+            while (request != null) {
+                val current = request
+                val result = resolveDrawerGameProfileRefresh(current.value)
+                uiHandler.post {
+                    if (!drawerGameProfileRefreshes.isLatest(current)) return@post
+                    applyDrawerGameProfileRefresh(current.value, result)
                 }
-                drawerGameProfileRefreshing.set(false)
+                request = drawerGameProfileRefreshes.takeLatest()
             }
         }, "drawer-game-profile").start()
+    }
+
+    private fun resolveDrawerGameProfileRefresh(
+        refresh: DrawerGameProfileRefresh,
+    ): DrawerGameProfileResult =
+        runCatching {
+            val games = Library.launchableGames(this)
+            val options = games.mapNotNull { game ->
+                game.profileKey.toLongOrNull()?.let { it to game.name }
+            }.sortedBy { it.second.lowercase() }
+            val selectedAppId = if (refresh.followsSteam) AgentGuest.selectedSteamAppId(this) else refresh.requestedAppId
+            val profile = selectedAppId?.let { resolveDrawerGameProfile(it, games) }
+            DrawerGameProfileResult(options, selectedAppId, profile)
+        }.getOrElse { DrawerGameProfileResult(emptyList(), refresh.requestedAppId, null) }
+
+    private fun applyDrawerGameProfileRefresh(
+        refresh: DrawerGameProfileRefresh,
+        result: DrawerGameProfileResult,
+    ) {
+        drawerGameProfiles = result.profiles
+        if (refresh.followsSteam) {
+            if (drawerGameProfileFollowsSteam) {
+                drawerGameProfileId = result.selectedAppId
+                drawerGameProfile = result.profile
+                readDrawerTextureFiltering(result.selectedAppId)
+            }
+        } else if (!drawerGameProfileFollowsSteam && drawerGameProfileId == result.selectedAppId) {
+            drawerGameProfile = result.profile
+        }
     }
 
     private fun resolveDrawerGameProfile(

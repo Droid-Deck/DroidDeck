@@ -245,24 +245,33 @@ object ComponentsManager {
      * Is anything running on this Proton right now - a game, or the client's own start-up runs,
      * whose Wine processes can outlive them? Swaps wait while it is. Read from the command lines.
      */
-    fun inUse(context: Context, proton: Proton): Boolean = anyProcess(context, proton) { needle, text -> text.contains(needle + "proton ") || text.contains(needle + "files/bin") }
+    fun inUse(context: Context, proton: Proton): Boolean =
+        anyProcess(context, proton) { paths, text -> processUsesProton(paths, text, gameOnly = false) }
 
     /**
      * Is a game running on this Proton? Only a launch runs proton with the verb waitforexitandrun
      * (Proton's own script stays up until the game exits); the client's start-up runs do not.
      */
-    fun gameRunning(context: Context, proton: Proton): Boolean = anyProcess(context, proton) { needle, text -> text.contains(needle + "proton waitforexitandrun") }
+    fun gameRunning(context: Context, proton: Proton): Boolean =
+        anyProcess(context, proton) { paths, text -> processUsesProton(paths, text, gameOnly = true) }
 
-    private fun anyProcess(context: Context, proton: Proton, match: (String, String) -> Boolean): Boolean {
-        val needles = (listOf(proton.guestPath) + EsyncPacks.distPathsFor(root(context), proton.guestPath))
-            .map { it.trimEnd('/') + "/" }
+    internal fun processUsesProton(paths: List<String>, text: String, gameOnly: Boolean): Boolean =
+        paths.any { path ->
+            val needle = path.trimEnd('/') + "/"
+            if (gameOnly) text.contains(needle + "proton waitforexitandrun")
+            else text.contains(needle + "proton ") || text.contains(needle + "files/bin")
+        }
+
+    private fun anyProcess(context: Context, proton: Proton, match: (List<String>, String) -> Boolean): Boolean {
+        val guestPaths = listOf(proton.guestPath) + EsyncPacks.distPathsFor(root(context), proton.guestPath)
+        val paths = (guestPaths + guestPaths.map { host(context, it).absolutePath } + proton.dir.absolutePath).distinct()
         val procs = File("/proc").listFiles() ?: return false
         for (p in procs) {
             if (!p.name.all(Char::isDigit)) continue
             val cmd = runCatching { File(p, "cmdline").readBytes() }.getOrNull() ?: continue
             if (cmd.isEmpty()) continue
             val text = String(cmd).replace('\u0000', ' ')
-            if (needles.any { match(it, text) }) return true
+            if (match(paths, text)) return true
         }
         return false
     }
