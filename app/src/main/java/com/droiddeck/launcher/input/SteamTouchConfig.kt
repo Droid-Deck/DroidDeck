@@ -140,6 +140,11 @@ object SteamTouchConfig {
         /** The parsed config, for its bindings (SteamTouchBindings). */
         val mappings: KeyValues.Node? = null,
     ) {
+        /** The config's own title, as Steam Link's tray shows it ("Default", "Gamepad"…). */
+        val title: String? get() = mappings?.string("title")?.let { t ->
+            if (t.startsWith("#")) mappings.child("localization")?.child("english")?.string("title") ?: "Default" else t
+        }
+
         /** The controls to show for [actionSet] (as the device is told it) and [layers]. */
         fun availableFor(actionSet: Int, layers: List<Int>): Set<Int> {
             val base = available[presetOf(actionSet)] ?: available.values.firstOrNull() ?: DEFAULT_SET
@@ -157,6 +162,14 @@ object SteamTouchConfig {
     private fun presetOf(actionSet: Int) = layoutIdOf(actionSet) - 1
 
     // ---- Where Steam keeps them ----
+
+    /** A game's name from its app manifest, when it is installed. */
+    fun gameName(context: Context, appId: Int): String? = try {
+        val kv = KeyValues.parse(File(steamRoot(context), "steamapps/appmanifest_$appId.acf").readText())
+        (kv.child("AppState") ?: kv).string("name")
+    } catch (_: Exception) {
+        null
+    }
 
     fun steamRoot(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
 

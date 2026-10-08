@@ -215,20 +215,26 @@ class SteamTouchIconPicker(
                 isClickable = true
                 isFocusable = true
             }
+            // Steam Link's panel: navy, square, a blue rule along the top.
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(Color.rgb(32, 34, 30)) }
-                setPadding(dp(12), dp(14), dp(12), dp(8))
+                background = android.graphics.drawable.LayerDrawable(arrayOf(
+                    GradientDrawable().apply { setColor(Color.rgb(49, 106, 196)) },
+                    GradientDrawable().apply { setColor(Color.rgb(32, 40, 51)) },
+                )).apply { setLayerInset(1, 0, dp(2), 0, 0) }
+                setPadding(dp(12), dp(14), dp(12), dp(10))
                 isClickable = true
             }
             card.addView(TextView(context).apply {
                 text = title
-                textSize = 20f
+                textSize = 15f
+                setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
+                gravity = Gravity.CENTER
                 setTextColor(Color.WHITE)
                 setPadding(dp(16), 0, dp(16), dp(4))
             })
             card.addView(content)
-            val row = LinearLayout(context).apply { gravity = Gravity.END; setPadding(dp(8), dp(4), dp(8), 0) }
+            val row = LinearLayout(context).apply { gravity = Gravity.CENTER; setPadding(dp(8), dp(10), dp(8), 0) }
             fun close() {
                 (scrim.parent as? ViewGroup)?.removeView(scrim)
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
@@ -236,13 +242,15 @@ class SteamTouchIconPicker(
                 onClose()
             }
             buttons.forEachIndexed { i, (name, action) ->
-                row.addView(android.widget.Button(context, null, android.R.attr.borderlessButtonStyle).apply {
+                row.addView(TextView(context).apply {
                     text = name
-                    setTextColor(Color.rgb(200, 230, 160))
+                    gravity = Gravity.CENTER
+                    textSize = 14f
+                    setTextColor(Color.WHITE)
+                    background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(62, 112, 178), Color.rgb(51, 92, 154)))
+                    setPadding(dp(20), dp(10), dp(20), dp(10))
                     setOnClickListener { close(); action() }
-                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    if (i == 0 && buttons.size > 2) marginEnd = dp(120)
-                })
+                }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(6); marginEnd = dp(6) })
             }
             card.addView(row)
             val width = minOf(dp(640), (context.resources.displayMetrics.widthPixels * 0.9f).toInt())
