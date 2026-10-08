@@ -35,6 +35,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
+import com.droiddeck.launcher.ui.exposeTestTags
 import com.droiddeck.launcher.session.OfflineMode
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.ComponentsManager
@@ -356,6 +357,7 @@ class MainActivity : ComponentActivity() {
     private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
+    private var agentCommands by mutableStateOf(false)
     private var showRoms by mutableStateOf(false)
     private var homeAppSelected by mutableStateOf(false)
     private var homeScreenEnabled by mutableStateOf(false)
@@ -529,7 +531,7 @@ class MainActivity : ComponentActivity() {
         updates.start()
         setContent {
             DroidDeckTheme(theme, appScale = appScale) {
-            com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
+            com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
                 val sm = settingsMode
                 val page: (@Composable () -> Unit)? = when {
                     sm != null -> { { ModeSettingsHost(sm) } }
@@ -549,7 +551,7 @@ class MainActivity : ComponentActivity() {
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled,
                         offlineAccount = offlineAccount, offline = offline,
-                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
+                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, agentCommands = agentCommands,
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -661,6 +663,10 @@ class MainActivity : ComponentActivity() {
                         onLogs = {
                             SessionPrefs.setLogsEnabled(this, !SessionPrefs.logsEnabled(this))
                             logsEnabled = SessionPrefs.logsEnabled(this)
+                        },
+                        onAgentCommands = {
+                            com.droiddeck.launcher.agent.AgentAccess.setCommandsEnabled(this, !com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this))
+                            agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
                         },
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
@@ -1503,6 +1509,7 @@ class MainActivity : ComponentActivity() {
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
+        agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {
             SessionService.MODE_DESKTOP -> getString(R.string.rail_desktop)
             SessionService.MODE_RUN -> Library.nameForProgram(SessionState.program)

@@ -278,12 +278,12 @@
     <string name="mode_decky_installed">インストール済み · %1$s</string>
     <string name="mode_decky_update">アップデートあり · %1$s</string>
     <string name="mode_decky_current">最新です · %1$s</string>
-    <string name="mode_decky_loader">ローダー</string>
+    <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">最新バージョンをインストール</string>
     <string name="mode_decky_on">Steamと共に起動します。有効にすると、このデバイス上の他のアプリがSteamを制御できる場合があります。</string>
     <string name="mode_decky_off">オフ。Steamのリモートデバッグポートは閉じたままになります。</string>
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
-    <string name="mode_decky_remove_text">ローダーを削除します。プラグインと設定は保持されます。</string>
+    <string name="mode_decky_remove_text">Loaderを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>
     <string name="mode_deck_mode">Steam Deckモード</string>
     <string name="mode_deck_mode_hint">Steam DeckのUIとクイックアクセスパフォーマンスコントロール。次回のセッションで有効になります。</string>
@@ -611,6 +611,7 @@
     <string name="setup_session">セッション</string>
     <string name="setup_logs">セッションログ</string>
     <string name="setup_logs_hint">各セッション終了後に保存</string>
+    <string name="setup_agent_commands">デバッグツール</string>
     <string name="setup_latest_logs">最新のセッションログ</string>
     <string name="setup_saved_logs">保存されたセッションログ</string>
     <string name="setup_saved_logs_hint">最新の%1$d件を保持</string>

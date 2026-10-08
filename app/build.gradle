@@ -79,8 +79,8 @@ android {
         // file out of its own data directory, and this app's entire job is to exec a rootfs:
         // proot, gamescope, the Steam client and everything it launches all live under files/.
         targetSdkVersion 28
-        versionCode 11
-        versionName "0.3.1"
+        versionCode 12
+        versionName "0.3.2"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"

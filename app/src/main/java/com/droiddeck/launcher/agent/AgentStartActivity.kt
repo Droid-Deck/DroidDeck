@@ -39,6 +39,10 @@ class AgentStartActivity : Activity() {
             Log.e(TAG, "missing agent start request")
             return null
         }
+        if (encoded.length > AgentAccess.MAX_REQUEST_CHARS) {
+            Log.w(TAG, "agent start request is too large")
+            return null
+        }
         return try {
             JSONObject(String(Base64.decode(encoded, Base64.DEFAULT), Charsets.UTF_8))
         } catch (e: Exception) {
@@ -48,6 +52,13 @@ class AgentStartActivity : Activity() {
     }
 
     private fun startSession(request: JSONObject) {
+        try {
+            AgentAccess.requireStart(this, request)
+        } catch (e: AgentException) {
+            Log.w(TAG, e.code)
+            finish()
+            return
+        }
         val requestedMode = request.optString("mode")
         val sessionMode = when (requestedMode) {
             "steam" -> SessionService.MODE_STEAM
