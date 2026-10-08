@@ -100,6 +100,12 @@ class PrDiscordTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "^Invalid Discord webhook configuration$"):
             module.Discord("https://attacker.invalid/webhooks/secret")
 
+    def test_missing_discord_message_returns_none(self):
+        webhook = "https://discord.com/api/webhooks/1554202953248940172/test_token"
+        error = module.urllib.error.HTTPError(webhook, 404, "Not Found", {}, None)
+        with patch.object(module.urllib.request, "urlopen", side_effect=error):
+            self.assertIsNone(module.Discord(webhook).request("GET", "/messages/1557547293375332465"))
+
     def test_network_error_redacts_webhook_and_does_not_retry_creation(self):
         webhook = "https://discord.com/api/webhooks/1554202953248940172/private_token"
         with patch.object(module.urllib.request, "urlopen", side_effect=module.urllib.error.URLError(webhook)) as request:
