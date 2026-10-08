@@ -138,12 +138,10 @@ public final class EpicDownloadManager {
 
             File installDir = new File(installDirPath);
             installDir.mkdirs();
-            // The native engine keeps its cache beside the game (its contract names <installDir>/.chunks);
-            // the scratch path is honoured by the Java pool and the assembly. A path on a card and a
-            // native run therefore still cache on the card until the engine takes the parameter.
-            boolean scratch = chunkCacheDirPath != null && !chunkCacheDirPath.isEmpty();
-            File engineCacheDir = new File(installDir, ".chunks");
-            File chunkCacheDir = scratch ? new File(chunkCacheDirPath) : engineCacheDir;
+            // "" = the cache beside the game; a path = the scratch cache (the app's own storage when
+            // the game goes to a card). The engine and the Java loops read the same value.
+            final String cachePath = chunkCacheDirPath == null ? "" : chunkCacheDirPath;
+            final File chunkCacheDir = cachePath.isEmpty() ? new File(installDir, ".chunks") : new File(cachePath);
             chunkCacheDir.mkdirs();
 
             List<FileInfo> selected = resolveInstallFiles(manifest, installTags);
@@ -185,12 +183,13 @@ public final class EpicDownloadManager {
             cb.onLog("epic: " + fmt(fTotalBytes) + " in " + totalChunks + " chunks");
 
             boolean javaPool = true;
-            if (com.droiddeck.launcher.stores.StoresNative.INSTANCE.getAvailable()) {
-                NativeOutcome r = runNativePool(ctx, manifestBytes, manifest, pending, needed, fTotalBytes, installDirPath, cdnUrls, cancel, cb,
+            final int[] pendingIdx = pendingIndices(manifest, pending);
+            boolean engine = com.droiddeck.launcher.stores.StoresNative.INSTANCE.getAvailable() && pendingIdx != null;
+            if (engine) {
+                NativeOutcome r = runNativePool(ctx, manifestBytes, pendingIdx, needed, fTotalBytes, installDirPath, cachePath, cdnUrls, cancel, cb,
                         completedBytes, completedCount, lastSpeedMs, lastSpeedBytes, speedBps);
                 if (r.started) {
                     javaPool = false;
-                    chunkCacheDir = engineCacheDir;
                     if (r.cancelled) return null;
                     if (!r.success) { cb.onLog("epic: engine failed: " + r.error); failCount.incrementAndGet(); }
                 } else cb.onLog("epic: engine not started (" + r.error + "); using the built-in pool");
@@ -198,12 +197,11 @@ public final class EpicDownloadManager {
             if (javaPool) {
                 cb.onLog("epic: engine=built-in (8 threads)");
                 ExecutorService pool = Executors.newFixedThreadPool(8);
-                final File poolCacheDir = chunkCacheDir;
                 for (ChunkInfo chunk : needed) {
                     final ChunkInfo fc = chunk;
                     pool.submit(() -> {
                         if (cancel.get()) return;
-                        File cached = new File(poolCacheDir, fc.guidStr());
+                        File cached = new File(chunkCacheDir, fc.guidStr());
                         if (!cached.exists() && !downloadChunkStreaming(fc, manifest.chunkDir, cdnUrls, cached)) {
                             cb.onLog("FAIL chunk=" + fc.guidStr());
                             failCount.incrementAndGet();
@@ -230,6 +228,18 @@ public final class EpicDownloadManager {
             if (cancel.get()) return null;
             if (failCount.get() > 0) throw new InstallException(failCount.get() + " chunk(s) failed to download");
 
+            // The engine's assembler when it starts (it drops each chunk after its last use and the
+            // cache at the end); the loop below when it does not.
+            if (engine) {
+                NativeOutcome r = runNativeAssembly(manifestBytes, pendingIdx, pending.size(), installDirPath, cachePath, cancel, cb);
+                if (r.started) {
+                    if (r.cancelled) return null;
+                    if (!r.success) throw new InstallException(r.error.isEmpty() ? "assembly failed" : r.error);
+                    cb.onProgress("Complete", 100);
+                    return new Result(manifest.launchExe, manifest.buildVersion, planned);
+                }
+                cb.onLog("epic: assembler not started (" + r.error + "); writing the files here");
+            }
             int totalFiles = pending.size(), doneFiles = 0;
             for (FileInfo file : pending) {
                 if (cancel.get()) return null;
@@ -248,8 +258,7 @@ public final class EpicDownloadManager {
                 }
                 doneFiles++;
             }
-            deleteDir(engineCacheDir);
-            if (scratch) deleteDir(new File(chunkCacheDirPath));
+            deleteDir(chunkCacheDir);
             cb.onProgress("Complete", 100);
             return new Result(manifest.launchExe, manifest.buildVersion, planned);
         } catch (InstallException e) {
@@ -262,28 +271,33 @@ public final class EpicDownloadManager {
 
     private static final class NativeOutcome { boolean started, success, cancelled; String error = ""; }
 
+    /** The pending files as indices into the manifest's file list, what both native runs take; null when one is not in it. */
+    private static int[] pendingIndices(Manifest manifest, List<FileInfo> pending) {
+        java.util.IdentityHashMap<FileInfo, Integer> index = new java.util.IdentityHashMap<>();
+        for (int i = 0; i < manifest.files.size(); i++) index.put(manifest.files.get(i), i);
+        int[] pendingIdx = new int[pending.size()];
+        for (int i = 0; i < pending.size(); i++) {
+            Integer k = index.get(pending.get(i));
+            if (k == null) return null;
+            pendingIdx[i] = k;
+        }
+        return pendingIdx;
+    }
+
     /** The native chunk pool on the same counters; never throws. */
-    private static NativeOutcome runNativePool(Context ctx, byte[] manifestBytes, Manifest manifest, List<FileInfo> pending, List<ChunkInfo> needed, long totalBytes,
-                                               String installDirPath, List<CdnUrl> cdnUrls, AtomicBoolean cancel, Callback cb,
+    private static NativeOutcome runNativePool(Context ctx, byte[] manifestBytes, int[] pendingIdx, List<ChunkInfo> needed, long totalBytes,
+                                               String installDirPath, String cachePath, List<CdnUrl> cdnUrls, AtomicBoolean cancel, Callback cb,
                                                AtomicLong completedBytes, AtomicInteger completedCount, AtomicLong lastSpeedMs, AtomicLong lastSpeedBytes, AtomicLong speedBps) {
         NativeOutcome r = new NativeOutcome();
         try {
-            java.util.IdentityHashMap<FileInfo, Integer> index = new java.util.IdentityHashMap<>();
-            for (int i = 0; i < manifest.files.size(); i++) index.put(manifest.files.get(i), i);
-            int[] pendingIdx = new int[pending.size()];
-            for (int i = 0; i < pending.size(); i++) {
-                Integer k = index.get(pending.get(i));
-                if (k == null) { r.error = "pending file not in manifest"; return r; }
-                pendingIdx[i] = k;
-            }
             String[] prefixes = new String[cdnUrls.size()];
             for (int i = 0; i < cdnUrls.size(); i++) prefixes[i] = cdnUrls.get(i).baseUrl + cdnUrls.get(i).cloudDir;
             final int totalChunks = needed.size();
             StoreDownloadTier tier = StoreDownloadTier.Companion.current(ctx);
             int workers = Math.max(1, Math.min(128, tier.getNetworkWindow()));
             int process = Math.max(2, tier.getProcessWorkers());
-            cb.onLog("epic: engine=native workers=" + workers + " process_workers=" + process + " tier=" + tier.getId());
-            EpicNative.Result res = EpicNative.run(manifestBytes, installDirPath, prefixes, pendingIdx, totalChunks, totalBytes, "", workers, process, cancel,
+            cb.onLog("epic: engine=native workers=" + workers + " process_workers=" + process + " tier=" + tier.getId() + (cachePath.isEmpty() ? "" : " cache=scratch"));
+            EpicNative.Result res = EpicNative.run(manifestBytes, installDirPath, cachePath, prefixes, pendingIdx, totalChunks, totalBytes, "", workers, process, cancel,
                     new EpicNative.Listener() {
                         @Override public void onPlan(int chunksTotal, long bytesTotal, String chunkDir) { cb.onLog("epic: plan chunks=" + chunksTotal + " bytes=" + bytesTotal + " dir=" + chunkDir); }
                         @Override public void onProgress(long bytesDone, long bytesTotal, int chunksDone, int chunksTotal) {
@@ -296,6 +310,27 @@ public final class EpicDownloadManager {
                         @Override public void onLog(String line) { cb.onLog(line); }
                         @Override public void onComplete(boolean success, String error, long bytesCredited) {}
                     });
+            r.started = res.started; r.success = res.success; r.cancelled = res.cancelled; r.error = res.error == null ? "" : res.error;
+        } catch (Throwable t) {
+            r.started = false;
+            r.error = t.getClass().getSimpleName() + ": " + t.getMessage();
+        }
+        return r;
+    }
+
+    /** The native assembler: the pending files written from the cache, the cache removed on success; never throws. */
+    private static NativeOutcome runNativeAssembly(byte[] manifestBytes, int[] pendingIdx, int totalFiles, String installDirPath, String cachePath, AtomicBoolean cancel, Callback cb) {
+        NativeOutcome r = new NativeOutcome();
+        try {
+            cb.onLog("epic: assembler=native files=" + totalFiles + (cachePath.isEmpty() ? "" : " cache=scratch"));
+            EpicNative.Result res = EpicNative.assemble(manifestBytes, installDirPath, cachePath, pendingIdx, cancel, new EpicNative.Listener() {
+                @Override public void onPlan(int chunksTotal, long bytesTotal, String chunkDir) {}
+                @Override public void onProgress(long bytesDone, long bytesTotal, int done, int total) {
+                    cb.onProgress("Writing files (" + done + "/" + Math.max(total, totalFiles) + ")", 80 + (int) (done * 20L / Math.max(1, Math.max(total, totalFiles))));
+                }
+                @Override public void onLog(String line) { cb.onLog(line); }
+                @Override public void onComplete(boolean success, String error, long bytes) {}
+            });
             r.started = res.started; r.success = res.success; r.cancelled = res.cancelled; r.error = res.error == null ? "" : res.error;
         } catch (Throwable t) {
             r.started = false;

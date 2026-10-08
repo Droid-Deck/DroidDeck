@@ -24,9 +24,11 @@ scanned (`StoreInstallRoot.roots`): internal, every card, and the Steam library'
 installs an earlier build put there. `<Store>` is `GOG`, `Epic` or `Amazon`; `<title>` is the title
 with unsafe characters dropped, at most 60 characters (`StoreInstallRoot.folderName`), chosen once;
 a rerun (repair, update) lands on the folder whose sidecar carries the game's id, wherever it is.
-An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/` (the Java pool
-and the assembly honour it; the native engine's own cache stays `<installDir>/.chunks` until its
-contract takes a cache path); the scratch folder is removed on cancel and uninstall.
+An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/`: the
+`chunkCacheDir` of both native calls (`EpicNative.run` fetches into it, `EpicNative.assemble`
+writes the files from it and drops each chunk after its last use, then the folder), and of the
+manager's own loops when the engine is not there; `""` keeps the cache beside the game, as an
+internal install has it. The scratch folder is removed on cancel-with-delete and on uninstall.
 
 ## The sidecar
 
