@@ -1,0 +1,38 @@
+[package]
+name = "droiddeckstores"
+version = "0.1.0"
+edition = "2021"
+# The engines are a port of Bannerlator's bl-steam-client store modules (GPL-3.0-or-later, derived
+# from WinNative's wn-steam-client; the Epic selection/verify rules trace back to GameNative and
+# Legendary, both GPL-3.0). DroidDeck is GPL-3.0, so the crate keeps the licence it came with.
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+name = "droiddeckstores"
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+# zlib inflate for GOG gen2 chunks and Epic chunk bodies. The pure-Rust backend keeps the .so free
+# of a C zlib and of the NDK sysroot's libz, which the apk does not ship.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# The fetch core drives every request through ONE tokio current-thread runtime and feeds a sync
+# process pool; rustls (via ring) is the TLS stack so there is no OpenSSL to cross-compile. `gzip`
+# transparently inflates a CDN answer that comes back content-encoded. No `blocking` client: the
+# three engines are async-fetch only.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
+tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# preserve_order keeps JSON object keys in source order, as in Bannerlator, so the GOG depot plan
+# walks a manifest's files in the order the manifest lists them (largest-first sorting happens
+# after, explicitly).
+serde_json = { version = "1", features = ["preserve_order"] }
+# Epic chunks are SHA-1 verified, Amazon files SHA-256; GOG's MD5 is the in-tree md5_small.
+sha1 = "0.10"
+sha2 = "0.10"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "symbols"
