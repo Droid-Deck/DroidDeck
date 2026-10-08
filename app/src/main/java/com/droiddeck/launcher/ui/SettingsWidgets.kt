@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
@@ -186,6 +187,7 @@ internal fun TabStrip(
                     color = if (on) pal.onSignal else if (hot) colors.onBackground else colors.onSurfaceVariant,
                     modifier = Modifier
                         .bringIntoViewRequester(reveal)
+                        .testTag("tab-$i")
                         .then(focusRequesters?.getOrNull(i)?.let { Modifier.focusRequester(it) } ?: Modifier)
                         .clip(tabShape)
                         .background(if (on) pal.signal else if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
@@ -456,7 +458,7 @@ fun <T> ChoiceRow(
     val open = host.open == key
     SettingsRow(label, hint, highlighted = open, hintLines = hintLines) {
         Box {
-            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier) { host.open = if (open) null else key }
+            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier.testTag("setting-$key")) { host.open = if (open) null else key }
             AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
                 options.forEachIndexed { index, (value, text) ->
                     MenuItem(text, checked = value == selected, focusRequester = if (index == 0) firstItemFocus else null) {
@@ -472,7 +474,7 @@ fun <T> ChoiceRow(
 @Composable
 fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked: Boolean, enabled: Boolean = true, chipModifier: Modifier = Modifier, onChange: (Boolean) -> Unit) =
     SettingsRow(label, hint) {
-        ToggleSwitch(checked, enabled, label, chipModifier) { host.open = null; onChange(it) }
+        ToggleSwitch(checked, enabled, label, chipModifier.testTag("setting-$key")) { host.open = null; onChange(it) }
     }
 
 /** An on/off switch: one tap or one A press flips it, where a menu of On and Off took three. */

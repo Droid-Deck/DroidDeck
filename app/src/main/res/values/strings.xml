@@ -15,8 +15,10 @@
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Shows while a Steam or desktop session is open</string>
     <string name="session_notification">Steam is running</string>
+    <string name="session_notification_downloads">Steam download active</string>
     <string name="session_notification_paused">Session paused - tap Resume when ready</string>
     <string name="resume_session">Resume</string>
+    <string name="suspend_now">Suspend now</string>
     <string name="stop_session">Stop session</string>
     <string name="frame_gen_title">Frame generation</string>
     <string name="frame_gen_hint">Select the frame generation mode</string>
@@ -41,7 +43,7 @@
     <string name="hud_fg_failed">%1$s: engine failed</string>
     <string name="hud_fg_needs_lossless">%1$s: needs Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · starting</string>
-    <string name="added_games_import_hint">A folder with one subfolder per Windows game. Games you own on Steam use their Steam entries after Steam restarts; the rest become non-Steam shortcuts.</string>
+    <string name="added_games_import_hint">A folder with one subfolder per Windows game. Games you own on Steam use their Steam entries after Steam restarts; the rest become non-Steam shortcuts. With Second library on Automatic, Steam can install games into this folder too.</string>
     <string name="second_library_import_hint">Adds a Steam library and scans it for Windows games. Owned games use their Steam entries; the rest become non-Steam shortcuts.</string>
     <string name="added_games_forget_hint">Forget removes the shortcuts next session. Files stay on disk.</string>
     <string name="game_env_title">Game environment</string>
@@ -267,6 +269,8 @@
     <string name="mode_suspend_manual">Manual</string>
     <string name="mode_suspend_native">Native</string>
     <string name="mode_suspend_steam_note">Auto pauses and resumes when shown. Native prepares Steam for sleep first. Manual waits for Resume. Never keeps running.</string>
+    <string name="mode_background_downloads">Keep downloads running</string>
+    <string name="mode_background_downloads_hint">Delay background suspension while Steam is actively downloading.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
     <string name="mode_steam_startup">Start Steam with DroidDeck</string>
@@ -353,8 +357,8 @@
     <string name="mode_wifi_explain_title">Enable Wi-Fi discovery?</string>
     <string name="mode_wifi_explain_text">Android requires Location permission to read Wi-Fi names and discover nearby networks. DroidDeck uses this access to show those networks in Steam. We don\'t track your location. Internet access works without this permission.</string>
     <string name="mode_storage">Game storage</string>
-    <string name="mode_storage_auto">Automatic - the SD card when present</string>
-    <string name="mode_storage_auto_none">Automatic - the SD card when present (none now)</string>
+    <string name="mode_storage_auto">Automatic - the SD card when present, plus your Games folders</string>
+    <string name="mode_storage_auto_none">Automatic - your Games folders, plus the SD card when present (none now)</string>
     <string name="mode_storage_internal">Internal only</string>
     <string name="mode_storage_folder">Folder: %1$s</string>
     <string name="mode_second_library">Second library</string>
@@ -612,6 +616,7 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Session logs</string>
     <string name="setup_logs_hint">Saved after each session</string>
+    <string name="setup_agent_commands">Debugging tools</string>
     <string name="setup_latest_logs">Latest session logs</string>
     <string name="setup_saved_logs">Saved session logs</string>
     <string name="setup_saved_logs_hint">Keeps the newest %1$d</string>
@@ -1341,6 +1346,7 @@
     <string name="content_system_many">Many systems</string>
     <!-- File manager -->
     <string name="fm_drive_internal">Internal</string>
+    <string name="fm_drive_linux">Linux system</string>
     <string name="fm_drive_sd">SD card</string>
     <string name="fm_drive_storage">Storage</string>
     <string name="fm_select">Select</string>
@@ -1846,6 +1852,7 @@
     <string name="gstore_sd_card">SD card</string>
     <!-- %1$s is a size, like 12.3 GB -->
     <string name="gstore_folder">Folder</string>
+    <string name="gstore_folder_on_volume" translatable="false">%1$s (%2$s)</string>
 
     <string name="logshare_chooser">Share session logs</string>
     <!-- Stands in for the Steam account name when the client did not record one -->

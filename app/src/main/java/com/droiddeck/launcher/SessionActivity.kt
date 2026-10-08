@@ -247,6 +247,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var frameGen by mutableStateOf(FrameGen.Mode.OFF)
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
+    private var steamDownloadsInBackground by mutableStateOf(false)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
     private var onScreenButtonsVisible by mutableStateOf(false)
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
@@ -362,6 +363,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
         padBridge = bridge
+        SessionState.padBridge = bridge
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -511,7 +513,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     effects = effects, textureAnisotropy = textureAnisotropy, textureLodBias = textureLodBias,
                     frameGen = frameGen,
                     lossless = lossless,
-                    oscMode = oscMode, onScreenButtonsVisible = onScreenButtonsVisible, suspendPolicy = suspendPolicy, touchMode = touchMode,
+                    oscMode = oscMode, onScreenButtonsVisible = onScreenButtonsVisible, suspendPolicy = suspendPolicy,
+                    steamDownloadsInBackground = steamDownloadsInBackground, touchMode = touchMode,
                     touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
                     fexPreset = fexPreset,
                     secondScreenMode = secondScreenMode,
@@ -561,6 +564,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onSuspendPolicy = { policy ->
                         SessionPrefs.setSuspendPolicy(this@SessionActivity, SessionState.mode, policy)
                         suspendPolicy = policy
+                        SessionService.suspendPolicyChanged(this@SessionActivity)
+                    },
+                    onSteamDownloadsInBackground = { enabled ->
+                        SessionPrefs.setSteamDownloadsInBackground(this@SessionActivity, enabled)
+                        steamDownloadsInBackground = enabled
                         SessionService.suspendPolicyChanged(this@SessionActivity)
                     },
                     onTouch = { v -> SessionPrefs.setTouchMode(this@SessionActivity, v); readPrefs() },
@@ -790,6 +798,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
+        steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
     }
@@ -2040,6 +2049,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         closeSecondScreen(reset = false)
         if (::hud.isInitialized) hud.stop()
         padBridge?.stop()
+        if (SessionState.padBridge === padBridge) SessionState.padBridge = null
         padMotion?.stop()
         if (SessionState.deckPadListener === deckPadListener) SessionState.deckPadListener = null
         if (SessionState.endListener === endListener) SessionState.endListener = null

@@ -99,5 +99,10 @@ fun describeLocation(file: File): FavLocation {
         }
     }
 
+    // The Linux system's root (the app's files/linuxfs, the sessions' /) and anything under it.
+    if (Regex("/files/linuxfs(/|$)").containsMatchIn(abs)) {
+        return FavLocation(FavStorage.OTHER, R.string.fm_drive_linux, abs)
+    }
+
     return FavLocation(FavStorage.OTHER, R.string.fm_drive_storage, abs)
 }

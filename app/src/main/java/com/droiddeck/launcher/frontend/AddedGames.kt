@@ -98,7 +98,7 @@ object AddedGames {
             if (!dir.isDirectory) { Log.w(TAG, "$dir is not a folder; skipped"); continue }
             val steamInstalls = steamInstallDirs(dir)
             for (folder in dir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()) {
-                if (folder.name.lowercase() in steamInstalls) continue
+                if (folder.name.lowercase() in steamInstalls || folder.name.equals("steamapps", ignoreCase = true)) continue
                 scanGame(context, folder, out)
             }
         }
@@ -126,31 +126,58 @@ object AddedGames {
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>) {
         run {
             val candidates = candidates(folder)
-            val chosen = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
-            val exe = chosen ?: candidates.firstOrNull() ?: return
-            val guestExe = guestPath(context, exe)
-            if (guestExe == null) { Log.w(TAG, "${folder.name}: the session cannot see ${exe.path}"); return }
-            val guestDir = guestPath(context, exe.parentFile ?: folder) ?: return
+            val picked = SessionPrefs.addedGameExe(context, folder.path)
+            val chosen = picked.takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
+            val found = chosen ?: candidates.firstOrNull() ?: return
+            val foundGuest = guestPath(context, found)
+            if (foundGuest == null) { Log.w(TAG, "${folder.name}: the session cannot see ${found.path}"); return }
             val name = folder.name
             // Keyed by the pre-rename path so shortcut ids, and the prefixes and saves under them, stay put.
-            val crc = CRC32().apply { update(("\"${guestExe.replaceFirst(Regex("^$LIBRARY/"), "$LEGACY_LIBRARY/")}\"" + name).toByteArray()) }.value
-            val appId = crc or 0x80000000L
-            val steamRoot = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
-            val steamId = steamRoute(steamRoot, appId)
+            val crc = CRC32().apply { update(("\"${foundGuest.replaceFirst(Regex("^$LIBRARY/"), "$LEGACY_LIBRARY/")}\"" + name).toByteArray()) }.value
+            val appId = SessionPrefs.addedGameAppId(context, folder.path, crc or 0x80000000L)
+            val config = accountConfig(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam"))
+            val record = config?.let { shortcutRecord(it, appId) }
+            val rev = record?.optInt("rev", 0) ?: 0
+            val adopted = guestPath(context, folder)
+                ?.let { steamTarget(folder, it, record, foundGuest, SessionPrefs.addedGameExeSeen(context, folder.path)) }
+                ?.takeIf { SessionPrefs.adoptAddedGameExe(context, folder.path, picked, it.path, rev) }
+            val exe = adopted ?: found
+            val guestExe = if (adopted != null) guestPath(context, adopted) ?: return else foundGuest
+            val guestDir = guestPath(context, exe.parentFile ?: folder) ?: return
+            val steamId = config?.let { steamRoute(it, appId) }
             out.add(Game(folder, name, exe, guestExe, guestDir, appId,
                 steamId?.toLong() ?: ((appId shl 32) or 0x02000000L), candidates, steamId))
         }
     }
 
-    private fun steamRoute(root: File, appId: Long): Int? = runCatching {
-        val users = File(root, "config/loginusers.vdf").readText()
-        val blocks = Regex(""""(\d{5,})"\s*\{([^}]*)\}""")
-        val recent = blocks.findAll(users).firstOrNull { Regex(""""MostRecent"\s*"1"""").containsMatchIn(it.groupValues[2]) }
-            ?: return@runCatching null
-        val account = recent.groupValues[1].toLong() - 76561197960265728L
-        JSONObject(File(root, "userdata/$account/config/.droiddeck-routes.json").readText())
-            .optInt(appId.toString()).takeIf { it > 0 }
+    private fun accountConfig(root: File): File? {
+        val users = runCatching { File(root, "config/loginusers.vdf").readText() }.getOrDefault("")
+        val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users)
+            .lastOrNull { Regex(""""MostRecent"\s*"1"""").containsMatchIn(it.groupValues[2]) }
+        val account = recent?.groupValues?.get(1)?.toLongOrNull()?.let { (it - 76561197960265728L).toString() }
+            ?: File(root, "userdata").list()?.filter { it.isNotEmpty() && it.all(Char::isDigit) && it != "0" }?.singleOrNull()
+        return account?.let { File(root, "userdata/$it/config") }
+    }
+
+    private fun steamRoute(config: File, appId: Long): Int? = runCatching {
+        JSONObject(File(config, ".droiddeck-routes.json").readText()).optInt(appId.toString()).takeIf { it > 0 }
     }.getOrNull()
+
+    private fun shortcutRecord(config: File, appId: Long): JSONObject? = runCatching {
+        JSONObject(File(config, ".droiddeck-shortcuts.json").readText()).optJSONObject("games")?.optJSONObject(appId.toString())
+    }.getOrNull()
+
+    internal fun steamTarget(folder: File, folderGuest: String, record: JSONObject?, guestExe: String, seen: Int): File? {
+        if (record == null || record.optInt("rev", 0) == seen) return null
+        val asked = unquote(record.optJSONObject("app")?.optString("Exe"))
+        val steam = unquote(record.optJSONObject("steam")?.optString("Exe"))
+        if (asked != guestExe || steam.isEmpty() || steam == asked || !steam.startsWith("$folderGuest/")) return null
+        val file = File(folder, steam.removePrefix("$folderGuest/"))
+        val inside = runCatching { file.canonicalPath.startsWith(folder.canonicalPath + File.separator) }.getOrDefault(false)
+        return file.takeIf { inside && it.isFile }
+    }
+
+    private fun unquote(value: String?): String = value.orEmpty().trim().trim('"')
 
     /** The list the session hands the runtime's shortcuts writer; one file per session start. */
     fun writeListing(context: Context, games: List<Game>): File {
@@ -161,6 +188,7 @@ object AddedGames {
             json.append("{\"name\":").append(quote(g.name)).append(",\"exe\":").append(quote(g.guestExe))
                 .append(",\"folder\":").append(quote(guestPath(context, g.folder) ?: g.guestDir))
                 .append(",\"dir\":").append(quote(g.guestDir)).append(",\"appid\":").append(g.appId)
+                .append(",\"seen\":").append(SessionPrefs.addedGameExeSeen(context, g.folder.path))
             // The art, as the session sees it: the app's cache is bound at its own path, a file in
             // the game's folder at the folder's guest path.
             val art = AddedGameArt.resolve(context, g)

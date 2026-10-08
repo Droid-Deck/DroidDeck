@@ -13,6 +13,8 @@ object SessionPrefs {
     const val SUSPEND_NATIVE = "native"
     const val SUSPEND_MANUAL = "manual"
     const val SUSPEND_NEVER = "never"
+    private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
+    private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
@@ -591,8 +593,25 @@ object SessionPrefs {
     /** The .exe the user chose for one game folder (by its path), "" = the scanner's pick. */
     fun addedGameExe(context: Context, folderPath: String): String = prefs(context).getString("addedExe:$folderPath", "") ?: ""
 
+    private val addedGameLock = Any()
+
     fun setAddedGameExe(context: Context, folderPath: String, path: String) {
-        prefs(context).edit().putString("addedExe:$folderPath", path).apply()
+        synchronized(addedGameLock) { prefs(context).edit().putString("addedExe:$folderPath", path).apply() }
+    }
+
+    fun addedGameExeSeen(context: Context, folderPath: String): Int = prefs(context).getInt("addedExeSeen:$folderPath", 0)
+
+    fun adoptAddedGameExe(context: Context, folderPath: String, expected: String, path: String, seen: Int): Boolean =
+        synchronized(addedGameLock) {
+            val unchanged = addedGameExe(context, folderPath) == expected
+            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
+            unchanged
+        }
+
+    fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
+        val p = prefs(context)
+        p.getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
+            ?: first.also { p.edit().putLong("addedAppId:$folderPath", it).apply() }
     }
 
     /** The app's colour theme (ui/Themes ids); Graphite unless chosen otherwise. */
@@ -779,16 +798,41 @@ object SessionPrefs {
 
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
+            ?.let { if (it == LEGACY_SUSPEND_DOWNLOADS) SUSPEND_AUTO else it }
             ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
             // Direct games share Steam's settings but have no Steam client to prepare.
-            ?.let { if (it == SUSPEND_NATIVE && mode != SessionService.MODE_STEAM) SUSPEND_AUTO else it }
+            ?.let { if (mode != SessionService.MODE_STEAM && it == SUSPEND_NATIVE) SUSPEND_AUTO else it }
             ?: SUSPEND_MANUAL
 
     fun setSuspendPolicy(context: Context, mode: String, policy: String) {
         val normalized = policy.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_MANUAL, SUSPEND_NEVER) ||
             (it == SUSPEND_NATIVE && mode == SessionService.MODE_STEAM) }
             ?: SUSPEND_MANUAL
-        prefs(context).edit().putString("suspendPolicy.${prefMode(mode)}", normalized).apply()
+        val prefs = prefs(context)
+        val key = "suspendPolicy.${prefMode(mode)}"
+        prefs.edit().apply {
+            if (mode == SessionService.MODE_STEAM && prefs.getString(key, null) == LEGACY_SUSPEND_DOWNLOADS) {
+                putBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, true)
+            }
+            putString(key, normalized)
+        }.apply()
+    }
+
+    fun steamDownloadsInBackground(context: Context): Boolean {
+        val prefs = prefs(context)
+        return prefs.getBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, false) ||
+            prefs.getString("suspendPolicy.${SessionService.MODE_STEAM}", null) == LEGACY_SUSPEND_DOWNLOADS
+    }
+
+    fun setSteamDownloadsInBackground(context: Context, enabled: Boolean) {
+        val prefs = prefs(context)
+        val policyKey = "suspendPolicy.${SessionService.MODE_STEAM}"
+        prefs.edit().apply {
+            putBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, enabled)
+            if (prefs.getString(policyKey, null) == LEGACY_SUSPEND_DOWNLOADS) {
+                putString(policyKey, SUSPEND_AUTO)
+            }
+        }.apply()
     }
 
     // ── Game storage ────────────────────────────────────────────────────────────────────────

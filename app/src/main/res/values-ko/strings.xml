@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s: 엔진 실패</string>
     <string name="hud_fg_needs_lossless">%1$s: Lossless Scaling 필요</string>
     <string name="hud_fg_starting">%1$s  %2$s · 시작 중</string>
-    <string name="added_games_import_hint">여러 하위 폴더가 포함된 폴더이며, 각 하위 폴더는 Windows 게임에 해당합니다. Steam에서 소유한 게임은 Steam 재시작 후 해당 Steam 항목을 사용하고, 나머지 게임은 비 Steam 바로 가기가 됩니다.</string>
+    <string name="added_games_import_hint">여러 하위 폴더가 포함된 폴더이며, 각 하위 폴더는 Windows 게임에 해당합니다. Steam에서 소유한 게임은 Steam 재시작 후 해당 Steam 항목을 사용하고, 나머지 게임은 비 Steam 바로 가기가 됩니다. 보조 라이브러리가 자동이면 Steam이 이 폴더에도 게임을 설치할 수 있습니다.</string>
     <string name="second_library_import_hint">Steam 라이브러리를 추가하고 그 안의 Windows 게임을 검사합니다. 소유한 게임은 해당 Steam 항목을 사용하고, 나머지 게임은 비 Steam 바로 가기가 됩니다.</string>
     <string name="added_games_forget_hint">\"잊기\"를 누르면 다음 세션에서 이 바로 가기가 제거됩니다. 하지만 파일은 디스크에 그대로 남습니다.</string>
     <string name="game_env_title">게임 환경</string>
@@ -353,8 +353,8 @@
     <string name="mode_wifi_explain_title">Wi-Fi 검색을 활성화하시겠습니까?</string>
     <string name="mode_wifi_explain_text">Android는 Wi-Fi 이름을 읽고 주변 네트워크를 검색하려면 위치 권한이 필요합니다. DroidDeck은 이 권한을 사용하여 Steam에 이러한 네트워크를 표시합니다. 위치를 추적하지 않습니다. 이 권한 없이도 인터넷에 액세스할 수 있습니다.</string>
     <string name="mode_storage">게임 저장 공간</string>
-    <string name="mode_storage_auto">자동 - SD 카드가 있으면 SD 카드 사용</string>
-    <string name="mode_storage_auto_none">자동 - SD 카드가 있으면 SD 카드 사용(현재 SD 카드 없음)</string>
+    <string name="mode_storage_auto">자동 - SD 카드가 있으면 SD 카드 사용, 게임 폴더도 사용</string>
+    <string name="mode_storage_auto_none">자동 - 게임 폴더 사용, SD 카드가 있으면 SD 카드도 사용(현재 SD 카드 없음)</string>
     <string name="mode_storage_internal">내부 저장 공간만</string>
     <string name="mode_storage_folder">폴더: %1$s</string>
     <string name="mode_second_library">보조 라이브러리</string>
@@ -611,6 +611,7 @@
     <string name="setup_session">세션</string>
     <string name="setup_logs">세션 로그</string>
     <string name="setup_logs_hint">각 세션 종료 후 저장</string>
+    <string name="setup_agent_commands">디버깅 도구</string>
     <string name="setup_latest_logs">최신 세션 로그</string>
     <string name="setup_saved_logs">저장된 세션 로그</string>
     <string name="setup_saved_logs_hint">최신 %1$d개 유지</string>
@@ -1377,6 +1378,7 @@
 
     <!-- File manager -->
     <string name="fm_drive_internal">내부</string>
+    <string name="fm_drive_linux">Linux 시스템</string>
     <string name="fm_drive_sd">SD 카드</string>
     <string name="fm_drive_storage">저장소</string>
     <string name="fm_select">선택</string>

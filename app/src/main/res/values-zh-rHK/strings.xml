@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s：引擎故障</string>
     <string name="hud_fg_needs_lossless">%1$s：需要 Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · 正在啟動</string>
-    <string name="added_games_import_hint">一個資料夾，每個 Windows 遊戲各佔一個子資料夾。你在 Steam 上擁有的遊戲會在 Steam 重新啟動後使用其 Steam 項目，其餘遊戲則成為非 Steam 捷徑。</string>
+    <string name="added_games_import_hint">一個資料夾，每個 Windows 遊戲各佔一個子資料夾。你在 Steam 上擁有的遊戲會在 Steam 重新啟動後使用其 Steam 項目，其餘遊戲則成為非 Steam 捷徑。第二個收藏庫設為自動時，Steam 亦可以將遊戲安裝到此資料夾。</string>
     <string name="second_library_import_hint">新增一個 Steam 收藏庫並掃描其中的 Windows 遊戲。已擁有的遊戲會使用其 Steam 項目，其餘遊戲則成為非 Steam 捷徑。</string>
     <string name="added_games_forget_hint">「忘記」會在下次會話移除這些捷徑，檔案仍會保留在磁碟上。</string>
     <string name="game_env_title">遊戲環境</string>
@@ -353,8 +353,8 @@
     <string name="mode_wifi_explain_title">啟用 Wi-Fi 探索？</string>
     <string name="mode_wifi_explain_text">Android 需要位置權限才能讀取 Wi-Fi 名稱和尋找附近網絡。DroidDeck 只會用此權限在 Steam 中顯示這些網絡，不會追蹤你的位置。沒有此權限亦可正常上網。</string>
     <string name="mode_storage">遊戲儲存位置</string>
-    <string name="mode_storage_auto">自動 - 有 SD 卡時使用 SD 卡</string>
-    <string name="mode_storage_auto_none">自動 - 有 SD 卡時使用 SD 卡（目前沒有）</string>
+    <string name="mode_storage_auto">自動 - 有 SD 卡時使用 SD 卡，以及你的遊戲資料夾</string>
+    <string name="mode_storage_auto_none">自動 - 使用你的遊戲資料夾，有 SD 卡時亦使用 SD 卡（目前沒有）</string>
     <string name="mode_storage_internal">只限內部儲存空間</string>
     <string name="mode_storage_folder">資料夾：%1$s</string>
     <string name="mode_second_library">第二個收藏庫</string>
@@ -611,6 +611,7 @@
     <string name="setup_session">會話</string>
     <string name="setup_logs">會話記錄</string>
     <string name="setup_logs_hint">每次會話後儲存</string>
+    <string name="setup_agent_commands">偵錯工具</string>
     <string name="setup_latest_logs">最新的會話記錄</string>
     <string name="setup_saved_logs">已儲存的會話記錄</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 個</string>
@@ -1377,6 +1378,7 @@
 
     <!-- File manager -->
     <string name="fm_drive_internal">內部</string>
+    <string name="fm_drive_linux">Linux 系統</string>
     <string name="fm_drive_sd">SD 卡</string>
     <string name="fm_drive_storage">儲存空間</string>
     <string name="fm_select">選取</string>

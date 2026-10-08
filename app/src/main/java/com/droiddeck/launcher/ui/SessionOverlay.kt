@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
@@ -191,6 +192,7 @@ class DrawerActions(
     val oscMode: String,
     val onScreenButtonsVisible: Boolean,
     val suspendPolicy: String,
+    val steamDownloadsInBackground: Boolean = false,
     val backActionsInverted: Boolean,
     val touchMode: String,
     val touchAuto: String,
@@ -221,6 +223,7 @@ class DrawerActions(
     val onQamButton: (Boolean) -> Unit = {},
     val onKeyboardButton: (Boolean) -> Unit = {},
     val onSuspendPolicy: (String) -> Unit,
+    val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit,
     val onTouch: (String) -> Unit,
     val onFexPreset: (String) -> Unit,
@@ -308,7 +311,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         modifier = Modifier.fillMaxSize()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { host.open = null; a.onClose() },
     )
-    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().exposeTestTags(), contentAlignment = Alignment.CenterEnd) {
         // A 4:3 or near-square screen (under 440dp tall) gets tighter padding and a shorter tab row,
         // so the settings keep most of the height; a narrow one keeps some of the game in view.
         val short = maxHeight < 440.dp
@@ -499,11 +502,19 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                                         SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                                    ) + if (a.steam) listOf(SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native)) else emptyList(),
+                                    ) + if (a.steam) listOf(
+                                        SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native),
+                                    ) else emptyList(),
                                     a.suspendPolicy,
                                     note = stringResource(if (a.steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
                                     chipModifier = focus.track(page, "suspend"),
                                     onPick = a.onSuspendPolicy,
+                                )
+                                if (a.steam && a.suspendPolicy != SessionPrefs.SUSPEND_NEVER) ToggleRow(
+                                    host, "background-downloads", stringResource(R.string.mode_background_downloads),
+                                    stringResource(R.string.mode_background_downloads_hint),
+                                    a.steamDownloadsInBackground,
+                                    onChange = a.onSteamDownloadsInBackground,
                                 )
                             }
                             SettingsGroup(stringResource(R.string.drawer_support)) {
@@ -611,7 +622,7 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     val stopDescription = stringResource(R.string.stop_session)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = stopDescription }
+        modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
             .clip(shape).background(fill).glideBorder(hot, shape, colors.error.copy(alpha = 0.9f), colors.error.copy(alpha = 0.55f))
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick)
@@ -722,6 +733,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                         )
                         .glideBorder(focused, RoundedCornerShape(16.dp), colors.onBackground)
                         .semantics { contentDescription = pageDescription }
+                        .testTag("drawer-tab-${item.name.lowercase()}")
                         .hoverable(source)
                         .clickable(interactionSource = source, indication = LocalIndication.current, onClick = select)
                         .controllerConfirm(onClick = select),
@@ -1162,14 +1174,14 @@ private fun StopConfirm(
                 ConfirmChoice(
                     stringResource(R.string.common_cancel), danger = false, enabled = open,
                     modifier = Modifier.graphicsLayer { alpha = items[1].value; translationY = (1f - items[1].value) * 6.dp.toPx() }
-                        .focusRequester(cancelFocus).onFocusChanged { cancelFocused = it.isFocused },
+                        .focusRequester(cancelFocus).onFocusChanged { cancelFocused = it.isFocused }.testTag("drawer-stop-cancel"),
                     onClick = onCancel,
                 )
                 ConfirmChoice(
                     stringResource(R.string.drawer_stop), danger = true, enabled = open,
                     modifier = Modifier.graphicsLayer { alpha = items[2].value; translationY = (1f - items[2].value) * 6.dp.toPx() }
                         .onFocusChanged { stopFocused = it.isFocused }
-                        .onGloballyPositioned { stopCoords = it },
+                        .onGloballyPositioned { stopCoords = it }.testTag("drawer-stop-confirm"),
                 ) {
                     val at = IntArray(2).also { view.rootView.getLocationOnScreen(it) }
                     onStop(stopCoords?.takeIf { it.isAttached }?.boundsInWindow()?.translate(at[0].toFloat(), at[1].toFloat()))
