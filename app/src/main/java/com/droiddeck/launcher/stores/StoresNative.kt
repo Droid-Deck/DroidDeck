@@ -48,6 +48,7 @@ object StoresNative {
     @Synchronized
     fun forget() { loaded = null }
 
+    /** The crate's version string; only after [ensureLoaded] said yes. */
     @JvmStatic
-    private external fun nativeVersion(): String
+    external fun nativeVersion(): String
 }

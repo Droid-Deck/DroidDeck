@@ -2085,4 +2085,16 @@
     <string name="stores_notification_one">Downloading</string>
     <string name="stores_notification_many">%1$d downloads</string>
     <string name="stores_notification_waiting">Preparing…</string>
+    <string name="stores_login_title">Sign in to %1$s</string>
+    <string name="stores_login_provider_title">Sign in with your provider</string>
+    <string name="stores_login_reload">Reload</string>
+    <string name="stores_login_close">Close</string>
+    <string name="stores_login_retry">Try again</string>
+    <string name="stores_login_finishing">Finishing sign-in…</string>
+    <string name="stores_login_error_network">The sign-in page could not be loaded: %1$s</string>
+    <string name="stores_login_error_idp_blocked">This provider refuses to sign in from an embedded page. Sign in with your store password instead.</string>
+    <string name="stores_login_error_http">The sign-in page answered with an error (HTTP %1$d).</string>
+    <string name="stores_login_error_ssl">The connection to the sign-in page is not secure.</string>
+    <string name="stores_login_error_verification">The sign-in could not be verified. Try again.</string>
+    <string name="stores_login_error_generic">Sign-in failed. Try again.</string>
 </resources>

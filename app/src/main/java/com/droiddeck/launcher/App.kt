@@ -29,5 +29,7 @@ class App : Application() {
         GpuClockPin.clearLeftover(this)
         BwrapSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
+        // The game stores the Stores section can talk to; the native engine loads only when one needs it.
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gog.GogBackend)
     }
 }

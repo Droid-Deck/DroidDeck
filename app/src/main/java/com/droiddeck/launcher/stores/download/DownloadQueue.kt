@@ -34,10 +34,13 @@ object DownloadQueue {
     class JobHandle internal constructor(val key: String, internal val cancelled: AtomicBoolean) {
         val isCancelled: Boolean get() = cancelled.get()
         fun stage(stage: DownloadStage, detail: String = "") = update(key) { it.copy(stage = stage, detail = detail.ifEmpty { it.detail }, state = DownloadState.RUNNING) }
+        /** Bytes so far (negative = unchanged), the total (<= 0 = unchanged), a line, the speed (negative = unchanged). */
         fun progress(bytesDone: Long, bytesTotal: Long, detail: String? = null, speedBps: Long = -1L) = update(key) {
+            val done = if (bytesDone >= 0) bytesDone else it.bytesDone
+            val total = if (bytesTotal > 0) bytesTotal else it.bytesTotal
             val speed = if (speedBps >= 0) speedBps else it.speedBps
-            val eta = if (speed > 0 && bytesTotal > bytesDone) (bytesTotal - bytesDone) / speed else -1L
-            it.copy(state = DownloadState.RUNNING, stage = DownloadStage.DOWNLOAD, bytesDone = bytesDone, bytesTotal = if (bytesTotal > 0) bytesTotal else it.bytesTotal, detail = detail ?: it.detail, speedBps = speed, etaSeconds = eta)
+            val eta = if (speed > 0 && total > done) (total - done) / speed else -1L
+            it.copy(state = DownloadState.RUNNING, stage = DownloadStage.DOWNLOAD, bytesDone = done, bytesTotal = total, detail = detail ?: it.detail, speedBps = speed, etaSeconds = eta)
         }
         fun log(line: String) = StoresState.logLine(line)
     }

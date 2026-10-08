@@ -127,6 +127,13 @@
             android:screenOrientation="sensorLandscape"
             android:theme="@style/AppTheme" />
 
+        <!-- A store's own sign-in page (GOG, Epic Games, Amazon Games) in a WebView. -->
+        <activity
+            android:name=".stores.StoreLoginActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/AppTheme" />
+
         <activity
             android:name=".agent.AgentStartActivity"
             android:exported="true"
