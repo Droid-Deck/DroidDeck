@@ -95,9 +95,13 @@ without it and Setup says "Stores engine not built").
   v2 record has the same keys for them. `cleanStoreText` drops those keys, strips tags, decodes
   entities; the library tries the product's lead, then v2 `overview`, then v2 `description`, and
   shows nothing when all are templates. Epic's and Amazon's text goes through the same cleaner.
-- Status: compiles on CI with the JVM and python tests green; nothing device-tested yet - the
-  sign-in pages, a real install, the shortcut landing in the client and the .bat launch under Proton
-  are the first things to prove on hardware.
+- **Device-proven on the AYANEO Pocket FIT, 2026-10-08 (GOG):** sign-in, the library (33 owned),
+  DOOM I Enhanced installed through the GOG engine to the SD Games root, shown in Games with the
+  GOG chip and real art, registered as a non-Steam game in the Steam client (grid art present), and
+  launched from the Games tab through the shortcut and droiddeck-proton to the main menu at 143 fps.
+- Status: CI green (build, JVM and python tests). Epic and Amazon are still unproven on device -
+  their sign-in pages, an install, and for Epic the launcher .bat with the exchange code are the
+  next things to prove on hardware.
 
 ## 2026-10-08 - `feat/directaudio-from-release`: DirectAudio from its own release, picked by interface, and the client gets the real engine
 
