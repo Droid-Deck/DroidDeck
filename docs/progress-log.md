@@ -95,6 +95,14 @@ without it and Setup says "Stores engine not built").
   v2 record has the same keys for them. `cleanStoreText` drops those keys, strips tags, decodes
   entities; the library tries the product's lead, then v2 `overview`, then v2 `description`, and
   shows nothing when all are templates. Epic's and Amazon's text goes through the same cleaner.
+- **Speed shown = install rate.** Device evidence (Epic › Metalstorm, 1.68 GB on Max to the SD
+  card): the engine's windows burst at 0.4–20 MB/s with 0–3 of 20 requests in flight while the card
+  writes at 26 MB/s - the fetchers wait on the write side, so the engine's `speedBps` jumped while
+  the bar advanced at the write rate. `DownloadQueue` now measures the shown speed itself from the
+  byte deltas (an exponential average over 3 s, sampled at most every 250 ms) and derives the ETA
+  from it, for all three stores; the engine's own figure stays in its log lines, and the detail
+  line under the bar has it stripped. The tier and downloads-at-a-time controls sit on one compact
+  row with a single caption, on the Downloads page and in the cog's popup.
 - **Device-proven on the AYANEO Pocket FIT, 2026-10-08 (GOG):** sign-in, the library (33 owned),
   DOOM I Enhanced installed through the GOG engine to the SD Games root, shown in Games with the
   GOG chip and real art, registered as a non-Steam game in the Steam client (grid art present), and

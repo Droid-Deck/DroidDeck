@@ -2074,6 +2074,7 @@
     <string name="stores_download_manager">Download manager</string>
     <string name="stores_tier_note">Caps how many chunks the engine fetches at once: Balanced 16 · Fast 32 · Max 96 in flight.</string>
     <string name="stores_parallel">Downloads at a time</string>
+    <string name="stores_download_controls_note">Balanced / Fast / Max pull harder from the store; 2–3 at a time share the link. Speed shown is the install rate.</string>
     <string name="stores_parallel_note">One manager for all three stores; Steam\'s own downloads are unaffected.</string>
     <string name="stores_engine_log">Engine log</string>
     <string name="stores_log_idle">idle</string>

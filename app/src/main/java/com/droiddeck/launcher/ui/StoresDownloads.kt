@@ -167,14 +167,8 @@ private fun DownloadSettings(s: FrontEndState, a: FrontEndActions) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     SectionTitle(stringResource(R.string.stores_download_manager), null)
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SettingCard(stringResource(R.string.setup_stores_speed), stringResource(R.string.stores_tier_note)) {
-            SegmentedTabs(StoreDownloadTier.ALL.map { it.id to stringResource(it.label) }, s.gameStoresSpeedTier) { a.onGameStoresSpeedTier(it) }
-        }
-        SettingCard(stringResource(R.string.stores_parallel), stringResource(R.string.stores_parallel_note)) {
-            var parallel by remember { mutableStateOf(DownloadQueue.parallel(ctx)) }
-            SegmentedTabs(listOf(1 to "1", 2 to "2", 3 to "3"), parallel) { parallel = it; DownloadQueue.setParallel(ctx, it) }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).border(1.dp, pal.line, Shape12).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        DownloadControls(s, a)
     }
     SectionTitle(stringResource(R.string.stores_engine_log), null)
     Box(Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 220.dp).clip(Shape12).background(Color.Black).border(1.dp, pal.line, Shape12).padding(12.dp)) {
@@ -187,14 +181,33 @@ private fun DownloadSettings(s: FrontEndState, a: FrontEndActions) {
     Text(stringResource(R.string.stores_downloads_footnote), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
 }
 
+/**
+ * The queue's two knobs on one line - the speed tier on the left, downloads at a time on the
+ * right - with one caption under them; the same control sits in the cog's popup. A narrow page
+ * puts the two controls on two tight lines.
+ */
 @Composable
-private fun SettingCard(label: String, note: String, control: @Composable () -> Unit) {
+internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
+    val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).border(1.dp, LocalPalette.current.line, Shape12).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Text(label, fontSize = 12.sp, color = colors.onSurfaceVariant)
-        control()
-        Text(note, fontSize = 12.sp, color = colors.onSurfaceVariant)
+    var parallel by remember { mutableStateOf(DownloadQueue.parallel(ctx)) }
+    val tier: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.setup_stores_speed), fontSize = 12.sp, color = colors.onSurfaceVariant)
+            SegmentedTabs(StoreDownloadTier.ALL.map { it.id to stringResource(it.label) }, s.gameStoresSpeedTier) { a.onGameStoresSpeedTier(it) }
+        }
     }
+    val count: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.stores_parallel), fontSize = 12.sp, color = colors.onSurfaceVariant)
+            SegmentedTabs(listOf(1 to "1", 2 to "2", 3 to "3"), parallel) { parallel = it; DownloadQueue.setParallel(ctx, it) }
+        }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth >= 460.dp) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) { tier(); count() }
+        else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { tier(); count() }
+    }
+    Text(stringResource(R.string.stores_download_controls_note), fontSize = 12.sp, color = colors.onSurfaceVariant)
 }
 
 /**
@@ -216,9 +229,8 @@ internal fun StoresSettingsDialog(s: FrontEndState, a: FrontEndActions, onDismis
                         s.storesOpenTab,
                     ) { a.onStoresOpenTab(it) }
                 }
-                SettingsRow(stringResource(R.string.setup_stores_speed), stringResource(R.string.setup_stores_speed_hint)) {
-                    SegmentedTabs(StoreDownloadTier.ALL.map { it.id to stringResource(it.label) }, s.gameStoresSpeedTier) { a.onGameStoresSpeedTier(it) }
-                }
+                // The queue's two knobs as one compact row, the same control the Downloads page has.
+                Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(s, a) }
             }
         }
         Rise(2) { Actions { SecondaryButton(stringResource(R.string.common_ok), onClick = close) } }

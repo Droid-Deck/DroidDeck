@@ -33,19 +33,57 @@ object DownloadQueue {
     /** What a running job reports with. */
     class JobHandle internal constructor(val key: String, internal val cancelled: AtomicBoolean) {
         val isCancelled: Boolean get() = cancelled.get()
-        fun stage(stage: DownloadStage, detail: String = "") = update(key) { it.copy(stage = stage, detail = detail.ifEmpty { it.detail }, state = DownloadState.RUNNING) }
-        /** Bytes so far (negative = unchanged), the total (<= 0 = unchanged), a line, the speed (negative = unchanged). */
-        fun progress(bytesDone: Long, bytesTotal: Long, detail: String? = null, speedBps: Long = -1L) = update(key) {
-            val done = if (bytesDone >= 0) bytesDone else it.bytesDone
-            val total = if (bytesTotal > 0) bytesTotal else it.bytesTotal
-            val speed = if (speedBps >= 0) speedBps else it.speedBps
-            val eta = if (speed > 0 && total > done) (total - done) / speed else -1L
-            it.copy(state = DownloadState.RUNNING, stage = DownloadStage.DOWNLOAD, bytesDone = done, bytesTotal = total, detail = detail ?: it.detail, speedBps = speed, etaSeconds = eta)
-        }
+        fun stage(stage: DownloadStage, detail: String = "") = update(key) { it.copy(stage = stage, detail = stripSpeed(detail).ifEmpty { it.detail }, state = DownloadState.RUNNING) }
+        /**
+         * Bytes so far (negative = unchanged), the total (<= 0 = unchanged), a line. [speedBps] is the
+         * engine's own figure: a burst rate at the network side, which jumps while the write side
+         * paces the bar, so it is not what the page shows - the queue measures the install rate
+         * from the byte deltas itself ([measure]); the engine's figure stays in its log lines.
+         */
+        fun progress(bytesDone: Long, bytesTotal: Long, detail: String? = null, @Suppress("UNUSED_PARAMETER") speedBps: Long = -1L) = measure(key, bytesDone, bytesTotal, detail?.let(::stripSpeed))
         fun log(line: String) = StoresState.logLine(line)
     }
 
-    private class Item(var entry: DownloadEntry, val factory: () -> DownloadJob, var job: DownloadJob? = null, val cancelled: AtomicBoolean = AtomicBoolean(false), var pauseRequested: Boolean = false)
+    /** "Downloading: data.pak  12.3 MB/s" → "Downloading: data.pak": the engine's burst rate is not shown twice. */
+    private fun stripSpeed(s: String): String = s.replace(Regex("\\s+\\S+ [KM]B/s\\s*$"), "").trimEnd()
+
+    /** How far back the shown speed looks: a few seconds, so the figure settles instead of following each file. */
+    private const val SPEED_WINDOW_MS = 3000.0
+
+    private fun measure(key: String, bytesDone: Long, bytesTotal: Long, detail: String?) {
+        synchronized(lock) {
+            val item = items[key] ?: return
+            val e = item.entry
+            val done = if (bytesDone >= 0) bytesDone else e.bytesDone
+            val total = if (bytesTotal > 0) bytesTotal else e.bytesTotal
+            val now = System.currentTimeMillis()
+            if (bytesDone >= 0) {
+                if (item.speedAt == 0L) { item.speedAt = now; item.speedBytes = done }
+                else {
+                    val dt = now - item.speedAt
+                    // Sampled no faster than every quarter second, as an exponential average over
+                    // SPEED_WINDOW_MS: one big file landing moves it, it does not define it.
+                    if (dt >= 250) {
+                        val inst = (done - item.speedBytes).coerceAtLeast(0) * 1000.0 / dt
+                        val alpha = 1.0 - Math.exp(-dt / SPEED_WINDOW_MS)
+                        item.speedEwma = if (item.speedEwma <= 0.0) inst else item.speedEwma + (inst - item.speedEwma) * alpha
+                        item.speedAt = now; item.speedBytes = done
+                    }
+                }
+            }
+            val speed = item.speedEwma.toLong()
+            val eta = if (speed > 0 && total > done) (total - done) / speed else -1L
+            item.entry = e.copy(state = DownloadState.RUNNING, stage = DownloadStage.DOWNLOAD, bytesDone = done, bytesTotal = total, detail = detail ?: e.detail, speedBps = speed, etaSeconds = eta)
+            publishLocked()
+        }
+    }
+
+    private class Item(var entry: DownloadEntry, val factory: () -> DownloadJob, var job: DownloadJob? = null, val cancelled: AtomicBoolean = AtomicBoolean(false), var pauseRequested: Boolean = false) {
+        /** The shown speed's state: the last sample's clock and bytes, and the running average (bytes/s). */
+        var speedAt = 0L
+        var speedBytes = 0L
+        var speedEwma = 0.0
+    }
 
     private val lock = Any()
     private val items = LinkedHashMap<String, Item>()
