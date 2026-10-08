@@ -186,6 +186,8 @@
     <string name="add_app_flatpak_id">App ID</string>
     <string name="add_app_flatpak_placeholder">org.ppsspp.PPSSPP</string>
     <string name="add_app_flatpak_invalid">Not a Flathub app ID</string>
+    <string name="add_app_flatpak_bundle_hint">Or a .flatpak file, for an app not on Flathub.</string>
+    <string name="add_app_pick_flatpak">Choose a .flatpak file</string>
     <string name="add_app_source">Source</string>
     <string name="add_app_appearance">On your Desktop</string>
     <string name="add_app_preview_name">New app</string>
