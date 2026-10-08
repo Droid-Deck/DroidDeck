@@ -174,6 +174,39 @@ def sync_config(config, app_id):
     }
 
 
+def load_recipes():
+    try:
+        return runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-recipe"))
+    except Exception as error:
+        print("droiddeck-game-env: recipes not loaded (%s); stock Proton" % error, file=sys.stderr)
+        return None
+
+
+def game_recipe(env, app_id, recipes=None):
+    """The game's recipe when DroidDeck Proton (Auto) launched it (see droiddeck-recipe), or None."""
+    if env.get("DROIDDECK_RECIPES") != "1":
+        return None, None
+    recipes = recipes if recipes is not None else load_recipes()
+    if recipes is None:
+        return None, None
+    try:
+        return recipes, recipes["lookup"](env, app_id)
+    except Exception as error:
+        print("droiddeck-game-env: recipe not read (%s); stock Proton" % error, file=sys.stderr)
+        return None, None
+
+
+def recipe_fixes(fixes, recipe_env):
+    """A recipe's variables over the engine fixes: both are automatic, the recipe is the one made for
+    this game. WINEDLLOVERRIDES entries are joined rather than replaced, the recipe's after."""
+    result = dict(fixes)
+    for name, value in recipe_env.items():
+        if name == "WINEDLLOVERRIDES" and result.get(name):
+            value = result[name] + ";" + value
+        result[name] = value
+    return result
+
+
 def load_sync():
     try:
         return runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-esync"))
@@ -265,6 +298,7 @@ def main():
     env = os.environ.copy()
     mark_install_scripts(command, env)
     app_id = game_id(env)
+    recipes = recipe = None
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         fixes = {}
@@ -273,6 +307,9 @@ def main():
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
+            recipes, recipe = game_recipe(env, app_id)
+            if recipe:
+                fixes = recipe_fixes(fixes, recipe["env"])
             components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id)
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
@@ -290,6 +327,9 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    env.pop("DROIDDECK_RECIPES", None)
+    if recipe:
+        command = recipes["assemble"](command, recipe, app_id)
     env = force_ssbs(command, env)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)

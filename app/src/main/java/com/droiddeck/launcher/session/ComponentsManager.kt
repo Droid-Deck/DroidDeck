@@ -483,20 +483,7 @@ object ComponentsManager {
                 } else safeName(file.removeSuffix(".wcp")) to File(packagesDir(context), file)
                 if (!wcp.isFile) continue
                 val unpacked = File(store, key)
-                if (!File(unpacked, ".complete").isFile) {
-                    unpacked.deleteRecursively()
-                    readWcp(wcp) { tar ->
-                        while (true) {
-                            val e = tar.nextTarEntry ?: break
-                            val rel = normalize(e.name)
-                            if (e.isDirectory || !rel.startsWith("files/") || rel.split('/').any { it == ".." }) continue
-                            val out = File(unpacked, rel)
-                            out.parentFile?.mkdirs()
-                            FileOutputStream(out).use { tar.copyTo(it) }
-                        }
-                    }
-                    File(unpacked, ".complete").writeText("1\n")
-                }
+                unpack(wcp, unpacked)
                 keep += key
                 val files = a.optJSONObject("files") ?: continue
                 for (rel in files.keys()) {
@@ -514,6 +501,34 @@ object ComponentsManager {
         tmp.writeText(lines.toString())
         tmp.renameTo(list)
     }
+
+    /**
+     * A package's files/ unpacked into [dir], with `.complete` written last; a directory that already
+     * has `.complete` is left as it is. The launch wrappers and droiddeck-recipe read only complete ones.
+     */
+    internal fun unpack(wcp: File, dir: File) {
+        if (File(dir, ".complete").isFile) return
+        dir.deleteRecursively()
+        readWcp(wcp) { tar ->
+            while (true) {
+                val e = tar.nextTarEntry ?: break
+                val rel = normalize(e.name)
+                if (e.isDirectory || !rel.startsWith("files/") || rel.split('/').any { it == ".." }) continue
+                val out = File(dir, rel)
+                out.parentFile?.mkdirs()
+                FileOutputStream(out).use { tar.copyTo(it) }
+            }
+        }
+        File(dir, "files").mkdirs()
+        File(dir, ".complete").writeText("1\n")
+    }
+
+    /** The stored package file for a catalog file name (present or not). */
+    internal fun packageFile(context: Context, file: String): File = File(packagesDir(context), safeName(file))
+
+    /** A stored package's details, or null when it is missing or unreadable. */
+    internal fun storedPackage(context: Context, file: String): Package? =
+        packageFile(context, file).takeIf { it.isFile }?.let { runCatching { packageInfo(context, it) }.getOrNull() }
 
     // ------------------------------------------------------------------ actions
 
@@ -737,7 +752,7 @@ object ComponentsManager {
                 forcedPackageWanted(active?.optString("file"), active?.optString("protonVersion") == p.version)
             }
             if (targets.isEmpty()) continue
-            val missing = missingPackage(context, rule, lookup, fetch)
+            val missing = missingPackage(context, rule.comp, rule.file, rule.release, lookup, fetch)
             if (missing != null) {
                 lines.add(missing)
                 continue
@@ -747,18 +762,20 @@ object ComponentsManager {
         return lines.joinToString("; ").ifEmpty { null }
     }
 
-    /** Null when [rule]'s package is stored and readable. Otherwise the log line, after a fetch. */
-    private fun missingPackage(
+    /** Null when [file]'s package is stored and readable. Otherwise the log line, after a fetch. */
+    internal fun missingPackage(
         context: Context,
-        rule: ForcedPackage,
+        comp: String,
+        file: String,
+        release: String,
         lookup: (file: String, release: String) -> CatalogItem?,
         fetch: (CatalogItem) -> Unit,
     ): String? {
-        val wcp = File(packagesDir(context), safeName(rule.file))
+        val wcp = packageFile(context, file)
         if (wcp.isFile && runCatching { packageInfo(context, wcp) }.isSuccess) return null
         wcp.delete()
-        val item = lookup(rule.file, rule.release)
-            ?: return "${rule.file} is not in the Nightlies listing; ${LABEL.getValue(rule.comp)} stays on the Proton's copy"
+        val item = lookup(file, release)
+            ?: return "$file is not in the Nightlies listing; ${LABEL.getValue(comp)} stays on the Proton's copy"
         fetch(item)
         return null
     }

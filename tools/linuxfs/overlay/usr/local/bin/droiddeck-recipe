@@ -1,0 +1,338 @@
+#!/usr/bin/python3
+# droiddeck-recipe: the per-game Proton behind "DroidDeck Proton (Auto)".
+#
+# That tool runs Valve's ARM64 Proton like droiddeck-proton-arm64 does, and exports
+# DROIDDECK_RECIPES=1. droiddeck-game-env then asks this module for the game's recipe, a DXVK,
+# VKD3D-Proton and/or FEX package and a few environment variables the app published in
+# ~/.config/droiddeck/recipes.json, and starts Proton from a tree assembled for that recipe:
+#
+#   ~/.local/share/droiddeck-recipes/dist/<key>/
+#     real directories down to each directory a package replaces, every other entry a symlink to
+#     the depot, and in a replaced directory the component's own files linked from the package.
+#
+# Proton takes its base directory from dirname(sys.argv[0]) without resolving it (the same thing
+# steam-compatibility and droiddeck-esync rely on), so it reads the package's DLLs from that tree
+# and copies them into the game's prefix as if they were its own. The depot is never written: other
+# tools, and this one for other games, keep Valve's files. A Steam update changes the depot's
+# version line, which changes the key, so the next launch gets a fresh tree.
+#
+# A recipe never stops a launch. Anything wrong - a missing package, a bad file, an error here -
+# is logged and the game starts on the stock Proton.
+import contextlib
+import fcntl
+import hashlib
+import json
+import os
+import re
+import shutil
+import sys
+import time
+
+HOME = os.environ.get("HOME") or os.path.expanduser("~")
+RECIPES = os.path.join(HOME, ".config", "droiddeck", "recipes.json")
+ROOT = os.path.join(HOME, ".local", "share", "droiddeck-recipes")
+FLAG = "DROIDDECK_RECIPES"
+RECORD = ".droiddeck-recipe.json"
+LOG_LINES = 200
+DIST_AGE = 14 * 24 * 3600
+TEMP_AGE = 3600
+
+WINE = "files/lib/wine"
+PE_ARCHES = ("aarch64-windows", "i386-windows")
+COMPONENTS = ("dxvk", "vkd3d", "fex")
+LABEL = {"dxvk": "DXVK", "vkd3d": "VKD3D", "fex": "FEX"}
+# The files that ARE each component, as ComponentsManager swaps them: in a replaced directory these
+# are dropped from the depot's side before the package's files are linked in, so no file of the
+# depot's version is left mixed in. Anything else there (GE's openvr_api_dxvk.dll) stays.
+COMP_DIRS = {"dxvk": WINE + "/dxvk", "vkd3d": WINE + "/vkd3d-proton"}
+COMP_DLLS = {
+    "dxvk": frozenset(("d3d8.dll", "d3d9.dll", "d3d10.dll", "d3d10_1.dll", "d3d10core.dll", "d3d11.dll", "dxgi.dll")),
+    "vkd3d": frozenset(("d3d12.dll", "d3d12core.dll")),
+}
+# The directories droiddeck-esync rebuilds as real ones when it puts its own tree on top of this
+# one (its REAL_DIRS). They are real here too, so it never has to list a directory through a
+# symlink: a guest opendir() of a symlink, answered by proot's fast path, comes back ENOTDIR and
+# esync would take that directory for empty.
+ESYNC_DIRS = (".", "files", "files/bin-arm64", "files/lib", "files/lib/wine", "files/lib/wine/aarch64-unix")
+FEX_FILES = {
+    WINE + "/aarch64-windows": frozenset(("libarm64ecfex.dll", "libwow64fex.dll")),
+    WINE + "/aarch64-unix": frozenset(("libarm64ecfex.so", "libwow64fex.so")),
+}
+
+# Environment a recipe may set. Names only from the graphics, translation and Proton families, and
+# never one that names a file, a directory or a library to load: a recipe can tune a game, not run
+# code in it.
+ENV_PREFIXES = ("DXVK_", "VKD3D_", "FEX_", "MESA_", "PROTON_")
+ENV_EXACT = frozenset(("mesa_glthread", "WINEDLLOVERRIDES"))
+ENV_DENIED_PARTS = ("PATH", "_DIR", "_FILE", "LIBRARY", "ROOTFS", "THUNK", "PRELOAD")
+ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+DLL_OVERRIDE = re.compile(r"[A-Za-z0-9_.*-]+(?:,[A-Za-z0-9_.*-]+)*=(?:n|b|n,b|b,n|d)?")
+
+
+def say(message):
+    with contextlib.suppress(Exception):
+        print("droiddeck-recipe: " + message, file=sys.stderr, flush=True)
+
+
+def env_allowed(name, value):
+    if not isinstance(name, str) or not ENV_NAME.fullmatch(name) or name.startswith("LD_"):
+        return False
+    if any(part in name.upper() for part in ENV_DENIED_PARTS):
+        return False
+    if name not in ENV_EXACT and not name.startswith(ENV_PREFIXES):
+        return False
+    if not isinstance(value, str) or "\0" in value or len(value) > 8192:
+        return False
+    if name == "WINEDLLOVERRIDES":
+        return all(DLL_OVERRIDE.fullmatch(entry) for entry in value.split(";") if entry)
+    return True
+
+
+def store_root():
+    return os.path.join(ROOT, "store")
+
+
+def package_ok(path):
+    """A package directory the app unpacked completely, inside the recipe store."""
+    if not isinstance(path, str) or not os.path.isabs(path):
+        return False
+    store = os.path.realpath(store_root())
+    real = os.path.realpath(path)
+    return (os.path.dirname(real) == store and os.path.isfile(os.path.join(real, ".complete"))
+            and os.path.isdir(os.path.join(real, "files")))
+
+
+def lookup(env, app_id, path=None):
+    """The game's recipe when this launch came through the Auto tool, else None.
+
+    Returns {"components": {comp: package dir}, "skipped": [comp], "env": {...}, "note": str}.
+    Raises nothing: a bad file is logged and treated as no recipe."""
+    if env.get(FLAG) != "1" or not app_id:
+        return None
+    try:
+        with open(path or RECIPES, encoding="utf-8") as source:
+            data = json.load(source)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as error:
+        say("recipes not read (%s); stock Proton" % error)
+        return None
+    if not isinstance(data, dict) or data.get("version") != 1 or not isinstance(data.get("games"), dict):
+        say("recipes file not understood; stock Proton")
+        return None
+    entry = data["games"].get(app_id)
+    if not isinstance(entry, dict):
+        return None
+    components, skipped, environment = {}, [], {}
+    for comp in COMPONENTS:
+        if comp not in entry:
+            continue
+        if package_ok(entry[comp]):
+            components[comp] = os.path.realpath(entry[comp])
+        else:
+            skipped.append(comp)
+    raw = entry.get("env", {})
+    if isinstance(raw, dict):
+        for name, value in raw.items():
+            if env_allowed(name, value):
+                environment[name] = value
+            else:
+                say("app %s: %s is not a variable a recipe may set; left out" % (app_id, name))
+    note = entry.get("note") if isinstance(entry.get("note"), str) else ""
+    return {"components": components, "skipped": skipped, "env": environment, "note": note[:200]}
+
+
+# ------------------------------------------------------------------ the tree
+
+def version_line(tool):
+    try:
+        with open(os.path.join(tool, "version"), encoding="utf-8", errors="replace") as source:
+            return source.readline().strip()
+    except OSError:
+        return ""
+
+
+def overrides(components):
+    """{rel dir: (names dropped from the depot's side, {name: source file})} for these packages."""
+    result = {}
+
+    def entry(rel):
+        return result.setdefault(rel, (set(), {}))
+
+    for comp, package in sorted(components.items()):
+        files = os.path.join(package, "files")
+        for folder, dirs, names in os.walk(files):
+            dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(folder, d))]
+            rel = os.path.relpath(folder, package).replace(os.sep, "/")
+            for name in names:
+                source = os.path.join(folder, name)
+                if os.path.isfile(source) and not os.path.islink(source):
+                    entry(rel)[1][name] = source
+        if comp in COMP_DIRS:
+            for arch in PE_ARCHES:
+                rel = COMP_DIRS[comp] + "/" + arch
+                if rel in result:
+                    result[rel][0].update(COMP_DLLS[comp])
+        else:
+            for rel, names in FEX_FILES.items():
+                entry(rel)[0].update(names)
+    return result
+
+
+def ancestors(rel):
+    parts = rel.split("/")
+    return {"/".join(parts[:i]) for i in range(1, len(parts) + 1)} | {"."}
+
+
+def fill(base, out, rel, real, replaced):
+    folder = os.path.join(out, rel) if rel != "." else out
+    os.makedirs(folder, exist_ok=True)
+    source = os.path.join(base, rel) if rel != "." else base
+    dropped, files = replaced.get(rel, (set(), {}))
+    try:
+        names = sorted(os.listdir(source))
+    except OSError:
+        names = []
+    for name in names:
+        child = name if rel == "." else rel + "/" + name
+        if rel == "." and name == RECORD:
+            continue
+        if child in real and os.path.isdir(os.path.join(source, name)):
+            fill(base, out, child, real, replaced)
+        elif name.lower() not in dropped and name not in files:
+            os.symlink(os.path.join(source, name), os.path.join(folder, name))
+    for child in sorted(r for r in real if r != "." and os.path.dirname(r) == ("" if rel == "." else rel)):
+        if not os.path.lexists(os.path.join(out, child)):
+            fill(base, out, child, real, replaced)
+    for name, target in sorted(files.items()):
+        os.symlink(target, os.path.join(folder, name))
+
+
+def build(base, components, out):
+    replaced = overrides(components)
+    real = {rel for rel in ESYNC_DIRS if os.path.isdir(os.path.join(base, rel))}
+    for rel in replaced:
+        real |= ancestors(rel)
+    fill(base, out, ".", real, replaced)
+
+
+def key_of(base, components):
+    stamp = {comp: [path, os.stat(os.path.join(path, ".complete")).st_mtime_ns] for comp, path in sorted(components.items())}
+    text = json.dumps({"base": os.path.realpath(base), "version": version_line(base), "components": stamp}, sort_keys=True)
+    return hashlib.sha256(text.encode("utf-8", "surrogateescape")).hexdigest()[:16]
+
+
+@contextlib.contextmanager
+def locked(path):
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def remove(path):
+    if os.path.islink(path) or (os.path.lexists(path) and not os.path.isdir(path)):
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(path)
+    elif os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def ensure(base, components, root=None):
+    """The assembled tree for `base` with these packages, built once and reused."""
+    folder = os.path.join(root or ROOT, "dist")
+    os.makedirs(folder, exist_ok=True)
+    key = key_of(base, components)
+    dist = os.path.join(folder, key)
+    with locked(dist + ".lock"):
+        if not os.path.isfile(os.path.join(dist, RECORD)):
+            remove(dist)
+            temp = os.path.join(folder, ".%s.tmp-%d" % (key, os.getpid()))
+            remove(temp)
+            try:
+                build(base, components, temp)
+                with open(os.path.join(temp, RECORD), "w", encoding="utf-8") as target:
+                    json.dump({"base": base, "version": version_line(base), "components": components}, target, sort_keys=True)
+                os.rename(temp, dist)
+            except BaseException:
+                remove(temp)
+                raise
+        os.utime(dist)
+    collect(folder, keep=key)
+    return dist
+
+
+def collect(folder, keep=None, now=None):
+    """Drops trees not used for DIST_AGE and temp builds older than TEMP_AGE."""
+    now = now if now is not None else time.time()
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(folder, name)
+        try:
+            age = now - os.lstat(path).st_mtime
+        except OSError:
+            continue
+        if name.startswith("."):
+            if ".tmp-" in name and age > TEMP_AGE:
+                remove(path)
+        elif name.endswith(".lock"):
+            if age > DIST_AGE and not os.path.isdir(path[:-5]):
+                remove(path)
+        elif name != keep and age > DIST_AGE:
+            with locked(path + ".lock"):
+                remove(path)
+
+
+def log_line(app_id, text, root=None):
+    path = os.path.join(root or ROOT, "launches.log")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with locked(path + ".lock"):
+            try:
+                with open(path, encoding="utf-8", errors="replace") as source:
+                    lines = [line for line in source.read().split("\n") if line]
+            except FileNotFoundError:
+                lines = []
+            lines.append("%d\t%s\t%s" % (int(time.time()), app_id, re.sub(r"[\t\r\n]", " ", text)))
+            temp = "%s.tmp-%d" % (path, os.getpid())
+            with open(temp, "w", encoding="utf-8") as target:
+                target.write("\n".join(lines[-LOG_LINES:]) + "\n")
+            os.replace(temp, path)
+    except Exception as error:
+        say("launch not logged (%s)" % error)
+
+
+def summary(recipe):
+    parts = []
+    for comp in COMPONENTS:
+        if comp in recipe["components"]:
+            parts.append("%s %s" % (LABEL[comp], os.path.basename(recipe["components"][comp])))
+        elif comp in recipe["skipped"]:
+            parts.append("%s stock (package missing)" % LABEL[comp])
+        else:
+            parts.append("%s stock" % LABEL[comp])
+    parts.append("env %d" % len(recipe["env"]))
+    text = ", ".join(parts)
+    return text + (" (%s)" % recipe["note"] if recipe["note"] else "")
+
+
+def assemble(command, recipe, app_id, root=None):
+    """`command` started from the recipe's tree, or unchanged when it has no packages or fails."""
+    text = summary(recipe)
+    say("app %s: %s" % (app_id, text))
+    log_line(app_id, text, root)
+    if not recipe["components"] or not command:
+        return list(command)
+    try:
+        base = os.path.dirname(command[0]) or "."
+        base = base if os.path.isabs(base) else os.path.join(os.getcwd(), base)
+        dist = ensure(base, recipe["components"], root)
+        return [os.path.join(dist, os.path.basename(command[0]))] + list(command[1:])
+    except Exception as error:
+        say("app %s: tree not assembled (%s); stock Proton" % (app_id, error))
+        return list(command)

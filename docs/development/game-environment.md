@@ -56,6 +56,46 @@ requiring a different/custom component; custom entries remain allowed. The old
 `DXVK_FRAME_RATE` environment variable was removed from current DXVK, so it is
 not offered as a suggestion. Prefer the session frame limiter for ordinary play.
 
+## DroidDeck Proton (Auto)
+
+A proof of concept for per-game Proton assembly. `steam-compatibility` registers
+`droiddeck-proton-auto` ("DroidDeck Proton (Auto)") next to `droiddeck-proton-arm64`. It runs
+the same Valve ARM64 depot, and its launcher also exports `DROIDDECK_RECIPES=1`. Choose it per
+game in Steam's Properties → Compatibility. Every other tool behaves as before, including
+Components swaps and the forced DXVK on Adreno 6xx.
+
+For a game launched through it, `droiddeck-game-env` asks `droiddeck-recipe` for the game's
+recipe. A recipe can name a DXVK, VKD3D-Proton and/or FEX package, plus environment variables.
+Proton is then started from `~/.local/share/droiddeck-recipes/dist/<key>/`:
+
+- real directories down to each directory a package replaces;
+- every other entry a symlink to the depot;
+- the component's own DLLs (the same set Components swaps) linked from the package.
+
+The depot is never written. The key covers the depot, its version line and the packages, so a
+Steam update gives a fresh tree. Trees unused for 14 days are removed. esync builds its own tree
+on top, as it does for a depot. A recipe never stops a launch: a missing package or an error
+leaves that component, or the whole launch, on the stock Proton. The session log and
+`droiddeck-recipes/launches.log` record what was applied.
+
+Recipe variables sit in the automatic-fixes layer: above shared entries, below the game's own
+entries. They are limited to tuning names: the `DXVK_`, `VKD3D_`, `FEX_`, `MESA_` and `PROTON_`
+families, `mesa_glthread` and `WINEDLLOVERRIDES`. Names that refer to a path, directory, file,
+library or preload are refused. The app (`DdProtonRecipes`) and the guest both enforce this.
+
+Recipes come from the app's `files/recipes.json` when present, otherwise from the bundled
+`assets/recipes/default.json`, which is empty for now. At session start the app fetches each
+named package from the Nightlies "-Linux" releases, the same way Components does. It unpacks
+them into `droiddeck-recipes/store/` and publishes `~/.config/droiddeck/recipes.json` with those
+paths:
+
+```json
+{"version": 1, "games": {"<app or shortcut id>": {
+  "dxvk": {"file": "dxvk-2.4-linux.wcp", "release": "Dxvk-Linux"},
+  "env": {"DXVK_HUD": "version"},
+  "note": "why this game needs it"}}}
+```
+
 ## Launch path and references
 
 WinNative's Linux session filters Android-only options, merges user variables
@@ -87,7 +127,8 @@ Upstream references: [VKD3D capability parsing](https://github.com/HansKristian-
 [DXVK variables](https://github.com/doitsujin/dxvk#environment-variables),
 [DXVK frame-limiter changes](https://github.com/doitsujin/dxvk/releases).
 
-Validation: `./gradlew testDebugUnitTest` and
-`python3 -m unittest discover -s tools/tests -p test_game_environment.py`.
+Validation: `./gradlew testDebugUnitTest`,
+`python3 -m unittest discover -s tools/tests -p test_game_environment.py` and
+`python3 -m unittest discover -s tools/tests -p test_recipe.py`.
 Actual game compatibility depends on the installed Proton, VKD3D and Vulkan driver;
 these checks do not establish that every device supports feature level 12_2 or SM 6_9.

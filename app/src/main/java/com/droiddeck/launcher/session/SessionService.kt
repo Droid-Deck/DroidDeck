@@ -343,6 +343,11 @@ class SessionService : Service() {
             runCatching { ComponentsManager.ensureForcedPackages(this) }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
+            // DroidDeck Proton (Auto)'s recipes: their packages fetched and unpacked, the file
+            // droiddeck-recipe reads published. Only that tool reads it; a failure leaves it stock.
+            runCatching { DdProtonRecipes.ensure(this) }
+                .onSuccess { Log.i(TAG, it) }
+                .onFailure { Log.w(TAG, "DroidDeck Proton (Auto) recipes", it) }
         }
         addClientEnvironment(guest, steamHere)
         // Where the fast path's description of proot's view goes, once the binds are known.

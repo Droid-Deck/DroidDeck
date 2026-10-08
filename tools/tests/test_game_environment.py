@@ -373,15 +373,48 @@ class ProtonDefaultTest(unittest.TestCase):
             self.assertEqual(COMPAT["find_source"](str(steam), COMPAT["OWN_TOOLS"][1][1]), str(steam / "steamapps/common/Proton 11.0 (ARM64)"))
             self.assertEqual(COMPAT["find_source"](str(steam)), str(steam / "steamapps/common/Proton Experimental (ARM64)"))
             self.assertEqual([(t["name"], t["dir"]) for t in COMPAT["tool_catalog"](str(steam), {})],
-                             [(COMPAT["TOOL"], "Proton Experimental (ARM64)"), (COMPAT["TOOL_11"], "Proton 11.0 (ARM64)")])
+                             [(COMPAT["TOOL"], "Proton Experimental (ARM64)"), (COMPAT["TOOL_11"], "Proton 11.0 (ARM64)"),
+                              (COMPAT["RECIPE_TOOL"], "Proton Experimental (ARM64)")])
             for name, sources in COMPAT["OWN_TOOLS"]:
                 COMPAT["build_tool"](str(steam / "compatibilitytools.d" / name), COMPAT["find_source"](str(steam), sources), sources, name)
             self.assertEqual(COMPAT["adopt_extras"](str(steam / "compatibilitytools.d")), {})
             self.assertEqual(sorted(os.listdir(steam / "compatibilitytools.d" / COMPAT["TOOL_11"])), sorted(COMPAT["OWN_FILES"]))
             launcher = COMPAT["launcher_sh"](COMPAT["OWN_TOOLS"][1][1])
+            self.assertNotIn("DROIDDECK_RECIPES", launcher)
             self.assertIn('for name in "Proton 11.0 (ARM64)"; do', launcher)
             self.assertIn("${major%%.*}", launcher)
 
+
+
+class RecipeToolTest(unittest.TestCase):
+    def test_the_auto_tool_is_registered_beside_the_valve_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            (steam / "steamapps/common" / COMPAT["SOURCES"][0] / "files/bin-arm64").mkdir(parents=True)
+            tools = steam / "compatibilitytools.d"
+            for name, sources in COMPAT["OWN_TOOLS"]:
+                COMPAT["build_tool"](str(tools / name), COMPAT["find_source"](str(steam), sources), sources, name)
+            auto = tools / COMPAT["RECIPE_TOOL"]
+            self.assertEqual(sorted(os.listdir(auto)), sorted(COMPAT["OWN_FILES"]))
+            self.assertIn('"display_name" "DroidDeck Proton (Auto)', (auto / "compatibilitytool.vdf").read_text())
+            launcher = (auto / COMPAT["LAUNCHER"]).read_text()
+            self.assertIn("verb=$1; shift\nexport DROIDDECK_RECIPES=1\n", launcher)
+            self.assertIn('for name in "Proton Experimental (ARM64)" "Proton 11.0 (ARM64)"; do', launcher)
+            self.assertNotIn("DROIDDECK_RECIPES", (tools / COMPAT["TOOL"] / COMPAT["LAUNCHER"]).read_text())
+            catalog = COMPAT["tool_catalog"](str(steam), {})
+            self.assertEqual(catalog[-1], {"name": COMPAT["RECIPE_TOOL"], "display": "DroidDeck Proton (Auto)",
+                                           "dir": "Proton Experimental (ARM64)", "valve": True})
+            # The app's default request names a depot directory: it still means the plain tool.
+            self.assertEqual(COMPAT["requested_tool"]({"dir": "Proton Experimental (ARM64)", "valve": True}, catalog), COMPAT["TOOL"])
+
+    def test_a_game_set_to_the_auto_tool_keeps_it(self):
+        names = [COMPAT["TOOL"], COMPAT["RECIPE_TOOL"]]
+        current = {"0": COMPAT["TOOL"], "42": COMPAT["RECIPE_TOOL"]}
+        changes, kept = COMPAT["plan_mapping"](current, ["42", "43"], names, COMPAT["TOOL"], {})
+        self.assertEqual(changes, {"43": COMPAT["TOOL"]})
+        self.assertNotIn("42", kept)
+        changes, _ = COMPAT["plan_mapping"](current, ["42"], [COMPAT["TOOL"]], COMPAT["TOOL"], {})
+        self.assertEqual(changes, {"42": COMPAT["TOOL"]})
 
 
 class DirectAudioPrefixTest(unittest.TestCase):

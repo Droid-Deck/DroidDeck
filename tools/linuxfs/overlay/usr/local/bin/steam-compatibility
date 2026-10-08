@@ -43,7 +43,12 @@ LIBRARY = "/mnt/droiddeck"  # the card library is LIBRARY + "-sd"; internal stor
 # unmistakable at a glance, or a user picks a neighbour and gets a launch that fails silently.
 # Newest first: whichever the client has downloaded is used.
 SOURCES = ("Proton Experimental (ARM64)", "Proton 11.0 (ARM64)")
-OWN_TOOLS = ((TOOL, SOURCES), (TOOL_11, ("Proton 11.0 (ARM64)",)))
+# DroidDeck Proton (Auto): the same Valve depot, started from a tree assembled per game out of the
+# recipe the app published for it (see droiddeck-recipe). Listed last: the app's default request
+# names a depot directory, and the first tool on that directory is the one it means.
+RECIPE_TOOL = "droiddeck-proton-auto"
+RECIPE_DISPLAY = "DroidDeck Proton (Auto)"
+OWN_TOOLS = ((TOOL, SOURCES), (TOOL_11, ("Proton 11.0 (ARM64)",)), (RECIPE_TOOL, SOURCES))
 FEX_TOOL = "droiddeck-fex"
 FEX_LAUNCHER = "droiddeck-fex-tool"
 FEX_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", FEX_LAUNCHER)
@@ -340,13 +345,20 @@ exit 1
 LAUNCHER_TEMPLATE = LAUNCHER_SH
 
 
-def launcher_sh(sources=SOURCES):
+def launcher_sh(sources=SOURCES, recipes=False):
     # Spliced in after the formatting, never through it: the function body contains ${major%%.*}
     # and a % format would eat that into a single %, leaving a shell expansion that silently does
     # something else.
+    flag = "export DROIDDECK_RECIPES=1\n" if recipes else ""
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
-        "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
+        "verb=$1; shift", "verb=$1; shift\n" + flag + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
         + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+
+
+def tool_display(name, depot):
+    if name == RECIPE_TOOL:
+        return display_name(RECIPE_DISPLAY)
+    return display_name(os.path.basename(depot).replace(" (ARM64)", " ARM64") if depot else "Proton ARM64")
 
 
 LAUNCHER_SH = launcher_sh()
@@ -935,8 +947,7 @@ def tool_catalog(steam_root, extras=None):
         depot = find_source(steam_root, sources)
         if depot is None and name != TOOL:
             continue
-        catalog.append(tool_entry(name, display_name(
-            os.path.basename(depot).replace(" (ARM64)", " ARM64") if depot else "Proton ARM64"), depot, True))
+        catalog.append(tool_entry(name, tool_display(name, depot), depot, True))
     if extras is None:
         extras = {}
         try:
@@ -1127,9 +1138,8 @@ def build_tool(tool_dir, depot, sources=SOURCES, name=TOOL):
         shutil.rmtree(tool_dir)
     os.makedirs(tool_dir, exist_ok=True)
     write_changed(os.path.join(tool_dir, "toolmanifest.vdf"), TOOL_MANIFEST_VDF)
-    write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), COMPAT_TOOL_VDF % (name, display_name(
-        os.path.basename(depot).replace(" (ARM64)", " ARM64") if depot else "Proton ARM64")))
-    write_changed(os.path.join(tool_dir, LAUNCHER), launcher_sh(sources), 0o755)
+    write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), COMPAT_TOOL_VDF % (name, tool_display(name, depot)))
+    write_changed(os.path.join(tool_dir, LAUNCHER), launcher_sh(sources, recipes=name == RECIPE_TOOL), 0o755)
 
 
 def build_fex_tool(tool_dir):
