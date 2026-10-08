@@ -44,11 +44,29 @@ object SteamDeckPad {
     private const val HIDRAW = "$HID/hidraw/$NODE"
     private const val SERIAL = "DROIDDECK0001"
 
+    // EXPERIMENT (docs/development/steam-touch-controller.md): Steam's Mobile Touch controller,
+    // 0000:11fb, as a second local device. libfakeinput serves the node only with
+    // FAKE_EVDEV_TOUCHCTL=1 (fakeinput_steam.cpp: TOUCH_HIDRAW_*).
+    private const val TOUCH_MINOR = 17
+    private const val TOUCH_NODE = "hidraw$TOUCH_MINOR"
+    private const val TOUCH_USB = "$GUEST_DEVICES/usb2"
+    private const val TOUCH_INTERFACE = "$TOUCH_USB/2-1:1.0"
+    private const val TOUCH_HID = "$TOUCH_INTERFACE/0003:0000:11FB.0002"
+    private const val TOUCH_HIDRAW = "$TOUCH_HID/hidraw/$TOUCH_NODE"
+
     /** InputPlumber's CONTROLLER_DESCRIPTOR, as libfakeinput answers HIDIOCGRDESC. */
     private val REPORT_DESCRIPTOR = intArrayOf(
         0x06, 0xff, 0xff, 0x09, 0x01, 0xa1, 0x01, 0x09, 0x02, 0x09, 0x03, 0x15, 0x00,
         0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x81, 0x02, 0x09, 0x06, 0x09, 0x07,
         0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0,
+    ).map { it.toByte() }.toByteArray()
+
+    /** Must match libfakeinput's kTouchReportDescriptor. */
+    private val TOUCH_REPORT_DESCRIPTOR = intArrayOf(
+        0x05, 0x01, 0x09, 0x05, 0xa1, 0x01,
+        0x09, 0x02, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x28, 0x81, 0x02,
+        0x09, 0x03, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x91, 0x02,
+        0x09, 0x04, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0,
     ).map { it.toByte() }.toByteArray()
 
     /** Where [prepare] puts the stand-in listings; bound into the guest at the same path. */
@@ -106,6 +124,32 @@ object SteamDeckPad {
 
             val udevData = File(LinuxRuntime.rootDir(context), "run/udev/data").apply { mkdirs() }
             File(udevData, "c$MAJOR:$MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
+
+            // EXPERIMENT: the Mobile Touch controller beside the Deck.
+            write(TOUCH_USB, "uevent", "DEVTYPE=usb_device\nPRODUCT=0/11fb/0\nTYPE=0/0/0\nBUSNUM=002\nDEVNUM=002\n")
+            write(TOUCH_USB, "idVendor", "0000\n")
+            write(TOUCH_USB, "idProduct", "11fb\n")
+            write(TOUCH_USB, "bcdDevice", "0000\n")
+            write(TOUCH_USB, "manufacturer", "Valve Software\n")
+            write(TOUCH_USB, "product", "Mobile Touch Control\n")
+            write(TOUCH_USB, "serial", "MT-DROIDDECK0001\n")
+            link(File(dir(TOUCH_USB), "subsystem"), "/sys/bus/usb")
+            write(TOUCH_INTERFACE, "uevent", "DEVTYPE=usb_interface\nPRODUCT=0/11fb/0\nINTERFACE=3/0/0\n")
+            write(TOUCH_INTERFACE, "bInterfaceNumber", "00\n")
+            write(TOUCH_INTERFACE, "bInterfaceClass", "03\n")
+            link(File(dir(TOUCH_INTERFACE), "subsystem"), "/sys/bus/usb")
+            write(TOUCH_HID, "uevent", "DRIVER=hid-generic\nHID_ID=0003:00000000:000011FB\n" +
+                "HID_NAME=Mobile Touch Control\nHID_PHYS=usb-droiddeck-2/input0\n" +
+                "HID_UNIQ=MT-DROIDDECK0001\nMODALIAS=hid:b0003g0001v00000000p000011FB\n")
+            File(dir(TOUCH_HID), "report_descriptor").writeBytes(TOUCH_REPORT_DESCRIPTOR)
+            link(File(dir(TOUCH_HID), "subsystem"), "/sys/bus/hid")
+            write(TOUCH_HIDRAW, "uevent", "MAJOR=$MAJOR\nMINOR=$TOUCH_MINOR\nDEVNAME=$TOUCH_NODE\n")
+            write(TOUCH_HIDRAW, "dev", "$MAJOR:$TOUCH_MINOR\n")
+            link(File(dir(TOUCH_HIDRAW), "subsystem"), "/sys/class/hidraw")
+            link(File(dir(TOUCH_HIDRAW), "device"), TOUCH_HID)
+            link(File(hidrawClass, TOUCH_NODE), TOUCH_HIDRAW)
+            link(File(context.cacheDir, "drm/sys/$MAJOR:$TOUCH_MINOR"), TOUCH_HIDRAW)
+            File(udevData, "c$MAJOR:$TOUCH_MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
 
             Log.i(TAG, "deck pad: /dev/$NODE described as a Steam Deck controller (28de:1205)")
             listOf(devices.path + ":" + GUEST_DEVICES, hidrawClass.path + ":/sys/class/hidraw")

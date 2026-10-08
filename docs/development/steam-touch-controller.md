@@ -180,3 +180,43 @@ So Steam drives action sets, layers and rumble over HID. The only things that co
 the stream are the config and layout blobs (`SetTouchConfigData`), the active config's
 appid/revision/creator (`TouchConfigActive`) and custom icons (`SetTouchIconData`); the first two
 are on disk in the VDF above.
+
+### 3. Without a stream: Steam takes a local 0000:11fb device (works)
+
+Experimental build on this branch: `FAKE_EVDEV_TOUCHCTL=1` (in `Download/droiddeck-env`) makes
+libfakeinput serve `/dev/hidraw17` as 0000:11fb "Mobile Touch Control" next to the Deck pad, with
+its sysfs written by `SteamDeckPad.prepare` (a second USB device, `usb2`). The 40-byte input report
+is read from `/tmp/touchctl.report` in the session; every output and feature report the client
+sends is logged to `pad.log` and appended to `/tmp/touchctl.out`.
+
+- With a vendor-page report descriptor (`06 ff ff 09 01`, as the Deck's) the client walks the
+  whole sysfs tree, reads the descriptor and never opens the node. **With Generic Desktop / Game
+  Pad (`05 01 09 05`) it opens it**: for a non-Valve vendor id the client wants a gamepad usage.
+- Steam then builds the touch controller exactly as it does for Steam Link:
+
+  ```
+  Local Device Found  type: 0000 11fb  path: /dev/hidraw17  serial_number: MT-DROIDDECK0001
+  !! Controller 0 attributes:  Type: 43  ProductID: 4603  Serial: MT-MT-DROIDDECK0001
+     Capabilities: 0000007f83045bff
+  ```
+
+  and speaks the touch protocol to it: `get-feature 02` (battery), output `03 30 ..` (the setting
+  report), and **output `04 01 03 00 00 01 00 00 00`: action set 1 of app 769** (Big Picture).
+- Writing button bits into the report drives the client: Steam (`0x2000`) opens Big Picture's
+  main menu, B (`0x20`) closes it. Opening the menu made Steam send `04` with app 443510 (the
+  Steam menu's own touch config; it is one of the app folders in the config directory) and
+  closing it `04` with 769 / 1 again: **the active app and action set arrive over HID, live.**
+
+Button bits (Steam Link's `CVirtualController` table at `0x463e70`, indexed by
+`EControllerElementType - 1`), the same layout as the Deck report's low word:
+
+| Element | Bit | | Element | Bit |
+|---|---|---|---|---|
+| A | 7 | | Select | 12 |
+| B | 5 | | Steam | 13 |
+| X | 6 | | Start | 14 |
+| Y | 4 | | Left stick click | 22 |
+| Left bumper | 3 | | Right stick click | 26 |
+| Right bumper | 2 | | Macro 0-7 | 32-39 |
+| Left trigger | 1 | | 1-finger / 2-finger macro | 48, 49 |
+| Right trigger | 0 | | Trackpad 0 / 1 / 2 touched | 27 / 19 / 20 |
