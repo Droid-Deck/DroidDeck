@@ -285,11 +285,15 @@ class SessionService : Service() {
     }
 
     private fun extraEnv(): List<String> {
-        val file = File(Environment.getExternalStorageDirectory(), ENV_SWITCH).takeIf { it.isFile } ?: return emptyList()
+        if (File(Environment.getExternalStorageDirectory(), LEGACY_ENV_SWITCH).isFile) {
+            Log.w(TAG, "ignoring $LEGACY_ENV_SWITCH: any app with storage access can write there; " +
+                "the file now lives at ${envSwitchFile(this)?.path ?: "(not available before Android 11)"}")
+        }
+        val file = envSwitchFile(this)?.takeIf { it.isFile } ?: return emptyList()
         val lines = FileUtils.readString(file)?.lines().orEmpty()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('=') && !it.startsWith("=") }
-        if (lines.isNotEmpty()) Log.i(TAG, "extra environment from $ENV_SWITCH: $lines")
+        if (lines.isNotEmpty()) Log.i(TAG, "extra environment from ${file.path}: $lines")
         return lines
     }
 
@@ -649,10 +653,11 @@ class SessionService : Service() {
         // GAMESCOPE_FORCE_VULKAN_REALTIME); off unless the user turns it on.
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
-        // Anything else, for a device that cannot be reached with a debugger: Downloads/droiddeck-env
-        // holds KEY=VALUE lines that go into the session's environment as written, after ours, so a
-        // line here wins. Zink and Turnip tunables (ZINK_DESCRIPTORS=lazy, MESA_*), gamescope's,
-        // the client's - whatever the experiment needs, without a build per attempt.
+        // Anything else, for a device that cannot be reached with a debugger: droiddeck-env in the
+        // app's own external files (envSwitchFile) holds KEY=VALUE lines that go into the session's
+        // environment as written, after ours, so a line here wins. Zink and Turnip tunables
+        // (ZINK_DESCRIPTORS=lazy, MESA_*), gamescope's, the client's - whatever the experiment
+        // needs, without a build per attempt.
         extraEnv().forEach { guest.add(it) }
         // Core masks, Bannerlator's two (cfca3912). The client's is sent whenever the override is
         // on, even naming every core: it exists to undo the pin Steam applies to its own interface
@@ -1700,8 +1705,25 @@ class SessionService : Service() {
         private const val TRACER_NICE = -6
         /** Downloads file whose contents become TU_DEBUG inside the session, e.g. "sysmem". */
         private const val TU_DEBUG_SWITCH = "Download/droiddeck-tu-debug"
-        /** Downloads file of KEY=VALUE lines added to the session environment verbatim. */
-        private const val ENV_SWITCH = "Download/droiddeck-env"
+        /**
+         * Where droiddeck-env (KEY=VALUE lines added to the session environment verbatim) used to
+         * be. Ignored now: a line there reaches the Steam client's environment as written
+         * (LD_PRELOAD, VK_ICD_FILENAMES, PATH...), and any app with storage access can write to
+         * Download - code of its choosing inside our sandbox, next to the client's saved login.
+         */
+        private const val LEGACY_ENV_SWITCH = "Download/droiddeck-env"
+        private const val ENV_SWITCH_NAME = "droiddeck-env"
+
+        /**
+         * The session's extra-environment file: Android/data/<package>/files/droiddeck-env. Only
+         * this app, adb and the user (through the app's own file manager) can write there - from
+         * Android 11 on. Before that other apps with storage access can reach Android/data too, so
+         * there is no such file at all.
+         */
+        fun envSwitchFile(context: Context): File? =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                context.getExternalFilesDir(null)?.let { File(it, ENV_SWITCH_NAME) }
+            else null
         private const val CHANNEL_ID = "session"
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
