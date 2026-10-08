@@ -34,13 +34,14 @@ sidecar afterwards.
   "env": {"FUEL_DIR": "C:\\ProgramData\\Amazon Games Services\\Legacy"},
   "installVersion": "1.4.0",
   "installedAt": 1759900000000,
-  "addToSteam": true,                 // false keeps the game out of the Steam client (and the Games tab)
   "cover": "https://...", "hero": "https://...",
   "extra": {"namespace": "...", "catalogItemId": "..."}
 }
 ```
 
 `StoreGameSidecar.parse` refuses anything whose `exe` or `launcher` would point outside the folder.
+Every store install is a Steam shortcut; an `addToSteam` field in a sidecar from an earlier build is
+read past and ignored.
 
 ## Registration with Steam
 
@@ -85,7 +86,6 @@ each manager runs its Java fetch loop.
 |---|---|---|
 | Show Stores in the rail | `SessionPrefs.gameStoresEnabled` (off) | Setup › Stores |
 | Open a store on: Library · Store | `SessionPrefs.storesOpenTab` (library) | the chip row's cog, Setup › Stores |
-| Add installed store games to Steam | `SessionPrefs.gameStoresAddToSteam` (on) | the cog, Setup › Stores |
 | Download speed tier | `SessionPrefs.gameStoresSpeedTier` (fast) | the cog, Setup › Stores, Downloads |
 | Downloads at a time | `SessionPrefs.gameStoresParallel` (1) | Downloads |
 

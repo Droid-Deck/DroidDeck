@@ -16,7 +16,7 @@ class StoreGameSidecarTest {
     private val sample = StoreGameSidecar(
         Store.EPIC, "abc123", "Celeste", "Celeste.exe", launcher = ".droiddeck-launch.bat",
         args = listOf("-EpicPortal", "-epicusername=\"Some One\""), env = mapOf("FOO" to "bar"),
-        installVersion = "1.4.0", installedAt = 1700000000L, addToSteam = false, cover = "https://x/c.jpg",
+        installVersion = "1.4.0", installedAt = 1700000000L, cover = "https://x/c.jpg",
         extra = mapOf("namespace" to "ns"),
     )
 
@@ -31,14 +31,13 @@ class StoreGameSidecarTest {
         assertEquals(sample.env, back.env)
         assertEquals("1.4.0", back.installVersion)
         assertEquals(1700000000L, back.installedAt)
-        assertFalse(back.addToSteam)
         assertEquals("https://x/c.jpg", back.cover)
         assertEquals("ns", back.extra["namespace"])
     }
 
     @Test fun defaultsWhenFieldsAreAbsent() {
-        val back = StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"bin\\game.exe"}""")!!
-        assertTrue(back.addToSteam)
+        val back = StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"bin\\game.exe","addToSteam":false}""")!!
+        // An older sidecar's Steam switch is read past, not acted on.
         assertEquals("bin/game.exe", back.exe)
         assertNull(back.launcher)
         assertTrue(back.args.isEmpty())

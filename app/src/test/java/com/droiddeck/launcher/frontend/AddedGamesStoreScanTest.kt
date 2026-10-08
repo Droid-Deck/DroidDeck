@@ -19,12 +19,12 @@ import org.robolectric.annotation.Config
 class AddedGamesStoreScanTest {
     private val app get() = RuntimeEnvironment.getApplication()
 
-    private fun install(store: Store, id: String, title: String, exe: String, addToSteam: Boolean = true, launcher: Boolean = false): File {
+    private fun install(store: Store, id: String, title: String, exe: String, launcher: Boolean = false): File {
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         val folder = File(StoreInstallRoot.storeDir(StoreInstallRoot.installRoot(app), store), StoreInstallRoot.folderName(title, id))
         File(folder, exe).apply { parentFile!!.mkdirs(); writeText("game") }
         File(folder, "unins000.exe").writeText("uninstaller")
-        var sidecar = StoreGameSidecar(store, id, title, exe, addToSteam = addToSteam, args = if (launcher) listOf("-EpicPortal") else emptyList())
+        var sidecar = StoreGameSidecar(store, id, title, exe, args = if (launcher) listOf("-EpicPortal") else emptyList())
         if (launcher) sidecar = StoreLaunch.writeLauncher(folder, sidecar)
         sidecar.write(folder)
         return folder
@@ -51,9 +51,11 @@ class AddedGamesStoreScanTest {
         assertEquals(Store.EPIC.id, game.source)
     }
 
-    @Test fun aStoreGameKeptOutOfSteamIsNotListed() {
-        val folder = install(Store.AMAZON, "amzn1.adg.product.x", "Yakuza 0", "Yakuza0.exe", addToSteam = false)
-        assertTrue(AddedGames.scan(app).none { it.folder.absolutePath == folder.absolutePath })
+    @Test fun anOlderSidecarsSteamSwitchIsIgnoredEveryInstallIsListed() {
+        val folder = install(Store.AMAZON, "amzn1.adg.product.x", "Yakuza 0", "Yakuza0.exe")
+        val file = StoreGameSidecar.file(folder)
+        file.writeText(file.readText().replaceFirst("{", "{\"addToSteam\": false,"))
+        assertTrue(AddedGames.scan(app).any { it.folder.absolutePath == folder.absolutePath })
     }
 
     @Test fun theListingCarriesTheLauncherAndTheTitle() {

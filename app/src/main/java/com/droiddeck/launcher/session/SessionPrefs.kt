@@ -60,13 +60,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
     }
 
-    /** Whether a game a store installs is added to the Steam client's library as a shortcut. On by default. */
-    fun gameStoresAddToSteam(context: Context): Boolean = prefs(context).getBoolean("gameStoresAddToSteam", true)
-
-    fun setGameStoresAddToSteam(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("gameStoresAddToSteam", on).apply()
-    }
-
     /** The store download engine's speed tier (stores/download/StoreDownloadTier ids); Fast unless chosen otherwise. */
     fun gameStoresSpeedTier(context: Context): String = prefs(context).getString("gameStoresSpeedTier", "fast") ?: "fast"
 

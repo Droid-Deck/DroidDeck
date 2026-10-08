@@ -373,11 +373,7 @@ internal fun SetupPanel(
                                 host, "stores-enabled", stringResource(R.string.setup_stores_show),
                                 stringResource(R.string.setup_stores_show_hint), s.gameStoresEnabled,
                             ) { a.onGameStoresEnabled(it) }
-                            ToggleRow(
-                                host, "stores-add-to-steam", stringResource(R.string.setup_stores_add_to_steam),
-                                stringResource(R.string.setup_stores_add_to_steam_hint), s.gameStoresAddToSteam,
-                            ) { a.onGameStoresAddToSteam(it) }
-                            // The same three rows as the Stores page's own cog, for whoever looks here first.
+                            // The same rows as the Stores page's own cog, for whoever looks here first.
                             SettingsRow(stringResource(R.string.setup_stores_open_on), stringResource(R.string.setup_stores_open_on_hint)) {
                                 SegmentedTabs(
                                     listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),

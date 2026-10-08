@@ -926,6 +926,8 @@
     <string name="games_last_played">Last played %1$s</string>
     <string name="games_internal">Internal storage</string>
     <string name="games_added">Added game</string>
+    <string name="games_custom">Custom game</string>
+    <string name="games_store_storage">Games storage</string>
     <string name="gpu_auto_hint">The best pair for this GPU, kept up to date</string>
     <string name="gpu_manual_hint">Pick a pair yourself</string>
     <string name="gpu_checking">Checking for drivers…</string>
@@ -1965,8 +1967,6 @@
     <string name="setup_stores">Stores</string>
     <string name="setup_stores_show">Show Stores in the rail</string>
     <string name="setup_stores_show_hint">GOG, Epic Games and Amazon Games libraries, with the download manager.</string>
-    <string name="setup_stores_add_to_steam">Add installed store games to Steam</string>
-    <string name="setup_stores_add_to_steam_hint">Creates a non-Steam shortcut so the game shows in Steam\'s Deck UI with Steam Input.</string>
     <string name="setup_stores_open_on">Open a store on</string>
     <string name="setup_stores_open_on_hint">Which tab a signed-in store opens when its chip is picked.</string>
     <string name="setup_stores_speed">Download speed tier</string>
@@ -2029,7 +2029,6 @@
     <string name="stores_eyebrow_library">in your library</string>
     <string name="stores_eyebrow_store">store</string>
     <string name="stores_in_steam">✓ In Steam</string>
-    <string name="stores_add_to_steam">Add to Steam</string>
     <string name="stores_uninstall">Uninstall</string>
     <string name="stores_uninstall_confirm">Press again to uninstall</string>
     <string name="stores_launch_not_registered">Steam picks the game up when it next starts; launch it from there, or start Steam now.</string>
@@ -2052,8 +2051,7 @@
     <string name="stores_kv_launched_by_epic">Steam and Proton · Epic sign-in per launch, EOS overlay off</string>
     <string name="stores_kv_launched_by_amazon">Steam and Proton · Amazon Games Services variables set</string>
     <string name="stores_kv_steam">Steam</string>
-    <string name="stores_kv_steam_on">shortcut added on install (Deck UI + Steam Input)</string>
-    <string name="stores_kv_steam_off">no shortcut (Stores settings)</string>
+    <string name="stores_kv_steam_on">added to Steam on install (Deck UI + Steam Input)</string>
     <string name="stores_downloads_empty">No downloads. Install something from a library.</string>
     <string name="stores_dl_paused">Paused</string>
     <string name="stores_dl_queued">Queued</string>

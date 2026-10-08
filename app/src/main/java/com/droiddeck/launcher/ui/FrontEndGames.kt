@@ -223,7 +223,7 @@ private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.c
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SourceChip(g.source)
         Text(
-            (lastPlayedText(g.lastPlayed) ?: libraryLabel(g.library)).uppercase(),
+            (lastPlayedText(g.lastPlayed) ?: libraryLabel(g)).uppercase(),
             fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = LocalPalette.current.signal,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
@@ -336,11 +336,15 @@ private fun playedSpan(lastPlayed: Long): String? {
     ).toString()
 }
 
+/**
+ * Where a never-played game lives, beside its source chip: Steam's library, the Games storage for
+ * a store install (the chip names the store), "Custom game" for a folder the user added.
+ */
 @Composable
-private fun libraryLabel(library: String): String = when (library) {
-    "internal" -> stringResource(R.string.games_internal)
-    Library.ADDED -> stringResource(R.string.games_added)
-    else -> library
+private fun libraryLabel(g: Library.SteamGame): String = when {
+    g.library != Library.ADDED -> if (g.library == "internal") stringResource(R.string.games_internal) else g.library
+    g.source != Library.ADDED -> stringResource(R.string.games_store_storage)
+    else -> stringResource(R.string.games_custom)
 }
 
 /**

@@ -39,7 +39,6 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
-import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
@@ -84,10 +83,8 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                     when {
                         installed != null -> {
                             PrimaryButton(stringResource(R.string.games_launch), main = true, icon = Icons.Filled.PlayArrow, enabled = !s.busy) { launchStoreGame(ctx, store, id, s, a) }
-                            val inSteam = installed.sidecar.addToSteam
-                            SecondaryButton(if (inSteam) stringResource(R.string.stores_in_steam) else stringResource(R.string.stores_add_to_steam)) {
-                                StoreInstalls.setAddToSteam(ctx, installed, !inSteam) { StoresState.refresh(ctx); a.onLibraryChanged() }
-                            }
+                            // Every install is a shortcut; the chip just says so.
+                            ActionChip(stringResource(R.string.stores_in_steam), ok = true)
                             s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }?.protonPrefix?.takeIf { it.isDirectory }?.let { dir ->
                                 SecondaryButton(stringResource(R.string.games_prefix)) { a.onBrowseFiles(dir) }
                             }
@@ -146,12 +143,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                         Store.AMAZON -> stringResource(R.string.stores_kv_launched_by_amazon)
                         Store.GOG -> stringResource(R.string.stores_kv_launched_by_value)
                     })
-                    KeyValue(stringResource(R.string.stores_kv_steam), when {
-                        installed != null && installed.sidecar.addToSteam -> stringResource(R.string.stores_kv_steam_on)
-                        installed != null -> stringResource(R.string.stores_kv_steam_off)
-                        s.gameStoresAddToSteam -> stringResource(R.string.stores_kv_steam_on)
-                        else -> stringResource(R.string.stores_kv_steam_off)
-                    })
+                    KeyValue(stringResource(R.string.stores_kv_steam), stringResource(R.string.stores_kv_steam_on))
                 }
             }
             if (wide) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {

@@ -12,8 +12,8 @@ import java.io.File
  * the shortcut after the store's title and to tag the game with its [store]. [launcher] is the
  * small .bat the install writes when the game needs arguments or environment at launch (Epic's
  * identity arguments, Amazon's FuelPump variables): a Steam shortcut can only carry a fixed Exe,
- * so the launcher is what the shortcut runs and [exe] is what it starts. [addToSteam] off keeps
- * the game out of the client's library (Setup › Stores, or the game page's "Add to Steam").
+ * so the launcher is what the shortcut runs and [exe] is what it starts. Every store install is a
+ * Steam shortcut; there is no switch for it (an `addToSteam` field in an older sidecar is ignored).
  *
  * Paths are relative to the game folder with forward slashes, so the folder can move between
  * storage volumes and stay valid.
@@ -28,7 +28,6 @@ class StoreGameSidecar(
     val env: Map<String, String> = emptyMap(),
     val installVersion: String = "",
     val installedAt: Long = 0L,
-    val addToSteam: Boolean = true,
     val cover: String? = null,
     val hero: String? = null,
     /** Per-store identifiers the launcher needs again (Epic namespace / catalog id, Amazon entitlement). */
@@ -40,9 +39,9 @@ class StoreGameSidecar(
     fun copy(
         exe: String = this.exe, launcher: String? = this.launcher, args: List<String> = this.args,
         env: Map<String, String> = this.env, installVersion: String = this.installVersion,
-        installedAt: Long = this.installedAt, addToSteam: Boolean = this.addToSteam,
-        cover: String? = this.cover, hero: String? = this.hero, extra: Map<String, String> = this.extra,
-    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, addToSteam, cover, hero, extra)
+        installedAt: Long = this.installedAt, cover: String? = this.cover, hero: String? = this.hero,
+        extra: Map<String, String> = this.extra,
+    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra)
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", VERSION)
@@ -55,7 +54,6 @@ class StoreGameSidecar(
         if (env.isNotEmpty()) put("env", JSONObject(env as Map<*, *>))
         if (installVersion.isNotEmpty()) put("installVersion", installVersion)
         if (installedAt > 0L) put("installedAt", installedAt)
-        put("addToSteam", addToSteam)
         if (!cover.isNullOrEmpty()) put("cover", cover)
         if (!hero.isNullOrEmpty()) put("hero", hero)
         if (extra.isNotEmpty()) put("extra", JSONObject(extra as Map<*, *>))
@@ -102,7 +100,6 @@ class StoreGameSidecar(
                 store, id, title, exe, launcher, args, env,
                 installVersion = o.optString("installVersion", ""),
                 installedAt = o.optLong("installedAt", 0L),
-                addToSteam = o.optBoolean("addToSteam", true),
                 cover = o.optString("cover", "").ifEmpty { null },
                 hero = o.optString("hero", "").ifEmpty { null },
                 extra = extra,

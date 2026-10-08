@@ -131,8 +131,6 @@ class FrontEndState(
     val storeEnabled: Boolean = false,
     /** The Stores section (GOG, Epic Games, Amazon Games), turned on in Setup. */
     val gameStoresEnabled: Boolean = false,
-    /** Setup › Stores: a game a store installs is added to Steam's library as a shortcut. */
-    val gameStoresAddToSteam: Boolean = true,
     /** Setup › Stores: the download engine's speed tier (stores/download/StoreDownloadTier ids). */
     val gameStoresSpeedTier: String = "fast",
     /** Setup › Stores: the tab a signed-in store opens on (SessionPrefs.STORES_OPEN_LIBRARY / STORE). */
@@ -190,7 +188,6 @@ class FrontEndActions(
     val onAnimationsEnabled: (Boolean) -> Unit = {},
     val onStoreEnabled: (Boolean) -> Unit = {},
     val onGameStoresEnabled: (Boolean) -> Unit = {},
-    val onGameStoresAddToSteam: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onStoresOpenTab: (String) -> Unit = {},
     /** The Games list rebuilt now: a store install or removal changed what is on disk. */

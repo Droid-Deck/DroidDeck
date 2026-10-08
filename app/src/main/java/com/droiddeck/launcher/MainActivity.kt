@@ -165,7 +165,6 @@ class MainActivity : ComponentActivity() {
     private var animationsEnabled by mutableStateOf(true)
     private var storeEnabled by mutableStateOf(false)
     private var gameStoresEnabled by mutableStateOf(false)
-    private var gameStoresAddToSteam by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
     private var mic by mutableStateOf(false)
@@ -528,7 +527,6 @@ class MainActivity : ComponentActivity() {
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         storeEnabled = SessionPrefs.storeEnabled(this)
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
-        gameStoresAddToSteam = SessionPrefs.gameStoresAddToSteam(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
         storesOpenTab = SessionPrefs.storesOpenTab(this)
         applyLauncherFullscreen()
@@ -585,7 +583,6 @@ class MainActivity : ComponentActivity() {
                         animationsEnabled = animationsEnabled,
                         storeEnabled = storeEnabled,
                         gameStoresEnabled = gameStoresEnabled,
-                        gameStoresAddToSteam = gameStoresAddToSteam,
                         gameStoresSpeedTier = gameStoresSpeedTier,
                         storesOpenTab = storesOpenTab,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
@@ -717,7 +714,6 @@ class MainActivity : ComponentActivity() {
                         },
                         onStoreEnabled = { on -> SessionPrefs.setStoreEnabled(this, on); storeEnabled = on },
                         onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on; if (on) com.droiddeck.launcher.stores.StoresState.refresh(this) },
-                        onGameStoresAddToSteam = { on -> SessionPrefs.setGameStoresAddToSteam(this, on); gameStoresAddToSteam = on },
                         onGameStoresSpeedTier = { tier -> SessionPrefs.setGameStoresSpeedTier(this, tier); gameStoresSpeedTier = tier },
                         onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
                         onLibraryChanged = { refreshAddedGames(); refresh() },

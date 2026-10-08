@@ -21,9 +21,14 @@ without it and Setup says "Stores engine not built").
   downloading. The page is full width: four chips (GOG · Epic · Amazon · Downloads, a signed-in
   dot per store) and a cog at the row's end whose popup holds the section's own settings - which
   tab a store opens on (`storesOpenTab`, Library by default; applied on chip tap, never while the
-  user is switching tabs by hand), "Add installed store games to Steam" (`gameStoresAddToSteam`,
-  on), and the speed tier (`gameStoresSpeedTier`, Balanced / Fast / Max = 16 / 32 / 96 requests in
-  flight). Setup repeats the rows under the gate. A signed-out store shows its sign-in card first.
+  user is switching tabs by hand) and the speed tier (`gameStoresSpeedTier`, Balanced / Fast /
+  Max = 16 / 32 / 96 requests in flight). Setup repeats the rows under the gate. A signed-out store
+  shows its sign-in card first. Every install is added to Steam - the user's call: "Add to Steam
+  shouldn't be optional, automatic" - so the switch an earlier build had (`gameStoresAddToSteam`,
+  the sidecar's `addToSteam`, the page's "Add to Steam" button) is gone; an older sidecar's field
+  is read past and ignored, and the game page shows a passive "In Steam" chip. The Games hero's
+  eyebrow for a never-played store game reads "Games storage" (the chip names the store), and
+  "Custom game" for a hand-added folder; Steam titles keep their library label.
 - **A store game is an added game.** The install lands at `<Games storage>/Games/<Store>/<title>`
   (the SD library's folder when one is chosen, else the runtime's own `/root/Games/Stores`) with a
   `.droiddeck-store.json` sidecar (store, id, title, exe, launcher, args, env, version,

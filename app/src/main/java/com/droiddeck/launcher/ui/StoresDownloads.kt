@@ -198,8 +198,9 @@ private fun SettingCard(label: String, note: String, control: @Composable () -> 
 }
 
 /**
- * The chip row's cog: the section's own settings in a small card - which tab a store opens on,
- * whether installs go to Steam, the speed tier. Setup › Stores repeats them under its gate.
+ * The chip row's cog: the section's own settings in a small card - which tab a store opens on
+ * and the speed tier. Setup › Stores repeats them under its gate. Every install is added to Steam;
+ * that is not a choice.
  */
 @Composable
 internal fun StoresSettingsDialog(s: FrontEndState, a: FrontEndActions, onDismiss: () -> Unit) {
@@ -214,9 +215,6 @@ internal fun StoresSettingsDialog(s: FrontEndState, a: FrontEndActions, onDismis
                         listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
                         s.storesOpenTab,
                     ) { a.onStoresOpenTab(it) }
-                }
-                SettingsRow(stringResource(R.string.setup_stores_add_to_steam), stringResource(R.string.setup_stores_add_to_steam_hint)) {
-                    ToggleSwitch(s.gameStoresAddToSteam, label = stringResource(R.string.setup_stores_add_to_steam)) { a.onGameStoresAddToSteam(it) }
                 }
                 SettingsRow(stringResource(R.string.setup_stores_speed), stringResource(R.string.setup_stores_speed_hint)) {
                     SegmentedTabs(StoreDownloadTier.ALL.map { it.id to stringResource(it.label) }, s.gameStoresSpeedTier) { a.onGameStoresSpeedTier(it) }

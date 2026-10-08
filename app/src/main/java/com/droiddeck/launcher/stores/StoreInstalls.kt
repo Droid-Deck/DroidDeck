@@ -5,7 +5,6 @@ import android.util.Log
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.LibraryCache
 import com.droiddeck.launcher.frontend.Library
-import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 
 /**
@@ -28,8 +27,7 @@ object StoreInstalls {
      */
     fun complete(context: Context, folder: File, sidecar: StoreGameSidecar) {
         val app = context.applicationContext
-        val withLauncher = StoreLaunch.writeLauncher(folder, sidecar)
-        withLauncher.copy(addToSteam = sidecar.addToSteam && SessionPrefs.gameStoresAddToSteam(app)).write(folder)
+        StoreLaunch.writeLauncher(folder, sidecar).write(folder)
         // The art first, so the listing written below already carries it for the client's grid.
         StoreArt.fetchInto(folder, sidecar)
         register(app)
@@ -46,17 +44,6 @@ object StoreInstalls {
         } catch (e: Exception) {
             Log.w(TAG, "registration: ${e.message}")
         }
-    }
-
-    /** Flips whether the game is a Steam shortcut; the listing follows. Off the main thread. */
-    fun setAddToSteam(context: Context, game: InstalledStoreGame, on: Boolean, onDone: () -> Unit) {
-        val app = context.applicationContext
-        Thread({
-            game.sidecar.copy(addToSteam = on).write(game.folder)
-            register(app)
-            StoresState.logLine("${if (on) "added" else "removed"} Steam shortcut for \"${game.sidecar.title}\"")
-            StoresState.post(onDone)
-        }, "stores-steam-toggle").start()
     }
 
     /**

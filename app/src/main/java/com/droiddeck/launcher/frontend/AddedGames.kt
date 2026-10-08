@@ -143,9 +143,8 @@ object AddedGames {
 
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>) {
         run {
+            // A store install carries a sidecar; every one of them is a shortcut.
             val sidecar = StoreGameSidecar.read(folder)
-            // A store install the user keeps out of Steam: not a shortcut, so not listed here.
-            if (sidecar != null && !sidecar.addToSteam) return
             val candidates = candidates(folder)
             val picked = SessionPrefs.addedGameExe(context, folder.path)
             val chosen = picked.takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
