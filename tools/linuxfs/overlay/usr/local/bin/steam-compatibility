@@ -233,6 +233,13 @@ bl_directaudio() {
   # aarch64-unix/ and aarch64-windows/ is what goes here.
   WINEDLLPATH="$da/lib/wine${WINEDLLPATH:+:$WINEDLLPATH}"
   export WINEDLLPATH
+  # Proton-CachyOS's launcher sets WINE_AUDIO_DRIVER=pulse,alsa (setdefault, so an existing value
+  # wins), and its mmdevapi reads that variable BEFORE the registry - so the selection below was
+  # being overridden to pulse on every CachyOS game. Valve's and GE's mmdevapi do not read the
+  # variable at all and take the registry, which is why both are done. A value the user set for
+  # the game still wins: the per-game environment is applied after this.
+  WINE_AUDIO_DRIVER="directaudio,pulse"
+  export WINE_AUDIO_DRIVER
   # mmdevapi only tries the drivers named in the registry; its built-in list is pulse, alsa, oss and
   # coreaudio and knows nothing about this one. The key is appended to the prefix's user.reg rather
   # than written with `wine reg`, which would start a wineserver here just to set one value.

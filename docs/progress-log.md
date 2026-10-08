@@ -42,6 +42,10 @@ Three things were wrong with audio at once, and one tidy-up @xXJSONDeruloXx aske
   Deleted: `app/src/main/assets/directaudio/` (now generated, ignored), `tools/directaudio-relay/`,
   `tools/aaudio-sink/module-directaudio-sink.c` + `da_relay_proto.h`. `tools/aaudio-sink` keeps
   only `module-aaudio-sink` (the fallback). The release carries Max's #338 fixes, credited there.
+- **Proton-CachyOS games still took pulse after all that** (device log: `init_driver Loading driver
+  list L"pulse,alsa"`): CachyOS's launcher sets `WINE_AUDIO_DRIVER=pulse,alsa` (setdefault) and its
+  mmdevapi reads that variable before the registry. Valve's and GE's mmdevapi ignore it. The wrapper
+  now exports `WINE_AUDIO_DRIVER=directaudio,pulse` as well as writing the registry.
 - **First launch of a non-Steam shortcut** played through Proton's PulseAudio because the prefix
   did not exist when the wrapper ran. With no prefix the wrapper now has Proton make it first
   (`proton run wineboot`, Proton's own setup) and selects DirectAudio in the same launch. Test.

@@ -413,9 +413,10 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.reg = self.compat / "pfx/user.reg"
 
     def run_setup(self):
-        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\necho "WINEDLLPATH=$WINEDLLPATH"\n'
+        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\n'
         env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat))
         env.pop("WINEDLLPATH", None)
+        env.pop("WINE_AUDIO_DRIVER", None)
         return subprocess.run(["bash", "-c", script, "bash", str(self.tool)], env=env, capture_output=True, text=True, check=True)
 
     def audio_values(self):
@@ -436,6 +437,9 @@ class DirectAudioPrefixTest(unittest.TestCase):
         result = self.run_setup()
         self.assertIn("DirectAudio selected", result.stderr)
         self.assertIn("WINEDLLPATH=%s/lib/wine" % self.audio, result.stdout)
+        # Proton-CachyOS's mmdevapi takes the driver list from this variable, and its launcher
+        # pre-sets it to pulse,alsa unless it is already set.
+        self.assertIn("WINE_AUDIO_DRIVER=directaudio,pulse\n", result.stdout)
         self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
         self.assertEqual(self.link("syswow64"), str(self.audio / "lib/wine/i386-windows/winedirectaudio.drv"))
         self.assertEqual((self.windows / "system32/winedirectaudio.drv").read_bytes(), b"arm64x-linux-wine11")
@@ -502,6 +506,7 @@ class DirectAudioPrefixTest(unittest.TestCase):
         result = self.run_setup()
         self.assertIn("no driver set for the linux-wine11-systhread interface", result.stderr)
         self.assertIn("WINEDLLPATH=\n", result.stdout)
+        self.assertIn("WINE_AUDIO_DRIVER=\n", result.stdout)
         self.assertFalse((self.windows / "system32/winedirectaudio.drv").exists())
 
     def test_older_selections_are_upgraded(self):
