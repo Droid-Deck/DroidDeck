@@ -115,6 +115,22 @@ without it and Setup says "Stores engine not built").
   `chunkCacheDir` (fetch and the new `nativeAssemble`, which drops each chunk after its last use)
   and the manager's own loops read the same path; internal installs pass `""` as before. Cleaned on
   cancel-with-delete and uninstall.
+- **Half-installed Epic game shown as Custom (device, Metalstorm on the SD card).** The folder had
+  2.85 of 4.4 GB of files, a 0-byte file where the assembly stopped (19:15:10, four minutes after it
+  began), 9.1 GB of `.chunks`, and no sidecar. The run stopped inside the assembly loop - before the
+  `.chunks` removal and the sidecar, both of which only ran at the very end; the events log does
+  not reach back far enough to say whether the process died or the loop threw. Either way three
+  things made it silent: the sidecar was only written last, the queue lives in memory (a process
+  death drops the row), and `AddedGames.scan` listed any sidecar-less folder under a store root as
+  a Custom game. Now: the sidecar is written at the start in state `installing` and finished at the
+  end; unfinished folders (installing, or no sidecar) are never scanned as games; the Stores card
+  reads **Resume install**, which reuses the folder and its `.chunks`; launcher/sidecar write
+  failures fail the download, art and Steam registration are best-effort. The 9.1 GB cache is
+  whole 1 MiB chunk windows shared with files outside this device's install tags - the free-space
+  check now counts cache and files; a successful run removes the cache (Kotlin loop and
+  `nativeAssemble` both).
+- **Install-to dialog compacted** (440 dp, two tiles that are the action, one-line caption, Cancel
+  in the title row); the cog popup is capped at 440 dp too.
 - **Device-proven on the AYANEO Pocket FIT, 2026-10-08 (GOG):** sign-in, the library (33 owned),
   DOOM I Enhanced installed through the GOG engine to the SD Games root, shown in Games with the
   GOG chip and real art, registered as a non-Steam game in the Steam client (grid art present), and

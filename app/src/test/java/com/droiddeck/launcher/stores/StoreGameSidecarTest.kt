@@ -41,6 +41,18 @@ class StoreGameSidecarTest {
         assertEquals("bin/game.exe", back.exe)
         assertNull(back.launcher)
         assertTrue(back.args.isEmpty())
+        // No state field = an earlier build's finished install.
+        assertTrue(back.isInstalled)
+    }
+
+    @Test fun anInstallUnderWayHasNoExeYetAndIsNotInstalled() {
+        val started = StoreGameSidecar(Store.EPIC, "Metalstorm", "Metalstorm", exe = "", state = StoreGameSidecar.STATE_INSTALLING)
+        val back = StoreGameSidecar.parse(started.toJson().toString())!!
+        assertFalse(back.isInstalled)
+        assertEquals("", back.exe)
+        // A finished one must still name its exe.
+        assertNull(StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":""}"""))
+        assertTrue(StoreGameSidecar.parse(back.copy(exe = "Metalstorm.exe", state = StoreGameSidecar.STATE_INSTALLED).toJson().toString())!!.isInstalled)
     }
 
     @Test fun refusesWhatIsNotASidecar() {

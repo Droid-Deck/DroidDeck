@@ -101,18 +101,44 @@ object StoreInstallRoot {
     }
 
     /**
-     * The folder a game installs into under [root]; a folder with this game's sidecar anywhere wins
-     * over a fresh name, so a repair or an update lands on the existing install.
+     * The folder a game installs into under [root]. An existing folder wins over a fresh one, so a
+     * repair, an update or a resume lands on what is already there: one with this game's sidecar
+     * anywhere, else one under any root with this game's folder name and no finished sidecar (an
+     * install an earlier build left without one, or that stopped before writing it).
      */
-    fun folderFor(context: Context, store: Store, id: String, title: String, root: File = installRoot(context)): File {
-        for (r in roots(context)) {
-            val dir = storeDir(r, store)
-            dir.listFiles { f -> f.isDirectory }?.forEach { folder ->
+    fun folderFor(context: Context, store: Store, id: String, title: String, root: File = installRoot(context)): File =
+        existingFolder(context, store, id, title) ?: File(storeDir(root, store), folderName(title, id))
+
+    /** The folder an earlier install of this game left, finished or not; null when there is none. */
+    fun existingFolder(context: Context, store: Store, id: String, title: String): File? {
+        val all = roots(context).flatMap { r -> storeDir(r, store).listFiles { f -> f.isDirectory }?.toList().orEmpty() }
+        all.firstOrNull { folder -> StoreGameSidecar.read(folder)?.let { it.store == store && it.id == id } == true }?.let { return it }
+        val name = folderName(title, id)
+        return all.firstOrNull { it.name == name && StoreGameSidecar.read(it)?.isInstalled != true }
+    }
+
+    /** An unfinished install: [id] from its `installing` sidecar, null when it has none (matched by folder name then). */
+    class Unfinished(val store: Store, val id: String?, val folder: File)
+
+    /**
+     * A folder under a store root is a game only once its sidecar says installed. Without one it is
+     * an install that never finished (stopped, killed, or from a build that wrote the sidecar last):
+     * not a Custom game, and not listed in Steam.
+     */
+    fun isFinished(folder: File): Boolean = StoreGameSidecar.read(folder)?.isInstalled == true
+
+    /** Every unfinished install under every root, for the Stores page's "Resume install". */
+    fun unfinished(context: Context): List<Unfinished> = roots(context).flatMap { root ->
+        Store.entries.flatMap { store ->
+            storeDir(root, store).listFiles { f -> f.isDirectory }.orEmpty().mapNotNull { folder ->
                 val sidecar = StoreGameSidecar.read(folder)
-                if (sidecar != null && sidecar.store == store && sidecar.id == id) return folder
+                when {
+                    sidecar == null -> Unfinished(store, null, folder)
+                    !sidecar.isInstalled -> Unfinished(store, sidecar.id, folder)
+                    else -> null
+                }
             }
         }
-        return File(storeDir(root, store), folderName(title, id))
     }
 
     /** A scratch folder in the app's cache for an install's in-flight pieces, when the install itself is on a card. */

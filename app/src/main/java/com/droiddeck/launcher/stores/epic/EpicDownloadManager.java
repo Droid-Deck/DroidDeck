@@ -149,8 +149,7 @@ public final class EpicDownloadManager {
             long installBytes = 0;
             for (FileInfo f : selected) installBytes += f.fileSize();
             final long planned = installBytes;
-            long usable = installDir.getUsableSpace();
-            if (planned > 0 && usable > 0 && planned > usable) throw new InstallException("Not enough free space: need " + fmt(planned) + ", only " + fmt(usable) + " free");
+            // Free space is checked after the delta pass, against what is still missing (below).
 
             cb.onProgress("Verifying existing files…", 0);
             List<FileInfo> pending = new ArrayList<>(selected.size());
@@ -169,6 +168,22 @@ public final class EpicDownloadManager {
                 return new Result(manifest.launchExe, manifest.buildVersion, planned);
             }
             List<ChunkInfo> needed = uniqueChunksForFiles(manifest, pending);
+            // The cache holds whole chunk windows (~1 MiB each), and a window is shared with files
+            // this device does not install (other tags, other builds' data): the cache is often
+            // larger than the game itself (Metalstorm: 9.1 GB of chunks for 4.4 GB of files). Both
+            // have to fit at once until assembly, so the check counts both, on their own volumes.
+            long cacheMissing = 0, pendingBytes = 0;
+            for (ChunkInfo c : needed) if (!new File(chunkCacheDir, c.guidStr()).isFile()) cacheMissing += Math.max(c.windowSize, 1);
+            for (FileInfo f : pending) pendingBytes += f.fileSize();
+            if (cachePath.isEmpty()) {
+                long free = installDir.getUsableSpace();
+                if (free > 0 && cacheMissing + pendingBytes > free) throw new InstallException("Not enough free space: need " + fmt(cacheMissing + pendingBytes) + " (" + fmt(pendingBytes) + " of game files + " + fmt(cacheMissing) + " of download cache), only " + fmt(free) + " free");
+            } else {
+                long freeCache = chunkCacheDir.getUsableSpace(), freeGame = installDir.getUsableSpace();
+                if (freeCache > 0 && cacheMissing > freeCache) throw new InstallException("Not enough internal space for the download cache: need " + fmt(cacheMissing) + ", only " + fmt(freeCache) + " free");
+                if (freeGame > 0 && pendingBytes > freeGame) throw new InstallException("Not enough free space: need " + fmt(pendingBytes) + ", only " + fmt(freeGame) + " free");
+            }
+            cb.onLog("epic: cache " + (cachePath.isEmpty() ? "beside the game" : "scratch") + ", " + fmt(cacheMissing) + " to fetch for " + fmt(pendingBytes) + " of files");
             long totalBytes = 0;
             for (ChunkInfo c : needed) totalBytes += Math.max(c.fileSize, 1);
             final long fTotalBytes = totalBytes;

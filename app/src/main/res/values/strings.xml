@@ -2018,6 +2018,7 @@
     <string name="stores_shelf_library_hint">Owned on %1$s</string>
     <string name="stores_play">Play</string>
     <string name="stores_install">Install</string>
+    <string name="stores_resume_install">Resume install</string>
     <string name="stores_install_size">Install · %1$s</string>
     <string name="stores_get_free">Get for free</string>
     <string name="stores_view_on">View on %1$s</string>
@@ -2075,7 +2076,8 @@
     <string name="stores_tier_note">Caps how many chunks the engine fetches at once: Balanced 16 · Fast 32 · Max 96 in flight.</string>
     <string name="stores_parallel">Downloads at a time</string>
     <string name="stores_install_where">Install to</string>
-    <string name="stores_install_where_note">Internal storage is the default; a card streams more slowly. Your pick is remembered as the first choice next time.</string>
+    <string name="stores_install_where_note">A card installs more slowly.</string>
+    <string name="stores_target_internal">Internal</string>
     <string name="stores_target_free">%1$s free</string>
     <string name="stores_download_controls_note">Balanced / Fast / Max pull harder from the store; 2–3 at a time share the link. Speed shown is the install rate.</string>
     <string name="stores_parallel_note">One manager for all three stores; Steam\'s own downloads are unaffected.</string>

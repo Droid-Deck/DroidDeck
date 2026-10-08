@@ -93,6 +93,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                             else PrimaryButton(stringResource(R.string.stores_dl_resume), main = true) { com.droiddeck.launcher.stores.download.DownloadQueue.resume(ctx, download.key) }
                             SecondaryButton(stringResource(R.string.stores_dl_cancel)) { com.droiddeck.launcher.stores.download.DownloadQueue.cancel(ctx, download.key) }
                         }
+                        item?.owned == true && StoresState.isUnfinished(item) -> PrimaryButton(stringResource(R.string.stores_resume_install), main = true) { StoresState.requestInstall(ctx, item) }
                         item?.owned == true -> PrimaryButton(
                             if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install), main = true,
                         ) { StoresState.requestInstall(ctx, item) }

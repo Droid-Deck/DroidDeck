@@ -461,6 +461,7 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
                     ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
                     CardButton(downloadLabel(download.state, download.stage, download.percent), primary = false) { }
                 }
+                item.owned && StoresState.isUnfinished(item) -> CardButton(stringResource(R.string.stores_resume_install), primary = true) { StoresState.requestInstall(ctx, item) }
                 item.owned -> CardButton(if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install), primary = true) { StoresState.requestInstall(ctx, item) }
                 item.isFree -> CardButton(stringResource(R.string.stores_get_free), primary = true) { openStoreUrl(ctx, item) }
                 else -> CardButton(stringResource(R.string.stores_view_on, store.shortLabel), primary = false) { openStoreUrl(ctx, item) }

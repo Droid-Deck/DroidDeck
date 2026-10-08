@@ -101,12 +101,17 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         private val cancelled = AtomicBoolean(false)
         // On a card the in-flight chunks go to the app's cache instead: the card's write rate paces
         // the whole install, and chunks are read back once at assembly. Internal installs keep the
-        // cache beside the game, as the engine's contract has it today.
-        private val scratch: File? = if (StoreInstallRoot.isRemovable(app, folder)) StoreInstallRoot.scratchDir(app, Store.EPIC, item.id) else null
+        // cache beside the game. A resume keeps whichever cache the stopped run filled: a
+        // `.chunks` already beside the game is reused, not fetched again into the scratch folder.
+        private val scratch: File? = if (StoreInstallRoot.isRemovable(app, folder) && !hasChunks(File(folder, ".chunks"))) StoreInstallRoot.scratchDir(app, Store.EPIC, item.id) else null
+
+        private fun hasChunks(dir: File): Boolean = dir.isDirectory && (dir.list()?.isNotEmpty() == true)
 
         override fun run(handle: DownloadQueue.JobHandle): String? {
             handle.stage(DownloadStage.MANIFEST, "Checking sign-in…")
             val token = EpicCredentialStore.getValidAccessToken(app) ?: throw EpicDownloadManager.InstallException("Not signed in to Epic Games")
+            StoreInstalls.begin(folder, Store.EPIC, item.id, item.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
+            if (scratch == null && hasChunks(File(folder, ".chunks"))) handle.log("epic: resuming \"${item.title}\" with the chunks already beside it")
             val manifestJson = EpicApiClient.getManifestApiJson(token, namespace, catalogItemId, item.id)
                 ?: throw EpicDownloadManager.InstallException("The manifest could not be fetched")
             val tags = EpicInstallTags.tagsForDevice()

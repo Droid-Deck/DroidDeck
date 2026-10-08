@@ -36,6 +36,24 @@ class StoreInstallRootTest {
         assertEquals(File(StoreInstallRoot.storeDir(other, Store.GOG), "Fresh").absolutePath, StoreInstallRoot.folderFor(app, Store.GOG, "7", "Fresh", other).absolutePath)
     }
 
+    @Test fun aFolderLeftWithoutASidecarIsAnUnfinishedInstallAndIsResumedInPlace() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val epic = StoreInstallRoot.storeDir(StoreInstallRoot.internalRoot(app), Store.EPIC)
+        val half = File(epic, StoreInstallRoot.folderName("Metalstorm", "abc")).apply { mkdirs() }
+        File(half, ".chunks").mkdirs()
+        File(half, "Metalstorm.exe").writeText("MZ")
+        assertFalse(StoreInstallRoot.isFinished(half))
+        assertTrue(StoreInstallRoot.unfinished(app).any { it.store == Store.EPIC && it.id == null && it.folder.absolutePath == half.absolutePath })
+        // Install again, even with another root picked: the same folder, no duplicate.
+        assertEquals(half.absolutePath, StoreInstallRoot.folderFor(app, Store.EPIC, "abc", "Metalstorm", File(app.filesDir, "card/Games")).absolutePath)
+        // Begun and finished: the folder becomes a game.
+        StoreInstalls.begin(half, Store.EPIC, "abc", "Metalstorm", null, null)
+        assertTrue(StoreInstallRoot.unfinished(app).any { it.id == "abc" })
+        StoreGameSidecar(Store.EPIC, "abc", "Metalstorm", "Metalstorm.exe").write(half)
+        assertTrue(StoreInstallRoot.isFinished(half))
+        assertTrue(StoreInstallRoot.unfinished(app).none { it.folder.absolutePath == half.absolutePath })
+    }
+
     @Test fun theScratchCacheIsPrivateAndNamedSafely() {
         val dir = StoreInstallRoot.scratchDir(app, Store.EPIC, "a/b:c")
         assertTrue(dir.absolutePath.startsWith(app.cacheDir.absolutePath))

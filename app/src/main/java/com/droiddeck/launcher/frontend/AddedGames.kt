@@ -122,7 +122,8 @@ object AddedGames {
             }
         }
         // Games the Stores section installed: one folder each under <root>/<Store>/, with a sidecar.
-        for (folder in StoreInstallRoot.gameFolders(context)) scanGame(context, folder, out)
+        // An unfinished one (sidecar still `installing`, or none at all) is neither a game nor Custom.
+        for (folder in StoreInstallRoot.gameFolders(context)) if (StoreInstallRoot.isFinished(folder)) scanGame(context, folder, out)
         return out.distinctBy { it.folder.canonicalPath }
     }
 

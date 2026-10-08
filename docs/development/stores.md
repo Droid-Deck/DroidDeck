@@ -29,6 +29,10 @@ An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<i
 writes the files from it and drops each chunk after its last use, then the folder), and of the
 manager's own loops when the engine is not there; `""` keeps the cache beside the game, as an
 internal install has it. The scratch folder is removed on cancel-with-delete and on uninstall.
+The cache holds whole ~1 MiB chunk windows, shared with files this device does not install, so it
+is often larger than the game (Metalstorm: 9.1 GB of chunks for 4.4 GB of files); the free-space
+check, made after the delta pass, counts the missing chunks and the missing files on their own
+volumes. A successful run removes the cache.
 
 ## The sidecar
 
@@ -48,6 +52,15 @@ internal install has it. The scratch folder is removed on cancel-with-delete and
   "extra": {"namespace": "...", "catalogItemId": "..."}
 }
 ```
+
+An install writes the sidecar at its start with `"state": "installing"` (store, id, title, no exe)
+and rewrites it finished at its end (exe, launcher, no state field = installed). A folder under a
+store root whose sidecar says `installing`, or that has no sidecar at all, is an unfinished
+install: `AddedGames.scan` leaves it out (it is neither a game nor a Custom folder), and the Stores
+card and page offer **Resume install**, which reuses that folder - and an Epic `.chunks` beside it -
+instead of starting a fresh one (`StoreInstallRoot.existingFolder`). A finished install being
+repaired keeps its finished sidecar. The launcher and the finished sidecar are written before the
+art and the Steam registration; a failure writing them fails the download with its message.
 
 `StoreGameSidecar.parse` refuses anything whose `exe` or `launcher` would point outside the folder.
 Every store install is a Steam shortcut; an `addToSteam` field in a sidecar from an earlier build is

@@ -93,6 +93,7 @@ object AmazonBackend : StoreBackend {
         override fun run(handle: DownloadQueue.JobHandle): String? {
             handle.stage(DownloadStage.MANIFEST, "Checking sign-in…")
             val token = AmazonCredentialStore.getValidAccessToken(app) ?: throw AmazonDownloadManager.InstallException("Not signed in to Amazon Games")
+            StoreInstalls.begin(folder, Store.AMAZON, game.productId, game.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
             var downloading = false
             val result = AmazonDownloadManager.install(app, game, token, folder, cancelled, object : AmazonDownloadManager.Callback {
                 override fun onProgress(message: String, pct: Int) {

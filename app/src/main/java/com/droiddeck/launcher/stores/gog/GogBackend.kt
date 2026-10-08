@@ -81,6 +81,7 @@ object GogBackend : StoreBackend {
 
         override fun run(handle: DownloadQueue.JobHandle): String? {
             handle.stage(DownloadStage.MANIFEST)
+            StoreInstalls.begin(folder, Store.GOG, game.gameId, game.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
             var downloading = false
             val result = GogDownloadManager.install(app, game, folder, object : GogDownloadManager.Callback {
                 override fun onProgress(message: String, pct: Int) {

@@ -22,14 +22,30 @@ object StoreInstalls {
     private const val TAG = "StoreInstalls"
 
     /**
-     * Finishes an install: writes the sidecar (and the launcher), then registers the game. Runs on
-     * the caller's worker thread.
+     * Marks [folder] as an install under way before anything is fetched: a sidecar in state
+     * `installing` with the store, id and title. Whatever stops the install from here on - a
+     * failure, a cancel, the process killed - leaves a folder the scan skips and the Stores page
+     * offers to resume, never a half-written Custom game. A finished install being repaired or
+     * updated keeps its finished sidecar, so the game stays in Steam meanwhile.
+     */
+    fun begin(folder: File, store: Store, id: String, title: String, cover: String?, hero: String?) {
+        if (StoreGameSidecar.read(folder)?.isInstalled == true) return
+        StoreGameSidecar(store, id, title, exe = "", cover = cover, hero = hero, state = StoreGameSidecar.STATE_INSTALLING).write(folder)
+    }
+
+    /**
+     * Finishes an install: writes the launcher and the finished sidecar, then the art, then
+     * registers the game. Runs on the caller's worker thread. The launcher and sidecar writes
+     * throw, so a failure there fails the download with its message; the art and the Steam side
+     * are best-effort and only logged.
      */
     fun complete(context: Context, folder: File, sidecar: StoreGameSidecar) {
         val app = context.applicationContext
-        StoreLaunch.writeLauncher(folder, sidecar).write(folder)
-        // The art first, so the listing written below already carries it for the client's grid.
-        StoreArt.fetchInto(folder, sidecar)
+        val finished = StoreLaunch.writeLauncher(folder, sidecar.copy(state = StoreGameSidecar.STATE_INSTALLED))
+        finished.write(folder)
+        if (StoreGameSidecar.read(folder)?.isInstalled != true) throw java.io.IOException("the install record could not be written in ${folder.name}")
+        // The art before the listing, so the listing already carries it for the client's grid.
+        try { StoreArt.fetchInto(folder, finished) } catch (e: Exception) { Log.w(TAG, "art for ${folder.name}: ${e.message}") }
         register(app)
     }
 

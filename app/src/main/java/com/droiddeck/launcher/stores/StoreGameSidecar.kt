@@ -17,6 +17,11 @@ import java.io.File
  *
  * Paths are relative to the game folder with forward slashes, so the folder can move between
  * storage volumes and stay valid.
+ *
+ * An install writes the sidecar twice: at its start with [state] `installing` (store, id, title -
+ * no exe yet), and at its end with the exe, the launcher and `installed`. A folder whose sidecar
+ * still says `installing` is an unfinished install, never a game: the scan leaves it out and the
+ * Stores page offers to resume it. A sidecar without the field (an earlier build) is installed.
  */
 class StoreGameSidecar(
     val store: Store,
@@ -32,7 +37,10 @@ class StoreGameSidecar(
     val hero: String? = null,
     /** Per-store identifiers the launcher needs again (Epic namespace / catalog id, Amazon entitlement). */
     val extra: Map<String, String> = emptyMap(),
+    val state: String = STATE_INSTALLED,
 ) {
+    val isInstalled: Boolean get() = state == STATE_INSTALLED
+
     fun exeFile(folder: File): File = File(folder, exe)
     fun launcherFile(folder: File): File? = launcher?.takeIf { it.isNotEmpty() }?.let { File(folder, it) }
 
@@ -40,15 +48,16 @@ class StoreGameSidecar(
         exe: String = this.exe, launcher: String? = this.launcher, args: List<String> = this.args,
         env: Map<String, String> = this.env, installVersion: String = this.installVersion,
         installedAt: Long = this.installedAt, cover: String? = this.cover, hero: String? = this.hero,
-        extra: Map<String, String> = this.extra,
-    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra)
+        extra: Map<String, String> = this.extra, state: String = this.state,
+    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra, state)
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", VERSION)
         put("store", store.id)
         put("id", id)
         put("title", title)
-        put("exe", exe)
+        if (exe.isNotEmpty()) put("exe", exe)
+        if (state != STATE_INSTALLED) put("state", state)
         if (!launcher.isNullOrEmpty()) put("launcher", launcher)
         if (args.isNotEmpty()) put("args", JSONArray(args))
         if (env.isNotEmpty()) put("env", JSONObject(env as Map<*, *>))
@@ -70,6 +79,8 @@ class StoreGameSidecar(
     companion object {
         const val FILE_NAME = ".droiddeck-store.json"
         const val VERSION = 1
+        const val STATE_INSTALLED = "installed"
+        const val STATE_INSTALLING = "installing"
 
         fun file(folder: File): File = File(folder, FILE_NAME)
 
@@ -87,9 +98,12 @@ class StoreGameSidecar(
             val id = o.optString("id", "")
             val title = o.optString("title", "")
             val exe = o.optString("exe", "").replace('\\', '/')
-            if (id.isEmpty() || title.isEmpty() || exe.isEmpty()) return null
+            val state = o.optString("state", STATE_INSTALLED).ifEmpty { STATE_INSTALLED }
+            if (id.isEmpty() || title.isEmpty()) return null
+            // An unfinished install has no exe yet; a finished one must name one.
+            if (exe.isEmpty() && state == STATE_INSTALLED) return null
             // A relative path only: a sidecar that points outside its folder is not trusted.
-            if (!relativeInside(exe)) return null
+            if (exe.isNotEmpty() && !relativeInside(exe)) return null
             val launcher = o.optString("launcher", "").replace('\\', '/').takeIf { it.isNotEmpty() && relativeInside(it) }
             val args = o.optJSONArray("args")?.let { a -> List(a.length()) { a.optString(it) }.filter { it.isNotEmpty() } } ?: emptyList()
             val env = LinkedHashMap<String, String>()
@@ -103,6 +117,7 @@ class StoreGameSidecar(
                 cover = o.optString("cover", "").ifEmpty { null },
                 hero = o.optString("hero", "").ifEmpty { null },
                 extra = extra,
+                state = state,
             )
         }
 

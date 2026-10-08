@@ -228,7 +228,7 @@ internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
 internal fun StoresSettingsDialog(s: FrontEndState, a: FrontEndActions, onDismiss: () -> Unit) {
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
-    AppDialog(shown, close, "storesSettings", wide = false) {
+    AppDialog(shown, close, "storesSettings", wide = false, maxWidth = 440.dp) {
         DialogHeader(stringResource(R.string.stores_settings_eyebrow), stringResource(R.string.stores_title))
         Rise(1) {
             Column {

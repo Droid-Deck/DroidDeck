@@ -74,19 +74,29 @@ object StoresState {
         Thread({
             val found = Store.entries.mapNotNull { store -> StoreAccounts.signedInAs(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
-                StoreGameSidecar.read(folder)?.let { InstalledStoreGame(it, folder) }
+                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
             }
+            val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
             main.post {
                 accounts.clear()
                 found.forEach { (store, name) -> accounts[store] = name }
                 installed = onDisk
+                unfinished = partial
                 engine = version
             }
         }, "stores-refresh").start()
     }
 
     fun isSignedIn(store: Store): Boolean = accounts.containsKey(store)
+
+    /** Installs that stopped before they finished; their Install button reads "Resume install". */
+    var unfinished by mutableStateOf<List<StoreInstallRoot.Unfinished>>(emptyList())
+        internal set
+
+    fun isUnfinished(item: CatalogItem): Boolean = unfinished.any {
+        it.store == item.store && (it.id == item.id || (it.id == null && it.folder.name == StoreInstallRoot.folderName(item.title, item.id)))
+    }
 
     fun installedGame(store: Store, id: String): InstalledStoreGame? = installed.firstOrNull { it.sidecar.store == store && it.sidecar.id == id }
 
@@ -124,6 +134,8 @@ object StoresState {
      * storage at once.
      */
     fun requestInstall(context: Context, item: CatalogItem) {
+        // A resume goes where the files already are; there is nothing to choose.
+        if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
         if (targets.size > 1) pendingInstall = item else install(context, item, targets.first().root)
     }
