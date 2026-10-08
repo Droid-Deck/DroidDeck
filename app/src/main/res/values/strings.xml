@@ -342,9 +342,9 @@
     <string name="mode_directaudio">DirectAudio for games</string>
     <string name="mode_directaudio_hint">Bypasses PulseAudio for lower latency.</string>
     <string name="mode_client_audio">Steam client audio</string>
-    <string name="mode_client_audio_hint">Applies next session.</string>
-    <string name="mode_client_audio_classic">Classic</string>
+    <string name="mode_client_audio_hint">DirectAudio plays the client\'s sound with the game driver\'s engine, one step from Android. Shared output sends it through the games\' relay instead. Applies next session.</string>
     <string name="mode_client_audio_direct">DirectAudio</string>
+    <string name="mode_client_audio_shared">Shared output</string>
     <string name="mode_mic">Microphone</string>
     <string name="mode_mic_hint">For voice chat.</string>
     <string name="mode_network">Network</string>

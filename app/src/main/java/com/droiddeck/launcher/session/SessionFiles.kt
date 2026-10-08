@@ -16,6 +16,8 @@ object SessionFiles {
     private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
     /** Where the DirectAudio driver lives inside the runtime; the wrappers get it as BL_DIRECTAUDIO. */
     const val DIRECTAUDIO_DIR = "usr/local/lib/directaudio"
+    /** The driver sets staged under it: classic Wine 11 (Valve, GE) and the system-thread interface (Proton-CachyOS). */
+    val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
 
     /**
      * The libraries and scripts the session runs, refreshed from the apk at every launch.
@@ -152,30 +154,37 @@ object SessionFiles {
         ComponentsManager.migrateLaunchDir(context)
         EsyncPacks.stageBundled(context, root)
         // The DirectAudio driver for games under Proton: the glibc build of winedirectaudio, which
-        // the Proton wrappers add to WINEDLLPATH when the session asks for it (BL_DIRECTAUDIO).
-        // Staged like the scripts, so a driver fix reaches an installed runtime without re-hosting.
+        // the Proton wrappers add to WINEDLLPATH when the session asks for it (BL_DIRECTAUDIO). Two
+        // sets, one per Wine audio interface - the wrapper picks by what the Proton's own winepulse.so
+        // imports (see steam-compatibility), because both Wines call themselves 11.0 and the wrong set
+        // plays silence. Staged like the scripts, so a driver fix reaches an installed runtime without
+        // re-hosting. The sets come from the pinned DirectAudio release (tools/directaudio/release.env).
         val directAudio = arrayOf(
             "aarch64-unix/winedirectaudio.so",
             "aarch64-windows/winedirectaudio.drv",
             "i386-windows/winedirectaudio.drv",
+            "version.txt",
         )
-        for (relative in directAudio) {
-            val target = File(root, "$DIRECTAUDIO_DIR/lib/wine/$relative")
+        for (set in DIRECTAUDIO_SETS) for (relative in directAudio) {
+            val target = File(root, "$DIRECTAUDIO_DIR/$set/lib/wine/$relative")
             val staged = File(target.parentFile, target.name + ".staged")
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                context.assets.open("directaudio/linux-wine11/$relative").use { input ->
+                context.assets.open("directaudio/$set/$relative").use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setReadable(true, false) && staged.renameTo(target)
             } catch (e: Exception) {
-                Log.w(TAG, "could not stage DirectAudio $relative", e)
+                Log.w(TAG, "could not stage DirectAudio $set/$relative", e)
             } finally {
                 if (!installed) staged.delete()
             }
-            if (!installed) Log.e(TAG, "DirectAudio $relative NOT staged")
+            if (!installed) Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
+        // A runtime from before the sets had names kept the driver at the directory's root; it would
+        // never be picked again, so it goes.
+        for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         // What every process in the session preloads. LD_PRELOAD in the environment would not
         // survive: the Steam client rebuilds it for each process it starts and appends its own
         // overlay entry without a separator, which silently drops whatever was there.

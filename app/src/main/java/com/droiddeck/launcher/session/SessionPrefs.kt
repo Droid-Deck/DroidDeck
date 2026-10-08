@@ -160,14 +160,21 @@ object SessionPrefs {
         prefs(context).edit().putStringSet("gpuAutoInstalled", ids.toSet()).apply()
     }
 
-    /**
-     * The Steam client's own sound through the DirectAudio relay instead of the classic AAudio
-     * sink. On unless the user picked Classic.
-     */
-    fun clientDirectAudio(context: Context): Boolean = prefs(context).getBoolean("clientDirectAudio", true)
+    /** The Steam client's own sound through DirectAudio's engine inside the PulseAudio daemon (one step from Android). */
+    const val CLIENT_AUDIO_DIRECTAUDIO = "directaudio"
+    /** ... or into the DirectAudio relay's ring, sharing the games' device stream (one hop more). */
+    const val CLIENT_AUDIO_SHARED = "shared"
 
-    fun setClientDirectAudio(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("clientDirectAudio", on).apply()
+    /**
+     * How the Steam client's own sound reaches Android. The old boolean (clientDirectAudio, which
+     * meant the relay route) is deliberately not read: the relay route was the longer path, and a
+     * fresh default of DirectAudio's in-process sink is what everyone should start from.
+     */
+    fun clientAudioRoute(context: Context): String =
+        prefs(context).getString("clientAudioRoute", CLIENT_AUDIO_DIRECTAUDIO) ?: CLIENT_AUDIO_DIRECTAUDIO
+
+    fun setClientAudioRoute(context: Context, route: String) {
+        prefs(context).edit().putString("clientAudioRoute", route).apply()
     }
 
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)

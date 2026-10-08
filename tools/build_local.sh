@@ -300,8 +300,8 @@ if [[ ! -f "${pa_source}/src/pulse/version.h.in" ]]; then
 fi
 
 sink_output="${staging_dir}/sink-out"
+"${repo_root}/tools/directaudio/fetch.sh" "${repo_root}" "${sink_output}"
 "${repo_root}/tools/aaudio-sink/build.sh" "${pa_source}" "${sink_output}"
-"${repo_root}/tools/directaudio-relay/build.sh" "${repo_root}/app/src/main/jniLibs/arm64-v8a"
 # proot is rebuilt only when its sources (source.env, the patches, the build script) changed since
 # the libraries in jniLibs were built.
 proot_out="${repo_root}/app/src/main/jniLibs/arm64-v8a"
@@ -325,6 +325,8 @@ if [[ -e "${bundle_dir}/modules/arm64/module-aaudio-sink.so" \
 fi
 install -m755 "${sink_output}/module-aaudio-sink.so" \
     "${bundle_dir}/modules/arm64/module-aaudio-sink.so"
+install -m755 "${sink_output}/module-directaudio-native-sink.so" \
+    "${bundle_dir}/modules/arm64/module-directaudio-native-sink.so"
 install -m755 "${sink_output}/module-directaudio-sink.so" \
     "${bundle_dir}/modules/arm64/module-directaudio-sink.so"
 tar -cf - -C "${bundle_dir}" . | zstd -19 -T0 -c > "${staging_dir}/pulseaudio.tzst"
@@ -344,6 +346,7 @@ unzip -p "${apk}" assets/pulseaudio.tzst | zstd -dc | tar -xf - -C "${audio_chec
 for audio_file in \
     pactl \
     modules/arm64/module-aaudio-sink.so \
+    modules/arm64/module-directaudio-native-sink.so \
     modules/arm64/module-directaudio-sink.so; do
     if [[ ! -f "${audio_check}/${audio_file}" ]]; then
         echo "APK audio bundle is missing ${audio_file}." >&2

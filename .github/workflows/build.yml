@@ -331,6 +331,11 @@ jobs:
           set -euo pipefail
           curl -fsSL -o pa.tar.gz https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz
           mkdir -p pa13 && tar -xzf pa.tar.gz -C pa13 --strip-components=1 && rm pa.tar.gz
+      # DirectAudio - the game driver (one set per Wine audio interface), the Android-side helper and
+      # the Steam client's sinks - comes from a pinned release of The412Banner/directaudio, checksummed,
+      # exactly like gamescope; nothing compiled for audio is kept in this repo.
+      - name: Fetch DirectAudio (tools/directaudio/release.env)
+        run: tools/directaudio/fetch.sh "$PWD" "$PWD/sink-out"
       - name: Build the AAudio sink into the audio bundle
         run: |
           set -euo pipefail
@@ -340,17 +345,12 @@ jobs:
           tar --use-compress-program=unzstd -xf app/src/main/assets/pulseaudio.tzst -C pa-bundle
           test ! -f pa-bundle/modules/arm64/module-aaudio-sink.so
           install -m755 sink-out/module-aaudio-sink.so pa-bundle/modules/arm64/module-aaudio-sink.so
+          install -m755 sink-out/module-directaudio-native-sink.so pa-bundle/modules/arm64/module-directaudio-native-sink.so
           install -m755 sink-out/module-directaudio-sink.so pa-bundle/modules/arm64/module-directaudio-sink.so
           (cd pa-bundle && tar --use-compress-program='zstd -19' -cf ../pulseaudio.tzst .)
           mv pulseaudio.tzst app/src/main/assets/pulseaudio.tzst
           tar --use-compress-program=unzstd -tf app/src/main/assets/pulseaudio.tzst | grep -c '\.so$'
           rm -rf pa-bundle sink-out
-      - name: Build the DirectAudio relay
-        run: |
-          set -euo pipefail
-          export NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
-          tools/directaudio-relay/build.sh app/src/main/jniLibs/arm64-v8a
-
       - name: Cache proot
         id: proot
         uses: actions/cache@v4

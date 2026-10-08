@@ -28,7 +28,12 @@ public class PulseAudioComponent extends SessionPart {
     /** Where the guest reaches the daemon; the session exports PULSE_SERVER=unix:<this>. */
     public static final String SOCKET_NAME = "PS0";
     /** Identifies the bundled pulseaudio.tzst; a change here re-unpacks it over what a device has. */
-    private static final String BUNDLE_STAMP = "2026-09-23-pa13-suspend-r5";
+    private static final String BUNDLE_STAMP = "2026-10-08-pa13-directaudio-native";
+
+    /** The Steam client's own sound through DirectAudio's engine in this daemon: the default. */
+    public static final String ROUTE_DIRECTAUDIO = "directaudio";
+    /** ... or into the DirectAudio relay's ring, sharing the games' device stream. */
+    public static final String ROUTE_SHARED = "shared";
 
     private final File workingDir;
     /** Where the daemon's own output is kept for this session, or null for logcat only. */
@@ -40,7 +45,9 @@ public class PulseAudioComponent extends SessionPart {
      * turns that one stream into a source the client can see, named DirectAudioMic.
      */
     private final String micFifoPath;
-    /** The DirectAudio relay's socket when the client's output should go through it, else null. */
+    /** How the client's output reaches Android: ROUTE_DIRECTAUDIO or ROUTE_SHARED. */
+    private String clientRoute = ROUTE_DIRECTAUDIO;
+    /** The DirectAudio relay's socket, used on ROUTE_SHARED. */
     private String relaySocketPath;
     private volatile int pid = -1;
 
@@ -55,12 +62,16 @@ public class PulseAudioComponent extends SessionPart {
     }
 
     /**
-     * Route the daemon's output through the DirectAudio relay at this socket instead of an AAudio
-     * stream of its own. The relay owns the stream outside proot, with its adaptive buffer; the
-     * daemon only fills a shared ring. Set before {@link #start()}; the relay may start later.
+     * How the daemon's output reaches Android. {@link #ROUTE_DIRECTAUDIO}: module-directaudio-native-sink,
+     * the game driver's AAudio engine running in this daemon - one step from Android, with the
+     * adaptive buffer, the reopen on a route change and the watchdog. {@link #ROUTE_SHARED}: the
+     * daemon only fills the DirectAudio relay's ring at {@code relaySocket}, and the relay (which
+     * may start later) plays it on the stream it shares with the games - one hop more, so not the
+     * default. Set before {@link #start()}.
      */
-    public void setRelaySocket(String path) {
-        this.relaySocketPath = path;
+    public void setClientRoute(String route, String relaySocket) {
+        this.clientRoute = ROUTE_SHARED.equals(route) ? ROUTE_SHARED : ROUTE_DIRECTAUDIO;
+        this.relaySocketPath = relaySocket;
     }
 
     /** CRC-32 of the bundled pulseaudio.tzst, or "?" if it cannot be read. About 600 KB; cheap. */
@@ -106,6 +117,7 @@ public class PulseAudioComponent extends SessionPart {
         String have = FileUtils.readString(stamp);
         String want = BUNDLE_STAMP + "-" + bundleChecksum();
         if (!new File(modulesDir, "arm64/module-aaudio-sink.so").isFile()
+                || !new File(modulesDir, "arm64/module-directaudio-native-sink.so").isFile()
                 || !new File(workingDir, "pactl").isFile()
                 || have == null || !want.equals(have.trim())) {
             Log.i(TAG, "unpacking pulseaudio.tzst (" + want + "; had " + have + ")");
@@ -139,12 +151,18 @@ public class PulseAudioComponent extends SessionPart {
         // the sink to 0% and the session plays silence.
         // The sink's name is what the client's Audio settings show as the output device, so it
         // says which road the sound takes.
-        if (relaySocketPath != null && !relaySocketPath.isEmpty()) {
+        if (ROUTE_SHARED.equals(clientRoute) && relaySocketPath != null && !relaySocketPath.isEmpty()) {
             config.add("load-module module-directaudio-sink sink_name=DirectAudio socket=\"" + relaySocketPath + "\" performance_mode=1 adaptive=1 volume=1.0");
             config.add("set-default-sink DirectAudio");
         } else {
-            config.add("load-module module-aaudio-sink sink_name=AAudioSink performance_mode=1 adaptive=1 volume=1.0");
-            config.add("set-default-sink AAudioSink");
+            // DirectAudio's own engine, in this process. decay=0: shrinking the device buffer after a
+            // quiet spell probes below what works and that probe is a click; the client plays menus.
+            // Between .nofail and .fail a module that cannot open its stream does not take the daemon
+            // down; ensureClientSink() then loads the plain AAudio sink in its place.
+            config.add(".nofail");
+            config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0");
+            config.add("set-default-sink DirectAudio");
+            config.add(".fail");
         }
         if (micFifoPath != null && !micFifoPath.isEmpty()) {
             // The format is the helper's, fixed at s16le/48000/mono: it resamples when the device
@@ -177,6 +195,76 @@ public class PulseAudioComponent extends SessionPart {
                     Log.i(TAG, line);
                     if (out != null) synchronized (out) { out.println(line); out.flush(); }
                 });
+        if (!ROUTE_SHARED.equals(clientRoute)) {
+            Thread guard = new Thread(() -> ensureClientSink(out), "pulse-sink-guard");
+            guard.setDaemon(true);
+            guard.start();
+        }
+    }
+
+    /**
+     * The fallback for the DirectAudio route: once the daemon answers, if the DirectAudio sink is not
+     * there (the module failed to load or to open its stream), load the plain AAudio sink so the
+     * client is never left without an output. Says so in the audio log either way.
+     */
+    private void ensureClientSink(java.io.PrintWriter out) {
+        long deadline = System.currentTimeMillis() + 15000L;
+        String sinks = null;
+        while (System.currentTimeMillis() < deadline && pid > 1) {
+            if (socket().exists() && (sinks = pactl("list", "short", "sinks")) != null) break;
+            try { Thread.sleep(250L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+        String line;
+        if (sinks == null) {
+            line = "== client sink: the daemon did not answer in 15 s; no fallback attempted";
+        } else if (sinks.contains("\tDirectAudio\t") || sinks.startsWith("DirectAudio\t") || sinks.contains("\tDirectAudio\n") || sinks.matches("(?s).*\\bDirectAudio\\b.*")) {
+            line = "== client sink: DirectAudio (module-directaudio-native-sink)";
+        } else {
+            boolean loaded = pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink", "performance_mode=1", "adaptive=1", "volume=1.0") != null
+                    && pactl("set-default-sink", "AAudioSink") != null;
+            line = loaded ? "== client sink: DirectAudio did not come up; FALLBACK to the plain AAudio sink (AAudioSink)"
+                          : "== client sink: DirectAudio did not come up and the AAudio fallback failed too - no client sound";
+            Log.w(TAG, line);
+        }
+        Log.i(TAG, line);
+        if (out != null) synchronized (out) { out.println(line); out.flush(); }
+    }
+
+    /** Runs pactl against this daemon; its stdout, or null when it failed or timed out. */
+    private String pactl(String... args) {
+        File pactl = new File(workingDir, "pactl");
+        if (!pactl.isFile() || pid <= 1) return null;
+        java.lang.Process process = null;
+        try {
+            File modules = new File(workingDir, "modules/arm64");
+            ArrayList<String> cmd = new ArrayList<>();
+            cmd.add(pactl.getAbsolutePath());
+            java.util.Collections.addAll(cmd, args);
+            ProcessBuilder builder = new ProcessBuilder(cmd);
+            builder.directory(workingDir);
+            builder.redirectErrorStream(true);
+            builder.environment().put("LD_LIBRARY_PATH", "/system/lib64:" + modules + ":" + workingDir);
+            builder.environment().put("HOME", workingDir.getAbsolutePath());
+            builder.environment().put("TMPDIR", workingDir.getAbsolutePath());
+            builder.environment().put("PULSE_SERVER", "unix:" + socket().getAbsolutePath());
+            process = builder.start();
+            String output;
+            try (InputStream in = process.getInputStream()) {
+                output = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return null;
+            }
+            return process.exitValue() == 0 ? output : null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (process != null && process.isAlive()) process.destroyForcibly();
+        }
     }
 
     @Override

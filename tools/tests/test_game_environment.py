@@ -394,11 +394,18 @@ class DirectAudioPrefixTest(unittest.TestCase):
         wine = self.tool / "files/bin-arm64/wine"
         wine.write_text("#!/bin/sh\necho wine-11.0-4c8f2e1 '(Staging)'\n")
         wine.chmod(0o755)
-        self.audio = base / "directaudio"
-        for arch in ("aarch64-windows", "i386-windows", "aarch64-unix"):
-            (self.audio / "lib/wine" / arch).mkdir(parents=True)
-        (self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv").write_bytes(b"arm64x")
-        (self.audio / "lib/wine/i386-windows/winedirectaudio.drv").write_bytes(b"i386")
+        # Proton's own winepulse.so names the audio interface: the classic table never imports
+        # PsCreateSystemThread, the system-thread one (Proton-CachyOS) always does.
+        (self.tool / "files/lib/wine/aarch64-unix").mkdir(parents=True)
+        self.winepulse = self.tool / "files/lib/wine/aarch64-unix/winepulse.so"
+        self.winepulse.write_bytes(b"\x7fELF classic wine 11 pulse driver")
+        self.sets = base / "directaudio"
+        for set_name in ("linux-wine11", "linux-wine11-systhread"):
+            for arch in ("aarch64-windows", "i386-windows", "aarch64-unix"):
+                (self.sets / set_name / "lib/wine" / arch).mkdir(parents=True)
+            (self.sets / set_name / "lib/wine/aarch64-windows/winedirectaudio.drv").write_bytes(b"arm64x-" + set_name.encode())
+            (self.sets / set_name / "lib/wine/i386-windows/winedirectaudio.drv").write_bytes(b"i386")
+        self.audio = self.sets / "linux-wine11"
         self.compat = base / "compat"
         self.windows = self.compat / "pfx/drive_c/windows"
         for folder in ("system32", "syswow64"):
@@ -407,7 +414,7 @@ class DirectAudioPrefixTest(unittest.TestCase):
 
     def run_setup(self):
         script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\necho "WINEDLLPATH=$WINEDLLPATH"\n'
-        env = dict(os.environ, BL_DIRECTAUDIO=str(self.audio), STEAM_COMPAT_DATA_PATH=str(self.compat))
+        env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat))
         env.pop("WINEDLLPATH", None)
         return subprocess.run(["bash", "-c", script, "bash", str(self.tool)], env=env, capture_output=True, text=True, check=True)
 
@@ -431,12 +438,53 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIn("WINEDLLPATH=%s/lib/wine" % self.audio, result.stdout)
         self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
         self.assertEqual(self.link("syswow64"), str(self.audio / "lib/wine/i386-windows/winedirectaudio.drv"))
-        self.assertEqual((self.windows / "system32/winedirectaudio.drv").read_bytes(), b"arm64x")
+        self.assertEqual((self.windows / "system32/winedirectaudio.drv").read_bytes(), b"arm64x-linux-wine11")
         self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
         before = self.reg.read_text()
         self.assertNotIn("DirectAudio selected", self.run_setup().stderr)
         self.assertEqual(self.reg.read_text(), before)
         self.assertEqual(sorted(os.listdir(self.windows / "system32")), ["winedirectaudio.drv"])
+
+    def test_a_running_wineserver_is_written_through_so_its_save_keeps_the_value(self):
+        import socket
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+        wine = self.tool / "files/bin-arm64/wine"
+        calls = Path(self.tmp.name) / "wine-calls"
+        wine.write_text("#!/bin/sh\nif [ \"$1\" = reg ]; then echo \"$*\" >> '%s'; exit 0; fi\necho wine-11.0-4c8f2e1 '(Staging)'\n" % calls)
+        wine.chmod(0o755)
+        st = os.stat(self.compat / "pfx")
+        base = Path(self.tmp.name) / "wine-tmp"
+        server_dir = base / ("server-%x-%x" % (st.st_dev, st.st_ino))
+        server_dir.mkdir(parents=True)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.addCleanup(sock.close)
+        sock.bind(str(server_dir / "socket"))
+        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\n'
+        env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat), BL_WINE_SERVER_BASE=str(base))
+        result = subprocess.run(["bash", "-c", script, "bash", str(self.tool)], env=env, capture_output=True, text=True, check=True)
+        self.assertIn("DirectAudio selected in the prefix", result.stderr)
+        self.assertIn("selected through the running wineserver", result.stderr)
+        self.assertIn("reg add HKCU\\Software\\Wine\\Drivers /v Audio /t REG_SZ /d directaudio,pulse /f", calls.read_text())
+        self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
+
+    def test_the_system_thread_set_is_picked_from_winepulse_not_the_version(self):
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+        self.winepulse.write_bytes(b"\x7fELF cachyos pulse driver PsCreateSystemThread NtSetInformationThread")
+        result = self.run_setup()
+        systhread = self.sets / "linux-wine11-systhread"
+        self.assertIn("DirectAudio ready (Wine 11, linux-wine11-systhread)", result.stderr)
+        self.assertIn("WINEDLLPATH=%s/lib/wine" % systhread, result.stdout)
+        self.assertEqual(self.link("system32"), str(systhread / "lib/wine/aarch64-windows/winedirectaudio.drv"))
+        self.assertEqual((self.windows / "system32/winedirectaudio.drv").read_bytes(), b"arm64x-linux-wine11-systhread")
+
+    def test_no_set_for_the_interface_leaves_protons_own_audio(self):
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+        self.winepulse.write_bytes(b"\x7fELF PsCreateSystemThread")
+        shutil.rmtree(self.sets / "linux-wine11-systhread")
+        result = self.run_setup()
+        self.assertIn("no driver set for the linux-wine11-systhread interface", result.stderr)
+        self.assertIn("WINEDLLPATH=\n", result.stdout)
+        self.assertFalse((self.windows / "system32/winedirectaudio.drv").exists())
 
     def test_older_selections_are_upgraded(self):
         self.reg.write_text('WINE REGISTRY Version 2\n\n[SoftwareWineDrivers] 1790995967\n#time=1dd52e24550e980\n"Audio"="directaudio"\n'
