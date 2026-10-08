@@ -1,0 +1,42 @@
+#!/system/bin/sh
+# droiddeck-chroot-launch — privileged session container for rooted devices.
+#
+# Called via: su -c "droiddeck-chroot-launch <rootfs> [host:guest ...] -- <argv...>"
+#
+# Sets up bind mounts inside a private mount namespace (released automatically on
+# session exit) then execs chroot. No proot, no ptrace — every syscall runs native.
+#
+# Requires: unshare, mount, chroot (busybox or system; available via Magisk).
+set -e
+
+# Re-exec once inside a private mount namespace so all bind mounts are released
+# when the session exits, without any explicit cleanup.
+if [ -z "$_DD_NS" ]; then
+    _DD_NS=1 exec unshare --mount -- "$0" "$@"
+fi
+
+rootfs="$1"; shift
+
+# Mount requested host:guest binds (host:guest format, same as proot -b).
+while [ $# -gt 0 ] && [ "$1" != "--" ]; do
+    spec="$1"; shift
+    src="${spec%%:*}"
+    dst="${spec#*:}"
+    # No colon: same path on both sides.
+    [ "$dst" = "$spec" ] && dst="$src"
+    target="$rootfs$dst"
+    mkdir -p "$target" 2>/dev/null || true
+    mount --bind "$src" "$target"
+done
+[ "$1" = "--" ] && shift
+
+# Pseudo-filesystems the guest always expects.
+mount --bind /proc "$rootfs/proc"
+mount -t devtmpfs devtmpfs "$rootfs/dev" 2>/dev/null \
+    || mount --bind /dev "$rootfs/dev"
+mount -t sysfs sysfs "$rootfs/sys" 2>/dev/null \
+    || mount --bind /sys "$rootfs/sys"
+mount -t tmpfs tmpfs "$rootfs/tmp"
+mount -t tmpfs tmpfs "$rootfs/run"
+
+exec chroot "$rootfs" "$@"

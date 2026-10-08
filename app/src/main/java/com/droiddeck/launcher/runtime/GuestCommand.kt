@@ -43,24 +43,36 @@ object GuestCommand {
         // The resolver otherwise names the DNS of whatever network the last session was on.
         LinuxNetworkLinkComponent(context, root).publish()
         val runtimeDir = File(context.filesDir, ".flatpak-rt").apply { mkdirs() }
-        val cmd = LinuxRuntime.prootPrefix(context, root, "/root", fakeRoot)
-        if (linkDir != null) cmd.add(1, "--link2symlink")
-        LinuxRuntime.binds(context, null, runtimeDir, Environment.getExternalStorageDirectory(), null)
-            .forEach { cmd.add("-b"); cmd.add(it) }
-        cmd += listOf(
+        val binds = LinuxRuntime.binds(context, null, runtimeDir, Environment.getExternalStorageDirectory(), null)
+        val guestEnv = listOf(
             "/usr/bin/env", "-i", "HOME=/root", "USER=root", "LANG=C.UTF-8",
             "PATH=/usr/local/bin:/usr/bin:/bin", "XDG_RUNTIME_DIR=${LinuxRuntime.GUEST_RUNTIME_DIR}",
             "XDG_DATA_HOME=/root/.local/share", "FLATPAK_BWRAP=${FlatpakManager.BWRAP}",
             "XDG_DATA_DIRS=/root/.local/share/flatpak/exports/share:/usr/local/share:/usr/share",
         )
-        cmd += argv
+        val launcher = LinuxRuntime.getLauncher(context)
+        val cmd: List<String>
+        if (launcher.isProot) {
+            val mutable = LinuxRuntime.prootPrefix(context, root, "/root", fakeRoot)
+            // link2symlink redirects hard links (which Android denies apps) to symlinks.
+            if (linkDir != null) mutable.add(1, "--link2symlink")
+            binds.forEach { mutable.add("-b"); mutable.add(it) }
+            mutable += guestEnv + argv
+            cmd = mutable
+        } else {
+            // Under chroot we are already root; fakeRoot and link2symlink are not needed.
+            // guestEnv sets up a clean env via /usr/bin/env -i just as under proot.
+            cmd = launcher.buildCommand(context, root, binds, guestEnv + argv)
+        }
         val builder = ProcessBuilder(cmd).directory(root).redirectErrorStream(true)
         builder.environment().apply {
-            put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
-            put("PROOT_TMP_DIR", context.cacheDir.path)
-            if (linkDir != null) put("PROOT_L2S_DIR", linkDir.path)
-            if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
-            LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+            if (launcher.isProot) {
+                put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
+                put("PROOT_TMP_DIR", context.cacheDir.path)
+                if (linkDir != null) put("PROOT_L2S_DIR", linkDir.path)
+                if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")
+                LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
+            }
         }
         val process = builder.start()
         val pid = HostProcess.pidOf(process)

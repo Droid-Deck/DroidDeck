@@ -130,10 +130,57 @@ public final class LinuxRuntime {
         List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
         // A session's binds are the view its programs have; a one-off command's are not recorded.
         if (sessionRoot != null) lastBinds = binds;
+        Launcher launcher = getLauncher(context);
+        if (!launcher.isProot()) {
+            return launcher.buildCommand(context, root, binds, guestCommand);
+        }
         List<String> cmd = prootPrefix(context, root, "/root");
         for (String spec : binds) bind(cmd, spec);
         cmd.addAll(guestCommand);
         return cmd;
+    }
+
+    /**
+     * True when a recognised {@code su} binary is present. Fast (stat only); used to decide
+     * whether to show the chroot toggle in the UI. Does not verify root is actually granted.
+     */
+    public static boolean isDeviceRooted() {
+        for (String path : new String[]{
+                "/system/bin/su", "/system/xbin/su", "/sbin/su", "/data/adb/su"}) {
+            if (new File(path).exists()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Verifies root is actually granted by running {@code su -c id} and checking the output
+     * contains {@code uid=0}. Blocks for up to two seconds. Call off the main thread.
+     *
+     * <p>Distinct from {@link #isDeviceRooted()}: a su binary can be present but revoked for
+     * this app (Magisk deny list, user-declined prompt, etc.).
+     */
+    public static boolean isRootGranted() {
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", "id"});
+            String line = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(p.getInputStream())).readLine();
+            p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS);
+            p.destroyForcibly();
+            return line != null && line.contains("uid=0");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns a {@link ChrootLauncher} when chroot mode is enabled and root is verified at call
+     * time; otherwise returns a {@link ProotLauncher}. Blocks briefly — call off the main thread.
+     */
+    public static Launcher getLauncher(Context context) {
+        if (SessionPrefs.chrootModeEnabled(context) && isRootGranted()) {
+            return new ChrootLauncher();
+        }
+        return new ProotLauncher();
     }
 
     /**

@@ -432,8 +432,20 @@ class SessionService : Service() {
         FileUtils.clear(File(cacheDir, "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
-        // The fast path is told exactly the rootfs and binds proot is given (ProotFastPath).
-        val fastPathKey = if (ProotFastPath.enabled(this)) {
+        val launcher = LinuxRuntime.getLauncher(this)
+        if (SessionPrefs.chrootModeEnabled(this)) {
+            // getLauncher() verified root via su -c id; log which path was chosen so the
+            // session log makes it obvious if root was silently revoked after the toggle was set.
+            if (launcher.isProot) {
+                Log.w(TAG, "chroot mode enabled but root not granted; falling back to proot")
+            } else {
+                Log.i(TAG, "chroot: root granted, running without proot")
+            }
+        }
+
+        // ProotFastPath answers path lookups inside the guest without a tracer round-trip.
+        // It is proot-specific and has no effect — and no key to compute — under chroot.
+        val fastPathKey = if (launcher.isProot && ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
                 this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
             )
@@ -454,19 +466,23 @@ class SessionService : Service() {
         )
 
         val hostEnv = HostEnvironment()
-        hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
-        hostEnv["PROOT_TMP_DIR"] = cacheDir.path
-        // proot links against a libtalloc beside it, and Android's linker does not search an
-        // executable's own directory: unnamed, the process dies before it starts and says so only
-        // in `logcat -b crash`.
-        // proot reads this itself, so it belongs in proot's own environment rather than the guest's.
-        if (SessionPrefs.prootNoSeccomp(this)) {
-            hostEnv["PROOT_NO_SECCOMP"] = "1"
-            Log.i(TAG, "proot: seccomp acceleration off by request")
+        if (launcher.isProot) {
+            hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(this).path
+            hostEnv["PROOT_TMP_DIR"] = cacheDir.path
+            // proot links against a libtalloc beside it, and Android's linker does not search an
+            // executable's own directory: unnamed, the process dies before it starts and says so only
+            // in `logcat -b crash`.
+            // proot reads this itself, so it belongs in proot's own environment rather than the guest's.
+            if (SessionPrefs.prootNoSeccomp(this)) {
+                hostEnv["PROOT_NO_SECCOMP"] = "1"
+                Log.i(TAG, "proot: seccomp acceleration off by request")
+            }
+            fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> hostEnv[k] = v } }
+            val prootLibs = LinuxRuntime.prootLibraryPath(this)
+            if (prootLibs.isNotEmpty()) hostEnv["LD_LIBRARY_PATH"] = prootLibs
+        } else {
+            Log.i(TAG, "chroot: rooted session, no proot")
         }
-        fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> hostEnv[k] = v } }
-        val prootLibs = LinuxRuntime.prootLibraryPath(this)
-        if (prootLibs.isNotEmpty()) hostEnv["LD_LIBRARY_PATH"] = prootLibs
 
         val terminalCommand = LinuxRuntime.command(
             this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, shellGuest,

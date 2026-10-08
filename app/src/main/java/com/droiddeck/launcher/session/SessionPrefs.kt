@@ -336,6 +336,19 @@ object SessionPrefs {
     }
 
     /**
+     * Whether to use chroot instead of proot on rooted devices. Off by default; only offered
+     * in the UI when [com.droiddeck.launcher.runtime.LinuxRuntime.isDeviceRooted] is true.
+     *
+     * Chroot eliminates proot's ptrace overhead: every syscall runs at native speed. Requires
+     * Magisk or equivalent `su`, and `unshare`/`mount`/`chroot` from busybox or the system.
+     */
+    fun chrootModeEnabled(context: Context): Boolean = prefs(context).getBoolean("chrootMode", false)
+
+    fun setChrootModeEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("chrootMode", on).apply()
+    }
+
+    /**
      * Whether the session's path lookups take proot's fast path (ProotFastPath): answered inside
      * each process instead of a round trip through the tracer. On by default; it needs proot's
      * seccomp filter, so it is off whenever proot runs without one.
