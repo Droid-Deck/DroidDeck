@@ -1961,7 +1961,7 @@
     <!-- Stores: GOG, Epic Games and Amazon Games -->
     <string name="rail_stores">Stores</string>
     <string name="source_steam">Steam</string>
-    <string name="source_added">Added</string>
+    <string name="source_added">Custom</string>
     <string name="setup_stores">Stores</string>
     <string name="setup_stores_show">Show Stores in the rail</string>
     <string name="setup_stores_show_hint">GOG, Epic Games and Amazon Games libraries, with the download manager.</string>
