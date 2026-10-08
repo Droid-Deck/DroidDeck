@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cerrno>
 #include <climits>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -1216,6 +1217,7 @@ struct DeckHidraw {
   FakeInputRingHeader *ring = nullptr;
   size_t mapping_size = 0;
   uint8_t pending_feature = 0;
+  bool touch = false;  // Steam's touch controller (below), not the Deck
 };
 
 // What the Deck has and an Xbox pad does not, after the ring's events: motion (PadMotion) and the
@@ -1481,6 +1483,321 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   pthread_detach(thread);
   Logger::log("deck: %s opened as fd %d\n", DECK_HIDRAW_PATH, pair[0]);
   return pair[0];
+}
+
+
+// ---- Steam's touch controller ----
+//
+// docs/development/steam-touch-controller.md. Steam builds its touch controller (Steam Input's
+// Mobile Touch type, the one Steam Link's on-screen controls are) for any HID device with the ids
+// 0000:11fb. With FAKE_TOUCHCTL_RING set, the client is offered one as /dev/hidraw17 beside the
+// Deck, its sysfs written by the app (SteamDeckPad.kt). The app draws the controls; this side only
+// carries the device's traffic through the file FAKE_TOUCHCTL_RING names, which both map:
+//
+// - the app writes the 40-byte input report (under a seqlock), whether the device is plugged in,
+//   and the battery level;
+// - this side writes what the client tells the device: the app and action set it is on (output
+//   report 4), the action set layers added and removed (5, 6), rumble (1, also passed to the app's
+//   vibration like any pad's) and the setting report (3), and how many readers have it open.
+//
+// Plugged in and out by the app (while its controls are up and no physical pad is in use), as
+// Steam Link withdraws its touch controls: an unplugged device ends its open stream, refuses new
+// opens, and a udev event (libblsession's stand-in monitor, udevmon.c) tells the client's HID
+// discovery either way. Only the client is offered it; a game reads Steam Input's virtual pad.
+static constexpr const char *TOUCH_HIDRAW_PATH = "/dev/hidraw17";
+static constexpr unsigned int TOUCH_HIDRAW_MINOR = 17;
+static constexpr int TOUCH_REPORT_BYTES = 40;
+static constexpr int TOUCH_REPORT_INTERVAL_US = 8000;
+static constexpr const char *TOUCH_NAME = "Mobile Touch Control";
+static constexpr const char *TOUCH_SERIAL = "DROIDDECK0001";
+static constexpr const char *TOUCH_DEVPATH = "/devices/droiddeck/usb2/2-1:1.0/0003:0000:11FB.0002/hidraw/hidraw17";
+// Generic Desktop / Game Pad: for a vendor id that is not Valve's the client opens only a device
+// with a gamepad usage. One 40-byte input report, one 64-byte output and one 64-byte feature
+// report, no report ids. Must match SteamDeckPad.kt.
+static const uint8_t kTouchReportDescriptor[] = {
+    0x05, 0x01, 0x09, 0x05, 0xa1, 0x01,
+    0x09, 0x02, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x28, 0x81, 0x02,
+    0x09, 0x03, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x91, 0x02,
+    0x09, 0x04, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0};
+
+// The shared file. Must match SteamTouchDevice.kt.
+struct TouchRingFile {
+  uint32_t magic;  // TCH1
+  uint32_t version;
+  uint64_t report_seq;  // odd while the app writes report
+  uint8_t report[TOUCH_REPORT_BYTES];
+  uint32_t plugged;
+  uint32_t battery;  // percent
+  // Written here.
+  uint64_t state_seq;  // odd while being written
+  uint32_t opened;
+  uint32_t appid;
+  uint32_t action_set;
+  uint32_t layer_count;
+  uint32_t layers[8];
+  uint32_t rumble_seq;
+  uint16_t rumble_low;
+  uint16_t rumble_high;
+  uint32_t rumble_ms;
+  uint32_t setting30;
+  uint32_t action_seq;
+};
+static constexpr uint32_t TOUCH_RING_MAGIC = 0x31484354;
+static constexpr size_t TOUCH_RING_SIZE = 256;
+static_assert(offsetof(TouchRingFile, report) == 16, "TouchRingFile layout");
+static_assert(offsetof(TouchRingFile, plugged) == 56, "TouchRingFile layout");
+static_assert(offsetof(TouchRingFile, state_seq) == 64, "TouchRingFile layout");
+static_assert(offsetof(TouchRingFile, layers) == 88, "TouchRingFile layout");
+static_assert(offsetof(TouchRingFile, rumble_seq) == 120, "TouchRingFile layout");
+static_assert(offsetof(TouchRingFile, action_seq) == 136, "TouchRingFile layout");
+static_assert(sizeof(TouchRingFile) <= TOUCH_RING_SIZE, "TouchRingFile layout");
+
+__attribute__((visibility("hidden"))) static TouchRingFile *touch_ring() {
+  static TouchRingFile *ring = nullptr;
+  static std::once_flag once;
+  std::call_once(once, [] {
+    const char *path = getenv("FAKE_TOUCHCTL_RING");
+    if (!path || !*path || !fake_deck_enabled()) return;
+    static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+    int fd = my_open(path, O_RDWR | O_CLOEXEC);
+    if (fd < 0) {
+      Logger::log("touch: %s not openable (%s)\n", path, strerror(errno));
+      return;
+    }
+    void *mapping = mmap(nullptr, TOUCH_RING_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    syscall(SYS_close, fd);
+    if (mapping == MAP_FAILED || static_cast<TouchRingFile *>(mapping)->magic != TOUCH_RING_MAGIC) {
+      Logger::log("touch: %s %s\n", path, mapping == MAP_FAILED ? "could not be mapped" : "has no valid header");
+      if (mapping != MAP_FAILED) munmap(mapping, TOUCH_RING_SIZE);
+      return;
+    }
+    ring = static_cast<TouchRingFile *>(mapping);
+  });
+  return ring;
+}
+
+__attribute__((visibility("hidden"))) static bool touch_plugged() {
+  TouchRingFile *ring = touch_ring();
+  return ring && __atomic_load_n(&ring->plugged, __ATOMIC_ACQUIRE) != 0;
+}
+
+__attribute__((visibility("hidden"))) static bool is_touch_hidraw_path(const char *pathname) {
+  return pathname && !strcmp(pathname, TOUCH_HIDRAW_PATH) && process_is_steam_client() && touch_ring();
+}
+
+// The state the client gave the device, written under the ring's seqlock.
+template <typename F>
+__attribute__((visibility("hidden"))) static void touch_state(F &&write) {
+  TouchRingFile *ring = touch_ring();
+  if (!ring) return;
+  static std::mutex mutex;
+  std::lock_guard<std::mutex> guard(mutex);
+  __atomic_fetch_add(&ring->state_seq, 1, __ATOMIC_ACQ_REL);
+  write(*ring);
+  __atomic_fetch_add(&ring->state_seq, 1, __ATOMIC_ACQ_REL);
+}
+
+static inline uint32_t get32(const uint8_t *at) {
+  return static_cast<uint32_t>(at[0]) | static_cast<uint32_t>(at[1]) << 8 | static_cast<uint32_t>(at[2]) << 16 |
+         static_cast<uint32_t>(at[3]) << 24;
+}
+
+// An output report from the client (Steam Link's CVirtualController::HandleFeatureReports): the
+// type, then its fields.
+__attribute__((visibility("hidden"))) static void touch_output(const uint8_t *data, size_t size) {
+  if (size < 9) return;
+  static std::atomic<unsigned> seen[8];
+  uint8_t type = data[0];
+  unsigned n = type < 8 ? ++seen[type] : 0;
+  if (n && (n & (n - 1)) == 0)
+    Logger::log("touch: output report %u (x%u): app %u, %u\n", type, n, get32(data + 1), get32(data + 5));
+  switch (type) {
+  case 1: {  // rumble: low, high, duration
+    uint16_t low = data[1] | data[2] << 8, high = data[3] | data[4] << 8;
+    uint32_t ms = get32(data + 5);
+    touch_state([&](TouchRingFile &r) {
+      r.rumble_low = low;
+      r.rumble_high = high;
+      r.rumble_ms = ms;
+      r.rumble_seq++;
+    });
+    send_vibration(low, high, static_cast<uint16_t>(std::min<uint32_t>(ms, 0xffff)), 0);
+    break;
+  }
+  case 3:  // a setting: 0x30 and a value
+    if (data[1] == 0x30) touch_state([&](TouchRingFile &r) { r.setting30 = data[2] | data[3] << 8; });
+    break;
+  case 4:  // the app and its action set
+    touch_state([&](TouchRingFile &r) {
+      r.appid = get32(data + 1);
+      r.action_set = get32(data + 5);
+      r.layer_count = 0;
+      r.action_seq++;
+    });
+    break;
+  case 5:  // a layer added to the app's action set
+  case 6:  // and removed
+    touch_state([&](TouchRingFile &r) {
+      uint32_t layer = get32(data + 5);
+      uint32_t count = std::min<uint32_t>(r.layer_count, 8);
+      uint32_t kept = 0;
+      for (uint32_t i = 0; i < count; i++)
+        if (r.layers[i] != layer) r.layers[kept++] = r.layers[i];
+      if (type == 5 && kept < 8) r.layers[kept++] = layer;
+      r.layer_count = kept;
+      r.action_seq++;
+    });
+    break;
+  }
+}
+
+__attribute__((visibility("hidden"))) static bool read_touch_report(TouchRingFile *ring, uint8_t *out) {
+  for (int attempt = 0; attempt < 8; attempt++) {
+    uint64_t seq = __atomic_load_n(&ring->report_seq, __ATOMIC_ACQUIRE);
+    if (seq & 1) continue;
+    memcpy(out, ring->report, TOUCH_REPORT_BYTES);
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    if (seq == __atomic_load_n(&ring->report_seq, __ATOMIC_RELAXED)) return true;
+  }
+  return false;
+}
+
+__attribute__((visibility("hidden"))) static void *touch_report_thread(void *arg) {
+  auto *holder = static_cast<std::shared_ptr<DeckHidraw> *>(arg);
+  std::shared_ptr<DeckHidraw> self = *holder;
+  delete holder;
+  TouchRingFile *ring = touch_ring();
+  uint8_t report[TOUCH_REPORT_BYTES] = {};
+  while (touch_plugged()) {
+    read_touch_report(ring, report);
+    if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
+        errno != EAGAIN && errno != EWOULDBLOCK)
+      break;
+    struct timespec interval = {0, TOUCH_REPORT_INTERVAL_US * 1000L};
+    nanosleep(&interval, nullptr);
+  }
+  // Ending the stream is the unplug: the client's read fails and it lets the controller go.
+  syscall(SYS_close, self->peer);
+  touch_state([](TouchRingFile &r) { if (r.opened) r.opened--; });
+  return nullptr;
+}
+
+__attribute__((visibility("hidden"))) static int open_touch_hidraw(int flags) {
+  if (!touch_plugged()) {
+    errno = ENOENT;
+    return -1;
+  }
+  int pair[2];
+  if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) < 0) return -1;
+  int buffer = TOUCH_REPORT_BYTES * 4;
+  setsockopt(pair[1], SOL_SOCKET, SO_SNDBUF, &buffer, sizeof(buffer));
+  if (!(flags & O_CLOEXEC)) fcntl(pair[0], F_SETFD, 0);
+  if (flags & O_NONBLOCK) fcntl(pair[0], F_SETFL, fcntl(pair[0], F_GETFL) | O_NONBLOCK);
+  auto touch = std::make_shared<DeckHidraw>();
+  touch->peer = pair[1];
+  touch->touch = true;
+  {
+    std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+    deck_map()[pair[0]] = touch;
+  }
+  touch_state([](TouchRingFile &r) { r.opened++; });
+  pthread_t thread;
+  auto *arg = new std::shared_ptr<DeckHidraw>(touch);
+  if (pthread_create(&thread, nullptr, touch_report_thread, arg) != 0) {
+    delete arg;
+    std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+    deck_map().erase(pair[0]);
+    syscall(SYS_close, pair[0]);
+    syscall(SYS_close, pair[1]);
+    touch_state([](TouchRingFile &r) { if (r.opened) r.opened--; });
+    errno = ENOMEM;
+    return -1;
+  }
+  pthread_detach(thread);
+  Logger::log("touch: %s opened as fd %d\n", TOUCH_HIDRAW_PATH, pair[0]);
+  return pair[0];
+}
+
+static int copy_ioctl_string(ioctl_request_t op, void *argp, const char *value);
+
+__attribute__((visibility("hidden"))) static int ioctl_touch(DeckHidraw &touch, ioctl_request_t op, void *argp) {
+  if (_IOC_TYPE(op) != 'H') {
+    errno = ENOTTY;
+    return -1;
+  }
+  size_t size = _IOC_SIZE(op);
+  switch (_IOC_NR(op)) {
+  case 0x01:  // HIDIOCGRDESCSIZE
+    *static_cast<int *>(argp) = sizeof(kTouchReportDescriptor);
+    return 0;
+  case 0x02: {  // HIDIOCGRDESC
+    auto *descriptor = static_cast<uint8_t *>(argp);
+    uint32_t want;
+    memcpy(&want, descriptor, sizeof(want));
+    memcpy(descriptor + 4, kTouchReportDescriptor, std::min<size_t>(want, sizeof(kTouchReportDescriptor)));
+    return 0;
+  }
+  case 0x03: {  // HIDIOCGRAWINFO
+    struct {
+      uint32_t bustype;
+      int16_t vendor;
+      int16_t product;
+    } info = {BUS_USB, 0x0000, static_cast<int16_t>(0x11fb)};
+    memcpy(argp, &info, sizeof(info));
+    return 0;
+  }
+  case 0x04: return copy_ioctl_string(op, argp, TOUCH_NAME);                // HIDIOCGRAWNAME
+  case 0x05: return copy_ioctl_string(op, argp, "usb-droiddeck-2/input0");  // HIDIOCGRAWPHYS
+  case 0x08: return copy_ioctl_string(op, argp, TOUCH_SERIAL);              // HIDIOCGRAWUNIQ
+  case 0x06:  // HIDIOCSFEATURE: Steam Link's controller ignores these
+    touch.pending_feature = size > 0 ? static_cast<uint8_t *>(argp)[0] : 0;
+    return static_cast<int>(size);
+  case 0x07: {  // HIDIOCGFEATURE: report 2 is the battery
+    auto *buf = static_cast<uint8_t *>(argp);
+    uint8_t id = size ? buf[0] : 0;
+    memset(buf, 0, size);
+    if (size) buf[0] = id;
+    if (size > 2) {
+      TouchRingFile *ring = touch_ring();
+      buf[1] = 2;
+      buf[2] = static_cast<uint8_t>(ring && ring->battery ? std::min<uint32_t>(ring->battery, 100) : 100);
+    }
+    return static_cast<int>(std::min<size_t>(size, 18));
+  }
+  default:
+    errno = EINVAL;
+    return -1;
+  }
+}
+
+// Plugging in and out: the app flips `plugged`; this tells the client's HID discovery, which
+// otherwise never looks again (the sandbox gives it no kernel uevents).
+__attribute__((visibility("hidden"))) static void touch_uevent(const char *action) {
+  using inject_fn = int (*)(const char *, const char *, const char *, const char *, unsigned, unsigned);
+  static auto inject = reinterpret_cast<inject_fn>(dlsym(RTLD_DEFAULT, "bl_udevmon_inject"));
+  int sent = inject ? inject(action, TOUCH_DEVPATH, "hidraw", TOUCH_HIDRAW_PATH, DECK_HIDRAW_MAJOR, TOUCH_HIDRAW_MINOR) : -1;
+  Logger::log("touch: %s (udev event to %d monitor%s)\n", action, sent, sent == 1 ? "" : "s");
+}
+
+__attribute__((visibility("hidden"))) static void *touch_plug_thread(void *) {
+  bool was = touch_plugged();
+  Logger::log("touch: %s at start\n", was ? "plugged in" : "unplugged");
+  for (;;) {
+    struct timespec interval = {0, 50 * 1000 * 1000};
+    nanosleep(&interval, nullptr);
+    bool now = touch_plugged();
+    if (now == was) continue;
+    was = now;
+    touch_uevent(now ? "add" : "remove");
+  }
+  return nullptr;
+}
+
+__attribute__((constructor)) static void start_touch_controller() {
+  config();
+  if (!process_is_steam_client() || !touch_ring()) return;
+  pthread_t thread;
+  if (pthread_create(&thread, nullptr, touch_plug_thread, nullptr) == 0) pthread_detach(thread);
 }
 
 // libudev (systemd's sd-device) accepts a device only where its directory is on sysfs, which it
@@ -1823,6 +2140,7 @@ EXPORT int open(const char *pathname, int flags, ...) {
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
+  if (is_touch_hidraw_path(pathname)) return open_touch_hidraw(flags);
   if (is_withdrawn_pad_path(pathname)) {
     errno = ENOENT;
     return -1;
@@ -1897,6 +2215,7 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
+  if (is_touch_hidraw_path(pathname)) return open_touch_hidraw(flags);
   if (is_withdrawn_pad_path(pathname)) {
     errno = ENOENT;
     return -1;
@@ -1957,6 +2276,12 @@ static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
     errno = ENOENT;
     return -1;
   }
+  if (is_touch_hidraw_path(pathname)) {
+    memset(statbuf, 0, sizeof(*statbuf));
+    statbuf->st_mode = S_IFCHR | 0666;
+    statbuf->st_rdev = makedev(DECK_HIDRAW_MAJOR, TOUCH_HIDRAW_MINOR);
+    return 0;
+  }
   if (is_deck_hidraw_path(pathname)) {
     memset(statbuf, 0, sizeof(*statbuf));
     statbuf->st_mode = S_IFCHR | 0666;
@@ -2008,7 +2333,7 @@ static int fake_stat_fd(int fd, S *buf, Real real) {
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   if (ret == 0 && deck_map().count(fd)) {
     buf->st_mode = (buf->st_mode & ~S_IFMT) | S_IFCHR;
-    buf->st_rdev = makedev(DECK_HIDRAW_MAJOR, DECK_HIDRAW_MINOR);
+    buf->st_rdev = makedev(DECK_HIDRAW_MAJOR, deck_map()[fd]->touch ? TOUCH_HIDRAW_MINOR : DECK_HIDRAW_MINOR);
     return ret;
   }
   auto controller = controller_map().find(fd);
@@ -2054,6 +2379,7 @@ EXPORT int access(const char *pathname, int mode) {
   static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if (is_touch_hidraw_path(pathname)) return 0;
   if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname)) {
     errno = ENOENT;
     return -1;
@@ -2090,6 +2416,7 @@ EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
   static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if (is_touch_hidraw_path(pathname)) return 0;
   if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname)) {
     errno = ENOENT;
     return -1;
@@ -2211,7 +2538,8 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   auto maker = uinput_map().find(fd);
   if (maker != uinput_map().end()) return ioctl_uinput(*maker->second, op, argp);
   auto deck = deck_map().find(fd);
-  if (deck != deck_map().end()) return ioctl_deck(*deck->second, op, argp);
+  if (deck != deck_map().end())
+    return deck->second->touch ? ioctl_touch(*deck->second, op, argp) : ioctl_deck(*deck->second, op, argp);
   auto controller = controller_map().find(fd);
   if (controller == controller_map().end()) {
     guard.unlock();
@@ -2537,7 +2865,10 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto made = uinput_map().find(fd);
   if (made != uinput_map().end()) return write_uinput(*made->second, buf, count);
-  if (deck_map().count(fd)) return static_cast<ssize_t>(count);
+  if (deck_map().count(fd)) {
+    if (deck_map()[fd]->touch) touch_output(static_cast<const uint8_t *>(buf), count);
+    return static_cast<ssize_t>(count);
+  }
   auto controller = controller_map().find(fd);
   if (controller != controller_map().end()) {
     if (fake_fd_is_stale(fd)) {
@@ -2562,7 +2893,11 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   if (deck_map().count(fd)) {
     ssize_t total = 0;
-    for (int i = 0; i < iovcnt; i++) total += static_cast<ssize_t>(iov[i].iov_len);
+    bool touch = deck_map()[fd]->touch;
+    for (int i = 0; i < iovcnt; i++) {
+      if (touch) touch_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      total += static_cast<ssize_t>(iov[i].iov_len);
+    }
     return total;
   }
   auto made = uinput_map().find(fd);
