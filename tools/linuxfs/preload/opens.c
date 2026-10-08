@@ -36,6 +36,20 @@
 int bl_status_without_tracer(const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_writable_retry(int dirfd, const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_ntsync_open(const char *path, int flags) __attribute__((visibility("hidden")));
+int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+                       int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));
+
+static int (*real_open)(const char *, int, ...);
+static int (*real_openat)(int, const char *, int, ...);
+
+static int via_open(int dirfd, const char *path, int flags, mode_t mode) {
+  (void)dirfd;
+  return real_open(path, flags, mode);
+}
+
+static int via_openat(int dirfd, const char *path, int flags, mode_t mode) {
+  return real_openat(dirfd, path, flags, mode);
+}
 
 static int retry_without_noatime(int fd, int flags) {
   return fd < 0 && errno == EPERM && (flags & O_NOATIME);
@@ -49,7 +63,6 @@ static int is_trace_marker(const char *path) {
 }
 
 int open(const char *path, int flags, ...) {
-  static int (*real_open)(const char *, int, ...);
   va_list ap;
   mode_t mode;
   int fd;
@@ -68,7 +81,7 @@ int open(const char *path, int flags, ...) {
     errno = ENOSYS;
     return -1;
   }
-  fd = real_open(path, flags, mode);
+  fd = bl_dircache_create(AT_FDCWD, path, flags, mode, via_open);
   if (retry_without_noatime(fd, flags)) fd = real_open(path, flags & ~O_NOATIME, mode);
   /* A read-only file the Steam client rewrites (perms.c). */
   if (fd < 0 && bl_writable_retry(AT_FDCWD, path, flags)) fd = real_open(path, flags & ~O_NOATIME, mode);
@@ -76,7 +89,6 @@ int open(const char *path, int flags, ...) {
 }
 
 int openat(int dirfd, const char *path, int flags, ...) {
-  static int (*real_openat)(int, const char *, int, ...);
   va_list ap;
   mode_t mode;
   int fd;
@@ -95,7 +107,7 @@ int openat(int dirfd, const char *path, int flags, ...) {
     errno = ENOSYS;
     return -1;
   }
-  fd = real_openat(dirfd, path, flags, mode);
+  fd = bl_dircache_create(dirfd, path, flags, mode, via_openat);
   if (retry_without_noatime(fd, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
   if (fd < 0 && bl_writable_retry(dirfd, path, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
   return fd;
