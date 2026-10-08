@@ -245,15 +245,6 @@ bl_directaudio() {
   # than written with `wine reg`, which would start a wineserver here just to set one value.
   pfx="${STEAM_COMPAT_DATA_PATH:-}/pfx"
   reg="$pfx/user.reg"
-  if [ ! -f "$reg" ] && [ -n "${STEAM_COMPAT_DATA_PATH:-}" ] && [ -x "$base/proton" ]; then
-    # A prefix that does not exist yet would be made by Proton moments from now, after this ran,
-    # and the value would only land on the NEXT launch: the first run of a non-Steam shortcut
-    # played through Proton's own PulseAudio (Steam titles escape it because Steam's install step
-    # makes the prefix before the game's verb). So the prefix is made first, by Proton itself
-    # (its own setup, nothing hand-rolled), and the selection below then finds it.
-    echo "droiddeck-proton: no prefix yet - having Proton create it now so DirectAudio applies to this first launch" >&2
-    "$base/proton" run wineboot >/dev/null 2>&1 || echo "droiddeck-proton: prefix creation returned an error; carrying on" >&2
-  fi
   if [ -f "$reg" ]; then
     for pair in system32:aarch64-windows syswow64:i386-windows; do
       dir="$pfx/drive_c/windows/${pair%%:*}"
@@ -268,24 +259,22 @@ bl_directaudio() {
     elif ! BL_KEY="$key" awk 'index($0, "[") == 1 { inside = index($0, ENVIRON["BL_KEY"] " ") == 1 } inside && index($0, "\\"Audio\\"=") == 1 { last = $0 } END { exit last != "\\"Audio\\"=\\"directaudio,pulse\\"" }' "$reg" 2>/dev/null; then
       printf '\\n%s %s\\n"Audio"="directaudio,pulse"\\n' "$key" "$(date +%s)" >> "$reg"
       echo "droiddeck-proton: DirectAudio selected in the prefix" >&2
-      # Steam runs this tool several times per launch (getcompatpath, run, waitforexitandrun), and a
-      # wineserver started by an earlier verb can still hold the registry in memory: it saves that
-      # copy when it exits, and a line appended to user.reg meanwhile is gone with it - seen on two
-      # prefixes with the driver linked, a pristine user.reg and no Audio value, i.e. a game on
-      # Proton's own audio while everything said DirectAudio. A live server is written through.
+      # Steam runs this tool several times per launch (getcompatpath, run, waitforexitandrun); a
+      # wineserver from an earlier verb that still holds the registry saves its own copy on exit
+      # and drops this line. Said out loud so a game that stays on pulse once is explained; it
+      # takes on the next launch. (Writing through the live server with a bare `wine reg add` was
+      # tried and withdrawn: a second Wine invocation inside Steam's launch sequence is not safe.)
       srv="${BL_WINE_SERVER_BASE:-/tmp/.wine-$(id -u)}/server-$(printf '%x-%x' $(stat -c '%d %i' "$pfx" 2>/dev/null || echo 0 0))/socket"
       if [ -S "$srv" ]; then
-        if WINEPREFIX="$pfx" WINEDEBUG=-all "$base/files/bin-arm64/wine" reg add 'HKCU\\Software\\Wine\\Drivers' /v Audio /t REG_SZ /d 'directaudio,pulse' /f >/dev/null 2>&1; then
-          echo "droiddeck-proton: DirectAudio selected through the running wineserver as well" >&2
-        else
-          echo "droiddeck-proton: a wineserver is running for this prefix and would not take the Audio value; DirectAudio may only engage on the next launch" >&2
-        fi
+        echo "droiddeck-proton: a wineserver is already running for this prefix; DirectAudio may only engage on the next launch" >&2
       fi
     fi
   else
-    # Still no prefix (creation failed or could not be attempted): Proton makes it moments from
-    # now and the value lands on the NEXT launch. Said out loud so a first launch on Proton's own
-    # audio does not look like a fault.
+    # A prefix that does not exist yet is created by Proton moments from now, after this runs, so
+    # the value lands on the NEXT launch of that game. Said out loud so a first launch on Proton's
+    # own audio does not look like a fault. (Having Proton create the prefix from here first was
+    # tried and withdrawn: a second Proton run inside Steam's launch sequence got the launch
+    # aborted - Steam games bounced back to their page with a half-made prefix.)
     echo "droiddeck-proton: no prefix yet - DirectAudio takes effect the next time this game starts" >&2
   fi
   echo "droiddeck-proton: DirectAudio ready (Wine $major, $set)" >&2

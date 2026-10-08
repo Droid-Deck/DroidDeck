@@ -449,45 +449,10 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertEqual(self.reg.read_text(), before)
         self.assertEqual(sorted(os.listdir(self.windows / "system32")), ["winedirectaudio.drv"])
 
-    def test_a_first_launch_has_proton_make_the_prefix_so_directaudio_applies_at_once(self):
-        proton = self.tool / "proton"
-        proton.write_text("#!/bin/sh\n[ \"$1\" = run ] && [ \"$2\" = wineboot ] || exit 2\n"
-                          "mkdir -p \"$STEAM_COMPAT_DATA_PATH/pfx/drive_c/windows/system32\" \"$STEAM_COMPAT_DATA_PATH/pfx/drive_c/windows/syswow64\"\n"
-                          "printf 'WINE REGISTRY Version 2\\n\\n#arch=win64\\n' > \"$STEAM_COMPAT_DATA_PATH/pfx/user.reg\"\n")
-        proton.chmod(0o755)
-        result = self.run_setup()
-        self.assertIn("having Proton create it now", result.stderr)
-        self.assertIn("DirectAudio selected in the prefix", result.stderr)
-        self.assertNotIn("takes effect the next time", result.stderr)
-        self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
-        self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
-
-    def test_without_a_prefix_and_without_proton_it_waits_for_the_next_launch(self):
+    def test_without_a_prefix_it_waits_for_the_next_launch(self):
         result = self.run_setup()
         self.assertIn("takes effect the next time this game starts", result.stderr)
         self.assertEqual(self.link("system32"), None)
-
-    def test_a_running_wineserver_is_written_through_so_its_save_keeps_the_value(self):
-        import socket
-        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
-        wine = self.tool / "files/bin-arm64/wine"
-        calls = Path(self.tmp.name) / "wine-calls"
-        wine.write_text("#!/bin/sh\nif [ \"$1\" = reg ]; then echo \"$*\" >> '%s'; exit 0; fi\necho wine-11.0-4c8f2e1 '(Staging)'\n" % calls)
-        wine.chmod(0o755)
-        st = os.stat(self.compat / "pfx")
-        base = Path(self.tmp.name) / "wine-tmp"
-        server_dir = base / ("server-%x-%x" % (st.st_dev, st.st_ino))
-        server_dir.mkdir(parents=True)
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.addCleanup(sock.close)
-        sock.bind(str(server_dir / "socket"))
-        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\n'
-        env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat), BL_WINE_SERVER_BASE=str(base))
-        result = subprocess.run(["bash", "-c", script, "bash", str(self.tool)], env=env, capture_output=True, text=True, check=True)
-        self.assertIn("DirectAudio selected in the prefix", result.stderr)
-        self.assertIn("selected through the running wineserver", result.stderr)
-        self.assertIn("reg add HKCU\\Software\\Wine\\Drivers /v Audio /t REG_SZ /d directaudio,pulse /f", calls.read_text())
-        self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
 
     def test_the_system_thread_set_is_picked_from_winepulse_not_the_version(self):
         self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")

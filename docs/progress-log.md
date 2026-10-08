@@ -21,11 +21,15 @@ Three things were wrong with audio at once, and one tidy-up @xXJSONDeruloXx aske
   No set for the interface, or no `winepulse.so`: DirectAudio stays off and Proton's audio runs.
   Confirmed on the FIT: Experimental 20260924 and GE-Proton11-7 classic, cachyos-11.0-20261005-slr
   system-thread.
-- **Some games on Proton Experimental ran on PulseAudio while everything said DirectAudio.** Two
-  prefixes on the FIT had the driver linked into `system32` but a pristine `user.reg` with no
-  `Audio` value. Steam runs the compat tool several times per launch, and a wineserver from an
-  earlier verb still holding the registry saves its copy over the line we appended. When a server
-  is live for the prefix the value is now also written through it (`wine reg add`), with a test.
+- **Some games ran on PulseAudio while everything said DirectAudio.** Two prefixes on the FIT had
+  the driver linked into `system32` but a pristine `user.reg` with no `Audio` value: Steam runs the
+  compat tool several times per launch, and a wineserver from an earlier verb still holding the
+  registry saves its copy over the line we appended. The wrapper now says so when a server is
+  live. Two stronger fixes were tried on the device and withdrawn the same day: writing the value
+  through the live server with a bare `wine reg add`, and having Proton create a missing prefix
+  first (`proton run wineboot`) - the second Proton run inside Steam's launch sequence got the
+  launch aborted (`KeyboardInterrupt` in Proton, games bounced back to their page, a half-made
+  prefix). A first launch therefore still takes DirectAudio from the second run.
 - **The Steam client's own sound was "DirectAudio" in name only.** PulseAudio → sink → relay →
   AAudio is one hop more than a plain AAudio sink; the only gain was sharing the games' stream.
   The daemon runs on the Android side, so DirectAudio's engine can run *in* it:
