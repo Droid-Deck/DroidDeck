@@ -5,7 +5,13 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+/** Under Robolectric for a real org.json; the plain unit-test android.jar stubs it out. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class StoreGameSidecarTest {
     private val sample = StoreGameSidecar(
         Store.EPIC, "abc123", "Celeste", "Celeste.exe", launcher = ".droiddeck-launch.bat",
@@ -45,7 +51,7 @@ class StoreGameSidecarTest {
         // An exe outside the folder is not trusted: a sidecar must not point the shortcut anywhere.
         assertNull(StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"../other/a.exe"}"""))
         assertNull(StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"/abs/a.exe"}"""))
-        assertNull(StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"C:\\a.exe"}""")!!.let { null })
+        assertNull(StoreGameSidecar.parse("""{"store":"gog","id":"1","title":"T","exe":"C:\\a.exe"}"""))
     }
 
     @Test fun folderNamesAreSafeAndStable() {
