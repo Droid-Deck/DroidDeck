@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.session.LoadingState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -108,31 +109,24 @@ private fun loadStages(steam: Boolean): List<LoadStage> = if (steam) listOf(
 )
 
 /**
- * The checklist stage a loading line belongs to, -1 when it says nothing about the stage. The lines
- * are the session script's "== STEP" milestones and the installer's own progress; they arrive in
- * order, and the screen never steps back.
+ * The checklist stage a loading line's [topic] belongs to, -1 when it says nothing about the stage.
+ * The lines are the session script's "== STEP" milestones and the installer's own progress; they
+ * arrive in order, and the screen never steps back.
  */
-private fun stageOf(step: String, steam: Boolean): Int {
-    val t = step.lowercase()
-    return when {
-        "linux runtime" in t -> 0
-        "starting the session" in t -> 1
-        !steam && "desktop" in t -> 1
-        steam && "starting the steam client" in t -> 3
-        steam && ("steam" in t || "client" in t || "proton" in t || "library" in t || "compatibility" in t) -> 2
-        else -> -1
-    }
-}
-
-/** Download and install lines are worth reading as they are; the script's own notes are not. */
-private fun readableStep(step: String): Boolean {
-    val t = step.lowercase()
-    return t.startsWith("download") || t.startsWith("checking the linux") || t.startsWith("unpacking") || t.startsWith("installing")
+private fun stageOf(topic: LoadingState.Topic, steam: Boolean): Int = when (topic) {
+    LoadingState.Topic.RUNTIME -> 0
+    LoadingState.Topic.SESSION -> 1
+    LoadingState.Topic.DESKTOP -> if (steam) -1 else 1
+    LoadingState.Topic.STEAM_STARTING -> if (steam) 3 else -1
+    LoadingState.Topic.STEAM -> if (steam) 2 else -1
+    LoadingState.Topic.OTHER -> -1
 }
 
 @Composable
 fun LoadingOverlay(
     step: String, percent: Int, elapsed: String, hint: String, ended: Boolean,
+    /** What [step] is about, and whether it is a download or install line worth showing as it is (see [LoadingState]). */
+    topic: LoadingState.Topic, readable: Boolean,
     title: String = stringResource(R.string.load_starting_steam), steam: Boolean = true, onCancel: (() -> Unit)? = null,
     /** An ended session's exit status and log path, shown small under the advice. */
     endedDetail: String? = null,
@@ -147,12 +141,12 @@ fun LoadingOverlay(
     var ball by remember { mutableStateOf<Pair<Offset, Float>?>(null) }
     val stages = remember(steam) { loadStages(steam) }
     var reached by remember { mutableStateOf(0) }
-    LaunchedEffect(step, steam) {
-        val at = stageOf(step, steam)
+    LaunchedEffect(step, topic, steam) {
+        val at = stageOf(topic, steam)
         if (at > reached) reached = at
     }
     val active = reached.coerceAtMost(stages.lastIndex)
-    val detail = if (percent >= 0 || readableStep(step)) step.replaceFirstChar { it.uppercase() } else stringResource(stages[active].detail)
+    val detail = if (percent >= 0 || readable) step.replaceFirstChar { it.uppercase() } else stringResource(stages[active].detail)
     val context = LocalContext.current
     // The Steam tab's wall behind it, dimmed and slowed: starting Steam reads as the same place settling in.
     val games by produceState(emptyList<Library.SteamGame>()) {
@@ -229,7 +223,8 @@ private fun EndedActions(onRetry: (() -> Unit)?, onShareLogs: (() -> Unit)?, onC
         var firstUsed = false
         fun claim(): Modifier = if (firstUsed) Modifier else { firstUsed = true; Modifier.focusRequester(first) }
         if (onRetry != null) PrimaryButton(stringResource(R.string.store_try_again), modifier = claim(), onClick = onRetry)
-        if (onShareLogs != null) SecondaryButton(stringResource(R.string.drawer_share_logs), modifier = claim(), onClick = onShareLogs)
+        if (onShareLogs != null) SecondaryButton(stringResource(R.string.drawer_share_logs), modifier = claim(),
+            progress = com.droiddeck.launcher.session.SessionLogShare.progress, onClick = onShareLogs)
         if (onClose != null) SecondaryButton(stringResource(R.string.mode_back), modifier = claim(), onClick = onClose)
     }
 }

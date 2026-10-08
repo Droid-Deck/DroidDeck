@@ -1,5 +1,10 @@
 #!/usr/bin/python3
-"""Initialize Steam's own Gamescope UI scale once; subsequent choices belong to Steam."""
+"""Initialize Steam's own Gamescope display settings once; subsequent choices belong to Steam.
+
+The UI scale, and native resolution: the client treats our gamescope as an external display and,
+unless "Enable Native Resolution on External Displays" is on, draws itself at 1920x1080 on any
+larger output - a 2340x1080 session came up as 16:9 with bars. The session's size is already the
+user's Resolution choice, so the client should use all of it."""
 import math
 import os
 from pathlib import Path
@@ -9,6 +14,7 @@ import tempfile
 
 
 DISPLAY = "External: gamescope|||Windowed"
+NATIVE_RESOLUTION = "EnableSteamNativeExternalResolution"
 TOKEN = re.compile(r'\s+|//[^\n]*|"(?:\\.|[^"\\])*"|[{}]')
 
 
@@ -102,6 +108,25 @@ def seed_text(text, scale):
     return text[:at] + insertion + text[at:], True
 
 
+def seed_native_resolution(text):
+    root = parse(text).get('InstallConfigStore')
+    if not isinstance(root, Block):
+        raise ValueError("missing InstallConfigStore")
+    gamescope = root.get('Gamescope')
+    if gamescope is not None and not isinstance(gamescope, Block):
+        raise ValueError("invalid Gamescope settings")
+    if gamescope is not None and gamescope.get(NATIVE_RESOLUTION) is not None:
+        return text, False
+    entry = f'"{NATIVE_RESOLUTION}" "1"'
+    if gamescope is not None:
+        at, indent = gamescope.end, 2
+    else:
+        entry = '"Gamescope"\n{\n' + entry + '\n}'
+        at, indent = root.end, 1
+    insertion = '\n' + '\n'.join('\t' * indent + line for line in entry.splitlines()) + '\n'
+    return text[:at] + insertion + text[at:], True
+
+
 def atomic_write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix='.' + path.name, dir=path.parent)
@@ -128,9 +153,30 @@ def initialize(steam_root, width, height):
     return changed
 
 
+def initialize_native_resolution(steam_root):
+    config = Path(steam_root) / 'config/config.vdf'
+    marker = config.with_name('droiddeck-native-resolution-initialized')
+    if marker.exists():
+        return False
+    text = config.read_text() if config.exists() else '"InstallConfigStore"\n{\n}\n'
+    updated, changed = seed_native_resolution(text)
+    if changed:
+        atomic_write(config, updated)
+        print('== steam: native resolution on the session display')
+    atomic_write(marker, '1\n')
+    return changed
+
+
 if __name__ == '__main__':
+    status = 0
     try:
         initialize(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))
     except (OSError, ValueError, RecursionError) as error:
         print('== steam: left UI scale unchanged: ' + str(error), file=sys.stderr)
-        sys.exit(1)
+        status = 1
+    try:
+        initialize_native_resolution(sys.argv[1])
+    except (OSError, ValueError, RecursionError) as error:
+        print('== steam: left native resolution unchanged: ' + str(error), file=sys.stderr)
+        status = 1
+    sys.exit(status)

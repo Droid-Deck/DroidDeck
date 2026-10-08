@@ -1,11 +1,16 @@
 package com.droiddeck.launcher.runtime
 
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 
 /** Offline equivalent of Decky's identity-based replacement and loader settings update. */
 internal object DeckyPluginInstall {
+    /** A failure the user is told about: [text] is its string resource. */
+    class Failure(@StringRes val text: Int) : IllegalStateException()
+
     fun activate(staged: File, plugins: File, name: String, settingsFile: File, backupSuffix: String) {
         val settings = if (settingsFile.exists()) JSONObject(settingsFile.readText()) else JSONObject()
         val existing = plugins.listFiles().orEmpty().filter { folder ->
@@ -14,7 +19,7 @@ internal object DeckyPluginInstall {
             }.getOrDefault(false)
         }
         val target = File(plugins, staged.name)
-        require(!target.exists() || target in existing) { "Plugin folder belongs to another plugin" }
+        if (target.exists() && target !in existing) throw Failure(R.string.deckymgr_folder_taken)
         val order = settings.optJSONArray("pluginOrder") ?: JSONArray(plugins.listFiles().orEmpty()
             .filter { it.isDirectory && !it.name.startsWith(".droiddeck-") }
             .mapNotNull { runCatching { JSONObject(File(it, "plugin.json").readText()).getString("name") }.getOrNull() }
@@ -34,15 +39,15 @@ internal object DeckyPluginInstall {
             pending.writeText(settings.toString(4))
             for (old in existing) {
                 val backup = File(plugins, ".droiddeck-backup-${old.name}$backupSuffix")
-                check(old.renameTo(backup)) { "Could not preserve the existing plugin" }
+                if (!old.renameTo(backup)) throw Failure(R.string.deckymgr_preserve_failed)
                 backups.add(old to backup)
             }
-            check(staged.renameTo(target)) { "Could not activate the imported plugin" }
+            if (!staged.renameTo(target)) throw Failure(R.string.deckymgr_activate_failed)
             activated = true
-            check(pending.renameTo(settingsFile)) { "Could not update Decky plugin settings" }
+            if (!pending.renameTo(settingsFile)) throw Failure(R.string.deckymgr_settings_failed)
         } catch (error: Exception) {
             if (activated) target.deleteRecursively()
-            for ((old, backup) in backups.asReversed()) check(backup.renameTo(old)) { "Could not restore the existing plugin" }
+            for ((old, backup) in backups.asReversed()) if (!backup.renameTo(old)) throw Failure(R.string.deckymgr_restore_failed)
             throw error
         } finally {
             pending.delete()

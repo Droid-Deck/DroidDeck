@@ -38,7 +38,10 @@ collect_steam_logs() {
   # Into steam/ beside this session's own logs. The app scrubs these line by line after the
   # session ends - they carry the account's session token and id - so nothing here is the last
   # word on what the user ends up sharing; this is just the copy that survives the runtime.
-  [ -d "$steam_root/logs" ] && cp -r "$steam_root/logs/." "$BL_DEBUG_DIR/steam/" 2>/dev/null
+  # Up to 8 MB each, as the app's own copy takes them: the client's CEF and *.previous.txt logs
+  # reach 17 MB and say little about this session, and every share scrubs whatever is here.
+  [ -d "$steam_root/logs" ] && find "$steam_root/logs" -maxdepth 1 -type f -size -8192k \
+    -exec cp {} "$BL_DEBUG_DIR/steam/" \; 2>/dev/null
   [ -f "$HOME/.steam/steam/logs/steamwebhelper.log" ] && cp "$HOME/.steam/steam/logs/steamwebhelper.log" "$BL_DEBUG_DIR/steam/" 2>/dev/null
   # NOT copied, ever: loginusers.vdf, config.vdf and the ssfn* files, which hold the credentials
   # themselves rather than a mention of them.
@@ -94,6 +97,14 @@ export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
 # A sleep that starts no process. Under proot every exec is a traced execve plus the loader's
 # opens and maps, and the watchers below poll for the whole session: `sleep 1` in a loop was 60
 # execs a minute each. read -t on a pipe nothing ever writes to waits in bash itself.
+# The agent bridge's guest side (docs/agent-control.md): runs what the app's agent provider asks
+# for inside this session and publishes gamescope's focus. Its files live under the session root
+# ($BL_LAUNCH_DIR/agent), which the app empties before each session.
+start_agent() {
+  [ -n "${BL_LAUNCH_DIR:-}" ] && [ -x /usr/local/bin/droiddeck-agent ] || return 0
+  mkdir -p "$BL_LAUNCH_DIR/agent"
+  /usr/local/bin/droiddeck-agent "$@" 2>&1 &
+}
 nap() {
   [ -n "${bl_nap_fd:-}" ] || exec {bl_nap_fd}<> <(:)
   read -r -t "$1" -u "$bl_nap_fd" _ 2>/dev/null || :
@@ -133,6 +144,26 @@ program_cores() {
 }
 
 if [ -z "${BL_INSIDE:-}" ]; then
+  device_fonts=/usr/local/share/fonts/android
+  if [ -d "$device_fonts" ] && [ -d /etc/fonts/conf.d ] && command -v fc-cache >/dev/null 2>&1; then
+    fonts_rules=$(
+      echo '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd"><fontconfig>'
+      for pair in "zh-cn=Noto Sans CJK SC" "zh-sg=Noto Sans CJK SC" "zh-tw=Noto Sans CJK TC" "zh-hk=Noto Sans CJK HK" \
+        "zh-mo=Noto Sans CJK HK" "ja=Noto Sans CJK JP" "ko=Noto Sans CJK KR" "th=Noto Sans Thai"; do
+        printf '<match target="pattern"><test name="lang" compare="contains"><string>%s</string></test><edit name="family" mode="prepend_first"><string>%s</string></edit></match>\n' \
+          "${pair%%=*}" "${pair#*=}"
+      done
+      echo '</fontconfig>'
+    )
+    fonts_conf=/etc/fonts/conf.d/66-droiddeck-device-fonts.conf
+    [ "$fonts_rules" = "$(cat "$fonts_conf" 2>/dev/null)" ] || printf '%s\n' "$fonts_rules" > "$fonts_conf"
+    fonts_seen=$(ls -lL "$device_fonts" 2>/dev/null | md5sum)
+    fonts_stamp=/var/cache/fontconfig/.droiddeck-android-fonts
+    if [ "$fonts_seen" != "$(cat "$fonts_stamp" 2>/dev/null)" ]; then
+      fc-cache -f "${device_fonts%/*}" >/dev/null 2>&1 && printf '%s\n' "$fonts_seen" > "$fonts_stamp"
+      echo "== fontconfig: indexed $(ls "$device_fonts" | wc -l) device fonts, zh falls back to $(fc-match -f '%{family[0]}' ':lang=zh-cn' 2>/dev/null)"
+    fi
+  fi
   # The compositor may still be starting, and a socket left by an earlier session is not
   # a compositor: probe until a connection succeeds.
   for _ in $(seq 1 100); do
@@ -143,6 +174,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
   # into the app's: no gamescope in between.
   if [ "$mode" = lxqt ]; then
     step "starting the desktop"
+    start_agent --no-focus
     [ -x /usr/local/bin/droiddeck-desktop ] || { echo "== the desktop package is not installed"; exit 66; }
     cores=$(program_cores)
     if [ -n "$cores" ]; then
@@ -162,7 +194,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
     fi
   fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
-  [ "$nested" != "$width" ] && args+=(-S stretch)
+  [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
   # -r is what gamescope advertises as the refresh rate, and what a game reads as the display's.
   # Left unset it defaults to 60, so a 120 Hz panel offers only 60 Hz in game settings. The FPS
   # limiter wins when it is on (it is a deliberate cap); otherwise use the panel's own rate.
@@ -172,17 +204,27 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(-r "$BL_REFRESH")
   fi
   [ "$mode" = steam ] && args+=(-e)
+  # Two Xwayland servers, as SteamOS runs Steam: the client on the first, games on the second
+  # (STEAM_GAME_DISPLAY_0). The client then sizes the games' server to each game's Game Resolution
+  # (GAMESCOPE_XWAYLAND_MODE_CONTROL; native unless one is set), and gamescope scales it to the
+  # output. With one server the client and its games share the output's size, so a game's own Game
+  # Resolution never reaches its display (docs/development/steam-display-scaling.md). The client's
+  # overlay is also on another server than the game, so opening it no longer takes the game's X
+  # keyboard focus, which made games like FlatOut shrink their window.
+  # BL_XWAYLAND_COUNT=1 in Download/droiddeck-env goes back to one.
+  if [ "$mode" = steam ] && [ "${BL_XWAYLAND_COUNT:-2}" -gt 1 ]; then
+    args+=(--xwayland-count "${BL_XWAYLAND_COUNT:-2}")
+    export STEAM_MULTIPLE_XWAYLANDS=1
+  fi
   # Touch passes through to the client as touch until the client says otherwise, as SteamOS's
   # gamescope-session starts it (TOUCH_MODE=4). The client sets the mode itself (STEAM_TOUCH_CLICK_MODE)
   # only once it has a controller; until then gamescope's own default made a finger a left-click
   # mouse, so the Steam interface took taps but would not scroll on a phone with no pad attached.
   [ "$mode" = steam ] && args+=(--default-touch-mode 4)
-  # A game that resizes its own window when it loses focus (the Steam menu opening over it) comes
-  # back smaller, and gamescope draws a window that is not flagged fullscreen at its own size in
-  # the top-left corner. Forcing every window to the output's size keeps it filling the screen,
-  # but a game running at a resolution other than the screen's fights it and flickers, so it is
-  # off unless the app asks for it: BL_GAMESCOPE_FORCE_FULLSCREEN=1 turns it on.
-  [ "$mode" = steam ] && [ "${BL_GAMESCOPE_FORCE_FULLSCREEN:-0}" = 1 ] && args+=(--force-windows-fullscreen)
+  # No --force-windows-fullscreen: it was for games that shrink their window when the Steam menu
+  # opens over them (FlatOut), which no longer happens with the games on their own Xwayland server
+  # (above), and it made any game drawing at another size than its display fight it. An experiment
+  # can still pass it with BL_GAMESCOPE_ARGS.
   # HDR10: the app opened its compositor's colour-management gate for this session (BL_HDR=1);
   # gamescope then offers HDR to its clients through the same wp_color_manager_v1 it binds on ours.
   [ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
@@ -206,6 +248,21 @@ if [ -z "${BL_INSIDE:-}" ]; then
 fi
 
 # gamescope manages X windows: toolkits go through Xwayland, not gamescope's own Wayland socket.
+# Root-window requests for the game (restore) go to every display gamescope gave us:
+# the client's ($DISPLAY) and, with two servers, the games' (STEAM_GAME_DISPLAY_0); gamescope reads
+# them per server.
+bl_displays() {
+  printf '%s\n' "$DISPLAY"
+  [ -n "${STEAM_GAME_DISPLAY_0:-}" ] && [ "$STEAM_GAME_DISPLAY_0" != "$DISPLAY" ] && printf '%s\n' "$STEAM_GAME_DISPLAY_0"
+  return 0
+}
+bl_xprop_set_all() {
+  local d ok=1
+  for d in $(bl_displays); do
+    DISPLAY=$d xprop -root -f "$1" 32c -set "$1" "$2" 2>/dev/null || ok=0
+  done
+  [ "$ok" = 1 ]
+}
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
 # gamescope's reaper waits for every process left under it before the compositor comes down. A
 # process a game left behind - a Wine service blocked on a server that is already gone - is
@@ -235,6 +292,8 @@ reap_orphans() {
 if [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
   /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
 fi
+
+start_agent
 
 case $mode in
   desktop)
@@ -441,22 +500,17 @@ case $mode in
     # moments later, so the seeder has only that gap to mark the redistributables as already run.
     # It stamps each prefix it has covered and skips it thereafter, so the extra passes cost
     # almost nothing.
-    # The drawer's "Stretch games to fill the screen" works live: the app writes its choice to
-    # ~/.droiddeck-fill, and each change goes to gamescope as GAMESCOPE_FORCE_WINDOWS_FULLSCREEN on
-    # the root window, which it watches. What gamescope was started with is where this begins.
-    # Not on the desktop (BL_DESKTOP): no gamescope there, and the loop would outlive the client.
-    [ -z "${BL_DESKTOP:-}" ] && (
-      last=${BL_GAMESCOPE_FORCE_FULLSCREEN:-0}
+    # With the 16:9 stretch on, the client's own scaler must not undo it: in Deck mode it sets
+    # GAMESCOPE_NEW_SCALING_SCALER to Auto (0), which fits the 16:9 picture with bars and outranks -S.
+    # Auto is put back to Stretch (4); a mode picked in the QAM (Integer, Fit, Fill) is kept.
+    [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STRETCHED:-0}" = 1 ] && (
       while :; do
         nap 1
-        want=
-        { read -r want || [ -n "$want" ]; } < "$HOME/.droiddeck-fill" 2>/dev/null || continue
-        case $want in 0|1) ;; *) continue ;; esac
-        [ "$want" = "$last" ] && continue
-        if xprop -root -f GAMESCOPE_FORCE_WINDOWS_FULLSCREEN 32c -set GAMESCOPE_FORCE_WINDOWS_FULLSCREEN "$want" 2>/dev/null; then
-          echo "== stretch games to fill the screen: $want (live)"
-          last=$want
-        fi
+        cur=$(xprop -root GAMESCOPE_NEW_SCALING_SCALER 2>/dev/null) || continue
+        case $cur in *" = "*) cur=${cur##* = } ;; *) cur=0 ;; esac
+        [ "$cur" = 0 ] || continue
+        xprop -root -f GAMESCOPE_NEW_SCALING_SCALER 32c -set GAMESCOPE_NEW_SCALING_SCALER 4 2>/dev/null \
+          && echo "== stretch 16:9 to panel: the client's scaler was Auto, set to Stretch"
       done
     ) &
     # Resume from the Steam menu. The menu is an overlay that takes input, and a fullscreen game that
@@ -473,7 +527,7 @@ case $mode in
         case $app in ''|*[!0-9]*) prev=; continue ;; esac
         if [ "$prev" = 769 ] && [ "$app" != 769 ]; then
           nap 1
-          xprop -root -f GAMESCOPE_RESTORE_FOCUS_WINDOW 32c -set GAMESCOPE_RESTORE_FOCUS_WINDOW 1 2>/dev/null \
+          bl_xprop_set_all GAMESCOPE_RESTORE_FOCUS_WINDOW 1 \
             && echo "== resume: asked gamescope to restore the game window (app $app)"
         fi
         prev=$app
@@ -525,7 +579,7 @@ case $mode in
         local d
         [ -e "$compat_stamp" ] && [ "$((beat % 12))" -ne 0 ] || return 0
         for d in "$steam_root/steamapps" "$steam_root/steamapps/common" "$steam_root/config" \
-                 "$steam_root/compatibilitytools.d" /mnt/droiddeck-sd/steamapps; do
+                 "$steam_root/compatibilitytools.d" /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps; do
           [ "$d" -nt "$compat_stamp" ] && return 0
         done
         return 1
@@ -667,6 +721,8 @@ BUSCONF
       export BL_CDP_GUARD=$BL_CDP_PORT
       echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     fi
+    # The agent bridge drives the client through it (droiddeck-agent's cdp requests).
+    [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
     droiddeck-steam-compat "$steam_root" 2>&1 &
     # The client exits 42 when it has updated itself and wants a fresh start (steam.sh does this).
     # BL_STEAM_UI=desktop = the client's desktop UI (a window, the library as a list), which the
@@ -685,6 +741,8 @@ BUSCONF
       _bl_ui+=(-steamdeck -steamos3)
       # The QAM's Scaling Filter lists NVIDIA Image Scaling only when told gamescope has it (it does).
       export STEAM_GAMESCOPE_NIS_SUPPORTED=1
+      # And shows its Scaling Mode and Scaling Filter only when told gamescope takes them.
+      export STEAM_GAMESCOPE_FANCY_SCALING_SUPPORT=1
       echo "== steam: Deck mode on (-steamdeck -steamos3)"
     fi
     # What a killed session leaves behind. Android ends sessions without warning (backgrounding, the
@@ -708,6 +766,10 @@ BUSCONF
     # and a restart below (rc=42, or the one after the ARM64 Proton lands) would otherwise start it
     # again on the branch it just wrote.
     steam_channel=${BL_STEAM_CHANNEL:-steamdeck_publicbeta}
+    # The app's language (Setup, or the system's): the client's interface takes -language over its
+    # registry, and the registry is rewritten before each start below for its update window.
+    _bl_lang=()
+    [ -n "${BL_STEAM_LANGUAGE:-}" ] && _bl_lang=(-language "$BL_STEAM_LANGUAGE")
     steam_beta=$steam_root/package/beta
     if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
       droiddeck-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
@@ -731,7 +793,7 @@ BUSCONF
         done
       ) &
     fi
-    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
+    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
     # An update that cannot install asks for a restart (rc=42) every time; the count is capped so a
     # session can never again loop in silence, which reads as a menu opening and closing by itself.
     steam_updates=0
@@ -780,18 +842,22 @@ BUSCONF
         echo start >> "$steam_root/package/droiddeck-unconfirmed"
         _bl_counted=1
       fi
+      # Between starts only: the client holds registry.vdf in memory and writes it back on exit.
+      if [ -n "${BL_STEAM_LANGUAGE:-}" ]; then
+        droiddeck-steam-language "$HOME" "$BL_STEAM_LANGUAGE" || true
+      fi
       step "starting the Steam client${BL_STEAM_UI:+ ($BL_STEAM_UI UI)}"
-      "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" -clientbeta "$steam_channel" \
+      "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 \
         -cef-use-gl=angle -cef-use-angle=vulkan "$@"
       rc=$?
       echo "== steam exited rc=$rc"
+      if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
+        droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
+      fi
       collect_steam_logs
       if [ -f "$HOME/.config/droiddeck/fex-wanted" ] && [ -x /usr/local/bin/droiddeck-fex ]; then
         /usr/local/bin/droiddeck-fex status >/dev/null 2>&1 || true
-      fi
-      if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
-        droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true
       fi
       if [ -f "$HOME/.bl-stop-requested" ]; then
         rm -f "$HOME/.bl-stop-requested" "$HOME/.bl-restart-once"

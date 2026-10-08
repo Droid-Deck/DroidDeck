@@ -57,6 +57,22 @@ jobs:
             exit 1
           fi
 
+      - name: Version bumps are isolated
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          base=$(git merge-base origin/main HEAD)
+          diff=$(git diff -U0 "$base..HEAD" -- app/build.gradle)
+          grep -Eq '^[+-][[:space:]]*version(Code|Name)[[:space:]]' <<<"$diff" || exit 0
+          other_files=$(git diff --name-only "$base..HEAD" | grep -v '^app/build.gradle$' || true)
+          other_gradle=$(grep -E '^[+-]' <<<"$diff" | grep -Ev '^(---|\+\+\+)' | grep -Ev '^[+-][[:space:]]*version(Code|Name)[[:space:]]' || true)
+          if [[ -n "$other_files" || -n "$other_gradle" ]]; then
+            echo "::error::versionCode/versionName changes must be isolated in their own PR"
+            echo "A version PR may only change the versionCode/versionName lines in app/build.gradle." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       - name: Merge onto main, or say what conflicts
         if: github.event_name == 'pull_request'
         run: |
@@ -157,7 +173,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -179,6 +195,10 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
+          # Force-SSBS adapter, preloaded into a game's Wine only when the game asks for it.
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+            -o "$D/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/libssbs.so"
           mkdir -p "$D/usr/local/bin"
           aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
@@ -190,7 +210,7 @@ jobs:
           done
           if [ -f tools/gamescope/release.env ]; then
             . tools/gamescope/release.env
-            gh release download "${GAMESCOPE_TAG}" -R "${GITHUB_REPOSITORY}" -p gamescope.tzst -O gamescope.tzst
+            gh release download "${GAMESCOPE_TAG}" -R "${GAMESCOPE_REPO:-${GITHUB_REPOSITORY}}" -p gamescope.tzst -O gamescope.tzst
             echo "${GAMESCOPE_SHA256}  gamescope.tzst" | sha256sum -c -
             tar --use-compress-program=unzstd -xf gamescope.tzst -C "$D"
             test -f "$D/usr/local/bin/gamescope"
@@ -230,6 +250,26 @@ jobs:
           install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
           rm -rf mango-pkgs
           ls -l "$M"
+          # The Windows components installer's tools (tools/msitools/packages.txt).
+          T="$D/usr/local/lib/droiddeck-msitools"
+          mkdir -p "$T" msi-pkgs
+          grep -v '^#' tools/msitools/packages.txt | while read -r sum url; do
+            [ -n "$url" ] || continue
+            curl -fsSL --retry 3 -o msi-pkgs/pkg.tar.xz "$url"
+            echo "$sum  msi-pkgs/pkg.tar.xz" | sha256sum -c -
+            tar -xJf msi-pkgs/pkg.tar.xz -C msi-pkgs
+            rm msi-pkgs/pkg.tar.xz
+          done
+          install -m644 msi-pkgs/usr/bin/msiinfo "$T/msiinfo"
+          install -m644 msi-pkgs/usr/bin/cabextract "$T/cabextract"
+          for so in libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
+            cp -L "msi-pkgs/usr/lib/$so" "$T/$so"
+          done
+          for f in NOTICE GPL-2 GPL-3 LGPL-2.1; do
+            install -Dm644 "tools/msitools/licenses/$f" "$D/usr/local/share/licenses/droiddeck-msitools/$f"
+          done
+          rm -rf msi-pkgs
+          ls -l "$T"
           install -Dm644 tools/linuxfs/desktop/droiddeck-desktop "$D/usr/local/bin/droiddeck-desktop"
           install -Dm644 tools/linuxfs/desktop/droiddeck-gpu "$D/usr/local/bin/droiddeck-gpu"
           install -Dm644 tools/linuxfs/desktop/droiddeck-desktop-gpu "$D/usr/local/bin/droiddeck-desktop-gpu"
@@ -305,6 +345,11 @@ jobs:
           mv pulseaudio.tzst app/src/main/assets/pulseaudio.tzst
           tar --use-compress-program=unzstd -tf app/src/main/assets/pulseaudio.tzst | grep -c '\.so$'
           rm -rf pa-bundle sink-out
+      - name: Build the DirectAudio relay
+        run: |
+          set -euo pipefail
+          export NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          tools/directaudio-relay/build.sh app/src/main/jniLibs/arm64-v8a
 
       - name: Cache proot
         id: proot
@@ -343,11 +388,23 @@ jobs:
             echo "::error::libfakeinput.so exports the C++ runtime"; exit 1
           fi
           SESSION=$(syms "$D/libblsession.so")
-          for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap drmPrimeFDToHandle drmCloseBufferHandle drmIoctl; do
+          for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap drmPrimeFDToHandle drmCloseBufferHandle; do
             grep -qx "$sym" <<<"$SESSION" || { echo "::error::libblsession.so does not export $sym"; exit 1; }
+          done
+          # Zink's GEM_CLOSE is caught at ioctl(); an exported drmIoctl made NMS replay old frames.
+          if grep -qx drmIoctl <<<"$SESSION"; then
+            echo "::error::libblsession.so exports drmIoctl"; exit 1
+          fi
+          SSBS=$(syms "$D/libssbs.so")
+          for sym in sigaction signal bsd_signal sysv_signal; do
+            grep -qx "$sym" <<<"$SSBS" || { echo "::error::libssbs.so does not export $sym"; exit 1; }
           done
           test -f "$D/usr/local/bin/droiddeck-session"
           test -f "$D/usr/local/bin/droiddeck-proton-extra"
+          test -f "$D/usr/local/bin/droiddeck-msi-install"
+          for f in msiinfo cabextract libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
+            test -f "$D/usr/local/lib/droiddeck-msitools/$f" || { echo "::error::droiddeck-msitools/$f missing"; exit 1; }
+          done
 
       - name: Cache the CMake build tree
         uses: actions/cache@v4

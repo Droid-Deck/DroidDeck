@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.focusRequester
@@ -162,6 +163,7 @@ private fun RailItem(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.railFor(key)) else Modifier)
+            .testTag("rail-$key")
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .size(width = if (iconOnly) 52.dp else 80.dp, height = height)
             .clip(Shape14)
@@ -174,7 +176,7 @@ private fun RailItem(
         if (iconOnly) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp))
         else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(if (height < 56.dp) 20.dp else 22.dp))
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, softWrap = false)
+            FitText(label, maxSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp), fontWeight = FontWeight.SemiBold, color = fg)
         }
         if (badge) Box(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = if (iconOnly) 7.dp else 8.dp, end = if (iconOnly) 9.dp else 18.dp)

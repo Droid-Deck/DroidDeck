@@ -143,8 +143,7 @@ public class PulseAudioComponent extends SessionPart {
             config.add("load-module module-directaudio-sink sink_name=DirectAudio socket=\"" + relaySocketPath + "\" performance_mode=1 adaptive=1 volume=1.0");
             config.add("set-default-sink DirectAudio");
         } else {
-            // The classic sink: the adaptive AAudio module 0.1.5 shipped, unchanged.
-            config.add("load-module module-aaudio-classic-sink sink_name=AAudioSink performance_mode=1 adaptive=1 volume=1.0");
+            config.add("load-module module-aaudio-sink sink_name=AAudioSink performance_mode=1 adaptive=1 volume=1.0");
             config.add("set-default-sink AAudioSink");
         }
         if (micFifoPath != null && !micFifoPath.isEmpty()) {

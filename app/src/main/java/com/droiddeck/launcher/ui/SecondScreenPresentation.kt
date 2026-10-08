@@ -226,22 +226,24 @@ class SecondScreenPresentation(
             }
             keys.addView(button)
         }
-        key("Esc", "\u001b")
-        key("Tab", "\t")
-        key("Ctrl", "") { button ->
+        val ctrl = context.getString(R.string.pckb_key_ctrl)
+        val alt = context.getString(R.string.pckb_key_alt)
+        key(context.getString(R.string.pckb_key_esc), "\u001b")
+        key(context.getString(R.string.second_key_tab), "\t")
+        key(ctrl, "") { button ->
             ctrlActive = !ctrlActive
-            button.text = if (ctrlActive) "Ctrl ✓" else "Ctrl"
+            button.text = if (ctrlActive) context.getString(R.string.second_key_on, ctrl) else ctrl
         }
-        key("Alt", "") { button ->
+        key(alt, "") { button ->
             altActive = !altActive
-            button.text = if (altActive) "Alt ✓" else "Alt"
+            button.text = if (altActive) context.getString(R.string.second_key_on, alt) else alt
         }
         key("↑", "\u001b[A")
         key("↓", "\u001b[B")
         key("←", "\u001b[D")
         key("→", "\u001b[C")
-        key("Ctrl+C", "\u0003")
-        key("Ctrl+D", "\u0004")
+        key(context.getString(R.string.second_key_ctrl_c), "\u0003")
+        key(context.getString(R.string.second_key_ctrl_d), "\u0004")
         keyStrip.addView(keys)
         root.addView(keyStrip, LinearLayout.LayoutParams(-1, -2))
 

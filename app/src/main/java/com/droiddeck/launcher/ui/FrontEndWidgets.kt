@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -206,8 +207,27 @@ internal fun PrimaryButton(
     }
 }
 
+/**
+ * [label] while idle; while [progress] is set, a spinner and how far along it is in its place.
+ * The label stays laid out underneath, invisible, so the button keeps its width. The spinner
+ * turns until there is a first figure to show.
+ */
 @Composable
-internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun ProgressLabel(label: @Composable (Modifier) -> Unit, progress: Float?, fontSize: androidx.compose.ui.unit.TextUnit = 15.sp) {
+    val pal = LocalPalette.current
+    Box(contentAlignment = Alignment.Center) {
+        label(Modifier.alpha(if (progress == null) 1f else 0f))
+        if (progress != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (progress > 0f) CircularProgressIndicator(progress = { progress }, strokeWidth = 2.dp, color = pal.signal, trackColor = pal.signal.copy(alpha = 0.22f), modifier = Modifier.size(16.dp))
+            else CircularProgressIndicator(strokeWidth = 2.dp, color = pal.signal, modifier = Modifier.size(16.dp))
+            Text("${(progress * 100).toInt()}%", fontSize = fontSize, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                color = MaterialTheme.colorScheme.onBackground)
+        }
+    }
+}
+
+@Composable
+internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boolean = false, modifier: Modifier = Modifier, progress: Float? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
@@ -222,7 +242,10 @@ internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boo
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 7.dp else 11.dp),
-    ) { Text(text, fontSize = if (compact) 12.sp else 15.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, color = colors.onBackground, maxLines = 1) }
+    ) {
+        ProgressLabel({ m -> Text(text, fontSize = if (compact) 12.sp else 15.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, color = colors.onBackground, maxLines = 1, modifier = m) },
+            progress, fontSize = if (compact) 12.sp else 15.sp)
+    }
 }
 
 @Composable

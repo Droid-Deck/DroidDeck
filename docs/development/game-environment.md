@@ -23,6 +23,11 @@ and explicit removals take precedence over these defaults. FEX's own default
 remains the default preset. Shader caching in VKD3D/DXVK, synchronization, ray
 tracing and diagnostic logging otherwise retain the runtime's defaults.
 
+On an Adreno 6xx, Turnip does not expose `storageBuffer8BitAccess`, which DXVK 3
+requires. A Steam or desktop session installs DXVK 2.7.1 into any Proton whose
+DXVK is still the copy that Proton shipped, including after a Proton update put
+that copy back. A DXVK package chosen in Components stays for that Proton build.
+
 The variable-name picker offers 24 predefined variables and a Custom entry. Like
 WinNative, known variables use toggles, value dropdowns, multi-select lists, or
 numeric/text fields. Feature-level and shader-model dropdowns also accept custom

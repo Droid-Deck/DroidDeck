@@ -1,6 +1,17 @@
 package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.focusable
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import com.droiddeck.launcher.gpu.DeviceInfo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -167,7 +178,7 @@ private fun DriverDropdown(rows: List<DriverRow>, selected: String, fallback: St
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(row.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (row.id == selected) pal.signal else colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (row.tag == DriverRow.BUNDLE) Text(row.tag, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = colors.onSurfaceVariant)
+                            if (row.tag == DriverRow.BUNDLE) Text(driverTagLabel(row.tag), fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = colors.onSurfaceVariant)
                         }
                         if (row.detail.isNotEmpty()) Text(row.detail, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -180,29 +191,106 @@ private fun DriverDropdown(rows: List<DriverRow>, selected: String, fallback: St
     }
 }
 
+/**
+ * This GPU and how far it is supported. A tap (or A) opens the card onto everything about the chip -
+ * SoC, GPU, CPU, memory, system, the phone's own Vulkan driver, the drivers in use - gathered once,
+ * off the main thread, with a button that copies it for a bug report.
+ */
 @Composable
 private fun DeviceCard(s: GpuDriversState) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     val tint = when {
         s.unsupported -> pal.error
         s.supported -> pal.good
         else -> AttentionAmber
     }
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14).padding(14.dp),
+    var open by rememberSaveable { mutableStateOf(false) }
+    var details by remember { mutableStateOf<List<DeviceInfo.Section>?>(null) }
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        if (open && details == null) details = withContext(Dispatchers.IO) { DeviceInfo.collect(context) }
+    }
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val toggle = { open = !open; copied = false }
+    Column(
+        Modifier.fillMaxWidth().clip(Shape14).background(colors.surface)
+            .background(if (hot) pal.signal.copy(alpha = 0.10f) else Color.Transparent)
+            .glideBorder(hot, Shape14, pal.signal, pal.line),
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clip(Shape12).background(tint.copy(alpha = 0.14f))) {
-            Icon(Icons.Outlined.Memory, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth().paneItem("gpu-device")
+                .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = toggle)
+                .controllerConfirm(onClick = toggle)
+                .padding(14.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clip(Shape12).background(tint.copy(alpha = 0.14f))) {
+                Icon(Icons.Outlined.Memory, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(s.gpuName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+                Text(listOf(s.soc, s.gpuFamily).filter { it.isNotEmpty() }.joinToString(" · "), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            }
+            // The verdict shares the width with the GPU's name and wraps, rather than taking all it
+            // needs: a long one (in some languages) would squeeze the name to a letter a line.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f, fill = false)) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(tint))
+                Text(s.supportText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = tint, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(
+                if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                contentDescription = stringResource(if (open) R.string.device_info_hide else R.string.device_info_show),
+                tint = colors.onSurfaceVariant, modifier = Modifier.size(24.dp),
+            )
         }
-        Column(Modifier.weight(1f)) {
-            Text(s.gpuName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-            Text(listOf(s.soc, s.gpuFamily).filter { it.isNotEmpty() }.joinToString(" · "), fontSize = 13.sp, color = colors.onSurfaceVariant)
+        AnimatedVisibility(open) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp)) {
+                HorizontalDivider(color = pal.line)
+                val sections = details
+                if (sections == null) {
+                    Text(stringResource(R.string.device_info_loading), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                } else {
+                    for (section in sections) DeviceInfoSection(section)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(if (copied) R.string.device_info_copied else R.string.device_info_copy_hint),
+                            fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f),
+                        )
+                        SecondaryButton(stringResource(R.string.device_info_copy), compact = true) {
+                            clipboard.setText(AnnotatedString(DeviceInfo.text(sections)))
+                            copied = true
+                        }
+                    }
+                }
+            }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(tint))
-            Text(s.supportText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = tint, maxLines = 2)
+    }
+}
+
+/** One part of the device details: its title, then label/value rows. Focusable, so the d-pad walks the list. */
+@Composable
+private fun DeviceInfoSection(section: DeviceInfo.Section) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier.fillMaxWidth().clip(Shape12)
+            .glideBorder(hot, Shape12, pal.signal)
+            .focusable(interactionSource = src).padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Text(section.title.uppercase(), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, color = colors.onSurfaceVariant)
+        for ((label, value) in section.rows) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(label, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.width(190.dp))
+                Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onBackground, modifier = Modifier.weight(1f))
+            }
         }
     }
 }

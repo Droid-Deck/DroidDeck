@@ -4,18 +4,34 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SessionDisplayTest {
-    @Test fun explicitPresetsAndMatchScreenResolveWithoutAnyAspectSetting() {
+    @Test fun fixedSizesAndMatchScreenResolveWithoutAnyAspectSetting() {
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1440 to 1080, "1280x720"))
         assertEquals(1600 to 900, SessionDisplay.resolveChoice(1280 to 720, "1600x900"))
         assertEquals(1440 to 1080, SessionDisplay.resolveChoice(1080 to 1440, SessionDisplay.MATCH_SCREEN))
         assertEquals(2400 to 1080, SessionDisplay.resolveChoice(1080 to 2400, SessionDisplay.MATCH_SCREEN))
     }
 
-    @Test fun panelOptionReplacesTheIdenticalPresetAndTracksPanelChanges() {
+    @Test fun heightPresetsKeepThePanelShapeWithASixteenByNineFloor() {
+        // 20:9 phone: edge to edge, no bars for the client's interface.
+        assertEquals(1600 to 720, SessionDisplay.resolveChoice(2400 to 1080, SessionDisplay.DEFAULT_RESOLUTION))
+        assertEquals(1608 to 720, SessionDisplay.resolveChoice(2412 to 1080, "720p"))
+        // 1440p phone: bounded by the preset height, not the panel.
+        assertEquals(1560 to 720, SessionDisplay.resolveChoice(3120 to 1440, "720p"))
+        assertEquals(2340 to 1080, SessionDisplay.resolveChoice(3120 to 1440, "1080p"))
+        // Foldable inner panel and 4:3 handhelds: never narrower than 16:9.
+        assertEquals(1280 to 720, SessionDisplay.resolveChoice(2208 to 1840, "720p"))
+        assertEquals(1280 to 720, SessionDisplay.resolveChoice(1440 to 1080, "720p"))
+        // Never taller than the panel.
+        assertEquals(1280 to 720, SessionDisplay.resolveChoice(1280 to 720, "1080p"))
+    }
+
+    @Test fun optionsListTheHeightsThePanelCanShowThenThePanel() {
         val thor = SessionDisplay.resolutionOptions(1920 to 1080)
-        assertEquals(listOf("1280x720", "1600x900", SessionDisplay.MATCH_SCREEN), thor)
+        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN), thor)
+        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN), SessionDisplay.resolutionOptions(2400 to 1080))
+        assertEquals(listOf("720p", "900p", "1080p", SessionDisplay.MATCH_SCREEN), SessionDisplay.resolutionOptions(3120 to 1440))
         val small = SessionDisplay.resolutionOptions(1280 to 720)
-        assertFalse(small.contains("1280x720"))
+        assertEquals(listOf(SessionDisplay.MATCH_SCREEN), small)
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1280 to 720, SessionDisplay.MATCH_SCREEN))
         assertEquals(2560 to 1440, SessionDisplay.resolveChoice(2560 to 1440, SessionDisplay.MATCH_SCREEN))
     }

@@ -1,8 +1,6 @@
 /*
  * Opt-in observations for file allocation and writes to the selected Steam library.
  *
- * Steam's allocation failure and any later fallback are left entirely to the caller. These
- * wrappers only forward the same arguments, record the result and restore errno after logging.
  * The session enables them only when storage diagnostics are turned on. Counters are local to
  * each process, allocation details are capped, writes are sampled, and storage.log has a global
  * size limit because every Steam child shares it.
@@ -154,19 +152,56 @@ static void allocation_line(const char *api, int result, int error, int flags,
   if (n > 0 && (size_t)n < sizeof(line)) append_line(line, (size_t)n);
 }
 
+static int steam_client(void) {
+  static int cached = -1;
+  if (cached < 0)
+    cached = strcmp(program_invocation_short_name, "steam") == 0 &&
+             strstr(program_invocation_name, "steamrtarm64") != NULL;
+  return cached;
+}
+
+static int staging_file(int fd) {
+  char link[32], path[PATH_MAX];
+  snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+  long n = syscall(SYS_readlinkat, (long)AT_FDCWD, (long)link, (long)path, (long)sizeof(path) - 1);
+  if (n <= 0) return 0;
+  path[n] = '\0';
+  return strstr(path, "/steamapps/downloading/") != NULL;
+}
+
+static long long unreserved[16];
+static unsigned int unreserved_count;
+
+static int cannot_reserve(long long device) {
+  unsigned int n = __atomic_load_n(&unreserved_count, __ATOMIC_ACQUIRE);
+  for (unsigned int i = 0; i < n && i < 16; i++)
+    if (__atomic_load_n(&unreserved[i], __ATOMIC_RELAXED) == device) return 1;
+  return 0;
+}
+
+static void note_cannot_reserve(int fd) {
+  struct stat st;
+  if (next_fstat == NULL) next_fstat = dlsym(RTLD_NEXT, "fstat");
+  if (next_fstat == NULL || next_fstat(fd, &st) != 0 || cannot_reserve((long long)st.st_dev)) return;
+  unsigned int slot = __atomic_load_n(&unreserved_count, __ATOMIC_RELAXED);
+  while (slot < 16 && !__atomic_compare_exchange_n(&unreserved_count, &slot, slot + 1, 0, __ATOMIC_ACQ_REL,
+                                                   __ATOMIC_RELAXED)) {
+  }
+  if (slot < 16) __atomic_store_n(&unreserved[slot], (long long)st.st_dev, __ATOMIC_RELEASE);
+}
+
 int fallocate(int fd, int mode, off_t offset, off_t length) {
   int entry_errno = errno;
   if (next_fallocate == NULL) next_fallocate = dlsym(RTLD_NEXT, "fallocate");
   if (next_fallocate == NULL) { errno = ENOSYS; return -1; }
   int selected = on_selected_device(fd, NULL);
   errno = entry_errno;
-  if (!selected) return next_fallocate(fd, mode, offset, length);
-  uint64_t start = now_ns();
+  uint64_t start = selected ? now_ns() : 0;
   errno = entry_errno;
   int result = next_fallocate(fd, mode, offset, length);
   int call_errno = errno;
-  uint64_t elapsed = now_ns() - start;
-  allocation_line("fallocate", result, call_errno, mode, offset, length, elapsed);
+  if (result != 0 && (call_errno == EOPNOTSUPP || call_errno == ENOSYS) && steam_client()) note_cannot_reserve(fd);
+  if (selected) allocation_line("fallocate", result, call_errno, mode, offset, length, now_ns() - start);
   errno = call_errno;
   return result;
 }
@@ -222,12 +257,28 @@ int ftruncate(int fd, off_t length) {
   if (next_ftruncate == NULL) next_ftruncate = dlsym(RTLD_NEXT, "ftruncate");
   if (next_ftruncate == NULL) { errno = ENOSYS; return -1; }
   int selected = on_selected_device(fd, NULL);
-  errno = entry_errno;
-  if (!selected) return next_ftruncate(fd, length);
-  uint64_t start = now_ns();
-  errno = entry_errno;
-  int result = next_ftruncate(fd, length);
-  int call_errno = errno;
+  uint64_t start = selected ? now_ns() : 0;
+  struct stat st;
+  int known = 0;
+  if (steam_client()) {
+    if (next_fstat == NULL) next_fstat = dlsym(RTLD_NEXT, "fstat");
+    known = next_fstat != NULL && next_fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && staging_file(fd);
+  }
+  int result = 0, call_errno = entry_errno;
+  if (!known || length <= st.st_size || !cannot_reserve((long long)st.st_dev)) {
+    errno = entry_errno;
+    result = next_ftruncate(fd, length);
+    call_errno = errno;
+    if (result != 0 && known && length >= st.st_size && (call_errno == EPERM || call_errno == EOPNOTSUPP)) {
+      if (length > st.st_size) note_cannot_reserve(fd);
+      result = 0;
+      call_errno = entry_errno;
+    }
+  }
+  if (!selected) {
+    errno = call_errno;
+    return result;
+  }
   uint64_t elapsed = now_ns() - start;
   add(&stats.ftruncate_calls, 1);
   if (result != 0) add(&stats.ftruncate_failures, 1);

@@ -353,6 +353,7 @@ void bl_kgsl_chip_id_fixup(unsigned long request, void *arg, int rc); /* kgslid.
 int bl_kgsl_poll(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                  void *arg, int *rc) __attribute__((visibility("hidden")));
 int bl_ntsync_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
+int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
 
 /* Every DRM and evdev call comes through here, so the lookup is done once. Two threads racing
  * to store it store the same pointer. */
@@ -366,6 +367,7 @@ int ioctl(int fd, unsigned long request, ...) {
 
     int rc;
     if (bl_ntsync_ioctl(fd, request, arg, &rc)) return rc;
+    if (bl_drm_gem_close(fd, request, arg, &rc)) return rc;
     if (real == NULL) real = (ioctl_fn) dlsym(RTLD_NEXT, "ioctl");
     if (!bl_kgsl_poll(real, fd, request, arg, &rc)) rc = real(fd, request, arg);
     bl_kgsl_chip_id_fixup(request, arg, rc);
