@@ -164,8 +164,8 @@ private fun StoreChips(selected: String, active: Int, onPick: (String) -> Unit, 
             StoreChip(
                 label = store.shortLabel, on = selected == store.id, key = store.id, modifier = Modifier.weight(1f),
                 lead = {
-                    val c = sourceColours(store.id)
-                    Box(Modifier.size(12.dp).clip(CircleShape).background(c.dot).alpha(if (StoresState.isSignedIn(store)) 1f else 0.35f))
+                    // The store's mark in its colour; dimmed while signed out.
+                    Icon(sourcePainter(store.id), null, tint = sourceColours(store.id).dot, modifier = Modifier.size(18.dp).alpha(if (StoresState.isSignedIn(store)) 1f else 0.4f))
                 },
                 description = store.label + if (StoresState.isSignedIn(store)) "" else " " + stringResource(R.string.stores_chip_signed_out),
             ) { onPick(store.id) }
@@ -451,7 +451,10 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
             .clip(RoundedCornerShape(10.dp)).background(colors.surface).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
-        CardArt(item, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+        Box {
+            CardArt(item, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+            SourceChip(item.store.id, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp))
+        }
         Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 8.dp)) {
             Text(item.title, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
             PriceLine(item, installed)

@@ -221,7 +221,7 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
 @Composable
 private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.compose.ui.unit.TextUnit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SourceChip(g.source)
+        SourceChip(g.source, withName = true)
         Text(
             (lastPlayedText(g.lastPlayed) ?: libraryLabel(g)).uppercase(),
             fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = LocalPalette.current.signal,
