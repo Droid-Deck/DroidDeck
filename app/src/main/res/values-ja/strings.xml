@@ -337,10 +337,6 @@
     <string name="mode_audio">オーディオ</string>
     <string name="mode_directaudio">ゲームでDirectAudioを使用</string>
     <string name="mode_directaudio_hint">PulseAudioをバイパスして遅延を減らします。</string>
-    <string name="mode_client_audio">Steamクライアントオーディオ</string>
-    <string name="mode_client_audio_hint">次回のセッションで有効になります。</string>
-    <string name="mode_client_audio_classic">クラシック</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">マイク</string>
     <string name="mode_mic_hint">ボイスチャットに使用します。</string>
     <string name="mode_network">ネットワーク</string>

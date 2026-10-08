@@ -694,16 +694,13 @@ class SessionService : Service() {
 
         val audioLog = File(sessionDir, "audio.log")
         val pulse = PulseAudioComponent(this, micFifo?.absolutePath)
-        // With DirectAudio on, the client's own sound goes through the relay too: the daemon
-        // fills the relay's ring and the relay, outside proot, drives the device.
-        // The client's own sound: the classic AAudio sink unless the user chose the relay.
-        val clientDirectAudio = SessionState.mode == MODE_STEAM && SessionPrefs.clientDirectAudio(this)
-        if (clientDirectAudio) pulse.setRelaySocket(relaySocket.absolutePath)
+        // The client's own sound: DirectAudio's engine inside the daemon, one step from Android (the
+        // daemon runs on the Android side). The relay below is for games and the microphone only.
         pulse.setLogFile(audioLog)
         pulse.attach(this)
         guest.add("PULSE_SERVER=unix:" + pulse.socket().absolutePath)
         components.add(pulse)
-        if (wantsDirectAudio || wantsMic || clientDirectAudio) {
+        if (wantsDirectAudio || wantsMic) {
             // After the daemon in the list, so it can wait for the pipe the daemon makes.
             val relay = DirectAudioRelayComponent(relaySocket, micFifo)
             relay.setLogFile(audioLog)
@@ -717,7 +714,7 @@ class SessionService : Service() {
             guest.add("BL_DIRECTAUDIO=/" + SessionFiles.DIRECTAUDIO_DIR)
             guest.add("BANNER_AUDIO_DIRECT_RELAY=" + relaySocket.absolutePath)
         }
-        Log.i(TAG, "audio: client " + (if (clientDirectAudio) "DirectAudio" else "classic AAudio sink") + (if (wantsDirectAudio) " + DirectAudio for games" else "")
+        Log.i(TAG, "audio: client DirectAudio (in-process sink)" + (if (wantsDirectAudio) " + DirectAudio for games" else "")
             + (if (wantsMic) " + microphone" else "") +
             (if (SessionPrefs.micEnabled(this) && !wantsMic) " (microphone wanted but RECORD_AUDIO not granted)" else ""))
         return pulse

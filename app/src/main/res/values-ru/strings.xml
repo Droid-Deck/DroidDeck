@@ -312,10 +312,6 @@
     <string name="mode_audio">Аудио</string>
     <string name="mode_directaudio">DirectAudio для игр</string>
     <string name="mode_directaudio_hint">Обходит PulseAudio для снижения задержки.</string>
-    <string name="mode_client_audio">Аудио клиента Steam</string>
-    <string name="mode_client_audio_hint">Вступит в силу в следующей сессии.</string>
-    <string name="mode_client_audio_classic">Классическое</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">Микрофон</string>
     <string name="mode_mic_hint">Используется для голосового чата.</string>
     <string name="mode_network">Сеть</string>

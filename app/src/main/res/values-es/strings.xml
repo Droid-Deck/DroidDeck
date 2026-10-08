@@ -337,10 +337,6 @@
     <string name="mode_audio">Audio</string>
     <string name="mode_directaudio">DirectAudio para juegos</string>
     <string name="mode_directaudio_hint">Evita PulseAudio para menor latencia.</string>
-    <string name="mode_client_audio">Audio del cliente de Steam</string>
-    <string name="mode_client_audio_hint">Se aplica en la próxima sesión.</string>
-    <string name="mode_client_audio_classic">Clásico</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">Micrófono</string>
     <string name="mode_mic_hint">Para el chat de voz.</string>
     <string name="mode_network">Red</string>

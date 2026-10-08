@@ -75,7 +75,6 @@ class ModeSettings(
     /** Steam only: whether single and double Back actions are swapped. */
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
-    val clientDirectAudio: Boolean = true,
     val mic: Boolean?,
     val renderer: String?,
     val gameStorage: String? = null,
@@ -140,7 +139,6 @@ class ModeSettingsActions(
     val onOsc: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
-    val onClientDirectAudio: (Boolean) -> Unit = {},
     val onMic: (Boolean) -> Unit,
     val onRenderer: (String) -> Unit,
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
@@ -486,11 +484,6 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
         }
         if (steam && tab == ModeSettingsTab.AUDIO && s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {
             ToggleRow(host, "da", stringResource(R.string.mode_directaudio), stringResource(R.string.mode_directaudio_hint), s.directAudio, onChange = a.onDirectAudio)
-            ChoiceRow(
-                host, "clientAudio", stringResource(R.string.mode_client_audio), stringResource(R.string.mode_client_audio_hint),
-                listOf("classic" to stringResource(R.string.mode_client_audio_classic), "directaudio" to stringResource(R.string.mode_client_audio_direct)), if (s.clientDirectAudio) "directaudio" else "classic",
-                onPick = { id -> a.onClientDirectAudio(id == "directaudio") },
-            )
             ToggleRow(host, "mic", stringResource(R.string.mode_mic), stringResource(R.string.mode_mic_hint), s.mic, onChange = a.onMic)
         }
         if (steam && tab == ModeSettingsTab.GAMES && s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
