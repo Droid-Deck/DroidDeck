@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -78,13 +76,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                 Actions {
                     when {
                         installed != null -> {
-                            PrimaryButton(stringResource(R.string.games_launch), main = true, icon = Icons.Filled.PlayArrow, enabled = !s.busy) { launchStoreGame(ctx, store, id, s, a) }
-                            // Every install is a shortcut; the chip just says so.
+                            // Launching, the prefix and the files belong to the Games tab, where every
+                            // installed game has them; here an install only says it is in Steam and
+                            // offers the one thing Games does not: removing it.
                             ActionChip(stringResource(R.string.stores_in_steam), ok = true)
-                            s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }?.protonPrefix?.takeIf { it.isDirectory }?.let { dir ->
-                                SecondaryButton(stringResource(R.string.games_prefix)) { a.onBrowseFiles(dir) }
-                            }
-                            SecondaryButton(stringResource(R.string.games_files)) { a.onBrowseFiles(installed.folder) }
                             SecondaryButton(if (confirmRemove) stringResource(R.string.stores_uninstall_confirm) else stringResource(R.string.stores_uninstall), enabled = download == null) {
                                 if (!confirmRemove) confirmRemove = true
                                 else { confirmRemove = false; StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }; onBack() }
