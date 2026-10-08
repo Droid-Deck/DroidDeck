@@ -1,4 +1,2904 @@
 {
-  "version": 1,
-  "games": {}
+ "games": {
+  "10180": {
+   "name": "Call of Duty®: Modern Warfare® 2 (2009)",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 42 uploads, 42 sources, latest 2026-09"
+    },
+    {
+     "dxvk": {
+      "file": "Dxvk-1.7.2-linux.wcp",
+      "release": "Dxvk-Linux"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 42 uploads, 42 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1020790": {
+   "name": "NARUTO X BORUTO Ultimate Ninja STORM CONNECTIONS",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 54 uploads, 52 sources, latest 2026-10"
+    }
+   ]
+  },
+  "1030300": {
+   "name": "Hollow Knight: Silksong",
+   "variants": [
+    {
+     "dxvk": {
+      "file": "Dxvk-2.6-2-gplasync-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 49 uploads, 48 sources, latest 2026-10"
+    },
+    {
+     "dxvk": {
+      "file": "Dxvk-2.6-2-gplasync-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A7XX"
+     ],
+     "note": "community: 49 uploads, 48 sources, latest 2026-10"
+    }
+   ]
+  },
+  "1057090": {
+   "name": "Ori and the Will of the Wisps",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 8 uploads, 8 sources, latest 2026-09"
+    }
+   ]
+  },
+  "108710": {
+   "name": "Alan Wake",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 13 uploads, 13 sources, latest 2026-09"
+    }
+   ]
+  },
+  "108800": {
+   "name": "Crysis 2 - Maximum Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 9 uploads, 9 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1091500": {
+   "name": "Cyberpunk 2077",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 20 uploads, 20 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1104450": {
+   "name": "Bombergrounds: Reborn",
+   "variants": [
+    {
+     "env": {
+      "FEX_HIDEHYPERVISORBIT": "1",
+      "FEX_MEMCPYSETTSOENABLED": "1",
+      "FEX_SMCCHECKS": "full",
+      "FEX_VECTORTSOENABLED": "1",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1113000": {
+   "name": "Persona 4 Golden",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-05"
+    }
+   ]
+  },
+  "1114150": {
+   "name": "CarX Street",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_SMCCHECKS": "none",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1144200": {
+   "name": "Ready or Not",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-04"
+    }
+   ]
+  },
+  "1145360": {
+   "name": "Hades",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 16 uploads, 16 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1151640": {
+   "name": "Horizon Zero Dawn™ Complete Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "115320": {
+   "name": "Prototype 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 73 uploads, 73 sources, latest 2026-10"
+    }
+   ]
+  },
+  "1196590": {
+   "name": "Resident Evil Village",
+   "variants": [
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.7.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A7XX"
+     ],
+     "note": "community: 34 uploads, 34 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1222680": {
+   "name": "Need for Speed™ Heat",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_SMCCHECKS": "none",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 34 uploads, 34 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1222690": {
+   "name": "Dragon Age™ Inquisition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1228710": {
+   "name": "MY HERO ONE'S JUSTICE 2 - Season Pass",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 8 uploads, 8 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1237970": {
+   "name": "Titanfall® 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 8 uploads, 8 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1238060": {
+   "name": "Dead Space™ 3",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-07"
+    }
+   ]
+  },
+  "1238810": {
+   "name": "Battlefield™ V",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 11 uploads, 11 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1238860": {
+   "name": "Battlefield 4™",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 9 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1245620": {
+   "name": "ELDEN RING",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 13 uploads, 13 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1259420": {
+   "name": "Days Gone",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 19 uploads, 18 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1262560": {
+   "name": "Need for Speed™ Most Wanted",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 48 uploads, 47 sources, latest 2026-10"
+    }
+   ]
+  },
+  "1262580": {
+   "name": "Need for Speed™ Payback",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 17 uploads, 17 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1262600": {
+   "name": "Need for Speed™ Rivals",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 21 uploads, 21 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1285190": {
+   "name": "Borderlands 4",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1295510": {
+   "name": "DRAGON QUEST® XI S: Echoes of an Elusive Age™ - Definitive Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-05"
+    }
+   ]
+  },
+  "1306630": {
+   "name": "Lost Ruins",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-07"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.5.3-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 3 uploads, 3 sources, latest 2026-07"
+    }
+   ]
+  },
+  "1326470": {
+   "name": "Sons Of The Forest",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1328660": {
+   "name": "Need for Speed™ Hot Pursuit Remastered",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 9 uploads, 9 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1332010": {
+   "name": "Stray",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 16 uploads, 16 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1361510": {
+   "name": "Teenage Mutant Ninja Turtles: Shredder's Revenge",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_SMCCHECKS": "none",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1378990": {
+   "name": "Crash Bandicoot™ 4: It’s About Time",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 9 uploads, 9 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1426210": {
+   "name": "It Takes Two",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-07"
+    }
+   ]
+  },
+  "1446780": {
+   "name": "MONSTER HUNTER RISE",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 17 uploads, 17 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1451190": {
+   "name": "Undisputed",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    },
+    {
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 6 uploads, 6 sources, latest 2026-09",
+     "vkd3d": {
+      "file": "vkd3d-proton-3.0.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "1462040": {
+   "name": "FINAL FANTASY VII REMAKE INTERGRADE",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 8 uploads, 8 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1506830": {
+   "name": "FIFA 22",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 99 uploads, 99 sources, latest 2026-10"
+    }
+   ]
+  },
+  "15100": {
+   "name": "Assassin's Creed™: Director's Cut Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 13 uploads, 13 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1544020": {
+   "name": "The Callisto Protocol™",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-05"
+    }
+   ]
+  },
+  "1547000": {
+   "name": "Grand Theft Auto: San Andreas – The Definitive Edition",
+   "variants": [
+    {
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 32 uploads, 32 sources, latest 2026-10",
+     "vkd3d": {
+      "file": "vkd3d-proton-3.0.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "1593500": {
+   "name": "God of War",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 156 uploads, 154 sources, latest 2026-10"
+    }
+   ]
+  },
+  "1622710": {
+   "name": "Oceanhorn 2: Knights of the Lost Realm",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-07"
+    }
+   ]
+  },
+  "1623730": {
+   "name": "Palworld",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-06"
+    },
+    {
+     "dxvk": {
+      "file": "Dxvk-2.6-2-gplasync-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 5 uploads, 5 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1627720": {
+   "name": "Lies of P",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-05"
+    }
+   ]
+  },
+  "1634860": {
+   "name": "Minishoot' Adventures",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1659420": {
+   "name": "UNCHARTED™: Legacy of Thieves Collection",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 8 uploads, 8 sources, latest 2026-09"
+    },
+    {
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 8 uploads, 8 sources, latest 2026-09",
+     "vkd3d": {
+      "file": "vkd3d-proton-2.14.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "1663850": {
+   "name": "REPLACED",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 26 uploads, 26 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1672500": {
+   "name": "GUNDAM BREAKER 4",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1672810": {
+   "name": "MIO: Memories in Orbit",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1677740": {
+   "name": "Stumble Guys",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_SMCCHECKS": "none",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1687950": {
+   "name": "Persona 5 Royal",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1693980": {
+   "name": "Dead Space",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 16 uploads, 15 sources, latest 2026-10"
+    }
+   ]
+  },
+  "17470": {
+   "name": "Dead Space (2008)",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 22 uploads, 22 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1755070": {
+   "name": "DRAGON BALL Z: KAKAROT Demo",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1766740": {
+   "name": "Choo-Choo Charles",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-07"
+    }
+   ]
+  },
+  "1778820": {
+   "name": "TEKKEN 8",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1790600": {
+   "name": "DRAGON BALL: Sparking! ZERO",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 158 uploads, 158 sources, latest 2026-10"
+    }
+   ]
+  },
+  "1817070": {
+   "name": "Marvel’s Spider-Man Remastered",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 20 uploads, 19 sources, latest 2026-09"
+    }
+   ]
+  },
+  "1890183": {
+   "name": "Forza Horizon 5 2017 #25 Ferrari 488",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_SMCCHECKS": "none",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "19000": {
+   "name": "Silent Hill Homecoming",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-06"
+    }
+   ]
+  },
+  "1903340": {
+   "name": "Clair Obscur: Expedition 33",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1954200": {
+   "name": "Kena: Bridge of Spirits",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-10"
+    }
+   ]
+  },
+  "19680": {
+   "name": "Alice: Madness Returns",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-07"
+    }
+   ]
+  },
+  "1971650": {
+   "name": "OCTOPATH TRAVELER II",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-08"
+    }
+   ]
+  },
+  "1978590": {
+   "name": "Anger Foot",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "19980": {
+   "name": "Prince of Persia®",
+   "variants": [
+    {
+     "env": {
+      "FEX_MONOHACKS": "0",
+      "FEX_SMALLTSCSCALE": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_VOLATILEMETADATA": "0"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-09"
+    }
+   ]
+  },
+  "201870": {
+   "name": "Assassin's Creed® Revelations",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 20 uploads, 20 sources, latest 2026-10"
+    }
+   ]
+  },
+  "202170": {
+   "name": "Sleeping Dogs",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 70 uploads, 70 sources, latest 2026-10"
+    }
+   ]
+  },
+  "203140": {
+   "name": "Hitman: Absolution™",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 35 uploads, 35 sources, latest 2026-09"
+    }
+   ]
+  },
+  "204030": {
+   "name": "Fable - The Lost Chapters",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "204100": {
+   "name": "Max Payne 3",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 14 uploads, 14 sources, latest 2026-10"
+    }
+   ]
+  },
+  "2050650": {
+   "name": "Resident Evil 4",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 71 uploads, 69 sources, latest 2026-09"
+    }
+   ]
+  },
+  "208650": {
+   "name": "Batman™: Arkham Knight",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 17 uploads, 17 sources, latest 2026-09"
+    }
+   ]
+  },
+  "209160": {
+   "name": "Call of Duty®: Ghosts",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 22 uploads, 22 sources, latest 2026-10"
+    }
+   ]
+  },
+  "2124490": {
+   "name": "SILENT HILL 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2129530": {
+   "name": "REANIMAL",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 9 uploads, 9 sources, latest 2026-08"
+    }
+   ]
+  },
+  "2138710": {
+   "name": "Sifu",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 20 uploads, 20 sources, latest 2026-10"
+    }
+   ]
+  },
+  "2161700": {
+   "name": "Persona 3 Reload",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-10"
+    }
+   ]
+  },
+  "2163330": {
+   "name": "Yet Another Zombie Survivors",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-09"
+    }
+   ]
+  },
+  "21690": {
+   "name": "Resident Evil 5",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 109 uploads, 109 sources, latest 2026-10"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.6.2-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A7XX_LOW"
+     ],
+     "note": "community: 109 uploads, 109 sources, latest 2026-10"
+    }
+   ]
+  },
+  "2184260": {
+   "name": "Ricochet Blur",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 16 uploads, 16 sources, latest 2026-10"
+    }
+   ]
+  },
+  "219990": {
+   "name": "Grim Dawn",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-08"
+    }
+   ]
+  },
+  "220240": {
+   "name": "Far Cry 3",
+   "variants": [
+    {
+     "env": {
+      "FEX_SMCCHECKS": "none",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 105 uploads, 102 sources, latest 2026-10"
+    }
+   ]
+  },
+  "220440": {
+   "name": "DmC: Devil May Cry",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 28 uploads, 28 sources, latest 2026-08"
+    }
+   ]
+  },
+  "222480": {
+   "name": "Resident Evil Revelations",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 15 uploads, 15 sources, latest 2026-09"
+    }
+   ]
+  },
+  "22300": {
+   "name": "Fallout 3",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 17 uploads, 16 sources, latest 2026-07"
+    }
+   ]
+  },
+  "22380": {
+   "name": "Fallout: New Vegas",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 14 uploads, 13 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2254890": {
+   "name": "The Killing Antidote",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 22 uploads, 22 sources, latest 2026-09"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.3.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 22 uploads, 22 sources, latest 2026-09",
+     "vkd3d": {
+      "file": "vkd3d-proton-2.14.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "225540": {
+   "name": "Just Cause™ 3",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-08"
+    }
+   ]
+  },
+  "2277560": {
+   "name": "WUCHANG: Fallen Feathers",
+   "variants": [
+    {
+     "env": {
+      "FEX_HIDEHYPERVISORBIT": "1",
+      "FEX_MEMCPYSETTSOENABLED": "1",
+      "FEX_MONOHACKS": "0",
+      "FEX_SMCCHECKS": "none",
+      "FEX_VECTORTSOENABLED": "1",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.7.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    }
+   ]
+  },
+  "234140": {
+   "name": "Mad Max",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 12 uploads, 12 sources, latest 2026-09"
+    }
+   ]
+  },
+  "235460": {
+   "name": "METAL GEAR RISING: REVENGEANCE",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 30 uploads, 30 sources, latest 2026-09"
+    }
+   ]
+  },
+  "235600": {
+   "name": "Tom Clancy’s Splinter Cell Blacklist",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-05"
+    }
+   ]
+  },
+  "2358720": {
+   "name": "Black Myth: Wukong",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 12 uploads, 12 sources, latest 2026-10"
+    }
+   ]
+  },
+  "236430": {
+   "name": "DARK SOULS™ II",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 17 uploads, 17 sources, latest 2026-10"
+    }
+   ]
+  },
+  "238320": {
+   "name": "Outlast",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 12 uploads, 12 sources, latest 2026-08"
+    }
+   ]
+  },
+  "239140": {
+   "name": "Dying Light",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 25 uploads, 25 sources, latest 2026-10"
+    }
+   ]
+  },
+  "239250": {
+   "name": "Castlevania: Lords of Shadow 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 16 uploads, 16 sources, latest 2026-07"
+    }
+   ]
+  },
+  "2416450": {
+   "name": "MOUSE: P.I. For Hire",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 26 uploads, 26 sources, latest 2026-07"
+    }
+   ]
+  },
+  "241930": {
+   "name": "Middle-earth™: Shadow of Mordor™",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 9 sources, latest 2026-07"
+    }
+   ]
+  },
+  "2420110": {
+   "name": "Horizon Forbidden West™ Complete Edition",
+   "variants": [
+    {
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 3 uploads, 3 sources, latest 2026-05",
+     "vkd3d": {
+      "file": "vkd3d-proton-2.14.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "242050": {
+   "name": "Assassin’s Creed® IV Black Flag™",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0"
+     },
+     "note": "community: 83 uploads, 82 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2424420": {
+   "name": "Avatar Legends: The Fighting Game",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    }
+   ]
+  },
+  "2427410": {
+   "name": "S.T.A.L.K.E.R.: Shadow of Chornobyl - Enhanced Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    }
+   ]
+  },
+  "243470": {
+   "name": "Watch_Dogs™",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 35 uploads, 35 sources, latest 2026-10"
+    }
+   ]
+  },
+  "2464280": {
+   "name": "Tormented Souls 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-10"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-3.0.2-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 6 uploads, 6 sources, latest 2026-10"
+    }
+   ]
+  },
+  "2473350": {
+   "name": "HUNTDOWN: OVERTIME",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-05"
+    }
+   ]
+  },
+  "250760": {
+   "name": "Shovel Knight: Treasure Trove",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-07"
+    }
+   ]
+  },
+  "251150": {
+   "name": "The Legend of Heroes: Trails in the Sky",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2523720": {
+   "name": "Gears of War: Reloaded",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_SMCCHECKS": "none",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2527500": {
+   "name": "MiSide",
+   "variants": [
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.7.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A7XX"
+     ],
+     "note": "community: 22 uploads, 22 sources, latest 2026-08"
+    }
+   ]
+  },
+  "2536520": {
+   "name": "Diablo II: Resurrected – Infernal Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-09"
+    }
+   ]
+  },
+  "254700": {
+   "name": "Resident Evil 4 (2005)",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 34 uploads, 34 sources, latest 2026-10"
+    }
+   ]
+  },
+  "2592160": {
+   "name": "Dispatch",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-08"
+    }
+   ]
+  },
+  "2638370": {
+   "name": "Five Nights at Freddy's: Into the Pit",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-06"
+    }
+   ]
+  },
+  "2651280": {
+   "name": "Marvel's Spider-Man 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 22 uploads, 22 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2679460": {
+   "name": "Metaphor: ReFantazio",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.7.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A7XX"
+     ],
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    }
+   ]
+  },
+  "268050": {
+   "name": "The Evil Within",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    }
+   ]
+  },
+  "268910": {
+   "name": "Cuphead",
+   "variants": [
+    {
+     "dxvk": {
+      "file": "Dxvk-2.6-2-gplasync-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 38 uploads, 38 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2725260": {
+   "name": "ENDER MAGNOLIA: Bloom in the Mist",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-04"
+    }
+   ]
+  },
+  "2806050": {
+   "name": "Halo: Campaign Evolved",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-07"
+    }
+   ]
+  },
+  "286690": {
+   "name": "Metro 2033 Redux",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 30 uploads, 30 sources, latest 2026-09"
+    }
+   ]
+  },
+  "287290": {
+   "name": "Resident Evil Revelations 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 31 uploads, 31 sources, latest 2026-08"
+    }
+   ]
+  },
+  "288470": {
+   "name": "Fable Anniversary",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    }
+   ]
+  },
+  "289650": {
+   "name": "Assassin's Creed® Unity",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 23 uploads, 20 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2947440": {
+   "name": "SILENT HILL f",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-09"
+    }
+   ]
+  },
+  "298110": {
+   "name": "Far Cry® 4",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 18 uploads, 18 sources, latest 2026-09"
+    }
+   ]
+  },
+  "2988580": {
+   "name": "Yakuza 0 Director's Cut",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 9 uploads, 9 sources, latest 2026-09"
+    }
+   ]
+  },
+  "3010850": {
+   "name": "Gears of War: E-Day",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-10"
+    }
+   ]
+  },
+  "304430": {
+   "name": "INSIDE",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 17 uploads, 17 sources, latest 2026-10"
+    }
+   ]
+  },
+  "3059520": {
+   "name": "F1® 25",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 21 uploads, 21 sources, latest 2026-10"
+    }
+   ]
+  },
+  "307690": {
+   "name": "Sleeping Dogs: Definitive Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-10"
+    }
+   ]
+  },
+  "3077390": {
+   "name": "MotoGP™25",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "307780": {
+   "name": "Mortal Kombat X",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0"
+     },
+     "note": "community: 39 uploads, 39 sources, latest 2026-10"
+    }
+   ]
+  },
+  "310950": {
+   "name": "Street Fighter V",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    }
+   ]
+  },
+  "311730": {
+   "name": "DEAD OR ALIVE 5 Last Round: Core Fighters",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-08"
+    }
+   ]
+  },
+  "3169520": {
+   "name": "Warhammer 40,000: Space Marine - Master Crafted Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-07"
+    }
+   ]
+  },
+  "3183760": {
+   "name": "SpeedRunners 2: King of Speed",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "3250520": {
+   "name": "Night Project - Chapter 5",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 33 uploads, 33 sources, latest 2026-09"
+    }
+   ]
+  },
+  "329050": {
+   "name": "Devil May Cry 4 Special Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 44 uploads, 44 sources, latest 2026-10"
+    }
+   ]
+  },
+  "331600": {
+   "name": "One Piece Pirate Warriors 3",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 12 uploads, 12 sources, latest 2026-07"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.3.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 12 uploads, 12 sources, latest 2026-07"
+    }
+   ]
+  },
+  "33230": {
+   "name": "Assassin's Creed 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-09"
+    }
+   ]
+  },
+  "3357650": {
+   "name": "PRAGMATA",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 13 uploads, 13 sources, latest 2026-09"
+    }
+   ]
+  },
+  "3405340": {
+   "name": "Megabonk",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 11 uploads, 11 sources, latest 2026-09"
+    }
+   ]
+  },
+  "348470": {
+   "name": "SAMURAI WARRIORS 4-II",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 13 uploads, 13 sources, latest 2026-07"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.3.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 13 uploads, 13 sources, latest 2026-07"
+    }
+   ]
+  },
+  "349040": {
+   "name": "NARUTO SHIPPUDEN: Ultimate Ninja STORM 4",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 67 uploads, 67 sources, latest 2026-10"
+    }
+   ]
+  },
+  "355130": {
+   "name": "MotoGP™15",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_HIDEHYPERVISORBIT": "1",
+      "FEX_MONOHACKS": "0",
+      "FEX_SMALLTSCSCALE": "0",
+      "FEX_SMCCHECKS": "none",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-08"
+    }
+   ]
+  },
+  "357190": {
+   "name": "ULTIMATE MARVEL VS. CAPCOM 3",
+   "variants": [
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.3.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 26 uploads, 26 sources, latest 2026-09"
+    }
+   ]
+  },
+  "3659280": {
+   "name": "Off The Grid",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-09"
+    }
+   ]
+  },
+  "373420": {
+   "name": "Divinity: Original Sin - Enhanced Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-07"
+    }
+   ]
+  },
+  "374320": {
+   "name": "DARK SOULS™ III",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 24 uploads, 24 sources, latest 2026-08"
+    }
+   ]
+  },
+  "377160": {
+   "name": "Fallout 4",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 17 uploads, 16 sources, latest 2026-09"
+    }
+   ]
+  },
+  "379720": {
+   "name": "DOOM",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-09"
+    }
+   ]
+  },
+  "383150": {
+   "name": "Dead Island Definitive Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 13 uploads, 13 sources, latest 2026-10"
+    }
+   ]
+  },
+  "3875050": {
+   "name": "MotoGP™26",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 8 uploads, 8 sources, latest 2026-09"
+    }
+   ]
+  },
+  "388410": {
+   "name": "Darksiders II Deathinitive Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 12 uploads, 12 sources, latest 2026-08"
+    }
+   ]
+  },
+  "389730": {
+   "name": "TEKKEN 7",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 35 uploads, 34 sources, latest 2026-08"
+    }
+   ]
+  },
+  "391220": {
+   "name": "Rise of the Tomb Raider™",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 195 uploads, 187 sources, latest 2026-10"
+    }
+   ]
+  },
+  "39150": {
+   "name": "FINAL FANTASY VIII",
+   "variants": [
+    {
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 4 uploads, 4 sources, latest 2026-09",
+     "vkd3d": {
+      "file": "vkd3d-proton-3.0.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "39210": {
+   "name": "FINAL FANTASY XIV Online",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 20 uploads, 19 sources, latest 2026-08"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.4.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 20 uploads, 19 sources, latest 2026-08"
+    }
+   ]
+  },
+  "393080": {
+   "name": "Call of Duty®: Modern Warfare® Remastered (2017)",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 8 uploads, 8 sources, latest 2026-08"
+    }
+   ]
+  },
+  "4100940": {
+   "name": "Poppy Playtime - Chapter 5",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-07"
+    }
+   ]
+  },
+  "4144680": {
+   "name": "DEAD OR ALIVE 6 Last Round",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-05"
+    }
+   ]
+  },
+  "418370": {
+   "name": "Resident Evil 7 Biohazard",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 35 uploads, 34 sources, latest 2026-10"
+    }
+   ]
+  },
+  "42680": {
+   "name": "Call of Duty®: Modern Warfare® 3 (2011)",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 39 uploads, 39 sources, latest 2026-10"
+    }
+   ]
+  },
+  "4371450": {
+   "name": "Arctic Shift: Fuel Station",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-09"
+    }
+   ]
+  },
+  "44500": {
+   "name": "Dirt 3",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    }
+   ]
+  },
+  "447040": {
+   "name": "Watch_Dogs® 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 20 uploads, 20 sources, latest 2026-09"
+    }
+   ]
+  },
+  "45740": {
+   "name": "Dead Rising® 2",
+   "variants": [
+    {
+     "dxvk": {
+      "file": "dxvk-1.10.3-linux.wcp",
+      "release": "Dxvk-Linux"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 6 uploads, 6 sources, latest 2026-10"
+    }
+   ]
+  },
+  "45760": {
+   "name": "Ultra Street Fighter® IV",
+   "variants": [
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.3.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 17 uploads, 17 sources, latest 2026-08"
+    }
+   ]
+  },
+  "47780": {
+   "name": "Dead Space™ 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 16 uploads, 16 sources, latest 2026-10"
+    }
+   ]
+  },
+  "489830": {
+   "name": "The Elder Scrolls V: Skyrim Special Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 66 uploads, 65 sources, latest 2026-10"
+    }
+   ]
+  },
+  "495420": {
+   "name": "State of Decay 2: Juggernaut Edition",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-10"
+    }
+   ]
+  },
+  "5006530": {
+   "name": "The Witcher 3: Wild Hunt — Songs of the Past",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 37 uploads, 37 sources, latest 2026-09"
+    }
+   ]
+  },
+  "50130": {
+   "name": "Mafia II (Classic)",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 36 uploads, 35 sources, latest 2026-09"
+    }
+   ]
+  },
+  "516750": {
+   "name": "My Summer Car",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 11 uploads, 11 sources, latest 2026-09"
+    }
+   ]
+  },
+  "526870": {
+   "name": "Satisfactory",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_HIDEHYPERVISORBIT": "1",
+      "FEX_SMCCHECKS": "none",
+      "FEX_TSOENABLED": "0"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-06"
+    }
+   ]
+  },
+  "544750": {
+   "name": "SOULCALIBUR VI",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-05"
+    }
+   ]
+  },
+  "550": {
+   "name": "Left 4 Dead 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 70 uploads, 70 sources, latest 2026-10"
+    }
+   ]
+  },
+  "55230": {
+   "name": "Saints Row: The Third",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-08"
+    },
+    {
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 10 uploads, 10 sources, latest 2026-08",
+     "vkd3d": {
+      "file": "vkd3d-proton-3.0.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "552520": {
+   "name": "Far Cry® 5",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 20 uploads, 20 sources, latest 2026-10"
+    }
+   ]
+  },
+  "557340": {
+   "name": "My Friend Pedro - Blood Bullets Bananas",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    }
+   ]
+  },
+  "561610": {
+   "name": "MotoGP™17",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 13 uploads, 13 sources, latest 2026-09"
+    }
+   ]
+  },
+  "570940": {
+   "name": "DARK SOULS™: REMASTERED",
+   "variants": [
+    {
+     "dxvk": {
+      "file": "Dxvk-2.6-2-gplasync-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A6XX"
+     ],
+     "note": "community: 43 uploads, 42 sources, latest 2026-09"
+    }
+   ]
+  },
+  "601050": {
+   "name": "Attack on Titan 2 - A.O.T.2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-08"
+    }
+   ]
+  },
+  "601150": {
+   "name": "Devil May Cry 5",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 38 uploads, 37 sources, latest 2026-10"
+    }
+   ]
+  },
+  "606280": {
+   "name": "Darksiders III",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-09"
+    }
+   ]
+  },
+  "612880": {
+   "name": "Wolfenstein II: The New Colossus",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 11 uploads, 11 sources, latest 2026-09"
+    }
+   ]
+  },
+  "620": {
+   "name": "Portal 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 15 uploads, 15 sources, latest 2026-08"
+    }
+   ]
+  },
+  "627270": {
+   "name": "Injustice™ 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 9 uploads, 9 sources, latest 2026-08"
+    }
+   ]
+  },
+  "632360": {
+   "name": "Risk of Rain 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-06"
+    }
+   ]
+  },
+  "646910": {
+   "name": "The Crew™ 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 16 uploads, 16 sources, latest 2026-10"
+    }
+   ]
+  },
+  "647830": {
+   "name": "LEGO® Marvel Super Heroes 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-07"
+    }
+   ]
+  },
+  "648800": {
+   "name": "Raft",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-09"
+    }
+   ]
+  },
+  "675010": {
+   "name": "MudRunner",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "678950": {
+   "name": "DRAGON BALL FighterZ",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 43 uploads, 43 sources, latest 2026-10"
+    }
+   ]
+  },
+  "686060": {
+   "name": "Mewgenics",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-09"
+    }
+   ]
+  },
+  "699130": {
+   "name": "World War Z",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-10"
+    }
+   ]
+  },
+  "774361": {
+   "name": "Blasphemous",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 10 uploads, 10 sources, latest 2026-07"
+    }
+   ]
+  },
+  "782330": {
+   "name": "DOOM Eternal",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "805550": {
+   "name": "Assetto Corsa Competizione",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-08"
+    },
+    {
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 5 uploads, 5 sources, latest 2026-08",
+     "vkd3d": {
+      "file": "vkd3d-proton-3.0.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "8140": {
+   "name": "Tomb Raider: Underworld",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 7 uploads, 7 sources, latest 2026-10"
+    }
+   ]
+  },
+  "8190": {
+   "name": "Just Cause 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 27 uploads, 27 sources, latest 2026-09"
+    }
+   ]
+  },
+  "831560": {
+   "name": "WARRIORS OROCHI 4",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-08"
+    }
+   ]
+  },
+  "851850": {
+   "name": "DRAGON BALL Z: KAKAROT",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 13 uploads, 13 sources, latest 2026-09"
+    },
+    {
+     "gpu": [
+      "A8XX"
+     ],
+     "note": "community: 13 uploads, 13 sources, latest 2026-09",
+     "vkd3d": {
+      "file": "vkd3d-proton-2.14.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "860510": {
+   "name": "Little Nightmares II",
+   "variants": [
+    {
+     "env": {
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 17 uploads, 17 sources, latest 2026-10"
+    }
+   ]
+  },
+  "882100": {
+   "name": "XCOM®: Chimera Squad",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-09"
+    },
+    {
+     "dxvk": {
+      "file": "dxvk-gplasync-2.7.1-1-linux.wcp",
+      "release": "Dxvk-gplasync-Linux"
+     },
+     "env": {
+      "DXVK_ASYNC": "1"
+     },
+     "gpu": [
+      "A7XX"
+     ],
+     "note": "community: 3 uploads, 3 sources, latest 2026-09"
+    }
+   ]
+  },
+  "8870": {
+   "name": "BioShock Infinite",
+   "variants": [
+    {
+     "env": {
+      "FEX_MULTIBLOCK": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 9 uploads, 9 sources, latest 2026-07"
+    }
+   ]
+  },
+  "892970": {
+   "name": "Valheim",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-09"
+    }
+   ]
+  },
+  "921570": {
+   "name": "OCTOPATH TRAVELER™",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 6 uploads, 6 sources, latest 2026-08"
+    }
+   ]
+  },
+  "934700": {
+   "name": "Dead Island 2",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 4 uploads, 4 sources, latest 2026-06"
+    }
+   ]
+  },
+  "953490": {
+   "name": "CARRION",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 5 uploads, 5 sources, latest 2026-09"
+    },
+    {
+     "gpu": [
+      "A7XX"
+     ],
+     "note": "community: 5 uploads, 5 sources, latest 2026-09",
+     "vkd3d": {
+      "file": "vkd3d-proton-3.0.1-linux.wcp",
+      "release": "Vkd3d-proton-Linux"
+     }
+    }
+   ]
+  },
+  "976310": {
+   "name": "Mortal Kombat 11",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 15 uploads, 15 sources, latest 2026-10"
+    }
+   ]
+  },
+  "990080": {
+   "name": "Hogwarts Legacy",
+   "variants": [
+    {
+     "env": {
+      "FEX_HALFBARRIERTSOENABLED": "0",
+      "FEX_TSOENABLED": "0",
+      "FEX_X87REDUCEDPRECISION": "1"
+     },
+     "note": "community: 3 uploads, 3 sources, latest 2026-06"
+    }
+   ]
+  }
+ },
+ "generated": "2026-10-08",
+ "sources": [
+  "https://github.com/The412Banner/bannerhub-game-configs",
+  "https://github.com/The412Banner/bannerlator-game-configs"
+ ],
+ "version": 2
 }

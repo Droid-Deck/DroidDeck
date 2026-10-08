@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.util.AtomicFile
 import com.droiddeck.launcher.core.GameEnvironment
+import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONObject
 import java.io.File
@@ -11,7 +12,8 @@ import java.io.File
  * The recipes behind "DroidDeck Proton (Auto)": per game, a DXVK, VKD3D-Proton and/or FEX package
  * from the Nightlies "-Linux" releases and a few environment variables.
  *
- * The app keeps the recipes ([OVERRIDE] in its files, else the bundled [ASSET]), makes sure every
+ * The app keeps the recipes ([OVERRIDE] in its files, else the bundled [ASSET], the community library
+ * tools/recipes/convert.py builds), picks each game's variants for this device's GPU, makes sure every
  * package they name is stored (the same download Components uses), unpacks each into the runtime's
  * recipe store, and publishes [GUEST_FILE] with those paths. droiddeck-recipe reads that file when
  * the Auto tool launches a game and starts Proton from a tree assembled for it; nothing is swapped
@@ -44,32 +46,52 @@ object DdProtonRecipes {
         return true
     }
 
-    /** The recipes in [text]; throws IllegalArgumentException naming the first thing wrong. */
-    fun parse(text: String): List<Recipe> {
+    /**
+     * The recipes in [text] for a device whose GPU is [family] (a GpuInfo.Family name, or null for
+     * none); throws IllegalArgumentException naming the first thing wrong.
+     *
+     * Version 1 gives each game one recipe. Version 2 (tools/recipes/convert.py) gives each game a
+     * list of variants, each optionally limited to GPU families: the matching ones are merged in
+     * order, the first to name a component providing it and later variables winning.
+     */
+    fun parse(text: String, family: String? = null): List<Recipe> {
         val json = JSONObject(text)
-        require(json.optInt("version") == 1) { "recipes: version must be 1" }
+        val version = json.optInt("version")
+        require(version == 1 || version == 2) { "recipes: version must be 1 or 2" }
         val games = json.optJSONObject("games") ?: return emptyList()
-        return games.keys().asSequence().sorted().map { id ->
+        return games.keys().asSequence().sorted().mapNotNull { id ->
             require(id.isNotEmpty() && GameEnvironment.validScope(id)) { "recipes: $id is not a Steam app or shortcut id" }
             val game = games.getJSONObject(id)
-            val packages = ComponentsManager.COMPONENTS.mapNotNull { comp ->
-                val ref = game.optJSONObject(comp) ?: return@mapNotNull null
-                val file = ref.optString("file")
-                val release = ref.optString("release")
-                require(file.endsWith(".wcp") && ComponentsManager.safeName(file) == file) { "recipes: $id: $comp file '$file'" }
-                require(release.isNotEmpty() && ComponentsManager.safeName(release) == release) { "recipes: $id: $comp release '$release'" }
-                PackageRef(comp, file, release)
+            val variants = if (version == 1) listOf(game) else {
+                val list = game.getJSONArray("variants")
+                (0 until list.length()).map { list.getJSONObject(it) }.filter { variant ->
+                    val gpu = variant.optJSONArray("gpu") ?: return@filter true
+                    (0 until gpu.length()).any { gpu.getString(it) == family }
+                }
             }
-            val env = buildMap {
-                game.optJSONObject("env")?.let { vars ->
+            val packages = LinkedHashMap<String, PackageRef>()
+            val env = LinkedHashMap<String, String>()
+            val notes = LinkedHashSet<String>()
+            for (variant in variants) {
+                for (comp in ComponentsManager.COMPONENTS) {
+                    val ref = variant.optJSONObject(comp) ?: continue
+                    val file = ref.optString("file")
+                    val release = ref.optString("release")
+                    require(file.endsWith(".wcp") && ComponentsManager.safeName(file) == file) { "recipes: $id: $comp file '$file'" }
+                    require(release.isNotEmpty() && ComponentsManager.safeName(release) == release) { "recipes: $id: $comp release '$release'" }
+                    packages.putIfAbsent(comp, PackageRef(comp, file, release))
+                }
+                variant.optJSONObject("env")?.let { vars ->
                     vars.keys().forEach { name ->
                         val value = vars.get(name)
                         require(value is String && envAllowed(name, value)) { "recipes: $id: $name is not a variable a recipe may set" }
-                        put(name, value)
+                        env[name] = value
                     }
                 }
+                variant.optString("note").takeIf { it.isNotEmpty() }?.let { notes += it }
             }
-            Recipe(id, packages, env, game.optString("note").take(200))
+            if (packages.isEmpty() && env.isEmpty()) null
+            else Recipe(id, packages.values.toList(), env, notes.joinToString("; ").take(200))
         }.toList()
     }
 
@@ -104,19 +126,21 @@ object DdProtonRecipes {
      */
     fun ensure(context: Context): String = ensure(
         context,
+        GpuInfo.detect().family.name,
         { file, release -> ComponentsManager.catalogItem(context, file, release) },
         { ComponentsManager.download(context, it) {} },
     )
 
     internal fun ensure(
         context: Context,
+        family: String?,
         lookup: (file: String, release: String) -> ComponentsManager.CatalogItem?,
         fetch: (ComponentsManager.CatalogItem) -> Unit,
         kind: (file: String) -> String? = { ComponentsManager.storedPackage(context, it)?.comp },
         unpack: (file: String, dir: File) -> Unit = { file, dir -> ComponentsManager.unpack(ComponentsManager.packageFile(context, file), dir) },
     ): String {
         val text = source(context)
-        val recipes = if (text == null) emptyList() else parse(text)
+        val recipes = if (text == null) emptyList() else parse(text, family)
         val root = LinuxRuntime.rootDir(context)
         val store = File(root, STORE).apply { mkdirs() }
         val available = LinkedHashMap<String, String>()

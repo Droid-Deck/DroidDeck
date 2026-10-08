@@ -39,9 +39,37 @@ class DdProtonRecipesTest {
         assertEquals("fex", recipes[1].packages.single().comp)
     }
 
+    @Test fun version2PicksTheVariantsForThisGpu() {
+        val text = """{"version":2,"games":{
+            "42":{"name":"Game","variants":[
+              {"env":{"FEX_X87REDUCEDPRECISION":"1"},"note":"community"},
+              {"gpu":["A6XX"],"dxvk":{"file":"dxvk-gplasync-2.7.1-1-linux.wcp","release":"Dxvk-gplasync-Linux"},"env":{"DXVK_ASYNC":"1"},"note":"community"},
+              {"gpu":["A7XX","A8XX"],"vkd3d":{"file":"$vkd3d","release":"Vkd3d-proton-Linux"},"env":{"FEX_X87REDUCEDPRECISION":"0"}}]},
+            "43":{"name":"Only 6xx","variants":[{"gpu":["A6XX"],"env":{"DXVK_ASYNC":"1"}}]}}}"""
+        val a7 = DdProtonRecipes.parse(text, "A7XX")
+        assertEquals(listOf("42"), a7.map { it.id })
+        assertEquals(listOf("vkd3d"), a7[0].packages.map { it.comp })
+        assertEquals(mapOf("FEX_X87REDUCEDPRECISION" to "0"), a7[0].env)
+        assertEquals("community", a7[0].note)
+        val a6 = DdProtonRecipes.parse(text, "A6XX")
+        assertEquals(listOf("42", "43"), a6.map { it.id })
+        assertEquals(listOf("dxvk"), a6[0].packages.map { it.comp })
+        assertEquals(mapOf("FEX_X87REDUCEDPRECISION" to "1", "DXVK_ASYNC" to "1"), a6[0].env)
+        val none = DdProtonRecipes.parse(text, null)
+        assertEquals(listOf("42"), none.map { it.id })
+        assertTrue(none[0].packages.isEmpty())
+    }
+
+    @Test fun theBundledLibraryParsesForEveryFamily() {
+        val text = File("src/main/assets/${DdProtonRecipes.ASSET}").readText()
+        for (family in listOf("A6XX", "A7XX_LOW", "A7XX", "A8XX", "ADRENO_UNKNOWN", "NOT_ADRENO")) {
+            DdProtonRecipes.parse(text, family)
+        }
+    }
+
     @Test fun anythingOutsideTheFormatIsRefused() {
         val bad = listOf(
-            """{"version":2,"games":{}}""",
+            """{"version":3,"games":{}}""",
             """{"version":1,"games":{"0":{}}}""",
             """{"version":1,"games":{"steam":{}}}""",
             """{"version":1,"games":{"42":{"dxvk":{"file":"../x.wcp","release":"Dxvk-Linux"}}}}""",
@@ -92,6 +120,7 @@ class DdProtonRecipesTest {
         val fetched = mutableListOf<String>()
         val line = DdProtonRecipes.ensure(
             context,
+            "A7XX",
             { file, release -> if (file == dxvk) item(file, release) else null },
             { fetched += it.file },
             kind = { file -> if (file == dxvk) "dxvk" else null },
@@ -112,18 +141,29 @@ class DdProtonRecipesTest {
         File(context.filesDir, DdProtonRecipes.OVERRIDE).writeText(
             """{"version":1,"games":{"42":{"vkd3d":{"file":"$dxvk","release":"Dxvk-Linux"}}}}""",
         )
-        val second = DdProtonRecipes.ensure(context, { f, r -> item(f, r) }, {}, kind = { "dxvk" }, unpack = ::fakeUnpack)
+        val second = DdProtonRecipes.ensure(context, "A7XX", { f, r -> item(f, r) }, {}, kind = { "dxvk" }, unpack = ::fakeUnpack)
         assertTrue(second, second.endsWith("$dxvk is not a vkd3d package"))
         assertFalse(store.exists())
         assertFalse(JSONObject(File(root, "root/.config/droiddeck/recipes.json").readText())
             .getJSONObject("games").getJSONObject("42").has("vkd3d"))
     }
 
-    @Test fun noRecipesPublishesAnEmptyFile() {
-        val line = DdProtonRecipes.ensure(context, { _, _ -> null }, {}, kind = { null }, unpack = ::fakeUnpack)
+    @Test fun anEmptyOverridePublishesAnEmptyFile() {
+        File(context.filesDir, DdProtonRecipes.OVERRIDE).writeText("""{"version":1,"games":{}}""")
+        val line = DdProtonRecipes.ensure(context, "A7XX", { _, _ -> null }, {}, kind = { null }, unpack = ::fakeUnpack)
         assertEquals("DdProtonRecipes: 0 recipe(s), 0 package(s) ready", line)
         val published = JSONObject(File(LinuxRuntime.rootDir(context), "root/.config/droiddeck/recipes.json").readText())
         assertEquals(0, published.getJSONObject("games").length())
+    }
+
+    @Test fun withoutAnOverrideTheBundledLibraryIsPublished() {
+        val line = DdProtonRecipes.ensure(context, "A7XX", { _, _ -> null }, {}, kind = { null }, unpack = ::fakeUnpack)
+        val count = Regex("(\\d+) recipe").find(line)!!.groupValues[1].toInt()
+        assertTrue(line, count > 100)
+        val games = JSONObject(File(LinuxRuntime.rootDir(context), "root/.config/droiddeck/recipes.json").readText()).getJSONObject("games")
+        assertEquals(count, games.length())
+        // Packages could not be fetched here, so every published recipe carries only its variables.
+        games.keys().forEach { id -> assertFalse(id, games.getJSONObject(id).has("dxvk")) }
     }
 
     private fun item(file: String, release: String) =
