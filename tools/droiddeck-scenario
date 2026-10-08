@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+"""Run a device scenario through droiddeckctl, repeatedly, and report each run.
+
+A scenario is JSON (stdlib only, no YAML):
+
+    {
+      "name": "skyrim-focus",
+      "vars": {"appId": 489830},
+      "repeat": 6,
+      "setup":    [["wake"]],
+      "before":   [["start", "steam", "--wait", "--reuse", "--timeout", "180"]],
+      "steps":    [["launch", "${appId}", "--wait", "--timeout", "240"],
+                   {"assert": "session.focus.focusedApp", "equals": "${appId}"},
+                   {"screenshot": "in-game"},
+                   ["quit", "${appId}"]],
+      "after":    [["quit", "${appId}"]],
+      "teardown": [["stop"]]
+    }
+
+A list step is a droiddeckctl command line; its JSON answer becomes "last". An assert step checks
+a dotted path in the last answer ("equals", "in", "contains", "exists", "not"); {"sleep": s},
+{"screenshot": "name"} and {"record": "name", "seconds": s} do what they say. ${var} is replaced
+from "vars" and --var KEY=VALUE. setup and teardown run once; steps run "repeat" times (or
+--repeat), each preceded by "before" (a failure there fails the run) and followed by "after"
+whether it passed or not, so a failed run cannot leave a game running into the next and a session
+that died in one run is started again for the next. A failing run gets a screenshot, the focus state and the session's logs in
+its folder.
+
+    tools/droiddeck-scenario tools/scenarios/steam-game-focus.json --var appId=489830 --out ./runs
+
+Exit status: 0 when every run passed, 1 when any failed, 2 for a bad scenario or a failed setup.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+_loader = importlib.machinery.SourceFileLoader("droiddeckctl", str(HERE / "droiddeckctl"))
+_spec = importlib.util.spec_from_loader("droiddeckctl", _loader)
+ctl = importlib.util.module_from_spec(_spec)
+_loader.exec_module(ctl)
+
+
+class StepFailed(Exception):
+    pass
+
+
+def write_json(path: Path, value) -> None:
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), "w") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump(value, stream, indent=2, sort_keys=True)
+
+
+def substitute(value, variables: dict):
+    if isinstance(value, str):
+        whole = re.fullmatch(r"\$\{(\w+)\}", value)
+        if whole and whole.group(1) in variables:
+            return variables[whole.group(1)]
+        return re.sub(r"\$\{(\w+)\}", lambda m: str(variables.get(m.group(1), m.group(0))), value)
+    if isinstance(value, list):
+        return [substitute(v, variables) for v in value]
+    if isinstance(value, dict):
+        return {k: substitute(v, variables) for k, v in value.items()}
+    return value
+
+
+def lookup(data, path: str):
+    for part in path.split("."):
+        if isinstance(data, list) and part.isdigit():
+            data = data[int(part)] if int(part) < len(data) else None
+        elif isinstance(data, dict):
+            data = data.get(part)
+        else:
+            return None
+    return data
+
+
+def check(step: dict, last: dict) -> None:
+    path = step["assert"]
+    value = lookup(last, path)
+    if "equals" in step and value != step["equals"]:
+        raise StepFailed(f"{path} is {value!r}, expected {step['equals']!r}")
+    if "not" in step and value == step["not"]:
+        raise StepFailed(f"{path} is {value!r}")
+    if "in" in step and value not in step["in"]:
+        raise StepFailed(f"{path} is {value!r}, expected one of {step['in']!r}")
+    if "contains" in step and (not isinstance(value, (list, str)) or step["contains"] not in value):
+        raise StepFailed(f"{path} is {value!r}, expected it to contain {step['contains']!r}")
+    if step.get("exists") is True and value is None:
+        raise StepFailed(f"{path} is missing")
+
+
+class Runner:
+    def __init__(self, adb: str, serial: str, out: Path, global_args: list[str]):
+        self.adb = adb
+        self.serial = serial
+        self.out = out
+        self.global_args = global_args
+        self.parser = ctl.build_parser()
+
+    def ctl(self, words: list) -> dict:
+        args = self.parser.parse_args(self.global_args + [str(w) for w in words])
+        try:
+            return ctl.execute(args, self.adb, self.serial)
+        except ctl.ControlError as exc:
+            raise StepFailed(f"droiddeckctl {' '.join(map(str, words))}: {exc.code}: {exc}") from exc
+
+    def run_steps(self, steps: list, folder: Path, log: list) -> None:
+        last: dict = {}
+        for index, step in enumerate(steps):
+            started = time.monotonic()
+            entry = {"step": index, "what": step}
+            try:
+                if isinstance(step, list):
+                    last = self.ctl(step)
+                    entry["result"] = last
+                elif "assert" in step:
+                    check(step, last)
+                elif "sleep" in step:
+                    time.sleep(float(step["sleep"]))
+                elif "screenshot" in step:
+                    entry["result"] = ctl.screenshot(self.adb, self.serial, str(folder / f"{step['screenshot']}.png"),
+                                                     step.get("display"))
+                elif "record" in step:
+                    entry["result"] = ctl.record(self.adb, self.serial, str(folder / f"{step['record']}.mp4"),
+                                                 float(step.get("seconds", 10)), step.get("display"))
+                else:
+                    raise StepFailed(f"Unknown step {step!r}")
+                entry["ok"] = True
+            except (StepFailed, ctl.ControlError) as exc:
+                entry["ok"] = False
+                entry["error"] = str(exc)
+                raise StepFailed(f"step {index} {json.dumps(step)}: {exc}") from exc
+            finally:
+                entry["seconds"] = round(time.monotonic() - started, 2)
+                log.append(entry)
+
+    def evidence(self, folder: Path) -> dict:
+        """What a failed run leaves behind: the screen, gamescope's focus, the session's logs."""
+        found = {}
+        for name, action in (
+            ("screenshot", lambda: ctl.screenshot(self.adb, self.serial, str(folder / "failure.png"), None)),
+            ("focus", lambda: self.ctl(["focus"])),
+            ("logs", lambda: self.ctl(["logs", "latest", str(folder / "session")])),
+        ):
+            try:
+                found[name] = action()
+            except Exception as exc:  # evidence is best effort
+                found[name] = {"ok": False, "error": str(exc)}
+        write_json(folder / "evidence.json", found)
+        return {k: v.get("ok", True) if isinstance(v, dict) else True for k, v in found.items()}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("scenario")
+    parser.add_argument("--var", action="append", default=[], metavar="KEY=VALUE")
+    parser.add_argument("--repeat", type=int)
+    parser.add_argument("--out", default="scenario-runs")
+    parser.add_argument("--adb")
+    parser.add_argument("--serial")
+    parser.add_argument("--keep-going", action="store_true", help="run every repeat even after a failure")
+    args = parser.parse_args(argv)
+
+    try:
+        scenario = json.loads(Path(args.scenario).read_text())
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"ok": False, "error": f"Cannot read scenario: {exc}"}))
+        return 2
+    variables = dict(scenario.get("vars", {}))
+    for item in args.var:
+        key, _, value = item.partition("=")
+        variables[key] = int(value) if value.lstrip("-").isdigit() else value
+    scenario = substitute(scenario, variables)
+    repeat = args.repeat or int(scenario.get("repeat", 1))
+
+    adb = ctl.adb_path(args.adb)
+    serial = ctl.resolve_serial(adb, args.serial, log=True)
+    out = Path(args.out).expanduser().resolve() / f"{scenario.get('name', 'scenario')}-{time.strftime('%Y%m%d-%H%M%S')}"
+    out.mkdir(parents=True, exist_ok=True, mode=0o700)
+    global_args = (["--adb", adb] if args.adb else []) + ["--serial", serial]
+    runner = Runner(adb, serial, out, global_args)
+    report = {"name": scenario.get("name"), "serial": serial, "vars": variables, "repeat": repeat,
+              "out": str(out), "runs": []}
+
+    status = 0
+    setup_log: list = []
+    try:
+        runner.run_steps(scenario.get("setup", []), out, setup_log)
+        for run in range(1, repeat + 1):
+            folder = out / f"run-{run:02d}"
+            folder.mkdir(mode=0o700)
+            log: list = []
+            started = time.monotonic()
+            result = {"run": run, "folder": str(folder)}
+            try:
+                runner.run_steps(scenario.get("before", []) + scenario.get("steps", []), folder, log)
+                result["ok"] = True
+            except StepFailed as exc:
+                result["ok"] = False
+                result["error"] = str(exc)
+                result["evidence"] = runner.evidence(folder)
+                status = 1
+            after: list = []
+            try:
+                runner.run_steps(scenario.get("after", []), folder, after)
+            except StepFailed as exc:
+                result["afterError"] = str(exc)
+            log.extend({**entry, "after": True} for entry in after)
+            result["seconds"] = round(time.monotonic() - started, 2)
+            write_json(folder / "steps.json", log)
+            report["runs"].append(result)
+            print(f"run {run}/{repeat}: {'PASS' if result['ok'] else 'FAIL ' + result['error']}", file=sys.stderr)
+            if not result["ok"] and not args.keep_going:
+                break
+    except StepFailed as exc:
+        report["setupError"] = str(exc)
+        status = 2
+    finally:
+        teardown_log: list = []
+        try:
+            runner.run_steps(scenario.get("teardown", []), out, teardown_log)
+        except StepFailed as exc:
+            report["teardownError"] = str(exc)
+        write_json(out / "setup.json", setup_log + teardown_log)
+
+    passed = sum(1 for r in report["runs"] if r["ok"])
+    report.update({"ok": status == 0, "passed": passed, "failed": len(report["runs"]) - passed})
+    write_json(out / "report.json", report)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return status
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
