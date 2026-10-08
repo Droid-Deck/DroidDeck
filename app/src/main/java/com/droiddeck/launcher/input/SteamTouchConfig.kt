@@ -111,7 +111,10 @@ object SteamTouchConfig {
     /** The config the client has for app [appId] on the touch controller. Blocking: reads files. */
     fun load(context: Context, appId: Int): Config {
         val dir = configDir(context)
-        val file = loggedConfig(context, appId)?.takeIf { isTouchConfig(it) }
+        // The app's own saved config is what the client loads when there is one (its configset
+        // entry); otherwise what it logged loading - a template, an official or a workshop config.
+        val file = dir?.let { autosaveConfig(it, appId) }
+            ?: loggedConfig(context, appId)?.takeIf { isTouchConfig(it) }
             ?: dir?.let { configsetConfig(context, it, appId) }
         if (file == null) {
             Log.i(TAG, "steam touch: app $appId has no touch config on disk; default layout")
@@ -151,6 +154,13 @@ object SteamTouchConfig {
                 .findAll(tail).lastOrNull()?.groupValues?.get(1)?.trim()
             loaded?.let { guestPath -> File(LinuxRuntime.rootDir(context), guestPath.trimStart('/').replace("//", "/")) }
         }
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun autosaveConfig(dir: File, appId: Int): File? = try {
+        val set = KeyValues.parse(File(dir, CONFIGSET).readText()).child("controller_config")?.child(appId.toString())
+        if (set?.string("autosave") == "1") File(dir, "$appId/controller_mobile_touch.vdf").takeIf { it.isFile } else null
     } catch (_: Exception) {
         null
     }
@@ -324,8 +334,12 @@ object SteamTouchConfig {
     fun decodeLayouts(bytes: ByteArray): Layouts {
         val layouts = mutableListOf<Layout>()
         val rest = ByteArrayOutputStream()
-        Proto(bytes).forEachField { field, wire, start, end, reader ->
-            if (field == 1 && wire == 2) layouts += decodeLayout(reader.bytes()) else rest.write(bytes, start, end - start)
+        val p = Proto(bytes)
+        while (p.more()) {
+            val start = p.pos
+            val (field, wire) = p.key()
+            if (field == 1 && wire == 2) layouts += decodeLayout(p.bytes())
+            else { p.skip(wire); rest.write(bytes, start, p.pos - start) }
         }
         return Layouts(layouts, rest.toByteArray())
     }
@@ -335,13 +349,15 @@ object SteamTouchConfig {
         var version: Int? = null
         var color: FloatArray? = null
         val elements = mutableListOf<Element>()
-        Proto(bytes).forEachField { field, wire, _, _, r ->
+        val p = Proto(bytes)
+        while (p.more()) {
+            val (field, wire) = p.key()
             when {
-                field == 1 && wire == 0 -> version = r.varint().toInt()
-                field == 2 && wire == 0 -> actionSet = r.varint().toInt()
-                field == 4 && wire == 2 -> elements += decodeElement(r.bytes())
-                field == 5 && wire == 2 -> color = decodeColor(r.bytes())
-                else -> r.skip(wire)
+                field == 1 && wire == 0 -> version = p.varint().toInt()
+                field == 2 && wire == 0 -> actionSet = p.varint().toInt()
+                field == 4 && wire == 2 -> elements += decodeElement(p.bytes())
+                field == 5 && wire == 2 -> color = decodeColor(p.bytes())
+                else -> p.skip(wire)
             }
         }
         return Layout(actionSet, elements, color, version)
@@ -354,15 +370,17 @@ object SteamTouchConfig {
         var y = 0f
         var sx = 1f
         var sy = 1f
-        Proto(bytes).forEachField { field, wire, _, _, r ->
+        val p = Proto(bytes)
+        while (p.more()) {
+            val (field, wire) = p.key()
             when {
-                field == 1 && wire == 0 -> type = r.varint().toInt()
-                field == 2 && wire == 0 -> visible = r.varint() != 0L
-                field == 3 && wire == 5 -> x = r.float()
-                field == 4 && wire == 5 -> y = r.float()
-                field == 5 && wire == 5 -> sx = r.float()
-                field == 6 && wire == 5 -> sy = r.float()
-                else -> r.skip(wire)
+                field == 1 && wire == 0 -> type = p.varint().toInt()
+                field == 2 && wire == 0 -> visible = p.varint() != 0L
+                field == 3 && wire == 5 -> x = p.float()
+                field == 4 && wire == 5 -> y = p.float()
+                field == 5 && wire == 5 -> sx = p.float()
+                field == 6 && wire == 5 -> sy = p.float()
+                else -> p.skip(wire)
             }
         }
         return Element(type, visible, x, y, sx, sy)
@@ -370,8 +388,10 @@ object SteamTouchConfig {
 
     private fun decodeColor(bytes: ByteArray): FloatArray {
         val c = floatArrayOf(1f, 1f, 1f, 1f)
-        Proto(bytes).forEachField { field, wire, _, _, r ->
-            if (field in 1..4 && wire == 5) c[field - 1] = r.float() else r.skip(wire)
+        val p = Proto(bytes)
+        while (p.more()) {
+            val (field, wire) = p.key()
+            if (field in 1..4 && wire == 5) c[field - 1] = p.float() else p.skip(wire)
         }
         return c
     }
@@ -450,19 +470,8 @@ object SteamTouchConfig {
                 else -> pos = data.size
             }
         }
-        inline fun forEachField(block: (field: Int, wire: Int, start: Int, end: Int, reader: Proto) -> Unit) {
-            while (pos < data.size) {
-                val start = pos
-                val key = varint().toInt()
-                val field = key ushr 3
-                val wire = key and 7
-                val mark = pos
-                // Each handler reads or skips the field; the raw span is measured from a copy.
-                val probe = Proto(data).also { it.pos = mark; it.skip(wire) }
-                block(field, wire, start, probe.pos, this)
-                pos = probe.pos
-            }
-        }
+        fun more() = pos < data.size
+        fun key(): Pair<Int, Int> = varint().toInt().let { (it ushr 3) to (it and 7) }
     }
 
     fun hexToBytes(hex: String) = ByteArray(hex.length / 2) { hex.substring(2 * it, 2 * it + 2).toInt(16).toByte() }

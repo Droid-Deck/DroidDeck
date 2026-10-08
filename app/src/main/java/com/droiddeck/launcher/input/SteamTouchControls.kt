@@ -34,7 +34,7 @@ import kotlin.math.min
 @SuppressLint("ViewConstructor")
 class SteamTouchControls(
     context: Context,
-    private val device: SteamTouchDevice,
+    val device: SteamTouchDevice,
     private val onMenu: () -> Unit,
     private val onKeyboard: () -> Unit,
 ) : View(context) {
@@ -48,6 +48,7 @@ class SteamTouchControls(
     private var actionSet = 0
     private var layers: List<Int> = emptyList()
     private var actionSeq = -1
+    private var opened = 0
     private var elements: List<Element> = emptyList()
     private var tint = Color.WHITE
     private var alphaScale = 0.45f
@@ -93,7 +94,10 @@ class SteamTouchControls(
     private fun refreshState() {
         val state = device.state()
         val app = if (state.appId == 0) BIG_PICTURE else state.appId
-        if (app != configApp) {
+        // The client reads the config afresh when the controller (re)connects: so do we.
+        val reconnected = state.opened > 0 && opened == 0
+        opened = state.opened
+        if (app != configApp || reconnected) {
             configApp = app
             reload(app)
         }

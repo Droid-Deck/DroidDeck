@@ -1820,8 +1820,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     /** Steam's touch controls, once the session has made the device (SessionService). */
     private fun steamTouch(): com.droiddeck.launcher.input.SteamTouchControls? {
-        steamTouchControls?.let { return it }
         val device = com.droiddeck.launcher.input.SteamTouchDevice.current ?: return null
+        steamTouchControls?.let { view ->
+            if (view.device === device) return view
+            // A new session made a new device: the view of the old one goes.
+            view.releaseAll()
+            (view.parent as? android.view.ViewGroup)?.removeView(view)
+            steamTouchControls = null
+        }
         val root = onScreenControls?.parent as? android.view.ViewGroup ?: return null
         val view = com.droiddeck.launcher.input.SteamTouchControls(this, device,
             onMenu = { drawerOpen = true }, onKeyboard = ::togglePcKeyboard)
