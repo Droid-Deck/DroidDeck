@@ -88,11 +88,11 @@ class StoreGameSidecar(
             val store = Store.byId(o.optString("store")) ?: return null
             val id = o.optString("id", "")
             val title = o.optString("title", "")
-            val exe = o.optString("exe", "").replace('\\', '/').trimStart('/')
+            val exe = o.optString("exe", "").replace('\\', '/')
             if (id.isEmpty() || title.isEmpty() || exe.isEmpty()) return null
             // A relative path only: a sidecar that points outside its folder is not trusted.
             if (!relativeInside(exe)) return null
-            val launcher = o.optString("launcher", "").replace('\\', '/').trimStart('/').takeIf { it.isNotEmpty() && relativeInside(it) }
+            val launcher = o.optString("launcher", "").replace('\\', '/').takeIf { it.isNotEmpty() && relativeInside(it) }
             val args = o.optJSONArray("args")?.let { a -> List(a.length()) { a.optString(it) }.filter { it.isNotEmpty() } } ?: emptyList()
             val env = LinkedHashMap<String, String>()
             o.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.optString(k) } }
@@ -109,7 +109,8 @@ class StoreGameSidecar(
             )
         }
 
+        /** Relative, no drive letter, no step up: an absolute or escaping path is refused, not trimmed into shape. */
         private fun relativeInside(path: String): Boolean =
-            path.isNotEmpty() && !path.startsWith("/") && !path.contains(":") && path.split('/').none { it == ".." }
+            path.isNotEmpty() && !path.startsWith("/") && !path.contains(":") && path.split('/').none { it == ".." || it.isEmpty() }
     }
 }
