@@ -114,8 +114,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             }
         }
     }
-    if (item != null && item.description.isNotBlank()) Rise(2) {
-        Text(item.description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+    // Plain text only, and nothing at all when the store sent a template key instead of words.
+    val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()
+    if (description.isNotBlank()) Rise(2) {
+        Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
     }
     Rise(3) {
         BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 16.dp)) {

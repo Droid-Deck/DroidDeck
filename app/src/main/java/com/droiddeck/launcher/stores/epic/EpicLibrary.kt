@@ -111,7 +111,7 @@ object EpicLibrary {
         store = Store.EPIC, id = g.appName, title = g.title.ifBlank { g.appName },
         imageUrl = g.artSquare.ifBlank { null } ?: g.artCover.ifBlank { null },
         tallImageUrl = g.artCover.ifBlank { null } ?: g.artSquare.ifBlank { null },
-        developer = g.developer, description = g.description, owned = true,
+        developer = g.developer, description = com.droiddeck.launcher.stores.cleanStoreText(g.description), owned = true,
         sizeBytes = EpicPrefs.get(context).getLong("size_${g.appName}", g.installSize),
         storeUrl = "https://store.epicgames.com/en-US/browse?q=${java.net.URLEncoder.encode(g.title, "UTF-8")}",
         extra = mapOf("namespace" to g.namespace, "catalogItemId" to g.catalogItemId),

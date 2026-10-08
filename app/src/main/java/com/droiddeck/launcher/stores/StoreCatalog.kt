@@ -56,6 +56,32 @@ class InstalledStoreGame(val sidecar: StoreGameSidecar, val folder: java.io.File
     val key: String get() = "${sidecar.store.id}:${sidecar.id}"
 }
 
+private val TEMPLATE_KEY = Regex("product_(description|feature)_\\d+")
+private val HTML_TAG = Regex("<[^>]+>")
+private val ENTITY = Regex("&(#\\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);")
+private val NAMED_ENTITIES = mapOf("amp" to "&", "lt" to "<", "gt" to ">", "quot" to "\"", "apos" to "'", "nbsp" to " ", "ndash" to "–", "mdash" to "—", "hellip" to "…", "trade" to "™", "reg" to "®", "copy" to "©")
+
+/**
+ * Store copy as plain text: GOG's account endpoints return template keys
+ * (`product_description_2015545325`) for some products instead of words, and every store's
+ * descriptions carry HTML. Those keys go, tags go, entities are decoded, whitespace is collapsed;
+ * "" when nothing readable is left, so a page shows nothing rather than a placeholder.
+ */
+fun cleanStoreText(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    var s = raw.replace(TEMPLATE_KEY, " ")
+    s = s.replace(Regex("(?i)<br\\s*/?>|</p>|</li>|</div>"), "\n").replace(HTML_TAG, " ")
+    s = ENTITY.replace(s) { m ->
+        val e = m.groupValues[1]
+        when {
+            e.startsWith("#x") -> e.substring(2).toIntOrNull(16)?.toChar()?.toString() ?: " "
+            e.startsWith("#") -> e.substring(1).toIntOrNull()?.toChar()?.toString() ?: " "
+            else -> NAMED_ENTITIES[e.lowercase()] ?: " "
+        }
+    }
+    return s.lines().map { it.replace(Regex("[ \\t\\u00A0]+"), " ").trim() }.filter { it.isNotEmpty() }.joinToString("\n")
+}
+
 /** Human sizes the way the Downloads page and the cards print them ("810.2 MB", "3.9 GB"). */
 fun formatBytes(bytes: Long): String = when {
     bytes >= 1_073_741_824L -> "%.1f GB".format(bytes / 1_073_741_824.0)

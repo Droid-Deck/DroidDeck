@@ -7,6 +7,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -96,20 +97,44 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     // A store the account is signed into fills itself when its chip is on screen.
     LaunchedEffect(chip, StoresState.accounts[store]) { if (store != null && StoresState.isSignedIn(store)) StoresState.open(ctx, store) }
+    // A pad's focus sits on something the page is about to replace - the card that opens a game,
+    // a tab's contents - and would be lost with it, leaving the next press to land on the rail.
+    // Each move says where focus goes next: into the game page's main action, back to the card
+    // it was opened from, or onto the first card of a tab or store just picked.
+    val ff = LocalFrontFocus.current
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    var focusMove by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    var lastOpened by remember { mutableStateOf<String?>(null) }
+    fun move(kind: String) { focusMove = kind to (focusMove?.second ?: 0) + 1 }
+    fun open(key: String) { lastOpened = key; openGame = key; move("detail") }
+    fun closeGame() { openGame = null; move("card") }
+    fun switchTab(to: String) { tab = to; move("first") }
     // Picking a chip opens the tab Setup says (Library or Store); a tab the user switches to
     // afterwards stays until another chip is picked.
     val pickChip: (String) -> Unit = { id ->
         chip = id; openGame = null; query = ""
         if (id != DOWNLOADS) tab = if (s.storesOpenTab == SessionPrefs.STORES_OPEN_STORE) "store" else "library"
+        move("first")
     }
-    BackHandler(enabled = openGame != null) { openGame = null }
+    BackHandler(enabled = openGame != null) { closeGame() }
     val scroll = rememberScrollState()
     LaunchedEffect(chip, tab, openGame) { scroll.scrollTo(0) }
+    LaunchedEffect(focusMove, openGame) {
+        if (inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard || ff == null) return@LaunchedEffect
+        val target = when {
+            openGame != null -> if (ff.primaryAttached > 0) ff.primary else ff.items["back:${store?.label}"]
+            focusMove?.first == "card" -> lastOpened?.let { ff.items["card:$it"] } ?: ff.firstTile.takeIf { ff.firstTileAttached > 0 }
+            focusMove?.first == "first" -> ff.firstTile.takeIf { ff.firstTileAttached > 0 }
+            else -> null
+        } ?: return@LaunchedEffect
+        var landed = false
+        focusWithinFrames({ landed }) { target.also { landed = runCatching { it.requestFocus() }.isSuccess } }
+    }
     Column(
         modifier = modifier.padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
             .bumpers(
-                onPrevious = { if (openGame == null && chip != DOWNLOADS) tab = TABS[(TABS.indexOf(tab) + TABS.size - 1) % TABS.size] },
-                onNext = { if (openGame == null && chip != DOWNLOADS) tab = TABS[(TABS.indexOf(tab) + 1) % TABS.size] },
+                onPrevious = { if (openGame == null && chip != DOWNLOADS) switchTab(TABS[(TABS.indexOf(tab) + TABS.size - 1) % TABS.size]) },
+                onNext = { if (openGame == null && chip != DOWNLOADS) switchTab(TABS[(TABS.indexOf(tab) + 1) % TABS.size]) },
             ),
     ) {
         Rise(0) { StoreChips(chip, s.storeDownloadsActive, onPick = pickChip, onSettings = { settings = true }) }
@@ -118,8 +143,10 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 chip == DOWNLOADS -> StoresDownloadsPane(s, a)
                 store == null -> {}
                 !StoresState.isSignedIn(store) -> Rise(1) { SignInCard(store) }
-                openGame != null -> StoreGameDetail(store, openGame!!, s, a, onBack = { openGame = null })
-                else -> Storefront(store, tab, query, s, a, onTab = { tab = it }, onQuery = { query = it }, onOpen = { openGame = it })
+                // One focus group, so the pad walks the page's own controls - back, the hero's
+                // actions, the cards - and reaches the rail only with Left from them.
+                openGame != null -> Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(store, openGame!!, s, a, onBack = { closeGame() }) }
+                else -> Storefront(store, tab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
             }
         }
     }
@@ -289,7 +316,13 @@ private fun Storefront(
     }
     StoresState.status[store]?.let { Rise(3) { Text(it, fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp)) } }
     StoresState.problems[store]?.let { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(it) } } }
-    val card: @Composable (CatalogItem) -> Unit = { item -> GameCard(item, store, s, a, installedKeys, onOpen) }
+    // The first card drawn on the tab is where a pad lands after a tab or chip change.
+    var firstPlaced = false
+    val card: @Composable (CatalogItem) -> Unit = { item ->
+        val first = !firstPlaced
+        firstPlaced = true
+        GameCard(item, store, s, a, installedKeys, onOpen, first)
+    }
     when (tab) {
         "installed" -> Grid(installedItems.filter(::matches), stringResource(R.string.stores_installed_empty, store.label), card)
         "library" -> Grid(library.filter(::matches), if (library.isEmpty() && StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_nothing_matches), card)
@@ -401,7 +434,7 @@ private val CardWidth = 150.dp
  * on the store. Tapping the card itself opens the game's page.
  */
 @Composable
-private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: FrontEndActions, installedKeys: Set<String>, onOpen: (String) -> Unit) {
+private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: FrontEndActions, installedKeys: Set<String>, onOpen: (String) -> Unit, first: Boolean = false) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -413,7 +446,7 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     val download = StoresState.downloads.firstOrNull { it.store == store && it.id == item.id && it.isActive }
     val open = { onOpen(item.key) }
     Column(
-        modifier = Modifier.fillMaxWidth().paneItem("card:${item.key}").graphicsLayer { scaleX = scale; scaleY = scale }
+        modifier = Modifier.fillMaxWidth().paneItem("card:${item.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(10.dp)).background(colors.surface).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {

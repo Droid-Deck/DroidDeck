@@ -80,6 +80,16 @@ without it and Setup says "Stores engine not built").
   places `cover.jpg`, `hero.jpg` and `header.jpg` in the game folder, re-encoded as opaque JPEGs
   over a dark ground, under the names `AddedGameArt` looks for - so the Games tab and the client's
   grid (through the listing) get real art for store games.
+- **Device feedback on `9f5a2f3` (GOG › DOOM I Enhanced page):** (1) the pad lost focus when a
+  card opened its page (the card left composition; the next press landed on the rail). The page
+  now follows the Flathub store's pattern: a focus move is recorded on each change and
+  `focusWithinFrames` lands it - the game page's main action (or its back link), the card the page
+  was opened from on the way back, the first card after a tab or chip change (`firstTile`); the
+  page is a `focusGroup`, so Left is the way to the rail. (2) GOG's account endpoints return
+  template keys (`product_description_2015545325<br>product_feature_…`) for some products; the
+  v2 record has the same keys for them. `cleanStoreText` drops those keys, strips tags, decodes
+  entities; the library tries the product's lead, then v2 `overview`, then v2 `description`, and
+  shows nothing when all are templates. Epic's and Amazon's text goes through the same cleaner.
 - Status: compiles on CI with the JVM and python tests green; nothing device-tested yet - the
   sign-in pages, a real install, the shortcut landing in the client and the .bat launch under Proton
   are the first things to prove on hardware.

@@ -114,7 +114,7 @@ object EpicStoreCatalog {
             store = Store.EPIC, id = id, title = title, imageUrl = wide ?: thumb, tallImageUrl = tall ?: thumb, tags = tagLine,
             isFree = isFree, hasPrice = hasPrice, finalPrice = finalPrice, originalPrice = if (discountPct > 0) fmtOriginal else "", discountPercent = discountPct,
             storeUrl = storeUrl, developer = e.optJSONObject("seller")?.optString("name", "").orEmpty(),
-            releaseDate = e.optString("releaseDate", e.optString("effectiveDate", "")), description = e.optString("description", ""),
+            releaseDate = e.optString("releaseDate", e.optString("effectiveDate", "")), description = com.droiddeck.launcher.stores.cleanStoreText(e.optString("description", "")),
             extra = buildMap { put("namespace", ns); if (itemIds.isNotEmpty()) put("items", itemIds.joinToString(",")); if (slug.isNotBlank()) put("slug", slug) },
         )
     }

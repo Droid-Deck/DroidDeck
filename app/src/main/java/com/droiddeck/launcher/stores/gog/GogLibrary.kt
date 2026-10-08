@@ -6,6 +6,7 @@ import android.util.Log
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreNet
+import com.droiddeck.launcher.stores.cleanStoreText
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.Callable
@@ -40,7 +41,7 @@ object GogLibrary {
             val arr = JSONArray(json)
             (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
-                GogGame(o.optString("gameId", ""), o.optString("title", ""), o.optString("imageUrl", ""), o.optString("description", ""),
+                GogGame(o.optString("gameId", ""), o.optString("title", ""), o.optString("imageUrl", ""), cleanStoreText(o.optString("description", "")),
                     o.optString("developer", ""), o.optString("category", ""), o.optInt("generation", 1), o.optString("verticalCover", "").ifEmpty { null })
             }.filter { it.gameId.isNotEmpty() }.sortedBy { it.title.lowercase() }
         }.getOrDefault(emptyList())
@@ -124,16 +125,18 @@ object GogLibrary {
             val images = prod.optJSONObject("images")
             var imageUrl = ""
             var boxArt = ""
-            runCatching {
-                val links = StoreNet.get("https://api.gog.com/v2/games/$id?locale=en-US")?.let { JSONObject(it).optJSONObject("_links") }
-                if (links != null) {
-                    imageUrl = links.optJSONObject("galaxyBackgroundImage")?.optString("href", "").orEmpty()
-                    boxArt = links.optJSONObject("boxArtImage")?.optString("href", "").orEmpty()
-                }
+            val v2 = runCatching { StoreNet.get("https://api.gog.com/v2/games/$id?locale=en-US")?.let { JSONObject(it) } }.getOrNull()
+            v2?.optJSONObject("_links")?.let { links ->
+                imageUrl = links.optJSONObject("galaxyBackgroundImage")?.optString("href", "").orEmpty()
+                boxArt = links.optJSONObject("boxArtImage")?.optString("href", "").orEmpty()
             }
             if (imageUrl.isEmpty()) imageUrl = images?.optString("logo2x", "") ?: ""
             if (imageUrl.isEmpty()) imageUrl = images?.optString("icon", "") ?: ""
-            val desc = prod.optJSONObject("description")?.optString("lead", "") ?: ""
+            // The account endpoint hands back template keys for some products; the v2 record's text
+            // is tried next, and when that is a template too the game simply has no description.
+            val desc = cleanStoreText(prod.optJSONObject("description")?.optString("lead", ""))
+                .ifEmpty { cleanStoreText(v2?.optString("overview", "")) }
+                .ifEmpty { cleanStoreText(v2?.optString("description", "")) }
             val developer = prod.optJSONObject("developers")?.optString("name", "") ?: prod.optString("developer", "")
             val genres = prod.optJSONArray("genres")
             val category = if (genres != null && genres.length() > 0) genres.optJSONObject(0)?.optString("name", "") ?: "" else ""
