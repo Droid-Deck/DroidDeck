@@ -1,8 +1,9 @@
 /*
  * The Steam client lists a whole content directory about ten times per file it creates, moves or
  * deletes, to match names case-insensitively. On Android's FUSE storage that made reserving space
- * quadratic. Listings under steamapps/ on FUSE are kept while the directory's stat is unchanged and
- * for at most DIR_TTL_NS; the client's own changes patch them. BL_NO_DIR_CACHE=1 turns it off.
+ * quadratic. Listings under steamapps/ on FUSE are kept for at most DIR_TTL_NS and dropped on any
+ * inotify event the client's own patched changes don't account for; directory timestamps alone
+ * can't be trusted, as NTFS volumes report whole seconds. BL_NO_DIR_CACHE=1 turns it off.
  */
 #define _GNU_SOURCE
 #include <dirent.h>
@@ -13,10 +14,12 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/inotify.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
 #include <time.h>
@@ -27,6 +30,7 @@
 #define MAX_ENTRIES 100000
 #define MAX_HANDLES 64
 #define FUSE_MAGIC 0x65735546
+#define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR)
 
 /* The client is 64-bit; 32-bit builds only pass creates through. */
 #if __SIZEOF_POINTER__ == 8
@@ -45,6 +49,7 @@ struct listing {
   long long used;
   int refs;
   int detached;
+  int wd;
   size_t n, cap;
   struct entry *e;
   char *recs;
@@ -57,9 +62,13 @@ struct handle {
   DIR *real;
   size_t pos;
   int fd;
+  int wd;
+  int dirty;
   char *path;
   struct dirent64 out;
 };
+
+struct expect { int wd; uint32_t mask; const char *name; };
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t oplock = PTHREAD_MUTEX_INITIALIZER;
@@ -67,6 +76,9 @@ static struct listing *table[MAX_LISTINGS];
 static struct handle *handles[MAX_HANDLES];
 static int high_water;
 static int cached_listings;
+static int changing;
+static int notify = -1;
+static int forked;
 static struct { dev_t dev; int fuse; } devs[8];
 static int ndevs;
 
@@ -76,9 +88,11 @@ static long long now_ns(void) {
   return (long long)t.tv_sec * 1000000000LL + t.tv_nsec;
 }
 
+/* A child shares the parent's inotify queue, so it stops keeping listings. */
 static void after_fork(void) {
   pthread_mutex_init(&lock, NULL);
   pthread_mutex_init(&oplock, NULL);
+  forked = 1;
 }
 
 static int enabled(void) {
@@ -89,7 +103,7 @@ static int enabled(void) {
              strstr(program_invocation_name, "steamrtarm64") != NULL && !(off && strcmp(off, "1") == 0);
     if (cached) pthread_atfork(NULL, NULL, after_fork);
   }
-  return cached;
+  return cached && !forked;
 }
 
 static int eligible(const char *path) {
@@ -148,13 +162,84 @@ static void unref(struct listing *l) {
   if (--l->refs == 0 && l->detached) destroy(l);
 }
 
-/* Takes the listing out of the table; freed now or when its last reader closes. */
-static void drop(int slot) {
-  struct listing *l = table[slot];
-  table[slot] = NULL;
+/* The rest is called with lock held. */
+
+static void release(int wd) {
+  if (wd < 0 || notify < 0) return;
+  for (int i = 0; i < MAX_LISTINGS; i++)
+    if (table[i] && table[i]->wd == wd) return;
+  for (int i = 0; i < high_water; i++)
+    if (handles[i] && handles[i]->wd == wd) return;
+  inotify_rm_watch(notify, wd);
+}
+
+static void detach(struct listing *l) {
   __atomic_sub_fetch(&cached_listings, 1, __ATOMIC_RELEASE);
   l->detached = 1;
   if (l->refs == 0) destroy(l);
+}
+
+/* Takes the listing out of the table; freed now or when its last reader closes. */
+static void drop(int slot) {
+  struct listing *l = table[slot];
+  int wd = l->wd;
+  table[slot] = NULL;
+  detach(l);
+  release(wd);
+}
+
+static void changed(int wd) {
+  for (int i = 0; i < MAX_LISTINGS; i++)
+    if (table[i] && (table[i]->wd == wd || wd < 0)) drop(i);
+  for (int i = 0; i < high_water; i++)
+    if (handles[i] && (handles[i]->wd == wd || wd < 0)) __atomic_store_n(&handles[i]->dirty, 1, __ATOMIC_RELAXED);
+}
+
+/* Applies queued events; the expected ones are the client's own changes, already patched in. */
+static void pump(struct expect *x, int nx) {
+  char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
+  if (notify < 0 || forked) return;
+  int saved = errno;
+  for (;;) {
+    ssize_t n = read(notify, buf, sizeof(buf));
+    if (n <= 0) {
+      if (n < 0 && errno != EAGAIN && errno != EINTR) {
+        notify = -2;
+        changed(-1);
+      }
+      break;
+    }
+    for (char *p = buf; p < buf + n;) {
+      struct inotify_event *ev = (struct inotify_event *)p;
+      p += sizeof(*ev) + ev->len;
+      if (ev->mask & IN_Q_OVERFLOW) {
+        changed(-1);
+        continue;
+      }
+      int k = 0;
+      while (k < nx && !(x[k].wd == ev->wd && (ev->mask & x[k].mask) && ev->len && strcmp(ev->name, x[k].name) == 0)) k++;
+      if (k < nx) {
+        x[k].wd = -1;
+        for (int i = 0; i < high_water; i++)
+          if (handles[i] && handles[i]->wd == ev->wd) __atomic_store_n(&handles[i]->dirty, 1, __ATOMIC_RELAXED);
+      } else {
+        changed(ev->wd);
+      }
+    }
+  }
+  errno = saved;
+}
+
+static int watch(const char *path) {
+  if (notify == -1) notify = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+  if (notify < 0) {
+    notify = -2;
+    return -1;
+  }
+  int saved = errno;
+  int wd = inotify_add_watch(notify, path, WATCHED);
+  errno = saved;
+  return wd;
 }
 
 static int find(dev_t dev, ino_t ino) {
@@ -178,17 +263,23 @@ static int push(struct listing *l, ino_t ino, unsigned char type, const char *na
 }
 
 static void install(struct listing *l) {
+  l->detached = 0;
+  __atomic_add_fetch(&cached_listings, 1, __ATOMIC_RELEASE);
   int slot = find(l->dev, l->ino);
-  if (slot >= 0) drop(slot);
+  if (slot >= 0) {
+    struct listing *old = table[slot];
+    table[slot] = l;
+    detach(old);
+    if (old->wd != l->wd) release(old->wd);
+    return;
+  }
   int victim = -1;
   for (int i = 0; i < MAX_LISTINGS; i++) {
     if (table[i] == NULL) { victim = i; break; }
     if (victim < 0 || table[i]->used < table[victim]->used) victim = i;
   }
   if (table[victim]) drop(victim);
-  l->detached = 0;
   table[victim] = l;
-  __atomic_add_fetch(&cached_listings, 1, __ATOMIC_RELEASE);
 }
 
 static int registered(DIR *d) {
@@ -198,12 +289,6 @@ static int registered(DIR *d) {
   return -1;
 }
 
-/* Lock-free: a stream is only ever used by one thread at a time. */
-static struct handle *lookup(DIR *d) {
-  return registered(d) >= 0 ? (struct handle *)d : NULL;
-}
-
-/* Called with lock held. */
 static DIR *wrap(struct handle *h) {
   for (int i = 0; i < MAX_HANDLES; i++) {
     if (handles[i] == NULL) {
@@ -217,7 +302,7 @@ static DIR *wrap(struct handle *h) {
 
 #define RECLEN(namelen) ((offsetof(struct dirent64, d_name) + (namelen) + 1 + 7) & ~(size_t)7)
 
-/* The listing as packed dirent64 records, built once per version. Called with lock held. */
+/* The listing as packed dirent64 records, built once per version. */
 static int records(struct listing *l) {
   if (l->recs) return 0;
   size_t len = 0;
@@ -241,28 +326,64 @@ static int records(struct listing *l) {
   return 0;
 }
 
+/* Lock-free from here on unless noted: a stream is only ever used by one thread at a time. */
+
+static struct handle *lookup(DIR *d) {
+  return registered(d) >= 0 ? (struct handle *)d : NULL;
+}
+
+#define REAL(name) static __typeof__(&name) next_##name
 #define NEXT(name) \
-  static __typeof__(&name) next_##name; \
   if (next_##name == NULL) next_##name = (__typeof__(&name))dlsym(RTLD_NEXT, #name)
 
-DIR *opendir(const char *path) {
+REAL(opendir);
+REAL(readdir64);
+REAL(readdir);
+REAL(closedir);
+REAL(dirfd);
+REAL(rewinddir);
+REAL(telldir);
+REAL(seekdir);
+REAL(mkdir);
+REAL(rmdir);
+REAL(unlink);
+REAL(remove);
+REAL(rename);
+REAL(link);
+REAL(symlink);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+REAL(readdir64_r);
+REAL(readdir_r);
+
+/* Resolved before the client starts threads; the calls below only fill gaps for earlier callers. */
+__attribute__((constructor)) static void resolve(void) {
   NEXT(opendir);
-  struct stat st;
-  if (!eligible(path) || stat(path, &st) != 0 || !S_ISDIR(st.st_mode) || !on_fuse(st.st_dev, path))
-    return next_opendir(path);
-  struct handle *h = calloc(1, sizeof(*h));
-  char *copy = strdup(path);
-  if (h == NULL || copy == NULL) {
-    free(h);
-    free(copy);
-    return next_opendir(path);
-  }
-  h->fd = -1;
-  h->path = copy;
-  long long now = now_ns();
+  NEXT(readdir64);
+  NEXT(readdir);
+  NEXT(closedir);
+  NEXT(dirfd);
+  NEXT(rewinddir);
+  NEXT(telldir);
+  NEXT(seekdir);
+  NEXT(mkdir);
+  NEXT(rmdir);
+  NEXT(unlink);
+  NEXT(remove);
+  NEXT(rename);
+  NEXT(link);
+  NEXT(symlink);
+  NEXT(readdir64_r);
+  NEXT(readdir_r);
+}
+#pragma GCC diagnostic pop
+
+/* A reader of the kept listing when it is still current. */
+static DIR *hit(const struct stat *st, struct handle *h, long long now) {
   pthread_mutex_lock(&lock);
-  int slot = find(st.st_dev, st.st_ino);
-  if (slot >= 0 && same(table[slot], &st) && now - table[slot]->filled < DIR_TTL_NS && records(table[slot]) == 0) {
+  if (!changing) pump(NULL, 0);
+  int slot = find(st->st_dev, st->st_ino);
+  if (slot >= 0 && same(table[slot], st) && now - table[slot]->filled < DIR_TTL_NS && records(table[slot]) == 0) {
     h->snap = table[slot];
     h->snap->refs++;
     h->snap->used = now;
@@ -277,29 +398,71 @@ DIR *opendir(const char *path) {
     drop(slot);
   }
   pthread_mutex_unlock(&lock);
-  DIR *real = next_opendir(path);
-  if (real == NULL) {
-    int saved = errno;
-    free(h->path);
-    free(h);
-    errno = saved;
-    return NULL;
-  }
+  return NULL;
+}
+
+/* Registers the stream and its watch before anything is read, so no change goes unseen. */
+static int track(struct handle *h, const char *path) {
+  pthread_mutex_lock(&lock);
+  h->wd = watch(path);
+  DIR *d = h->wd >= 0 ? wrap(h) : NULL;
+  if (d == NULL && h->wd >= 0) release(h->wd);
+  pthread_mutex_unlock(&lock);
+  return d != NULL;
+}
+
+/* Reads through the real stream, keeping what it returns. */
+static void filling(struct handle *h, DIR *real, const struct stat *st, long long now) {
   h->real = real;
   h->fill = calloc(1, sizeof(*h->fill));
   if (h->fill) {
-    stamp(h->fill, &st);
+    stamp(h->fill, st);
     h->fill->filled = now;
     h->fill->used = now;
+    h->fill->wd = h->wd;
   }
+}
+
+static void untrack(struct handle *h) {
   pthread_mutex_lock(&lock);
-  DIR *d = wrap(h);
+  int i = registered((DIR *)h);
+  if (i >= 0) __atomic_store_n(&handles[i], NULL, __ATOMIC_RELEASE);
+  release(h->wd);
   pthread_mutex_unlock(&lock);
+}
+
+DIR *opendir(const char *path) {
+  NEXT(opendir);
+  struct stat st;
+  if (!eligible(path) || stat(path, &st) != 0 || !S_ISDIR(st.st_mode) || !on_fuse(st.st_dev, path))
+    return next_opendir(path);
+  struct handle *h = calloc(1, sizeof(*h));
+  char *copy = strdup(path);
+  if (h == NULL || copy == NULL) {
+    free(h);
+    free(copy);
+    return next_opendir(path);
+  }
+  h->fd = -1;
+  h->wd = -1;
+  h->path = copy;
+  long long now = now_ns();
+  DIR *d = hit(&st, h, now);
   if (d) return d;
-  free(h->fill);
-  free(h->path);
-  free(h);
-  return real;
+  if (!track(h, path)) {
+    free(h->path);
+    free(h);
+    return next_opendir(path);
+  }
+  DIR *real = stat(path, &st) == 0 ? next_opendir(path) : NULL;
+  if (real == NULL) {
+    untrack(h);
+    free(h->path);
+    free(h);
+    return next_opendir(path);
+  }
+  filling(h, real, &st, now);
+  return (DIR *)h;
 }
 
 static void abandon(struct handle *h) {
@@ -311,12 +474,11 @@ static void finish(struct handle *h) {
   struct listing *l = h->fill;
   struct stat st;
   h->fill = NULL;
-  if (stat(h->path, &st) != 0 || !same(l, &st)) {
-    destroy(l);
-    return;
-  }
+  int current = stat(h->path, &st) == 0 && same(l, &st);
   pthread_mutex_lock(&lock);
-  install(l);
+  if (!changing) pump(NULL, 0);
+  if (current && !__atomic_load_n(&h->dirty, __ATOMIC_RELAXED)) install(l);
+  else destroy(l);
   pthread_mutex_unlock(&lock);
 }
 
@@ -390,6 +552,7 @@ int closedir(DIR *d) {
   if (h) {
     __atomic_store_n(&handles[i], NULL, __ATOMIC_RELEASE);
     if (h->snap) unref(h->snap);
+    release(h->wd);
   }
   pthread_mutex_unlock(&lock);
   if (h == NULL) return next_closedir(d);
@@ -462,36 +625,44 @@ static int watching(const char *path) {
   return eligible(path) && __atomic_load_n(&cached_listings, __ATOMIC_ACQUIRE) > 0;
 }
 
+/* Called with oplock held: the client's tracked changes happen one at a time. */
+static void begin(void) {
+  pthread_mutex_lock(&lock);
+  pump(NULL, 0);
+  changing = 1;
+  pthread_mutex_unlock(&lock);
+}
+
 static void before(struct side *s) {
   s->known = stat(s->dir, &s->before) == 0;
 }
 
 enum { ADDED, REMOVED };
 
-/* Patches the listing after the client's own change, or drops it when unsure. */
-static void after(struct side *s, int what, int ok, const char *target) {
+/* Patches the listing after the client's own change, or drops it when unsure. Called with lock held. */
+static int patch(struct side *s, int what, uint32_t event, int ok, int error, const char *target, struct expect *x) {
   struct stat now;
-  if (!s->known) return;
-  pthread_mutex_lock(&lock);
+  if (!s->known) return 0;
   int slot = find(s->before.st_dev, s->before.st_ino);
-  if (slot < 0) {
-    pthread_mutex_unlock(&lock);
-    return;
-  }
+  if (slot < 0) return 0;
   struct listing *l = table[slot];
   if (!same(l, &s->before)) {
     drop(slot);
-    pthread_mutex_unlock(&lock);
-    return;
+    return 0;
+  }
+  size_t exact = l->n, folded = l->n;
+  for (size_t i = 0; i < l->n; i++) {
+    if (strcmp(l->e[i].name, s->name) == 0) { exact = i; break; }
+    if (folded == l->n && strcasecmp(l->e[i].name, s->name) == 0) folded = i;
   }
   if (!ok) {
-    pthread_mutex_unlock(&lock);
-    return;
+    if ((what == ADDED && error == EEXIST && exact == l->n && folded == l->n) || (what == REMOVED && error == ENOENT && exact < l->n))
+      drop(slot);
+    return 0;
   }
   if (stat(s->dir, &now) != 0 || now.st_ino != l->ino) {
     drop(slot);
-    pthread_mutex_unlock(&lock);
-    return;
+    return 0;
   }
   if (l->refs > 0) {
     struct listing *copy = calloc(1, sizeof(*copy));
@@ -500,30 +671,26 @@ static void after(struct side *s, int what, int ok, const char *target) {
     if (failed) {
       if (copy) destroy(copy);
       drop(slot);
-      pthread_mutex_unlock(&lock);
-      return;
+      return 0;
     }
     copy->filled = l->filled;
     copy->used = l->used;
+    copy->wd = l->wd;
+    copy->detached = 0;
     stamp(copy, &s->before);
-    drop(slot);
     table[slot] = copy;
-    __atomic_add_fetch(&cached_listings, 1, __ATOMIC_RELEASE);
+    l->detached = 1;
     l = copy;
   }
   free(l->recs);
   l->recs = NULL;
   l->len = 0;
-  size_t exact = l->n, folded = l->n;
-  for (size_t i = 0; i < l->n; i++) {
-    if (strcmp(l->e[i].name, s->name) == 0) { exact = i; break; }
-    if (folded == l->n && strcasecmp(l->e[i].name, s->name) == 0) folded = i;
-  }
-  int fine = 1;
+  int fine = 1, expected = 1;
   struct stat t;
   if (what == ADDED) {
     if (exact < l->n) {
       if (lstat(target, &t) == 0) l->e[exact].ino = t.st_ino;
+      expected = event == IN_MOVED_TO;
     } else if (folded < l->n || lstat(target, &t) != 0) {
       fine = 0;
     } else {
@@ -537,8 +704,20 @@ static void after(struct side *s, int what, int ok, const char *target) {
   } else {
     fine = 0;
   }
-  if (fine) stamp(l, &now);
-  else drop(slot);
+  if (!fine) {
+    drop(slot);
+    return 0;
+  }
+  stamp(l, &now);
+  if (!expected) return 0;
+  *x = (struct expect){l->wd, event, s->name};
+  return 1;
+}
+
+static void end(struct expect *x, int nx) {
+  pthread_mutex_lock(&lock);
+  pump(x, nx);
+  changing = 0;
   pthread_mutex_unlock(&lock);
 }
 
@@ -550,59 +729,75 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
   if (!(flags & O_CREAT) || (dirfd != AT_FDCWD && (path == NULL || path[0] != '/')) || !watching(path) || !split(path, &s))
     return real(dirfd, path, flags, mode);
   pthread_mutex_lock(&oplock);
+  begin();
   before(&s);
   int fd = real(dirfd, path, flags, mode);
   int saved = errno;
-  after(&s, ADDED, fd >= 0, path);
+  struct expect x;
+  pthread_mutex_lock(&lock);
+  int nx = patch(&s, ADDED, IN_CREATE, fd >= 0, saved, path, &x);
+  pthread_mutex_unlock(&lock);
+  end(&x, nx);
   pthread_mutex_unlock(&oplock);
   errno = saved;
   return fd;
 }
 
-#define ONE_PATH(name, what, call, ...) \
+#define ONE_PATH(name, what, event, call, ...) \
   int name(const char *path, ##__VA_ARGS__) { \
     NEXT(name); \
     struct side s; \
     if (!watching(path) || !split(path, &s)) return call; \
     pthread_mutex_lock(&oplock); \
+    begin(); \
     before(&s); \
     int r = call; \
     int saved = errno; \
-    after(&s, what, r == 0, what == ADDED ? path : NULL); \
+    struct expect x; \
+    pthread_mutex_lock(&lock); \
+    int nx = patch(&s, what, event, r == 0, saved, what == ADDED ? path : NULL, &x); \
+    pthread_mutex_unlock(&lock); \
+    end(&x, nx); \
     pthread_mutex_unlock(&oplock); \
     errno = saved; \
     return r; \
   }
 
-ONE_PATH(mkdir, ADDED, next_mkdir(path, mode), mode_t mode)
-ONE_PATH(rmdir, REMOVED, next_rmdir(path))
-ONE_PATH(unlink, REMOVED, next_unlink(path))
-ONE_PATH(remove, REMOVED, next_remove(path))
+ONE_PATH(mkdir, ADDED, IN_CREATE, next_mkdir(path, mode), mode_t mode)
+ONE_PATH(rmdir, REMOVED, IN_DELETE, next_rmdir(path))
+ONE_PATH(unlink, REMOVED, IN_DELETE, next_unlink(path))
+ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
 
-#define TWO_PATHS(name, gone) \
+#define TWO_PATHS(name, gone, event) \
   int name(const char *from, const char *to) { \
     NEXT(name); \
     struct side a, b; \
     int track_a = gone && watching(from) && split(from, &a), track_b = watching(to) && split(to, &b); \
     if (!track_a && !track_b) return next_##name(from, to); \
     pthread_mutex_lock(&oplock); \
+    begin(); \
     if (track_a) before(&a); \
     if (track_b) before(&b); \
     int r = next_##name(from, to); \
     int saved = errno; \
-    if (track_a) after(&a, REMOVED, r == 0, NULL); \
+    struct expect x[2]; \
+    int nx = 0; \
+    pthread_mutex_lock(&lock); \
+    if (track_a) nx += patch(&a, REMOVED, IN_MOVED_FROM, r == 0, saved, NULL, &x[nx]); \
     if (track_b) { \
       if (track_a && strcmp(a.dir, b.dir) == 0) b.known = stat(b.dir, &b.before) == 0; \
-      after(&b, ADDED, r == 0, to); \
+      nx += patch(&b, ADDED, event, r == 0, saved, to, &x[nx]); \
     } \
+    pthread_mutex_unlock(&lock); \
+    end(x, nx); \
     pthread_mutex_unlock(&oplock); \
     errno = saved; \
     return r; \
   }
 
-TWO_PATHS(rename, 1)
-TWO_PATHS(link, 0)
-TWO_PATHS(symlink, 0)
+TWO_PATHS(rename, 1, IN_MOVED_TO)
+TWO_PATHS(link, 0, IN_CREATE)
+TWO_PATHS(symlink, 0, IN_CREATE)
 
 #else
 

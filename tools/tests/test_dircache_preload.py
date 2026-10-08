@@ -11,10 +11,56 @@ FAKE = r"""
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 #include <sys/statfs.h>
+#include <unistd.h>
 
 int real_opendirs;
+
+/* COARSE=1: directory stats that never change, like NTFS's whole-second times and fixed size. */
+static void coarse(const char *path, struct stat *st) {
+  if (getenv("COARSE") && strstr(path, "/fuse/") && S_ISDIR(st->st_mode)) {
+    st->st_mtim = st->st_ctim = (struct timespec){1, 0};
+    st->st_size = 4096;
+    st->st_nlink = 1;
+  }
+}
+
+int stat(const char *path, struct stat *st) {
+  static int (*next)(const char *, struct stat *);
+  if (!next) next = dlsym(RTLD_NEXT, "stat");
+  int r = next(path, st);
+  if (r == 0) coarse(path, st);
+  return r;
+}
+
+int fstat(int fd, struct stat *st) {
+  static int (*next)(int, struct stat *);
+  if (!next) next = dlsym(RTLD_NEXT, "fstat");
+  char link[64], path[4096];
+  snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+  ssize_t n = readlink(link, path, sizeof(path) - 1);
+  path[n > 0 ? n : 0] = 0;
+  int r = next(fd, st);
+  if (r == 0) coarse(path, st);
+  return r;
+}
+
+int fstatfs(int fd, struct statfs *out) {
+  static int (*next)(int, struct statfs *);
+  if (!next) next = dlsym(RTLD_NEXT, "fstatfs");
+  char link[64], path[4096];
+  snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+  ssize_t n = readlink(link, path, sizeof(path) - 1);
+  path[n > 0 ? n : 0] = 0;
+  int r = next(fd, out);
+  if (r == 0 && strstr(path, "/fuse/")) out->f_type = 0x65735546;
+  return r;
+}
 
 int statfs(const char *path, struct statfs *out) {
   static int (*next)(const char *, struct statfs *);
@@ -24,11 +70,25 @@ int statfs(const char *path, struct statfs *out) {
   return r;
 }
 
+/* FASTPATH=1: open directories the way the fast-path preload does, through fdopendir. */
 DIR *opendir(const char *path) {
   static DIR *(*next)(const char *);
   if (!next) next = dlsym(RTLD_NEXT, "opendir");
+  if (getenv("FASTPATH")) {
+    int fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NONBLOCK);
+    DIR *d = fd < 0 ? NULL : fdopendir(fd);
+    if (d == NULL && fd >= 0) close(fd);
+    return d;
+  }
   real_opendirs++;
   return next(path);
+}
+
+DIR *fdopendir(int fd) {
+  static DIR *(*next)(int);
+  if (!next) next = dlsym(RTLD_NEXT, "fdopendir");
+  real_opendirs++;
+  return next(fd);
 }
 """
 
@@ -43,6 +103,7 @@ PROGRAM = r"""
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 static int by_name(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
@@ -158,6 +219,35 @@ int main(int argc, char **argv) {
       i++;
     }
     else if (!strcmp(op, "stress")) { stress(a); i++; }
+    else if (!strcmp(op, "drain")) {
+      DIR *d = opendir(a);
+      int rounds = 0, n;
+      do {
+        struct dirent *e;
+        n = 0;
+        while ((e = readdir(d)))
+          if (strcmp(e->d_name, ".") && strcmp(e->d_name, "..") && unlinkat(dirfd(d), e->d_name, 0) == 0) n++;
+        rewinddir(d);
+      } while (n > 0 && ++rounds < 50);
+      closedir(d);
+      printf("%d\n", rounds);
+      i++;
+    }
+    else if (!strcmp(op, "fork")) {
+      pid_t child = fork();
+      if (child == 0) {
+        DIR *d = opendir(a);
+        while (d && readdir(d)) {}
+        if (d) closedir(d);
+        close((int)syscall(SYS_openat, AT_FDCWD, argv[i + 2], O_WRONLY | O_CREAT, 0644));
+        DIR *e = opendir(a);
+        while (e && readdir(e)) {}
+        if (e) closedir(e);
+        _exit(0);
+      }
+      waitpid(child, NULL, 0);
+      i += 2;
+    }
     else if (!strcmp(op, "opens")) printf("%d\n", opens ? *opens : -1);
   }
   return 0;
@@ -237,6 +327,42 @@ class DirCachePreloadTest(unittest.TestCase):
         out = self.run_program("list", s, "sneak", s / "x.bundle", "list", s,
                                "sneak-unlink", s / "a.bundle", "list", s, "opens")
         self.assertEqual(["a.bundle,b.bundle", "a.bundle,b.bundle,x.bundle", "b.bundle,x.bundle", "3"], out)
+
+    def test_changes_are_noticed_when_directory_times_are_coarse(self):
+        s = self.staging
+        out = self.run_program("list", s, "sneak", s / "x.bundle", "list", s,
+                               "sneak-unlink", s / "a.bundle", "list", s,
+                               "create", s / "c.bundle", "list", s, "raw", s, env={"COARSE": "1"})
+        self.assertEqual(["a.bundle,b.bundle", "a.bundle,b.bundle,x.bundle", "b.bundle,x.bundle"], out[:3])
+        self.assertEqual(out[4], out[3])
+        self.assertEqual("b.bundle,c.bundle,x.bundle", out[3])
+
+    def test_own_changes_stay_cached_when_directory_times_are_coarse(self):
+        s = self.staging
+        out = self.run_program("list", s, "create", s / "c.bundle", "rename", s / "c.bundle", s / "d.bundle",
+                               "unlink", s / "a.bundle", "list", s, "raw", s, "opens", env={"COARSE": "1"})
+        self.assertEqual(["b.bundle,d.bundle", "b.bundle,d.bundle", "1"], out[1:])
+
+    def test_rewinddir_sees_what_changed_since(self):
+        s = self.staging
+        out = self.run_program("list", s, "drain", s, "list", s, "raw", s, env={"COARSE": "1"})
+        self.assertEqual(["1", "", ""], out[1:])
+
+    def test_directories_opened_through_fdopendir_underneath(self):
+        s = self.staging
+        out = self.run_program("list", s, "list", s, "sneak", s / "x.bundle", "list", s, "rewind", s,
+                               "create", s / "c.bundle", "list", s, "raw", s, "opens",
+                               env={"FASTPATH": "1", "COARSE": "1"})
+        self.assertEqual(["a.bundle,b.bundle", "a.bundle,b.bundle", "a.bundle,b.bundle,x.bundle"], out[:3])
+        self.assertEqual(out[5], out[4])
+        self.assertEqual("a.bundle,b.bundle,c.bundle,x.bundle", out[4])
+        self.assertEqual("2", out[-1])
+
+    def test_a_forked_child_leaves_the_parent_cache_alone(self):
+        s = self.staging
+        out = self.run_program("list", s, "fork", s, s / "f.bundle", "list", s, "raw", s, env={"COARSE": "1"})
+        self.assertEqual("a.bundle,b.bundle,f.bundle", out[1])
+        self.assertEqual(out[2], out[1])
 
     def test_another_process_changing_the_directory_is_noticed(self):
         s = self.staging
