@@ -88,12 +88,15 @@ public final class AmazonApiClient {
             if (parentId.isEmpty()) parentId = product.optString("parentId", "");
             JSONObject detail = product.optJSONObject("productDetail");
             if (detail != null) {
+                // The opaque images only: the square icon, and for the wide card the second
+                // background (a plain key art) before the first (often faded) or the crown image.
                 game.artUrl = detail.optString("iconUrl", "");
                 JSONObject details = detail.optJSONObject("details");
                 if (details != null) {
-                    if (game.artUrl.isEmpty()) game.artUrl = details.optString("logoUrl", "");
-                    game.heroUrl = details.optString("backgroundUrl1", "");
-                    if (game.heroUrl.isEmpty()) game.heroUrl = details.optString("backgroundUrl2", "");
+                    if (game.artUrl.isEmpty()) game.artUrl = details.optString("pgCrownImageUrl", "");
+                    game.heroUrl = details.optString("backgroundUrl2", "");
+                    if (game.heroUrl.isEmpty()) game.heroUrl = details.optString("backgroundUrl1", "");
+                    if (game.heroUrl.isEmpty()) game.heroUrl = details.optString("pgCrownImageUrl", "");
                     game.developer = details.optString("developer", "");
                     game.publisher = details.optString("publisher", "");
                     if (productType.isEmpty()) productType = details.optString("productType", "");

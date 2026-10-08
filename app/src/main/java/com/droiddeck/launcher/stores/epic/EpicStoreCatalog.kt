@@ -82,9 +82,12 @@ object EpicStoreCatalog {
                 val img = imgs.optJSONObject(k) ?: continue
                 val url = img.optString("url", "")
                 if (url.isBlank()) continue
+                // The opaque box images first; the logo variants are transparent and never used.
                 when (img.optString("type", "")) {
+                    "DieselGameBox" -> wide = url
                     "OfferImageWide", "DieselStoreFrontWide" -> if (wide == null) wide = url
-                    "OfferImageTall", "DieselStoreFrontTall", "DieselGameBoxTall" -> if (tall == null) tall = url
+                    "DieselGameBoxTall" -> tall = url
+                    "OfferImageTall", "DieselStoreFrontTall" -> if (tall == null) tall = url
                     "Thumbnail" -> if (thumb == null) thumb = url
                 }
             }

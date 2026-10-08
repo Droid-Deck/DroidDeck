@@ -30,6 +30,8 @@ object StoreInstalls {
         val app = context.applicationContext
         val withLauncher = StoreLaunch.writeLauncher(folder, sidecar)
         withLauncher.copy(addToSteam = sidecar.addToSteam && SessionPrefs.gameStoresAddToSteam(app)).write(folder)
+        // The art first, so the listing written below already carries it for the client's grid.
+        StoreArt.fetchInto(folder, sidecar)
         register(app)
     }
 

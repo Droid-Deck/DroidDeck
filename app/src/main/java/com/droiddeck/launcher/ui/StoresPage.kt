@@ -438,9 +438,13 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
 @Composable
 internal fun CardArt(item: CatalogItem, modifier: Modifier) {
     val url = item.imageUrl ?: item.tallImageUrl
-    Box(modifier.background(artBrush(hueOf(item.title)))) {
+    val colors = MaterialTheme.colorScheme
+    // A dark ground under the image, so art with transparency never ends in white, and a quiet
+    // fade into the card's surface at the foot.
+    Box(modifier.background(colors.surfaceVariant).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
         if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         else Text(item.title, fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
+        Spacer(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.surface.copy(alpha = 0.85f))))
     }
 }
 

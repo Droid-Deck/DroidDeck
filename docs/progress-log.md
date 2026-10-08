@@ -69,6 +69,17 @@ without it and Setup says "Stores engine not built").
   redistributables in the prefix as for any shortcut), Epic's Denuvo ownership token and overlay,
   Amazon's SDK DLL deployment into the prefix (the prefix does not exist before the first launch),
   cloud saves, and the stores' social tabs - none of them in the preview.
+- **Card art (device feedback on `61a9a48`, GOG › Library washed out to white):** the GOG library
+  had drawn the product's `images.background` - the store page's fade-out backdrop, white once its
+  alpha is gone. The library now takes `api.gog.com/v2/games/<id>` `_links.galaxyBackgroundImage`
+  (the Galaxy client's dark 16:9 library art) and `boxArtImage` (the vertical cover), cached with
+  the sync (cache key bumped so old caches re-fetch); the catalog's `productId` filter was tried
+  and ignored by the service, so it is one call per owned game. Epic cards prefer `DieselGameBox` /
+  `DieselGameBoxTall` over the offer images; Amazon prefers `backgroundUrl2` and never the logo.
+  Cards draw over a dark surface with a fade into the card at the foot. On install `StoreArt`
+  places `cover.jpg`, `hero.jpg` and `header.jpg` in the game folder, re-encoded as opaque JPEGs
+  over a dark ground, under the names `AddedGameArt` looks for - so the Games tab and the client's
+  grid (through the listing) get real art for store games.
 - Status: compiles on CI with the JVM and python tests green; nothing device-tested yet - the
   sign-in pages, a real install, the shortcut landing in the client and the .bat launch under Proton
   are the first things to prove on hardware.

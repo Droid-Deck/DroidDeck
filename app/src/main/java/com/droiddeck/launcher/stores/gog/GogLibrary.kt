@@ -19,7 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 object GogLibrary {
     private const val TAG = "GogLibrary"
-    private const val CACHE_KEY = "library_cache"
+    // v2: the card art moved from the store page's backdrop to the Galaxy library art; an older cache is re-fetched.
+    private const val CACHE_KEY = "library_cache_v2"
     private const val LAST_SYNC_KEY = "library_synced_at"
     private const val THROTTLE_MS = 15L * 60L * 1000L
 
@@ -116,8 +117,21 @@ object GogLibrary {
             var title = prod.optJSONObject("title")?.optString("*")
             if (title.isNullOrEmpty()) title = prod.optString("title")
             if (title.isNullOrEmpty()) return null
+            // Card art from the v2 game record, the way the Galaxy client draws its library: the dark
+            // Galaxy background for the wide card and the box art for the tall one. The product's
+            // `images.background` is the store page's fade-out backdrop (it ends in white on a
+            // card) and is never used; the logo or icon is the last resort.
             val images = prod.optJSONObject("images")
-            var imageUrl = images?.optString("background", "") ?: ""
+            var imageUrl = ""
+            var boxArt = ""
+            runCatching {
+                val links = StoreNet.get("https://api.gog.com/v2/games/$id?locale=en-US")?.let { JSONObject(it).optJSONObject("_links") }
+                if (links != null) {
+                    imageUrl = links.optJSONObject("galaxyBackgroundImage")?.optString("href", "").orEmpty()
+                    boxArt = links.optJSONObject("boxArtImage")?.optString("href", "").orEmpty()
+                }
+            }
+            if (imageUrl.isEmpty()) imageUrl = images?.optString("logo2x", "") ?: ""
             if (imageUrl.isEmpty()) imageUrl = images?.optString("icon", "") ?: ""
             val desc = prod.optJSONObject("description")?.optString("lead", "") ?: ""
             val developer = prod.optJSONObject("developers")?.optString("name", "") ?: prod.optString("developer", "")
@@ -149,11 +163,11 @@ object GogLibrary {
             }
             if (!hasWindowsBuild && !hasWindowsInstaller) return null
 
-            var verticalCover: String? = prefs.getString("vcover_$id", null)
+            var verticalCover: String? = boxArt.ifEmpty { prefs.getString("vcover_$id", null) }
             if (verticalCover.isNullOrEmpty()) {
                 verticalCover = fetchVerticalCover(id).ifEmpty { StoreNet.sgdbPoster(title) }
-                if (verticalCover.isNotEmpty()) prefs.edit().putString("vcover_$id", verticalCover).apply()
             }
+            if (!verticalCover.isNullOrEmpty()) prefs.edit().putString("vcover_$id", verticalCover).apply()
             return GogGame(id, title, GogStoreCatalog.absolutize(imageUrl), desc, developer, category, generation, verticalCover?.ifEmpty { null })
         } catch (_: Exception) {
             return null

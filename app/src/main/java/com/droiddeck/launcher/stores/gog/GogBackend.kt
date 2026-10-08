@@ -26,7 +26,7 @@ object GogBackend : StoreBackend {
     }
 
     override fun signOut(context: Context) {
-        GogPrefs.get(context).edit().remove("library_cache").remove("library_synced_at").apply()
+        GogPrefs.get(context).edit().remove("library_cache").remove("library_cache_v2").remove("library_synced_at").apply()
     }
 
     override fun syncLibrary(context: Context, force: Boolean) {
