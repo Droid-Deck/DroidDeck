@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * The shell's control surface (docs/agent-control.md), in every build: the provider and its start
- * Activity need android.permission.DUMP, which only the shell and the system hold. Commands that
+ * Activity need android.permission.DUMP, held by the shell and privileged or explicitly granted callers. Commands that
  * reach into the app's sandbox are further gated by [AgentAccess].
  *
  * A method's request is JSON, base64-encoded in the "request" extra; every answer is JSON in the
@@ -69,7 +69,10 @@ class AgentBridgeProvider : ContentProvider() {
         } catch (e: Exception) {
             error("COMMAND_FAILED", e.message ?: e.javaClass.simpleName)
         }
-        return Bundle().apply { putString(RESULT_JSON, response.toString()) }
+        val json = response.toString().let {
+            if (it.length <= 384 * 1024) it else error("RESPONSE_TOO_LARGE", "Reduce the command output or select fewer fields").toString()
+        }
+        return Bundle().apply { putString(RESULT_JSON, json) }
     }
 
     private fun dispatch(context: Context, method: String, request: JSONObject): JSONObject = when (method) {
@@ -202,10 +205,10 @@ class AgentBridgeProvider : ContentProvider() {
     }
 
     private fun env(context: Context, request: JSONObject): JSONObject {
+        AgentAccess.requireCommands(context)
         val result = when (val op = request.optString("op", "list")) {
             "list" -> AgentEnv.list(context)
             "set" -> {
-                AgentAccess.requireCommands(context)
                 val lines = request.optJSONArray("lines") ?: JSONArray()
                 AgentEnv.set(context, List(lines.length()) { lines.optString(it) }, request.optBoolean("persistent"))
             }
@@ -232,11 +235,18 @@ class AgentBridgeProvider : ContentProvider() {
         AgentGuest.call(context, request, timeoutMs)
 
     /** The guest's own timeout plus slack for the round trip. */
-    private fun timeoutMs(request: JSONObject, defaultSeconds: Double, slackMs: Long): Long =
-        (request.optDouble("timeout", defaultSeconds).coerceIn(1.0, 600.0) * 1000).toLong() + slackMs
+    private fun timeoutMs(request: JSONObject, defaultSeconds: Double, slackMs: Long): Long {
+        val seconds = if (request.has("timeout")) request.opt("timeout")?.toString()?.toDoubleOrNull()
+            ?: throw AgentException("INVALID_REQUEST", "timeout must be a number") else defaultSeconds
+        if (!seconds.isFinite() || seconds <= 0 || seconds > 600) {
+            throw AgentException("INVALID_REQUEST", "timeout must be a positive number no greater than 600 seconds")
+        }
+        return (seconds * 1000).toLong() + slackMs
+    }
 
     private fun decode(encoded: String?): JSONObject {
         if (encoded.isNullOrBlank()) return JSONObject()
+        if (encoded.length > AgentAccess.MAX_REQUEST_CHARS) throw AgentException("INVALID_REQUEST", "The encoded request exceeds 256 KiB")
         return try {
             JSONObject(String(Base64.decode(encoded, Base64.DEFAULT), Charsets.UTF_8))
         } catch (e: Exception) {

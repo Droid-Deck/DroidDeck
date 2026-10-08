@@ -611,8 +611,7 @@
     <string name="setup_session">會話</string>
     <string name="setup_logs">會話記錄</string>
     <string name="setup_logs_hint">每次會話後儲存</string>
-    <string name="setup_agent_commands">代理指令</string>
-    <string name="setup_agent_commands_hint">允許透過 USB 偵錯連接的電腦在工作階段中執行指令（用於測試）</string>
+    <string name="setup_agent_commands">偵錯工具</string>
     <string name="setup_latest_logs">最新的會話記錄</string>
     <string name="setup_saved_logs">已儲存的會話記錄</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 個</string>

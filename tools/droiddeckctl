@@ -21,6 +21,7 @@ from adb_device import DeviceResolutionError, resolve_serial  # noqa: E402
 AUTHORITY = "content://com.droiddeck.launcher.agent"
 PACKAGE = "com.droiddeck.launcher"
 STEAM_CLIENT_APP = 769
+REQUEST_CAP = 256 * 1024
 
 
 class ControlError(RuntimeError):
@@ -75,13 +76,20 @@ def _content_result(output: str) -> dict:
         raise ControlError("Could not decode the agent provider response", "INVALID_PROVIDER_RESPONSE") from exc
 
 
+def encode_request(request: dict) -> str:
+    encoded = base64.b64encode(json.dumps(request, separators=(",", ":")).encode()).decode()
+    if len(encoded) > REQUEST_CAP:
+        raise ControlError("The encoded request exceeds 256 KiB", "INVALID_REQUEST")
+    return encoded
+
+
 def provider_call(adb: str, serial: str, method: str, arg: str | None = None, request: dict | None = None,
                   timeout: float = 30) -> dict:
     command = ["shell", "content", "call", "--uri", AUTHORITY, "--method", method]
     if arg is not None:
         command.extend(["--arg", arg])
     if request is not None:
-        encoded = base64.b64encode(json.dumps(request, separators=(",", ":")).encode()).decode()
+        encoded = encode_request(request)
         command.extend(["--extra", f"request:s:{encoded}"])
     result = run_adb(adb, serial, *command, timeout=timeout)
     output = (result.stdout + result.stderr).decode(errors="replace")
@@ -100,7 +108,7 @@ def checked(response: dict, default_code: str) -> dict:
 
 
 def start_agent_activity(adb: str, serial: str, request: dict) -> None:
-    encoded = base64.b64encode(json.dumps(request, separators=(",", ":")).encode()).decode()
+    encoded = encode_request(request)
     result = run_adb(
         adb,
         serial,
@@ -280,11 +288,21 @@ def record(adb: str, serial: str, path: str, seconds: float, display: int | None
 # --- commands ------------------------------------------------------------------------------------
 
 def start_session(adb: str, serial: str, request: dict) -> dict:
+    if request.get("mode") == "run":
+        require_commands(adb, serial)
     current = get_state(adb, serial)
     if current["session"].get("phase") not in {"IDLE", "FAILED"} or current["session"].get("running"):
         raise ControlError("A session is already starting or running", "SESSION_ACTIVE")
     start_agent_activity(adb, serial, request)
     return confirm_start(adb, serial, request, current["session"])
+
+
+def require_commands(adb: str, serial: str) -> dict:
+    access = checked(provider_call(adb, serial, "access"), "ACCESS_FAILED")
+    if access.get("commands") is not True:
+        raise ControlError("Debugging tools are off: turn on Setup > Session > Debugging tools on the device",
+                           "AGENT_COMMANDS_DISABLED")
+    return access
 
 
 def input_request(args: argparse.Namespace) -> dict:
@@ -443,10 +461,9 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
         return add_serial(checked(provider_call(adb, serial, "env", request=request), "ENV_FAILED"), serial)
 
     if command == "override":
-        access = checked(provider_call(adb, serial, "access"), "ACCESS_FAILED")
-        if not access.get("commands"):
-            raise ControlError("Agent commands are off: turn on Setup > Session > Agent commands on the device",
-                               "AGENT_COMMANDS_DISABLED")
+        access = require_commands(adb, serial)
+        if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", args.name) or args.name in {".", ".."}:
+            raise ControlError("Override names must be simple filenames", "INVALID_NAME")
         source = Path(args.path).expanduser()
         if not source.is_file():
             raise ControlError(f"No such file: {source}", "FILE_IO")
@@ -547,7 +564,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("focus", help="gamescope's focus and every Xwayland server's windows, fresh")
 
-    guest = commands.add_parser("guest", help="run a command inside the session (agent commands)")
+    guest = commands.add_parser("guest", help="run a command inside the session (debugging tools)")
     guest.add_argument("--timeout", type=float, default=30)
     guest.add_argument("--env", action="append", metavar="KEY=VALUE")
     guest.add_argument("--cwd")
@@ -555,7 +572,7 @@ def build_parser() -> argparse.ArgumentParser:
     guest.add_argument("--check", action="store_true", help="fail unless the command exits 0")
     guest.add_argument("argv", nargs=argparse.REMAINDER)
 
-    cdp = commands.add_parser("cdp", help="the Steam client's DevTools (agent commands)")
+    cdp = commands.add_parser("cdp", help="the Steam client's DevTools (debugging tools)")
     cdp_ops = cdp.add_subparsers(dest="cdp_op", required=True)
     cdp_ops.add_parser("targets", help="list DevTools targets")
     evaluate = cdp_ops.add_parser("eval", help="evaluate JavaScript (default target SharedJSContext)")
@@ -610,7 +627,7 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "set-text":
             op.add_argument("--text", required=True)
 
-    env = commands.add_parser("env", help="session environment lines (agent commands)")
+    env = commands.add_parser("env", help="session environment lines (debugging tools)")
     env_ops = env.add_subparsers(dest="env_op", required=True)
     env_ops.add_parser("list")
     env_set = env_ops.add_parser("set", help="KEY=VALUE lines for the next session")
@@ -619,11 +636,11 @@ def build_parser() -> argparse.ArgumentParser:
     env_clear = env_ops.add_parser("clear")
     env_clear.add_argument("scope", nargs="?", choices=["next", "persistent", "all"], default="next")
 
-    override = commands.add_parser("override", help="put a binary first on the next session's PATH (agent commands)")
+    override = commands.add_parser("override", help="put a binary first on the next session's PATH (debugging tools)")
     override.add_argument("name", help="the program name, e.g. gamescope")
     override.add_argument("path", help="the local file to push")
 
-    prefs = commands.add_parser("prefs", help="the app's preferences (agent commands)")
+    prefs = commands.add_parser("prefs", help="the app's preferences (debugging tools)")
     prefs_ops = prefs.add_subparsers(dest="prefs_op", required=True)
     prefs_get = prefs_ops.add_parser("get")
     prefs_get.add_argument("file", help="preferences file, e.g. session")
@@ -633,7 +650,7 @@ def build_parser() -> argparse.ArgumentParser:
     prefs_set.add_argument("value", nargs="?")
     prefs_set.add_argument("--type", choices=["bool", "int", "long", "float", "string", "remove"], default="string")
 
-    commands.add_parser("access", help="whether agent commands are allowed on the device")
+    commands.add_parser("access", help="whether debugging tools are enabled on the device")
 
     logs = commands.add_parser("logs", help="pull the latest session artifact directory")
     logs.add_argument("which", choices=["latest"])

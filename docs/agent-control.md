@@ -10,7 +10,8 @@ and reports every run.
 
 - **The provider** `content://com.droiddeck.launcher.agent` (`agent/AgentBridgeProvider.kt`)
   answers each command with JSON. It and the session-start Activity (`AgentStartActivity`) are in
-  every build and require `android.permission.DUMP`, which only the ADB shell and the system hold.
+  every build and require `android.permission.DUMP`, held by the ADB shell and privileged or
+  explicitly granted callers. The provider checks the calling permission before decoding requests.
 - **The guest agent** `droiddeck-agent` runs inside every session (started by
   `droiddeck-session`). It runs commands with the session's own environment, publishes gamescope's
   focus, and talks to the Steam client's DevTools, which only accepts guest processes. The app and
@@ -21,20 +22,44 @@ and reports every run.
 
 ## Access
 
-Commands that only observe or act the way a player does work over ADB on any build: `state`,
-`start`, `run`, `stop`, `resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`,
-`screenshot`, `record`, `displays`, `wake`, `access`, and `env list`.
+Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,
+`resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `displays`,
+`wake`, and `access`.
 
-**Agent commands** reach into the app's sandbox, which holds the Steam login in the guest: `guest`,
-`cdp`, `env set`, `override` and `prefs`. Debug builds allow them. A release build allows them only
-after **Setup > Session > Agent commands** is turned on; the bridge refuses to flip it (`ui click`
-on it answers `PROTECTED_CONTROL`, `prefs` on its file `PROTECTED_PREFS`). Refusals exit 7 with
-`AGENT_COMMANDS_DISABLED`. `droiddeckctl access` reports the current setting.
+**Setup > Session > Debugging tools** is off by default in every build, including debug builds.
+It enables `run`, `guest`, `cdp`, all `env` operations, `override`, and `prefs`. The toggle switches
+directly without a confirmation dialog. The bridge refuses to change it through `ui` or preference
+writes. The existing preference key, `setting-agent-commands` test tag, JSON command names, and
+`AGENT_COMMANDS_DISABLED` error code are unchanged. Refusals exit 7; `droiddeckctl access` reports
+whether commands are enabled.
 
-The toggle keeps an agent from reaching into the sandbox by accident, and keeps a release build
-from doing so until someone chose it. It is not a wall against whoever holds the ADB connection:
-`adb shell input tap` can press any switch on the screen. ADB access itself is the trust boundary,
-as it is for everything else on the device.
+Disabling the toggle clears queued and persistent agent environment settings and installed binary
+overrides. Disabled settings cannot apply at the next session start. Already running commands and
+effects already applied to a session are not undone; stop and restart that session to discard them.
+
+Authorized command execution runs inside the runtime containing Steam's saved login. CDP evaluates
+JavaScript in the authenticated Steam client, and preferences can contain private values. These
+capabilities remain unrestricted when enabled: the toggle is an explicit opt-in, not credential
+isolation or a sandbox against the authorized caller. Main already supported arbitrary guest
+programs through `run`; restricting credential access would require addressing that route too.
+ADB access remains a trust boundary, and ADB input can operate the device's own toggle.
+
+The helper exchanges private files with the app and adds no network listener. The guarded Steam
+DevTools port is bound to loopback and accepts only peers with a fresh private registration for a
+live socket descriptor, matching socket inode, destination port, and address family. The existing
+x86_64 Decky loader exception remains: that mode does not enable the guest-only acceptance guard.
+
+Requests are limited to 256 KiB of encoded JSON. Guest responses and DevTools messages are limited
+to 1 MiB; provider replies above 384 Ki characters return `RESPONSE_TOO_LARGE` to avoid overflowing
+Binder. Command output retains at most 256 KiB per stream while continuing to drain both streams.
+Timeouts must be finite, positive, and no greater than 600 seconds, and terminate the command's
+process group. Override installation refuses path traversal and symbolic links.
+
+Automatic process logs record environment keys and argument counts rather than values or full
+argument lists. UI nodes marked as passwords redact text, editable text, descriptions, and state
+text. This does not redact arbitrary authorized command results, CDP data, preferences, or screen
+captures. Scenario directories are owner-only and JSON reports are written with mode 0600. Review
+artifacts before sharing; a live `logs` pull copies the current folder without a fresh export scrub.
 
 ## Device selection and output
 
@@ -45,7 +70,7 @@ multiple devices remain. Pass `--serial` before the command to choose directly; 
 
 Every command writes one JSON object to stdout and its resolved serial to stderr. Exit codes: 0
 success, 2 invalid or rejected command, 3 ADB or device error, 4 session error, 5 timeout, 6
-artifact or file error, 7 agent commands disabled.
+artifact or file error, 7 debugging tools disabled.
 
 ## Commands
 

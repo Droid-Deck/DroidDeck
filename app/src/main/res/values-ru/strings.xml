@@ -516,8 +516,7 @@
     <string name="setup_session">Сессия</string>
     <string name="setup_logs">Журналы сессии</string>
     <string name="setup_logs_hint">Сохраняется после каждой сессии</string>
-    <string name="setup_agent_commands">Команды агента</string>
-    <string name="setup_agent_commands_hint">Разрешает компьютеру, подключённому по отладке USB, выполнять команды в сеансе (для тестирования)</string>
+    <string name="setup_agent_commands">Инструменты отладки</string>
     <string name="setup_latest_logs">Последние журналы сессии</string>
     <string name="setup_saved_logs">Сохраненные журналы сессии</string>
     <string name="setup_saved_logs_hint">Хранить последние %1$d</string>

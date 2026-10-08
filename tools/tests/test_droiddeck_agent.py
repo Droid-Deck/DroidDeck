@@ -13,6 +13,8 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
+import tracemalloc
 
 SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-agent"
 loader = importlib.machinery.SourceFileLoader("droiddeck_agent", str(SCRIPT))
@@ -109,6 +111,47 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(answer["timedOut"])
         self.assertLess(time.monotonic() - started, 10)
 
+    def test_exec_memory_is_bounded_while_draining_large_output(self):
+        tracemalloc.start()
+        try:
+            answer = agent.run_exec({"argv": [sys.executable, "-c", "import os; [os.write(1, b'x' * 65536) for _ in range(1024)]"]})
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertEqual(0, answer["exitCode"])
+        self.assertEqual(agent.OUTPUT_CAP, len(answer["stdout"]["text"]))
+        self.assertTrue(answer["stdout"]["truncated"])
+        self.assertLess(peak, 6 * 1024 * 1024)
+
+    def test_exec_drains_both_streams_while_writing_stdin(self):
+        program = "import os, sys; os.write(1, b'x' * 300000); print(len(sys.stdin.read()), file=sys.stderr)"
+        answer = self.ask({"kind": "exec", "argv": [sys.executable, "-c", program], "stdin": "y" * 100000})
+        self.assertFalse(answer["timedOut"])
+        self.assertTrue(answer["stdout"]["truncated"])
+        self.assertEqual("100000\n", answer["stderr"]["text"])
+
+    def test_flooding_both_streams_still_times_out(self):
+        program = "import os\nwhile True:\n os.write(1, b'o' * 65536)\n os.write(2, b'e' * 65536)"
+        answer = self.ask({"kind": "exec", "argv": [sys.executable, "-c", program], "timeout": 0.5})
+        self.assertTrue(answer["timedOut"])
+        for name in ("stdout", "stderr"):
+            self.assertEqual(agent.OUTPUT_CAP, len(answer[name]["text"]))
+            self.assertTrue(answer[name]["truncated"])
+
+    def test_timeout_applies_when_parent_exits_with_inherited_pipes(self):
+        started = time.monotonic()
+        answer = self.ask({"kind": "exec", "argv": ["sh", "-c", "sleep 30 & exit 0"], "timeout": 0.5})
+        self.assertTrue(answer["timedOut"])
+        self.assertLess(time.monotonic() - started, 5)
+
+    def test_invalid_timeout_and_input_are_refused_before_exec(self):
+        for value in (0, -1, 601, "NaN", "Infinity", "invalid"):
+            answer = self.ask({"kind": "exec", "argv": ["true"], "timeout": value})
+            self.assertEqual("INVALID_REQUEST", answer["error"]["code"])
+        for fields in ({"stdin": 1}, {"env": []}, {"env": {"BAD=KEY": "value"}}, {"argv": ["true\0"]}):
+            answer = self.ask({"kind": "exec", "argv": ["true"], **fields})
+            self.assertEqual("INVALID_REQUEST", answer["error"]["code"])
+
     def test_errors_are_answers(self):
         self.assertEqual("INVALID_REQUEST", self.ask({"kind": "exec", "argv": []})["error"]["code"])
         self.assertEqual("EXEC_FAILED", self.ask({"kind": "exec", "argv": ["/no/such/program"]})["error"]["code"])
@@ -117,6 +160,32 @@ class AgentTest(unittest.TestCase):
         (self.dir / "req.json").write_text("{not json")
         agent.answer(self.dir, self.dir / "req.json")
         self.assertEqual("INVALID_REQUEST", json.loads((self.dir / "resp" / "req.json").read_text())["error"]["code"])
+
+    def test_request_shape_and_size_are_bounded(self):
+        self.assertEqual("INVALID_REQUEST", self.ask([])["error"]["code"])
+        self.assertEqual("INVALID_REQUEST", self.ask({"kind": "ping", "unused": "x" * agent.REQUEST_CAP})["error"]["code"])
+
+    def test_replies_are_owner_only_even_when_replacing_a_public_file(self):
+        path = self.dir / "private.json"
+        path.write_text("old")
+        path.chmod(0o644)
+        agent.write_json(path, {"ok": True})
+        self.assertEqual(0o600, path.stat().st_mode & 0o777)
+
+    def test_oversized_websocket_frames_are_refused_before_reading_payload(self):
+        ws = agent.WebSocket.__new__(agent.WebSocket)
+        ws.buffer = bytes([0x81, 127]) + struct.pack(">Q", agent.RESPONSE_CAP + 1)
+        with self.assertRaises(agent.AgentError) as caught:
+            ws.recv()
+        self.assertEqual("RESPONSE_TOO_LARGE", caught.exception.code)
+
+    def test_devtools_targets_cannot_connect_to_remote_hosts(self):
+        for url in ("ws://example.com/devtools", "ws://127.0.0.1@example.com/devtools", "wss://127.0.0.1/devtools"):
+            with patch.object(agent.socket, "create_connection") as connect:
+                with self.assertRaises(agent.AgentError) as caught:
+                    agent.WebSocket(url, 1)
+                self.assertEqual("INVALID_TARGET", caught.exception.code)
+                connect.assert_not_called()
 
     def test_cdp_without_a_port(self):
         os.environ.pop("BL_CDP_PORT", None)

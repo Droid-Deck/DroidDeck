@@ -20,7 +20,9 @@ Requests: ping, exec, focus, cdp, quit. Each answer is {"ok": true, ...} or
 
 import base64
 import json
+import math
 import os
+import selectors
 import signal
 import socket
 import struct
@@ -29,10 +31,13 @@ import sys
 import threading
 import time
 import urllib.request
+import urllib.parse
 from pathlib import Path
 
 VERSION = 1
 OUTPUT_CAP = 256 * 1024
+REQUEST_CAP = 256 * 1024
+RESPONSE_CAP = 1024 * 1024
 FOCUS_PROPS = (
     "GAMESCOPE_FOCUSED_APP", "GAMESCOPE_FOCUSED_WINDOW", "GAMESCOPE_FOCUSABLE_APPS",
     "GAMESCOPE_FOCUSABLE_WINDOWS", "GAMESCOPECTRL_BASELAYER_APPID",
@@ -51,7 +56,9 @@ def log(message):
 
 def write_json(path, value):
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(value, separators=(",", ":")))
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), "w") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump(value, stream, separators=(",", ":"))
     os.replace(tmp, path)
 
 
@@ -296,13 +303,26 @@ class WebSocket:
     """A minimal RFC 6455 client: text frames out, text frames in. Enough for CDP."""
 
     def __init__(self, url, timeout):
-        assert url.startswith("ws://")
-        hostport, _, path = url[5:].partition("/")
-        host, _, port = hostport.partition(":")
-        self.s = socket.create_connection((host, int(port or 80)), timeout=timeout)
+        target = urllib.parse.urlsplit(url)
+        if (target.scheme != "ws" or target.hostname not in ("127.0.0.1", "::1", "localhost")
+                or target.username is not None or target.password is not None or target.fragment):
+            raise AgentError("INVALID_TARGET", "DevTools targets must use a loopback WebSocket")
+        hostport = target.netloc
+        path = target.path or "/"
+        if target.query:
+            path += "?" + target.query
+        host = "127.0.0.1" if target.hostname == "localhost" else target.hostname
+        self.s = socket.create_connection((host, target.port or 80), timeout=timeout)
+        try:
+            self._handshake(path, hostport)
+        except Exception:
+            self.s.close()
+            raise
+
+    def _handshake(self, path, hostport):
         key = base64.b64encode(os.urandom(16)).decode()
         self.s.sendall((
-            "GET /%s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            "GET %s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
             "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n" % (path, hostport, key)
         ).encode())
         head = b""
@@ -311,6 +331,8 @@ class WebSocket:
             if not chunk:
                 raise OSError("DevTools closed the connection during the handshake")
             head += chunk
+            if len(head) > 16 * 1024:
+                raise AgentError("RESPONSE_TOO_LARGE", "The DevTools handshake exceeds 16 KiB")
         status = head.split(b"\r\n", 1)[0]
         if b" 101 " not in status:
             raise OSError("DevTools refused the WebSocket: " + status.decode(errors="replace"))
@@ -350,6 +372,8 @@ class WebSocket:
                 n = struct.unpack(">H", self._read(2))[0]
             elif n == 127:
                 n = struct.unpack(">Q", self._read(8))[0]
+            if n > RESPONSE_CAP or len(message) + n > RESPONSE_CAP:
+                raise AgentError("RESPONSE_TOO_LARGE", "The DevTools response exceeds 1 MiB")
             mask = self._read(4) if b1 & 0x80 else None
             data = self._read(n)
             if mask:
@@ -385,7 +409,10 @@ def cdp_targets(agent_dir, timeout=5):
     url = "http://127.0.0.1:%d/json" % cdp_port(agent_dir)
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
-            return json.loads(r.read().decode())
+            data = r.read(RESPONSE_CAP + 1)
+            if len(data) > RESPONSE_CAP:
+                raise AgentError("RESPONSE_TOO_LARGE", "The DevTools response exceeds 1 MiB")
+            return json.loads(data.decode())
     except OSError as e:
         raise AgentError("DEVTOOLS_UNREACHABLE", "Could not reach the client's DevTools at %s: %s" % (url, e))
 
@@ -484,12 +511,17 @@ def quit_game(agent_dir, app_id, timeout):
 
 def run_exec(req):
     argv = req.get("argv")
-    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv):
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and "\0" not in a for a in argv):
         raise AgentError("INVALID_REQUEST", "exec needs argv, a non-empty list of strings")
-    timeout = float(req.get("timeout", 30))
+    timeout = request_timeout(req, 30)
     env = dict(os.environ)
-    env.update({str(k): str(v) for k, v in (req.get("env") or {}).items()})
+    extra_env = req.get("env") if req.get("env") is not None else {}
+    if not isinstance(extra_env, dict) or any("\0" in str(k) or "=" in str(k) or "\0" in str(v) for k, v in extra_env.items()):
+        raise AgentError("INVALID_REQUEST", "env must be an object with valid environment entries")
+    env.update({str(k): str(v) for k, v in extra_env.items()})
     stdin = req.get("stdin")
+    if stdin is not None and not isinstance(stdin, str):
+        raise AgentError("INVALID_REQUEST", "stdin must be a string")
     started = time.monotonic()
     try:
         proc = subprocess.Popen(
@@ -499,22 +531,78 @@ def run_exec(req):
         )
     except OSError as e:
         raise AgentError("EXEC_FAILED", "%s: %s" % (argv[0], e))
+    captured = {"stdout": bytearray(), "stderr": bytearray()}
+    truncated = {"stdout": False, "stderr": False}
+    pending = memoryview(stdin.encode()) if stdin is not None else memoryview(b"")
+    deadline = started + timeout
     timed_out = False
     try:
-        out, err = proc.communicate(stdin.encode() if stdin is not None else None, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except OSError:
-            pass
-        out, err = proc.communicate()
+        with selectors.DefaultSelector() as selector:
+            for stream, name in ((proc.stdout, "stdout"), (proc.stderr, "stderr")):
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream, selectors.EVENT_READ, name)
+            if proc.stdin is not None:
+                os.set_blocking(proc.stdin.fileno(), False)
+                if pending:
+                    selector.register(proc.stdin, selectors.EVENT_WRITE, "stdin")
+                else:
+                    proc.stdin.close()
+            while selector.get_map() or proc.poll() is None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True
+                    break
+                for key, _ in selector.select(min(0.1, remaining)):
+                    stream, name = key.fileobj, key.data
+                    if name == "stdin":
+                        try:
+                            pending = pending[os.write(stream.fileno(), pending[:65536]):]
+                        except BrokenPipeError:
+                            pending = pending[len(pending):]
+                        if not pending:
+                            selector.unregister(stream)
+                            stream.close()
+                    else:
+                        data = os.read(stream.fileno(), 65536)
+                        if not data:
+                            selector.unregister(stream)
+                            stream.close()
+                            continue
+                        available = OUTPUT_CAP - len(captured[name])
+                        captured[name].extend(data[:available])
+                        truncated[name] |= len(data) > available
+        if timed_out:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        proc.wait(timeout=5)
+    finally:
+        if proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait(timeout=5)
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
 
-    def text(data):
-        return {"text": data[:OUTPUT_CAP].decode(errors="replace"), "truncated": len(data) > OUTPUT_CAP}
+    def text(name):
+        return {"text": captured[name].decode(errors="replace"), "truncated": truncated[name]}
 
     return {"exitCode": proc.returncode, "timedOut": timed_out,
-            "seconds": round(time.monotonic() - started, 3), "stdout": text(out), "stderr": text(err)}
+            "seconds": round(time.monotonic() - started, 3), "stdout": text("stdout"), "stderr": text("stderr")}
+
+
+def request_timeout(req, default):
+    try:
+        timeout = float(req.get("timeout", default))
+    except (TypeError, ValueError):
+        raise AgentError("INVALID_REQUEST", "timeout must be a positive number no greater than 600 seconds")
+    if not math.isfinite(timeout) or not 0 < timeout <= 600:
+        raise AgentError("INVALID_REQUEST", "timeout must be a positive number no greater than 600 seconds")
+    return timeout
 
 
 def handle(agent_dir, req):
@@ -532,16 +620,22 @@ def handle(agent_dir, req):
         if not isinstance(expression, str) or not expression:
             raise AgentError("INVALID_REQUEST", "cdp eval needs an expression")
         return cdp_eval(agent_dir, expression, req.get("target"), bool(req.get("awaitPromise", True)),
-                        float(req.get("timeout", 15)))
+                        request_timeout(req, 15))
     if kind == "quit":
-        return quit_game(agent_dir, req.get("appId"), float(req.get("timeout", 15)))
+        return quit_game(agent_dir, req.get("appId"), request_timeout(req, 15))
     raise AgentError("UNKNOWN_REQUEST", "Unknown agent request '%s'" % kind)
 
 
 def answer(agent_dir, path):
     rid = path.stem
     try:
-        req = json.loads(path.read_text())
+        with path.open("rb") as stream:
+            data = stream.read(REQUEST_CAP + 1)
+        if len(data) > REQUEST_CAP:
+            raise ValueError("The request exceeds 256 KiB")
+        req = json.loads(data)
+        if not isinstance(req, dict):
+            raise ValueError("The request must be a JSON object")
     except (OSError, ValueError) as e:
         req = None
         result = {"ok": False, "error": {"code": "INVALID_REQUEST", "message": str(e)}}

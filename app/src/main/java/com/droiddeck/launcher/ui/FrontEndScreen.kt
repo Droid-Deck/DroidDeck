@@ -91,7 +91,7 @@ class FrontEndState(
     val frameGenLabel: String,
     val romsDir: String?,
     val logsEnabled: Boolean,
-    /** Setup's Agent commands toggle (AgentAccess): off unless the user turns it on. */
+    /** Setup's Debugging tools toggle (AgentAccess): off unless the user turns it on. */
     val agentCommands: Boolean = false,
     val steamGames: List<Library.SteamGame>,
     val emulators: List<Library.Emulator>,

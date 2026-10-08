@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.view.inspector.WindowInspector
 import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsConfiguration
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference
  */
 object AgentUi {
     private const val TIMEOUT_MS = 5_000L
-    /** Setup's Agent commands toggle: the bridge never acts on its own gate (AgentAccess). */
+    /** Setup's Debugging tools toggle: the bridge never acts on its own gate (AgentAccess). */
     private const val GATE_TAG = "setting-agent-commands"
 
     fun handle(request: JSONObject): JSONObject = when (val op = request.optString("op", "dump")) {
@@ -77,11 +78,9 @@ object AgentUi {
         val config = node.config
         val json = JSONObject().put("id", node.id)
         config.getOrNull(SemanticsProperties.TestTag)?.let { json.put("tag", it) }
-        config.getOrNull(SemanticsProperties.Text)?.joinToString(" ") { it.text }?.takeIf { it.isNotBlank() }?.let { json.put("text", it) }
-        config.getOrNull(SemanticsProperties.EditableText)?.text?.let { json.put("editableText", it) }
-        config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ")?.takeIf { it.isNotBlank() }?.let { json.put("description", it) }
+        val text = textFields(config)
+        text.keys().forEach { json.put(it, text.get(it)) }
         config.getOrNull(SemanticsProperties.Role)?.let { json.put("role", it.toString()) }
-        config.getOrNull(SemanticsProperties.StateDescription)?.let { json.put("state", it) }
         config.getOrNull(SemanticsProperties.ToggleableState)?.let { json.put("toggle", it.name) }
         config.getOrNull(SemanticsProperties.Selected)?.let { json.put("selected", it) }
         config.getOrNull(SemanticsProperties.Focused)?.let { json.put("focused", it) }
@@ -92,6 +91,18 @@ object AgentUi {
         json.put("bounds", JSONArray()
             .put(origin[0] + b.left.toInt()).put(origin[1] + b.top.toInt())
             .put(origin[0] + b.right.toInt()).put(origin[1] + b.bottom.toInt()))
+        return json
+    }
+
+    internal fun textFields(config: SemanticsConfiguration): JSONObject {
+        val password = config.contains(SemanticsProperties.Password)
+        val json = JSONObject()
+        for ((key, value) in listOf(
+            "text" to config.getOrNull(SemanticsProperties.Text)?.joinToString(" ") { it.text },
+            "editableText" to config.getOrNull(SemanticsProperties.EditableText)?.text,
+            "description" to config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" "),
+            "state" to config.getOrNull(SemanticsProperties.StateDescription),
+        )) value?.let { json.put(key, if (password) "<redacted>" else it) }
         return json
     }
 
@@ -120,8 +131,8 @@ object AgentUi {
         val index = request.optInt("index", 0)
         val (node, origin) = matches.getOrNull(index)
             ?: throw AgentException("NO_SUCH_NODE", "No node with ${if (tag != null) "tag '$tag'" else "text '$text'"} (${matches.size} found)")
-        if (node.config.getOrNull(SemanticsProperties.TestTag) == GATE_TAG) {
-            throw AgentException("PROTECTED_CONTROL", "Agent commands are switched on the device only")
+        if (generateSequence(node) { it.parent }.any { it.config.getOrNull(SemanticsProperties.TestTag) == GATE_TAG }) {
+            throw AgentException("PROTECTED_CONTROL", "Debugging tools are switched on the device only")
         }
         action(node)
         return JSONObject().put("matches", matches.size).put("node", describe(node, origin))

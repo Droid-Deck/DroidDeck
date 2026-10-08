@@ -37,6 +37,7 @@ import argparse
 import importlib.machinery
 import importlib.util
 import json
+import os
 import re
 import sys
 import time
@@ -52,6 +53,12 @@ _loader.exec_module(ctl)
 
 class StepFailed(Exception):
     pass
+
+
+def write_json(path: Path, value) -> None:
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600), "w") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump(value, stream, indent=2, sort_keys=True)
 
 
 def substitute(value, variables: dict):
@@ -150,7 +157,7 @@ class Runner:
                 found[name] = action()
             except Exception as exc:  # evidence is best effort
                 found[name] = {"ok": False, "error": str(exc)}
-        (folder / "evidence.json").write_text(json.dumps(found, indent=2, sort_keys=True))
+        write_json(folder / "evidence.json", found)
         return {k: v.get("ok", True) if isinstance(v, dict) else True for k, v in found.items()}
 
 
@@ -180,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     adb = ctl.adb_path(args.adb)
     serial = ctl.resolve_serial(adb, args.serial, log=True)
     out = Path(args.out).expanduser().resolve() / f"{scenario.get('name', 'scenario')}-{time.strftime('%Y%m%d-%H%M%S')}"
-    out.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True, mode=0o700)
     global_args = (["--adb", adb] if args.adb else []) + ["--serial", serial]
     runner = Runner(adb, serial, out, global_args)
     report = {"name": scenario.get("name"), "serial": serial, "vars": variables, "repeat": repeat,
@@ -192,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         runner.run_steps(scenario.get("setup", []), out, setup_log)
         for run in range(1, repeat + 1):
             folder = out / f"run-{run:02d}"
-            folder.mkdir()
+            folder.mkdir(mode=0o700)
             log: list = []
             started = time.monotonic()
             result = {"run": run, "folder": str(folder)}
@@ -211,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
                 result["afterError"] = str(exc)
             log.extend({**entry, "after": True} for entry in after)
             result["seconds"] = round(time.monotonic() - started, 2)
-            (folder / "steps.json").write_text(json.dumps(log, indent=2, sort_keys=True))
+            write_json(folder / "steps.json", log)
             report["runs"].append(result)
             print(f"run {run}/{repeat}: {'PASS' if result['ok'] else 'FAIL ' + result['error']}", file=sys.stderr)
             if not result["ok"] and not args.keep_going:
@@ -225,11 +232,11 @@ def main(argv: list[str] | None = None) -> int:
             runner.run_steps(scenario.get("teardown", []), out, teardown_log)
         except StepFailed as exc:
             report["teardownError"] = str(exc)
-        (out / "setup.json").write_text(json.dumps(setup_log + teardown_log, indent=2, sort_keys=True))
+        write_json(out / "setup.json", setup_log + teardown_log)
 
     passed = sum(1 for r in report["runs"] if r["ok"])
     report.update({"ok": status == 0, "passed": passed, "failed": len(report["runs"]) - passed})
-    (out / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
+    write_json(out / "report.json", report)
     print(json.dumps(report, indent=2, sort_keys=True))
     return status
 

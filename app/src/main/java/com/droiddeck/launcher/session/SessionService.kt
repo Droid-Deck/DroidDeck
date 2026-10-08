@@ -289,7 +289,7 @@ class SessionService : Service() {
         val lines = FileUtils.readString(file)?.lines().orEmpty()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('=') && !it.startsWith("=") }
-        if (lines.isNotEmpty()) Log.i(TAG, "extra environment from $ENV_SWITCH: $lines")
+        if (lines.isNotEmpty()) Log.i(TAG, "extra environment keys from $ENV_SWITCH: ${lines.map { it.substringBefore('=') }}")
         return lines
     }
 
@@ -420,7 +420,7 @@ class SessionService : Service() {
             }
             guest.add(program)
             guest.addAll(SessionState.programArgs)
-            Log.i(TAG, "run: $program ${SessionState.programArgs.joinToString(" ")} under gamescope")
+            Log.i(TAG, "run: $program (${SessionState.programArgs.size} arguments) under gamescope")
         }
 
         // Android has no /dev/shm; the cache stands in for it and, unlike the real thing, keeps

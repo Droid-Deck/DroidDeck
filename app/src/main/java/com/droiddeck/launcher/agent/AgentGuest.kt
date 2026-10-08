@@ -87,6 +87,7 @@ object AgentGuest {
 
     /** Send one request and wait for its answer. Throws [AgentException] with a stable code. */
     fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
+        if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
         if (!SessionState.running) throw AgentException("NO_ACTIVE_SESSION", "There is no running session")
         hello(context) ?: throw AgentException("AGENT_UNAVAILABLE", "The guest agent is not running in this session (yet)")
         val dir = dir(context)
@@ -104,6 +105,10 @@ object AgentGuest {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             if (answer.isFile) {
+                if (answer.length() > 1024 * 1024) {
+                    answer.delete()
+                    throw AgentException("RESPONSE_TOO_LARGE", "The guest response exceeds 1 MiB")
+                }
                 val result = readJson(answer)
                 answer.delete()
                 return result ?: throw AgentException("INVALID_AGENT_RESPONSE", "The guest agent's answer was not JSON")
@@ -116,7 +121,7 @@ object AgentGuest {
     }
 
     private fun readJson(file: File): JSONObject? = try {
-        if (file.isFile) JSONObject(file.readText()) else null
+        if (file.isFile && file.length() <= 1024 * 1024) JSONObject(file.readText()) else null
     } catch (e: Exception) {
         null
     }

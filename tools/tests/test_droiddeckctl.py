@@ -118,6 +118,12 @@ class FakeAdbTest(unittest.TestCase):
 
 
 class DroiddeckctlTest(FakeAdbTest):
+    def test_oversized_requests_are_refused_before_adb(self):
+        with self.assertRaises(ctl.ControlError) as caught:
+            ctl.provider_call(str(self.adb), "fake-1", "guest", request={"stdin": "x" * ctl.REQUEST_CAP})
+        self.assertEqual("INVALID_REQUEST", caught.exception.code)
+        self.assertFalse(self.calls())
+
     def test_state_passes_through_with_the_serial(self):
         self.configure({"state": state()})
         code, out = self.run_ctl("state")
@@ -181,6 +187,23 @@ class DroiddeckctlTest(FakeAdbTest):
         code, out = self.run_ctl("guest", "--", "true")
         self.assertEqual(7, code)
         self.assertEqual("AGENT_COMMANDS_DISABLED", out["error"]["code"])
+
+    def test_run_checks_access_before_launching_an_activity(self):
+        self.configure({"access": {"ok": True, "commands": False}})
+        code, out = self.run_ctl("run", "/usr/bin/sh", "--", "-c", "true")
+        self.assertEqual(7, code)
+        self.assertEqual("AGENT_COMMANDS_DISABLED", out["error"]["code"])
+        self.assertIn("Debugging tools", out["error"]["message"])
+        self.assertEqual(["access"], [c.get("method") for c in self.calls()])
+
+    def test_override_checks_names_before_pushing_any_file(self):
+        self.configure({"access": {"ok": True, "commands": True, "inbox": "/tmp/inbox"}})
+        source = self.dir / "binary"
+        source.write_bytes(b"test")
+        code, out = self.run_ctl("override", "../outside", str(source))
+        self.assertEqual(2, code)
+        self.assertEqual("INVALID_NAME", out["error"]["code"])
+        self.assertEqual(["access"], [c.get("method") for c in self.calls()])
 
     def test_guest_request_and_check(self):
         self.configure({"guest": {"ok": True, "exitCode": 3, "stdout": {"text": ""}, "stderr": {"text": "nope"}}})
@@ -296,6 +319,12 @@ class ScenarioTest(FakeAdbTest):
         code, report = self.run_scenario(path, "--var", "appId=489830")
         self.assertEqual(0, code)
         self.assertEqual(2, report["passed"])
+        output = Path(report["out"])
+        self.assertEqual(0o700, output.stat().st_mode & 0o777)
+        for artifact in output.rglob("*.json"):
+            self.assertEqual(0o600, artifact.stat().st_mode & 0o777, str(artifact))
+        for run in report["runs"]:
+            self.assertEqual(0o700, Path(run["folder"]).stat().st_mode & 0o777)
 
     def test_a_failed_assert_fails_the_run_and_collects_evidence(self):
         self.configure({"state": state(focused=769, focusable=[769]), "focus": {"ok": True, "focusedApp": 769}},
