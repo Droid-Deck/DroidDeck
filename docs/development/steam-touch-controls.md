@@ -95,3 +95,22 @@ white on red, "Attack" and B to another icon; both written in Steam's format and
 session restart.
 
 The pickers are panels in the session's window, not dialogs.
+
+## Steam Link's menu and editor
+
+- **Menu button (…)**: touch input Controller / Mouse / Controller + mouse; mouse as direct touch or
+  trackpad; trackpad speed. Like Steam Link these are per game, saved in the game's `touch_layout`
+  (`CVirtualControllerLayouts` fields 2-4), so they sync with the config. In Controller mode touches
+  outside the controls do nothing; in Mouse mode only the menu button is drawn and the screen is the
+  mouse. Also: vibrate on touch, fade when not touched, gyroscope (Steam Link's global options, kept
+  per device), the layout editor and DroidDeck's own menu.
+- **Editor**: ◀ ▶ steps through every action set of the game's config (each saved to its own layout),
+  Add (the tray: bound controls not on screen, and the optional Paste button), More (colour and
+  opacity, copy a layout, paste it into another game, reset), W−/W+/H−/H+ and axis-wise pinch for a
+  control's width and height (ovals).
+- **Paste** control: Ctrl+V into the session (the Android clipboard is shared with it).
+
+Not done: Steam Link's magnifying glass / pinch zoom, record and playback of input, shake to fade, and
+its custom tray drag-in animation. Gyro: the report now carries motion only while the client asks
+(setting report 0x30) at Steam Link's scale (1000 °/s full scale); a `gyro_to_joystick` binding still
+did not move a game's stick with injected rates, so gyro remains unconfirmed.

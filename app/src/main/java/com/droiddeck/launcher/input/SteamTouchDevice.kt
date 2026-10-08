@@ -48,14 +48,33 @@ class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
     /** Motion in the Deck's axes and units (PadMotion), which the touch report shares. */
     @Synchronized
     fun setMotion(accel: ShortArray, gyro: ShortArray) {
-        if (!plugged) return
+        // Sent only while the client asks for it (setting report 0x30, which Steam Link reads as
+        // "gyro on") and the player has not turned motion off - as Steam Link does.
+        if (!plugged || !gyroRequested || !motionEnabled) return
         val next = report.copyOf()
         for (i in 0 until 3) {
+            // Accelerometer: the Deck's 1 g = 16384 is the touch report's ±2 g = ±32767 already.
             putShort(next, 28 + 2 * i, accel[i])
-            putShort(next, 34 + 2 * i, gyro[i])
+            // Gyro: the Deck's 2000 °/s = 32768; the touch report's full scale is 1000 °/s
+            // (Steam Link: rad/s × 180/π / 1000 × 32767).
+            putShort(next, 34 + 2 * i, (gyro[i] * 2).coerceIn(-32767, 32767).toShort())
         }
         publish(next)
     }
+
+    /** Whether the client has asked the device for motion (setting report 0x30 non-zero). */
+    val gyroRequested get() = buffer.getInt(OFF_SETTING30) != 0
+
+    /** The player's motion switch (Steam Link's gyroscope option). */
+    @Volatile var motionEnabled = true
+        set(value) {
+            field = value
+            if (!value) synchronized(this) {
+                val next = report.copyOf()
+                for (i in 28 until 40) next[i] = 0
+                publish(next)
+            }
+        }
 
     private fun putShort(into: ByteArray, at: Int, value: Short) {
         into[at] = value.toInt().toByte()
@@ -114,6 +133,7 @@ class SteamTouchDevice private constructor(private val buffer: ByteBuffer) {
         private const val OFF_ACTION_SET = 80
         private const val OFF_LAYER_COUNT = 84
         private const val OFF_LAYERS = 88
+        private const val OFF_SETTING30 = 132
         private const val OFF_ACTION_SEQ = 136
 
         @Volatile

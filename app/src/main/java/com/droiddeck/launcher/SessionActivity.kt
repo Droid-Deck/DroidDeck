@@ -150,6 +150,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var oscStyle by mutableStateOf(SessionPrefs.OSC_STYLE_DROIDDECK)
     private var steamTouchAvailable by mutableStateOf(false)
     private val steamTouchRetry = Runnable { updateOnScreenControls() }
+    /** While Steam's touch controls are up: how the game's touch config says touches outside them
+     *  act (Steam Link's input and mouse modes), in place of the drawer's touch mode. */
+    private var steamTouchOptions: com.droiddeck.launcher.input.SteamTouchConfig.Options? = null
+    /** The touch mode touches are routed by: the drawer's, or the game's while Steam's controls are up. */
+    private var routedTouchMode = SessionPrefs.TOUCH_AUTO
     private var keyboard: KeyboardHost? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
@@ -813,6 +818,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (nextTouchMode == SessionPrefs.TOUCH_OFF) cursorVisible = false
         }
         touchMode = nextTouchMode
+        routedTouchMode = effectiveTouchMode()
         frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -1673,8 +1679,32 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    /** The touch mode in force: the game's own while Steam's touch controls are shown. */
+    private fun effectiveTouchMode(): String {
+        val options = steamTouchOptions
+        if (options == null || steamTouchControls?.visibility != View.VISIBLE) return SessionPrefs.touchMode(this)
+        return when {
+            options.inputMode == com.droiddeck.launcher.input.SteamTouchConfig.INPUT_CONTROLLER -> SessionPrefs.TOUCH_OFF
+            options.mouseMode == com.droiddeck.launcher.input.SteamTouchConfig.MOUSE_RELATIVE -> SessionPrefs.TOUCH_PAD
+            else -> SessionPrefs.TOUCH_DIRECT
+        }
+    }
+
+    private fun applyTouchRouting() {
+        val next = effectiveTouchMode()
+        if (::touchpad.isInitialized) {
+            val speed = steamTouchOptions?.trackpadSensitivity?.takeIf { steamTouchControls?.visibility == View.VISIBLE } ?: 1f
+            touchpad.sensitivity = 1.15f * speed
+        }
+        if (next == routedTouchMode) return
+        if (::touchpad.isInitialized) touchpad.cancel()
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+        if (next == SessionPrefs.TOUCH_OFF) cursorVisible = false
+        routedTouchMode = next
+    }
+
     /** Touchpad on the desktop, direct in Steam, unless the drawer says otherwise. */
-    private fun usingTouchpad(): Boolean = when (SessionPrefs.touchMode(this)) {
+    private fun usingTouchpad(): Boolean = when (routedTouchMode) {
         SessionPrefs.TOUCH_PAD -> true
         SessionPrefs.TOUCH_DIRECT -> false
         else -> SessionState.mode != SessionService.MODE_STEAM || SessionState.steamUi == "desktop"
@@ -1696,7 +1726,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         // Child views get the event first, so menus, keyboards and the on-screen pad still work.
-        if (touchMode == SessionPrefs.TOUCH_OFF) return true
+        if (routedTouchMode == SessionPrefs.TOUCH_OFF) return true
         if (usingTouchpad()) {
             val rect = drawnRect() ?: return false
             if (touchpad.bounds != rect) {
@@ -1829,6 +1859,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val view = com.droiddeck.launcher.input.SteamTouchControls(this, device,
             onMenu = { drawerOpen = true }, onKeyboard = ::togglePcKeyboard)
         view.visibility = View.GONE
+        view.onOptions = { options ->
+            steamTouchOptions = options
+            applyTouchRouting()
+        }
+        // Paste: the clipboard is shared with the session's X servers; Ctrl+V types it.
+        view.onPaste = {
+            sendGuestKey(29, true); sendGuestKey(47, true) // KEY_LEFTCTRL, KEY_V
+            sendGuestKey(47, false); sendGuestKey(29, false)
+        }
         // The client reads a controller's config when it connects: after a save, plug the device
         // out and back in so it takes the new one.
         view.onSaved = {
@@ -1887,6 +1926,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (!show) steam.releaseAll()
             steam.visibility = if (show) View.VISIBLE else View.GONE
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = show
+            applyTouchRouting()
             Log.i(TAG, "on-screen controls: Steam's touch controller " + if (show) "shown" else "hidden")
             return
         }

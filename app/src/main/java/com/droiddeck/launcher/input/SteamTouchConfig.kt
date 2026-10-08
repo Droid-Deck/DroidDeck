@@ -50,6 +50,11 @@ object SteamTouchConfig {
     const val KEYBOARD = 28
     const val MACRO_1_FINGER = 30
     const val MACRO_2_FINGER = 31
+    const val MAGNIFYING_GLASS = 29
+    const val PASTE = 34
+
+    /** Controls a layout may place though no binding asks for them (Steam Link's tray). */
+    val OPTIONAL = setOf(PASTE)
 
     /** A control's place: centre as a fraction of the screen, and its scale. */
     data class Element(val type: Int, val visible: Boolean, val x: Float, val y: Float, val xScale: Float = 1f, val yScale: Float = 1f)
@@ -59,6 +64,70 @@ object SteamTouchConfig {
     /** A decoded `touch_layout`; [rest] is every other top-level field, written back untouched. */
     class Layouts(val layouts: List<Layout>, val rest: ByteArray) {
         fun forActionSet(id: Int): Layout? = layouts.firstOrNull { it.actionSet == id }
+
+        /** The per-game options Steam Link keeps beside the layouts (CVirtualControllerLayouts
+         *  fields 2-4): input mode, mouse mode, trackpad sensitivity. */
+        val options: Options get() = Options.decode(rest)
+    }
+
+    /** EInputMode: 1 mouse, 2 controller, 3 both. EMouseMode: 2 absolute cursor (direct touch),
+     *  3 touch, 4 relative (trackpad); 0 = not set. */
+    data class Options(val inputMode: Int = INPUT_CONTROLLER, val mouseMode: Int = 0, val trackpadSensitivity: Float = 1f) {
+        /** [rest] with these options in place of its own fields 2-4, the rest kept as it was. */
+        fun encodeInto(rest: ByteArray): ByteArray {
+            val out = ByteArrayOutputStream()
+            val p = Proto(rest)
+            while (p.more()) {
+                val start = p.pos
+                val (field, wire) = p.key()
+                p.skip(wire)
+                if (field !in 2..4) out.write(rest, start, p.pos - start)
+            }
+            tag(out, 2, 0); varint(out, inputMode.toLong())
+            if (mouseMode != 0) { tag(out, 3, 0); varint(out, mouseMode.toLong()) }
+            tag(out, 4, 5); fixed(out, trackpadSensitivity)
+            return out.toByteArray()
+        }
+
+        companion object {
+            fun decode(rest: ByteArray): Options {
+                var input = INPUT_CONTROLLER
+                var mouse = 0
+                var sensitivity = 1f
+                val p = Proto(rest)
+                while (p.more()) {
+                    val (field, wire) = p.key()
+                    when {
+                        field == 2 && wire == 0 -> input = p.varint().toInt()
+                        field == 3 && wire == 0 -> mouse = p.varint().toInt()
+                        field == 4 && wire == 5 -> sensitivity = p.float()
+                        else -> p.skip(wire)
+                    }
+                }
+                return Options(input, mouse, sensitivity)
+            }
+        }
+    }
+
+    const val INPUT_MOUSE = 1
+    const val INPUT_CONTROLLER = 2
+    const val INPUT_BOTH = 3
+    const val MOUSE_ABSOLUTE = 2
+    const val MOUSE_TOUCH = 3
+    const val MOUSE_RELATIVE = 4
+
+    /** The config's action sets in preset order: id as the device is told (preset id + 1) and title. */
+    fun actionSets(config: Config): List<Pair<Int, String>> {
+        val mappings = config.mappings ?: return listOf(1 to "Default")
+        val titles = mappings.child("actions")?.entries?.mapNotNull { (key, v) ->
+            (v as? KeyValues.Node)?.let { key to (it.string("title") ?: key) }
+        }?.toMap().orEmpty()
+        val sets = mappings.children("preset").mapNotNull { preset ->
+            val id = preset.string("id")?.toIntOrNull() ?: return@mapNotNull null
+            val name = preset.string("name") ?: ""
+            (id + 1) to (titles[name]?.takeUnless { it.startsWith("#") } ?: name.ifEmpty { "Set ${id + 1}" })
+        }.sortedBy { it.first }
+        return sets.ifEmpty { listOf(1 to "Default") }
     }
 
     /** A config as the overlay needs it. */
@@ -245,6 +314,7 @@ object SteamTouchConfig {
             SELECT -> 516f / 1280 to 75f / 720
             START -> 756f / 1280 to 75f / 720
             KEYBOARD -> 1205f / 1280 to 75f / 720
+            PASTE -> 1115f / 1280 to 75f / 720
             DPAD -> if (leftStick) 0.147f to 0.47f else 200f / 1280 to 525f / 720
             A -> 1083f / 1280 to 607f / 720 + faceY
             B -> 1163f / 1280 to 527f / 720 + faceY
@@ -275,7 +345,8 @@ object SteamTouchConfig {
         val available = config.availableFor(actionSet, layers)
         val layout = config.layouts?.forActionSet(layoutIdOf(actionSet))
         val placed = layout?.elements?.associateBy { it.type }.orEmpty()
-        return available.mapNotNull { type ->
+        val optional = OPTIONAL.filter { placed[it]?.visible == true && it !in available }
+        return (available + optional).mapNotNull { type ->
             val own = placed[type]
             when {
                 own != null && !own.visible -> null
@@ -303,6 +374,20 @@ object SteamTouchConfig {
         elements: List<Element>,
         color: FloatArray? = null,
         bindings: Map<SteamTouchBindings.Ref, (SteamTouchBindings.Binding) -> SteamTouchBindings.Binding> = emptyMap(),
+    ): File? = saveLayouts(context, appId, config, mapOf(layoutIdOf(actionSet) to elements), color?.let { c -> setOf(layoutIdOf(actionSet)).associateWith { c } } ?: emptyMap(), bindings)
+
+    /**
+     * Saves the layouts of several action sets (by layout id) at once, with their colours, any
+     * binding edits and the per-game [options], into the game's autosave touch config.
+     */
+    fun saveLayouts(
+        context: Context,
+        appId: Int,
+        config: Config,
+        sets: Map<Int, List<Element>>,
+        colors: Map<Int, FloatArray> = emptyMap(),
+        bindings: Map<SteamTouchBindings.Ref, (SteamTouchBindings.Binding) -> SteamTouchBindings.Binding> = emptyMap(),
+        options: Options? = null,
     ): File? {
         val dir = configDir(context) ?: return null
         // Icons, labels and colours live in the binding strings (SteamTouchBindings), as the
@@ -311,12 +396,13 @@ object SteamTouchConfig {
             SteamTouchBindings.rewrite(text, ref, change) ?: text
         }
         val target = File(dir, "$appId/controller_mobile_touch.vdf")
-        val id = layoutIdOf(actionSet)
         val old = config.layouts
-        val keep = old?.layouts?.filter { it.actionSet != id }.orEmpty()
-        val layoutColor = color ?: old?.forActionSet(id)?.color ?: floatArrayOf(1f, 1f, 1f, 0.4f)
-        val layouts = Layouts(keep + Layout(id, elements, layoutColor, old?.forActionSet(id)?.version),
-            old?.rest ?: byteArrayOf(0x10, 0x02)) // input_mode = controller
+        val keep = old?.layouts?.filter { it.actionSet !in sets.keys }.orEmpty()
+        val written = sets.map { (id, elements) ->
+            Layout(id, elements, colors[id] ?: old?.forActionSet(id)?.color ?: floatArrayOf(1f, 1f, 1f, 0.4f), old?.forActionSet(id)?.version)
+        }
+        val rest = old?.rest ?: byteArrayOf(0x10, 0x02) // input_mode = controller
+        val layouts = Layouts((keep + written).sortedBy { it.actionSet }, options?.encodeInto(rest) ?: rest)
         val hex = bytesToHex(encodeLayouts(layouts))
         val line = "\t\"touch_layout\"\t\t\"$hex\""
         val existing = Regex("""\n\s*"touch_layout"\s+"[0-9a-fA-F]*"""")
@@ -328,7 +414,7 @@ object SteamTouchConfig {
         tmp.writeText(text)
         if (!tmp.renameTo(target)) return null
         selectAutosave(dir, appId)
-        Log.i(TAG, "steam touch: saved layout ${id} for app $appId to ${target.path}")
+        Log.i(TAG, "steam touch: saved layouts ${sets.keys} for app $appId to ${target.path}")
         return target
     }
 

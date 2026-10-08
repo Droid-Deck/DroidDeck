@@ -41,6 +41,23 @@ class SteamTouchControls(
     private val onKeyboard: () -> Unit,
 ) : View(context) {
 
+    /** The game's input and mouse modes changed (from its config or the menu): the session routes
+     *  touches outside the controls by them. */
+    var onOptions: (SteamTouchConfig.Options) -> Unit = {}
+
+    /** The Paste control: types the clipboard into the session. */
+    var onPaste: () -> Unit = {}
+
+    // Steam Link's own settings, for every game (CVirtualControllerGlobalConfig).
+    private val prefs = context.getSharedPreferences("steam_touch", Context.MODE_PRIVATE)
+    private var feedback = prefs.getBoolean("feedback", false)
+    private var autoFade = prefs.getBoolean("autoFade", true)
+    private var gyroOn = prefs.getBoolean("gyro", true).also { device.motionEnabled = it }
+    private var lastTouchMs = android.os.SystemClock.uptimeMillis()
+    private var faded = false
+    private var options = SteamTouchConfig.Options()
+    private var pendingOptions: SteamTouchConfig.Options? = null
+
     private val handler = Handler(Looper.getMainLooper())
     private val loader = Executors.newSingleThreadExecutor()
 
@@ -84,6 +101,9 @@ class SteamTouchControls(
     private val poll = object : Runnable {
         override fun run() {
             refreshState()
+            val fade = autoFade && !editing && fingers.isEmpty() &&
+                android.os.SystemClock.uptimeMillis() - lastTouchMs > FADE_AFTER_MS
+            if (fade != faded) { faded = fade; invalidate() }
             handler.postDelayed(this, POLL_MS)
         }
     }
@@ -140,6 +160,8 @@ class SteamTouchControls(
 
     private fun rebuild() {
         elements = SteamTouchConfig.elementsFor(config, actionSet, layers)
+        val nextOptions = pendingOptions ?: config.layouts?.options ?: SteamTouchConfig.Options()
+        if (nextOptions != options) { options = nextOptions; onOptions(options) }
         applyColor(pendingColor ?: SteamTouchConfig.layoutColor(config, actionSet))
         rebuildVisuals()
         if (!editing) {
@@ -178,6 +200,7 @@ class SteamTouchControls(
     private fun unit() = min(width / 1280f, height / 720f)
 
     private fun radius(e: Element): Float = baseRadius(e.type) * e.xScale * unit()
+    private fun radiusY(e: Element): Float = baseRadius(e.type) * e.yScale * unit()
 
     private fun baseRadius(type: Int) = when (type) {
         SteamTouchConfig.DPAD -> 100f
@@ -191,15 +214,29 @@ class SteamTouchControls(
     private fun cx(e: Element) = e.x * width
     private fun cy(e: Element) = e.y * height
 
+    /** How far (x, y) is from [e]'s centre, in its own radii (it may be an oval). */
+    private fun reach(e: Element, x: Float, y: Float) = hypot((x - cx(e)) / radius(e), (y - cy(e)) / radiusY(e))
+
     private fun hit(list: List<Element>, x: Float, y: Float): Element? =
-        list.filter { hypot(x - cx(it), y - cy(it)) <= radius(it) * 1.15f }
-            .minByOrNull { hypot(x - cx(it), y - cy(it)) / radius(it) }
+        list.filter { reach(it, x, y) <= 1.15f }.minByOrNull { reach(it, x, y) }
+
+    /** What is drawn and touchable: in mouse mode only the menu button, as on Steam Link. */
+    private fun live(): List<Element> =
+        if (options.inputMode == SteamTouchConfig.INPUT_MOUSE) elements.filter { it.type == SteamTouchConfig.THUMB } else elements
 
     // ---- Drawing ----
 
     override fun onDraw(canvas: Canvas) {
-        val shown = if (editing) editElements else elements
-        shown.forEach { draw(canvas, it, editing && editElements.indexOf(it) == selected) }
+        val shown = if (editing) editElements else live()
+        shown.forEach { e ->
+            val x = cx(e)
+            val y = cy(e)
+            canvas.save()
+            // An oval control: drawn as its circle, stretched to its height.
+            if (e.yScale != e.xScale && e.xScale > 0f) canvas.scale(1f, e.yScale / e.xScale, x, y)
+            draw(canvas, e, editing && editElements.indexOf(e) == selected)
+            canvas.restore()
+        }
         if (editing) drawToolbar(canvas)
     }
 
@@ -210,7 +247,7 @@ class SteamTouchControls(
         val y = cy(e)
         val r = radius(e)
         val pressed = !editing && e.type in pressedTypes()
-        val baseAlpha = (255 * alphaScale).toInt()
+        val baseAlpha = (255 * alphaScale * if (faded) FADED else 1f).toInt()
         fill.color = Color.argb(if (pressed) min(255, baseAlpha + 90) else baseAlpha / 2, 20, 24, 30)
         stroke.color = if (isSelected) Color.rgb(102, 192, 244) else Color.argb(min(255, baseAlpha + 60), Color.red(tint), Color.green(tint), Color.blue(tint))
         stroke.strokeWidth = if (isSelected) 4f * unit() + 2f else 2f * unit() + 1f
@@ -367,6 +404,7 @@ class SteamTouchControls(
         SteamTouchConfig.STEAM -> "STEAM"
         SteamTouchConfig.THUMB -> "…"
         SteamTouchConfig.KEYBOARD -> "⌨"
+        SteamTouchConfig.PASTE -> "Paste"
         SteamTouchConfig.SELECT -> "⧉"
         SteamTouchConfig.START -> "☰"
         SteamTouchConfig.BUMPER_LEFT -> "LB"
@@ -411,7 +449,7 @@ class SteamTouchControls(
                 SteamTouchConfig.JOYSTICK_LEFT, SteamTouchConfig.JOYSTICK_RIGHT -> {
                     val right = e.type == SteamTouchConfig.JOYSTICK_RIGHT
                     var dx = (f.x - cx(e)) / r
-                    var dy = (f.y - cy(e)) / r
+                    var dy = (f.y - cy(e)) / radiusY(e)
                     val d = hypot(dx, dy)
                     if (d > 1f) { dx /= d; dy /= d }
                     sticks[if (right) 2 else 0] = (dx * 32767).toInt().coerceIn(-32767, 32767).toShort()
@@ -421,7 +459,7 @@ class SteamTouchControls(
                 SteamTouchConfig.TRACKPAD_CENTER, SteamTouchConfig.TRACKPAD_LEFT, SteamTouchConfig.TRACKPAD_RIGHT -> {
                     val index = e.type - SteamTouchConfig.TRACKPAD_CENTER // centre, left, right
                     val nx = ((f.x - (cx(e) - r)) / (2 * r)).coerceIn(0f, 1f)
-                    val ny = ((f.y - (cy(e) - r)) / (2 * r)).coerceIn(0f, 1f)
+                    val ny = ((f.y - (cy(e) - radiusY(e))) / (2 * radiusY(e))).coerceIn(0f, 1f)
                     pads[2 * index] = (((nx * 65535).toInt().coerceIn(0, 65535)) xor 0x8000).toShort()
                     pads[2 * index + 1] = (((ny * 65535).toInt().coerceIn(0, 65535)) xor 0x7fff).toShort()
                     buttons = buttons or TRACKPAD_TOUCHED[index]
@@ -445,12 +483,15 @@ class SteamTouchControls(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (editing) return onEditTouch(event)
         val index = event.actionIndex
+        lastTouchMs = android.os.SystemClock.uptimeMillis()
+        if (faded) { faded = false; invalidate() }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val x = event.getX(index)
                 val y = event.getY(index)
-                val e = hit(elements, x, y) ?: return event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
+                val e = hit(live(), x, y) ?: return event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
                 fingers[event.getPointerId(index)] = Finger(e, x, y)
+                if (feedback) performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 requestUnbufferedDispatch(event)
                 publish()
                 return true
@@ -463,9 +504,11 @@ class SteamTouchControls(
                     // A finger on a button can slide onto another, as on Steam Link.
                     val e = f.element ?: continue
                     if (BUTTON_BITS.containsKey(e.type)) {
-                        val over = hit(elements, f.x, f.y)
-                        if (over != null && over !== e && BUTTON_BITS.containsKey(over.type))
+                        val over = hit(live(), f.x, f.y)
+                        if (over != null && over !== e && BUTTON_BITS.containsKey(over.type)) {
                             fingers[event.getPointerId(i)] = Finger(over, f.x, f.y)
+                            if (feedback) performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                        }
                     }
                 }
                 publish()
@@ -476,10 +519,11 @@ class SteamTouchControls(
                 val f = fingers.remove(id)
                 if (event.actionMasked == MotionEvent.ACTION_CANCEL) fingers.clear()
                 val e = f?.element
-                if (event.actionMasked != MotionEvent.ACTION_CANCEL && e != null && hypot(event.getX(index) - cx(e), event.getY(index) - cy(e)) <= radius(e) * 1.3f) {
+                if (event.actionMasked != MotionEvent.ACTION_CANCEL && e != null && reach(e, event.getX(index), event.getY(index)) <= 1.3f) {
                     when (e.type) {
-                        SteamTouchConfig.THUMB -> onMenu()
+                        SteamTouchConfig.THUMB -> openMenu()
                         SteamTouchConfig.KEYBOARD -> onKeyboard()
+                        SteamTouchConfig.PASTE -> onPaste()
                     }
                 }
                 publish()
@@ -493,33 +537,73 @@ class SteamTouchControls(
 
     val isEditing get() = editing
 
-    /** Moves, resizes and hides the current action set's controls; Save writes them to the game's
-     *  touch config. */
+    /** Moves, resizes and hides controls, action set by action set; Save writes them to the
+     *  game's touch config. */
     fun startEditing() {
         releaseAll()
         editing = true
-        val available = config.availableFor(actionSet, layers)
-        editElements = available.mapNotNull { type ->
-            elements.firstOrNull { it.type == type } ?: SteamTouchConfig.defaultElement(type, available)
-        }.sortedBy { it.type }.toMutableList()
-        hidden = available.filter { type -> editElements.none { it.type == type } }
-            .mapNotNull { SteamTouchConfig.defaultElement(it, available)?.copy(visible = false) }.toMutableList()
+        editSets.clear()
         selected = -1
         pendingBindings.clear()
         pendingColor = null
-        rebuildVisuals()
+        loadEditSet(SteamTouchConfig.layoutIdOf(actionSet))
         invalidate()
+    }
+
+    // The action set being edited (its layout id), and the edits of every set visited.
+    private var editSet = 1
+    private class EditState(val elements: MutableList<Element>, val hidden: MutableList<Element>)
+    private val editSets = HashMap<Int, EditState>()
+
+    private fun loadEditSet(id: Int) {
+        editSet = id
+        val state = editSets.getOrPut(id) {
+            // The device's action set numbering is the layout id.
+            val available = config.availableFor(id, emptyList())
+            val shown = SteamTouchConfig.elementsFor(config, id, emptyList())
+            val els = available.mapNotNull { type ->
+                shown.firstOrNull { it.type == type } ?: if (config.layouts?.forActionSet(id)?.elements?.any { it.type == type && !it.visible } == true) null
+                else SteamTouchConfig.defaultElement(type, available)
+            }.toMutableList()
+            shown.filter { it.type in SteamTouchConfig.OPTIONAL }.forEach { els += it }
+            val hid = available.filter { type -> els.none { it.type == type } }
+                .mapNotNull { SteamTouchConfig.defaultElement(it, available)?.copy(visible = false) }.toMutableList()
+            EditState(els.sortedBy { it.type }.toMutableList(), hid)
+        }
+        editElements = state.elements
+        hidden = state.hidden
+        selected = -1
+        rebuildVisualsFor(id)
+        invalidate()
+    }
+
+    private fun editSetIndex(): Int = SteamTouchConfig.actionSets(config).indexOfFirst { it.first == editSet }
+
+    private fun stepEditSet(by: Int) {
+        val sets = SteamTouchConfig.actionSets(config)
+        if (sets.size < 2) return
+        val i = (editSetIndex().coerceAtLeast(0) + by + sets.size) % sets.size
+        loadEditSet(sets[i].first)
+    }
+
+    private fun rebuildVisualsFor(layoutId: Int) {
+        val saved = actionSet
+        actionSet = layoutId
+        rebuildVisuals()
+        actionSet = saved
     }
 
     private fun stopEditing() {
         editing = false
         selected = -1
+        editSets.clear()
         pendingBindings.clear()
         pendingColor = null
         rebuild()
     }
 
-    private val toolbarLabels = listOf("−", "+", "Hide", "Icon", "Colour", "Reset", "Cancel", "Save")
+    private val toolbarLabels = listOf("−", "+", "Hide", "Icon", "Add", "More", "Cancel", "Save")
+    private val shapeLabels = listOf("W−", "W+", "H−", "H+")
 
     private fun toolbarRects(): List<RectF> {
         val u = max(unit(), 0.6f)
@@ -532,12 +616,43 @@ class SteamTouchControls(
         return toolbarLabels.indices.map { i -> RectF(left + i * (w + gap), top, left + i * (w + gap) + w, top + h) }
     }
 
+    /** Under the toolbar: width and height on their own, for the selected control. */
+    private fun shapeRects(): List<RectF> {
+        val bar = toolbarRects()
+        val u = max(unit(), 0.6f)
+        val h = 46f * u
+        val top = bar[0].bottom + 10f * u
+        return shapeLabels.indices.map { i -> RectF(bar[i].left, top, bar[i].right, top + h) }
+    }
+
+    /** The action set switcher, in the title line. */
+    private fun setArrows(): Pair<RectF, RectF> {
+        val bar = toolbarRects()
+        val u = max(unit(), 0.6f)
+        val s = 44f * u
+        val y = bar[0].top - 14f * u - s
+        return RectF(bar.first().left, y, bar.first().left + s, y + s) to RectF(bar.last().right - s, y, bar.last().right, y + s)
+    }
+
     private fun drawToolbar(canvas: Canvas) {
         val bar = Paint(Paint.ANTI_ALIAS_FLAG)
         val rects = toolbarRects()
+        val sets = SteamTouchConfig.actionSets(config)
+        val setName = sets.firstOrNull { it.first == editSet }?.second ?: "Default"
         val title = Paint(text).apply { color = Color.WHITE; textSize = 26f * max(unit(), 0.6f) }
-        canvas.drawText(if (saving) "Saving…" else "Editing touch layout for ${if (appId == BIG_PICTURE) "Steam" else "app $appId"} - drag, pinch, or pick a control's icon",
-            width / 2f, rects[0].top - 18f * unit(), title)
+        val (prev, next) = setArrows()
+        val heading = when {
+            saving -> "Saving…"
+            sets.size > 1 -> "${if (appId == BIG_PICTURE) "Steam" else "App $appId"} · action set: $setName (${editSetIndex() + 1}/${sets.size})"
+            else -> "Editing touch layout for ${if (appId == BIG_PICTURE) "Steam" else "app $appId"} - drag, pinch, or pick a control's icon"
+        }
+        canvas.drawText(heading, width / 2f, prev.centerY() - (title.descent() + title.ascent()) / 2, title)
+        if (sets.size > 1) for ((r, glyph) in listOf(prev to "◀", next to "▶")) {
+            bar.color = Color.argb(230, 50, 56, 66)
+            canvas.drawRoundRect(r, 10f, 10f, bar)
+            val t = Paint(text).apply { color = Color.WHITE; textSize = r.height() * 0.5f }
+            canvas.drawText(glyph, r.centerX(), r.centerY() - (t.descent() + t.ascent()) / 2, t)
+        }
         rects.forEachIndexed { i, r ->
             val enabled = i > 3 || selected >= 0
             bar.color = when (i) {
@@ -548,7 +663,16 @@ class SteamTouchControls(
             val t = Paint(text).apply { color = Color.WHITE; textSize = r.height() * 0.42f }
             canvas.drawText(toolbarLabels[i], r.centerX(), r.centerY() - (t.descent() + t.ascent()) / 2, t)
         }
+        if (selected >= 0) shapeRects().forEachIndexed { i, r ->
+            bar.color = Color.argb(220, 40, 46, 56)
+            canvas.drawRoundRect(r, 10f, 10f, bar)
+            val t = Paint(text).apply { color = Color.WHITE; textSize = r.height() * 0.42f }
+            canvas.drawText(shapeLabels[i], r.centerX(), r.centerY() - (t.descent() + t.ascent()) / 2, t)
+        }
     }
+
+    private var pinchSpan = 0f to 0f
+    private var pinchScales = 1f to 1f
 
     private fun onEditTouch(event: MotionEvent): Boolean {
         val index = event.actionIndex
@@ -560,6 +684,15 @@ class SteamTouchControls(
                 if (tool >= 0) {
                     toolbar(tool)
                     return true
+                }
+                if (selected >= 0) {
+                    val shape = shapeRects().indexOfFirst { it.contains(x, y) }
+                    if (shape >= 0) { reshape(shape); return true }
+                }
+                val (prev, next) = setArrows()
+                if (SteamTouchConfig.actionSets(config).size > 1) {
+                    if (prev.contains(x, y)) { stepEditSet(-1); return true }
+                    if (next.contains(x, y)) { stepEditSet(1); return true }
                 }
                 val e = hit(editElements, x, y)
                 selected = if (e != null) editElements.indexOf(e) else -1
@@ -573,15 +706,21 @@ class SteamTouchControls(
                 invalidate()
             }
             MotionEvent.ACTION_POINTER_DOWN -> if (selected >= 0 && event.pointerCount == 2) {
-                pinchStart = hypot(event.getX(0) - event.getX(1), event.getY(0) - event.getY(1))
-                pinchScale = editElements[selected].xScale
+                pinchSpan = abs(event.getX(0) - event.getX(1)) to abs(event.getY(0) - event.getY(1))
+                pinchStart = hypot(pinchSpan.first, pinchSpan.second)
+                pinchScales = editElements[selected].xScale to editElements[selected].yScale
             }
             MotionEvent.ACTION_MOVE -> if (selected >= 0) {
                 val e = editElements[selected]
                 if (event.pointerCount >= 2 && pinchStart > 0f) {
-                    val d = hypot(event.getX(0) - event.getX(1), event.getY(0) - event.getY(1))
-                    val s = (pinchScale * d / pinchStart).coerceIn(0.4f, 3f)
-                    editElements[selected] = e.copy(xScale = s, yScale = s)
+                    // A pinch along one axis stretches that axis; a diagonal one scales both.
+                    val sx = abs(event.getX(0) - event.getX(1))
+                    val sy = abs(event.getY(0) - event.getY(1))
+                    val min = 40f * unit()
+                    val fx = if (pinchSpan.first > min) sx / pinchSpan.first else hypot(sx, sy) / pinchStart
+                    val fy = if (pinchSpan.second > min) sy / pinchSpan.second else hypot(sx, sy) / pinchStart
+                    editElements[selected] = e.copy(xScale = (pinchScales.first * fx).coerceIn(0.4f, 3f),
+                        yScale = (pinchScales.second * fy).coerceIn(0.4f, 3f))
                 } else if (event.pointerCount == 1) {
                     val nx = ((event.getX(0) - dragOffset.first) / width).coerceIn(0f, 1f)
                     val ny = ((event.getY(0) - dragOffset.second) / height).coerceIn(0f, 1f)
@@ -595,30 +734,197 @@ class SteamTouchControls(
         return true
     }
 
+    private fun reshape(which: Int) {
+        val e = editElements.getOrNull(selected) ?: return
+        val f = if (which % 2 == 0) 0.88f else 1.14f
+        editElements[selected] = if (which < 2) e.copy(xScale = (e.xScale * f).coerceIn(0.4f, 3f))
+        else e.copy(yScale = (e.yScale * f).coerceIn(0.4f, 3f))
+        invalidate()
+    }
+
     private fun toolbar(tool: Int) {
         if (saving) return
         when (tool) {
             0, 1 -> if (selected >= 0) {
                 val e = editElements[selected]
-                val s = (e.xScale * if (tool == 0) 0.85f else 1.18f).coerceIn(0.4f, 3f)
-                editElements[selected] = e.copy(xScale = s, yScale = s)
+                val f = if (tool == 0) 0.85f else 1.18f
+                editElements[selected] = e.copy(xScale = (e.xScale * f).coerceIn(0.4f, 3f), yScale = (e.yScale * f).coerceIn(0.4f, 3f))
             }
             2 -> if (selected >= 0) {
                 hidden += editElements.removeAt(selected).copy(visible = false)
                 selected = -1
             }
             3 -> if (selected >= 0) pickIcon(editElements[selected])
-            4 -> pickColor()
-            5 -> {
-                val available = config.availableFor(actionSet, layers)
-                editElements = available.mapNotNull { SteamTouchConfig.defaultElement(it, available) }.sortedBy { it.type }.toMutableList()
-                hidden.clear()
-                selected = -1
-            }
+            4 -> addControl()
+            5 -> moreMenu()
             6 -> stopEditing()
             7 -> save()
         }
         invalidate()
+    }
+
+    private fun resetEditSet() {
+        val available = config.availableFor(editSet, emptyList())
+        editElements.clear()
+        editElements += available.mapNotNull { SteamTouchConfig.defaultElement(it, available) }.sortedBy { it.type }
+        hidden.clear()
+        selected = -1
+        invalidate()
+    }
+
+    /** Steam Link's tray: the controls this action set binds that are not on screen, and the
+     *  optional ones (Paste). */
+    private fun addControl() {
+        val available = config.availableFor(editSet, emptyList())
+        val candidates = (available + SteamTouchConfig.OPTIONAL).filter { type -> editElements.none { it.type == type } }.sorted()
+        val host = parent as? android.view.ViewGroup ?: return
+        if (candidates.isEmpty()) {
+            Toast.makeText(context, "Every control this action set binds is already on screen", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val density = resources.displayMetrics.density
+        val grid = android.widget.GridLayout(context).apply { columnCount = 4; setPadding((12 * density).toInt(), 0, (12 * density).toInt(), 0) }
+        var close: () -> Unit = {}
+        candidates.forEach { type ->
+            grid.addView(android.widget.Button(context).apply {
+                text = controlName(type)
+                isAllCaps = false
+                setOnClickListener {
+                    val placed = (hidden.firstOrNull { it.type == type } ?: SteamTouchConfig.defaultElement(type, available)
+                        ?: Element(type, true, 0.5f, 0.5f)).copy(visible = true, x = 0.5f, y = 0.5f)
+                    hidden.removeAll { it.type == type }
+                    editElements += placed
+                    selected = editElements.size - 1
+                    dragOffset = 0f to 0f
+                    close()
+                    invalidate()
+                }
+            })
+        }
+        close = SteamTouchIconPicker.showPanel(host, "Add a control", grid, listOf("Close" to {}))
+    }
+
+    private fun controlName(type: Int) = when (type) {
+        SteamTouchConfig.DPAD -> "D-pad"
+        SteamTouchConfig.JOYSTICK_LEFT -> "Left stick"
+        SteamTouchConfig.JOYSTICK_RIGHT -> "Right stick"
+        SteamTouchConfig.TRACKPAD_LEFT -> "Left trackpad"
+        SteamTouchConfig.TRACKPAD_RIGHT -> "Right trackpad"
+        SteamTouchConfig.TRACKPAD_CENTER -> "Trackpad"
+        SteamTouchConfig.STEAM -> "Steam"
+        SteamTouchConfig.THUMB -> "Menu"
+        SteamTouchConfig.KEYBOARD -> "Keyboard"
+        else -> label(type)
+    }
+
+    /** Reset, copy and paste a layout, the layout's colour. */
+    private fun moreMenu() {
+        val host = parent as? android.view.ViewGroup ?: return
+        val density = resources.displayMetrics.density
+        val list = android.widget.LinearLayout(context).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding((12 * density).toInt(), 0, (12 * density).toInt(), 0) }
+        var close: () -> Unit = {}
+        val copied = prefs.getString("copiedLayout", null)
+        fun item(name: String, enabled: Boolean = true, action: () -> Unit) = list.addView(android.widget.Button(context).apply {
+            text = name
+            isAllCaps = false
+            isEnabled = enabled
+            setOnClickListener { close(); action(); invalidate() }
+        })
+        item("Colour and opacity…") { pickColor() }
+        item("Copy this layout") {
+            prefs.edit().putString("copiedLayout", (editElements + hidden).joinToString(";") {
+                "${it.type},${it.visible},${it.x},${it.y},${it.xScale},${it.yScale}"
+            }).apply()
+            Toast.makeText(context, "Layout copied; paste it into any game's touch layout", Toast.LENGTH_SHORT).show()
+        }
+        item("Paste copied layout", copied != null) { pasteLayout(copied ?: "") }
+        item("Reset to Steam's default") { resetEditSet() }
+        close = SteamTouchIconPicker.showPanel(host, "Layout", list, listOf("Close" to {}))
+    }
+
+    /** A copied layout onto this action set: each control the set has takes the copied place. */
+    private fun pasteLayout(copied: String) {
+        val placed = copied.split(';').mapNotNull { row ->
+            val f = row.split(',')
+            if (f.size < 6) null else Element(f[0].toInt(), f[1].toBoolean(), f[2].toFloat(), f[3].toFloat(), f[4].toFloat(), f[5].toFloat())
+        }.associateBy { it.type }
+        val all = (editElements + hidden).map { e -> placed[e.type]?.let { p -> e.copy(visible = p.visible, x = p.x, y = p.y, xScale = p.xScale, yScale = p.yScale) } ?: e }
+        editElements.clear()
+        editElements += all.filter { it.visible }
+        hidden.clear()
+        hidden += all.filter { !it.visible }
+        selected = -1
+    }
+
+    // ---- Steam Link's menu ----
+
+    /** The menu button: input and mouse modes, the layout editor, Steam Link's options, and
+     *  DroidDeck's own menu. */
+    private fun openMenu() {
+        val host = parent as? android.view.ViewGroup ?: run { onMenu(); return }
+        val density = resources.displayMetrics.density
+        fun dp(v: Int) = (v * density).toInt()
+        val root = android.widget.LinearLayout(context).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(16), 0, dp(16), 0) }
+        var close: () -> Unit = {}
+        fun choices(title: String, items: List<Pair<String, Int>>, current: Int, pick: (Int) -> Unit) {
+            root.addView(android.widget.TextView(context).apply { text = title; setTextColor(Color.LTGRAY); setPadding(0, dp(8), 0, dp(2)) })
+            val row = android.widget.LinearLayout(context)
+            items.forEach { (name, value) ->
+                row.addView(android.widget.Button(context).apply {
+                    text = if (value == current) "● $name" else name
+                    isAllCaps = false
+                    setOnClickListener { close(); pick(value) }
+                })
+            }
+            root.addView(android.widget.HorizontalScrollView(context).apply { addView(row) })
+        }
+        fun toggle(name: String, on: Boolean, set: (Boolean) -> Unit) {
+            root.addView(android.widget.CheckBox(context).apply {
+                text = name
+                isChecked = on
+                setTextColor(Color.WHITE)
+                setOnCheckedChangeListener { _, v -> set(v) }
+            })
+        }
+        choices("Touch input", listOf("Controller" to SteamTouchConfig.INPUT_CONTROLLER, "Mouse" to SteamTouchConfig.INPUT_MOUSE,
+            "Controller + mouse" to SteamTouchConfig.INPUT_BOTH), options.inputMode) { setOptions(options.copy(inputMode = it)) }
+        if (options.inputMode != SteamTouchConfig.INPUT_CONTROLLER)
+            choices("Mouse", listOf("Direct touch" to SteamTouchConfig.MOUSE_ABSOLUTE, "Trackpad" to SteamTouchConfig.MOUSE_RELATIVE),
+                if (options.mouseMode == SteamTouchConfig.MOUSE_RELATIVE) SteamTouchConfig.MOUSE_RELATIVE else SteamTouchConfig.MOUSE_ABSOLUTE) {
+                setOptions(options.copy(mouseMode = it))
+            }
+        if (options.inputMode != SteamTouchConfig.INPUT_CONTROLLER && options.mouseMode == SteamTouchConfig.MOUSE_RELATIVE)
+            choices("Trackpad speed", listOf("Slow" to 50, "Normal" to 100, "Fast" to 175),
+                ((options.trackpadSensitivity * 100).toInt()).let { s -> listOf(50, 100, 175).minByOrNull { abs(it - s) } ?: 100 }) {
+                setOptions(options.copy(trackpadSensitivity = it / 100f))
+            }
+        toggle("Vibrate on touch", feedback) { feedback = it; prefs.edit().putBoolean("feedback", it).apply() }
+        toggle("Fade when not touched", autoFade) { autoFade = it; prefs.edit().putBoolean("autoFade", it).apply(); lastTouchMs = android.os.SystemClock.uptimeMillis() }
+        toggle("Gyroscope", gyroOn) { gyroOn = it; device.motionEnabled = it; prefs.edit().putBoolean("gyro", it).apply() }
+        close = SteamTouchIconPicker.showPanel(host, "Touch controls", root, listOf(
+            "DroidDeck menu" to { onMenu() },
+            "Edit layout" to { startEditing() },
+            "Done" to {},
+        ))
+    }
+
+    /** New per-game input options: applied now, and saved into the game's touch layout as Steam
+     *  Link saves them, so they follow the game and the account. */
+    private fun setOptions(next: SteamTouchConfig.Options) {
+        pendingOptions = next
+        options = next
+        onOptions(next)
+        releaseAll()
+        invalidate()
+        val app = appId
+        val cfg = config
+        loader.execute {
+            val file = try { SteamTouchConfig.saveLayouts(context, app, cfg, emptyMap(), options = next) } catch (e: Exception) { null }
+            handler.post {
+                if (file == null) Log.w(TAG, "steam touch: input options for app $app not saved")
+                else { pendingOptions = null; reloadConfig() }
+            }
+        }
     }
 
     /** The selected control's icon, label and colours (a D-pad direction: the one tapped). */
@@ -684,10 +990,12 @@ class SteamTouchControls(
         saving = true
         invalidate()
         val app = appId
-        val set = actionSet
         val cfg = config
-        val layout = editElements.map { it.copy(visible = true) } + hidden.filter { h -> editElements.none { it.type == h.type } }
+        val sets = editSets.mapValues { (_, st) ->
+            st.elements.map { it.copy(visible = true) } + st.hidden.filter { h -> st.elements.none { it.type == h.type } }
+        }
         val color = pendingColor
+        val colors = if (color != null) sets.keys.associateWith { color } else emptyMap()
         // A picked icon replaces the label, icon and colours of every binding of that input; what
         // the binding does stays as it is.
         val bindings = pendingBindings.mapValues { (_, picked) ->
@@ -697,7 +1005,7 @@ class SteamTouchControls(
         }
         loader.execute {
             val file = try {
-                SteamTouchConfig.saveLayout(context, app, cfg, set, layout, color, bindings)
+                SteamTouchConfig.saveLayouts(context, app, cfg, sets, colors, bindings)
             } catch (e: Exception) {
                 Log.w(TAG, "steam touch: saving failed: $e")
                 null
@@ -725,6 +1033,8 @@ class SteamTouchControls(
         private const val POLL_MS = 150L
         const val BIG_PICTURE = 769
         private const val ICON_PX = 128
+        private const val FADE_AFTER_MS = 5000L
+        private const val FADED = 0.3f
 
         private const val DPAD_UP = 1L shl 8
         private const val DPAD_RIGHT = 1L shl 9
@@ -755,6 +1065,7 @@ class SteamTouchControls(
             // Not bits: the menu and the keyboard are the app's own.
             put(SteamTouchConfig.THUMB, 0L)
             put(SteamTouchConfig.KEYBOARD, 0L)
+            put(SteamTouchConfig.PASTE, 0L)
         }
 
         private val LABEL_COLORS = mapOf(

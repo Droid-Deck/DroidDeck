@@ -206,7 +206,7 @@ class SteamTouchIconPicker(
          * A panel over the session, in the session's own window: a dialog's window of its own left
          * new bitmaps and layers undrawn in the session window afterwards on the Thor.
          */
-        fun showPanel(host: ViewGroup, title: String, content: View, buttons: List<Pair<String, () -> Unit>>, onClose: () -> Unit = {}) {
+        fun showPanel(host: ViewGroup, title: String, content: View, buttons: List<Pair<String, () -> Unit>>, onClose: () -> Unit = {}): () -> Unit {
             val context = host.context
             val density = context.resources.displayMetrics.density
             fun dp(v: Int) = (v * density).toInt()
@@ -249,6 +249,7 @@ class SteamTouchIconPicker(
             scrim.addView(card, android.widget.FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
             scrim.setOnClickListener { close() }
             host.addView(scrim, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            return { if (scrim.parent != null) close() }
         }
 
         /** Steam's binding icon look (steamui: the icon multiplied with its foreground colour,

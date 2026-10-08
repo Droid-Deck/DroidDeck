@@ -36,4 +36,34 @@ class SteamTouchConfigTest {
         assertEquals(0.501f, a.x, 0.002f)
         assertTrue(shown.none { it.type == SteamTouchConfig.JOYSTICK_LEFT_BUTTON })
     }
+
+    @Test
+    fun optionsRoundTripAndKeepTheRest() {
+        val layouts = SteamTouchConfig.decodeLayouts(SteamTouchConfig.hexToBytes(saved))
+        assertEquals(SteamTouchConfig.INPUT_CONTROLLER, layouts.options.inputMode)
+        val next = SteamTouchConfig.Options(SteamTouchConfig.INPUT_BOTH, SteamTouchConfig.MOUSE_RELATIVE, 1.75f)
+        val rest = next.encodeInto(layouts.rest)
+        assertEquals(next, SteamTouchConfig.Options.decode(rest))
+        val again = SteamTouchConfig.decodeLayouts(SteamTouchConfig.encodeLayouts(SteamTouchConfig.Layouts(layouts.layouts, rest)))
+        assertEquals(next, again.options)
+        assertEquals(layouts.layouts.size, again.layouts.size)
+    }
+
+    @Test
+    fun listsActionSets() {
+        val kv = KeyValues.parse("""
+"controller_mappings"
+{
+	"actions"
+	{
+		"Default" { "title" "Desktop" }
+		"Preset_1000001" { "title" "Gamepad" }
+	}
+	"preset" { "id" "0" "name" "Default" }
+	"preset" { "id" "1" "name" "Preset_1000001" }
+}
+""").child("controller_mappings")
+        val config = SteamTouchConfig.Config(null, null, null, emptyMap(), kv)
+        assertEquals(listOf(1 to "Desktop", 2 to "Gamepad"), SteamTouchConfig.actionSets(config))
+    }
 }
