@@ -54,8 +54,24 @@ without it and Setup says "Stores engine not built").
   `ui/FrontEndRail.kt`, `ui/FrontEndContent.kt`, `ui/FrontEndSetup.kt`, `ui/FrontEndGames.kt`,
   `ui/FrontEndScreen.kt`, `MainActivity.kt`, `session/SessionPrefs.kt`, `AndroidManifest.xml`
   (the download service), `res/values/strings.xml`.
-- Status: milestone (a) - model, sidecar, badges, Setup, the page's skeleton - compiles on CI;
-  the store clients (b: GOG, c: Epic, d: Amazon) follow in this branch.
+- **The three stores** (`stores/gog`, `stores/epic`, `stores/amazon`), ported from Bannerlator's
+  clients with their storage replaced: GOG's OAuth page (Galaxy identity, a browser identity for
+  the social-login hop), library from `embed.gog.com` + `api.gog.com`, shelves from
+  `catalog.gog.com`, gen2 chunks / gen1 ranges / plain installer; Epic's web login (the code off
+  the redirect's JSON page), library service + catalog, the store's GraphQL and the free-games
+  feed, ChunksV4 manifests with install tags and a delta pass, the manifest's launch exe; Amazon's
+  PKCE device sign-in, entitlements, `manifest.proto` (the app's xz library), SHA-256 per file,
+  `fuel.json` / exe scoring, FuelPump variables; Amazon has no public catalog, so its Store tab is
+  cut from the account's own games. Each manager hands the byte-fetch loop to the native engine
+  when `libdroiddeckstores.so` is there (`GogNative` / `EpicNative` / `AmazonNative`, JNI.md's
+  names and signatures) and runs its Java pool otherwise.
+- Left out on purpose: GOG DLC installs and GOG redistributable installs (Steam seeds the shared
+  redistributables in the prefix as for any shortcut), Epic's Denuvo ownership token and overlay,
+  Amazon's SDK DLL deployment into the prefix (the prefix does not exist before the first launch),
+  cloud saves, and the stores' social tabs - none of them in the preview.
+- Status: compiles on CI with the JVM and python tests green; nothing device-tested yet - the
+  sign-in pages, a real install, the shortcut landing in the client and the .bat launch under Proton
+  are the first things to prove on hardware.
 
 ## 2026-10-08 - `feat/directaudio-from-release`: DirectAudio from its own release, picked by interface, and the client gets the real engine
 
