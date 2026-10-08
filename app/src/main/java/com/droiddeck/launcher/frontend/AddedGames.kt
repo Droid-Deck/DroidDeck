@@ -6,6 +6,8 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONObject
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.io.File
 import java.util.zip.CRC32
 
@@ -16,13 +18,21 @@ object AddedGames {
     private const val LEGACY_LIBRARY = "/mnt/bannerlator-sd"
 
     class Game(
-        val folder: File, val name: String, val exe: File, val guestExe: String, val guestDir: String,
+        val folder: File, val name: String,
+        /** The game's own .exe: what the icon is read from and what the settings page lists. */
+        val exe: File,
+        /** The guest path the shortcut runs: [exe], or a store install's launcher .bat in front of it. */
+        val guestExe: String, val guestDir: String,
         /** The client's 32-bit appid for this shortcut, as an unsigned value. */
         val appId: Long,
         /** What steam://rungameid/ takes for a shortcut. */
         val gameId: Long,
         val candidates: List<File>,
         val steamAppId: Int? = null,
+        /** Where the game came from: a store's id, or [Library.ADDED] for a folder the user added. */
+        val source: String = Library.ADDED,
+        /** The store's own id for the game, from its sidecar; null for a plain added folder. */
+        val storeId: String? = null,
     ) {
         fun folderName(): String = folder.name
     }
@@ -69,6 +79,10 @@ object AddedGames {
         GameStorage.effective(context)?.let { lib ->
             if (path.startsWith("${lib.path}/")) return "$LIBRARY/" + path.removePrefix("${lib.path}/")
         }
+        // Inside the runtime's own tree (store installs on internal storage live at
+        // root/Games/Stores): the tree is the session's / and needs no bind.
+        val runtime = LinuxRuntime.rootDir(context).absolutePath
+        if (path.startsWith("$runtime/")) return "/" + path.removePrefix("$runtime/")
         return null
     }
 
@@ -99,9 +113,13 @@ object AddedGames {
             val steamInstalls = steamInstallDirs(dir)
             for (folder in dir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()) {
                 if (folder.name.lowercase() in steamInstalls || folder.name.equals("steamapps", ignoreCase = true)) continue
+                // The store install root sits inside the Games storage; its games are scanned below, per store.
+                if (folder.name == "Games" && StoreInstallRoot.roots(context).any { it.absolutePath == folder.absolutePath }) continue
                 scanGame(context, folder, out)
             }
         }
+        // Games the Stores section installed: one folder each under <root>/<Store>/, with a sidecar.
+        for (folder in StoreInstallRoot.gameFolders(context)) scanGame(context, folder, out)
         return out.distinctBy { it.folder.canonicalPath }
     }
 
@@ -125,13 +143,20 @@ object AddedGames {
 
     private fun scanGame(context: Context, folder: File, out: MutableList<Game>) {
         run {
+            val sidecar = StoreGameSidecar.read(folder)
+            // A store install the user keeps out of Steam: not a shortcut, so not listed here.
+            if (sidecar != null && !sidecar.addToSteam) return
             val candidates = candidates(folder)
             val picked = SessionPrefs.addedGameExe(context, folder.path)
             val chosen = picked.takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
-            val found = chosen ?: candidates.firstOrNull() ?: return
-            val foundGuest = guestPath(context, found)
-            if (foundGuest == null) { Log.w(TAG, "${folder.name}: the session cannot see ${found.path}"); return }
-            val name = folder.name
+            // A store install says which exe it is; the folder's guess only when that file is gone.
+            val found = chosen ?: sidecar?.exeFile(folder)?.takeIf { it.isFile } ?: candidates.firstOrNull() ?: return
+            // The store's launcher .bat stands in front of the exe when the game needs arguments or
+            // environment; it is what the shortcut runs. Dropped when the user picked another exe.
+            val launch = if (chosen == null) sidecar?.launcherFile(folder)?.takeIf { it.isFile } ?: found else found
+            val foundGuest = guestPath(context, launch)
+            if (foundGuest == null) { Log.w(TAG, "${folder.name}: the session cannot see ${launch.path}"); return }
+            val name = sidecar?.title ?: folder.name
             // Keyed by the pre-rename path so shortcut ids, and the prefixes and saves under them, stay put.
             val crc = CRC32().apply { update(("\"${foundGuest.replaceFirst(Regex("^$LIBRARY/"), "$LEGACY_LIBRARY/")}\"" + name).toByteArray()) }.value
             val appId = SessionPrefs.addedGameAppId(context, folder.path, crc or 0x80000000L)
@@ -143,10 +168,11 @@ object AddedGames {
                 ?.takeIf { SessionPrefs.adoptAddedGameExe(context, folder.path, picked, it.path, rev) }
             val exe = adopted ?: found
             val guestExe = if (adopted != null) guestPath(context, adopted) ?: return else foundGuest
-            val guestDir = guestPath(context, exe.parentFile ?: folder) ?: return
+            val guestDir = guestPath(context, (if (adopted != null) adopted else launch).parentFile ?: folder) ?: return
             val steamId = config?.let { steamRoute(it, appId) }
             out.add(Game(folder, name, exe, guestExe, guestDir, appId,
-                steamId?.toLong() ?: ((appId shl 32) or 0x02000000L), candidates, steamId))
+                steamId?.toLong() ?: ((appId shl 32) or 0x02000000L), candidates, steamId,
+                source = sidecar?.store?.id ?: Library.ADDED, storeId = sidecar?.id))
         }
     }
 

@@ -220,11 +220,14 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
 /** When it was last played (or where it is, if never) over its name, then room for Launch. */
 @Composable
 private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.compose.ui.unit.TextUnit) {
-    Text(
-        (lastPlayedText(g.lastPlayed) ?: libraryLabel(g.library)).uppercase(),
-        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = LocalPalette.current.signal,
-        maxLines = 1, overflow = TextOverflow.Ellipsis,
-    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SourceChip(g.source)
+        Text(
+            (lastPlayedText(g.lastPlayed) ?: libraryLabel(g.library)).uppercase(),
+            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = LocalPalette.current.signal,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+    }
     Text(
         g.name, fontSize = titleSize, lineHeight = titleSize * 1.15f, fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -277,10 +280,14 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(g.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                playedSpan(g.lastPlayed)?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.games_never_played),
-                fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            // Where it came from beside when it was played: a store's games sit among Steam's own.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SourceChip(g.source, small = true)
+                Text(
+                    playedSpan(g.lastPlayed)?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.games_never_played),
+                    fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

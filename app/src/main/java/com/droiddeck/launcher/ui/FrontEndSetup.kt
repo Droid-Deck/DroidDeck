@@ -76,6 +76,7 @@ import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.download.StoreDownloadTier
 import com.droiddeck.launcher.R
 
 // The Setup page: runtime and device checks, tools, frame generation and launch settings.
@@ -366,6 +367,27 @@ internal fun SetupPanel(
                                 else stringResource(R.string.setup_store_off),
                                 s.storeEnabled,
                             ) { a.onStoreEnabled(it) }
+                        }
+                        SettingsGroup(stringResource(R.string.setup_stores)) {
+                            ToggleRow(
+                                host, "stores-enabled", stringResource(R.string.setup_stores_show),
+                                stringResource(R.string.setup_stores_show_hint), s.gameStoresEnabled,
+                            ) { a.onGameStoresEnabled(it) }
+                            ToggleRow(
+                                host, "stores-add-to-steam", stringResource(R.string.setup_stores_add_to_steam),
+                                stringResource(R.string.setup_stores_add_to_steam_hint), s.gameStoresAddToSteam,
+                            ) { a.onGameStoresAddToSteam(it) }
+                            // The same three rows as the Stores page's own cog, for whoever looks here first.
+                            SettingsRow(stringResource(R.string.setup_stores_open_on), stringResource(R.string.setup_stores_open_on_hint)) {
+                                SegmentedTabs(
+                                    listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
+                                    s.storesOpenTab,
+                                ) { a.onStoresOpenTab(it) }
+                            }
+                            SettingsRow(stringResource(R.string.setup_stores_speed), stringResource(R.string.setup_stores_speed_hint)) {
+                                SegmentedTabs(StoreDownloadTier.ALL.map { it.id to stringResource(it.label) }, s.gameStoresSpeedTier) { a.onGameStoresSpeedTier(it) }
+                            }
+                            StoresEngineRow()
                         }
                     }
                 }

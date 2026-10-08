@@ -163,6 +163,11 @@
         <service
             android:name=".core.WirelessAdbPairingService"
             android:exported="false" />
+        <!-- Keeps the process alive while a store (GOG, Epic, Amazon) game downloads. -->
+        <service
+            android:name=".stores.download.StoreDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <!-- Hands a zipped session folder to the share sheet; nothing else is exposed. -->
         <provider
             android:name="androidx.core.content.FileProvider"

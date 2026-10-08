@@ -7,6 +7,56 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-08 - `feat/stores`: GOG, Epic Games and Amazon Games in the launcher (in progress)
+
+A new **Stores** section - the three storefronts' libraries and public catalogs, one download
+queue for them, and every install registered in the Steam client exactly like an added folder.
+Ported from Bannerlator's store clients (auth, API, library sync, download managers); its
+Activities and XML are not ported, the UI is Compose, after the approved preview. The native
+download engine is the Rust side's work (`libdroiddeckstores.so`, loaded lazily; the app runs
+without it and Setup says "Stores engine not built").
+
+- **Where it lives.** Rail item `stores` under Games, gated by Setup › Stores › "Show Stores in
+  the rail" (`SessionPrefs.gameStoresEnabled`, off by default); a count badge while anything is
+  downloading. The page is full width: four chips (GOG · Epic · Amazon · Downloads, a signed-in
+  dot per store) and a cog at the row's end whose popup holds the section's own settings - which
+  tab a store opens on (`storesOpenTab`, Library by default; applied on chip tap, never while the
+  user is switching tabs by hand), "Add installed store games to Steam" (`gameStoresAddToSteam`,
+  on), and the speed tier (`gameStoresSpeedTier`, Balanced / Fast / Max = 16 / 32 / 96 requests in
+  flight). Setup repeats the rows under the gate. A signed-out store shows its sign-in card first.
+- **A store game is an added game.** The install lands at `<Games storage>/Games/<Store>/<title>`
+  (the SD library's folder when one is chosen, else the runtime's own `/root/Games/Stores`) with a
+  `.droiddeck-store.json` sidecar (store, id, title, exe, launcher, args, env, version,
+  addToSteam, art). `AddedGames.scan` now walks those folders too and `scanGame` reads the sidecar
+  for the exe and the name, so the game goes down the existing path: `session/added-games.json`
+  → `droiddeck-steam-shortcuts` at the client's next start. The listing is rewritten at install
+  time, and with a client running the shortcut is added live over the client's DevTools port
+  (`SteamClient.Apps.AddShortcut` + our tag + the compat tool; `SteamLiveShortcuts`), best-effort.
+  Uninstall removes the folder, the sidecar and the shortcut.
+- **Launch.** A shortcut can only name an exe and the listing carries no launch options, so a game
+  that needs arguments or environment gets a `.droiddeck-launch.bat` beside it (Proton's steam.exe
+  shim hands it to Wine's cmd): Epic's identity arguments, Amazon's FuelPump variables. Epic's
+  per-launch exchange code is minted by the app right before a launch into `.droiddeck-epic-code`,
+  which the script reads once and deletes; with no code the game starts in its offline identity
+  mode. The EOS overlay is never provisioned.
+- **Games tab badges.** `Library.SteamGame.source` (steam / gog / epic / amazon / added, from the
+  sidecar) with a coloured chip on every row and in the hero eyebrow; `LibraryCache` keeps it.
+- **Downloads.** `DownloadQueue` runs 1-3 at a time, stages Manifest → Download → Verify →
+  Install, pause = stop and keep the files (every engine skips verified files on the rerun),
+  cancel deletes; `StoreDownloadService` keeps the process alive meanwhile; the page shows speed,
+  ETA, the tier, downloads-at-a-time and the engine log.
+- Tests: `StoreGameSidecarTest`, `AddedGamesStoreScanTest` (JVM), `tools/tests/test_store_shortcuts.py`
+  (the writer with a launcher .bat as Exe, the appid the app computes, removal).
+- Files: `stores/*` (Store, StoreGameSidecar, StoreInstallRoot, StoreInstalls, StoreLaunch,
+  StoreAccounts, StoresState, StoresNative, SteamLiveShortcuts, download/*), `ui/StoresPage.kt`,
+  `ui/StoresDetail.kt`, `ui/StoresDownloads.kt`, `ui/StoreChips.kt`, `ui/StoresWidgets.kt`;
+  `frontend/AddedGames.kt`, `frontend/Library.kt`, `frontend/LibraryCache.kt`,
+  `ui/FrontEndRail.kt`, `ui/FrontEndContent.kt`, `ui/FrontEndSetup.kt`, `ui/FrontEndGames.kt`,
+  `ui/FrontEndScreen.kt`, `MainActivity.kt`, `session/SessionPrefs.kt`, `AndroidManifest.xml`
+  (the download service), `res/values/strings.xml`.
+- Status: milestone (a) - model, sidecar, badges, Setup, the page's skeleton - compiles on CI;
+  the store clients (b: GOG, c: Epic, d: Amazon) follow in this branch.
+
 ## 2026-10-08 - `feat/directaudio-from-release`: DirectAudio from its own release, picked by interface, and the client gets the real engine
 
 Three things were wrong with audio at once, and one tidy-up @xXJSONDeruloXx asked for.

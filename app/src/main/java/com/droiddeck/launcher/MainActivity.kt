@@ -164,6 +164,10 @@ class MainActivity : ComponentActivity() {
     private var launcherFullscreen by mutableStateOf(true)
     private var animationsEnabled by mutableStateOf(true)
     private var storeEnabled by mutableStateOf(false)
+    private var gameStoresEnabled by mutableStateOf(false)
+    private var gameStoresAddToSteam by mutableStateOf(true)
+    private var gameStoresSpeedTier by mutableStateOf("fast")
+    private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
     private var wifiDiscoveryPermission by mutableStateOf(false)
@@ -523,6 +527,10 @@ class MainActivity : ComponentActivity() {
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         storeEnabled = SessionPrefs.storeEnabled(this)
+        gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
+        gameStoresAddToSteam = SessionPrefs.gameStoresAddToSteam(this)
+        gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
+        storesOpenTab = SessionPrefs.storesOpenTab(this)
         applyLauncherFullscreen()
         updates.start()
         setContent {
@@ -576,6 +584,11 @@ class MainActivity : ComponentActivity() {
                         launcherFullscreen = launcherFullscreen,
                         animationsEnabled = animationsEnabled,
                         storeEnabled = storeEnabled,
+                        gameStoresEnabled = gameStoresEnabled,
+                        gameStoresAddToSteam = gameStoresAddToSteam,
+                        gameStoresSpeedTier = gameStoresSpeedTier,
+                        storesOpenTab = storesOpenTab,
+                        storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
                     FrontEndActions(
                         onPlay = { startSteamSession() },
@@ -586,7 +599,8 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
                                 .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
                         },
-                        onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else launchGame(g) },
+                        // A store game may need something done first (an Epic game its sign-in code).
+                        onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) } },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
                         onExportGameFile = { g -> pickGameExport(g) },
                         onSyncGameFiles = { pickGameExport(null) },
@@ -702,6 +716,11 @@ class MainActivity : ComponentActivity() {
                             applyLauncherFullscreen()
                         },
                         onStoreEnabled = { on -> SessionPrefs.setStoreEnabled(this, on); storeEnabled = on },
+                        onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on; if (on) com.droiddeck.launcher.stores.StoresState.refresh(this) },
+                        onGameStoresAddToSteam = { on -> SessionPrefs.setGameStoresAddToSteam(this, on); gameStoresAddToSteam = on },
+                        onGameStoresSpeedTier = { tier -> SessionPrefs.setGameStoresSpeedTier(this, tier); gameStoresSpeedTier = tier },
+                        onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
+                        onLibraryChanged = { refreshAddedGames(); refresh() },
                         onAnimationsEnabled = { on ->
                             SessionPrefs.setAnimationsEnabled(this, on)
                             animationsEnabled = on
@@ -903,6 +922,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshWifiDiscovery()
+        // Back from a store's sign-in page: the Stores chips show the account at once.
+        if (gameStoresEnabled) com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.ui.Motion.refresh(this)
         // Back from a session stopped behind a flood: open on its blue, before the first frame.
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
