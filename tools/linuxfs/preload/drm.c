@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #define MAX_HANDLES 4096
@@ -25,8 +26,15 @@ struct gem_close {
 };
 #define GEM_CLOSE _IOW('d', 0x09, struct gem_close)
 
+struct handle_entry {
+  uint32_t handle;
+  int dma_fd;
+  int drm_fd;
+};
+
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static int handle_fds[MAX_HANDLES];
+static struct handle_entry handle_entries[MAX_HANDLES];
+static uint32_t next_handle = 1;
 static dev_t kgsl_dev;
 static int kgsl_state; /* 0 unknown, 1 known, -1 absent */
 
@@ -49,6 +57,58 @@ static void *real(const char *name) {
   return fn;
 }
 
+static int same_file_description(int a, int b) {
+  if (a == b) {
+    return 1;
+  }
+#ifdef SYS_kcmp
+  int saved_errno = errno;
+  long ret = syscall(SYS_kcmp, getpid(), getpid(), 0 /* KCMP_FILE */, a, b);
+  errno = saved_errno;
+  return ret == 0;
+#else
+  return 0;
+#endif
+}
+
+static int find_handle_locked(int fd, uint32_t handle) {
+  for (int i = 0; i < MAX_HANDLES; i++) {
+    if (handle_entries[i].handle == handle &&
+        same_file_description(handle_entries[i].drm_fd, fd)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/*
+ * The old table used its slot index as the public handle. Once #275 started freeing slots,
+ * rapidly recreated swapchains immediately reused those numbers. Keep storage slots reusable but
+ * make the public token monotonic so a stale handle can fail instead of aliasing a newer buffer.
+ */
+static uint32_t alloc_handle_locked(void) {
+  for (int tries = 0; tries <= MAX_HANDLES; tries++) {
+    uint32_t candidate = next_handle++;
+    if (next_handle == 0) {
+      next_handle = 1;
+    }
+    if (candidate == 0) {
+      continue;
+    }
+    int used = 0;
+    for (int i = 0; i < MAX_HANDLES; i++) {
+      if (handle_entries[i].handle == candidate) {
+        used = 1;
+        break;
+      }
+    }
+    if (!used) {
+      return candidate;
+    }
+  }
+  return 0;
+}
+
 int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) {
   if (!is_kgsl(fd)) {
     int (*fn)(int, int, uint32_t *) = (int (*)(int, int, uint32_t *)) real("drmPrimeFDToHandle");
@@ -60,10 +120,16 @@ int drmPrimeFDToHandle(int fd, int prime_fd, uint32_t *handle) {
   }
   int ret = -ENOMEM;
   pthread_mutex_lock(&lock);
-  for (uint32_t i = 1; i < MAX_HANDLES; i++) {
-    if (handle_fds[i] == 0) {
-      handle_fds[i] = dup_fd;
-      *handle = i;
+  for (int i = 0; i < MAX_HANDLES; i++) {
+    if (handle_entries[i].handle == 0) {
+      uint32_t token = alloc_handle_locked();
+      if (!token) {
+        break;
+      }
+      handle_entries[i].handle = token;
+      handle_entries[i].dma_fd = dup_fd;
+      handle_entries[i].drm_fd = fd;
+      *handle = token;
       ret = 0;
       break;
     }
@@ -82,21 +148,23 @@ int drmPrimeHandleToFD(int fd, uint32_t handle, uint32_t flags, int *prime_fd) {
   }
   int ret = -EINVAL;
   pthread_mutex_lock(&lock);
-  if (handle > 0 && handle < MAX_HANDLES && handle_fds[handle] > 0) {
-    *prime_fd = fcntl(handle_fds[handle], F_DUPFD_CLOEXEC, 0);
+  int index = find_handle_locked(fd, handle);
+  if (index >= 0) {
+    *prime_fd = fcntl(handle_entries[index].dma_fd, F_DUPFD_CLOEXEC, 0);
     ret = *prime_fd < 0 ? -errno : 0;
   }
   pthread_mutex_unlock(&lock);
   return ret;
 }
 
-/* Drops a handle's descriptor; false when the handle was never given out. */
-static int release_handle(uint32_t handle) {
+/* Drops only a handle belonging to this KGSL file description. */
+static int release_handle(int fd, uint32_t handle) {
   int found = 0;
   pthread_mutex_lock(&lock);
-  if (handle > 0 && handle < MAX_HANDLES && handle_fds[handle] > 0) {
-    close(handle_fds[handle]);
-    handle_fds[handle] = 0;
+  int index = find_handle_locked(fd, handle);
+  if (index >= 0) {
+    close(handle_entries[index].dma_fd);
+    handle_entries[index] = (struct handle_entry){0};
     found = 1;
   }
   pthread_mutex_unlock(&lock);
@@ -108,29 +176,30 @@ int drmCloseBufferHandle(int fd, uint32_t handle) {
     int (*fn)(int, uint32_t) = (int (*)(int, uint32_t)) real("drmCloseBufferHandle");
     return fn ? fn(fd, handle) : -ENOSYS;
   }
-  return release_handle(handle) ? 0 : -EINVAL;
+  return release_handle(fd, handle) ? 0 : -EINVAL;
 }
 
 /*
  * Zink gives its handles back with the GEM_CLOSE ioctl itself, not drmCloseBufferHandle
  * (zink_bo.c, bo_destroy). KGSL refuses the ioctl, so the duplicated descriptor stayed open and
- * kept the whole buffer alive: Xwayland asks for a handle for every buffer it imports, and a game
- * whose swapchain was recreated on each resize piled up gigabytes of old swapchain images until
- * Android killed the session.
+ * kept the whole buffer alive. Preserve #275's reclamation without letting another KGSL file
+ * description release the token or making a new buffer immediately inherit a retired token.
+ *
+ * Caught at ioctl() (netif.c), which libdrm's drmIoctl calls, rather than by exporting drmIoctl:
+ * every session process preloads this library, and exporting drmIoctl from it brought on a
+ * judder replaying old frames in No Man's Sky on an Adreno 840 even with no handle released.
  */
-int drmIoctl(int fd, unsigned long request, void *arg) {
-  if (request == GEM_CLOSE && arg && is_kgsl(fd)) {
-    if (release_handle(((struct gem_close *) arg)->handle)) {
-      return 0;
-    }
+__attribute__((visibility("hidden"))) int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) {
+  if (request != GEM_CLOSE || !arg || !is_kgsl(fd)) {
+    return 0;
+  }
+  if (release_handle(fd, ((struct gem_close *) arg)->handle)) {
+    *rc = 0;
+  } else {
     errno = EINVAL;
-    return -1;
+    *rc = -1;
   }
-  int (*fn)(int, unsigned long, void *) = (int (*)(int, unsigned long, void *)) real("drmIoctl");
-  if (!fn) {
-    return -1;
-  }
-  return fn(fd, request, arg);
+  return 1;
 }
 
 /*

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.LocalIndication
@@ -71,7 +72,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
             Rise(0) { PageHeader(stringResource(R.string.content_games)) }
             Rise(1) { Note(stringResource(if (s.shortcutPicker && s.shortcutLibraryScanning) R.string.game_shortcut_scanning else R.string.games_empty)) }
             if (!s.shortcutPicker) Rise(2) {
-                Actions { PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp), onClick = a.onPlay) }
+                Actions { PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp).testTag("play-steam"), onClick = a.onPlay) }
             }
             GameFileFolderActions(s, a)
         }
@@ -90,7 +91,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                 }
             }
             Rise(1) { SectionTitle(stringResource(R.string.games_launch_settings), null) }
-            Rise(2) { LaunchSettings(s, a, host) }
+            Rise(2) { LaunchSettings(s, a, host, current) }
             Rise(3) { GameFileFolderActions(s, a) }
         }
         return
@@ -109,7 +110,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                 GameActions(current, s, a)
             }
             SectionTitle(stringResource(R.string.games_launch_settings), null)
-            LaunchSettings(s, a, host)
+            LaunchSettings(s, a, host, current)
             GameFileFolderActions(s, a)
         }
     }

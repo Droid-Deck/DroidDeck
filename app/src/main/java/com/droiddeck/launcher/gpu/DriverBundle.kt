@@ -3,6 +3,7 @@ package com.droiddeck.launcher.gpu
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
@@ -84,7 +85,7 @@ object DriverBundle {
             unzip(context, uri, work)
             val manifest = File(work, MANIFEST).takeIf { it.isFile }
                 ?.let { runCatching { parseManifest(JSONObject(FileUtils.readString(it))) }.getOrNull() }
-                ?: throw IllegalArgumentException("Not a driver bundle: no manifest.json naming an android and a linux driver")
+                ?: throw IllegalArgumentException(context.getString(R.string.bundle_no_manifest))
             val androidDir = File(work, manifest.androidPath)
             val linuxDir = File(work, manifest.linuxPath)
 
@@ -135,7 +136,7 @@ object DriverBundle {
                 for (entry in generateSequence { zip.nextEntry }) {
                     if (entry.isDirectory) continue
                     val out = File(root, entry.name).canonicalFile
-                    if (!out.path.startsWith(root.path + File.separator)) throw IllegalArgumentException("Not a driver bundle: ${entry.name} points outside it")
+                    if (!out.path.startsWith(root.path + File.separator)) throw IllegalArgumentException(context.getString(R.string.bundle_entry_outside, entry.name))
                     out.parentFile?.mkdirs()
                     out.outputStream().use { sink ->
                         val buf = ByteArray(1 shl 16)
@@ -143,7 +144,7 @@ object DriverBundle {
                             val r = zip.read(buf)
                             if (r <= 0) break
                             total += r
-                            if (total > MAX_BYTES) throw IllegalArgumentException("Not a driver bundle: it unpacks to more than ${MAX_BYTES shr 20} MB")
+                            if (total > MAX_BYTES) throw IllegalArgumentException(context.getString(R.string.bundle_too_large, MAX_BYTES shr 20))
                             sink.write(buf, 0, r)
                         }
                     }

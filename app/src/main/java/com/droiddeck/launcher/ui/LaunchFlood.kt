@@ -143,8 +143,12 @@ internal fun LaunchFlood(
     val start = fromColors ?: (colors.primary to pal.primary2)
     VeilRing()
     // Left, top, right, bottom: 0 on the button, 1 on the page's edge. Springs overshoot past the
-    // edge, off the page, so the wobble is felt in the pull and never seen as a shrink.
+    // edge, off the page, so the wobble is felt in the pull. An underdamped spring then swings back
+    // short of the edge (about 3% at this damping), so once an edge has reached the page's it holds
+    // there, or the page would show through in a sliver while the next screen opens.
     val edges = remember { List(4) { Animatable(0f) } }
+    val reached = remember { BooleanArray(4) }
+    fun edge(i: Int) = edges[i].value.let { if (reached[i]) maxOf(it, 1f) else it }
     val covered by rememberUpdatedState(onCovered)
     val progress by rememberUpdatedState(onProgress)
     var page by remember { mutableStateOf(Size.Zero) }
@@ -152,6 +156,7 @@ internal fun LaunchFlood(
         if (page == Size.Zero) return@LaunchedEffect
         if (Motion.scale == 0f) {
             edges.forEach { it.snapTo(1f) }
+            reached.fill(true)
             progress(1f)
             covered()
             return@LaunchedEffect
@@ -164,18 +169,19 @@ internal fun LaunchFlood(
                 launch {
                     delay(Motion.ms((180 * (1f - lead)).toInt()).toLong())
                     edge.animateTo(1f, spring(dampingRatio = 0.48f, stiffness = lerp(110f, 190f, lead))) {
-                        progress(edges.sumOf { it.value.coerceIn(0f, 1f).toDouble() }.toFloat() / 4f)
+                        if (value >= 1f) reached[i] = true
+                        progress((0 until 4).sumOf { edge(it).coerceIn(0f, 1f).toDouble() }.toFloat() / 4f)
                     }
                 }
             }
-            // Covered once every edge has reached the page's, the first time round.
-            snapshotFlow { edges.all { it.value >= 0.995f } }.first { it }
+            // Covered once every edge has reached the page's.
+            snapshotFlow { (0 until 4).all { edge(it) >= 1f } }.first { it }
             covered()
             runs.forEach { it.join() }
         }
     }
     Canvas(Modifier.fillMaxSize().onSizeChanged { page = Size(it.width.toFloat(), it.height.toFloat()) }.pointerInput(Unit) { awaitEachGesture { while (true) awaitPointerEvent().changes.forEach { it.consume() } } }) {
-        drawFlood(from, edges.map { it.value }, start, pal.signal, cornerAtRest.toPx())
+        drawFlood(from, List(4) { edge(it) }, start, pal.signal, cornerAtRest.toPx())
     }
 }
 

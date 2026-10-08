@@ -49,7 +49,6 @@ object EsyncPacks {
     private const val TOOLS = "tools.tsv"
     private const val FLOOR = "floor"
     private const val PACK_FAILURES = "packFailures"
-    private const val PROGRESS_LABEL = "Fetching droiddeck-esync pack"
     private const val INDEX_LIMIT = 4L shl 20
     private const val SIG_LIMIT = 4096L
     private const val ASSET_LIMIT = 256L shl 20
@@ -618,14 +617,15 @@ object EsyncPacks {
             return false
         }
         try {
-            onProgress?.invoke(PROGRESS_LABEL, -1)
+            val label = context.getString(com.droiddeck.launcher.R.string.esync_fetching)
+            onProgress?.invoke(label, -1)
             var reported = -1
             val fetched = FileOutputStream(part).use { output ->
                 fetch(entry.asset.url, entry.asset.size, output) { done ->
                     val percent = (done * 100 / entry.asset.size).toInt().coerceIn(0, 100)
                     if (percent != reported) {
                         reported = percent
-                        onProgress?.invoke(PROGRESS_LABEL, percent)
+                        onProgress?.invoke(label, percent)
                     }
                 }
             }

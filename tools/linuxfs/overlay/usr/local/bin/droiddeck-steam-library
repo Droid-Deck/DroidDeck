@@ -5,6 +5,7 @@
 #   droiddeck-steam-library <steam root>
 #
 # Ported from WinNative's gamescope runtime (GPL-3.0).
+import json
 import os
 import re
 import sys
@@ -168,6 +169,29 @@ def relabel(steam_root, target, label):
         print("droiddeck-steam-library: labelled %s in its own marker too" % target)
 
 
+GAMES_DIR = "/root/Games/"
+
+
+def wanted():
+    listing = os.environ.get("BL_STEAM_LIBRARIES")
+    if not listing:
+        return None
+    try:
+        with open(listing, encoding="utf-8") as f:
+            entries = json.load(f)
+        return [(str(e["path"]), str(e["label"]).replace('"', " ").replace("\\", " ")) for e in entries]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def registered(steam_root):
+    try:
+        with open(os.path.join(steam_root, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
+            return re.findall(r'"path"\s+"([^"]*)"', f.read())
+    except OSError:
+        return []
+
+
 def main():
     steam_root = sys.argv[1]
     for library in RETIRED:
@@ -175,12 +199,19 @@ def main():
     for old, new in RENAMED:
         rename(steam_root, old, new)
     relabel(steam_root, steam_root, MAIN_LABEL)
-    for library, label in LIBRARIES:
+    libraries = wanted()
+    managed = libraries is not None
+    for library, label in libraries if managed else LIBRARIES:
         if os.path.isdir(os.path.join(library, "steamapps")):
             register(steam_root, library, label)
             relabel(steam_root, library, label)
         else:
             forget(steam_root, library)
+    if managed:
+        keep = {library for library, _ in libraries}
+        for library in registered(steam_root):
+            if library not in keep and (library == LIBRARIES[0][0] or library.startswith(GAMES_DIR)):
+                forget(steam_root, library)
 
 
 if __name__ == "__main__":

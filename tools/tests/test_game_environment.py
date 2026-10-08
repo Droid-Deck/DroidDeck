@@ -26,6 +26,25 @@ def config_text(entries):
 
 
 class GameEnvironmentTest(unittest.TestCase):
+    def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "legacycompat/evaluatorscript_409710.vdf"
+            script.parent.mkdir(parents=True)
+            script.write_text("{}")
+            calls = []
+            run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
+            MODULE["mark_install_scripts"].__globals__["subprocess"].run = lambda args, **kw: calls.append((args, kw["env"]))
+            try:
+                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)}
+                MODULE["mark_install_scripts"](["/proton", "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"], env)
+                MODULE["mark_install_scripts"](["/proton", "waitforexitandrun", "/game/Game.exe"], env)
+            finally:
+                MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][0][1], str(root))
+            self.assertEqual(calls[0][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+
     def test_profile_precedence_and_unset(self):
         env = {"KEEP": "inherited", "REMOVE": "inherited", "CUSTOM": "launch option"}
         config = {"version": 1, "shared": {"CUSTOM": "shared"}, "games": {"42": {"REMOVE": None, "CUSTOM": "game", "EMPTY": ""}}}
@@ -461,3 +480,27 @@ class DirectAudioPrefixTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ForceSsbsTest(unittest.TestCase):
+    def test_libssbs_is_preloaded_only_when_asked_and_only_into_arm64_proton(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            arm = Path(tmp) / "arm"
+            (arm / "files/lib/wine/aarch64-unix").mkdir(parents=True)
+            x86 = Path(tmp) / "x86"
+            (x86 / "files/lib/wine/x86_64-unix").mkdir(parents=True)
+            lib = Path(tmp) / "libssbs.so"
+            lib.write_bytes(b"\x7fELF")
+            g = MODULE["force_ssbs"].__globals__
+            old = g["SSBS_LIB"]
+            g["SSBS_LIB"] = str(lib)
+            try:
+                env = {"LD_PRELOAD": "/usr/local/lib/libblsession.so"}
+                self.assertEqual(MODULE["force_ssbs"]([str(arm / "proton"), "waitforexitandrun"], env), env)
+                on = dict(env, DROIDDECK_FORCE_SSBS="1")
+                got = MODULE["force_ssbs"]([str(arm / "proton"), "waitforexitandrun"], on)
+                self.assertEqual(got["LD_PRELOAD"], "/usr/local/lib/libblsession.so:" + str(lib))
+                self.assertEqual(MODULE["force_ssbs"]([str(arm / "proton")], got)["LD_PRELOAD"], got["LD_PRELOAD"])
+                self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
+            finally:
+                g["SSBS_LIB"] = old

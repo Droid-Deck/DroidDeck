@@ -73,11 +73,19 @@ def client_entries():
     return found
 
 
+def registered():
+    try:
+        with open(os.path.join(STEAM_ROOT, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
+            return [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', f.read())]
+    except OSError:
+        return []
+
+
 def write_entries():
     os.makedirs(APPS_DIR, exist_ok=True)
     wanted = {}
     theirs = client_entries()
-    for library, _ in LIBRARIES:
+    for library in dict.fromkeys([library for library, _ in LIBRARIES] + registered()):
         for appid, name in games(library):
             if appid not in theirs:
                 wanted.setdefault(appid, name)

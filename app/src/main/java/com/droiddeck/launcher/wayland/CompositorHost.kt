@@ -2,6 +2,7 @@ package com.droiddeck.launcher.wayland
 
 import android.view.Choreographer
 import android.view.Surface
+import com.droiddeck.launcher.session.SessionState
 
 /**
  * The compositor is a process-wide thing, not an activity's: it is started once, keeps running
@@ -35,13 +36,17 @@ object CompositorHost {
         fpsLimit: Int,
     ): Boolean {
         pace(refreshHz, fpsLimit)
+        // The compositor outlives sessions, and the next one may be on the other screen of a dual-screen
+        // device: gamescope reads the size from the toplevel configure and the wl_output mode when it
+        // connects, and kept the first session's (the Thor's 1920x1080 top screen letterboxed the bottom
+        // one's session to 16:9). A running session keeps the size it was started at.
+        if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
             attached = surface
             WaylandCompositor.nativeSetSurface(surface)
             resumeVsync()
             return false
         }
-        WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,

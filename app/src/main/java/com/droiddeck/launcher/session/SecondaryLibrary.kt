@@ -23,8 +23,10 @@ object SecondaryLibrary {
         return File(files, "steam-libraries/$digest")
     }
 
+    val CARD_GUESTS = listOf("/mnt/droiddeck-sd", "/mnt/bannerlator-sd")
+
     /** Parent binds come first; the more specific private directories override them in PRoot. */
-    fun binds(files: File, library: File): List<String> {
+    fun binds(files: File, library: File, guests: List<String> = CARD_GUESTS): List<String> {
         val private = privateRoot(files, library)
         val apps = File(library, "steamapps")
         val tools = LinkedHashMap(bootstrapTools)
@@ -57,7 +59,7 @@ object SecondaryLibrary {
                 if (lower != relative) overrides.add(target to lower)
             }
         }
-        return listOf("/mnt/droiddeck-sd", "/mnt/bannerlator-sd").flatMap { guest ->
+        return guests.flatMap { guest ->
             listOf("${library.path}:$guest") + overrides.map { (host, relative) -> "${host.path}:$guest/$relative" }
         }
     }

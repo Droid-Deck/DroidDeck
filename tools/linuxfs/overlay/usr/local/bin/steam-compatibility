@@ -277,9 +277,10 @@ done
 # The depot this tool is named after, newest across the libraries that hold it; the others in the
 # list stand in only when it is missing.
 depot=
+libraries=$(printf '%%s\\n' "$steam_root" /mnt/droiddeck-sd; sed -n 's/^[[:space:]]*"path"[[:space:]]*"\\(.*\\)"[[:space:]]*$/\\1/p' "$steam_root/steamapps/libraryfolders.vdf" 2>/dev/null)
 for name in %s; do
  best=0
- for library in "$steam_root" /mnt/droiddeck-sd; do
+ while IFS= read -r library; do
   candidate="$library/steamapps/common/$name"
   [ -d "$candidate/files/bin-arm64" ] && [ -x "$candidate/proton" ] || continue
   build=0
@@ -289,7 +290,7 @@ for name in %s; do
     depot=$candidate
     best=$build
   fi
- done
+ done <<< "$libraries"
  [ -n "$depot" ] && break
 done
 if [ -n "$depot" ]; then
@@ -615,10 +616,21 @@ NOT_GAMES = frozenset((
 ))
 
 
+def libraries(steam_root):
+    found = [steam_root]
+    try:
+        with open(os.path.join(steam_root, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
+            found += [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', f.read())]
+    except OSError:
+        pass
+    found.append(LIBRARY + "-sd")
+    return list(dict.fromkeys(found))
+
+
 def installed_apps(steam_root):
     """App ids of the titles the client has installed, tools and runtimes excluded."""
     apps = set()
-    for library in (steam_root, LIBRARY + "-sd"):
+    for library in libraries(steam_root):
         steamapps = os.path.join(library, "steamapps")
         try:
             names = os.listdir(steamapps)
@@ -778,7 +790,7 @@ def fex_missing(steam_root):
     missing = []
     for app in FEX_DEPENDENCIES:
         if not any(os.path.isfile(os.path.join(library, "steamapps", "appmanifest_%s.acf" % app))
-                   for library in (steam_root, LIBRARY + "-sd")):
+                   for library in libraries(steam_root)):
             missing.append(app)
     return missing
 
@@ -1065,7 +1077,7 @@ def depot_build(depot):
 def find_source(steam_root, sources=SOURCES):
     """The first of `sources` the client has downloaded, newest across the libraries holding it."""
     for name in sources:
-        found = [os.path.join(root, "steamapps", "common", name) for root in (steam_root, "/mnt/droiddeck-sd")
+        found = [os.path.join(root, "steamapps", "common", name) for root in libraries(steam_root)
                  if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))]
         if found:
             return max(found, key=depot_build)

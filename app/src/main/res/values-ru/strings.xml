@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s: сбой движка</string>
     <string name="hud_fg_needs_lossless">%1$s: требуется Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · запуск</string>
-    <string name="added_games_import_hint">Папка, где каждая подпапка — отдельная игра для Windows. Игры из вашей библиотеки Steam после перезапуска Steam используют свои записи, остальные добавляются как ярлыки сторонних игр.</string>
+    <string name="added_games_import_hint">Папка, где каждая подпапка — отдельная игра для Windows. Игры из вашей библиотеки Steam после перезапуска Steam используют свои записи, остальные добавляются как ярлыки сторонних игр. Если для параметра «Вторая библиотека» выбрано «Авто», Steam также может устанавливать игры в эту папку.</string>
     <string name="second_library_import_hint">Добавляет библиотеку Steam и ищет в ней игры для Windows. Игры из вашей библиотеки Steam используют свои записи Steam, остальные добавляются как ярлыки сторонних игр.</string>
     <string name="added_games_forget_hint">«Забыть» удалит ярлыки в следующей сессии. Файлы останутся на диске.</string>
     <string name="game_env_title">Игровая среда</string>
@@ -237,7 +237,7 @@
     <string name="mode_ratio_custom">Задается пользовательским разрешением.</string>
     <string name="mode_ratio_auto">Автоматический режим использует не менее 16:9.</string>
     <string name="mode_fps">Ограничение частоты кадров</string>
-    <string name="mode_fps_note">Ограничивает всю сессию. Экран переключится на частоту обновления, кратную этому пределу.</string>
+    <string name="mode_fps_note">Ограничивает частоту кадров всей сессии. Экран переключится на частоту обновления, кратную этому пределу.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Вывод HDR10</string>
     <string name="mode_hdr_unavailable">Недоступно: %1$s.</string>
@@ -264,7 +264,7 @@
     <string name="mode_suspend_hint">Поведение при скрытии приложения или выключении экрана.</string>
     <string name="mode_suspend_manual">Вручную</string>
     <string name="mode_suspend_native">Штатный</string>
-    <string name="mode_suspend_steam_note">Авто: пауза и возобновление при показе. Штатный: сначала переводит Steam в режим сна. Вручную: ждет нажатия «Продолжить». Никогда: сессия продолжает работать.</string>
+    <string name="mode_suspend_steam_note">Авто: пауза и возобновление при показе. Штатный: сначала подготавливает Steam к переходу в режим сна. Вручную: ждет нажатия «Продолжить». Никогда: сессия продолжает работать.</string>
     <string name="mode_suspend_note">Авто: пауза в фоне и возобновление при показе. Вручную: ждет нажатия «Продолжить». Никогда: сессия продолжает работать.</string>
     <string name="mode_startup">Запуск</string>
     <string name="mode_steam_startup">Запускать Steam при открытии DroidDeck</string>
@@ -307,8 +307,6 @@
     <string name="mode_added_launches_in">Запускает %1$s · в %2$s</string>
     <string name="mode_added_choose">Выбрать другой файл…</string>
     <string name="mode_added_exe_note">По умолчанию используется .exe с именем папки, иначе самый большой .exe.</string>
-    <string name="mode_fill">Растянуть игру на весь экран</string>
-    <string name="mode_fill_hint">Держит игры, которые сами меняют размер окна, в полноэкранном режиме. Отключите, если игра отображается мелко. Вступит в силу в следующей сессии.</string>
     <string name="mode_stretch169">Растянуть игры 16:9</string>
     <string name="mode_stretch169_hint">На экранах уже 16:9 растягивает игры на весь экран вместо черных полос. Вступит в силу в следующей сессии.</string>
     <string name="mode_audio">Аудио</string>
@@ -330,8 +328,8 @@
     <string name="mode_wifi_explain_title">Включить обнаружение Wi-Fi?</string>
     <string name="mode_wifi_explain_text">Android требует разрешение на определение местоположения для чтения имен Wi-Fi и обнаружения ближайших сетей. DroidDeck использует это разрешение для отображения этих сетей в Steam. Мы не отслеживаем ваше местоположение. Доступ в интернет возможен и без этого разрешения.</string>
     <string name="mode_storage">Хранилище игр</string>
-    <string name="mode_storage_auto">Авто — SD-карта, если есть</string>
-    <string name="mode_storage_auto_none">Авто — SD-карта, если есть (сейчас нет)</string>
+    <string name="mode_storage_auto">Авто — SD-карта (если есть) и ваши папки с играми</string>
+    <string name="mode_storage_auto_none">Авто — ваши папки с играми и SD-карта, если есть (сейчас SD-карты нет)</string>
     <string name="mode_storage_internal">Только внутреннее хранилище</string>
     <string name="mode_storage_folder">Папка: %1$s</string>
     <string name="mode_second_library">Вторая библиотека</string>
@@ -489,7 +487,6 @@
     <string name="drawer_prev_page">Предыдущая страница</string>
     <string name="drawer_next_page">Следующая страница</string>
     <string name="drawer_hud">HUD производительности</string>
-    <string name="drawer_fill">Растянуть игру на весь экран</string>
     <string name="drawer_scaling">Режим масштабирования</string>
     <string name="drawer_scaling_sharpness">Резкость масштабирования</string>
     <string name="drawer_effects">Экранные эффекты</string>
@@ -568,7 +565,7 @@
     <string name="setup_gpu_unsupported_detail">Steam требует драйвер Adreno; на %1$s возможен черный экран.</string>
     <string name="setup_runtime">Среда выполнения Linux</string>
     <string name="setup_runtime_progress">%1$s · %2$d%%</string>
-    <string name="setup_runtime_missing">Не установлено · около 3 ГБ, устанавливается при первом нажатии Play</string>
+    <string name="setup_runtime_missing">Не установлено · около 3 ГБ, устанавливается при первом запуске игры</string>
     <string name="setup_installed">Установлено</string>
     <string name="setup_runtime_update">%1$s · доступно обновление</string>
     <string name="setup_runtime_current">%1$s · актуально</string>
@@ -592,6 +589,7 @@
     <string name="setup_session">Сессия</string>
     <string name="setup_logs">Журналы сессии</string>
     <string name="setup_logs_hint">Сохраняется после каждой сессии</string>
+    <string name="setup_agent_commands">Инструменты отладки</string>
     <string name="setup_latest_logs">Последние журналы сессии</string>
     <string name="setup_saved_logs">Сохраненные журналы сессии</string>
     <string name="setup_saved_logs_hint">Хранятся последние %1$d</string>
@@ -733,7 +731,7 @@
     <string name="upd_not_built">Не собрано для этой копии DroidDeck</string>
     <string name="upd_updated">Обновлено %1$s</string>
     <string name="upd_test_name">тестовая сборка PR #%1$d</string>
-    <string name="upd_while_ago">давно</string>
+    <string name="upd_while_ago">некоторое время назад</string>
     <string name="upd_just_now">только что</string>
     <plurals name="upd_tests_count">
         <item quantity="one">%1$d доступный тест</item>
@@ -864,7 +862,7 @@
     <string name="content_details_unavailable">Подробности установки недоступны. Повторите попытку позже.</string>
     <string name="content_needs_runtime">Сначала установите среду выполнения Linux на странице «Настройка».</string>
     <string name="content_stop_first">Остановите текущую сессию перед установкой приложения рабочего стола.</string>
-    <string name="content_install_into">Устанавливает %1$s в рабочий стол Linux.</string>
+    <string name="content_install_into">Устанавливает %1$s в среду рабочего стола Linux.</string>
     <string name="store_busy_percent_short">%1$s · %2$d%%</string>
     <string name="content_hide_note">Скрытие удалит его с рабочего стола. Файлы останутся в среде выполнения Linux.</string>
     <string name="content_rom_gone">Этой игры больше нет в папке ROM.</string>
@@ -899,7 +897,7 @@
     <string name="games_never_played">Никогда не запускалась</string>
     <string name="games_runtime_busy_percent">Среда выполнения занята · %1$d%%</string>
     <string name="games_runtime_busy">Среда выполнения занята</string>
-    <string name="games_runtime_first_play">Среда выполнения установится при первом нажатии Play</string>
+    <string name="games_runtime_first_play">Среда выполнения установится при первом запуске игры</string>
     <string name="games_runtime_update">Доступно обновление среды выполнения</string>
     <string name="games_runtime_ready">● Среда выполнения готова</string>
     <string name="games_last_played">Последний запуск %1$s</string>
@@ -1033,6 +1031,8 @@
     <string name="game_file_folder">Выбрать папку для файлов игры фронтенда</string>
     <string name="game_file_exported">Файлы игры сохранены в %1$s</string>
     <string name="game_frontend_files">Файлы фронтенда</string>
+    <string name="fm_up_one_level">На уровень вверх</string>
+    <string name="fm_drive_linux">Система Linux</string>
     <string name="display_session">Экран сессии</string>
     <string name="display_resolution">Разрешение</string>
     <string name="display_game_fit">Игры 16:9</string>
@@ -1047,10 +1047,6 @@
     <string name="display_filter_note">FSR, GSR и NIS работают при увеличении изображения сессии. «Sharpen only» работает и без увеличения.</string>
     <string name="display_sharpness">Резкость фильтра</string>
     <string name="display_frame_rate">Частота кадров</string>
-    <string name="display_window_compatibility">Совместимость окон игр</string>
-    <string name="display_force_fullscreen">Разворачивать окна игр на весь экран</string>
-    <string name="display_force_fullscreen_hint">Делает каждое окно игры размером с экран. Включите, если после переключения приложений игра возвращается маленькой или в углу; оставьте выключенным, если игра мигает, меняя размер. Применяется сразу во время сессии.</string>
-    <string name="display_force_fullscreen_live">Включите, если после переключения игра возвращается маленькой; выключите, если она мигает. Применяется сразу.</string>
     <string name="display_look_filter">%1$s Устанавливает масштабирование: %2$s.</string>
     <string name="display_match_screen">По размеру экрана (%1$d×%2$d)</string>
     <string name="mode_tab_steam">Steam</string>

@@ -41,7 +41,7 @@
     <string name="hud_fg_failed">%1$s : échec du moteur</string>
     <string name="hud_fg_needs_lossless">%1$s : nécessite Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · Démarrage en cours</string>
-    <string name="added_games_import_hint">Un dossier contenant plusieurs sous-dossiers, chaque sous-dossier correspondant à un jeu Windows. Les jeux que vous possédez sur Steam utiliseront les entrées Steam correspondantes après le redémarrage de Steam ; les autres jeux deviendront des raccourcis non-Steam.</string>
+    <string name="added_games_import_hint">Un dossier contenant plusieurs sous-dossiers, chaque sous-dossier correspondant à un jeu Windows. Les jeux que vous possédez sur Steam utiliseront les entrées Steam correspondantes après le redémarrage de Steam ; les autres jeux deviendront des raccourcis non-Steam. Si Bibliothèque secondaire est sur Auto, Steam peut aussi installer des jeux dans ce dossier.</string>
     <string name="second_library_import_hint">Ajoutez une bibliothèque Steam et analysez-y les jeux Windows. Les jeux déjà possédés utiliseront les entrées Steam correspondantes, les autres deviendront des raccourcis non-Steam.</string>
     <string name="added_games_forget_hint">« Oublier » supprimera ces raccourcis lors de la prochaine session. Mais les fichiers resteront sur le disque.</string>
     <string name="game_env_title">Environnement de jeu</string>
@@ -279,8 +279,6 @@
     <string name="mode_added_launches_in">Lancer %1$s · dans %2$s</string>
     <string name="mode_added_choose">Choisir un autre fichier…</string>
     <string name="mode_added_exe_note">Utilise par défaut le .exe portant le même nom que le dossier, sinon le .exe le plus volumineux.</string>
-    <string name="mode_fill">Étirer le jeu pour remplir l\'écran</string>
-    <string name="mode_fill_hint">Maintient en plein écran les jeux capables de se redimensionner. Désactivez cette option si le jeu s\'affiche en petit. Prendra effet à la prochaine session.</string>
     <string name="mode_stretch169">Étirer les jeux 16:9</string>
     <string name="mode_stretch169_hint">Sur les écrans dont le rapport d\'aspect est inférieur à 16:9, étire le jeu pour remplir l\'écran au lieu d\'afficher des bandes noires. Prendra effet à la prochaine session.</string>
     <string name="mode_audio">Audio</string>
@@ -302,8 +300,8 @@
     <string name="mode_wifi_explain_title">Activer la découverte Wi-Fi ?</string>
     <string name="mode_wifi_explain_text">Android a besoin de l\'autorisation de localisation pour lire les noms Wi-Fi et découvrir les réseaux à proximité. DroidDeck utilise cette autorisation pour afficher ces réseaux dans Steam. Nous ne suivons pas votre position. L\'accès à Internet reste possible sans cette autorisation.</string>
     <string name="mode_storage">Stockage des jeux</string>
-    <string name="mode_storage_auto">Auto - Utiliser la carte SD si disponible</string>
-    <string name="mode_storage_auto_none">Auto - Utiliser la carte SD si disponible (aucune carte SD actuellement)</string>
+    <string name="mode_storage_auto">Auto - Utiliser la carte SD si disponible, ainsi que vos dossiers de jeux</string>
+    <string name="mode_storage_auto_none">Auto - Utiliser vos dossiers de jeux, ainsi que la carte SD si disponible (aucune carte SD actuellement)</string>
     <string name="mode_storage_internal">Stockage interne uniquement</string>
     <string name="mode_storage_folder">Dossier : %1$s</string>
     <string name="mode_second_library">Bibliothèque secondaire</string>
@@ -442,7 +440,6 @@
     <string name="drawer_prev_page">Page précédente</string>
     <string name="drawer_next_page">Page suivante</string>
     <string name="drawer_hud">HUD de performance</string>
-    <string name="drawer_fill">Étirer le jeu pour remplir l\'écran</string>
     <string name="drawer_touch_auto">Auto (%1$s)</string>
     <string name="drawer_keyboard">Clavier</string>
     <string name="drawer_pc_keyboard">Clavier PC</string>
@@ -517,6 +514,7 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Journaux de session</string>
     <string name="setup_logs_hint">Enregistré après chaque fin de session</string>
+    <string name="setup_agent_commands">Outils de débogage</string>
     <string name="setup_latest_logs">Derniers journaux de session</string>
     <string name="setup_saved_logs">Journaux de session enregistrés</string>
     <string name="setup_saved_logs_hint">Conserver les %1$d plus récents</string>
@@ -949,4 +947,6 @@
     <string name="game_file_folder">Choisir un dossier pour les fichiers du jeu frontal</string>
     <string name="game_file_exported">Fichiers du jeu enregistrés dans %1$s</string>
     <string name="game_frontend_files">Fichiers frontaux</string>
+    <string name="fm_up_one_level">Remonter d\'un niveau</string>
+    <string name="fm_drive_linux">Système Linux</string>
 </resources>

@@ -17,9 +17,16 @@ import java.nio.charset.StandardCharsets
  * progress, and lifting that out is the difference between "starting the Steam client" for three
  * minutes and a percentage that moves.
  */
-class LoadingState(context: Context, steam: Boolean = true) {
+class LoadingState(context: Context, private val steam: Boolean = true) {
     var visible by mutableStateOf(true)
-    var step by mutableStateOf("Starting the session…")
+    var step by mutableStateOf(context.getString(com.droiddeck.launcher.R.string.loadstate_starting))
+        private set
+    /** What [step] is about, so the screen picks its checklist stage without reading the (translated) words. */
+    var topic by mutableStateOf(Topic.SESSION)
+        private set
+    /** [step] is a download or install line worth showing as it is, not one of the script's own notes. */
+    var readable by mutableStateOf(false)
+        private set
     var percent by mutableIntStateOf(-1)
     var elapsed by mutableStateOf("")
     var hint by mutableStateOf("")
@@ -31,13 +38,21 @@ class LoadingState(context: Context, steam: Boolean = true) {
     private val hints = context.resources.getStringArray(
         if (steam) com.droiddeck.launcher.R.array.loading_hints else com.droiddeck.launcher.R.array.loading_hints_desktop,
     )
+    private val res = context.resources
     private val startedAt = SystemClock.elapsedRealtime()
 
     /** Once a second: the clock and the hint. */
     fun tick() {
         val seconds = (SystemClock.elapsedRealtime() - startedAt) / 1000
-        elapsed = String.format(java.util.Locale.US, "%d:%02d elapsed · still working", seconds / 60, seconds % 60)
+        elapsed = res.getString(com.droiddeck.launcher.R.string.loadstate_elapsed, seconds / 60, seconds % 60)
         hint = hints[((seconds / 8) % hints.size).toInt()]
+    }
+
+    /** A line the app itself writes (an install's progress, the session starting). */
+    fun say(line: String, topic: Topic, readable: Boolean) {
+        step = line
+        this.topic = topic
+        this.readable = readable
     }
 
     fun showEnded(message: String, detail: String? = null) {
@@ -50,12 +65,16 @@ class LoadingState(context: Context, steam: Boolean = true) {
     /** Re-reads the end of the log and updates the line and the bar. */
     fun update(context: Context, log: File?) {
         val state = read(context, log) ?: return
-        step = state.first
-        percent = state.second
+        step = state.line
+        topic = state.topic
+        readable = state.readable
+        percent = state.percent
     }
 
+    private class Line(val line: String, val percent: Int, val topic: Topic, val readable: Boolean)
+
     /** Only the tail is read: the client alone writes megabytes an hour. */
-    private fun read(context: Context, log: File?): Pair<String, Int>? {
+    private fun read(context: Context, log: File?): Line? {
         if (log == null || !log.isFile) return null
         val text = try {
             RandomAccessFile(log, "r").use { file ->
@@ -100,16 +119,45 @@ class LoadingState(context: Context, steam: Boolean = true) {
             }
         }
         return when {
-            downloadAt > stepAt && downloadPercent >= 0 ->
-                Pair("Downloading the Steam client update · $downloadPercent%", downloadPercent)
-            clientDownloadAt == stepAt && clientDownload != null ->
-                Pair("Downloading the Steam client · $clientDownload", clientPercent)
-            stepText != null -> Pair(stepText, -1)
+            downloadAt > stepAt && downloadPercent >= 0 -> Line(
+                context.getString(com.droiddeck.launcher.R.string.loadstate_steam_update, downloadPercent), downloadPercent,
+                Topic.STEAM, readable = true,
+            )
+            clientDownloadAt == stepAt && clientDownload != null -> Line(
+                context.getString(com.droiddeck.launcher.R.string.loadstate_steam_client, clientDownload), clientPercent,
+                Topic.STEAM, readable = true,
+            )
+            stepText != null -> Line(stepText, -1, topicOf(stepText, steam), readableScriptStep(stepText))
             else -> null
         }
     }
 
+    /** The checklist stages a loading line can move the screen to. */
+    enum class Topic { RUNTIME, SESSION, DESKTOP, STEAM, STEAM_STARTING, OTHER }
+
     companion object {
+        /**
+         * A session script "== STEP" line's topic in a Steam ([steam]) or desktop session; those
+         * lines are English whatever the app's language.
+         */
+        internal fun topicOf(scriptStep: String, steam: Boolean): Topic {
+            val t = scriptStep.lowercase()
+            return when {
+                "linux runtime" in t -> Topic.RUNTIME
+                "starting the session" in t -> Topic.SESSION
+                !steam && "desktop" in t -> Topic.DESKTOP
+                steam && "starting the steam client" in t -> Topic.STEAM_STARTING
+                steam && ("steam" in t || "client" in t || "proton" in t || "library" in t || "compatibility" in t) -> Topic.STEAM
+                else -> Topic.OTHER
+            }
+        }
+
+        /** The script's install lines are worth reading as they are; its other notes are not. */
+        internal fun readableScriptStep(scriptStep: String): Boolean {
+            val t = scriptStep.lowercase()
+            return t.startsWith("download") || t.startsWith("checking the linux") || t.startsWith("unpacking") || t.startsWith("installing")
+        }
+
         private const val TAIL_BYTES = 48L * 1024
         private val UPDATE_PROGRESS = Regex("""Downloading update \((\d+) of (\d+) KB\)""")
         private val INSTALL_COUNT = Regex("""downloading Steam: (\S+) \((\d+)/(\d+)\)""")

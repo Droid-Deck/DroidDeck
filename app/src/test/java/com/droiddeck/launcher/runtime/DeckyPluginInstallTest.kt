@@ -53,7 +53,7 @@ class DeckyPluginInstallTest {
         try {
             DeckyPluginInstall.activate(plugin(temporary.newFolder(), "Unifideck", "Unifideck"), plugins, "Unifideck", settings, ".test")
             fail("Expected conflicting identity to fail")
-        } catch (_: IllegalArgumentException) {}
+        } catch (_: DeckyPluginInstall.Failure) {}
         assertEquals("{}", settings.readText())
         assertEquals("Other", JSONObject(File(plugins, "Unifideck/plugin.json").readText()).getString("name"))
     }
