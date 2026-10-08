@@ -85,6 +85,13 @@ object AgentGuest {
     fun focus(context: Context): JSONObject? =
         if (SessionState.running) readJson(File(dir(context), "focus.json")) else null
 
+    /** The Steam library game whose tile currently has controller or keyboard focus. */
+    fun selectedSteamAppId(context: Context): Long? {
+        val result = call(context, JSONObject().put("kind", "steam-selection"), 6_000)
+        if (!result.optBoolean("ok") || result.isNull("appId")) return null
+        return result.optLong("appId").takeIf { it in 1..4_294_967_295L }
+    }
+
     /** Send one request and wait for its answer. Throws [AgentException] with a stable code. */
     fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
         if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)

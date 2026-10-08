@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import shutil
@@ -51,6 +52,40 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["apply_config"](env, config, "42"), {"KEEP": "inherited", "CUSTOM": "game", "EMPTY": ""})
         self.assertEqual(env["REMOVE"], "inherited")
         self.assertEqual(MODULE["apply_config"](env, config, "43")["CUSTOM"], "shared")
+
+    def test_component_profiles_override_general_and_restore_it_for_the_next_game(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "home"
+            component_dir = home / ".local/share/droiddeck-components"
+            base = root / "proton"
+            target = base / "files/lib/wine/dxvk/aarch64-windows/d3d11.dll"
+            leftover = target.with_name("d3d8.dll")
+            component_dir.mkdir(parents=True)
+            target.parent.mkdir(parents=True)
+            (base / "version").write_text("1 build-1\n")
+            general = root / "general.dll"
+            game = root / "game.dll"
+            general.write_text("general")
+            game.write_text("game")
+            target.write_text("old")
+            leftover.write_text("old")
+            digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+            (component_dir / "desired.tsv").write_text(
+                "*\tproton\tbuild-1\tdxvk\tfiles/lib/wine/dxvk/aarch64-windows/d3d11.dll\t%s\t%s\n"
+                "42\tproton\tbuild-1\tdxvk\tfiles/lib/wine/dxvk/aarch64-windows/d3d11.dll\t%s\t%s\n"
+                "42\tproton\tbuild-1\tdxvk\tfiles/lib/wine/dxvk/aarch64-windows/d3d8.dll\t-\t-\n"
+                % (digest(general), general, digest(game), game)
+            )
+            script = COMPAT["BL_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; bl_components "$1"\n'
+            env = dict(os.environ, HOME=str(home), STEAM_COMPAT_DATA_PATH="/steam/compatdata/42")
+            subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True)
+            self.assertEqual(target.read_text(), "game")
+            self.assertFalse(leftover.exists())
+
+            env["STEAM_COMPAT_DATA_PATH"] = "/steam/compatdata/43"
+            subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True)
+            self.assertEqual(target.read_text(), "general")
 
     def test_engine_fixes_follow_the_games_files(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -108,6 +143,22 @@ class GameEnvironmentTest(unittest.TestCase):
         for bad in (1, "a\0b", "x" * 8193):
             with self.assertRaises(ValueError):
                 MODULE["apply_config"]({}, {**config, "dxvkConfig": bad}, "42")
+
+    def test_game_texture_filtering_overrides_default_without_leaking(self):
+        default = "d3d9.samplerAnisotropy = 16"
+        game = "d3d9.samplerAnisotropy = 4"
+        config = {
+            "version": 1,
+            "shared": {},
+            "games": {},
+            "dxvkConfig": default,
+            "dxvkConfigGames": {"42": game, "43": ""},
+        }
+        self.assertEqual(MODULE["apply_config"]({}, config, "42")["DXVK_CONFIG"], game)
+        self.assertNotIn("DXVK_CONFIG", MODULE["apply_config"]({}, config, "43"))
+        self.assertEqual(MODULE["apply_config"]({}, config, "44")["DXVK_CONFIG"], default)
+        with self.assertRaises(ValueError):
+            MODULE["apply_config"]({}, {**config, "dxvkConfigGames": []}, "42")
 
     def test_game_ids_and_probes(self):
         for prefix in ("", "/compatdata/0", "/compatdata/0-123", "/compatdata/nope", "/compatdata/4294967296"):
@@ -318,6 +369,57 @@ class ProtonDefaultTest(unittest.TestCase):
     def test_uninstalled_titles_are_forgotten(self):
         changes, auto = self.plan({"0": self.TOOL}, [], self.TOOL, {"10": self.TOOL})
         self.assertEqual((changes, auto), ({}, {}))
+
+    def test_per_game_proton_override_and_inherit_follow_steam_mappings(self):
+        current = {"0": self.TOOL, "10": self.TOOL, "11": "GE-Proton11-7", "12": self.TOOL}
+        overrides = {"10": "GE-Proton11-7", "11": None}
+        changes, auto = COMPAT["plan_mapping"](
+            current, ["10", "11", "12"], self.NAMES, COMPAT["TOOL_11"],
+            {"10": self.TOOL, "12": self.TOOL}, overrides=overrides)
+        self.assertEqual(changes, {"0": COMPAT["TOOL_11"], "10": "GE-Proton11-7", "11": COMPAT["TOOL_11"], "12": COMPAT["TOOL_11"]})
+        self.assertEqual(auto, {"11": COMPAT["TOOL_11"], "12": COMPAT["TOOL_11"]})
+
+    def test_per_game_requests_resolve_identity_and_defer_a_new_live_tool(self):
+        requests = {
+            "10": {"valve": False, "dir": "GE-Proton11-7"},
+            "11": None,
+            "12": {"valve": True, "dir": "Proton 11.0 (ARM64)"},
+            "0": None,
+        }
+        self.assertEqual(
+            COMPAT["requested_games"](requests, self.CATALOG),
+            {"10": "GE-Proton11-7", "11": None, "12": COMPAT["TOOL_11"]},
+        )
+        self.assertEqual(
+            COMPAT["requested_games"](requests, self.CATALOG, [self.TOOL, COMPAT["TOOL_11"]]),
+            {"10": COMPAT["DEFERRED_GAME_TOOL"], "11": None, "12": COMPAT["TOOL_11"]},
+        )
+
+    def test_missing_per_game_proton_is_preserved_during_default_registration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([
+                ("0", self.TOOL),
+                ("10", "GE-Proton9-1"),
+                ("11", self.TOOL),
+            ]))
+            (Path(tmp) / "games.json").write_text(json.dumps({
+                "version": 1,
+                "games": {
+                    "10": {"valve": False, "dir": "GE-Proton9-1"},
+                },
+            }))
+
+            COMPAT["register_default"](
+                str(config), ["10", "11"], default=COMPAT["TOOL_11"],
+                catalog=self.CATALOG, directory=tmp,
+            )
+
+            self.assertEqual(mapping_of(config.read_text()), {
+                "0": COMPAT["TOOL_11"],
+                "10": "GE-Proton9-1",
+                "11": COMPAT["TOOL_11"],
+            })
 
     def test_the_last_side_to_change_wins(self):
         state = {"default": self.TOOL, "applied": 5}

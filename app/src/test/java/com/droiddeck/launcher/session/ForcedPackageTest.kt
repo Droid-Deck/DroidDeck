@@ -89,6 +89,22 @@ class ForcedPackageTest {
         assertNull(install(gpu(650, GpuInfo.Family.A6XX)))
     }
 
+    @Test fun gameComponentProfilesReadOnlyKnownComponents() {
+        val state = File(context.filesDir, "components/state.json")
+        state.parentFile!!.mkdirs()
+        state.writeText(JSONObject()
+            .put("active", JSONObject())
+            .put("queued", JSONObject())
+            .put("profiles", JSONObject().put("42", JSONObject()
+                .put("fex", "fex.wcp")
+                .put("dxvk", "dxvk.wcp")
+                .put("unknown", "ignored.wcp")))
+            .toString())
+
+        assertEquals(mapOf("fex" to "fex.wcp", "dxvk" to "dxvk.wcp"), ComponentsManager.gameComponents(context, "42"))
+        assertTrue(ComponentsManager.gameComponents(context, "43").isEmpty())
+    }
+
     @Test fun theSamePackageOnThisProtonBuildIsNotFetchedAgain() {
         proton("proton-exp")
         writeState("proton-exp", dxvk2, "experimental-11")
