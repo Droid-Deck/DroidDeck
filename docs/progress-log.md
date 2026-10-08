@@ -9,7 +9,7 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ## 2026-10-08 - `feat/directaudio-release`: DirectAudio from its own release, picked by interface, and the client gets the real engine
 
-Three things were wrong with audio at once, and one tidy-up Kurt asked for.
+Three things were wrong with audio at once, and one tidy-up @xXJSONDeruloXx asked for.
 
 - **CachyOS games were silent with DirectAudio on.** Both CachyOS Protons DroidDeck offers carry
   Wine's newer *system-thread* audio interface (`dlls/mmdevapi/unixlib.h` differs from Valve's);
@@ -36,7 +36,7 @@ Three things were wrong with audio at once, and one tidy-up Kurt asked for.
   fresh default for everyone). If the native sink cannot open its stream the daemon keeps running
   (`.nofail`) and `PulseAudioComponent.ensureClientSink` loads the plain AAudio sink instead, saying
   so in `audio.log`.
-- **Binaries out of tree** (Kurt): the driver sets, the relay helper and both sinks come from the
+- **Binaries out of tree** (@xXJSONDeruloXx): the driver sets, the relay helper and both sinks come from the
   pinned release in `tools/directaudio/release.env` (`directaudio-linux-v1.1.0`, four zips,
   sha256-checked) through `tools/directaudio/fetch.sh`, in CI and `build_local.sh`, like gamescope.
   Deleted: `app/src/main/assets/directaudio/` (now generated, ignored), `tools/directaudio-relay/`,
