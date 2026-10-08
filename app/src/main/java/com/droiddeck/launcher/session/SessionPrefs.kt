@@ -3,12 +3,15 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.ScreenEffects
 import org.json.JSONObject
 
 /** The in-session switches: the HUD and how the on-screen controls decide to appear. */
 object SessionPrefs {
+    data class GameTextureFiltering(val anisotropy: Int? = null, val lodBias: String? = null)
+
     const val SUSPEND_AUTO = "auto"
     const val SUSPEND_NATIVE = "native"
     const val SUSPEND_MANUAL = "manual"
@@ -862,6 +865,62 @@ object SessionPrefs {
 
     fun setTextureLodBias(context: Context, choice: String) {
         prefs(context).edit().putString("textureLodBias", choice).apply()
+        publishGameEnvironment(context)
+    }
+
+    fun gameTextureFiltering(context: Context, scope: String): GameTextureFiltering {
+        require(GameEnvironment.validScope(scope))
+        return gameTextureFiltering(context)[scope] ?: GameTextureFiltering()
+    }
+
+    fun gameTextureFiltering(context: Context): Map<String, GameTextureFiltering> {
+        val json = runCatching {
+            JSONObject(prefs(context).getString("gameTextureFiltering", null) ?: "{}")
+        }.getOrElse { JSONObject() }
+        return buildMap {
+            json.keys().forEach { scope ->
+                if (!GameEnvironment.validScope(scope)) return@forEach
+                val entry = json.optJSONObject(scope) ?: return@forEach
+                val anisotropy = entry.optInt("anisotropy").takeIf {
+                    entry.has("anisotropy") && it in TextureFiltering.ANISOTROPY
+                }
+                val lodBias = entry.optString("lodBias").takeIf {
+                    entry.has("lodBias") && it in TextureFiltering.LOD_BIAS
+                }
+                if (anisotropy != null || lodBias != null) {
+                    put(scope, GameTextureFiltering(anisotropy, lodBias))
+                }
+            }
+        }
+    }
+
+    fun setGameTextureAnisotropy(context: Context, scope: String, value: Int?) {
+        require(value == null || value in TextureFiltering.ANISOTROPY)
+        updateGameTextureFiltering(context, scope) { it.copy(anisotropy = value) }
+    }
+
+    fun setGameTextureLodBias(context: Context, scope: String, choice: String?) {
+        require(choice == null || choice in TextureFiltering.LOD_BIAS)
+        updateGameTextureFiltering(context, scope) { it.copy(lodBias = choice) }
+    }
+
+    private fun updateGameTextureFiltering(
+        context: Context,
+        scope: String,
+        change: (GameTextureFiltering) -> GameTextureFiltering,
+    ) {
+        require(GameEnvironment.validScope(scope))
+        val choices = gameTextureFiltering(context).toMutableMap()
+        val next = change(choices[scope] ?: GameTextureFiltering())
+        if (next.anisotropy == null && next.lodBias == null) choices.remove(scope) else choices[scope] = next
+        val json = JSONObject()
+        choices.forEach { (id, choice) ->
+            json.put(id, JSONObject().apply {
+                choice.anisotropy?.let { put("anisotropy", it) }
+                choice.lodBias?.let { put("lodBias", it) }
+            })
+        }
+        prefs(context).edit().putString("gameTextureFiltering", json.toString()).apply()
         publishGameEnvironment(context)
     }
 

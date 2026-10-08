@@ -145,6 +145,8 @@ android {
         debug {
             minifyEnabled false
             signingConfig signingConfigs.testkey
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
         }
         release {
             minifyEnabled false

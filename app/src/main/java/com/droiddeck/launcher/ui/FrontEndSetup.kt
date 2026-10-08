@@ -467,10 +467,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     // The game's prefix is compatdata/<id>, as droiddeck-game-env reads it: a Steam title's appid, an
     // added game's shortcut appid (unsigned). Recommended scans the game's own folder either way.
-    val wincompKey = game?.let {
-        if (it.library == com.droiddeck.launcher.frontend.Library.ADDED) Integer.toUnsignedString(it.appId)
-        else it.appId.takeIf { id -> id > 0 }?.toString()
-    }
+    val wincompKey = game?.takeIf { it.library == com.droiddeck.launcher.frontend.Library.ADDED || it.appId > 0 }?.profileKey
     var wincompOpen by remember(wincompKey) { mutableStateOf<Boolean?>(null) }
     val wincompPicks = remember(wincompKey, wincompOpen) { wincompKey?.let { com.droiddeck.launcher.session.WinComponents.picks(context, it) }.orEmpty() }
     val cards = buildList<@Composable (Modifier) -> Unit> {

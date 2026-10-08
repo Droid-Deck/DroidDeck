@@ -45,4 +45,37 @@ object GameEnvironment {
 
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
         defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
+
+    fun hasOverride(config: Config, scope: String, name: String): Boolean =
+        scope.isNotEmpty() && config.entries(scope).containsKey(name)
+
+    fun withScopeValue(config: Config, scope: String, name: String, value: String?): Config {
+        require(scope.isEmpty() || validScope(scope))
+        val entries = config.entries(scope).toMutableMap()
+        if (value == null) entries.remove(name) else entries[name] = value
+        return config.withEntries(scope, entries)
+    }
+
+    fun gameFexPreset(config: Config, scope: String): String? {
+        require(scope.isNotEmpty() && validScope(scope))
+        val entries = config.games[scope].orEmpty()
+        if (FexPreset.environmentKeys.none(entries::containsKey)) return null
+        return FexPreset.all.firstOrNull { preset ->
+            val expected = FexPreset.environment(preset.id)
+            FexPreset.environmentKeys.all { key -> entries.containsKey(key) && entries[key] == expected[key] }
+        }?.id ?: CUSTOM_FEX_PRESET
+    }
+
+    fun withGameFexPreset(config: Config, scope: String, preset: String?): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        require(preset == null || FexPreset.all.any { it.id == preset })
+        val entries = config.entries(scope).filterKeys { it !in FexPreset.environmentKeys }.toMutableMap()
+        if (preset != null) {
+            val values = FexPreset.environment(preset)
+            FexPreset.environmentKeys.forEach { key -> entries[key] = values[key] }
+        }
+        return config.withEntries(scope, entries)
+    }
+
+    const val CUSTOM_FEX_PRESET = "__custom__"
 }

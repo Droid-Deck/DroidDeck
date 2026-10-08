@@ -92,10 +92,12 @@ TOOL_MANIFEST_VDF = """"manifest"
 # relies on compatdata/0 itself. The launch-time check below is the protection instead.
 
 # The Components page's choices, enforced in the one place every game launch passes: the app keeps
-# desired.tsv (tool dir, Proton build, component, file, sha256, source copy) and an unpacked copy of
-# each package in use. A file that no longer matches - whatever changed it - is put back before
-# Proton starts. Only for the Proton build the choice was made for: after a Steam update the build
-# differs and the Proton's own new files are left alone until the user chooses again.
+# desired.tsv (scope, tool dir, Proton build, component, file, sha256, source copy) and an unpacked
+# copy of each package in use. A game's rows replace General rows for that component. A `-` source
+# removes a managed file absent from the selected package, so one game's package cannot leak into
+# the next game. A file that no longer matches - whatever changed it - is put back before Proton
+# starts. Only the matching Proton build is changed; after a Steam update the build differs and the
+# Proton's own new files are left alone until the user chooses again.
 # A store game (GOG, Epic, Amazon) is started through the launcher .bat DroidDeck wrote beside it.
 # An Epic game needs a fresh sign-in code, which only the app can mint: droiddeck-store-launch asks
 # for it and the app writes it into the game's folder, so a launch from the client's own Play
@@ -155,15 +157,27 @@ bl_components() {
   cm_build=$(awk 'NR == 1 { print $2 }' "$base/version" 2>/dev/null)
   cm_fixed=0
   cm_checked=0
+  cm_selected=$(awk -F '\\t' -v app="$cm_app" -v tool="$cm_tool" -v build="$cm_build" '
+    $2 == tool && $3 == build {
+      rows[++count] = $0
+      scopes[count] = $1
+      comps[count] = $4
+      if ($1 == app) specific[$4] = 1
+    }
+    END {
+      for (i = 1; i <= count; i++)
+        if (scopes[i] == app || (scopes[i] == "*" && !specific[comps[i]])) print rows[i]
+    }
+  ' "$cm_list")
   # One sha256sum for every file: each program started here pays a dozen traced library lookups
   # under the game's search path before it does anything.
   local cm_rows=() cm_files=() row h p
   local -A cm_sums=()
-  while IFS=$'\\t' read -r t want comp rel sum src; do
-    [ "$t" = "$cm_tool" ] && [ "$want" = "$cm_build" ] || continue
+  while IFS=$'\\t' read -r scope t want comp rel sum src; do
+    [ -n "$scope" ] || continue
     cm_rows+=("$comp"$'\\t'"$rel"$'\\t'"$sum"$'\\t'"$src")
-    [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
-  done < "$cm_list"
+    [ "$src" != "-" ] && [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
+  done <<< "$cm_selected"
   if [ ${#cm_files[@]} -gt 0 ]; then
     while read -r h p; do cm_sums["$p"]=$h; done < <(sha256sum -- "${cm_files[@]}" 2>/dev/null)
   fi
@@ -171,6 +185,10 @@ bl_components() {
     IFS=$'\\t' read -r comp rel sum src <<< "$row"
     cm_checked=$((cm_checked + 1))
     f="$base/$rel"
+    if [ "$src" = "-" ]; then
+      if [ -e "$f" ]; then rm -f "$f" && cm_fixed=$((cm_fixed + 1)); fi
+      continue
+    fi
     if [ -f "$f" ] && [ "${cm_sums[$f]:-}" = "$sum" ]; then continue; fi
     if [ ! -f "$src" ]; then
       echo "droiddeck-proton: components: $comp source missing ($src), left as it is" >&2
@@ -969,16 +987,30 @@ def app_order(app):
     return (len(app), app)
 
 
-def plan_mapping(current, installed, runnable, default, auto, native=None, picks=()):
+DEFERRED_GAME_TOOL = object()
+
+
+def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None):
     runnable = {n.lower() for n in runnable}
     installed = set(installed)
     picks = set(picks)
     native = native or {}
+    overrides = overrides or {}
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
-    for app in sorted((set(current) | installed | picks | set(auto)) - {"0"}, key=app_order):
+    for app in sorted((set(current) | installed | picks | set(auto) | set(overrides)) - {"0"}, key=app_order):
         name = current.get(app, "")
+        if app in overrides:
+            target = overrides[app]
+            if target is DEFERRED_GAME_TOOL:
+                continue
+            target = target or default
+            if name != target:
+                changes[app] = target
+            if overrides[app] is None:
+                kept[app] = target
+            continue
         mine = auto.get(app)
         target = native.get(app, default)
         stale = unrunnable(name, runnable) or (app in native and linux_runtime_tool(name))
@@ -1035,6 +1067,34 @@ def requested_tool(request, catalog):
         if tool["dir"] and tool["dir"] == request.get("dir") and tool["valve"] == bool(request.get("valve")):
             return tool["name"]
     return None
+
+
+def game_requests(directory=None):
+    value = read_json(state_path("games.json", directory))
+    if value.get("version") != 1 or not isinstance(value.get("games"), dict):
+        return {}
+    return value["games"]
+
+
+def requested_games(requests, catalog, runnable=None):
+    """App id -> requested tool, None for inherit, or DEFERRED_GAME_TOOL while unavailable."""
+    runnable = None if runnable is None else set(runnable)
+    resolved = {}
+    for app, request in requests.items():
+        if not isinstance(app, str) or not re.fullmatch(r"[1-9][0-9]*", app) or int(app) > 0xFFFFFFFF:
+            continue
+        if request is None:
+            resolved[app] = None
+            continue
+        if (not isinstance(request, dict) or not isinstance(request.get("dir"), str) or
+                not request["dir"] or not isinstance(request.get("valve"), bool)):
+            continue
+        tool = requested_tool(request, catalog)
+        if tool is None or runnable is not None and tool not in runnable:
+            resolved[app] = DEFERRED_GAME_TOOL
+        else:
+            resolved[app] = tool
+    return resolved
 
 
 def now_ms():
@@ -1158,7 +1218,9 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             else:
                 default = state.get("default") if state.get("default") in names else TOOL
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
-        changes, auto = plan_mapping(current, apps, names, default, followers(state, current), native_targets(steam_root, apps), picks)
+        overrides = requested_games(game_requests(directory), catalog)
+        changes, auto = plan_mapping(
+            current, apps, names, default, followers(state, current), native_targets(steam_root, apps), picks, overrides)
         for app, tool in changes.items():
             set_mapping(tokens, mapping, app, tool)
         text = serialize(tokens)

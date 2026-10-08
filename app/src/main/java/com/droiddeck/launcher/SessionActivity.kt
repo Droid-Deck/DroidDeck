@@ -39,6 +39,7 @@ import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.agent.AgentGuest
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
@@ -71,6 +72,8 @@ import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.ProtonDefault
+import com.droiddeck.launcher.session.SelectedGameProfile
 import com.droiddeck.launcher.ui.CursorOverlay
 import androidx.compose.ui.graphics.asImageBitmap
 import com.droiddeck.launcher.ui.DrawerActions
@@ -88,6 +91,7 @@ import com.droiddeck.launcher.ui.SessionDrawerPage
 import com.droiddeck.launcher.ui.sessionDrawerPages
 import com.droiddeck.launcher.ui.step
 import kotlin.math.abs
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The session's screen: our Wayland compositor presenting onto this activity's Surface, and the
@@ -238,6 +242,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var closeAtOnce = false
     /** The drawer's Components tab: the Protons as last read (ComponentsManager). */
     private var drawerComponents by mutableStateOf<ComponentsManager.Snapshot?>(null)
+    private var drawerGameProfiles by mutableStateOf<List<Pair<Long, String>>>(emptyList())
+    private var drawerGameProfileId by mutableStateOf<Long?>(null)
+    private var drawerGameProfile by mutableStateOf<SelectedGameProfile?>(null)
+    private var drawerGameProfileFollowsSteam = true
+    private val drawerGameProfileRefreshing = AtomicBoolean()
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
     private var backActionsInverted by mutableStateOf(false)
@@ -249,6 +258,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var effects by mutableStateOf(ScreenEffects.OFF)
     private var textureAnisotropy by mutableStateOf(0)
     private var textureLodBias by mutableStateOf(TextureFiltering.LOD_BIAS_OFF)
+    private var drawerTextureAnisotropy by mutableStateOf<Int?>(null)
+    private var drawerTextureLodBias by mutableStateOf<String?>(null)
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
@@ -523,7 +534,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     androidApps = androidApps,
                     hudOn = hudOn,
                     upscaler = upscaler, upscaleSharpness = upscaleSharpness,
-                    effects = effects, textureAnisotropy = textureAnisotropy, textureLodBias = textureLodBias,
+                    effects = effects,
+                    textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
+                    textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
                     frameGen = frameGen,
                     lossless = lossless,
                     oscMode = oscMode, onScreenButtonsVisible = onScreenButtonsVisible, suspendPolicy = suspendPolicy,
@@ -548,8 +561,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionPrefs.setScreenEffects(this@SessionActivity, e); effects = e
                         e.push(upscaler)
                     },
-                    onTextureAnisotropy = { v -> SessionPrefs.setTextureAnisotropy(this@SessionActivity, v); textureAnisotropy = v },
-                    onTextureLodBias = { v -> SessionPrefs.setTextureLodBias(this@SessionActivity, v); textureLodBias = v },
+                    onTextureAnisotropy = { value ->
+                        drawerGameProfileId?.let { appId ->
+                            SessionPrefs.setGameTextureAnisotropy(this@SessionActivity, appId.toString(), value)
+                            drawerTextureAnisotropy = value
+                        } ?: value?.let {
+                            SessionPrefs.setTextureAnisotropy(this@SessionActivity, it)
+                            textureAnisotropy = it
+                        }
+                    },
+                    onTextureLodBias = { value ->
+                        drawerGameProfileId?.let { appId ->
+                            SessionPrefs.setGameTextureLodBias(this@SessionActivity, appId.toString(), value)
+                            drawerTextureLodBias = value
+                        } ?: value?.let {
+                            SessionPrefs.setTextureLodBias(this@SessionActivity, it)
+                            textureLodBias = it
+                        }
+                    },
                     onFrameGenPick = { mode ->
                         FrameGen.set(this@SessionActivity, mode)
                         readPrefs()
@@ -635,6 +664,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onClose = { drawerOpen = false },
                     components = drawerComponents,
                     onComponentsRefresh = { refreshDrawerComponents() },
+                    gameProfiles = drawerGameProfiles,
+                    selectedGameProfileId = drawerGameProfileId,
+                    selectedGameProfile = drawerGameProfile,
+                    onSelectedGameProfile = ::selectDrawerGameProfile,
+                    onSelectedGameProfileRefresh = ::refreshDrawerGameProfile,
                     onComponentSwap = { pid, comp, value -> swapDrawerComponent(pid, comp, value) },
                 ))
                 if (SessionState.suspended) SessionPausedOverlay(
@@ -730,6 +764,71 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (applied.isNotEmpty()) android.widget.Toast.makeText(this, getString(R.string.main_applied, applied.joinToString(", ")), android.widget.Toast.LENGTH_LONG).show()
             }
         }, "drawer-components").start()
+    }
+
+    private fun selectDrawerGameProfile(appId: Long?) {
+        drawerGameProfileFollowsSteam = false
+        drawerGameProfileId = appId
+        drawerGameProfile = null
+        readDrawerTextureFiltering(appId)
+        refreshDrawerGameProfile()
+    }
+
+    private fun readDrawerTextureFiltering(appId: Long?) {
+        val choice = appId?.let { SessionPrefs.gameTextureFiltering(this, it.toString()) }
+        drawerTextureAnisotropy = choice?.anisotropy
+        drawerTextureLodBias = choice?.lodBias
+    }
+
+    private fun refreshDrawerGameProfile() {
+        if (!drawerGameProfileRefreshing.compareAndSet(false, true)) return
+        val followsSteam = drawerGameProfileFollowsSteam
+        val requestedAppId = drawerGameProfileId
+        Thread({
+            val result = runCatching {
+                val games = Library.launchableGames(this)
+                val options = games.mapNotNull { game ->
+                    game.profileKey.toLongOrNull()?.let { it to game.name }
+                }.sortedBy { it.second.lowercase() }
+                val selectedAppId = if (followsSteam) AgentGuest.selectedSteamAppId(this) else requestedAppId
+                val profile = selectedAppId?.let { resolveDrawerGameProfile(it, games) }
+                Triple(options, selectedAppId, profile)
+            }.getOrElse { Triple(emptyList(), requestedAppId, null) }
+            uiHandler.post {
+                drawerGameProfiles = result.first
+                if (followsSteam) {
+                    if (drawerGameProfileFollowsSteam) {
+                        drawerGameProfileId = result.second
+                        drawerGameProfile = result.third
+                        readDrawerTextureFiltering(result.second)
+                    }
+                } else if (!drawerGameProfileFollowsSteam && drawerGameProfileId == result.second) {
+                    drawerGameProfile = result.third
+                }
+                drawerGameProfileRefreshing.set(false)
+            }
+        }, "drawer-game-profile").start()
+    }
+
+    private fun resolveDrawerGameProfile(
+        selectedAppId: Long,
+        games: List<Library.SteamGame>,
+    ): SelectedGameProfile? {
+        val game = games.firstOrNull { it.profileKey == selectedAppId.toString() } ?: return null
+        val snapshot = drawerComponents ?: ComponentsManager.snapshot(this)
+        val protons = snapshot.protons.map { it.proton }
+        val gameChoice = ProtonDefault.gameChoice(this, game.profileKey)
+        return SelectedGameProfile.resolve(
+            selectedAppId = selectedAppId,
+            games = games,
+            generalFexPreset = SessionPrefs.fexPreset(this),
+            environment = GameEnvironmentStore.read(this),
+            snapshot = snapshot,
+            generalProtonId = ProtonDefault.selectedId(this, protons),
+            gameProtonChoice = gameChoice,
+            gameProtonId = ProtonDefault.gameSelectedId(this, game.profileKey, protons),
+            gameComponents = ComponentsManager.gameComponents(this, game.profileKey),
+        )
     }
 
     private fun swapDrawerComponent(protonId: String, comp: String, value: String) {

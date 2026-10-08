@@ -131,6 +131,13 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("READY", out["session"]["phase"])
         self.assertEqual("fake-1", out["deviceSerial"])
 
+    def test_package_selects_matching_provider_authority(self):
+        self.configure({"state": state()})
+        code, _ = self.run_ctl("--package", "com.droiddeck.launcher.dev", "state")
+        self.assertEqual(0, code)
+        call = self.calls("state")[0]
+        self.assertEqual("content://com.droiddeck.launcher.dev.agent", call["args"][4])
+
     def test_launch_sends_the_app_id_and_waits_for_focus(self):
         self.configure({
             "launch": {"ok": True, "command": "launch", "appId": "489830"},

@@ -81,14 +81,14 @@ internal fun PadFocus(byPad: Boolean, target: FocusRequester) {
 }
 
 @Composable
-private fun GameEnvironmentEditor(byPad: Boolean, onClose: () -> Unit) {
+internal fun GameEnvironmentEditor(byPad: Boolean, initialScope: String = "", onClose: () -> Unit) {
     val context = LocalContext.current
     val coroutine = rememberCoroutineScope()
     val shown = rememberShown(onClose)
     val close = { shown.targetState = false }
     var config by remember { mutableStateOf<GameEnvironment.Config?>(null) }
     var games by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
-    var scope by remember { mutableStateOf("") }
+    var scope by remember(initialScope) { mutableStateOf(initialScope) }
     var otherId by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }

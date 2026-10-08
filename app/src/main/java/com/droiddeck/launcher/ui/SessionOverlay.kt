@@ -18,6 +18,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
@@ -88,6 +89,9 @@ import com.droiddeck.launcher.HomeApp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import com.droiddeck.launcher.core.GameEnvironment
+import com.droiddeck.launcher.session.ProfileValue
+import com.droiddeck.launcher.session.SelectedGameProfile
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.stateDescription
@@ -202,8 +206,8 @@ class DrawerActions(
     /** The compositor's post chain (gpu/ScreenEffects), changed live. */
     val effects: ScreenEffects = ScreenEffects.OFF,
     /** Texture filtering for DirectX 9-11 games (core/TextureFiltering); lands on their next launch. */
-    val textureAnisotropy: Int = 0,
-    val textureLodBias: String = TextureFiltering.LOD_BIAS_OFF,
+    val textureAnisotropy: Int? = 0,
+    val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
@@ -232,8 +236,8 @@ class DrawerActions(
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
-    val onTextureAnisotropy: (Int) -> Unit = {},
-    val onTextureLodBias: (String) -> Unit = {},
+    val onTextureAnisotropy: (Int?) -> Unit = {},
+    val onTextureLodBias: (String?) -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
     val onSecondScreenDisplay: (Int) -> Unit,
     val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
@@ -251,6 +255,13 @@ class DrawerActions(
     val components: ComponentsManager.Snapshot? = null,
     /** Re-reads the Protons (and runs swaps that waited for a game to close). */
     val onComponentsRefresh: () -> Unit = {},
+    /** Installed games available for profile inspection in the session drawer. */
+    val gameProfiles: List<Pair<Long, String>> = emptyList(),
+    /** The selected game profile, or null for the Default profile. */
+    val selectedGameProfileId: Long? = null,
+    val selectedGameProfile: SelectedGameProfile? = null,
+    val onSelectedGameProfile: (Long?) -> Unit = {},
+    val onSelectedGameProfileRefresh: () -> Unit = {},
     /** Swaps [value] ("orig:<build>" or a stored package file) into a Proton's component. */
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
 )
@@ -280,7 +291,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     }
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
     LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
-    LaunchedEffect(open, page) { if (open && page == SessionDrawerPage.GAMES) a.onComponentsRefresh() }
+    LaunchedEffect(open, page) {
+        if (open && page == SessionDrawerPage.GAMES) {
+            a.onComponentsRefresh()
+            while (true) {
+                a.onSelectedGameProfileRefresh()
+                delay(1_000)
+            }
+        }
+    }
     LaunchedEffect(open, controllerActive) {
         if (open && !controllerActive) focusManager.clearFocus(force = true)
     }
@@ -461,6 +480,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             SecondScreenGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.GAMES -> {
+                            if (a.steam) SelectedGameProfileGroup(host, a) { key -> focus.track(page, key) }
                             Text(stringResource(R.string.fex_next_launch), fontSize = 12.sp,
                                 color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
                             TextureFilteringGroup(host, a) { key -> focus.track(page, key) }
@@ -859,16 +879,133 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
 /** Texture filtering on the Games page: DXVK options for the next DirectX 9-11 launch. */
 @Composable
 private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+    val inherited = a.selectedGameProfileId != null
+    val anisotropyChoices: List<Pair<Int?, String>> =
+        (if (inherited) listOf(null to stringResource(R.string.comp_game_use_general)) else emptyList()) +
+            SessionPrefs.textureAnisotropyChoices(LocalContext.current).map { (value, label) -> value as Int? to label }
+    val lodBiasChoices: List<Pair<String?, String>> =
+        (if (inherited) listOf(null to stringResource(R.string.comp_game_use_general)) else emptyList()) +
+            SessionPrefs.textureLodBiasChoices(LocalContext.current).map { (value, label) -> value as String? to label }
     SettingsGroup(stringResource(R.string.drawer_texture)) {
         ChoiceRow(host, "anisotropy", stringResource(R.string.drawer_anisotropy), null,
-            SessionPrefs.textureAnisotropyChoices(LocalContext.current), a.textureAnisotropy, chipModifier = track("anisotropy"), onPick = a.onTextureAnisotropy)
+            anisotropyChoices, a.textureAnisotropy, chipModifier = track("anisotropy"), onPick = a.onTextureAnisotropy)
         ChoiceRow(host, "texture-sharpness", stringResource(R.string.drawer_texture_sharpness), null,
-            SessionPrefs.textureLodBiasChoices(LocalContext.current), a.textureLodBias, note = stringResource(R.string.drawer_texture_sharpness_note),
+            lodBiasChoices, a.textureLodBias, note = stringResource(R.string.drawer_texture_sharpness_note),
             chipModifier = track("texture-sharpness"), onPick = a.onTextureLodBias)
     }
 }
 
 private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
+
+@Composable
+private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val options: List<Pair<Long?, String>> = listOf(null to stringResource(R.string.comp_scope_general)) +
+        a.gameProfiles.map { (id, name) -> Pair(id, name) }
+    val profile = a.selectedGameProfile
+    SettingsGroup(stringResource(R.string.drawer_selected_profile)) {
+        DrawerStackedChoice(
+            host = host,
+            key = "game-profile",
+            label = stringResource(R.string.comp_profile),
+            hint = if (a.selectedGameProfileId == null) stringResource(R.string.comp_scope_general_detail)
+            else stringResource(R.string.drawer_profile_inspect_hint),
+            options = options,
+            selected = a.selectedGameProfileId,
+            chipModifier = track("game-profile"),
+            onPick = a.onSelectedGameProfile,
+        )
+        if (a.selectedGameProfileId == null) return@SettingsGroup
+        if (profile == null) {
+            Text(
+                stringResource(R.string.drawer_selected_profile_none),
+                fontSize = 13.sp,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.padding(14.dp),
+            )
+            return@SettingsGroup
+        }
+        val hasOverrides = !profile.fexPreset.inherited ||
+            !profile.proton.inherited ||
+            profile.components.values.any { !it.inherited } ||
+            profile.environmentOverrides > 0 ||
+            a.textureAnisotropy != null ||
+            a.textureLodBias != null
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp)) {
+            Text(
+                stringResource(
+                    if (hasOverrides) R.string.drawer_profile_custom
+                    else R.string.drawer_profile_default,
+                ),
+                fontSize = 12.sp,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = if (hasOverrides) 5.dp else 0.dp),
+            )
+            if (!profile.fexPreset.inherited) {
+                ProfileSummaryRow(stringResource(R.string.comp_game_fex), fexProfileLabel(profile.fexPreset))
+            }
+            if (!profile.proton.inherited) {
+                ProfileSummaryRow(stringResource(R.string.comp_proton), profileValueLabel(profile.proton))
+            }
+            for (component in ComponentsManager.COMPONENTS) {
+                val value = profile.components.getValue(component)
+                if (!value.inherited) {
+                    ProfileSummaryRow(ComponentsManager.LABEL.getValue(component), profileValueLabel(value))
+                }
+            }
+            if (profile.environmentOverrides > 0) {
+                ProfileSummaryRow(
+                    stringResource(R.string.game_env_title),
+                    pluralStringResource(
+                        R.plurals.drawer_profile_environment_overrides,
+                        profile.environmentOverrides,
+                        profile.environmentOverrides,
+                    ),
+                )
+            }
+            a.textureAnisotropy?.let { value ->
+                ProfileSummaryRow(
+                    stringResource(R.string.drawer_anisotropy),
+                    SessionPrefs.textureAnisotropyChoices(LocalContext.current)
+                        .firstOrNull { it.first == value }?.second.orEmpty(),
+                )
+            }
+            a.textureLodBias?.let { value ->
+                ProfileSummaryRow(
+                    stringResource(R.string.drawer_texture_sharpness),
+                    SessionPrefs.textureLodBiasChoices(LocalContext.current)
+                        .firstOrNull { it.first == value }?.second.orEmpty(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun fexProfileLabel(value: ProfileValue): String {
+    return when (value.value) {
+        GameEnvironment.CUSTOM_FEX_PRESET -> stringResource(R.string.comp_game_fex_custom)
+        else -> stringResource(FexPreset.byId(value.value).label)
+    }
+}
+
+@Composable
+private fun profileValueLabel(value: ProfileValue) =
+    value.value.ifEmpty { stringResource(R.string.comp_no_proton_short) }
+
+@Composable
+private fun ProfileSummaryRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(top = 3.dp)) {
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(96.dp))
+        Text(
+            value,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
 /**
  * The Games tab's components: quick swaps between what is already installed, per Proton. A swap

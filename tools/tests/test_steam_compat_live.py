@@ -207,6 +207,33 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual((state["pending"], state.get("applied", 0)), (TOOL_11, 0))
         self.assertTrue(self.helper.request_waiting())
 
+    def test_per_game_customize_and_inherit_apply_live(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL_11}, [TOOL, TOOL_11])
+        (self.state / "games.json").write_text(json.dumps({
+            "version": 1,
+            "games": {
+                "10": {"valve": True, "dir": "Proton 11.0 (ARM64)"},
+                "11": None,
+            },
+        }))
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [("10", TOOL_11), ("11", TOOL)])
+        self.assertEqual(state["auto"], {"11": TOOL})
+
+    def test_missing_per_game_proton_stays_deferred_live(self):
+        page = FakePage({"0": TOOL, "10": "GE-Proton9-1", "11": TOOL_11}, [TOOL, TOOL_11])
+        (self.state / "games.json").write_text(json.dumps({
+            "version": 1,
+            "games": {
+                "10": {"valve": False, "dir": "GE-Proton9-1"},
+                "11": None,
+            },
+        }))
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [("11", TOOL)])
+        self.assertEqual(page.mapping["10"], "GE-Proton9-1")
+        self.assertEqual(state["auto"], {"11": TOOL})
+
     def test_file_mode_defers_to_the_live_helper(self):
         (self.state / "live.pid").write_text("%d\n" % os.getpid())
         self.assertTrue(COMPAT["live_helper_running"]())
