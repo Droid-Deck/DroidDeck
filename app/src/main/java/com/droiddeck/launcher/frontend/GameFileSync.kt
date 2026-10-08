@@ -2,6 +2,7 @@ package com.droiddeck.launcher.frontend
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
@@ -37,18 +38,18 @@ object GameFileSync {
     }
 
     @Synchronized private fun sync(context: Context, folder: File) {
-        check(LinuxRuntime.isInstalled(context)) { "Install the runtime first" }
+        check(LinuxRuntime.isInstalled(context)) { context.getString(R.string.game_sync_err_runtime) }
         // A disconnected library must not be interpreted as a mass uninstall.
-        check(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps").isDirectory) { "Steam library is unavailable" }
+        check(File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps").isDirectory) { context.getString(R.string.game_sync_err_steam_library) }
         val storage = GameStorage.effective(context)
         val storageSetting = SessionPrefs.gameStorage(context)
         val previousStorage = prefs(context).getString("storagePath", null)
         if (storageSetting.isEmpty() && prefs(context).getString("storageSetting", null) == storageSetting && previousStorage != null) {
-            check(File(previousStorage).isDirectory) { "Previous SD library is unavailable" }
+            check(File(previousStorage).isDirectory) { context.getString(R.string.game_sync_err_previous_sd) }
         }
-        storage?.let { check(File(it.path).listFiles() != null) { "Game storage is unavailable" } }
-        SessionPrefs.addedGamesDirs(context).forEach { check(File(it).listFiles() != null) { "Added games folder is unavailable" } }
-        GameFiles.sync(folder, Library.launchableGames(context, strictRead = true))
+        storage?.let { check(File(it.path).listFiles() != null) { context.getString(R.string.game_sync_err_game_storage) } }
+        SessionPrefs.addedGamesDirs(context).forEach { check(File(it).listFiles() != null) { context.getString(R.string.game_sync_err_added_games) } }
+        GameFiles.sync(context, folder, Library.launchableGames(context, strictRead = true))
         prefs(context).edit().putString("storageSetting", storageSetting).putString("storagePath", storage?.path).apply()
     }
 }

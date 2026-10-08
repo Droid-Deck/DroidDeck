@@ -42,7 +42,9 @@ class SessionScalingPrefsTest {
 
     @Test fun freshSettingsUseTheConcreteDefaultAndCustomSizesAreNormalized() {
         val context = RuntimeEnvironment.getApplication()
-        assertEquals("1280x720", SessionPrefs.resolutionChoice(context, "steam", 2400 to 1080))
+        assertEquals(SessionDisplay.DEFAULT_RESOLUTION, SessionPrefs.resolutionChoice(context, "steam", 2400 to 1080))
+        SessionPrefs.setResolutionChoice(context, "steam", "900p")
+        assertEquals("900p", SessionPrefs.resolutionChoice(context, "steam", 2400 to 1080))
         SessionPrefs.setResolutionChoice(context, "steam", "1025×769")
         assertEquals("1024x768", SessionPrefs.resolutionChoice(context, "steam", 2400 to 1080))
     }

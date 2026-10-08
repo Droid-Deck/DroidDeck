@@ -11,6 +11,14 @@ class GameEnvironmentTest {
         assertEquals("6_9", values["VKD3D_SHADER_MODEL"])
     }
 
+    @Test fun forceSsbsIsADefaultAGameCanTurnOff() {
+        assertFalse(GameEnvironment.defaults("").containsKey(GameEnvironment.FORCE_SSBS))
+        assertEquals("1", GameEnvironment.defaults("", forceSsbs = true)[GameEnvironment.FORCE_SSBS])
+        val config = GameEnvironment.Config().withEntries("42", mapOf(GameEnvironment.FORCE_SSBS to "0"))
+        assertEquals("0", GameEnvironment.effective(config, "", "42", forceSsbs = true)[GameEnvironment.FORCE_SSBS])
+        assertEquals("1", GameEnvironment.effective(config, "", "43", forceSsbs = true)[GameEnvironment.FORCE_SSBS])
+    }
+
     @Test fun gameOverridesSharedAndPresetWithoutLeakingToOtherGames() {
         val config = GameEnvironment.Config(
             shared = mapOf("FEX_MULTIBLOCK" to "0", "VKD3D_FEATURE_LEVEL" to "12_2"),

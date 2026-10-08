@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.gpu
 
 import com.droiddeck.launcher.core.Hashes
+import com.droiddeck.launcher.R
 import android.content.Context
 import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONArray
@@ -95,7 +96,7 @@ object TurnipReleases {
         var lastError: Exception? = null
         for (src in SOURCES) {
             try {
-                val releases = JSONArray(get("https://api.github.com/repos/${src.repo}/releases?per_page=15"))
+                val releases = JSONArray(get(context, "https://api.github.com/repos/${src.repo}/releases?per_page=15"))
                 val seen = HashSet<String>()
                 var newest: String? = null
                 for (i in 0 until releases.length()) {
@@ -135,7 +136,7 @@ object TurnipReleases {
         return parse(stored)
     }
 
-    private fun get(url: String): String {
+    private fun get(context: Context, url: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 20_000
@@ -143,8 +144,8 @@ object TurnipReleases {
         c.setRequestProperty("User-Agent", "DroidDeck-app")
         try {
             val code = c.responseCode
-            if (code == 403 || code == 429) throw IOException("GitHub's rate limit was hit - try again later")
-            if (code != 200) throw IOException("GitHub answered HTTP $code")
+            if (code == 403 || code == 429) throw IOException(context.getString(R.string.turnip_rate_limited))
+            if (code != 200) throw IOException(context.getString(R.string.turnip_github_http, code))
             return c.inputStream.bufferedReader().use { it.readText() }
         } finally {
             c.disconnect()
@@ -194,7 +195,7 @@ object TurnipReleases {
 
     /** Download an asset into the cache; the caller imports it and deletes the file. */
     fun download(context: Context, asset: Asset, progress: (Int) -> Unit): File {
-        if (asset.sha256.isEmpty()) throw IOException("This driver list predates checksums - refresh it and try again")
+        if (asset.sha256.isEmpty()) throw IOException(context.getString(R.string.turnip_list_predates_checksums))
         val target = File(context.cacheDir, asset.name)
         val c = URL(asset.url).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
@@ -202,7 +203,7 @@ object TurnipReleases {
         c.setRequestProperty("User-Agent", "DroidDeck-app")
         c.instanceFollowRedirects = true
         try {
-            if (c.responseCode != 200) throw IOException("download answered HTTP ${c.responseCode}")
+            if (c.responseCode != 200) throw IOException(context.getString(R.string.turnip_download_http, c.responseCode))
             val total = c.contentLengthLong.takeIf { it > 0 } ?: asset.size
             c.inputStream.use { input ->
                 FileOutputStream(target).use { out ->
@@ -220,7 +221,7 @@ object TurnipReleases {
                 }
             }
             if (!asset.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
-                throw IOException("Checksum mismatch - the download was discarded")
+                throw IOException(context.getString(R.string.turnip_checksum_mismatch))
             }
             return target
         } catch (e: Exception) {

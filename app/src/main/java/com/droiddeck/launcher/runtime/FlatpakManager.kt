@@ -2,6 +2,7 @@ package com.droiddeck.launcher.runtime
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONObject
 import java.io.File
@@ -102,7 +103,7 @@ object FlatpakManager {
 
     /** Puts Flatpak into the runtime and adds Flathub. Null on success, else what went wrong. */
     fun setup(context: Context, onProgress: (String, Int) -> Unit): String? {
-        if (!LinuxRuntime.isInstalled(context)) return "Install the Linux runtime first"
+        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
         return exclusive("setup") {
             var failure: String? = null
             val status = runGuest(context, listOf("/bin/bash", SETUP), fakeRoot = true) { line ->
@@ -114,11 +115,11 @@ object FlatpakManager {
             }
             when {
                 failure != null -> failure
-                status != 0 -> "Flatpak setup failed (exit $status)"
-                !ready(context) -> "Flatpak setup did not finish"
+                status != 0 -> context.getString(R.string.flatpakmgr_setup_failed, status)
+                !ready(context) -> context.getString(R.string.flatpakmgr_setup_unfinished)
                 else -> null
             }
-        } ?: "Another store task is running"
+        } ?: context.getString(R.string.flatpakmgr_busy)
     }
 
     /**
@@ -126,51 +127,61 @@ object FlatpakManager {
      * an overall percentage across the steps Flatpak plans (a runtime, its extensions, the app).
      */
     private fun transaction(context: Context, verb: String, id: String?, onProgress: (String, Int) -> Unit): String? {
-        if (!ready(context)) return "Set up Flatpak first"
+        if (!ready(context)) return context.getString(R.string.flatpakmgr_not_ready)
         return exclusive("$verb:${id ?: "all"}") {
             var error: String? = null
             // Progress lines carry no ref; they belong to the step the last "op" line started.
-            var step = "Starting"
+            var step = context.getString(R.string.flatpakmgr_starting)
             val argv = listOfNotNull("/usr/bin/python3", HELPER, verb, id)
             val status = runGuest(context, argv, fakeRoot = false) { line ->
                 val o = runCatching { JSONObject(line) }.getOrNull()
                 if (o == null) { Log.i(TAG, "$verb: $line"); return@runGuest }
                 when (o.optString("e")) {
-                    "op" -> { step = stage(o); onProgress(step, overall(o, 0)) }
+                    "op" -> { step = stage(context, o); onProgress(step, overall(o, 0)) }
                     "progress" -> onProgress(step, overall(o, o.optInt("percent")))
                     "error" -> { error = o.optString("message"); Log.w(TAG, "$verb $id: $error") }
                     "warning" -> Log.w(TAG, "$verb $id: ${o.optString("message")}")
                 }
             }
-            error ?: if (status != 0) "Flatpak exited with status $status" else null
-        } ?: "Another store task is running"
+            error ?: if (status != 0) context.getString(R.string.flatpakmgr_exit_status, status) else null
+        } ?: context.getString(R.string.flatpakmgr_busy)
     }
 
-    private fun stage(o: JSONObject): String {
+    private fun stage(context: Context, o: JSONObject): String {
         val ref = o.optString("ref")
-        val name = refLabel(ref)
-        val step = if (o.optInt("n") > 1) " (${o.optInt("i")}/${o.optInt("n")})" else ""
-        return when (o.optString("kind")) {
-            "uninstall" -> "Removing $name$step"
-            "update" -> "Updating $name$step"
-            else -> "Installing $name$step"
-        }.let { if (ref.isEmpty()) o.optString("status").ifEmpty { "Working" } else it }
+        if (ref.isEmpty()) return o.optString("status").ifEmpty { context.getString(R.string.setup_check_busy) }
+        val name = refLabel(ref) { id, args -> context.getString(id, *args) }
+        val n = o.optInt("n")
+        val kind = o.optString("kind")
+        return if (n > 1) context.getString(when (kind) {
+            "uninstall" -> R.string.flatpakmgr_removing_step
+            "update" -> R.string.flatpakmgr_updating_step
+            else -> R.string.flatpakmgr_installing_step
+        }, name, o.optInt("i"), n)
+        else context.getString(when (kind) {
+            "uninstall" -> R.string.flatpakmgr_removing
+            "update" -> R.string.flatpakmgr_updating
+            else -> R.string.flatpakmgr_installing
+        }, name)
     }
 
-    /** A ref in words: "app/org.supertuxproject.SuperTux/aarch64/stable" is "SuperTux". */
-    internal fun refLabel(ref: String): String {
+    /**
+     * A ref in words: "app/org.supertuxproject.SuperTux/aarch64/stable" is "SuperTux". [text]
+     * resolves a string resource with its arguments.
+     */
+    internal fun refLabel(ref: String, text: (Int, Array<out Any>) -> String): String {
         val parts = ref.split('/')
         val id = parts.getOrNull(1) ?: return ref
         if (parts.firstOrNull() == "app") return id.substringAfterLast('.')
-        val branch = parts.getOrNull(3)?.let { " $it" } ?: ""
+        val branch = parts.getOrNull(3)
         return when {
-            id.endsWith(".Locale") -> "translations"
-            ".GL." in id || ".GL32." in id -> "graphics drivers"
-            "codecs" in id.lowercase() || id.endsWith(".ffmpeg-full") -> "media codecs"
+            id.endsWith(".Locale") -> text(R.string.flatpakmgr_ref_translations, emptyArray())
+            ".GL." in id || ".GL32." in id -> text(R.string.flatpakmgr_ref_graphics_drivers, emptyArray())
+            "codecs" in id.lowercase() || id.endsWith(".ffmpeg-full") -> text(R.string.flatpakmgr_ref_media_codecs, emptyArray())
             id.endsWith(".Platform") -> when (val vendor = id.removeSuffix(".Platform").substringAfterLast('.')) {
                 "gnome", "kde" -> vendor.uppercase()
                 else -> vendor.replaceFirstChar { it.uppercase() }
-            } + " runtime$branch"
+            }.let { if (branch != null) text(R.string.flatpakmgr_ref_runtime_branch, arrayOf(it, branch)) else text(R.string.flatpakmgr_ref_runtime, arrayOf(it)) }
             else -> id.substringAfterLast('.')
         }
     }

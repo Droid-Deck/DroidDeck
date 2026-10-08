@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.ScreenEffects
 import org.json.JSONObject
@@ -11,6 +13,8 @@ object SessionPrefs {
     const val SUSPEND_NATIVE = "native"
     const val SUSPEND_MANUAL = "manual"
     const val SUSPEND_NEVER = "never"
+    private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
+    private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
@@ -19,10 +23,12 @@ object SessionPrefs {
     const val OSC_STEAM_QAM = "steam-qam"
     const val OSC_NEVER = "never"
 
-    const val BACK_MENU_THEN_QAM = "1: menu 2: QAM"
-    const val BACK_QAM_THEN_MENU = "1: QAM 2: menu"
+    /** What Back does in a Steam session, first press then second: the labels of the two orders. */
+    val BACK_MENU_THEN_QAM = R.string.back_menu_then_qam
+    val BACK_QAM_THEN_MENU = R.string.back_qam_then_menu
 
-    fun backActionsOrder(inverted: Boolean): String =
+    @StringRes
+    fun backActionsOrder(inverted: Boolean): Int =
         if (inverted) BACK_QAM_THEN_MENU else BACK_MENU_THEN_QAM
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
@@ -156,29 +162,12 @@ object SessionPrefs {
 
     /**
      * The Steam client's own sound through the DirectAudio relay instead of the classic AAudio
-     * sink. Off by default: on an AYN Thor (Android 13, 20 ms bursts) the relay path stayed choppy
-     * where the classic sink - the one 0.1.5 shipped - was fine.
+     * sink. On unless the user picked Classic.
      */
-    fun clientDirectAudio(context: Context): Boolean = prefs(context).getBoolean("clientDirectAudio", false)
+    fun clientDirectAudio(context: Context): Boolean = prefs(context).getBoolean("clientDirectAudio", true)
 
     fun setClientDirectAudio(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("clientDirectAudio", on).apply()
-    }
-
-    /**
-     * Steam only: gamescope makes every game window the size of the screen. A game that resizes
-     * its own window when it loses focus (FlatOut) otherwise comes back smaller, drawn in a
-     * corner; a game that sets its own resolution and never looks at its window again (Quake 3)
-     * instead draws small in the bottom-left of the stretched one. A game whose resolution differs
-     * from the screen's (DiRT 3 at 1280x720) fights it: it rebuilds its swapchain on every forced
-     * resize and the picture flickers between its own size and the screen's, often from the first
-     * menu, before the player can reach its resolution setting. Off unless turned on.
-     */
-    fun forceFullscreen(context: Context): Boolean = prefs(context).getBoolean("forceFullscreen", false)
-
-    fun setForceFullscreen(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("forceFullscreen", on).apply()
-        writeForceFullscreenFlag(context)
     }
 
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
@@ -187,18 +176,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("stretch16x9", on).apply()
     }
 
-    /**
-     * The same choice as a file the running session watches, so the drawer can change it live:
-     * the session hands every change to gamescope, which reads GAMESCOPE_FORCE_WINDOWS_FULLSCREEN
-     * off its root window whenever it changes. Written again at every session start so a file left
-     * by an earlier session never disagrees with the setting.
-     */
-    fun writeForceFullscreenFlag(context: Context) {
-        runCatching {
-            java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.droiddeck-fill")
-                .writeText(if (forceFullscreen(context)) "1\n" else "0\n")
-        }
-    }
 
     /**
      * DirectAudio for games: their Wine audio driver talks to the relay helper on this side. On
@@ -516,7 +493,7 @@ object SessionPrefs {
     fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
         saved.getString("displayResolution.$mode", null)?.let { value ->
-            if (value == SessionDisplay.MATCH_SCREEN) return value
+            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(value) != null) return value
             parseResolution(value)?.let { return "${it.first}x${it.second}" }
         }
         if (!resolutionChosen(context, mode) && !saved.contains("shape")) return SessionDisplay.DEFAULT_RESOLUTION
@@ -526,7 +503,7 @@ object SessionPrefs {
     }
 
     fun setResolutionChoice(context: Context, mode: String, choice: String) {
-        val value = if (choice == SessionDisplay.MATCH_SCREEN) choice else {
+        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(choice) != null) choice else {
             val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
         }
@@ -542,6 +519,22 @@ object SessionPrefs {
     fun fexPreset(context: Context): String = prefs(context).getString("fexPreset", DEFAULT_FEX_PRESET) ?: DEFAULT_FEX_PRESET
 
     private const val DEFAULT_FEX_PRESET = "PERFORMANCE_TSO"
+
+    /**
+     * Force SSBS for Proton games: Wine resumes threads from a Windows CONTEXT that never carries
+     * PSTATE.SSBS, so they run with speculative store bypass disabled; libssbs.so keeps it set
+     * (on DiRT 3 / GE-Proton: from ~99% of a game's threads running without it to none). The
+     * speed-up is reported on Oryon cores (Snapdragon 8 Elite) and was not measurable on an
+     * 8 Gen 3, so it is off unless turned on. A game's own environment can still say
+     * DROIDDECK_FORCE_SSBS=0.
+     */
+    fun forceSsbs(context: Context): Boolean = prefs(context).getBoolean("forceSsbs", false)
+
+    fun setForceSsbs(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("forceSsbs", on).apply()
+        runCatching { GameEnvironmentStore.publish(context) }
+            .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
+    }
 
     fun setFexPreset(context: Context, id: String) {
         prefs(context).edit().putString("fexPreset", id).apply()
@@ -600,8 +593,25 @@ object SessionPrefs {
     /** The .exe the user chose for one game folder (by its path), "" = the scanner's pick. */
     fun addedGameExe(context: Context, folderPath: String): String = prefs(context).getString("addedExe:$folderPath", "") ?: ""
 
+    private val addedGameLock = Any()
+
     fun setAddedGameExe(context: Context, folderPath: String, path: String) {
-        prefs(context).edit().putString("addedExe:$folderPath", path).apply()
+        synchronized(addedGameLock) { prefs(context).edit().putString("addedExe:$folderPath", path).apply() }
+    }
+
+    fun addedGameExeSeen(context: Context, folderPath: String): Int = prefs(context).getInt("addedExeSeen:$folderPath", 0)
+
+    fun adoptAddedGameExe(context: Context, folderPath: String, expected: String, path: String, seen: Int): Boolean =
+        synchronized(addedGameLock) {
+            val unchanged = addedGameExe(context, folderPath) == expected
+            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
+            unchanged
+        }
+
+    fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
+        val p = prefs(context)
+        p.getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
+            ?: first.also { p.edit().putLong("addedAppId:$folderPath", it).apply() }
     }
 
     /** The app's colour theme (ui/Themes ids); Graphite unless chosen otherwise. */
@@ -670,6 +680,10 @@ object SessionPrefs {
 
     val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
 
+    /** [fpsLimitChoices] labelled in the app's language. */
+    fun fpsLimitChoices(context: Context): List<Pair<Int, String>> =
+        fpsLimitChoices.map { (fps, label) -> fps to if (fps == 0) context.getString(R.string.frame_gen_off) else label }
+
     /**
      * How the compositor resizes the session onto the panel (WaylandCompositor.nativeSetUpscaler's
      * modes). Linear is the default; Nearest preserves hard pixel edges. Spatial filters work
@@ -680,6 +694,16 @@ object SessionPrefs {
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
+
+    /** The [upscalerChoices] labels that are words rather than product names. */
+    private val upscalerLabels = mapOf(
+        0 to R.string.sprefs_upscaler_linear, 2 to R.string.sprefs_upscaler_nearest,
+        8 to R.string.sprefs_upscaler_gsr_quality, 6 to R.string.sprefs_upscaler_sharpen,
+    )
+
+    /** [upscalerChoices] labelled in the app's language; the English list stays for the device report. */
+    fun upscalerChoices(context: Context): List<Pair<Int, String>> =
+        upscalerChoices.map { (mode, label) -> mode to (upscalerLabels[mode]?.let(context::getString) ?: label) }
 
     fun canonicalUpscaler(mode: Int): Int = when (mode) {
         1 -> 0
@@ -715,11 +739,24 @@ object SessionPrefs {
 
     val textureAnisotropyChoices = TextureFiltering.ANISOTROPY.map { it to if (it == 0) "Off" else "${it}x" }
 
+    /** [textureAnisotropyChoices] labelled in the app's language. */
+    fun textureAnisotropyChoices(context: Context): List<Pair<Int, String>> =
+        textureAnisotropyChoices.map { (value, label) -> value to if (value == 0) context.getString(R.string.frame_gen_off) else label }
+
     val textureLodBiasChoices = TextureFiltering.LOD_BIAS.map {
         it to when (it) {
             TextureFiltering.LOD_BIAS_OFF -> "Off"
             TextureFiltering.LOD_BIAS_AUTO -> "Auto (match scaling)"
             else -> it
+        }
+    }
+
+    /** [textureLodBiasChoices] labelled in the app's language. */
+    fun textureLodBiasChoices(context: Context): List<Pair<String, String>> = textureLodBiasChoices.map { (value, label) ->
+        value to when (value) {
+            TextureFiltering.LOD_BIAS_OFF -> context.getString(R.string.frame_gen_off)
+            TextureFiltering.LOD_BIAS_AUTO -> context.getString(R.string.sprefs_lod_bias_auto)
+            else -> label
         }
     }
 
@@ -761,16 +798,41 @@ object SessionPrefs {
 
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
+            ?.let { if (it == LEGACY_SUSPEND_DOWNLOADS) SUSPEND_AUTO else it }
             ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
             // Direct games share Steam's settings but have no Steam client to prepare.
-            ?.let { if (it == SUSPEND_NATIVE && mode != SessionService.MODE_STEAM) SUSPEND_AUTO else it }
+            ?.let { if (mode != SessionService.MODE_STEAM && it == SUSPEND_NATIVE) SUSPEND_AUTO else it }
             ?: SUSPEND_MANUAL
 
     fun setSuspendPolicy(context: Context, mode: String, policy: String) {
         val normalized = policy.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_MANUAL, SUSPEND_NEVER) ||
             (it == SUSPEND_NATIVE && mode == SessionService.MODE_STEAM) }
             ?: SUSPEND_MANUAL
-        prefs(context).edit().putString("suspendPolicy.${prefMode(mode)}", normalized).apply()
+        val prefs = prefs(context)
+        val key = "suspendPolicy.${prefMode(mode)}"
+        prefs.edit().apply {
+            if (mode == SessionService.MODE_STEAM && prefs.getString(key, null) == LEGACY_SUSPEND_DOWNLOADS) {
+                putBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, true)
+            }
+            putString(key, normalized)
+        }.apply()
+    }
+
+    fun steamDownloadsInBackground(context: Context): Boolean {
+        val prefs = prefs(context)
+        return prefs.getBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, false) ||
+            prefs.getString("suspendPolicy.${SessionService.MODE_STEAM}", null) == LEGACY_SUSPEND_DOWNLOADS
+    }
+
+    fun setSteamDownloadsInBackground(context: Context, enabled: Boolean) {
+        val prefs = prefs(context)
+        val policyKey = "suspendPolicy.${SessionService.MODE_STEAM}"
+        prefs.edit().apply {
+            putBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, enabled)
+            if (prefs.getString(policyKey, null) == LEGACY_SUSPEND_DOWNLOADS) {
+                putString(policyKey, SUSPEND_AUTO)
+            }
+        }.apply()
     }
 
     // ── Game storage ────────────────────────────────────────────────────────────────────────

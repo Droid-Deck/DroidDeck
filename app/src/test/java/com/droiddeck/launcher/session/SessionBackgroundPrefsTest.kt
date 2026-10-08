@@ -33,4 +33,27 @@ class SessionBackgroundPrefsTest {
         assertEquals(SessionPrefs.SUSPEND_AUTO, SessionPrefs.suspendPolicy(context, SessionService.MODE_RUN))
         assertEquals(SessionPrefs.SUSPEND_NATIVE, SessionPrefs.suspendPolicy(context, SessionService.MODE_STEAM))
     }
+
+    @Test fun backgroundDownloadsAreOptInAndMigrateTheTestBuildPolicy() {
+        assertEquals(false, SessionPrefs.steamDownloadsInBackground(context))
+        SessionPrefs.setSteamDownloadsInBackground(context, true)
+        assertEquals(true, SessionPrefs.steamDownloadsInBackground(context))
+
+        clearSettings()
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .putString("suspendPolicy.steam", "downloads").commit()
+        assertEquals(SessionPrefs.SUSPEND_AUTO, SessionPrefs.suspendPolicy(context, SessionService.MODE_STEAM))
+        assertEquals(true, SessionPrefs.steamDownloadsInBackground(context))
+
+        SessionPrefs.setSuspendPolicy(context, SessionService.MODE_STEAM, SessionPrefs.SUSPEND_MANUAL)
+        assertEquals(SessionPrefs.SUSPEND_MANUAL, SessionPrefs.suspendPolicy(context, SessionService.MODE_STEAM))
+        assertEquals(true, SessionPrefs.steamDownloadsInBackground(context))
+
+        clearSettings()
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .putString("suspendPolicy.steam", "downloads").commit()
+        SessionPrefs.setSteamDownloadsInBackground(context, false)
+        assertEquals(SessionPrefs.SUSPEND_AUTO, SessionPrefs.suspendPolicy(context, SessionService.MODE_STEAM))
+        assertEquals(false, SessionPrefs.steamDownloadsInBackground(context))
+    }
 }

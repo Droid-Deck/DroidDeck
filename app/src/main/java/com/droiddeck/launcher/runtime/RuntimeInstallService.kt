@@ -22,12 +22,15 @@ import com.droiddeck.launcher.R
  * two gets there first.
  */
 class RuntimeInstallService : Service() {
+    override fun attachBaseContext(newBase: android.content.Context) =
+        super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(newBase))
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val removal = intent?.action == ACTION_REMOVE
         val release = intent?.let(::releaseFrom)
-        startForeground(NOTIFICATION_ID, notification(if (removal) "Removing Linux runtime" else "Starting…", -1))
+        startForeground(NOTIFICATION_ID, notification(getString(if (removal) R.string.rtinst_removing else R.string.user_apps_starting), -1))
         if (release == null && !removal) {
             stopSelf(startId)
             return START_NOT_STICKY
@@ -53,9 +56,9 @@ class RuntimeInstallService : Service() {
 
     private fun notification(stage: String, percent: Int): Notification {
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Linux runtime",
+        manager?.createNotificationChannel(NotificationChannel(CHANNEL_ID, getString(R.string.setup_runtime),
             NotificationManager.IMPORTANCE_LOW).apply {
-            description = "Shows while the Linux runtime is installed or removed"
+            description = getString(R.string.rtinst_channel_description)
             setShowBadge(false)
             setSound(null, null)
             enableVibration(false)
@@ -65,7 +68,7 @@ class RuntimeInstallService : Service() {
             PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_session)
-            .setContentTitle(if (LinuxRuntimeInstaller.isRemoving()) "Removing the Linux runtime" else "Installing the Linux runtime")
+            .setContentTitle(getString(if (LinuxRuntimeInstaller.isRemoving()) R.string.rtinst_title_removing else R.string.rtinst_title_installing))
             .setContentText(stage)
             .setProgress(100, percent.coerceIn(0, 100), percent < 0)
             .setContentIntent(open)

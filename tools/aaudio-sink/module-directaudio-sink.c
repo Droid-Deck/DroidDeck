@@ -6,7 +6,7 @@
  * in here is at the mercy of that. The relay is not: it is the same helper that plays games'
  * DirectAudio, with its adaptive buffer, route-change reopen and watchdog. This module is a
  * producer for its render ring (da_relay_proto.h): float stereo at the ring's rate, kept topped
- * up to the target the relay asks for, one futex wait per burst.
+ * up to the target the relay asks for.
  *
  * The relay comes up after the daemon, so the sink loads without it and connects when the socket
  * appears; until then it runs as a clocked null sink so clients are not stalled.
@@ -18,10 +18,10 @@
 #endif
 
 #include <errno.h>
-#include <linux/futex.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/un.h>
@@ -73,6 +73,7 @@ PA_MODULE_USAGE(
  * legacy one (an AYN Thor, Android 13), and a single burst has nothing to cover a late callback.
  * 24 ms is two bursts there, Android's recommended minimum; the relay still grows it on xruns. */
 #define DEFAULT_BUFFER_MS 24
+#define AUDIO_NICE (-16)
 
 static const char* const valid_modargs[] = {
     "socket", "sink_name", "sink_properties", "volume", "performance_mode", "adaptive", "buffer_ms", NULL
@@ -242,11 +243,10 @@ static void produce(struct userdata *u, uint32_t frames) {
     __atomic_store_n(&r->widx, w + frames, __ATOMIC_RELEASE);
 }
 
-/* Tops the ring up to the relay's target, then sleeps until the relay drains a burst. */
+/* Tops the ring up to the relay's target. */
 static int service_ring(struct userdata *u) {
     struct da_ring *r = u->ring;
-    uint32_t avail, target, space, wake;
-    struct timespec ts;
+    uint32_t avail, target, space;
 
     if (__atomic_load_n(&r->quit, __ATOMIC_ACQUIRE) || __atomic_load_n(&r->state, __ATOMIC_ACQUIRE) == DA_RING_ERROR) {
         pa_log("directaudio-sink: the relay closed the ring; reconnecting");
@@ -275,11 +275,6 @@ static int service_ring(struct userdata *u) {
         u->underruns_reported = r->underruns;
         u->stats_at = pa_rtclock_now();
     }
-    /* Sleep until the relay's callback bumps the wake word, at most one burst period. */
-    wake = __atomic_load_n(&r->wake, __ATOMIC_ACQUIRE);
-    ts.tv_sec = 0;
-    ts.tv_nsec = (long) (frames_to_usec(u, u->burst) * 1000);
-    syscall(SYS_futex, &r->wake, FUTEX_WAIT, wake, &ts, NULL, 0);
     return 0;
 }
 
@@ -299,6 +294,8 @@ static void thread_func(void *userdata) {
 
     pa_log_debug("IO thread starting");
     pa_thread_mq_install(&u->thread_mq);
+    if (setpriority(PRIO_PROCESS, (id_t) syscall(SYS_gettid), AUDIO_NICE) < 0)
+        pa_log_debug("directaudio-sink: could not raise the IO thread's priority (%s)", strerror(errno));
     if (u->core->realtime_scheduling)
         pa_thread_make_realtime(u->core->realtime_priority);
     pa_rtpoll_set_timer_relative(u->rtpoll, 0);
@@ -319,7 +316,7 @@ static void thread_func(void *userdata) {
                 u->next_connect = pa_rtclock_now() + RECONNECT_USEC;
                 u->offline_at = u->next_connect;
             }
-            pa_rtpoll_set_timer_relative(u->rtpoll, 0);
+            pa_rtpoll_set_timer_relative(u->rtpoll, PA_MAX(frames_to_usec(u, u->burst) / 2, PA_USEC_PER_MSEC));
         } else {
             /* No relay yet: a clocked null sink, so clients keep flowing and time keeps passing. */
             if (PA_SINK_IS_OPENED(u->sink->thread_info.state) && now >= u->offline_at) {
