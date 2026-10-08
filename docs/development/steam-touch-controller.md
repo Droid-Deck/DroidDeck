@@ -35,7 +35,7 @@ and no patching of Steam, and the parts it depends on are the ones Valve has to 
 the Steam Link apps already installed on phones and TVs: the device's ids and report format.
 
 Not settled yet: saving an edited layout goes through a file write rather than a Steam call (Steam
-did load the written file; whether it uploads it to Steam Cloud is untested); the overlay must
+loads the written file and queues it for Steam Cloud like its own autosaves); the overlay must
 reproduce Steam Link's default layout and its hiding of unbound controls; touch menus and gyro
 were not exercised.
 
@@ -332,8 +332,11 @@ Loaded Config for Local Selection Path for App ID 8400, Controller 0:
 ```
 
 Steam used it as the game's touch config and left the file (and its `touch_layout`) as written.
-Whether a file changed this way is uploaded to Steam Cloud was not checked. Both files were put
-back afterwards.
+**Steam Cloud picked it up too**: Steam Controller Configs sync as app 241100's cloud files, and
+`userdata/<account>/241100/remotecache.vdf` gained an entry for
+`392297941/config/8400/controller_mobile_touch.vdf` (`syncstate` 3, `remotetime` 0: queued for
+upload), the same bookkeeping as the account's other touch configs. Both files were put back
+afterwards.
 
 Also seen: pressing A on the touch device logged `Seating controller 1 in slot 0`. Steam moves the
 controller in use to the first player slot, which softens the two-controller problem even before
