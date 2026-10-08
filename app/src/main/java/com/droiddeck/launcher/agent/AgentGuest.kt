@@ -92,6 +92,39 @@ object AgentGuest {
         return result.optLong("appId").takeIf { it in 1..4_294_967_295L }
     }
 
+    /** The installed game Gamescope is presenting, including while Steam's overlay has focus. */
+    fun activeSteamAppId(context: Context, installedAppIds: Set<Long>): Long? {
+        val snapshot = focus(context) ?: return null
+        val focusedAppId = snapshot.optLong("focusedApp").takeIf { snapshot.has("focusedApp") }
+        val focusableAppIds = snapshot.optJSONArray("focusableApps")?.let { apps ->
+            buildList {
+                for (index in 0 until apps.length()) {
+                    apps.optLong(index).takeIf { it > 0 }?.let(::add)
+                }
+            }
+        }.orEmpty()
+        val baselayerAppIds = snapshot.optJSONArray("baselayerAppIds")?.let { apps ->
+            buildList {
+                for (index in 0 until apps.length()) {
+                    apps.optLong(index).takeIf { it > 0 }?.let(::add)
+                }
+            }
+        }.orEmpty()
+        return activeInstalledSteamAppId(focusedAppId, focusableAppIds, installedAppIds, baselayerAppIds)
+    }
+
+    internal fun focusedInstalledSteamAppId(focusedAppId: Long?, installedAppIds: Set<Long>): Long? =
+        focusedAppId?.takeIf { it in installedAppIds }
+
+    internal fun activeInstalledSteamAppId(
+        focusedAppId: Long?,
+        focusableAppIds: List<Long>,
+        installedAppIds: Set<Long>,
+        baselayerAppIds: List<Long> = emptyList(),
+    ): Long? = focusedInstalledSteamAppId(focusedAppId, installedAppIds)
+        ?: focusableAppIds.filter { it in installedAppIds }.distinct().singleOrNull()
+        ?: baselayerAppIds.filter { it in installedAppIds }.distinct().singleOrNull()
+
     /** Send one request and wait for its answer. Throws [AgentException] with a stable code. */
     fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
         if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
