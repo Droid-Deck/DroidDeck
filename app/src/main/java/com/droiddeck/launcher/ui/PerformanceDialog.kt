@@ -46,6 +46,8 @@ fun PerformancePage(
     gpuClockPin: Boolean,
     prootNoSeccomp: Boolean,
     prootFastPath: Boolean,
+    deviceRooted: Boolean,
+    chrootMode: Boolean,
     guestHostname: String,
     phantomWarning: String?,
     onClientOverride: (Boolean) -> Unit,
@@ -61,6 +63,7 @@ fun PerformancePage(
     onGpuClockPin: (Boolean) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
+    onChrootMode: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
@@ -158,6 +161,13 @@ fun PerformancePage(
                 else stringResource(R.string.perf_fastpath_hint),
                 prootFastPath && !prootNoSeccomp, enabled = !prootNoSeccomp, onChange = onProotFastPath,
             )
+            if (deviceRooted) {
+                ToggleRow(
+                    host, "chroot", stringResource(R.string.perf_chroot),
+                    stringResource(R.string.perf_chroot_hint),
+                    chrootMode, onChange = onChrootMode,
+                )
+            }
         }
         SettingsGroup(stringResource(R.string.perf_identity)) {
             var draft by remember(guestHostname) { mutableStateOf(guestHostname) }

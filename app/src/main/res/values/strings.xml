@@ -486,6 +486,8 @@
     <string name="perf_fastpath">proot fast path</string>
     <string name="perf_fastpath_needs_seccomp">Needs proot\'s seccomp filter.</string>
     <string name="perf_fastpath_hint">Faster file lookups and less stutter. Turn off if a program can\'t find its files.</string>
+    <string name="perf_chroot">Use chroot instead of proot</string>
+    <string name="perf_chroot_hint">Requires root. Removes proot\'s ptrace overhead — every syscall runs at native speed. Falls back to proot silently if root is denied.</string>
     <string name="perf_identity">Session identity</string>
     <string name="perf_hostname">Host name</string>
     <string name="perf_hostname_hint">The name Steam sees for this device. Blank restores %1$s.</string>
