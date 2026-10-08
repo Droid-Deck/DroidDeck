@@ -287,7 +287,7 @@ class StoreLoginActivity : ComponentActivity() {
 
     private fun settle(problem: String?) {
         runOnUiThread {
-            if (problem == null) { StoresState.refresh(this); finish(); return }
+            if (problem == null) { StoresState.refresh(this); finish(); return@runOnUiThread }
             captured.set(false)
             if (!isFinishing && !isDestroyed) android.widget.Toast.makeText(this, problem, android.widget.Toast.LENGTH_LONG).show()
             reloadLogin()

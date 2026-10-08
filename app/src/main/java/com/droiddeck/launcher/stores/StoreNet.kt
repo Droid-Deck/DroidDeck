@@ -106,9 +106,11 @@ object StoreLog {
     fun redactUrl(url: String?): String? {
         if (url == null) return null
         return try {
-            var out = url
-            out.indexOf('#').takeIf { it >= 0 }?.let { out = out.substring(0, it) }
-            out.indexOf('?').takeIf { it >= 0 }?.let { out = out.substring(0, it) }
+            var out: String = url
+            val hash = out.indexOf('#')
+            if (hash >= 0) out = out.substring(0, hash)
+            val q = out.indexOf('?')
+            if (q >= 0) out = out.substring(0, q)
             val scheme = out.indexOf("://")
             if (scheme >= 0) {
                 val authStart = scheme + 3
