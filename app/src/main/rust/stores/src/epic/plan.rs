@@ -95,6 +95,18 @@ pub fn chunk_cache_dir(install_dir: &str) -> PathBuf {
     Path::new(install_dir).join(super::CHUNK_CACHE_DIR)
 }
 
+/// Where this run's chunks go: `chunk_cache_dir` when the caller named one, else the default
+/// `<installDir>/.chunks`. A separate directory exists so the cache can sit on internal storage
+/// while the game installs to an SD card: a chunk is written once into the cache and once into
+/// the assembled file, and with both on a 26 MB/s card the second write starved the fetchers.
+pub fn resolve_cache_dir(install_dir: &str, chunk_cache_dir: &str) -> PathBuf {
+    if chunk_cache_dir.is_empty() {
+        chunk_cache_dir(install_dir)
+    } else {
+        PathBuf::from(chunk_cache_dir)
+    }
+}
+
 /// Final cache file for a chunk: `new File(chunkCacheDir, chunk.guidStr())`.
 pub fn cached_chunk_path(cache_dir: &Path, chunk: &ChunkInfo) -> PathBuf {
     cache_dir.join(chunk.guid_str())
@@ -229,6 +241,11 @@ mod tests {
         );
         let cache = chunk_cache_dir("/data/x/imagefs/epic_games/Game");
         assert_eq!(cache, PathBuf::from("/data/x/imagefs/epic_games/Game/.chunks"));
+        assert_eq!(resolve_cache_dir("/data/x/imagefs/epic_games/Game", ""), cache);
+        assert_eq!(
+            resolve_cache_dir("/sdcard/Games/Game", "/data/x/cache/epic/Game"),
+            PathBuf::from("/data/x/cache/epic/Game")
+        );
         assert_eq!(
             cached_chunk_path(&cache, c),
             PathBuf::from("/data/x/imagefs/epic_games/Game/.chunks/00000001000000020000000300000004")

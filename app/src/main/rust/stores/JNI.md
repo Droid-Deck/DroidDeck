@@ -111,57 +111,117 @@ On-disk protocol (what a resumed run, by either engine, relies on): a file is as
 
 ## `com.droiddeck.launcher.stores.epic.EpicNative`
 
-The chunk-fetch inner loop of an Epic install: fills `<installDir>/.chunks/<GUID>` with verified,
-decompressed chunks for the files the manager says are pending. The Kotlin manager still fetches
-and parses the manifest API JSON, downloads the manifest, selects files (install tags), runs the
-delta/verify pass, assembles files from the chunk cache and does every post-install step. The
-engine re-parses the same manifest bytes (ChunksV4 binary or legacy JSON), rebuilds the chunk plan
-for the pending files, skips chunks already in the cache, and writes verified chunks with a
-`.part` + rename protocol, so the on-disk state is the same whichever side fetched.
+Two runs make up the native half of an Epic install:
+
+1. **Fetch** (`nativeStart`): fills the chunk cache with verified, decompressed chunks for the
+   files the manager says are pending. The Kotlin manager still fetches and parses the manifest
+   API JSON, downloads the manifest, selects files (install tags), runs the delta/verify pass and
+   does every post-install step. The engine re-parses the same manifest bytes (ChunksV4 binary
+   or legacy JSON), rebuilds the chunk plan for the pending files, skips chunks already in the
+   cache, and writes verified chunks with a `.part` + rename protocol, so the on-disk state is the
+   same whichever side fetched.
+2. **Assemble** (`nativeAssemble`): writes the pending files from the cache, one sequential write
+   per file, SHA-1 checked as the bytes go out when the manifest hashes the file. This is the
+   same loop the Kotlin manager runs today (`for part in file.parts: write(chunk[offset..+size])`,
+   same "Missing chunk X for Y" wording); the Kotlin loop remains a valid fallback.
+
+**The chunk cache directory** is the `chunkCacheDir` parameter of both calls (always pass the
+same value to both for one install):
+
+- `""` — today's behaviour: the cache is `<installDir>/.chunks`. The fetch leaves it in place;
+  `nativeAssemble` removes it whole at the end of a successful run (as the Kotlin loop's
+  `deleteDir(.chunks)` does), and never deletes a chunk early.
+- any other absolute path — a **scratch cache**, meant for internal storage when the game
+  installs to an SD card (each byte then hits the card once instead of twice; the card's write
+  speed stops starving the fetchers). The fetch fills it exactly like `.chunks`. The assembler
+  reference-counts chunk GUIDs across the files it was given and **deletes each cached chunk as
+  soon as the last file that uses it has been written and verified**, then removes the directory
+  at the end of a successful run. A cancelled or failed run (fetch or assembly) leaves the cache
+  exactly as it stands, for resume: the next run's delta pass skips finished files and the next
+  fetch skips chunks still cached. The directory is created by the fetch if it does not exist;
+  give each install its own (e.g. `<cacheRoot>/epic/<appName>`), since a successful assembly
+  removes it.
 
 | Method | JNI signature | Symbol |
 |---|---|---|
-| `nativeStart(...)`: Long | `([BLjava/lang/String;[Ljava/lang/String;[IIJLjava/lang/String;IILjava/lang/Object;)J` (last parameter is the listener) | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStart` |
+| `nativeStart(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;[Ljava/lang/String;[IIJLjava/lang/String;IILjava/lang/Object;)J` (last parameter is the listener) | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStart` |
+| `nativeAssemble(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;[ILjava/lang/Object;)J` (last parameter is the listener) | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeAssemble` |
 | `nativeCancel(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeCancel` |
 | `nativeRelease(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeRelease` |
 
-There is no `nativeProbe`; Bannerlator probes by catching the `Throwable` from `loadLibrary` /
-the first `nativeStart`.
+`nativeCancel` / `nativeRelease` take the handle of either run. There is no `nativeProbe`;
+Bannerlator probes by catching the `Throwable` from `loadLibrary` / the first `nativeStart`.
 
-`nativeStart` parameters, in order:
+```kotlin
+@JvmStatic private external fun nativeStart(
+    manifest: ByteArray, installDir: String, chunkCacheDir: String, cdnPrefixes: Array<String>,
+    pendingFileIdx: IntArray, expectedChunks: Int, expectedBytes: Long, caBundlePath: String,
+    maxWorkers: Int, processWorkers: Int, listener: Listener,
+): Long
+@JvmStatic private external fun nativeAssemble(
+    manifest: ByteArray, installDir: String, chunkCacheDir: String, fileIdx: IntArray, listener: Listener,
+): Long
+```
+
+### `nativeStart` parameters, in order
 
 | # | Parameter | Meaning |
 |---|---|---|
 | 1 | `manifest: ByteArray` | the raw manifest bytes the manager downloaded (binary ChunksV4 or JSON) |
-| 2 | `installDir: String` | absolute install directory; the chunk cache is `<installDir>/.chunks` |
-| 3 | `cdnPrefixes: Array<String>` | the CDN base URLs from the manifest API answer (`.../ChunksV4/<n>/` style); one or many, distinct hosts widen the window |
-| 4 | `pendingFileIdx: IntArray` | indices into the manifest's file list of the files still to fetch (the manager's delta/verify result) |
-| 5 | `expectedChunks: Int` | the manager's own needed-chunk count for a cross-check; `-1` = no cross-check |
-| 6 | `expectedBytes: Long` | the manager's `Σ max(fileSize, 1)` for a cross-check; `-1` = no cross-check |
-| 7 | `caBundlePath: String` | see conventions |
-| 8 | `maxWorkers: Int` | window ceiling (Bannerlator: 8) |
-| 9 | `processWorkers: Int` | inflate/verify/write threads |
-| 10 | `listener` | see below |
+| 2 | `installDir: String` | absolute install directory |
+| 3 | `chunkCacheDir: String` | `""` = `<installDir>/.chunks`; else the scratch cache directory (see above) |
+| 4 | `cdnPrefixes: Array<String>` | the CDN base URLs from the manifest API answer (`.../ChunksV4/<n>/` style); one or many, distinct hosts widen the window |
+| 5 | `pendingFileIdx: IntArray` | indices into the manifest's file list of the files still to fetch (the manager's delta/verify result) |
+| 6 | `expectedChunks: Int` | the manager's own needed-chunk count for a cross-check; `-1` = no cross-check |
+| 7 | `expectedBytes: Long` | the manager's `Σ max(fileSize, 1)` for a cross-check; `-1` = no cross-check |
+| 8 | `caBundlePath: String` | see conventions |
+| 9 | `maxWorkers: Int` | window ceiling (Bannerlator: 8) |
+| 10 | `processWorkers: Int` | inflate/verify/write threads |
+| 11 | `listener` | see below |
 
 Planning (manifest parse + plan + cross-check) runs synchronously on the calling thread, so a
 plan failure returns `0` BEFORE any fetch; the manager then runs its own fallback loop. On `0`,
 `onComplete(false, reason, 0)` has already been called synchronously (except for a null listener).
 On success, `onPlan` has been called synchronously before `nativeStart` returns, then the fetch
-runs on a new thread.
+runs on a new thread. The engine's `plan` log line names the cache:
+`plan chunk_dir=ChunksV4 cache_dir=<dir> scratch=<bool> files_pending=… chunks=… bytes=… …`.
 
-Suggested listener: `com.droiddeck.launcher.stores.epic.EpicNative.Listener` (nested interface,
-as in Bannerlator).
+### `nativeAssemble` parameters, in order
+
+| # | Parameter | Meaning |
+|---|---|---|
+| 1 | `manifest: ByteArray` | the same manifest bytes as the fetch |
+| 2 | `installDir: String` | absolute install directory (files are written at `installDir/<filename with \\ → />`) |
+| 3 | `chunkCacheDir: String` | the same value the fetch was given (`""` or the scratch directory) |
+| 4 | `fileIdx: IntArray` | indices into the manifest's file list of the files to write — the fetch's `pendingFileIdx`, in one call |
+| 5 | `listener` | see below |
+
+Parse + plan run on the calling thread: an unparsable manifest, an index out of range or an
+empty `installDir` returns `0` after a synchronous `onComplete(false, reason, 0)` and nothing is
+written. Otherwise the assembly runs on a new thread. Each file is created fresh and written in
+part order; on any error (missing chunk, short chunk, I/O error, SHA-1 mismatch) the file being
+written is deleted, the run fails with that error, no further files are touched and the cache is
+left as it is. A manifest SHA-1 of all zeros (and a JSON manifest, which has none) means no hash
+check — the Kotlin delta pass treats those the same way. The run's log lines:
+`assemble cache_dir=… scratch=… files=… bytes=… chunks_referenced=…`, then `cache removed …` /
+`cache not removed …: <why>` (not fatal) and `assembled files=… bytes=… chunks_removed_early=…`.
+
+### Listener
+
+Suggested: `com.droiddeck.launcher.stores.epic.EpicNative.Listener` (nested interface, as in
+Bannerlator). One interface serves both runs.
 
 | Listener method | JNI signature | When |
 |---|---|---|
-| `onPlan(chunksTotal: Int, bytesTotal: Long, chunkDir: String)` | `(IJLjava/lang/String;)V` | once, synchronously inside `nativeStart`, before any fetch: the plan the engine derived |
-| `onProgress(bytesDone: Long, bytesTotal: Long, chunksDone: Int, chunksTotal: Int)` | `(JJII)V` | per accounted chunk (cached-skip or fetched); process-pool thread |
-| `onLog(line: String)` | `(Ljava/lang/String;)V` | engine log line, already in logcat under `EpicNative`; any native thread (also synchronously from `nativeStart` for the start line) |
-| `onComplete(success: Boolean, error: String, bytesCredited: Long)` | `(ZLjava/lang/String;J)V` | terminal, exactly once (worker thread; or synchronously when `nativeStart` returns `0`) |
+| `onPlan(chunksTotal: Int, bytesTotal: Long, chunkDir: String)` | `(IJLjava/lang/String;)V` | fetch only: once, synchronously inside `nativeStart`, before any fetch: the plan the engine derived (`chunkDir` is the manifest's, e.g. `ChunksV4`, not the cache directory) |
+| `onProgress(bytesDone: Long, bytesTotal: Long, done: Int, total: Int)` | `(JJII)V` | fetch: per accounted chunk (cached-skip or fetched), `done`/`total` = chunks; assembly: after each file written, `bytesDone` = bytes written so far, `done`/`total` = files. Native threads. |
+| `onLog(line: String)` | `(Ljava/lang/String;)V` | engine log line, already in logcat under `EpicNative`; any native thread (also synchronously from `nativeStart`/`nativeAssemble` for the start line) |
+| `onComplete(success: Boolean, error: String, bytes: Long)` | `(ZLjava/lang/String;J)V` | terminal, exactly once (worker thread; or synchronously when the call returns `0`). Fetch: `bytes` = credited bytes (cached-skip + fetched). Assembly: `bytes` = bytes written. `error` is `"cancelled"` on cancel. |
 
-Bannerlator's `BlEpicDownload.run(...)` wraps this in a blocking call that polls an
+Bannerlator's `BlEpicDownload.run(...)` wraps `nativeStart` in a blocking call that polls an
 `AtomicBoolean` cancel flag every 250 ms, calls `nativeCancel` on cancel, waits up to 5 s for
-`onComplete`, then `nativeRelease` in `finally`. That shape is worth keeping.
+`onComplete`, then `nativeRelease` in `finally`. The same wrapper shape fits `nativeAssemble`
+(cancel is honoured between files; a multi-GB file finishes before the run stops).
 
 ## `com.droiddeck.launcher.stores.amazon.AmazonNative`
 

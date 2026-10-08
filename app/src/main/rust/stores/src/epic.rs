@@ -15,6 +15,9 @@
 //! - [`plan`] — install-tag selection, unique-chunk plan, chunk paths / CDN URLs.
 //! - [`chunk`] — chunk header parse, zlib inflate, SHA-1 verify, cache write.
 //! - [`driver`] — plan → `FetchItem`s → `fetch_core::run_fetch` with the chunk-cache sink.
+//! - [`assemble`] — the files from the cache, one sequential write each, SHA-1 checked as they
+//!   are written; with a scratch cache (one the caller placed apart from the install) each chunk
+//!   is deleted as soon as the last file that uses it is done.
 //! - [`jni`] — `Java_com_droiddeck_launcher_stores_epic_EpicNative_native*` exports.
 //!
 //! The selective-install-tag, delta/resume and chunk verification rules mirrored here were ported
@@ -22,6 +25,7 @@
 //! `manifest/ManifestUtils.kt`), itself derived from Legendary; both are GPL-3.0 and this crate
 //! carries the same licence (see `Cargo.toml`).
 
+pub mod assemble;
 pub mod chunk;
 pub mod driver;
 pub mod jni;

@@ -4,8 +4,9 @@
 //! ("Download unique chunks — 8 parallel threads"). Inputs are exactly what that block sees:
 //! the parsed manifest (re-parsed here from the same bytes), the pending file set (indices Java
 //! computed after its delta/verify pass), the CDN prefixes (`baseUrl + cloudDir`, cloudflare
-//! already skipped) and the chunk cache dir. Output = `<installDir>/.chunks/<GUID>` for every
-//! needed chunk; Java assembles the files afterwards exactly as before.
+//! already skipped) and the chunk cache dir. Output = `<cache>/<GUID>` for every needed chunk,
+//! where `<cache>` is `<installDir>/.chunks` unless the caller named another directory; the
+//! files are assembled from it afterwards (by the Kotlin manager, or by [`super::assemble`]).
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -16,7 +17,7 @@ use crate::fetch_core::{run_fetch, FetchItem, FetchOptions, FetchSink, SinkError
 
 use super::manifest::{parse_manifest, Manifest};
 use super::plan::{
-    cached_chunk_path, chunk_cache_dir, chunk_url, distinct_prefixes, per_host_cap,
+    cached_chunk_path, chunk_url, distinct_prefixes, per_host_cap, resolve_cache_dir,
     total_credit_bytes, unique_chunks_for_files,
 };
 
@@ -27,6 +28,8 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 pub struct EpicRequest {
     pub manifest_bytes: Vec<u8>,
     pub install_dir: String,
+    /// Chunk cache directory; `""` = `<installDir>/.chunks`. See [`resolve_cache_dir`].
+    pub chunk_cache_dir: String,
     /// `cdn.baseUrl + cdn.cloudDir` per manifest-API CDN entry, in Java's order.
     pub cdn_prefixes: Vec<String>,
     /// Indices into `manifest.files` of Java's `pendingFiles` (post delta/verify), in order.
@@ -47,6 +50,9 @@ pub struct EpicRequest {
 pub struct EpicPlan {
     pub manifest: Manifest,
     pub cache_dir: PathBuf,
+    /// The cache is a directory the caller named, apart from the install: scratch space that
+    /// the assembler empties as it goes and removes when it is done.
+    pub scratch_cache: bool,
     /// Chunk indices (into `manifest.unique_chunks`) in Java's submission order.
     pub needed: Vec<usize>,
     /// `Σ max(fileSize, 1)` over `needed`.
@@ -105,12 +111,13 @@ pub fn build_plan(req: &EpicRequest) -> Result<EpicPlan, String> {
     if hosts.is_empty() {
         return Err("plan: no CDN prefixes".to_string());
     }
-    let cache_dir = chunk_cache_dir(&req.install_dir);
+    let cache_dir = resolve_cache_dir(&req.install_dir, &req.chunk_cache_dir);
     std::fs::create_dir_all(&cache_dir)
         .map_err(|e| format!("plan: mkdirs {}: {e}", cache_dir.display()))?;
     Ok(EpicPlan {
         manifest,
         cache_dir,
+        scratch_cache: !req.chunk_cache_dir.is_empty(),
         needed,
         total_bytes,
         hosts,
@@ -208,8 +215,10 @@ pub fn run_plan(
     };
     let host_cap = per_host_cap(req.max_workers, plan.hosts.len());
     log(&format!(
-        "plan chunk_dir={} files_pending={} chunks={} bytes={} hosts={} workers={} per_host_cap={host_cap} process_workers={}",
+        "plan chunk_dir={} cache_dir={} scratch={} files_pending={} chunks={} bytes={} hosts={} workers={} per_host_cap={host_cap} process_workers={}",
         plan.manifest.chunk_dir,
+        plan.cache_dir.display(),
+        plan.scratch_cache,
         req.pending_file_indices.len(),
         chunks_total,
         plan.total_bytes,
@@ -368,6 +377,7 @@ mod tests {
         EpicRequest {
             manifest_bytes: build_manifest(&sample_chunks(), &sample_files(), 21, true),
             install_dir: dir.to_string(),
+            chunk_cache_dir: String::new(),
             cdn_prefixes: vec![
                 "https://fastly-download.epicgames.com/Builds/o/x/default".to_string(),
                 "https://download.epicgames.com/Builds/o/x/default".to_string(),
@@ -393,6 +403,20 @@ mod tests {
         assert_eq!(plan.hosts.len(), 2, "duplicate CDN prefix collapsed");
         assert!(plan.cache_dir.ends_with(".chunks"));
         assert!(plan.cache_dir.is_dir());
+        assert!(!plan.scratch_cache);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_named_cache_dir_is_created_and_marked_scratch() {
+        let dir = super::super::chunk::test_support::temp_dir("scratch");
+        let cache = dir.join("cache").join("Game");
+        let mut req = request(dir.join("install").to_str().unwrap(), vec![0, 1]);
+        req.chunk_cache_dir = cache.to_str().unwrap().to_string();
+        let plan = build_plan(&req).unwrap();
+        assert_eq!(plan.cache_dir, cache);
+        assert!(plan.cache_dir.is_dir());
+        assert!(plan.scratch_cache);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

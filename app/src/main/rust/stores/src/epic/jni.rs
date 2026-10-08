@@ -1,16 +1,21 @@
 //! JNI exports for `com.droiddeck.launcher.stores.epic.EpicNative`.
 //!
 //! ```text
-//! nativeStart(manifest: byte[], installDir: String, cdnPrefixes: String[], pendingFileIdx: int[],
-//!             expectedChunks: int, expectedBytes: long, caBundlePath: String, maxWorkers: int,
-//!             processWorkers: int, listener: EpicNative.Listener) -> long handle (0 = not started)
-//! nativeCancel(handle)      — flips the run's AtomicBool; the fetch core stops promptly
+//! nativeStart(manifest: byte[], installDir: String, chunkCacheDir: String, cdnPrefixes: String[],
+//!             pendingFileIdx: int[], expectedChunks: int, expectedBytes: long,
+//!             caBundlePath: String, maxWorkers: int, processWorkers: int,
+//!             listener: EpicNative.Listener) -> long handle (0 = not started)
+//! nativeAssemble(manifest: byte[], installDir: String, chunkCacheDir: String, fileIdx: int[],
+//!             listener: EpicNative.Listener) -> long handle (0 = not started)
+//! nativeCancel(handle)      — flips the run's AtomicBool; fetch or assembly stops promptly
 //! nativeRelease(handle)     — frees the handle (after onComplete)
 //! ```
-//! Listener (all methods run on native threads):
+//! `chunkCacheDir` = "" keeps the cache at `<installDir>/.chunks`; any other directory is a
+//! scratch cache (see `assemble.rs`). Listener (all methods run on native threads):
 //! `onPlan(int chunksTotal, long bytesTotal, String chunkDir)` once before any fetch,
-//! `onProgress(long bytesDone, long bytesTotal, int chunksDone, int chunksTotal)` per chunk,
-//! `onLog(String line)`, `onComplete(boolean success, String error, long bytesCredited)`.
+//! `onProgress(long bytesDone, long bytesTotal, int done, int total)` per chunk fetched (or, in
+//! an assembly run, per file written), `onLog(String line)`,
+//! `onComplete(boolean success, String error, long bytes)`.
 //!
 //! Planning (manifest parse + cross-check) runs synchronously on the calling thread so a plan
 //! failure returns 0 BEFORE any fetch and Java can fall back to its own pool; the fetch runs on
@@ -24,6 +29,7 @@ use jni::objects::{GlobalRef, JByteArray, JClass, JIntArray, JObject, JObjectArr
 use jni::sys::{jint, jlong, JNI_FALSE, JNI_TRUE};
 use jni::{JNIEnv, JavaVM};
 
+use super::assemble::{build_assemble_plan, run_assemble, AssembleRequest};
 use super::driver::{build_plan, run_plan, EpicRequest};
 
 #[cfg(target_os = "android")]
@@ -53,7 +59,8 @@ fn android_log(message: &str) {
     }
 }
 
-/// Per-run native state behind the `jlong` handle.
+/// Per-run native state behind the `jlong` handle — the same type for a fetch run and an
+/// assembly run, so one `nativeCancel` / `nativeRelease` pair serves both.
 pub struct EpicDownloadHandle {
     cancel: Arc<AtomicBool>,
 }
@@ -205,6 +212,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
     _class: JClass,
     manifest: JByteArray,
     install_dir: JString,
+    chunk_cache_dir: JString,
     cdn_prefixes: JObjectArray,
     pending_file_idx: JIntArray,
     expected_chunks: jint,
@@ -224,6 +232,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
         return 0;
     };
     let install_dir = jstring_to_string(&mut env, &install_dir).unwrap_or_default();
+    let chunk_cache_dir = jstring_to_string(&mut env, &chunk_cache_dir).unwrap_or_default();
     let cdn_prefixes = string_array_to_vec(&mut env, &cdn_prefixes);
     let pending_file_indices: Vec<usize> = int_array_to_vec(&env, &pending_file_idx)
         .into_iter()
@@ -246,7 +255,8 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
         &mut env,
         &listener,
         &format!(
-            "engine=rust label=\"{label}\" install_dir={install_dir} cdns={} hosts={host_count} pending_files={} workers={max_workers} per_host_cap={host_cap} process_workers={process_workers} manifest_bytes={}",
+            "engine=rust label=\"{label}\" install_dir={install_dir} cache_dir={} cdns={} hosts={host_count} pending_files={} workers={max_workers} per_host_cap={host_cap} process_workers={process_workers} manifest_bytes={}",
+            if chunk_cache_dir.is_empty() { "<installDir>/.chunks" } else { chunk_cache_dir.as_str() },
             cdn_prefixes.len(),
             pending_file_indices.len(),
             manifest_bytes.len()
@@ -256,6 +266,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
     let req = EpicRequest {
         manifest_bytes,
         install_dir,
+        chunk_cache_dir,
         cdn_prefixes,
         pending_file_indices,
         expected_chunks: if expected_chunks >= 0 {
@@ -357,6 +368,92 @@ fn run_on_thread(
         &outcome.error,
         outcome.bytes_credited,
     );
+}
+
+/// `EpicNative.nativeAssemble(manifest, installDir, chunkCacheDir, fileIdx, listener)`: write
+/// the files `fileIdx` names from the chunk cache (see `assemble.rs`). Parse + plan run on the
+/// calling thread, so bad inputs return 0 (after `onComplete(false, reason, 0)`) before anything
+/// is written; the assembly runs on a new thread and reports per file through `onProgress(bytes,
+/// bytesTotal, filesDone, filesTotal)`, then `onComplete(success, error, bytesWritten)`.
+#[no_mangle]
+pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeAssemble(
+    mut env: JNIEnv,
+    _class: JClass,
+    manifest: JByteArray,
+    install_dir: JString,
+    chunk_cache_dir: JString,
+    file_idx: JIntArray,
+    listener: JObject,
+) -> jlong {
+    if listener.is_null() {
+        android_log("nativeAssemble: null listener");
+        return 0;
+    }
+    let Ok(manifest_bytes) = env.convert_byte_array(manifest) else {
+        clear_pending_exception(&mut env);
+        call_on_complete(&mut env, &listener, false, "manifest bytes unreadable", 0);
+        return 0;
+    };
+    let req = AssembleRequest {
+        manifest_bytes,
+        install_dir: jstring_to_string(&mut env, &install_dir).unwrap_or_default(),
+        chunk_cache_dir: jstring_to_string(&mut env, &chunk_cache_dir).unwrap_or_default(),
+        file_indices: int_array_to_vec(&env, &file_idx)
+            .into_iter()
+            .map(|i| i.max(0) as usize)
+            .collect(),
+    };
+    let plan = match build_assemble_plan(&req) {
+        Ok(plan) => plan,
+        Err(err) => {
+            log_both(&mut env, &listener, &format!("not started: {err}"));
+            call_on_complete(&mut env, &listener, false, &err, 0);
+            return 0;
+        }
+    };
+    let Ok(vm) = env.get_java_vm() else {
+        clear_pending_exception(&mut env);
+        call_on_complete(&mut env, &listener, false, "JavaVM unavailable", 0);
+        return 0;
+    };
+    let Ok(listener) = env.new_global_ref(&listener) else {
+        clear_pending_exception(&mut env);
+        call_on_complete(&mut env, &listener, false, "listener ref failed", 0);
+        return 0;
+    };
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    let thread_cancel = Arc::clone(&cancel);
+    let handle = Box::new(EpicDownloadHandle { cancel });
+
+    thread::spawn(move || {
+        let progress = |bytes_done: u64, bytes_total: u64, files_done: u64, files_total: u64| {
+            let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
+                return;
+            };
+            call_on_progress(&mut env, listener.as_obj(), bytes_done, bytes_total, files_done, files_total);
+        };
+        let log = |line: &str| {
+            android_log(line);
+            let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
+                return;
+            };
+            call_on_log(&mut env, listener.as_obj(), line);
+        };
+        let outcome = run_assemble(&plan, thread_cancel.as_ref(), &progress, &log);
+        let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
+            return;
+        };
+        call_on_complete(
+            &mut env,
+            listener.as_obj(),
+            outcome.success,
+            &outcome.error,
+            outcome.bytes_written,
+        );
+    });
+
+    Box::into_raw(handle) as jlong
 }
 
 #[no_mangle]
