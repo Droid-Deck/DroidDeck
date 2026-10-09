@@ -743,12 +743,6 @@ private fun SignInCard(store: Store, height: Dp) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.align(Alignment.BottomStart).padding(start = if (narrow) 20.dp else 40.dp, bottom = if (narrow) 20.dp else 36.dp, end = 20.dp),
         ) {
-            Rise(1) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(Modifier.size(12.dp).clip(CircleShape).background(c.dot))
-                    Text(store.label.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, color = c.ink)
-                }
-            }
             Rise(2) {
                 Text(
                     stringResource(R.string.stores_signin_title, store.label), fontSize = if (narrow) 28.sp else 38.sp,
