@@ -7,9 +7,12 @@
 
 const VkExtensionProperties *vkb_emu_extensions(vkb_physdev *pd, uint32_t *n)
 {
-    (void)pd;
-    *n = 0;
-    return NULL;
+    static const VkExtensionProperties maint5 = {"VK_KHR_maintenance5", 1};
+    static __thread VkExtensionProperties list[8];
+    uint32_t c = 0;
+    if (pd->info.emu & VKB_EMU_MAINT5) list[c++] = maint5;
+    *n = c;
+    return list;
 }
 
 void vkb_emu_patch_limits(vkb_physdev *pd, VkPhysicalDeviceProperties *p) { (void)pd; (void)p; }
@@ -17,7 +20,8 @@ void vkb_emu_patch_properties_chain(vkb_physdev *pd, VkBaseOutStructure *b) { (v
 void vkb_emu_patch_features(vkb_physdev *pd, VkPhysicalDeviceFeatures *f) { (void)pd; (void)f; }
 void vkb_emu_patch_features_chain(vkb_physdev *pd, VkBaseOutStructure *b)
 {
-    (void)pd;
+    if ((pd->info.emu & VKB_EMU_MAINT5) && b->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES)
+        ((VkPhysicalDeviceMaintenance5Features *)b)->maintenance5 = VK_TRUE;
     /* Host image copy hands the driver host pointers: never offered across the bridge. */
     if (b->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES) ((VkPhysicalDeviceVulkan14Features *)b)->hostImageCopy = VK_FALSE;
     if (b->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES) ((VkPhysicalDeviceHostImageCopyFeatures *)b)->hostImageCopy = VK_FALSE;

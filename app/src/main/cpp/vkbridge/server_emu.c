@@ -11,6 +11,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int token(const char *list, const char *t)
+{
+    size_t n = strlen(t);
+    for (const char *p = list; p && (p = strstr(p, t)); p += n)
+        if ((p == list || p[-1] == ',') && (p[n] == ',' || p[n] == 0)) return 1;
+    return 0;
+}
+
 static int env_off(const char *name)
 {
     const char *v = getenv(name);
@@ -25,24 +33,31 @@ uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd)
     idt->vkEnumerateDeviceExtensionProperties(pd, NULL, &n, NULL);
     VkExtensionProperties *e = calloc(n ? n : 1, sizeof(*e));
     idt->vkEnumerateDeviceExtensionProperties(pd, NULL, &n, e);
-    int divisor = 0, depth_clip = 0;
+    int divisor = 0, depth_clip = 0, maint5 = 0;
     for (uint32_t i = 0; i < n; i++) {
         if (!strcmp(e[i].extensionName, "VK_EXT_vertex_attribute_divisor") ||
             !strcmp(e[i].extensionName, "VK_KHR_vertex_attribute_divisor"))
             divisor = 1;
         if (!strcmp(e[i].extensionName, "VK_EXT_depth_clip_enable")) depth_clip = 1;
+        if (!strcmp(e[i].extensionName, "VK_KHR_maintenance5")) maint5 = 1;
     }
     free(e);
     /* VKBRIDGE_FAKE_MISSING=bc,divisor,clip,cull,depthclip pretends the GPU lacks them (host tests). */
     const char *fake = getenv("VKBRIDGE_FAKE_MISSING");
     if (fake) {
-        if (strstr(fake, "bc")) f.textureCompressionBC = VK_FALSE;
-        if (strstr(fake, "divisor")) divisor = 0;
-        if (strstr(fake, "clip")) f.shaderClipDistance = VK_FALSE;
-        if (strstr(fake, "cull")) f.shaderCullDistance = VK_FALSE;
-        if (strstr(fake, "depthclip")) depth_clip = 0;
+        if (token(fake, "bc")) f.textureCompressionBC = VK_FALSE;
+        if (token(fake, "divisor")) divisor = 0;
+        if (token(fake, "clip")) f.shaderClipDistance = VK_FALSE;
+        if (token(fake, "cull")) f.shaderCullDistance = VK_FALSE;
+        if (token(fake, "depthclip")) depth_clip = 0;
+        if (token(fake, "maint5")) maint5 = 0;
     }
     uint32_t emu = 0;
+    VkPhysicalDeviceProperties props;
+    idt->vkGetPhysicalDeviceProperties(pd, &props);
+    /* Vulkan 1.4 has maintenance5 in core. */
+    if (!maint5 && (props.apiVersion < VK_API_VERSION_1_4 || (fake && token(fake, "maint5"))) && !env_off("VKBRIDGE_EMU_MAINT5"))
+        emu |= VKB_EMU_MAINT5;
     if (!f.textureCompressionBC && vkb_emu_bcn_supported(idt, pd) && !env_off("VKBRIDGE_EMU_BCN")) emu |= VKB_EMU_BCN;
     if (!divisor && !env_off("VKBRIDGE_EMU_DIVISOR")) emu |= VKB_EMU_DIVISOR;
     if (!f.shaderClipDistance && !env_off("VKBRIDGE_EMU_CLIP")) emu |= VKB_EMU_CLIP_DISTANCE;
@@ -87,6 +102,7 @@ void vkb_emu_device_create_info(vkb_srv_table *inst, VkPhysicalDevice pd, uint32
     }
     if (emu & VKB_EMU_DIVISOR) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT);
     if (emu & VKB_EMU_DEPTH_CLIP) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT);
+    if (emu & VKB_EMU_MAINT5) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES);
     (void)a;
 }
 

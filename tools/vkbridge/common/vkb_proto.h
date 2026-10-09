@@ -34,6 +34,7 @@ static inline const char *vkb_mem_strategy_name(uint32_t s)
 #define VKB_EMU_CULL_DISTANCE  (1u << 3)   /* shaderCullDistance (accepted, not applied) */
 #define VKB_EMU_POINT_SIZE     (1u << 4)   /* strip PointSize from geometry/tessellation stages */
 #define VKB_EMU_DEPTH_CLIP     (1u << 5)   /* VK_EXT_depth_clip_enable via depthClamp */
+#define VKB_EMU_MAINT5         (1u << 6)   /* VK_KHR_maintenance5 on a driver without it */
 
 /* vkbQueryServer reply (per physical device). */
 typedef struct vkb_server_pd_info {

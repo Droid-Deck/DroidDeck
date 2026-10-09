@@ -9,5 +9,5 @@ exec docker run --rm ${VKB_DOCKER_EXTRA:-} --tmpfs /run/xdg:mode=0700 \
   -e XDG_RUNTIME_DIR=/run/xdg -e WAYLAND_DISPLAY=host-wayland -e HOME=/root \
   -v "$R/${WAYLAND_DISPLAY:-wayland-0}:/run/host-wayland" -v "$VKBRIDGE_SOCKET:/run/vkbridge.sock" \
   -v "$host/out:$host/out" -v "$host/out/shots:/shots" -e VK_DRIVER_FILES=$host/out/vkbridge_icd.json -e VKBRIDGE_SOCKET=/run/vkbridge.sock \
-  -e VKBRIDGE_DRM_RENDER=${VKBRIDGE_DRM_RENDER:-} -e VKBRIDGE_LOG_LEVEL=${VKBRIDGE_LOG_LEVEL:-2} -e VKBRIDGE_WSI_DUMP=${VKBRIDGE_WSI_DUMP:-} \
+  -e VKBRIDGE_DRM_RENDER=${VKBRIDGE_DRM_RENDER:-} -e VKBRIDGE_HIDE_EXTS=${VKBRIDGE_HIDE_EXTS:-} -e VKBRIDGE_MAX_API=${VKBRIDGE_MAX_API:-} -e VKBRIDGE_LOG_LEVEL=${VKBRIDGE_LOG_LEVEL:-2} -e VKBRIDGE_WSI_DUMP=${VKBRIDGE_WSI_DUMP:-} \
   vkb-arch-gamescope bash -c "ln -s /run/host-wayland /run/xdg/host-wayland; gamescope --backend wayland --expose-wayland -W 960 -H 540 -w 960 -h 540 -- $cmd"
