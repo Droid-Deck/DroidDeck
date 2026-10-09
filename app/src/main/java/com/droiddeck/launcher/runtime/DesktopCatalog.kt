@@ -81,11 +81,14 @@ object DesktopCatalog {
      */
     const val DESKTOP_ID = "desktop-kde"
 
-    // KWin comes with the hosted desktop package itself (its launcher is staged by the app at every
-    // session, so it cannot tell whether the package is there); SessionFiles uses the same test.
+    // The desktop package installed to the end: KWin is there and the marker install() writes once
+    // the whole package is extracted. An install cut short (the app killed, storage full) leaves
+    // KWin without the marker, and the next desktop installs it again. The launcher is staged by
+    // the app at every session, so it cannot tell. SessionFiles uses the same test.
     fun desktopInstalled(context: Context): Boolean = desktopInstalled(LinuxRuntime.rootDir(context))
 
-    fun desktopInstalled(root: File): Boolean = File(root, "usr/bin/kwin_wayland").isFile
+    fun desktopInstalled(root: File): Boolean =
+        File(root, "usr/bin/kwin_wayland").isFile && File(root, ".droiddeck-pkg-$DESKTOP_ID").isFile
 
     /** Downloads, verifies and installs one package. Returns null on success, else a message. */
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
@@ -119,7 +122,12 @@ object DesktopCatalog {
                         "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/${entry.id}.AppImage\n" +
                         "Icon=${entry.icon}\nTerminal=false\nCategories=${entry.category};\n")
                 }
-                else -> if (!LinuxRuntimeInstaller.extract(context, download, root, listener)) return context.getString(R.string.deskpkg_extract_failed)
+                else -> {
+                    // Not complete until written again at the end: a reinstall cut short must not
+                    // leave the last install's marker saying it is.
+                    marker(context, entry.id).delete()
+                    if (!LinuxRuntimeInstaller.extract(context, download, root, listener)) return context.getString(R.string.deskpkg_extract_failed)
+                }
             }
             FileUtils.writeString(marker(context, entry.id), entry.version)
             return null
