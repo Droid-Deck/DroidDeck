@@ -95,7 +95,8 @@ public final class EpicAuthClient {
     public static String getExchangeCode(String accessToken) {
         try {
             String resp = getRequest(EXCHANGE_URL, accessToken);
-            if (resp == null) return null;
+            // getRequest has logged the HTTP status; the code itself is never logged.
+            if (resp == null) { Log.i(TAG, "exchange code: no answer"); return null; }
             return new JSONObject(resp).optString("code", null);
         } catch (Exception e) {
             Log.e(TAG, "exchange code failed: " + e.getClass().getSimpleName());

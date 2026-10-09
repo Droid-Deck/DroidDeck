@@ -325,6 +325,8 @@ class SessionService : Service() {
         killStragglers()
         SessionFiles.stage(this, root)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
+        // The compat tool asks for an Epic game's sign-in code at every launch, the client's Play button included.
+        com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
@@ -1414,6 +1416,7 @@ class SessionService : Service() {
             pipTask = false
             SessionState.guestPid = -1
             com.droiddeck.launcher.agent.AgentGuest.stop()
+            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()

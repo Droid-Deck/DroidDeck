@@ -74,22 +74,46 @@ object StoreLaunch {
         if (store != Store.EPIC) { onReady(); return }
         val app = context.applicationContext
         Thread({
-            try {
-                val game = StoreInstallRoot.gameFolders(app).firstOrNull { folder -> StoreGameSidecar.read(folder)?.let { it.store == store && it.id == id } == true }
-                if (game != null) {
-                    val code = StoresState.backend(Store.EPIC)?.let { (it as? EpicLaunchSupport)?.exchangeCode(app) }
-                    val file = File(game, EPIC_CODE)
-                    if (code != null) { file.writeText(code); Log.i(TAG, "epic: exchange code ready for $id") }
-                    else { file.delete(); Log.w(TAG, "epic: no exchange code; launching offline") }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "epic prepare: ${e.message}")
-            }
+            epicCode(app, id)
             StoresState.post(onReady)
         }, "stores-launch-prep").start()
     }
 
-    /** The same, for a game the Games tab launches: a store's game by its [Library.SteamGame.source]. */
+    /** What [epicCode] did, for the guest's request and the log: whether a code was written, and why not. */
+    class CodeResult(val written: Boolean, val reason: String)
+
+    /**
+     * Mints an Epic exchange code for the installed game [id] and writes it as [EPIC_CODE] into the
+     * very folder its sidecar and launcher are in, where the launcher .bat reads and deletes it.
+     * Blocking (network). Logs `epic launch id=<id> code=yes|no reason=...` - never the code. Every
+     * launch path comes here: the Games tab and Stores before they launch, and the compat tool for
+     * any launch, the Steam client's own Play button included ([StoreLaunchRequests]).
+     */
+    fun epicCode(context: Context, id: String): CodeResult {
+        val app = context.applicationContext
+        val result = try {
+            val folder = StoreInstallRoot.gameFolders(app).firstOrNull { f -> StoreGameSidecar.read(f)?.let { it.store == Store.EPIC && it.id == id } == true }
+            if (folder == null) CodeResult(false, "not-installed")
+            else {
+                val file = File(folder, EPIC_CODE)
+                file.delete()
+                val support = StoresState.backend(Store.EPIC) as? EpicLaunchSupport
+                val code = support?.exchangeCode(app)
+                when {
+                    support == null -> CodeResult(false, "no-backend")
+                    code != null -> { file.writeText(code); CodeResult(true, "ok") }
+                    StoreAccounts.signedInAs(app, Store.EPIC) == null -> CodeResult(false, "signed-out")
+                    support.signInExpired(app) -> { StoresState.markSignInExpired(Store.EPIC); CodeResult(false, "sign-in-expired") }
+                    else -> CodeResult(false, "exchange-failed")
+                }
+            }
+        } catch (e: Exception) {
+            CodeResult(false, "error-" + e.javaClass.simpleName)
+        }
+        Log.i(TAG, "epic launch id=$id code=${if (result.written) "yes" else "no"} reason=${result.reason}")
+        return result
+    }
+
     fun prepare(context: Context, game: Library.SteamGame, onReady: () -> Unit) {
         val store = Store.byId(game.source)
         val id = game.storeId
@@ -101,4 +125,6 @@ object StoreLaunch {
 /** What the Epic backend adds for launches: a short-lived exchange code for the signed-in account. */
 interface EpicLaunchSupport {
     fun exchangeCode(context: Context): String?
+    /** True when the stored sign-in can no longer be refreshed: the user has to sign in again. */
+    fun signInExpired(context: Context): Boolean
 }

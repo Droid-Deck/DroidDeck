@@ -96,6 +96,18 @@ TOOL_MANIFEST_VDF = """"manifest"
 # each package in use. A file that no longer matches - whatever changed it - is put back before
 # Proton starts. Only for the Proton build the choice was made for: after a Steam update the build
 # differs and the Proton's own new files are left alone until the user chooses again.
+# A store game (GOG, Epic, Amazon) is started through the launcher .bat DroidDeck wrote beside it.
+# An Epic game needs a fresh sign-in code, which only the app can mint: droiddeck-store-launch asks
+# for it and the app writes it into the game's folder, so a launch from the client's own Play
+# button signs in just as one from the app does. A real launch only; never in the way of it.
+BL_STORE_SETUP = """
+bl_store_launch() {
+  [ "${verb:-}" = waitforexitandrun ] || return 0
+  [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
+  /usr/local/bin/droiddeck-store-launch "$@" || true
+}
+"""
+
 BL_COMPONENTS_SETUP = """
 bl_components() {
   base=$1
@@ -332,6 +344,7 @@ if [ -n "$depot" ]; then
   bl_game_cpus
   bl_idtech3 "$@"
   bl_libpath
+  bl_store_launch "$@"
   exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 fi
 echo "droiddeck-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
@@ -346,7 +359,7 @@ def launcher_sh(sources=SOURCES):
     # something else.
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
         "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-        + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+        + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
 
 
 LAUNCHER_SH = launcher_sh()
@@ -390,6 +403,7 @@ bl_directaudio "$here"
 bl_game_cpus
 bl_idtech3 "$@"
 bl_libpath
+bl_store_launch "$@"
 # Proton takes its base directory from dirname(sys.argv[0]) without resolving it, so it has to be
 # started from its own tree.
 exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
@@ -619,7 +633,7 @@ def adopt_extras(tools):
             body = (EXTRA_WRAPPER_SH % entry_point).replace(
                     'here=$(dirname "$0")',
                     'here=$(dirname "$0")\n' + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-                    + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+                    + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
             write_changed(wrapper, body, 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
             write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, display_name(entry)))

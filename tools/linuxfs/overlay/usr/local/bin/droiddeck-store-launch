@@ -1,0 +1,123 @@
+#!/usr/bin/python3
+"""Before Proton starts a store game, asks the app for what that store needs at launch.
+
+Run by droiddeck-proton / droiddeck-proton-wrap (steam-compatibility) for every real game launch,
+whoever started it: the Games tab, a pinned shortcut, or the Steam client's own Play button. It
+looks for the store launcher DroidDeck wrote (.droiddeck-launch.bat) among the arguments; beside it
+.droiddeck-store.json says which store and game it is.
+
+For an Epic game the game needs a fresh exchange code to sign in, which only the app can mint. The
+request goes through files under $BL_LAUNCH_DIR/stores (the session root, the same path on both
+sides):
+
+    req/<id>.json    {"op": "epic-code", "store": "epic", "id": "<app name>"}   (tmp + rename)
+    resp/<id>.json   {"ok": true, "code": true|false, "reason": "..."}
+
+The app writes .droiddeck-epic-code into the game's folder itself - the code never passes through
+here - and the launcher .bat reads and deletes it. No answer within TIMEOUT seconds: the game starts
+with its offline identity. A code file older than STALE_SECONDS is removed first, so a code left by
+an earlier launch is never used.
+
+    droiddeck-store-launch <the arguments Steam gave the compat tool>
+"""
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+LAUNCHER = ".droiddeck-launch.bat"
+SIDECAR = ".droiddeck-store.json"
+EPIC_CODE = ".droiddeck-epic-code"
+TIMEOUT = 5.0
+STALE_SECONDS = 300
+
+
+def log(line):
+    print("droiddeck-store-launch: " + line, file=sys.stderr, flush=True)
+
+
+def find_store_game(argv):
+    """The (folder, sidecar) of the store launcher among [argv], or None when this is not one."""
+    for raw in argv:
+        arg = raw.strip().strip('"').strip("'")
+        if not arg.lower().endswith(LAUNCHER):
+            continue
+        folder = Path(arg.replace("\\", "/")).parent
+        try:
+            sidecar = json.loads((folder / SIDECAR).read_text())
+        except (OSError, ValueError):
+            continue
+        if not isinstance(sidecar, dict) or not sidecar.get("store") or not sidecar.get("id"):
+            continue
+        return folder, sidecar
+    return None
+
+
+def drop_stale(folder, now=None):
+    """Removes a code file older than STALE_SECONDS; True when one was removed."""
+    code = folder / EPIC_CODE
+    try:
+        if (now if now is not None else time.time()) - code.stat().st_mtime > STALE_SECONDS:
+            code.unlink()
+            return True
+    except OSError:
+        pass
+    return False
+
+
+def ask(channel, request, timeout=TIMEOUT):
+    """Writes [request] under channel/req and waits for channel/resp; the answer, or None on timeout."""
+    req_dir, resp_dir = channel / "req", channel / "resp"
+    req_dir.mkdir(parents=True, exist_ok=True)
+    resp_dir.mkdir(parents=True, exist_ok=True)
+    rid = "%d-%d" % (os.getpid(), int(time.time() * 1000))
+    tmp = req_dir / (rid + ".json.tmp")
+    tmp.write_text(json.dumps(request))
+    os.rename(tmp, req_dir / (rid + ".json"))
+    answer = resp_dir / (rid + ".json")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            value = json.loads(answer.read_text())
+            answer.unlink()
+            return value
+        except (OSError, ValueError):
+            time.sleep(0.05)
+    # Not answered: the request is withdrawn so a late app does not mint a code nobody reads.
+    try:
+        (req_dir / (rid + ".json")).unlink()
+    except OSError:
+        pass
+    return None
+
+
+def main(argv):
+    found = find_store_game(argv)
+    if found is None:
+        return 0
+    folder, sidecar = found
+    store, game = str(sidecar.get("store")), str(sidecar.get("id"))
+    if store != "epic":
+        return 0
+    drop_stale(folder)
+    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if not launch_dir:
+        log("epic launch id=%s code=no reason=no-channel" % game)
+        return 0
+    answer = ask(Path(launch_dir) / "stores", {"op": "epic-code", "store": store, "id": game})
+    if answer is None:
+        log("epic launch id=%s code=no reason=timeout" % game)
+    else:
+        got = bool(answer.get("code"))
+        log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as e:  # never in the way of the launch
+        log("skipped: %s" % type(e).__name__)
+        sys.exit(0)

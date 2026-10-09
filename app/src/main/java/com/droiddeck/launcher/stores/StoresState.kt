@@ -118,6 +118,11 @@ object StoresState {
 
     fun isSignedIn(store: Store): Boolean = accounts.containsKey(store)
 
+    /** Stores whose sign-in has run out (a launch could not get a code): their chip dims until the user signs in again. */
+    val expired = mutableStateMapOf<Store, Boolean>()
+
+    fun markSignInExpired(store: Store) = post { expired[store] = true }
+
     /** Installs that stopped before they finished; their Install button reads "Resume install". */
     var unfinished by mutableStateOf<List<StoreInstallRoot.Unfinished>>(emptyList())
         internal set
@@ -149,6 +154,7 @@ object StoresState {
     }
 
     fun signIn(context: Context, store: Store) {
+        expired.remove(store)
         backends[store]?.signIn(context) ?: logLine("${store.label}: this build has no sign-in for it yet")
     }
 

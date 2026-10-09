@@ -144,6 +144,18 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Epic sign-in from Steam's own Play button (device, Metalstorm "Guest Account"):** the game was
+  started from the Steam client, so the app never minted its exchange code - the code was only
+  written when a launch began in the app. Now the compat tool (`droiddeck-proton` and
+  `droiddeck-proton-wrap`, `steam-compatibility`) runs `droiddeck-store-launch` on every real launch:
+  it recognises the store launcher among Steam's arguments, and for an Epic game asks the app
+  through `<session>/stores/req|resp` and waits up to 5 s; the app (`StoreLaunchRequests` →
+  `StoreLaunch.epicCode`) refreshes the token, mints the code and writes it into the game's own
+  folder - the code never crosses the channel or the log. No answer: the game starts with its
+  offline identity. A code file older than five minutes is dropped first. Every attempt logs
+  `epic launch id=<app> code=yes|no reason=<ok|signed-out|sign-in-expired|exchange-failed|timeout|…>`;
+  a sign-in that ran out dims the Epic chip and shows the sign-in card. The Games tab and Stores
+  still prepare a code before they launch; the compat tool's request is the one every path shares.
 - **Amazon has Installed and Library only:** with no public catalog its Store tab repeated the
   library (Trending = Your library) and All equalled Library. The open-on Store choice falls back to
   Library for Amazon. Amazon's library API carries no install size, so a size shows only once a

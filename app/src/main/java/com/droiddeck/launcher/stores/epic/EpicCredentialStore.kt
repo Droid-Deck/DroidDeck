@@ -36,6 +36,12 @@ object EpicCredentialStore {
 
     /** A valid access token, refreshed when within five minutes of expiry; null when signed out or the refresh failed. */
     @JvmStatic
+    /** The stored access token is past its expiry (a refresh, if one was tried, did not replace it). */
+    fun expired(context: Context): Boolean {
+        val creds = load(context) ?: return false
+        return creds.expiresAt in 1 until System.currentTimeMillis()
+    }
+
     fun getValidAccessToken(context: Context): String? {
         val creds = load(context) ?: return null
         if (creds.expiresAt - System.currentTimeMillis() < 5L * 60L * 1000L && creds.refreshToken != null) {

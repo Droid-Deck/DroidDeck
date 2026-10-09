@@ -163,7 +163,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             when {
                 chip == DOWNLOADS -> StoresDownloadsPane(s, a)
                 store == null -> {}
-                !StoresState.isSignedIn(store) -> Rise(1) { SignInCard(store) }
+                // Signed out, or a sign-in that ran out (a launch could not get its code): sign in again.
+                !StoresState.isSignedIn(store) || StoresState.expired[store] == true -> Rise(1) { SignInCard(store) }
                 // One focus group, so the pad walks the page's own controls - back, the hero's
                 // actions, the cards - and reaches the rail only with Left from them.
                 openGame != null -> Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(store, openGame!!, s, a, onBack = { closeGame() }) }
@@ -191,9 +192,9 @@ private fun StoreChips(selected: String, active: Int, onPick: (String) -> Unit, 
                 label = store.shortLabel, on = selected == store.id, key = store.id, modifier = Modifier.weight(1f),
                 lead = {
                     val c = sourceColours(store.id)
-                    Box(Modifier.size(12.dp).clip(CircleShape).background(c.dot).alpha(if (StoresState.isSignedIn(store)) 1f else 0.35f))
+                    Box(Modifier.size(12.dp).clip(CircleShape).background(c.dot).alpha(if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f))
                 },
-                description = store.label + if (StoresState.isSignedIn(store)) "" else " " + stringResource(R.string.stores_chip_signed_out),
+                description = store.label + if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) "" else " " + stringResource(R.string.stores_chip_signed_out),
             ) { onPick(store.id) }
         }
         StoreChip(

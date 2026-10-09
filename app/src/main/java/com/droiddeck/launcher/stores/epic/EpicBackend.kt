@@ -97,6 +97,9 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         return EpicAuthClient.getExchangeCode(token)
     }
 
+    /** The access token is past its time and the refresh just failed: only a new sign-in helps. */
+    override fun signInExpired(context: Context): Boolean = EpicCredentialStore.expired(context)
+
     private class InstallJob(val app: Context, val item: CatalogItem, val namespace: String, val catalogItemId: String, val folder: File) : DownloadQueue.DownloadJob {
         private val cancelled = AtomicBoolean(false)
         // On a card the in-flight chunks go to the app's cache instead: the card's write rate paces
