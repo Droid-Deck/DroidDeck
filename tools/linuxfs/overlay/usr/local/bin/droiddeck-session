@@ -881,6 +881,34 @@ BUSCONF
     # session can never again loop in silence, which reads as a menu opening and closing by itself.
     steam_updates=0
     rm -f "$HOME/.bl-stop-requested"
+    # The client brings a game it launched to the front only while it counts someone as present,
+    # which it reads from gamescope's input counter. A game the app launches after a few minutes
+    # with no touch starts behind the library page and stays there until the next input (device,
+    # 2026-10-09). The game's window turning up behind the interface is counted as one input, as
+    # gamescope counts a key.
+    steam_bring_forward() {
+      local end=$((SECONDS + 600)) behind=0 line name value focused other n
+      while [ "$SECONDS" -lt "$end" ]; do
+        nap 2
+        focused= other=
+        while IFS= read -r line; do
+          name=${line%%(*} value=${line#*= }
+          case $name in
+            GAMESCOPE_FOCUSED_APP) focused=$value ;;
+            GAMESCOPE_FOCUSABLE_APPS) for n in ${value//,/ }; do [ "$n" = 769 ] || other=1; done ;;
+          esac
+        done < <(xprop -root GAMESCOPE_FOCUSED_APP GAMESCOPE_FOCUSABLE_APPS 2>/dev/null)
+        [ -n "$focused" ] || continue
+        [ "$focused" = 769 ] || return 0
+        if [ -n "$other" ]; then behind=$((behind + 1)); else behind=0; fi
+        [ "$behind" -ge 2 ] || continue
+        n=$(xprop -root GAMESCOPE_INPUT_COUNTER 2>/dev/null | sed -n 's/.*= *//p')
+        case $n in ''|*[!0-9]*) n=0 ;; esac
+        xprop -root -f GAMESCOPE_INPUT_COUNTER 32c -set GAMESCOPE_INPUT_COUNTER $(((n + 1) % 4294967296)) 2>/dev/null
+        echo "== steam: the game's window came up behind the interface; counted as an input"
+        return 0
+      done
+    }
     if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -d "$BL_LAUNCH_DIR" ]; then
       rm -f "$BL_LAUNCH_DIR/steam-stop" "$BL_LAUNCH_DIR/steam-game" "$BL_LAUNCH_DIR/steam-game.tmp"
       (
@@ -904,6 +932,9 @@ BUSCONF
                 }; then
                   echo "== steam: launching requested game $game_id in the running client"
                   "$steam_root/steamrtarm64/steam" "steam://rungameid/$game_id" >/dev/null 2>&1 &
+                  [ -n "${forward_pid:-}" ] && kill "$forward_pid" 2>/dev/null
+                  steam_bring_forward &
+                  forward_pid=$!
                 else
                   echo "== steam: ignored out-of-range game launch request"
                 fi
