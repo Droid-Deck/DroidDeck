@@ -153,8 +153,9 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
 }
 
 /**
- * One segment per stage - Manifest, Download, Verify, Install - equal widths: a passed stage full, the
- * active one filling with its own progress (a sliver while it has nothing to count), the rest empty.
+ * One segment per stage - Manifest, Download, Verify, Install - equal widths: a passed or skipped
+ * stage full, the active one filling with its own progress (a sliver while it has nothing to count),
+ * the rest empty.
  */
 @Composable
 private fun StageBar(d: DownloadEntry) {
@@ -164,7 +165,9 @@ private fun StageBar(d: DownloadEntry) {
             val active = d.state != DownloadState.INSTALLED && d.stage == st
             val fill = when {
                 active -> d.stageFraction.let { if (it < 0f) 0.04f else it }
-                d.passed(st) || d.stage == DownloadStage.DONE -> 1f
+                // A stage a store skips or folds into another (Epic checks chunks while it fetches,
+                // Amazon writes while it downloads) reads complete once a later one has started.
+                d.passed(st) || st.ordinal < d.stage.ordinal || d.stage == DownloadStage.DONE -> 1f
                 else -> 0f
             }
             Box(Modifier.weight(1f)) {
