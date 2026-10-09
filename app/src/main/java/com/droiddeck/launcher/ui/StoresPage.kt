@@ -280,17 +280,18 @@ private fun Storefront(
     val colors = MaterialTheme.colorScheme
     val library = StoresState.library[store] ?: emptyList()
     val shelves = StoresState.shelves[store]
-    val installedKeys = remember(StoresState.installed) { StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet() }
+    // The Installed tab, its count and every card's installed mark come from the installs on disk.
+    val installedItems = remember(StoresState.installed, library) { com.droiddeck.launcher.stores.installedCards(store, StoresState.installed, library) }
+    val installedKeys = remember(installedItems) { installedItems.map { it.id }.toSet() + StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id } }
     val q = query.trim().lowercase()
     fun matches(i: CatalogItem) = q.isEmpty() || i.title.lowercase().contains(q)
     // Everything this store knows about: the library plus whatever the shelves brought, each title once.
     val everything = remember(library, shelves) { (library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
-    val installedItems = library.filter { it.id in installedKeys }
     Rise(1) {
         SubTabs(
             listOf(
                 "store" to stringResource(R.string.stores_tab_store),
-                "installed" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedKeys.size),
+                "installed" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size),
                 "library" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size),
                 "all" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_all), everything.size),
             ),

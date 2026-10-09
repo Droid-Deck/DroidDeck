@@ -52,6 +52,21 @@ class StoreShelves(
 }
 
 /** A game a store installed, as found on disk through its sidecar. */
+/**
+ * The Installed tab's cards for [store], from the installs on disk - the same source as its count:
+ * each joined to its library item by store id (by title when the ids differ), else a card made
+ * from the sidecar's own title and art, so an install shows even before the library has loaded.
+ */
+fun installedCards(store: Store, installed: List<InstalledStoreGame>, library: List<CatalogItem>): List<CatalogItem> {
+    val byId = library.associateBy { it.id }
+    val byTitle = library.associateBy { it.title.lowercase() }
+    return installed.filter { it.sidecar.store == store }.map { game ->
+        val s = game.sidecar
+        byId[s.id] ?: byTitle[s.title.lowercase()]
+            ?: CatalogItem(store, s.id, s.title, imageUrl = s.hero ?: s.cover, tallImageUrl = s.cover ?: s.hero, owned = true)
+    }.distinctBy { it.id }.sortedBy { it.title.lowercase() }
+}
+
 class InstalledStoreGame(val sidecar: StoreGameSidecar, val folder: java.io.File) {
     val key: String get() = "${sidecar.store.id}:${sidecar.id}"
 }

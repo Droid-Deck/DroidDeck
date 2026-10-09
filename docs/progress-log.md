@@ -144,6 +144,9 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Installed tab empty under "Installed (2)" (device):** the count came from the installs on disk,
+  the grid from the library filtered by id. Both now come from `installedCards`: each install joined
+  to its library item by id (or title), else a card from the sidecar's title and art.
 - **GOG rows (device, DOOM + DOOM II):** bytes read "0 B" instead of blank; GOG and Amazon report
   their size on disk from the manifest; their Install stage counts its finishing steps (record and
   launcher, art, Steam) instead of sitting empty - GOG writes files in place while downloading, so
