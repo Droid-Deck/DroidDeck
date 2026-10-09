@@ -24,11 +24,30 @@ permissions:
   contents: write
 
 jobs:
+  kwin:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build KWin with nested desktop scaling
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils gpgv patch binutils >/dev/null
+          bash tools/desktop-kde/build-kwin.sh out/kwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-kde-kwin
+          retention-days: 7
+          path: out/kwin/
   build:
+    needs: kwin
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-kde-kwin
+          path: out/kwin
       - uses: actions/create-github-app-token@v2
         id: components-token
         if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
@@ -50,7 +69,8 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils gpgv >/dev/null
-          tools/desktop-kde/build.sh out
+          KDE_KWIN_OVERRIDE="$PWD/out/kwin/kwin_wayland" tools/desktop-kde/build.sh out
+          cp out/kwin/desktop-kde.kwin.txt out/
           echo "size $(stat -c %s out/desktop-kde.tar.zst) sha256 $(cat out/desktop-kde.sha256)"
       # The package itself too, briefly: enough to try a build on a device before publishing it.
       - uses: actions/upload-artifact@v4
@@ -61,6 +81,7 @@ jobs:
           path: |
             out/desktop-kde.tar.zst
             out/desktop-kde.packages.txt
+            out/desktop-kde.kwin.txt
             out/desktop-kde.sha256
       - name: Publish
         if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
@@ -76,5 +97,5 @@ jobs:
           fi
           gh release create "$TAG" --latest=false --prerelease=false --title "$TAG" \
             --notes "KDE Plasma desktop package for DroidDeck's Linux runtime ($GITHUB_REPOSITORY tools/desktop-kde, $GITHUB_SHA). size $(stat -c %s out/desktop-kde.tar.zst), sha256 $(cat out/desktop-kde.sha256). desktop-kde.packages.txt lists the signature-checked Arch Linux ARM packages it was built from." \
-            out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt
+            out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt out/desktop-kde.kwin.txt
           gh release edit "$TAG" --latest=false --prerelease=false

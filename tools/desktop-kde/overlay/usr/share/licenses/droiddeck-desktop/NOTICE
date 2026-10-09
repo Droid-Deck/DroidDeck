@@ -8,5 +8,10 @@ Third-party files in DroidDeck's KDE desktop package (tools/desktop-kde/overlay)
 - steam.svg: Papirus icon theme (https://github.com/PapirusDevelopmentTeam/papirus-icon-theme),
   GPL-3.0.
 
+- kwin_wayland: KWin 6.7.5, GPL-2.0-or-later. Built with DroidDeck's nested desktop scale patch.
+  Corresponding source: https://download.kde.org/stable/plasma/6.7.5/kwin-6.7.5.tar.xz and
+  https://github.com/Droid-Deck/DroidDeck/tree/fix/kde-desktop-followups/tools/desktop-kde/patches
+  (the source and patch hashes are recorded in desktop-kde.kwin.txt beside the package).
+
 Everything else in the package is Arch Linux ARM's own packages, under their own licenses
 (/usr/share/licenses).
