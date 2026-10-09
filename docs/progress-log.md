@@ -7,6 +7,28 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-08 - `feat/private-logs`: every log in app-private storage, shared as one scrubbed zip
+
+- **Where logs live:** `files/logs/` (`LinuxRuntime.logDir`), nothing under `Download/DroidDeck`
+  any more. Session folders (`<day>-NN-<what>/`), `tools/` (GuestCommand, Flatpak, Windows
+  component installers) and `stores/` (the stores' engine log, one file a day) all sit there. The
+  files directory is bound into every session at the same path, so the session script, gamescope
+  and the guest tools write there as before. Thirty sessions kept; the Logs switch off still means
+  a cache folder deleted at session end. Game save backups stay public in `Download/DroidDeck/Saves`.
+- **Moving the old ones:** on the first start of this build, session folders, `tools/` and loose
+  `*.log` files move from `Download/DroidDeck/` into `files/logs/` (rename, else copy and delete;
+  an item that fails stays). A marker records the pass; `Saves/` and anything else there is never
+  touched, and the app does not read `Download/DroidDeck/` again.
+- **Share logs:** one zip in `cache/share/`, made on demand: the newest session folder (or the one
+  the session screen shares), the last seven days of `stores/` and `tools/`. Every text file goes
+  through `LogRedactor.redactForShare` on the way in - the existing rules (Steam tokens, JWTs,
+  SteamIDs, account names, emails, own addresses, MACs, serials) plus URLs without query, fragment
+  or userinfo and with token-bearing path segments blanked (GOG secure links), `__token__`,
+  `f_token`, `hdnts`, OAuth `code=`, and Authorization / Cookie headers - so a file written before a
+  rule existed is clean in the zip. The zip is deleted at the next share or app start.
+  `SessionLogShareTest` covers it. Nothing was relaxed: the per-session scrub, `scrubOlder` and
+  every existing rule stay as they were.
+- **File manager:** the Session logs shortcut opens `files/logs` (the app reads its own storage).
 ## 2026-10-08 - `feat/stores`: GOG, Epic Games and Amazon Games in the launcher (in progress)
 
 A new **Stores** section - the three storefronts' libraries and public catalogs, one download

@@ -38,9 +38,9 @@ object SessionArtifacts {
      * Written by a session's own ending, and only when every file in the folder, subfolders
      * included (whatever the session script copied into steam/ and droiddeck-esync/ as well as what
      * the app wrote), went through the redactor without a failure. It lists each of those files
-     * with its size and modification time, under the redactor's rules version: a share copies a
-     * file as it is only when all three still match ([scrubbedFiles]), and scrubs anything else -
-     * a file added or changed since, a hidden one, or every file of a folder without it.
+     * with its size and modification time, under the redactor's rules version ([scrubbedFiles]).
+     * A share no longer relies on it: every text file goes through the share pass on the way into
+     * the zip regardless.
      */
     const val SCRUBBED_TREE_MARKER = ".scrubbed-tree"
 
@@ -75,7 +75,7 @@ object SessionArtifacts {
     @Synchronized
     fun scrubOlder(context: Context) {
         val current = SessionPaths.current()
-        val dirs = LinuxRuntime.debugLogDir().listFiles { f ->
+        val dirs = LinuxRuntime.logDir(context).listFiles { f ->
             SessionPaths.isSessionFolder(f) && f != current && !File(f, SCRUBBED_MARKER).exists()
         } ?: return
         if (dirs.isEmpty()) return
@@ -223,7 +223,7 @@ object SessionArtifacts {
      */
     @Synchronized
     fun finishAbandoned(context: Context) {
-        val parent = LinuxRuntime.debugLogDir()
+        val parent = LinuxRuntime.logDir(context)
         val abandoned = parent.listFiles { f ->
             SessionPaths.isSessionFolder(f) && !File(f, COMPLETE_MARKER).exists()
         }?.sortedWith(SessionPaths.chronological) ?: return
@@ -282,9 +282,7 @@ object SessionArtifacts {
         val current = SessionPaths.current()
         val gone = SessionPaths.sessionFolders(context).filter { it != current }
         gone.forEach { com.droiddeck.launcher.core.FileUtils.delete(it) }
-        com.droiddeck.launcher.core.FileUtils.delete(File(LinuxRuntime.debugLogDir(), SessionPaths.TOOLS_DIR))
-        // Before tools/, those logs sat loose beside the session folders.
-        LinuxRuntime.debugLogDir().listFiles { f -> f.isFile && f.name.endsWith(".log") }?.forEach { it.delete() }
+        com.droiddeck.launcher.core.FileUtils.delete(File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR))
         Log.i(TAG, "cleared ${gone.size} session folder(s)")
         return gone.size
     }

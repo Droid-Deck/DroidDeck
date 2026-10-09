@@ -361,25 +361,9 @@ object SessionFiles {
     ).joinToString(newline)
 
     /**
-     * Where the session writes its log. Downloads is the point - a failed run is handed over as a
-     * folder rather than dug out of app-private storage - but the session script redirects its own
-     * output there with `exec`, and a redirection a non-interactive shell cannot open ends that
-     * shell. So a public directory is used only once it is proven writable; otherwise the app's
-     * own files directory, which is bound into the session anyway, stands in.
+     * Where the session writes its log: app-private `files/logs`, bound into the session at the same
+     * path, so the session script's own redirection always opens. A folder leaves the device only
+     * through Share logs, which scrubs every file again on the way into the zip.
      */
-    fun logDirectory(context: Context): File {
-        val public = LinuxRuntime.debugLogDir()
-        if (public.isDirectory || public.mkdirs()) {
-            val probe = File(public, ".writable")
-            try {
-                if (probe.createNewFile() || probe.isFile) {
-                    probe.delete()
-                    return public
-                }
-            } catch (ignored: Exception) {
-            }
-        }
-        Log.w(TAG, "$public is not writable (storage permission?); logging to files/logs")
-        return File(context.filesDir, "logs").apply { mkdirs() }
-    }
+    fun logDirectory(context: Context): File = LinuxRuntime.logDir(context).apply { mkdirs() }
 }

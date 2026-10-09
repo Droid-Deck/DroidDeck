@@ -212,6 +212,46 @@ object LogRedactor {
         src.forEachLine { line -> out.write(redact(line)); out.write("\n") }
     }
 
+    private val URL_IN_TEXT = Regex("""[A-Za-z][A-Za-z0-9+.\-]*://[^\s"'<>]+""")
+    /** A path segment that carries a signed token (a GOG secure link puts its token in the path). */
+    private val TOKEN_SEGMENT = Regex("""(?i)(token|hdnts|hmac|signature|sig|exp)=""")
+    private val SHARE_KV = Regex("""(?i)(?<![A-Za-z0-9])(__token__|f_token|hdnts|id_token|code|exchange_code|authorizationCode)(["']?\s*=\s*["']?)[^\s&;,"'<>}]{6,}""")
+    private val HEADER = Regex("""(?i)\b(authorization|cookie|set-cookie)(\s*:\s*).+""")
+
+    /**
+     * The last pass for a file going into a shared zip: [redact], then every URL without its query,
+     * fragment and user:password and with any path segment that carries a token blanked, then the
+     * token-like values [redact] does not know (`__token__`, `f_token`, `hdnts`, OAuth `code=`) and
+     * Authorization / Cookie headers. A line already clean comes out unchanged.
+     */
+    fun redactForShare(line: String): String {
+        if (line.isEmpty()) return line
+        return try {
+            var out = redact(line)
+            out = URL_IN_TEXT.replace(out) { m -> shareUrl(m.value) }
+            out = SHARE_KV.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>" }
+            out = HEADER.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:header>" }
+            out
+        } catch (t: Throwable) {
+            "<redaction failed; line withheld>"
+        }
+    }
+
+    private fun shareUrl(url: String): String {
+        val schemeEnd = url.indexOf("://")
+        val rest = url.substring(schemeEnd + 3).substringBefore('#').substringBefore('?')
+        val slash = rest.indexOf('/')
+        val authority = (if (slash >= 0) rest.substring(0, slash) else rest).substringAfterLast('@')
+        val path = if (slash >= 0) rest.substring(slash) else ""
+        val cleanPath = path.split('/').joinToString("/") { seg -> if (TOKEN_SEGMENT.containsMatchIn(seg)) "<redacted:token>" else seg }
+        return url.substring(0, schemeEnd) + "://" + authority + cleanPath
+    }
+
+    /** [src]'s lines through [redactForShare], to [out]: the pass every text file in a shared zip gets. */
+    fun scrubForShare(src: java.io.File, out: java.io.Writer) {
+        src.forEachLine { line -> out.write(redactForShare(line)); out.write("\n") }
+    }
+
     /** [line] with every credential shape replaced. Null- and exception-safe by construction. */
     fun redact(line: String): String {
         if (line.isEmpty()) return line

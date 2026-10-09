@@ -493,7 +493,7 @@ object SessionPrefs {
     }
 
     /**
-     * Whether a session writes its folder under Download/DroidDeck. Off, the same logs are kept in
+     * Whether a session keeps its folder under files/logs. Off, the same logs are kept in
      * the app's cache for the session's lifetime (the scripts need somewhere to write) and thrown
      * away at the end, so nothing accumulates in Downloads.
      */
