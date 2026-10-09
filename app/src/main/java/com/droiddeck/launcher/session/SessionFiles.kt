@@ -117,9 +117,9 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
         // What the Windows components installer reads .msi packages with (tools/msitools).
-        val msitools = listOf("msiinfo", "cabextract", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
+        val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
-            listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
+            listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libfaultreport.so", "libthunkaudit.so", "libvulkan-thunk.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }

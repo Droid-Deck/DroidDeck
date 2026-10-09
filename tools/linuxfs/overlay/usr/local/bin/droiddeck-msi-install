@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 """Installs a Windows Installer package (.msi) the way Wine's own msiexec would, without running it.
 
-droiddeck-msi-install <package.msi> <component dir>
+droiddeck-msi-install <package.msi | installer.exe> <component dir>
+droiddeck-msi-install --unpack <archive | installer.exe | cabinet> <dir>
 
 A .msi is a database: which files go to which folder, which registry values to write, which .NET
 and side-by-side assemblies to register. This reads those tables (msiinfo), unpacks the package's
@@ -11,8 +12,18 @@ for droiddeck-wincomponents, which puts it into a game's prefix at launch:
   <component dir>/drive_c/...      the files, at the paths they get on 64-bit Windows
   <component dir>/registry.json    the registry values, in the view (32/64-bit) Windows uses
 
+An installer .exe is opened the same way when it is a wrapper around packages: a WiX bundle
+(Visual C++ 2012 and later, the .NET Core and 5+ runtimes: the packages sit in a cabinet the
+bundle's own header locates, named in its manifest), a self-extracting cabinet (Visual C++ 2005
+to 2010) or a self-extracting 7-Zip archive (.NET Framework 4.0 to 4.8). The packages inside are
+laid out one after the other into the same component dir; the 32- and 64-bit ones both, an ARM64
+one never. An .exe that is its own setup program (NSIS, InnoSetup) holds no package: an error says so.
+
 What a package does by running its own code (custom actions such as DXSETUP, self-registering
 DLLs) cannot be done this way; each is named in the notes, so nothing is left out silently.
+
+--unpack opens an archive or installer for the caller to take files out of (cabextract for a
+cabinet or self-extracting cabinet, 7-Zip for the rest) and prints the files it found.
 
 Prints "progress <text>" lines while it works and ends with "result <json>": the counts and notes.
 """
@@ -20,6 +31,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -28,6 +40,11 @@ from pathlib import Path
 TOOLS = Path(os.environ.get("DROIDDECK_MSITOOLS", "/usr/local/lib/droiddeck-msitools"))
 MSIINFO = os.environ.get("DROIDDECK_MSIINFO", str(TOOLS / "msiinfo"))
 CABEXTRACT = os.environ.get("DROIDDECK_CABEXTRACT", str(TOOLS / "cabextract"))
+SEVENZIP = os.environ.get("DROIDDECK_7Z", str(TOOLS / "7z"))
+MSI_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+BURN_MAGIC = 0x00F14300
+# A bundle's manifest names ARM64 packages too; a game's prefix wants the x86 and x64 ones.
+SKIP_PLATFORMS = ("arm64", "arm")
 
 
 def tool_env():
@@ -543,19 +560,28 @@ class Installer:
             cabinet = row.get("Cabinet", "")
             if not cabinet:
                 continue
-            if not cabinet.startswith("#"):
-                self.notes.append("external cabinet %s is not part of the package; its files are missing" % cabinet)
-                continue
-            progress("unpacking %s" % cabinet[1:])
-            cab = Path(work) / ("media%d.cab" % index)
-            self.pkg.stream(cabinet[1:], cab)
             dest = Path(work) / ("media%d" % index)
             dest.mkdir()
+            if cabinet.startswith("#"):
+                progress("unpacking %s" % cabinet[1:])
+                cab = Path(work) / ("media%d.cab" % index)
+                self.pkg.stream(cabinet[1:], cab)
+                own = True
+            else:
+                # An external cabinet: a file beside the package, as an installer wrapper lays it out
+                # (vc_red.cab beside vc_red.msi, netfx_Full.mzz beside netfx_Full_x64.msi).
+                cab = sibling(Path(self.pkg.path), cabinet)
+                if cab is None:
+                    self.notes.append("external cabinet %s is not part of the package; its files are missing" % cabinet)
+                    continue
+                progress("unpacking %s" % cabinet)
+                own = False
             result = subprocess.run([CABEXTRACT, "-q", "-d", str(dest), str(cab)], capture_output=True, timeout=1800,
                                     env=tool_env())
             if result.returncode != 0:
                 raise MsiError("cabextract: %s" % result.stderr.decode("utf-8", "replace").strip()[:300])
-            cab.unlink()
+            if own:
+                cab.unlink()
             for entry in dest.rglob("*"):
                 if entry.is_file():
                     found.setdefault(entry.relative_to(dest).as_posix(), entry)
@@ -752,14 +778,229 @@ class Installer:
                 "counts": self.counts, "notes": self.notes}
 
 
+# ---------------------------------------------------------------- installer wrappers
+
+def sibling(path, name):
+    """A file next to [path] called [name], whatever its case; None when there is none."""
+    folder = path.parent
+    candidate = folder / name
+    if candidate.is_file():
+        return candidate
+    lower = name.lower()
+    for entry in folder.iterdir():
+        if entry.is_file() and entry.name.lower() == lower:
+            return entry
+    return None
+
+
+def kind_of(path):
+    """What a file is by its first bytes: msi, exe, cab or other."""
+    with open(path, "rb") as source:
+        head = source.read(8)
+    if head.startswith(MSI_MAGIC):
+        return "msi"
+    if head[:2] == b"MZ":
+        return "exe"
+    if head[:4] == b"MSCF":
+        return "cab"
+    return "other"
+
+
+def run_tool(args, timeout=1800):
+    try:
+        return subprocess.run(args, capture_output=True, timeout=timeout, env=tool_env())
+    except OSError as error:
+        raise MsiError("%s is not available (%s)" % (Path(args[0]).name, error))
+
+
+def burn_containers(data):
+    """A WiX bundle's containers as (offset, size) pairs: the .wixburn section of the stub names
+    their sizes; each is a cabinet laid out after the stub, found by its header since signing can
+    move them. None when the file is no bundle."""
+    try:
+        pe = struct.unpack_from("<I", data, 0x3C)[0]
+        if data[pe:pe + 4] != b"PE\0\0":
+            return None
+        count, optional = struct.unpack_from("<H", data, pe + 6)[0], struct.unpack_from("<H", data, pe + 20)[0]
+        table = pe + 24 + optional
+        section = None
+        for i in range(count):
+            name, _, _, raw_size, raw_offset = struct.unpack_from("<8sIIII", data, table + 40 * i)
+            if name.rstrip(b"\0") == b".wixburn":
+                section = (raw_offset, raw_size)
+        if section is None or section[1] < 52:
+            return None
+        offset = section[0]
+        if struct.unpack_from("<I", data, offset)[0] != BURN_MAGIC:
+            return None
+        stub, _, _, _, _, containers = struct.unpack_from("<IIIIII", data, offset + 24)
+        sizes = struct.unpack_from("<%dI" % containers, data, offset + 48)
+    except (struct.error, IndexError):
+        return None
+    found = []
+    position = stub
+    for size in sizes:
+        while True:
+            start = data.find(b"MSCF", position)
+            if start < 0 or start + 12 > len(data):
+                return None
+            if struct.unpack_from("<I", data, start + 8)[0] == size:
+                break
+            position = start + 4
+        found.append((start, size))
+        position = start + size
+    return found
+
+
+def unpack_burn(path, dest, containers):
+    """Unpacks a bundle's containers into [dest] and gives the payloads the names its manifest
+    lists (a9 -> packages/vcRuntimeMinimum_amd64/vc_runtimeMinimum_x64.msi)."""
+    data = path.read_bytes()
+    names = {}
+    for index, (start, size) in enumerate(containers):
+        progress("unpacking the bundle, part %d of %d" % (index + 1, len(containers)))
+        cab = dest / ("container%d.cab" % index)
+        cab.write_bytes(data[start:start + size])
+        folder = dest / ("container%d" % index)
+        folder.mkdir()
+        result = run_tool([CABEXTRACT, "-q", "-d", str(folder), str(cab)])
+        cab.unlink()
+        if result.returncode != 0:
+            raise MsiError("cabextract: %s" % result.stderr.decode("utf-8", "replace").strip()[:300])
+        if index == 0:
+            manifest = folder / "0"
+            if manifest.is_file():
+                text = manifest.read_text("utf-8", "replace")
+                for file_path, source in re.findall(r'<Payload\b[^>]*?\bFilePath="([^"]+)"[^>]*?\bSourcePath="([^"]+)"', text):
+                    names[source] = file_path
+            continue
+        for entry in list(folder.iterdir()):
+            wanted = names.get(entry.name)
+            if not wanted:
+                continue
+            rel = Path(*[part for part in wanted.replace("\\", "/").split("/") if part not in ("", ".", "..")])
+            target = folder / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            entry.rename(target)
+
+
+def unpack_installer(path, dest):
+    """Opens an installer or archive into [dest]: a bundle by its header, a cabinet (or
+    self-extracting one) with cabextract, anything else with 7-Zip."""
+    kind = kind_of(path)
+    if kind == "exe":
+        containers = burn_containers(path.read_bytes())
+        if containers:
+            unpack_burn(path, dest, containers)
+            return "bundle"
+    if kind == "cab" or kind == "exe" and b"MSCF" in path.read_bytes():
+        result = run_tool([CABEXTRACT, "-q", "-d", str(dest), str(path)])
+        if result.returncode == 0 and any(dest.rglob("*")):
+            return "cabinet"
+        for stale in list(dest.iterdir()):
+            shutil.rmtree(stale) if stale.is_dir() else stale.unlink()
+    progress("unpacking %s" % path.name)
+    result = run_tool([SEVENZIP, "x", "-y", "-bd", "-bso0", "-bsp0", "-o" + str(dest), str(path)])
+    if result.returncode not in (0, 1) or not any(dest.rglob("*")):
+        raise MsiError("could not open %s: %s" % (path.name, (result.stderr or result.stdout).decode("utf-8", "replace").strip()[:200]
+                                                   or "nothing inside it can be unpacked"))
+    return "archive"
+
+
+def packages_in(root):
+    """The Windows Installer packages an unpacked installer holds, shallowest first, by name."""
+    found = []
+    for entry in sorted(root.rglob("*")):
+        if entry.is_file() and kind_of(entry) == "msi":
+            found.append(entry)
+    found.sort(key=lambda entry: (len(entry.relative_to(root).parts), entry.name.lower()))
+    return found
+
+
+def choose_packages(found, root):
+    """Which packages make up the install: the ones at the top of the installer (a bundle keeps
+    each in its own folder, so there every level counts), for the x86 and x64 platforms. The .NET
+    Framework 4.5+ installers carry a complete product (netfx_Full_*) beside the 4.0 parts they
+    patch (netfx_Core_*, netfx_Extended_*) and per-Windows-version copies in NetFx* folders: the
+    complete product wins, the copies are left out."""
+    if not found:
+        return []
+    depth = min(len(entry.relative_to(root).parts) for entry in found)
+    bundle = (root / "container1").is_dir()
+    top = [entry for entry in found if bundle or len(entry.relative_to(root).parts) == depth]
+    names = [entry.name.lower() for entry in top]
+    if any("full" in name for name in names) and any("_core" in name or "_extended" in name for name in names):
+        top = [entry for entry in top if not ("_core" in entry.name.lower() or "_extended" in entry.name.lower())]
+    chosen = []
+    for entry in top:
+        template = Package(entry).summary.get("template", "").split(";")[0].strip().lower()
+        if template in SKIP_PLATFORMS:
+            continue
+        chosen.append(entry)
+    return chosen
+
+
+def install_wrapper(path, out):
+    """Lays out every package inside an installer wrapper; the result is the sum of them."""
+    total = {"product": "", "version": "", "counts": {"files": 0, "assemblies": 0, "registry": 0}, "notes": [], "packages": []}
+    with tempfile.TemporaryDirectory(dir=str(out.parent), prefix=".unpack-") as work:
+        dest = Path(work) / "x"
+        dest.mkdir()
+        how = unpack_installer(path, dest)
+        packages = choose_packages(packages_in(dest), dest)
+        if not packages:
+            raise MsiError("%s holds no installer package: it is its own setup program, which cannot be run here" % path.name)
+        for index, package in enumerate(packages):
+            progress("package %d of %d: %s" % (index + 1, len(packages), package.name))
+            try:
+                result = Installer(str(package), out).install()
+            except MsiError as error:
+                # A package with nothing for this prefix (a patch for another Windows) is skipped,
+                # unless it is the only one; anything else is the whole installer's failure.
+                if "installs nothing" in str(error) and len(packages) > 1:
+                    total["notes"].append("%s: %s" % (package.name, error))
+                    continue
+                raise
+            total["packages"].append(package.name)
+            if not total["product"]:
+                total["product"], total["version"] = result["product"], result["version"]
+            for key in total["counts"]:
+                total["counts"][key] += result["counts"].get(key, 0)
+            for note in result["notes"]:
+                if note not in total["notes"]:
+                    total["notes"].append(note)
+        total["how"] = how
+    return total
+
+
+def unpack_only(path, dest):
+    dest.mkdir(parents=True, exist_ok=True)
+    how = unpack_installer(path, dest)
+    files = sorted(str(entry.relative_to(dest)) for entry in dest.rglob("*") if entry.is_file())
+    return {"how": how, "files": len(files), "names": files[:2000]}
+
+
 def main():
-    if len(sys.argv) != 3:
-        print("usage: droiddeck-msi-install <package.msi> <component dir>", file=sys.stderr)
+    args = sys.argv[1:]
+    if len(args) == 3 and args[0] == "--unpack":
+        try:
+            result = unpack_only(Path(args[1]), Path(args[2]))
+        except MsiError as error:
+            print("error " + str(error), flush=True)
+            return 1
+        print("result " + json.dumps(result), flush=True)
+        return 0
+    if len(args) != 2:
+        print("usage: droiddeck-msi-install <package.msi | installer.exe> <component dir>\n"
+              "       droiddeck-msi-install --unpack <archive> <dir>", file=sys.stderr)
         return 2
-    out = Path(sys.argv[2])
+    source, out = Path(args[0]), Path(args[1])
     out.mkdir(parents=True, exist_ok=True)
     try:
-        result = Installer(sys.argv[1], out).install()
+        if kind_of(source) == "msi":
+            result = Installer(str(source), out).install()
+        else:
+            result = install_wrapper(source, out)
     except MsiError as error:
         print("error " + str(error), flush=True)
         return 1

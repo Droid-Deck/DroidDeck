@@ -254,10 +254,13 @@ jobs:
           done
           install -m644 msi-pkgs/usr/bin/msiinfo "$T/msiinfo"
           install -m644 msi-pkgs/usr/bin/cabextract "$T/cabextract"
+          # 7-Zip (the full build with its format plugin) opens installer .exe wrappers.
+          install -m644 msi-pkgs/usr/lib/7zip/7z "$T/7z"
+          install -m644 msi-pkgs/usr/lib/7zip/7z.so "$T/7z.so"
           for so in libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
             cp -L "msi-pkgs/usr/lib/$so" "$T/$so"
           done
-          for f in NOTICE GPL-2 GPL-3 LGPL-2.1; do
+          for f in NOTICE GPL-2 GPL-3 LGPL-2.1 7zip-License 7zip-unRarLicense; do
             install -Dm644 "tools/msitools/licenses/$f" "$D/usr/local/share/licenses/droiddeck-msitools/$f"
           done
           rm -rf msi-pkgs
@@ -391,7 +394,7 @@ jobs:
           test -f "$D/usr/local/bin/droiddeck-session"
           test -f "$D/usr/local/bin/droiddeck-proton-extra"
           test -f "$D/usr/local/bin/droiddeck-msi-install"
-          for f in msiinfo cabextract libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
+          for f in msiinfo cabextract 7z 7z.so libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
             test -f "$D/usr/local/lib/droiddeck-msitools/$f" || { echo "::error::droiddeck-msitools/$f missing"; exit 1; }
           done
 
