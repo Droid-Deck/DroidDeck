@@ -18,6 +18,13 @@ class AgentGuestSelectionTest {
         )
     }
 
+    @Test fun selectedSteamGameWinsOverStaleActiveSteamGame() {
+        assertEquals(
+            646570L,
+            AgentGuest.preferredInstalledSteamAppId(646570L, 3180310L, installedAppIds),
+        )
+    }
+
     @Test fun soleFocusableInstalledGameRemainsActiveUnderSteamOverlay() {
         assertEquals(
             3180310L,
