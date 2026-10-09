@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clipToBounds
@@ -155,12 +156,24 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 onNext = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + 1) % t.size]) } },
             ),
     ) {
-        // The chip row stays put on the page's own ground; what scrolls passes under it, clipped,
-        // with a short fade where it meets the row.
-        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(bottom = 8.dp)) {
+        // The chip row stays put and paints nothing - the page's background shows through it. What
+        // scrolls is clipped at the row's lower edge and, once scrolled, faded out there: the
+        // content's own alpha, not a colour laid over it.
+        Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             Rise(0) { StoreChips(chip, s.storeDownloadsActive, onPick = pickChip, onSettings = { settings = true }) }
         }
-        Box(Modifier.fillMaxWidth().weight(1f, fill = false).clipToBounds()) {
+        val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
+        Box(
+            Modifier.fillMaxWidth().weight(1f, fill = false).clipToBounds()
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    if (scroll.value > 0 && size.height > fade) drawRect(
+                        Brush.verticalGradient(0f to Color.Transparent, fade / size.height to Color.Black),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                    )
+                },
+        ) {
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) {
             when {
                 chip == DOWNLOADS -> StoresDownloadsPane(s, a)
@@ -173,10 +186,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 else -> Storefront(store, shownTab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
             }
         }
-        if (scroll.value > 0) Spacer(
-            Modifier.align(Alignment.TopCenter).fillMaxWidth().height(14.dp)
-                .background(Brush.verticalGradient(0f to MaterialTheme.colorScheme.background, 1f to Color.Transparent)),
-        )
         }
     }
     if (settings) StoresSettingsDialog(s, a) { settings = false }

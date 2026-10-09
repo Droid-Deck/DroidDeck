@@ -153,6 +153,9 @@ without it and Setup says "Stores engine not built").
 - **Cloud saves device-proven (AYANEO Pocket FIT, `6a175f1`, ELDERBORN on GOG):** the launch logged
   `cloud gog 1732383191 down result=ok files=5 bytes=237499 reason=downloaded` (template found) and
   the in-game slot shows the cloud save (Catacombs: Tutorial part 1, 00:08:40).
+- **The Stores chip row paints nothing** (maintainer: a black box behind the chips): it sits over the
+  page's own background; the content scrolling under it is clipped at its edge and faded there by
+  the content's alpha once scrolled, never by a colour.
 - **Pre-PR device checks pass (AYANEO Pocket FIT):** GOG install, launch and cloud saves down and up
   (the session-end upload included); Epic with EOS sign-in; Amazon (Dread Templar); an SD-card install
   (DOOM I Enhanced) launched from `/mnt/droiddeck-sd`.
