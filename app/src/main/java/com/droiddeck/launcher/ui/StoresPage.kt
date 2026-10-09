@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
@@ -333,8 +334,8 @@ private fun Storefront(
             listOf("store" to stringResource(R.string.stores_tab_store), "library" to libraryLabel).filter { it.first in tabsFor(store) },
             tab,
             onPick = { key -> if (key == "library") { if (tab == "library") filterOpen = !filterOpen else onTab(key) } else onTab(key) },
-            menuFor = { key ->
-                if (key == "library") AnchoredMenu(filterOpen, onDismiss = { filterOpen = false }) { first ->
+            menuFor = { key, tabWidth ->
+                if (key == "library") AnchoredMenu(filterOpen, onDismiss = { filterOpen = false }, compact = true, minWidth = tabWidth) { first ->
                     MenuItem(stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_all), library.size), checked = !installedOnly, focusRequester = first) { installedOnly = false; filterOpen = false; onTab("library") }
                     MenuItem(stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size), checked = installedOnly) { installedOnly = true; filterOpen = false; onTab("library") }
                 }
@@ -386,7 +387,7 @@ private fun Storefront(
 @Composable
 private fun SubTabs(
     tabs: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit,
-    menuFor: @Composable (String) -> Unit = {}, trailing: @Composable () -> Unit,
+    menuFor: @Composable (String, androidx.compose.ui.unit.Dp) -> Unit = { _, _ -> }, trailing: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -398,7 +399,9 @@ private fun SubTabs(
                     val src = remember { MutableInteractionSource() }
                     val hot = rememberHot(src)
                     val pick = { onPick(key) }
-                    Box {
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    var width by remember { mutableStateOf(0.dp) }
+                    Box(Modifier.onSizeChanged { width = with(density) { it.width.toDp() } }) {
                     Column(
                         modifier = Modifier.paneItem("storetab:$key").clip(RoundedCornerShape(8.dp))
                             .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
@@ -411,7 +414,7 @@ private fun SubTabs(
                         Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(2.dp).background(if (on) pal.signal else Color.Transparent))
                     }
                     // A tab's own dropdown (Library's filter), anchored under it.
-                    menuFor(key)
+                    menuFor(key, width)
                     }
                 }
             }

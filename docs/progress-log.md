@@ -157,7 +157,8 @@ without it and Setup says "Stores engine not built").
   GOG Library 33 / All 120): Library's dropdown filters All (every owned game, the default, the
   tab's count) or Installed, and the tab reads the filter ("Library (33)", "Installed (1)"); the old
   All view is gone. Amazon has Library alone. Search follows the filter; the shoulders cycle Store
-  and Library.
+  and Library. The dropdown opens under the Library tab, left edges aligned, as wide as its
+  entries (at least the tab, at most 260 dp) - `AnchoredMenu(compact = true)`.
 - **The Stores chip row paints nothing** (maintainer: a black box behind the chips): it sits over the
   page's own background; the content scrolling under it is clipped at its edge and faded there by
   the content's alpha once scrolled, never by a colour.
