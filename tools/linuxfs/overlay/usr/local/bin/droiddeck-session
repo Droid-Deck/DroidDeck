@@ -29,6 +29,27 @@ if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   echo "== rootfs: $(cat /.version 2>/dev/null || echo unversioned)"
 fi
 
+# Every program loads the locale LANG names (C.UTF-8) before main(). glibc ships it as a directory,
+# which it looks for once per category under two spellings before reading gconv's module lists:
+# about 30 opens, each a stop in proot, for every process in the session, a script's dirname or cat
+# included. An archive holding it (and gconv's cache) makes that one open. Built again when the
+# glibc package changes, or when the archive does (locale-gen rewrites it).
+prepare_locale() {
+  local dir=/usr/lib/locale stamp=/usr/lib/locale/.droiddeck-archive want have= pkg
+  pkg=(/var/lib/pacman/local/glibc-[0-9]*)
+  want=${pkg[0]##*/}
+  [ -f "$stamp" ] && read -r have < "$stamp"
+  [ "$have" = "$want" ] && [ -f "$dir/locale-archive" ] && [ ! "$dir/locale-archive" -nt "$stamp" ] && return 0
+  [ -d "$dir/C.utf8" ] && command -v localedef >/dev/null 2>&1 || return 0
+  # localedef names a new archive by hard link, which Android refuses; libblsession renames it.
+  DROIDDECK_LINK_RENAME=1 localedef --add-to-archive --replace "$dir/C.utf8" >/dev/null 2>&1 || return 0
+  rm -f /usr/lib/gconv/gconv-modules.cache
+  command -v iconvconfig >/dev/null 2>&1 && iconvconfig >/dev/null 2>&1
+  printf '%s\n' "$want" > "$stamp"
+  echo "== locale archive built for $want"
+}
+[ -z "${BL_INSIDE:-}" ] && prepare_locale
+
 # Until the runtime is stable, Steam's own logs are copied beside the session log at exit so a
 # failed launch can be handed over as one folder.
 collect_steam_logs() {
