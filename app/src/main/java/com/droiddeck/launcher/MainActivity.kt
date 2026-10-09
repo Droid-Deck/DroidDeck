@@ -164,6 +164,12 @@ class MainActivity : ComponentActivity() {
     private var launcherFullscreen by mutableStateOf(true)
     private var animationsEnabled by mutableStateOf(true)
     private var storeEnabled by mutableStateOf(false)
+    private var gameStoresEnabled by mutableStateOf(false)
+    private var gameStoresSpeedTier by mutableStateOf("fast")
+    private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
+    /** A page a notification asked for ("stores:downloads", "app:<id>"), until the front end has gone there. */
+    private var navRequest by mutableStateOf<String?>(null)
+    private var storesShowMature by mutableStateOf(false)
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
     private var wifiDiscoveryPermission by mutableStateOf(false)
@@ -436,6 +442,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun readGameIntent(request: Intent) {
+        request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
         if (shortcutPicker) {
             // The shortcut picker must only offer games from the scan started for this request.
@@ -522,6 +529,10 @@ class MainActivity : ComponentActivity() {
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         storeEnabled = SessionPrefs.storeEnabled(this)
+        gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
+        gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
+        storesOpenTab = SessionPrefs.storesOpenTab(this)
+        storesShowMature = SessionPrefs.storesShowMature(this)
         applyLauncherFullscreen()
         updates.start()
         setContent {
@@ -575,6 +586,12 @@ class MainActivity : ComponentActivity() {
                         launcherFullscreen = launcherFullscreen,
                         animationsEnabled = animationsEnabled,
                         storeEnabled = storeEnabled,
+                        gameStoresEnabled = gameStoresEnabled,
+                        gameStoresSpeedTier = gameStoresSpeedTier,
+                        storesOpenTab = storesOpenTab,
+                        navigate = navRequest,
+                        storesShowMature = storesShowMature,
+                        storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
                     FrontEndActions(
                         onPlay = { startSteamSession() },
@@ -585,7 +602,8 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
                                 .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
                         },
-                        onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else launchGame(g) },
+                        // A store game may need something done first (an Epic game its sign-in code).
+                        onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) } },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
                         onExportGameFile = { g -> pickGameExport(g) },
                         onSyncGameFiles = { pickGameExport(null) },
@@ -701,6 +719,12 @@ class MainActivity : ComponentActivity() {
                             applyLauncherFullscreen()
                         },
                         onStoreEnabled = { on -> SessionPrefs.setStoreEnabled(this, on); storeEnabled = on },
+                        onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on; if (on) com.droiddeck.launcher.stores.StoresState.refresh(this) },
+                        onGameStoresSpeedTier = { tier -> SessionPrefs.setGameStoresSpeedTier(this, tier); gameStoresSpeedTier = tier },
+                        onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
+                        onNavigated = { navRequest = null },
+                        onStoresShowMature = { show -> SessionPrefs.setStoresShowMature(this, show); storesShowMature = show },
+                        onLibraryChanged = { refreshAddedGames(); refresh() },
                         onAnimationsEnabled = { on ->
                             SessionPrefs.setAnimationsEnabled(this, on)
                             animationsEnabled = on
@@ -902,6 +926,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshWifiDiscovery()
+        // Back from a store's sign-in page: the Stores chips show the account at once. A store
+        // install finishing while this screen is up rebuilds the Games list through the listener.
+        if (gameStoresEnabled) com.droiddeck.launcher.stores.StoresState.refresh(this)
+        com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
         com.droiddeck.launcher.ui.Motion.refresh(this)
         // Back from a session stopped behind a flood: open on its blue, before the first frame.
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
@@ -959,6 +987,8 @@ class MainActivity : ComponentActivity() {
         unregisterReceiver(wifiLocationReceiver)
         unregisterReceiver(mediaReceiver)
         ui.removeCallbacks(mediaRefresh)
+        // An install finishing while this screen is away is picked up by onResume's refresh.
+        com.droiddeck.launcher.stores.StoresState.libraryListener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         // The session covers the page by now; coming back finds it as it was.
         flood = null

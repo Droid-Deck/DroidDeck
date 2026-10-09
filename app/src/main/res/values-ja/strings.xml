@@ -894,11 +894,8 @@
     <string name="games_manage_saves">セーブデータの管理</string>
     <string name="games_saves">ゲームセーブデータ</string>
     <string name="games_import_saves">セーブデータをインポート…</string>
-    <string name="games_import_saves_hint">GameHubまたはWinlatorのアーカイブ。インポート前に現在のセーブデータをバックアップします。</string>
     <string name="games_export_gamehub">GameHubアーカイブとしてエクスポート…</string>
-    <string name="games_export_gamehub_hint">GameHubおよびBannerHubに適しています</string>
     <string name="games_export_winlator">Winlatorアーカイブとしてエクスポート…</string>
-    <string name="games_export_winlator_hint">Winlator、WinNative、Bannerlatorに適しています</string>
     <string name="games_open_save_folder">セーブフォルダを開く</string>
     <string name="games_never_played">未プレイ</string>
     <string name="games_runtime_busy_percent">実行環境がビジー · %1$d%%</string>

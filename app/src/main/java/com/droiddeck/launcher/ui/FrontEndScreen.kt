@@ -129,6 +129,17 @@ class FrontEndState(
     val animationsEnabled: Boolean = true,
     /** The Flathub Store, a beta the user turns on in Setup. */
     val storeEnabled: Boolean = false,
+    /** The Stores section (GOG, Epic Games, Amazon Games), turned on in Setup. */
+    val gameStoresEnabled: Boolean = false,
+    /** Setup › Stores: the download engine's speed tier (stores/download/StoreDownloadTier ids). */
+    val gameStoresSpeedTier: String = "fast",
+    /** Setup › Stores: the tab a signed-in store opens on (SessionPrefs.STORES_OPEN_LIBRARY / STORE). */
+    val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
+    /** A page to open once: "stores:downloads", or a selection such as "app:<id>" (a notification's tap). */
+    val navigate: String? = null,
+    val storesShowMature: Boolean = false,
+    /** Downloads queued, running or paused across the three stores; the rail item's badge. */
+    val storeDownloadsActive: Int = 0,
     /** The Updates page: DroidDeck's own builds and the channel followed. */
     val updates: UpdatesState = UpdatesState(),
 )
@@ -179,6 +190,13 @@ class FrontEndActions(
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
     val onStoreEnabled: (Boolean) -> Unit = {},
+    val onGameStoresEnabled: (Boolean) -> Unit = {},
+    val onGameStoresSpeedTier: (String) -> Unit = {},
+    val onStoresOpenTab: (String) -> Unit = {},
+    val onNavigated: () -> Unit = {},
+    val onStoresShowMature: (Boolean) -> Unit = {},
+    /** The Games list rebuilt now: a store install or removal changed what is on disk. */
+    val onLibraryChanged: () -> Unit = {},
     val onHomeApp: () -> Unit = {},
     val onHomeScreen: (Boolean) -> Unit = {},
     val onAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit = { _, _ -> },
@@ -356,6 +374,11 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
 private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
     var selected by rememberSaveable { mutableStateOf(if (s.shortcutPicker) "games" else "steam") }
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
+    LaunchedEffect(s.navigate) {
+        val target = s.navigate ?: return@LaunchedEffect
+        if (target == "stores:downloads") { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" } else selected = target
+        a.onNavigated()
+    }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
@@ -391,8 +414,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
-    // The Store turned off in Setup takes its page with it.
+    // The Store turned off in Setup takes its page with it; so does Stores.
     LaunchedEffect(s.storeEnabled) { if (!s.storeEnabled && selected == "store") selected = "steam" }
+    LaunchedEffect(s.gameStoresEnabled) { if (!s.gameStoresEnabled && selected == "stores") selected = "games" }
     // The last game uninstalled leaves the Games tab on its empty state.
     LaunchedEffect(s.steamGames.isEmpty()) {
         if (s.steamGames.isEmpty() && selected.startsWith("app:")) selected = "games"

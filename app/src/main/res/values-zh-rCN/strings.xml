@@ -894,11 +894,8 @@
     <string name="games_manage_saves">管理存档</string>
     <string name="games_saves">游戏存档</string>
     <string name="games_import_saves">导入存档…</string>
-    <string name="games_import_saves_hint">GameHub 或 Winlator 的 zip 包。会先备份当前存档。</string>
     <string name="games_export_gamehub">导出为 GameHub zip 包…</string>
-    <string name="games_export_gamehub_hint">用于 GameHub 和 BannerHub</string>
     <string name="games_export_winlator">导出为 Winlator zip 包…</string>
-    <string name="games_export_winlator_hint">用于 Winlator、WinNative 和 Bannerlator</string>
     <string name="games_open_save_folder">打开存档文件夹</string>
     <string name="games_never_played">从未游玩</string>
     <string name="games_runtime_busy_percent">运行时繁忙 · %1$d%%</string>

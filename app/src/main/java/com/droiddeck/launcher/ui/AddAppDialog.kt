@@ -83,6 +83,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -312,7 +313,7 @@ internal fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolea
 @Composable
 internal fun AppDialog(
     shown: MutableTransitionState<Boolean>, close: () -> Unit, label: String, wide: Boolean,
-    modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit,
+    modifier: Modifier = Modifier, maxWidth: Dp? = null, content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
     // The page's ring stays out of sight behind it.
@@ -335,7 +336,7 @@ internal fun AppDialog(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier
                         .padding(12.dp)
-                        .widthIn(max = if (wide) 860.dp else 560.dp)
+                        .widthIn(max = maxWidth ?: if (wide) 860.dp else 560.dp)
                         .fillMaxWidth()
                         .heightIn(max = (LocalConfiguration.current.screenHeightDp - 24).dp)
                         .shadow(24.dp, Shape16, ambientColor = Color.Black, spotColor = Color.Black)

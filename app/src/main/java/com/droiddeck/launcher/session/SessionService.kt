@@ -325,6 +325,8 @@ class SessionService : Service() {
         killStragglers()
         SessionFiles.stage(this, root)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
+        // The compat tool asks for an Epic game's sign-in code at every launch, the client's Play button included.
+        com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
@@ -884,6 +886,15 @@ class SessionService : Service() {
                 Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
             }
         }
+        // Store games installed on a card: each card's Games root at its own fixed place, so the
+        // shortcuts point somewhere whether or not the card is also the Steam library.
+        for ((host, guest) in com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(this)) {
+            if (host.isDirectory && host.canRead()) {
+                File(LinuxRuntime.rootDir(this), guest.removePrefix("/")).mkdirs()
+                binds.add(host.path + ":" + guest)
+                Log.i(TAG, "store games: $host -> $guest")
+            }
+        }
         // Folders of added scripts outside internal storage, where their links point.
         binds.addAll(com.droiddeck.launcher.runtime.UserApps.binds(this))
         val roms = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }?.let { File(it) }
@@ -1395,6 +1406,10 @@ class SessionService : Service() {
             pipTask = false
             SessionState.guestPid = -1
             com.droiddeck.launcher.agent.AgentGuest.stop()
+            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
+            // Cloud saves of a store game played this session, if the compat tool's exit request did
+            // not upload them (a session closed from the drawer never reaches it).
+            Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()

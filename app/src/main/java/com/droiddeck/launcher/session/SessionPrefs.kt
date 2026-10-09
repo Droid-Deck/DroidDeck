@@ -53,6 +53,52 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storeEnabled", on).apply()
     }
 
+    /** The Stores section (GOG, Epic Games, Amazon Games): its rail item. Off by default. */
+    fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", false)
+
+    fun setGameStoresEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
+    }
+
+    /** The store download engine's speed tier (stores/download/StoreDownloadTier ids); Fast unless chosen otherwise. */
+    fun gameStoresSpeedTier(context: Context): String = prefs(context).getString("gameStoresSpeedTier", "fast") ?: "fast"
+
+    fun setGameStoresSpeedTier(context: Context, tier: String) {
+        prefs(context).edit().putString("gameStoresSpeedTier", tier).apply()
+    }
+
+    /** Which tab a signed-in store opens on when its chip is picked: [STORES_OPEN_LIBRARY] or [STORES_OPEN_STORE]. */
+    fun storesOpenTab(context: Context): String =
+        prefs(context).getString("storesOpenTab", STORES_OPEN_LIBRARY)?.takeIf { it == STORES_OPEN_STORE } ?: STORES_OPEN_LIBRARY
+
+    fun setStoresOpenTab(context: Context, tab: String) {
+        prefs(context).edit().putString("storesOpenTab", if (tab == STORES_OPEN_STORE) STORES_OPEN_STORE else STORES_OPEN_LIBRARY).apply()
+    }
+
+    /** Mature titles (the stores' own 17+/18 ratings or adult tags) in the storefront's shelves and search; off by default. Owned games always show. */
+    fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
+
+    fun setStoresShowMature(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("storesShowMature", show).apply()
+    }
+
+    const val STORES_OPEN_LIBRARY = "library"
+    const val STORES_OPEN_STORE = "store"
+
+    /** The install root picked last time the Stores asked where (a StoreInstallRoot target's path); only the dialog's default, never a silent choice. */
+    fun storesInstallTarget(context: Context): String = prefs(context).getString("storesInstallTarget", "") ?: ""
+
+    fun setStoresInstallTarget(context: Context, path: String) {
+        prefs(context).edit().putString("storesInstallTarget", path).apply()
+    }
+
+    /** How many store downloads run at once, 1..3; one by default (a single download already fills the link). */
+    fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
+
+    fun setGameStoresParallel(context: Context, count: Int) {
+        prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
+    }
+
     /**
      * The session's performance HUD (the fps box). A Deck-mode Steam session with the performance
      * overlay has Steam's own (mangoapp, from the QAM), so there the HUD is off unless turned on

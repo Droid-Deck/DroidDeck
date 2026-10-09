@@ -233,6 +233,19 @@ class MenuHost {
 @Composable
 fun rememberMenuHost(): MenuHost = remember { MenuHost() }
 
+/** Under the anchor with left edges aligned, kept on screen: a dropdown that belongs to a tab. */
+private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+        var x = anchorBounds.left
+        if (x + popupContentSize.width > windowSize.width - 8) x = windowSize.width - 8 - popupContentSize.width
+        if (x < 8) x = 8
+        var y = anchorBounds.bottom + gap
+        if (y + popupContentSize.height > windowSize.height - 8) y = anchorBounds.top - gap - popupContentSize.height
+        if (y < 8) y = 8
+        return IntOffset(x, y)
+    }
+}
+
 private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
         var x = anchorBounds.right - popupContentSize.width
@@ -245,7 +258,12 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
 }
 
 @Composable
-fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null, content: @Composable ColumnScope.(FocusRequester) -> Unit) {
+fun AnchoredMenu(
+    open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
+    /** A tab's dropdown: under its anchor, left edges aligned, as wide as its entries (within [minWidth]..260 dp). */
+    compact: Boolean = false, minWidth: androidx.compose.ui.unit.Dp = 120.dp,
+    content: @Composable ColumnScope.(FocusRequester) -> Unit,
+) {
     val state = remember { MutableTransitionState(false) }
     state.targetState = open
     if (!state.currentState && !state.targetState && state.isIdle) return
@@ -259,14 +277,14 @@ fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, no
         }
     }
     val gap = with(LocalDensity.current) { 6.dp.roundToPx() }
-    val provider = remember(gap) { BelowEndProvider(gap) }
+    val provider = remember(gap, compact) { if (compact) BelowStartProvider(gap) else BelowEndProvider(gap) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         AnimatedVisibility(
             visibleState = state,
-            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(1f, 0f)),
-            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(1f, 0f)),
+            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
+            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
             label = "menu",
         ) {
             // A long list (a driver menu with its downloads) must not run off the screen: the menu is
@@ -274,7 +292,7 @@ fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, no
             val maxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp
             Column(
                 modifier = Modifier
-                    .widthIn(min = 220.dp, max = 340.dp)
+                    .then(if (compact) Modifier.widthIn(min = minWidth, max = 260.dp).width(androidx.compose.foundation.layout.IntrinsicSize.Max) else Modifier.widthIn(min = 220.dp, max = 340.dp))
                     .heightIn(max = maxHeight)
                     .shadow(24.dp, RowShape, ambientColor = Color.Black, spotColor = Color.Black)
                     .clip(RowShape)

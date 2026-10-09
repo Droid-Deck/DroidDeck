@@ -24,12 +24,18 @@ object Library {
         val hero: File? = null, val lastPlayed: Long = 0L,
         val gameFiles: File? = null, val protonPrefix: File? = null,
         val icon: File? = null,
+        /** Where the game came from: [SOURCE_STEAM], a store's id (gog, epic, amazon) or [ADDED] for a folder the user added. */
+        val source: String = SOURCE_STEAM,
+        /** The store's own id for a store install; null otherwise. */
+        val storeId: String? = null,
     ) {
         /** Decimal form used by Steam links and Android shortcuts, including unsigned shortcut ids. */
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
     }
-    /** The [SteamGame.library] of a game added to the library rather than installed by Steam. */
+    /** The [SteamGame.library] of a game added to the library rather than installed by Steam, and the [SteamGame.source] of a plain added folder. */
     const val ADDED = "added"
+    /** The [SteamGame.source] of a title Steam itself installed. */
+    const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
@@ -155,6 +161,7 @@ object Library {
                     hero = art.hero ?: art.header, gameFiles = g.folder,
                     protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                     icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
+                    source = g.source, storeId = g.storeId,
                 )
             }
         }).distinctBy { it.gameId }

@@ -877,11 +877,8 @@
     <string name="games_manage_saves">Управление сохранениями</string>
     <string name="games_saves">Сохранения игры</string>
     <string name="games_import_saves">Импорт сохранений…</string>
-    <string name="games_import_saves_hint">Архив GameHub или Winlator. Перед импортом текущие сохранения будут сохранены в резервной копии.</string>
     <string name="games_export_gamehub">Экспорт как архив GameHub…</string>
-    <string name="games_export_gamehub_hint">Подходит для GameHub и BannerHub</string>
     <string name="games_export_winlator">Экспорт как архив Winlator…</string>
-    <string name="games_export_winlator_hint">Подходит для Winlator, WinNative и Bannerlator</string>
     <string name="games_open_save_folder">Открыть папку сохранений</string>
     <string name="games_never_played">Никогда не запускалась</string>
     <string name="games_runtime_busy_percent">Среда выполнения занята · %1$d%%</string>

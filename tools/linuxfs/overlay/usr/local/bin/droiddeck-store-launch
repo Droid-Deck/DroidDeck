@@ -1,0 +1,317 @@
+#!/usr/bin/python3
+r"""Before Proton starts a store game, asks the app for what that store needs at launch.
+
+Run by droiddeck-proton / droiddeck-proton-wrap (steam-compatibility) for every real game launch,
+whoever started it: the Games tab, a pinned shortcut, or the Steam client's own Play button. It
+looks for the store launcher DroidDeck wrote (.droiddeck-launch.bat) among the arguments; beside it
+.droiddeck-store.json says which store and game it is.
+
+For an Epic game the game needs a fresh exchange code to sign in, which only the app can mint. The
+request goes through files under $BL_LAUNCH_DIR/stores (the session root, the same path on both
+sides):
+
+    req/<id>.json    {"op": "epic-code", "store": "epic", "id": "<app name>"}   (tmp + rename)
+    resp/<id>.json   {"ok": true, "code": true|false, "reason": "..."}
+
+The app writes .droiddeck-epic-code into the game's folder itself - the code never passes through
+here - and the launcher .bat reads and deletes it. No answer within TIMEOUT seconds: the game starts
+with its offline identity. A code file older than STALE_SECONDS is removed first, so a code left by
+an earlier launch is never used.
+
+The game's prefix gets Wine's browser set to droiddeck-open-url, which hands web addresses to
+Android: an EOS sign-in step that falls back to a browser (a consent Epic asks for once per product)
+is finished there. An EOS overlay pointer (HKCU\Software\Epic Games\EOS "OverlayPath") an earlier
+build wrote is removed - with it the game exited while loading.
+
+    droiddeck-store-launch <the arguments Steam gave the compat tool>
+"""
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+LAUNCHER = ".droiddeck-launch.bat"
+SIDECAR = ".droiddeck-store.json"
+EPIC_CODE = ".droiddeck-epic-code"
+TIMEOUT = 5.0
+STALE_SECONDS = 300
+SERVER_WAIT = 8.0
+BROWSER = "/usr/local/bin/droiddeck-open-url"
+EOS_KEY = "[Software\\\\Epic Games\\\\EOS]"
+BROWSER_KEY = "[Software\\\\Wine\\\\WineBrowser]"
+
+
+def log(line):
+    print("droiddeck-store-launch: " + line, file=sys.stderr, flush=True)
+
+
+MAX_DEPTH = 6
+
+
+def sidecar_at(folder):
+    try:
+        sidecar = json.loads((folder / SIDECAR).read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(sidecar, dict) or not sidecar.get("store") or not sidecar.get("id"):
+        return None
+    return sidecar
+
+
+def find_store_game(argv):
+    """
+    The (folder, sidecar) of a store game among [argv], or None when this is not one. Steam passes
+    the shortcut's target: the launcher .bat when the game has one (Epic, Amazon, a GOG game with
+    arguments), else the game's exe itself (most GOG games), which may sit in a subfolder - so the
+    folders above it are looked through too, up to MAX_DEPTH, for the sidecar.
+    """
+    for raw in argv:
+        arg = raw.strip().strip('"').strip("'").replace("\\", "/")
+        low = arg.lower()
+        if not (low.endswith(LAUNCHER) or low.endswith(".exe") or low.endswith(".bat")) or "/" not in arg:
+            continue
+        folder = Path(arg).parent
+        for _ in range(MAX_DEPTH):
+            sidecar = sidecar_at(folder)
+            if sidecar is not None:
+                return folder, sidecar
+            if folder.parent == folder:
+                break
+            folder = folder.parent
+    return None
+
+
+def drop_stale(folder, now=None):
+    """Removes a code file older than STALE_SECONDS; True when one was removed."""
+    code = folder / EPIC_CODE
+    try:
+        if (now if now is not None else time.time()) - code.stat().st_mtime > STALE_SECONDS:
+            code.unlink()
+            return True
+    except OSError:
+        pass
+    return False
+
+
+def ask(channel, request, timeout=TIMEOUT):
+    """Writes [request] under channel/req and waits for channel/resp; the answer, or None on timeout."""
+    req_dir, resp_dir = channel / "req", channel / "resp"
+    req_dir.mkdir(parents=True, exist_ok=True)
+    resp_dir.mkdir(parents=True, exist_ok=True)
+    rid = "%d-%d" % (os.getpid(), int(time.time() * 1000))
+    tmp = req_dir / (rid + ".json.tmp")
+    tmp.write_text(json.dumps(request))
+    os.rename(tmp, req_dir / (rid + ".json"))
+    answer = resp_dir / (rid + ".json")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            value = json.loads(answer.read_text())
+            answer.unlink()
+            return value
+        except (OSError, ValueError):
+            time.sleep(0.05)
+    # Not answered: the request is withdrawn so a late app does not mint a code nobody reads.
+    try:
+        (req_dir / (rid + ".json")).unlink()
+    except OSError:
+        pass
+    return None
+
+
+def windows_path(unix):
+    """A guest path as Wine names it through Z: (the whole filesystem)."""
+    return "Z:" + unix.replace("/", "\\")
+
+
+def reg_escape(value):
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def set_value(reg, key, name, value, now=None):
+    """
+    Appends `key` with `"name"="value"` to a prefix's user.reg unless the last word on it already
+    says so. Appended rather than edited in place, as DirectAudio's key is: Wine reads later sections
+    over earlier ones, and nothing of the file is rewritten under a wineserver that might hold it.
+    False when there is no user.reg yet (Proton creates the prefix after this; the next launch has it).
+    """
+    if not reg.is_file():
+        return False
+    line = '"%s"="%s"' % (name, reg_escape(value))
+    inside, last = False, None
+    for row in reg.read_text(errors="replace").splitlines():
+        if row.startswith("["):
+            inside = row.startswith(key + " ") or row == key
+        elif inside and row.startswith('"%s"=' % name):
+            last = row
+    if last == line:
+        return True
+    with open(reg, "a") as out:
+        out.write("\n%s %d\n%s\n" % (key, int(now if now is not None else time.time()), line))
+    return True
+
+
+def remove_value(reg, key, name):
+    """Drops every `"name"=` line under `key` in user.reg; True when one was there."""
+    if not reg.is_file():
+        return False
+    rows, inside, dropped = [], False, False
+    for row in reg.read_text(errors="replace").splitlines(keepends=True):
+        if row.startswith("["):
+            inside = row.startswith(key + " ") or row.rstrip("\n") == key
+        elif inside and row.startswith('"%s"=' % name):
+            dropped = True
+            continue
+        rows.append(row)
+    if dropped:
+        tmp = reg.with_name(reg.name + ".dd-new")
+        tmp.write_text("".join(rows))
+        os.replace(tmp, reg)
+    return dropped
+
+
+def options(sidecar):
+    """An Epic game's launch choices from its sidecar, as the Games tab's Epic card sets them."""
+    e = sidecar.get("epic") if isinstance(sidecar.get("epic"), dict) else {}
+    return {"eos": e.get("eos", True) is not False, "offline": e.get("offline", False) is True}
+
+
+def server_socket(pfx):
+    """The wineserver socket for prefix [pfx], as Wine names it (server-<dev>-<inode> under /tmp/.wine-<uid>)."""
+    try:
+        st = os.stat(pfx)
+    except OSError:
+        return None
+    base = os.environ.get("BL_WINE_SERVER_BASE") or "/tmp/.wine-%d" % os.getuid()
+    return Path(base) / ("server-%x-%x" % (st.st_dev, st.st_ino)) / "socket"
+
+
+def wait_for_server(pfx, timeout=SERVER_WAIT):
+    """
+    Waits for a wineserver still holding this prefix (an earlier verb's, or the last launch's) to
+    exit: it rewrites user.reg from its own memory when it does, which drops a line appended
+    meanwhile. True when none is left.
+    """
+    sock = server_socket(pfx)
+    if sock is None:
+        return True
+    deadline = time.monotonic() + timeout
+    while sock.exists() and time.monotonic() < deadline:
+        time.sleep(0.1)
+    return not sock.exists()
+
+
+def has_value(reg, key, name, value=None):
+    """Whether the last word on `key` in user.reg sets "name" (to [value], when given)."""
+    if not reg.is_file():
+        return False
+    inside, last = False, None
+    for row in reg.read_text(errors="replace").splitlines():
+        if row.startswith("["):
+            inside = row.startswith(key + " ") or row == key
+        elif inside and row.startswith('"%s"=' % name):
+            last = row
+    if last is None:
+        return False
+    return value is None or last == '"%s"="%s"' % (name, reg_escape(value))
+
+
+def provision_prefix(compat_data, wait=SERVER_WAIT):
+    """Wine's browser set to the hand-off, and an earlier build's EOS overlay pointer removed."""
+    if not compat_data:
+        return "no-prefix"
+    pfx = Path(compat_data) / "pfx"
+    reg = pfx / "user.reg"
+    if not reg.is_file():
+        return "prefix-not-created"
+    # A wineserver still up for this prefix would write its own copy of user.reg over these lines.
+    busy = not wait_for_server(pfx, wait)
+    # winebrowser starts the first entry it can; an absolute path does not depend on the PATH Wine
+    # hands it.
+    set_value(reg, BROWSER_KEY, "Browsers", BROWSER + ",xdg-open")
+    removed = remove_value(reg, EOS_KEY, "OverlayPath")
+    state = "browser-set" if has_value(reg, BROWSER_KEY, "Browsers", BROWSER + ",xdg-open") else "browser-not-written"
+    if removed:
+        state += " old-overlay-removed"
+    return state + (" server-running" if busy else "")
+
+
+CLOUD_TIMEOUT = 15.0
+CLOUD_STORES = ("gog", "epic")
+# Exit status that tells droiddeck-proton this was a store game with cloud saves: it then waits for
+# Proton instead of exec'ing it, and runs `droiddeck-store-launch --exited` after.
+STORE_GAME = 10
+
+
+def cloud_on(sidecar):
+    """Cloud saves for this game (the game card's switch; on unless turned off)."""
+    return str(sidecar.get("store")) in CLOUD_STORES and sidecar.get("cloud", True) is not False
+
+
+def exited(argv):
+    """After the game: ask the app to upload what changed, without waiting for it."""
+    found = find_store_game(argv)
+    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if found is None or not launch_dir or not cloud_on(found[1]):
+        return 0
+    store, game = str(found[1].get("store")), str(found[1].get("id"))
+    ask(Path(launch_dir) / "stores", {"op": "cloud-up", "store": store, "id": game}, timeout=1.0)
+    log("cloud %s %s up requested" % (store, game))
+    return 0
+
+
+def main(argv):
+    if argv and argv[0] == "--exited":
+        return exited(argv[1:])
+    found = find_store_game(argv)
+    if found is None:
+        return 0
+    folder, sidecar = found
+    store, game = str(sidecar.get("store")), str(sidecar.get("id"))
+    compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    prefix_id = os.path.basename(compat_data) if compat_data else ""
+    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if store == "epic":
+        drop_stale(folder)
+        choice = options(sidecar)
+        if not (choice["eos"] and not choice["offline"]):
+            # Sign-in off, or offline: no code, and none left over from before.
+            try:
+                (folder / EPIC_CODE).unlink()
+            except OSError:
+                pass
+            log("epic launch id=%s code=no reason=%s" % (game, "offline" if choice["offline"] else "eos-off"))
+        elif not launch_dir:
+            log("epic launch id=%s code=no reason=no-channel" % game)
+        else:
+            answer = ask(Path(launch_dir) / "stores", {"op": "epic-code", "store": store, "id": game, "prefix": prefix_id})
+            if answer is None:
+                log("epic launch id=%s code=no reason=timeout" % game)
+            else:
+                got = bool(answer.get("code"))
+                log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
+        log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
+    if not cloud_on(sidecar):
+        if store in CLOUD_STORES:
+            log("cloud %s %s down result=skipped reason=off" % (store, game))
+        return 0
+    if launch_dir:
+        # The cloud copy where it is newer, before the game reads its saves; bounded, then on regardless.
+        answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT)
+        if answer is None:
+            log("cloud %s %s down result=timeout" % (store, game))
+        else:
+            log("cloud %s %s down result=%s files=%s reason=%s" % (store, game, answer.get("result", "?"), answer.get("files", 0), answer.get("reason", "")))
+    else:
+        log("cloud %s %s down result=skipped reason=no-channel" % (store, game))
+    return STORE_GAME
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as e:  # never in the way of the launch
+        log("skipped: %s" % type(e).__name__)
+        sys.exit(0)

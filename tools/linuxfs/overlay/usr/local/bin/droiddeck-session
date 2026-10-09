@@ -606,6 +606,34 @@ case $mode in
         fi
       done
     ) &
+    # A game the app asked to launch on a cold start is not put on the client's command line: the
+    # client takes it before its interface is up, its launch stops at "waiting for user response to
+    # ShowInterstitials" with nobody to answer, and the game page reads Launching for ever (device,
+    # 2026-10-09, and 2026-10-08 before it). It is handed over once the interface has focus
+    # (gamescope's focused app 769) and has had a moment, through the same steam-game request an
+    # in-session launch uses; after two minutes it goes anyway.
+    if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
+      _bl_held=
+      _bl_rest=()
+      for _bl_arg in "$@"; do
+        case $_bl_arg in
+          steam://rungameid/*) _bl_held=${_bl_arg#steam://rungameid/} ;;
+          *) _bl_rest+=("$_bl_arg") ;;
+        esac
+      done
+      if [ -n "$_bl_held" ]; then
+        set -- "${_bl_rest[@]}"
+        (
+          _bl_end=$((SECONDS + 120))
+          until [ "$(xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p')" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
+            sleep 1
+          done
+          sleep 4
+          echo "== steam: interface up; launching the requested game $_bl_held"
+          printf '%s\n' "$_bl_held" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
+        ) &
+      fi
+    fi
     # Debug aid while the runtime is being brought up: an app id dropped in ~/.bl-autolaunch is
     # handed to the client as a rungameid URL, so a launch can be reproduced without touching the
     # screen. Removed once the runtime is stable.

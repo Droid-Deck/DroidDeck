@@ -198,6 +198,39 @@ def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
 }
 tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 
+// The GOG / Epic / Amazon download engines are Rust (app/src/main/rust/stores, ported from
+// Bannerlator's bl-steam-client crate). cargo-ndk cross-compiles them for arm64-v8a into the build
+// directory, which is one more jniLibs source below: nothing compiled is committed, the same rule
+// the preloads, proot and the DirectAudio relay follow. cargo-ndk exports the NDK clang/llvm-ar as
+// the C compiler for the one C-compiling crate (ring, under rustls) - the step Bannerlator's CI
+// does by hand - and reads the NDK from ANDROID_NDK_HOME, which is set to the NDK this build pins.
+// -PskipRust=true builds without the library, for a checkout with no Rust toolchain: the stores
+// then report themselves unavailable instead of the build failing.
+def rustCrateDir = layout.projectDirectory.dir('src/main/rust/stores')
+def rustJniLibsDir = layout.buildDirectory.dir('rustJniLibs')
+def skipRust = (project.findProperty('skipRust') ?: 'false').toString().toBoolean()
+def buildRustStores = tasks.register('buildRustStores', Exec) {
+    description = 'Cross-compiles the store download engines (libdroiddeckstores.so) with cargo-ndk.'
+    onlyIf { !skipRust }
+    inputs.dir(rustCrateDir.dir('src'))
+    inputs.files(rustCrateDir.file('Cargo.toml'), rustCrateDir.file('Cargo.lock'))
+    outputs.dir(rustJniLibsDir)
+    workingDir rustCrateDir
+    // The configuration cache serialises the task, so everything it needs is resolved here, not
+    // in doFirst. ~/.cargo/bin is where rustup puts cargo and cargo-ndk; an IDE-launched Gradle
+    // does not always have it on PATH.
+    def cargoBin = "${System.getProperty('user.home')}/.cargo/bin"
+    environment 'PATH', "${cargoBin}${File.pathSeparator}${System.getenv('PATH')}"
+    environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
+    environment 'CARGO_TERM_COLOR', 'never'
+    // --platform 26 = minSdkVersion: the engines link against the API 26 libc, like the C++ code.
+    commandLine 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '26',
+        '--output-dir', rustJniLibsDir.get().asFile.absolutePath,
+        'build', '--release'
+}
+android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
+tasks.named('preBuild').configure { dependsOn(buildRustStores) }
+
 dependencies {
     // The runtime tarball is a zstd-compressed tar.
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'

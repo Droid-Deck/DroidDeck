@@ -793,11 +793,8 @@
     <string name="games_manage_saves">Gérer les sauvegardes</string>
     <string name="games_saves">Sauvegardes de jeu</string>
     <string name="games_import_saves">Importer des sauvegardes…</string>
-    <string name="games_import_saves_hint">Archive GameHub ou Winlator. Les sauvegardes actuelles seront sauvegardées avant l\'importation.</string>
     <string name="games_export_gamehub">Exporter en tant qu\'archive GameHub…</string>
-    <string name="games_export_gamehub_hint">Compatible avec GameHub et BannerHub</string>
     <string name="games_export_winlator">Exporter en tant qu\'archive Winlator…</string>
-    <string name="games_export_winlator_hint">Compatible avec Winlator, WinNative et Bannerlator</string>
     <string name="games_open_save_folder">Ouvrir le dossier de sauvegarde</string>
     <string name="games_never_played">Jamais lancé</string>
     <string name="games_runtime_busy_percent">Environnement d\'exécution occupé · %1$d%%</string>

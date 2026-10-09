@@ -7,6 +7,383 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-08 - `feat/stores`: GOG, Epic Games and Amazon Games in the launcher (in progress)
+
+A new **Stores** section - the three storefronts' libraries and public catalogs, one download
+queue for them, and every install registered in the Steam client exactly like an added folder.
+Ported from Bannerlator's store clients (auth, API, library sync, download managers); its
+Activities and XML are not ported, the UI is Compose, after the approved preview. The native
+download engine is the Rust side's work (`libdroiddeckstores.so`, loaded lazily; the app runs
+without it and Setup says "Stores engine not built").
+
+- **Where it lives.** Rail item `stores` under Games, gated by Setup › Stores › "Show Stores in
+  the rail" (`SessionPrefs.gameStoresEnabled`, off by default); a count badge while anything is
+  downloading. The page is full width: four chips (GOG · Epic · Amazon · Downloads, a signed-in
+  dot per store) and a cog at the row's end whose popup holds the section's own settings - which
+  tab a store opens on (`storesOpenTab`, Library by default; applied on chip tap, never while the
+  user is switching tabs by hand) and the speed tier (`gameStoresSpeedTier`, Balanced / Fast /
+  Max = 16 / 32 / 96 requests in flight). Setup repeats the rows under the gate. A signed-out store
+  shows its sign-in card first. Every install is added to Steam - the user's call: "Add to Steam
+  shouldn't be optional, automatic" - so the switch an earlier build had (`gameStoresAddToSteam`,
+  the sidecar's `addToSteam`, the page's "Add to Steam" button) is gone; an older sidecar's field
+  is read past and ignored, and the game page shows a passive "In Steam" chip. The Games hero's
+  eyebrow for a never-played store game reads "Games storage" (the chip names the store), and
+  "Custom game" for a hand-added folder; Steam titles keep their library label.
+- **A store game is an added game.** The install lands at `<Games storage>/Games/<Store>/<title>`
+  (the SD library's folder when one is chosen, else the runtime's own `/root/Games/Stores`) with a
+  `.droiddeck-store.json` sidecar (store, id, title, exe, launcher, args, env, version,
+  addToSteam, art). `AddedGames.scan` now walks those folders too and `scanGame` reads the sidecar
+  for the exe and the name, so the game goes down the existing path: `session/added-games.json`
+  → `droiddeck-steam-shortcuts` at the client's next start. The listing is rewritten at install
+  time, and with a client running the shortcut is added live over the client's DevTools port
+  (`SteamClient.Apps.AddShortcut` + our tag + the compat tool; `SteamLiveShortcuts`), best-effort.
+  Uninstall removes the folder, the sidecar and the shortcut.
+- **Launch.** A shortcut can only name an exe and the listing carries no launch options, so a game
+  that needs arguments or environment gets a `.droiddeck-launch.bat` beside it (Proton's steam.exe
+  shim hands it to Wine's cmd): Epic's identity arguments, Amazon's FuelPump variables. Epic's
+  per-launch exchange code is minted by the app right before a launch into `.droiddeck-epic-code`,
+  which the script reads once and deletes; with no code the game starts in its offline identity
+  mode. The EOS overlay is never provisioned.
+- **Games tab badges.** `Library.SteamGame.source` (steam / gog / epic / amazon / added, from the
+  sidecar) with a coloured chip on every row and in the hero eyebrow; `LibraryCache` keeps it.
+- **Downloads.** `DownloadQueue` runs 1-3 at a time, stages Manifest → Download → Verify →
+  Install, pause = stop and keep the files (every engine skips verified files on the rerun),
+  cancel deletes; `StoreDownloadService` keeps the process alive meanwhile; the page shows speed,
+  ETA, the tier, downloads-at-a-time and the engine log.
+- Tests: `StoreGameSidecarTest`, `AddedGamesStoreScanTest` (JVM), `tools/tests/test_store_shortcuts.py`
+  (the writer with a launcher .bat as Exe, the appid the app computes, removal).
+- Files: `stores/*` (Store, StoreGameSidecar, StoreInstallRoot, StoreInstalls, StoreLaunch,
+  StoreAccounts, StoresState, StoresNative, SteamLiveShortcuts, download/*), `ui/StoresPage.kt`,
+  `ui/StoresDetail.kt`, `ui/StoresDownloads.kt`, `ui/StoreChips.kt`, `ui/StoresWidgets.kt`;
+  `frontend/AddedGames.kt`, `frontend/Library.kt`, `frontend/LibraryCache.kt`,
+  `ui/FrontEndRail.kt`, `ui/FrontEndContent.kt`, `ui/FrontEndSetup.kt`, `ui/FrontEndGames.kt`,
+  `ui/FrontEndScreen.kt`, `MainActivity.kt`, `session/SessionPrefs.kt`, `AndroidManifest.xml`
+  (the download service), `res/values/strings.xml`.
+- **The three stores** (`stores/gog`, `stores/epic`, `stores/amazon`), ported from Bannerlator's
+  clients with their storage replaced: GOG's OAuth page (Galaxy identity, a browser identity for
+  the social-login hop), library from `embed.gog.com` + `api.gog.com`, shelves from
+  `catalog.gog.com`, gen2 chunks / gen1 ranges / plain installer; Epic's web login (the code off
+  the redirect's JSON page), library service + catalog, the store's GraphQL and the free-games
+  feed, ChunksV4 manifests with install tags and a delta pass, the manifest's launch exe; Amazon's
+  PKCE device sign-in, entitlements, `manifest.proto` (the app's xz library), SHA-256 per file,
+  `fuel.json` / exe scoring, FuelPump variables; Amazon has no public catalog, so its Store tab is
+  cut from the account's own games. Each manager hands the byte-fetch loop to the native engine
+  when `libdroiddeckstores.so` is there (`GogNative` / `EpicNative` / `AmazonNative`, JNI.md's
+  names and signatures) and runs its Java pool otherwise.
+- Left out on purpose: GOG DLC installs and GOG redistributable installs (Steam seeds the shared
+  redistributables in the prefix as for any shortcut), Epic's Denuvo ownership token and overlay,
+  Amazon's SDK DLL deployment into the prefix (the prefix does not exist before the first launch),
+  cloud saves, and the stores' social tabs - none of them in the preview.
+- **Card art (device feedback on `61a9a48`, GOG › Library washed out to white):** the GOG library
+  had drawn the product's `images.background` - the store page's fade-out backdrop, white once its
+  alpha is gone. The library now takes `api.gog.com/v2/games/<id>` `_links.galaxyBackgroundImage`
+  (the Galaxy client's dark 16:9 library art) and `boxArtImage` (the vertical cover), cached with
+  the sync (cache key bumped so old caches re-fetch); the catalog's `productId` filter was tried
+  and ignored by the service, so it is one call per owned game. Epic cards prefer `DieselGameBox` /
+  `DieselGameBoxTall` over the offer images; Amazon prefers `backgroundUrl2` and never the logo.
+  Cards draw over a dark surface with a fade into the card at the foot. On install `StoreArt`
+  places `cover.jpg`, `hero.jpg` and `header.jpg` in the game folder, re-encoded as opaque JPEGs
+  over a dark ground, under the names `AddedGameArt` looks for - so the Games tab and the client's
+  grid (through the listing) get real art for store games.
+- **Device feedback on `9f5a2f3` (GOG › DOOM I Enhanced page):** (1) the pad lost focus when a
+  card opened its page (the card left composition; the next press landed on the rail). The page
+  now follows the Flathub store's pattern: a focus move is recorded on each change and
+  `focusWithinFrames` lands it - the game page's main action (or its back link), the card the page
+  was opened from on the way back, the first card after a tab or chip change (`firstTile`); the
+  page is a `focusGroup`, so Left is the way to the rail. (2) GOG's account endpoints return
+  template keys (`product_description_2015545325<br>product_feature_…`) for some products; the
+  v2 record has the same keys for them. `cleanStoreText` drops those keys, strips tags, decodes
+  entities; the library tries the product's lead, then v2 `overview`, then v2 `description`, and
+  shows nothing when all are templates. Epic's and Amazon's text goes through the same cleaner.
+- **Speed shown = install rate.** Device evidence (Epic › Metalstorm, 1.68 GB on Max to the SD
+  card): the engine's windows burst at 0.4–20 MB/s with 0–3 of 20 requests in flight while the card
+  writes at 26 MB/s - the fetchers wait on the write side, so the engine's `speedBps` jumped while
+  the bar advanced at the write rate. `DownloadQueue` now measures the shown speed itself from the
+  byte deltas (an exponential average over 3 s, sampled at most every 250 ms) and derives the ETA
+  from it, for all three stores; the engine's own figure stays in its log lines, and the detail
+  line under the bar has it stripped. The tier and downloads-at-a-time controls sit on one compact
+  row, on the Downloads page and in the cog's popup.
+- **Install location (user decision):** the default is the app's internal storage for all three
+  stores, whatever the session's Game storage says. With a card in the device, Install asks
+  "Install to" first (internal / the card, free space per target, pad-focusable, last pick as the
+  default only). A card that is not the Steam library gets a bind of its own in the session
+  (`/mnt/droiddeck-stores/<volume uuid>`; the library's own bind covers a library card, so installs
+  already registered there keep their appid); every root is scanned and uninstall works for
+  either. The Downloads
+  row shows where a game is going; the game page names the
+  place. Epic installs on a card keep their in-flight chunks in the app's cache: the engine's
+  `chunkCacheDir` (fetch and the new `nativeAssemble`, which drops each chunk after its last use)
+  and the manager's own loops read the same path; internal installs pass `""` as before. Cleaned on
+  cancel-with-delete and uninstall.
+- **Half-installed Epic game shown as Custom (device, Metalstorm on the SD card).** The folder had
+  2.85 of 4.4 GB of files, a 0-byte file where the assembly stopped (19:15:10, four minutes after it
+  began), 9.1 GB of `.chunks`, and no sidecar. The run stopped inside the assembly loop - before the
+  `.chunks` removal and the sidecar, both of which only ran at the very end; the events log does
+  not reach back far enough to say whether the process died or the loop threw. Either way three
+  things made it silent: the sidecar was only written last, the queue lives in memory (a process
+  death drops the row), and `AddedGames.scan` listed any sidecar-less folder under a store root as
+  a Custom game. Now: the sidecar is written at the start in state `installing` and finished at the
+  end; unfinished folders (installing, or no sidecar) are never scanned as games; the Stores card
+  reads **Resume install**, which reuses the folder and its `.chunks`; launcher/sidecar write
+  failures fail the download, art and Steam registration are best-effort. The 9.1 GB cache is
+  whole 1 MiB chunk windows shared with files outside this device's install tags - the free-space
+  check now counts cache and files; a successful run removes the cache (Kotlin loop and
+  `nativeAssemble` both).
+- **The cog popup is capped at 440 dp**, like the Install dialog.
+- **Store cards are art + one line** (maintainer feedback): no source chip (the tab says the
+  store), no "In library" chip, no action button. The title sits left; right-aligned is a check
+  when installed, Resume, the download percentage, the install size, or Free / price / discount.
+  A thin bar over the art while downloading. Install, Resume, Uninstall, Get and Buy live on the
+  game page; A on a card opens it.
+- **No log panel:** the Downloads page's engine log is gone. Store lines go to logcat and to
+  app-private daily files (`filesDir/logs/stores/stores-<date>.log`, seven days, ~2 MB rolling to
+  `.1`), pruned as the app starts; the session's Share logs zip includes them under `stores/`.
+- **Store log lines are redacted at the one choke point** (`StoresState.logLine`, which the engines'
+  lines reach too): every URL is cut to scheme, host and a plain first path segment (a GOG secure
+  link's token sits in the path, so it goes), no query, fragment or userinfo; token-like values
+  (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
+  Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
+  Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **GOG downloads use every CDN host:** the secure link lists several hosts; only the first was
+  taken (`used=1/1 servers`). All are parsed now and kept as one set, refreshed together on
+  expiry; the Java pool takes them in turn. The progress bars glide to each new value over 250 ms. With the engine's `0849a7c` the
+  native start takes the whole set (`cdnBases`; the engine spreads its window across the hosts) and
+  its `onBytes` - every 250 ms, including files still in flight - drives the bar and the speed, so a
+  large file no longer moves the bar in one jump.
+- **Cloud saves device-proven (AYANEO Pocket FIT, `6a175f1`, ELDERBORN on GOG):** the launch logged
+  `cloud gog 1732383191 down result=ok files=5 bytes=237499 reason=downloaded` (template found) and
+  the in-game slot shows the cloud save (Catacombs: Tutorial part 1, 00:08:40).
+- **Store cards a quarter smaller:** 112 dp least width (was 150) for shelf cards and grid cells; the
+  grid fits as many columns as the width allows and shares the rest, so a density setting changes
+  the column count; titles stay at 11 sp, art 16:9. Downloads rows unchanged.
+- **Cache first, refreshed in the background:** a store's library shows from its saved copy at once
+  and is refreshed at most every six hours (or from the account row's Refresh), the result merged
+  so unchanged cards keep their objects - only changed cards recompose, the grid's scroll and the
+  pad's focus stay. Shelves saved on an earlier run count as fresh for three hours. Sizes are kept
+  per game and version in `filesDir/stores/<store>/sizes.json` (format-versioned) and looked up
+  again only for a new version. An installed card shows its size on disk with a small green check
+  after it.
+- **Every owned card shows its size** at the right of its title strip, in the title's type: GOG's from
+  its catalog; Epic's (build manifest, the files this device installs) and Amazon's (download
+  manifest) looked up once a card is on screen or close, three at a time in the background, kept in
+  the store's prefs (`size_<id>`). Nothing shows until it is known; a marker (installed, Resume, a
+  download's percent) keeps the slot.
+- **Two tabs, Store and Library** (the All count mixed owned games with whatever shelves had loaded:
+  GOG Library 33 / All 120): Library's dropdown filters All (every owned game, the default, the
+  tab's count) or Installed, and the tab reads the filter ("Library (33)", "Installed (1)"); the old
+  All view is gone. Amazon has Library alone. Search follows the filter; the shoulders cycle Store
+  and Library. The dropdown opens under the Library tab, left edges aligned, as wide as its
+  entries (at least the tab, at most 260 dp) - `AnchoredMenu(compact = true)`.
+- **The Stores chip row paints nothing** (maintainer: a black box behind the chips): it sits over the
+  page's own background; the content scrolling under it is clipped at its edge and faded there by
+  the content's alpha once scrolled, never by a colour.
+- **Pre-PR device checks pass (AYANEO Pocket FIT):** GOG install, launch and cloud saves down and up
+  (the session-end upload included); Epic with EOS sign-in; Amazon (Dread Templar); an SD-card install
+  (DOOM I Enhanced) launched from `/mnt/droiddeck-sd`.
+- **Downloads page, icons and one Clear** (maintainer): the row actions are round icon buttons -
+  pause, resume, play, retry, and a cancel that asks with a red delete and an undo - their labels as
+  descriptions. Downloads under way sit on top; finished ones below a line whose X clears them all
+  (rows only; a failed download's kept files stay for its game page's Clear), installed ones as a
+  compact row with Play.
+- **Saves menu without explanations:** Import / Export rows (Steam, Custom, GOG and Epic alike) lose
+  their descriptive subtitles; only live values remain (last sync, "…", conflict count, the save
+  folder and its size). The three strings are gone from every locale.
+- **One place for a store game's saves:** a GOG or Epic game's hero button reads "Cloud saves" and
+  opens its saves view, which now holds the Cloud saves switch, the sync status, Upload / Download
+  and the conflict actions ("No cloud saves" when the store keeps none). The switch is gone from the
+  cards; GOG has no card left, Epic's keeps sign-in, offline and Resolve Epic sign-in. Steam and
+  Custom games keep "Manage saves". The view is laid out in full from the first frame - the switch (focused),
+  Upload and Download with "…" until the cloud check is back - and only subtitles change after; a
+  conflict turns the two actions into Keep local / Keep cloud in place.
+- **Background downloads:** while a download runs the service holds a Wi-Fi lock and a partial wake
+  lock (timed, renewed with the progress, released when nothing runs). The notification shows a
+  real progress bar and "<game> · 42% · 1.2 GB/2.5 GB · 12.3 MB/s · 3 min" (the stage while
+  installing), with Pause / Resume and a two-step Cancel (Delete / Keep, ten seconds); a paused
+  download leaves a notice to resume from; "<game> installed" opens it in Games, "<game> download
+  failed" opens Downloads. Notifications are asked for once on Android 13+. The Android 15 dataSync
+  time limit (and its `onTimeout`) applies only to apps targeting 35+: this app targets 28 and
+  compiles against 34, so there is nothing to handle yet.
+- **Cloud uploads do not depend on the exit hook:** a dirty mark per game launch; uploaded on the
+  first of exit request, session end, or the next app start (`trigger=exit|session-end|recovery`).
+- **Cloud saves, device round 1 (ELDERBORN, `b323a0b`): nothing ran** - a GOG game without arguments
+  gets no launcher .bat, Steam runs its exe, and `droiddeck-store-launch` only recognised the .bat.
+  It now recognises the exe too (searching the folders above it for the sidecar), and every path
+  logs a result line. A first launch has no prefix yet: the download is deferred until Proton makes
+  it, without holding the launch. Uploads are now safe: none before a download has set this
+  device's baseline, a file changed on both sides is a conflict left for Keep cloud / Keep local,
+  and the cloud copy is backed up before an upload replaces it (`CloudPlan`, tests for each rule).
+- **GOG and Epic cloud saves** (ported from Bannerlator's managers, device-proven there in August):
+  down before every launch where the cloud copy is newer (the compat tool waits up to 15 s), up
+  after the game exits (the compat tool waits for Proton for such a game, then asks without
+  waiting), newest wins per file with an MD5 check, a backup of what a download overwrites (last
+  three). The save folder comes from GOG's remote-config template or Epic's CloudSaveFolder,
+  expanded inside the game's prefix (`CloudSavePaths`, Bannerlator's cases as tests). A "Cloud
+  saves" switch on the GOG / Epic card, and cloud rows in Manage saves (last sync, Upload,
+  Download, "No cloud saves"). Not yet device-tested.
+- **Epic sign-in device-proven without the overlay (AYANEO Pocket FIT, `bf81104`, Metalstorm):** EOS's
+  corrective-action browser flow → `droiddeck xdg-open: https://www.epicgames.com` → Chrome
+  `epicgames.com/id/authorize?user_code=…` → approved → `[eos] got logged in`, product user id
+  created, the game in its hangar at 92 fps. The EOS overlay crashed the game on every overlay-on
+  launch, so it is removed (user decision): no overlay switch, no download, no `OverlayPath`; a
+  launch removes a pointer an earlier build wrote, and the app deletes an earlier 656 MB download
+  once. The work is parked on `park/epic-eos-overlay` (at `bf81104`). Kept: the browser hand-off,
+  the Epic card (sign-in, offline, Resolve Epic sign-in) and `BL_DEBUG_BROWSER`.
+- **A game launched from the Games tab with no session running sat at "Launching"** (device,
+  2026-10-09-04-steam, and 2026-10-08-05 before it). The session put `steam://rungameid/<id>` on
+  the client's command line; the client took it seconds before its interface was up (focus went to
+  769 at 04:29:07, the launch at 04:29:09) and its launch stopped at `LaunchApp waiting for user
+  response to ShowInterstitials` with nothing to answer - the next launch from inside Steam went
+  straight through. Not store-specific: the 2026-10-08 cold launch of another shortcut stopped the
+  same way. `droiddeck-session` now holds such a URL back and hands it over through the same
+  `steam-game` request an in-session launch uses, once gamescope's focused app is the interface
+  (769) and four seconds have passed, or after two minutes regardless. The `rc=139` at the end of
+  both sessions is the client crashing in its own shutdown, after "Shutdown", unrelated to the
+  launch. The shortcuts writer keeps a compat tool the user chose (`plan_mapping` skips an entry
+  that is not one it set itself), and the live add sets one only for a new shortcut.
+- **Why EOS's browser flow never reached Android:** the hand-off script was never in the APK. The
+  build copies only `usr/local/bin/droiddeck-*`, `steam-compatibility` and `usr/bin/**` of the overlay
+  into the assets, so `usr/local/lib/droiddeck/browser/xdg-open` was skipped, the session staged
+  nothing, the wrapper did not put it on the PATH, and Wine's winebrowser ran the runtime's own
+  `/usr/bin/xdg-open`, which has no browser to open in a Steam session. GE-Proton 11-7's winebrowser
+  (Metalstorm's tool) is Wine's own - registry `Browsers` list, then `xdg-open` by name - with no
+  steam://openurl route. The script is now `usr/local/bin/droiddeck-open-url`: named as Wine's
+  browser in the prefix (`"Browsers"="/usr/local/bin/droiddeck-open-url,xdg-open"`, an absolute path
+  that does not depend on Wine's PATH), linked as `xdg-open` first on the game's PATH, and reading
+  the session channel from `/tmp/droiddeck-browser/launch-dir` when Wine does not pass
+  `BL_LAUNCH_DIR` on. Whether EOS calls ShellExecute at all in its browser flow (rather than handing
+  a verification URI and code to the game to show) is what the next run's `droiddeck xdg-open:` line,
+  or `BL_DEBUG_BROWSER=1` in droiddeck-env (`WINEDEBUG=+shell,+winebrowser`), will show.
+- **Resolve Epic sign-in** (the Epic card): opens Epic's account page behind its sign-in in Android's
+  browser, where a pending corrective action (privacy policy, EULA) is presented.
+- **Epic overlay off by default** (device A/B, Metalstorm: overlay pointer set → exits while
+  loading, twice; off → signs in to its Starform account and runs at 118 fps). `EpicOptions.overlay`
+  defaults to false; the sidecar's `epic` block carries `"v": 2`, and an older block (the old default
+  wrote `"overlay": true` unasked) reads as off - in the app and in `droiddeck-store-launch` alike.
+  The 656 MB overlay is fetched only for a game that turns it on (the card's switch, or a launch of
+  such a game), no longer after every library sync.
+- **The card's switches are saved where both launch paths read them:** each toggle reads the
+  sidecar fresh from disk, writes it and reads it back (`StoreGameSidecar.updateEpic`), and the card
+  shows what was read back; the app logs `epic options <id> eos= offline= overlay=`.
+- **Registry lines that a running wineserver would drop:** `droiddeck-store-launch` waits up to 8 s
+  for a wineserver still holding the prefix to exit before appending to `user.reg` (it rewrites the
+  file from memory when it exits, which is how `OverlayPath` vanished), reads the value back, and
+  logs `overlay-set`, `overlay-off`, `overlay-not-written` or `overlay-still-set`, plus
+  `server-running` when one never left. The helper's docstring is raw (no SyntaxWarning).
+- **Browser hand-off diagnostics:** the game-PATH `xdg-open` logs every call as `scheme://host`
+  only and accepts `steam://openurl/<address>`. On the device it was never called while EOS waited
+  on its browser flow, so how EOS opens the browser under this Proton is still to be seen in the
+  next log.
+- **The exchange code no longer reaches the game's environment** (device: Metalstorm's Player.log
+  dumped `DD_AUTH: … -AUTH_PASSWORD=<code>`). The launcher read the code into a variable the game
+  inherited. It now clears the variable on the same line that starts the game - cmd has expanded it
+  there already - so the code is on the command line only; the variable has a plain name. An old
+  launcher is rewritten before the next Epic launch (`StoreLaunch.refreshLauncher`, from both the
+  app and the Steam-launch request).
+- **A store game page shows no description that is only its title again** (Metalstorm's).
+- **Epic launch card** (Games tab › Launch settings, Epic games only): "Epic sign-in (EOS)" on,
+  "Launch offline" off, "Epic overlay" on, stored in the game's sidecar (`"epic": {"eos", "offline",
+  "overlay"}`, kept across updates) so both launch paths honour them alike - the app's
+  `StoreLaunch.epicCode` and `droiddeck-store-launch` for a launch from the Steam client: no code
+  when sign-in is off or offline, the overlay pointer written or removed per the switch. The card
+  reads e.g. "EOS · Overlay". Bannerlator's forced ownership token (`-epicovt`) is not ported, so
+  there is no switch for it.
+- **EOS overlay** (device: Metalstorm's EOS grant answered `corrective_action_required`, the overlay
+  was not configured, and EOS fell back to a browser flow that never finished). Epic's own overlay
+  component ("EpicOnlineServicesOverlay", the mechanism from Legendary's `lfs/eos.py`, credits in
+  `EpicOverlay.kt`) is downloaded once, with the Epic account's token, to
+  `/root/.local/share/droiddeck/epic-overlay` in the runtime - after an Epic library sync, or at the
+  first launch that finds it missing. `droiddeck-store-launch` then writes the one pointer,
+  `HKCU\Software\Epic Games\EOS` `OverlayPath` = that folder through Z:, into the game's prefix
+  (`STEAM_COMPAT_DATA_PATH/pfx/user.reg`, appended as DirectAudio's key is; a prefix Proton has not
+  created yet gets it on the next launch). Logged as `epic overlay installed=<build> prefix=<appid>`.
+  A game's web links now open on Android: Wine's browser is set to xdg-open, and on a game's PATH
+  `droiddeck-open-url` hands http(s) addresses to the app, which opens them
+  with Android's browser - so a device-code sign-in can be finished on the phone.
+- **Epic sign-in from Steam's own Play button (device, Metalstorm "Guest Account"):** the game was
+  started from the Steam client, so the app never minted its exchange code - the code was only
+  written when a launch began in the app. Now the compat tool (`droiddeck-proton` and
+  `droiddeck-proton-wrap`, `steam-compatibility`) runs `droiddeck-store-launch` on every real launch:
+  it recognises the store launcher among Steam's arguments, and for an Epic game asks the app
+  through `<session>/stores/req|resp` and waits up to 5 s; the app (`StoreLaunchRequests` →
+  `StoreLaunch.epicCode`) refreshes the token, mints the code and writes it into the game's own
+  folder - the code never crosses the channel or the log. No answer: the game starts with its
+  offline identity. A code file older than five minutes is dropped first. Every attempt logs
+  `epic launch id=<app> code=yes|no reason=<ok|signed-out|sign-in-expired|exchange-failed|timeout|…>`;
+  a sign-in that ran out dims the Epic chip and shows the sign-in card. The Games tab and Stores
+  still prepare a code before they launch; the compat tool's request is the one every path shares.
+- **Amazon has Installed and Library only:** with no public catalog its Store tab repeated the
+  library (Trending = Your library) and All equalled Library. The open-on Store choice falls back to
+  Library for Amazon. Amazon's library API carries no install size, so a size shows only once a
+  game has been installed (the manifest gives it then); no placeholder otherwise.
+- **Shelves are titles only** (no "Just landed" / "On sale this week" lines); the chip row sits on
+  the page's own ground with room under it, and what scrolls passes beneath it clipped, with a short
+  fade where it meets the row.
+- **Show mature content** (Setup › Stores and the cog; off by default): the storefront's shelves
+  and search leave out titles the store itself rates or tags as adult; Library, Installed and owned
+  games always show, and a title without rating data stays. GOG: `ratings[].ageRating` 17+ (ESRB M
+  17, PEGI / USK / GOG 18) or the tags `mature`, `nsfw`, `sexual-content`, `nudity` - the catalog
+  API has no server-side filter for either, so it is client-side. Epic: its public store GraphQL
+  carries no age rating on an offer (no age-gating or rating field on CatalogOffer or StoreConfig;
+  introspection is off), so only an adult content tag would mark one, and none of the probed
+  titles have one - Epic's storefront is effectively unfiltered. Amazon's Store tab is the user's
+  own games.
+- **UI slow while downloading (device):** engines report per chunk or file, and each report
+  published a new queue that the whole front end read (the rail badge was computed from it in the
+  root composition). Now progress-only changes reach the UI at most four times a second (stage and
+  state changes at once), each row and card reads only its own entry, the list replaces itself only
+  when rows come, go or change state, the badge count changes only when it changes, and the
+  notification redraws at most once a second. Download threads run at background priority (the
+  queue's runner and every Java pool), the tier leaves two cores free (`processWorkers` capped at
+  cores - 2, at least 2), and the stores log is written in half-second batches. The native engine's
+  own threads need the same priority on its side.
+- **Installed tab empty under "Installed (2)" (device):** the count came from the installs on disk,
+  the grid from the library filtered by id. Both now come from `installedCards`: each install joined
+  to its library item by id (or title), else a card from the sidecar's title and art.
+- **GOG rows (device, DOOM + DOOM II):** bytes read "0 B" instead of blank; GOG and Amazon report
+  their size on disk from the manifest; their Install stage counts its finishing steps (record and
+  launcher, art, Steam) instead of sitting empty - GOG writes files in place while downloading, so
+  there is no file move to count. A stage a store skips reads complete once a later one starts.
+  The tier's window does reach GOG's engine (Max = 96 as its ceiling); the plan line now says so
+  (`gog: plan … window=96 … tier=max`). The per-host spread is the engine's and was not changed.
+- **Stages named for what they do; both sizes; Cancel deletes.** Epic's check of the files already
+  there is part of Manifest ("Checking 120/515"), never a 100% Verify before anything is fetched.
+  Install has its own write rate and ETA from the bytes the assembler writes, and files n/N. The
+  row shows the download (compressed) as "1.6 GB / 2.5 GB" and the size on disk beside the
+  location; Epic remembers the disk size for the card and page. Cancel asks twice ("Delete
+  download?") and removes everything the install wrote - folder, sidecar, `.chunks`, scratch,
+  `.gog_chunks` - except a finished install being repaired, which keeps itself; the row says
+  Cancelled for three seconds, then goes, and the game reads Install. Pause keeps everything. A
+  failed row reads "Failed · 2.1 GB kept" (the reason is in the log) with Resume and Clear (Clear
+  deletes like Cancel); the game page offers Resume install and Clear for an unfinished install.
+  Library sync is a thin bar and "25/55", no sentence.
+- **Per-stage progress** (device: Epic DOOMBLADE, 13 GB, ~3 min of assembly with a still bar). The
+  entry carries the active stage's own count (amount + files) and which stages are passed; the
+  Downloads row draws one segment per stage (Manifest, Download, Verify, Install), and its line
+  reads e.g. "Installing 42% · 120/515 files" (speed and ETA only during Download). Fed by Epic's
+  verify pass, its native and fallback assembly, and GOG's chunk-cache removal; Amazon writes while
+  it downloads and has no long stage after it. Leaving Download clears the measured speed. Cards
+  and the game page follow the active stage's percent.
+- **The art is the card** (maintainer feedback): a store card is its art edge to edge, sharp above
+  and, under the one line, a blurred and darkened copy of the same picture (blur on API 31+, a
+  stronger scrim below it). A Downloads row is the game's wide art cropped to the row with a dark
+  wash from the left, the copy in white there and the actions on the right; no thumbnail.
+- **Install dialog:** one plain line "Install <game>:", then one row per place (icon, name, free
+  space), Cancel small in the title line; 440 dp wide.
+- **No flavor text** (standing rule from the maintainer): Setup › Stores and the cog popup keep
+  only control labels; the download-controls caption, the Downloads footnote, the sign-in blurbs
+  and footnote, the engine note and the Install-to caption are gone; empty states read "No games",
+  "Nothing installed", "No downloads", "No catalog". A Custom game's hero has no eyebrow (its chip
+  says it).
+- **Logos reverted** (user decision, no third-party marks): back to the text source chips and the
+  coloured dots.
+- **Device-proven on the AYANEO Pocket FIT, 2026-10-08 (GOG):** sign-in, the library (33 owned),
+  DOOM I Enhanced installed through the GOG engine to the SD Games root, shown in Games with the
+  GOG chip and real art, registered as a non-Steam game in the Steam client (grid art present), and
+  launched from the Games tab through the shortcut and droiddeck-proton to the main menu at 143 fps.
+- Status: CI green (build, JVM and python tests). Epic and Amazon are still unproven on device -
+  their sign-in pages, an install, and for Epic the launcher .bat with the exchange code are the
+  next things to prove on hardware.
+
 ## 2026-10-08 - `feat/directaudio-from-release`: DirectAudio from its own release, picked by interface, and the client gets the real engine
 
 Three things were wrong with audio at once, and one tidy-up @xXJSONDeruloXx asked for.

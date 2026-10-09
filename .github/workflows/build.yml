@@ -395,6 +395,39 @@ jobs:
             test -f "$D/usr/local/lib/droiddeck-msitools/$f" || { echo "::error::droiddeck-msitools/$f missing"; exit 1; }
           done
 
+      # The store download engines (app/src/main/rust/stores) are Rust, built by Gradle's
+      # buildRustStores task through cargo-ndk. rustup and cargo are on the runner image; the Android
+      # target and cargo-ndk are added here. Cache = cargo registry + cargo-ndk + the crate's target
+      # tree, keyed on the rustc version and Cargo.lock, so a source-only change rebuilds this crate
+      # on top of the cached dependency objects, and a lockfile change still starts from the
+      # previous objects (restore-keys).
+      - name: Rust toolchain for the store engines (aarch64-linux-android)
+        id: rust
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-linux-android
+          echo "rustc=$(rustc -V | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          rustc -V; cargo -V
+
+      - name: Cache cargo registry and the store engines' target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/.cargo/bin/cargo-ndk
+            app/src/main/rust/stores/target
+          key: stores-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}
+          restore-keys: |
+            stores-${{ steps.rust.outputs.rustc }}-
+
+      - name: cargo-ndk
+        run: |
+          set -euo pipefail
+          command -v cargo-ndk >/dev/null || cargo install cargo-ndk --locked
+          cargo ndk --version
+
       - name: Cache the CMake build tree
         uses: actions/cache@v4
         with:
@@ -413,6 +446,52 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
+
+      - name: Check the store engines' library
+        # The exports Kotlin binds must be in the apk's libdroiddeckstores.so, or the stores fail on
+        # the device with an UnsatisfiedLinkError instead of here. The lockfile check is the
+        # reproducibility guard: cargo must not have had to re-resolve anything.
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          NM="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          SO=app/build/rustJniLibs/arm64-v8a/libdroiddeckstores.so
+          test -s "$SO"
+          ls -la "$SO"
+          unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'lib/arm64-v8a/libdroiddeckstores.so' \
+            || { echo "::error::libdroiddeckstores.so is not in the apk"; exit 1; }
+          for sym in \
+              Java_com_droiddeck_launcher_stores_StoresNative_nativeVersion \
+              Java_com_droiddeck_launcher_stores_gog_GogNative_nativeStart \
+              Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStart \
+              Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeAssemble \
+              Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeStart; do
+            "$NM" -D --defined-only "$SO" | grep -q " ${sym}\$" \
+              || { echo "::error::libdroiddeckstores.so does not export $sym"; exit 1; }
+          done
+          git diff --stat -- app/src/main/rust/stores/Cargo.lock
+          git diff --exit-code -- app/src/main/rust/stores/Cargo.lock \
+            || { echo "::error::Cargo.lock changed during the build; commit the regenerated lockfile (uploaded as stores-cargo-lock)"; exit 1; }
+
+      - name: Store engines host unit tests
+        # The crate's #[test] functions are pure host-side logic (manifest parsing, chunk plans,
+        # assembly from a cache, hashes), so a plain `cargo test` on the runner's own architecture
+        # runs them; the Android build above compiles none of them. Informational on this first
+        # run - the point is to learn whether they pass - and bounded so a hang can never hold
+        # the apk. Make it blocking once it is known green.
+        timeout-minutes: 10
+        continue-on-error: true
+        run: |
+          cd app/src/main/rust/stores
+          cargo test --locked 2>&1 | tail -60
+
+      - name: Upload the regenerated Cargo.lock
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stores-cargo-lock
+          path: app/src/main/rust/stores/Cargo.lock
+          if-no-files-found: ignore
 
       - name: Steam import and game environment tests
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
