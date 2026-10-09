@@ -49,5 +49,12 @@ pacman files and emulator bundle paths are protected even when they overlap an a
 It never follows parent symlinks or recursively deletes directories. Home, added apps, custom
 files and modified package files stay. A pending marker disables the installed state and allows
 retry after interruption. Installing the desktop again repairs its package files and clears it.
-The old LXQt inventory is cleaned after KDE installation and before the next guest launch on an
-already-upgraded runtime, protecting both KDE inventories as well as the runtime and emulators.
+The old LXQt applications are cleaned after KDE installation and before the next guest launch on
+an already-upgraded runtime, protecting both KDE inventories as well as the runtime and emulators.
+Only files owned by `lxqt-applications.txt`'s application packages are candidates; dependencies
+stay even when the old runtime's pacman database does not record them. In particular, gamescope
+still needs the old package's libseat. The source LXQt application archives are the versions in
+the published `steamdeck-desktop-r1/desktop.packages.txt`; verify their `.sig` files with
+`gpgv --keyring tools/desktop-kde/archlinuxarm-builder.gpg` and the Build System fingerprint used
+by `build.sh`. Put their filenames in `selected.txt` in the LXQt cache. `sources.json` records
+their SHA-256 values; file identities still come from the checksum-pinned published desktop.

@@ -28,5 +28,22 @@
     "spectacle-1:6.7.5-1-aarch64.pkg.tar.xz": "0c9837412ea6119edef18bcb0a8fceb74634cb35be0ca78b3e1dd1ff2443866e",
     "systemsettings-6.7.5-1-aarch64.pkg.tar.xz": "b02b6a726857d5125c92d1ec95379216c7a3bc1f187a3b46e88c0d056b29ce70",
     "xdg-desktop-portal-kde-6.7.5-1-aarch64.pkg.tar.xz": "2c57d17d34d577023eb9cd7b0fca1ba9163549afe60450f6271aa148af099ef2"
+  },
+  "legacyApplications": {
+    "featherpad-1.6.3-1-aarch64.pkg.tar.xz": "fcac55215815c0b712453f9bcc09abfe4b518e36025a111a7a7598ef04913f3d",
+    "labwc-0.20.2-1-aarch64.pkg.tar.xz": "bcd4cc3945165b0fdd33c0117cd7b9dfd05cf8c327326c37f3c3a27ef23ee5ca",
+    "lximage-qt-2.4.0-1-aarch64.pkg.tar.xz": "5d6bdd5472ea6bcb4b993b36df3ab7010bb2e62b36a78a649708fc9a52cb0928",
+    "lxqt-config-2.4.0-1-aarch64.pkg.tar.xz": "4b601d798fc7689ee76787dbef8c8958c02429ee60248cd99d950c919dbefba5",
+    "lxqt-panel-2.4.1-1-aarch64.pkg.tar.xz": "a141e0f8049e73f859d843510c6f45d6ed9087c990bcebf44f5f2430621024c4",
+    "lxqt-qtplugin-2.4.0-3-aarch64.pkg.tar.xz": "61c8f828be73111ee0bd5e3163b0d64c2098dd0189710a190f42be11137695cf",
+    "lxqt-runner-2.4.0-1-aarch64.pkg.tar.xz": "5afa74652a37366ea4e7774cf33379977582fbdca599cef1005ebf637cbcae4b",
+    "lxqt-session-2.4.0-2-aarch64.pkg.tar.xz": "e9c7c8a0011859029622ad202e0d3826e4e5bc8d64659031f6efa211456ff6eb",
+    "lxqt-themes-2.4.0-1-any.pkg.tar.xz": "7ea16c62a1fa70cdac13cb3f8fdcdaad299ae1f5bd514acfda671484755787bf",
+    "lxqt-wayland-session-0.4.1-1-any.pkg.tar.xz": "cd8dc11f5035469d23b6bbd937a90593402428c43de37517412aa43fe1fc6b10",
+    "papirus-icon-theme-20260801-1-any.pkg.tar.xz": "4aae3f47b800a60d6fd360e55adc581408ceaafc481c5a420a681741a3966510",
+    "pcmanfm-qt-2.4.1-1-aarch64.pkg.tar.xz": "7ec1a6b39dd0e4055b39f0e2c0549ea263d83004e1b821fb9e42f1d7f5fff0f9",
+    "qterminal-2.4.0-1-aarch64.pkg.tar.xz": "aa4adc9c9d47641b9452ec8d879038a9cb4762c3b6b5299045fac968fd0ed22d",
+    "swaybg-1.2.2-1-aarch64.pkg.tar.xz": "a26caa16ca7d581b5ca05758677058b4b60af10dc8d83e447ad6824b762b48b8",
+    "wlr-randr-0.5.0-1-aarch64.pkg.tar.xz": "58c3651c6a15dc8f95a310c7e225f759aa766be2fb3c0981a9a8b567854675b3"
   }
 }

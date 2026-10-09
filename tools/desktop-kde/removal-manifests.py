@@ -3,8 +3,11 @@
 
 Usage: removal-manifests.py <LXQt tar.zst> <KDE r1 tar.zst> <KDE r2 tar.zst>
                            <emulators tar.zst> <verified KDE package cache> <output dir>
-KDE removal includes desktop applications/themes and our overlay, not their shared dependencies.
-The package cache is verified against the published desktop-kde.packages.txt before use.
+                           <verified LXQt package cache>
+Removal includes desktop applications/themes and our overlay, not their shared dependencies.
+The KDE cache is verified against the published desktop-kde.packages.txt before use.
+The LXQt cache contains the signed application packages listed by desktop.packages.txt;
+verify their Arch Linux ARM Build System signatures before generating the inventory.
 """
 import gzip
 import hashlib
@@ -62,7 +65,7 @@ def write(out, name, records):
 
 def main():
     archives = [pathlib.Path(p) for p in sys.argv[1:5]]
-    cache, out = map(pathlib.Path, sys.argv[5:7])
+    cache, out, legacy_cache = map(pathlib.Path, sys.argv[5:8])
     here = pathlib.Path(__file__).resolve().parent
     seeds = {line.strip() for line in (here / 'seeds.txt').read_text().splitlines() if line.strip() and not line.startswith('#')} - SHARED_SEEDS
     # Published source package hashes; the caller places this beside the verified cache.
@@ -83,16 +86,35 @@ def main():
     selected.update(str(p.relative_to(here / 'overlay')) for p in (here / 'overlay').rglob('*') if p.is_file())
     inventories = [inventory(p, pin[1]) for p, pin in zip(archives, PINS)]
     out.mkdir(parents=True, exist_ok=True)
-    write(out, 'lxqt-r1.tsv.gzip', inventories[0].values())
+    # The old runtime's pacman database omits some gamescope dependencies (e.g. libseat).
+    # Own only the LXQt application packages, never their dependency closure.
+    legacy_seeds = {line.strip() for line in (here / 'lxqt-applications.txt').read_text().splitlines()
+                    if line.strip() and not line.startswith('#')}
+    legacy_selected = set()
+    legacy_sources = {}
+    legacy_found = set()
+    for filename in (legacy_cache / 'selected.txt').read_text().splitlines():
+        package = filename.rsplit('-', 3)[0]
+        if package not in legacy_seeds:
+            continue
+        archive = legacy_cache / filename
+        with tarfile.open(archive) as tar:
+            legacy_selected.update(e.name.removeprefix('./').rstrip('/') for e in tar if not e.isdir())
+        legacy_sources[filename] = sha(archive)
+        legacy_found.add(package)
+    assert legacy_found == legacy_seeds, f'missing LXQt applications: {legacy_seeds - legacy_found}'
+    legacy_selected.update({'usr/local/bin/steamdeck-desktop', 'usr/local/bin/steamdeck-steam'})
+    write(out, 'lxqt-r1.tsv.gzip', [record for path, record in inventories[0].items() if path in legacy_selected])
     write(out, 'kde-remove.tsv.gzip', [record for inv in inventories[1:3] for path, record in inv.items() if path in selected])
     write(out, 'kde-keep.txt.gzip', [path for inv in inventories[1:3] for path in inv])
     write(out, 'emulators-keep.txt.gzip', inventories[3])
     (out / 'versions.txt').write_text('desktop-kde-r1\ndesktop-kde-r2\n')
-    (out / 'sources.json').write_text(json.dumps({'archives': dict(PINS), 'desktopApplications': {n: h for n, h in packages.items() if n.rsplit('-', 3)[0] in seeds}}, indent=2) + '\n')
+    (out / 'sources.json').write_text(json.dumps({'archives': dict(PINS), 'desktopApplications': {n: h for n, h in packages.items() if n.rsplit('-', 3)[0] in seeds}, 'legacyApplications': legacy_sources}, indent=2) + '\n')
     for name, digest in PINS:
         print(name, digest)
     print('KDE removable paths', sum(path in selected for path in inventories[2]))
     print('KDE removable bytes', sum(int(record.split('\t')[1]) for path, record in inventories[2].items() if path in selected))
+    print('LXQt removable paths', sum(path in legacy_selected for path in inventories[0]))
 
 
 if __name__ == '__main__':
