@@ -41,9 +41,7 @@
     <string name="hud_fg_failed">%1$s: falló el motor</string>
     <string name="hud_fg_needs_lossless">%1$s: requiere Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · iniciando</string>
-    <string name="added_games_import_hint">Una carpeta con una subcarpeta por cada juego de Windows. Los juegos que tienes en Steam usan sus entradas de Steam tras reiniciar Steam; el resto se convierten en accesos directos ajenos a Steam. Con Segunda biblioteca en Automático, Steam también puede instalar juegos en esta carpeta.</string>
     <string name="second_library_import_hint">Añade una biblioteca de Steam y busca juegos de Windows en ella. Los juegos que tienes usan sus entradas de Steam; el resto se convierten en accesos directos ajenos a Steam.</string>
-    <string name="added_games_forget_hint">Olvidar quita los accesos directos en la próxima sesión. Los archivos se conservan.</string>
     <string name="game_env_title">Entorno del juego</string>
     <string name="game_env_hint">Variables de entorno para juegos de Proton.</string>
     <string name="game_env_edit">Editar</string>
@@ -299,16 +297,18 @@
     <string name="mode_steam_repair_hint">Vuelve a descargar el cliente de Steam la próxima vez que se inicie Steam. Úsalo si Steam se queda en la pantalla de carga. Se conservan los juegos, la sesión iniciada y los ajustes.</string>
     <string name="mode_steam_repair_queued">El cliente de Steam se volverá a descargar la próxima vez que se inicie Steam.</string>
     <string name="mode_steam_repair_button">Reparar</string>
-    <string name="mode_added_games">Juegos añadidos</string>
-    <string name="mode_added_none">no hay carpetas de juegos con un .exe</string>
-    <string name="mode_games_folder">Carpeta de juegos</string>
-    <string name="mode_games_folder_another">Otra carpeta de juegos</string>
-    <string name="mode_added_art">Imágenes de Steam</string>
+    <string name="mode_added_art">Ilustraciones</string>
+    <string name="mode_sgdb_key">Clave API de SteamGridDB</string>
+    <string name="mode_sgdb_key_yours">Tu clave</string>
+    <string name="mode_sgdb_edit">Editar…</string>
     <string name="mode_added_art_hint">Completa las imágenes que faltan según el nombre de la carpeta. Tus propios cover.jpg, hero.jpg, logo.png o icon.png en la carpeta del juego tienen prioridad.</string>
-    <string name="mode_added_launches">Inicia %1$s</string>
-    <string name="mode_added_launches_in">Inicia %1$s · en %2$s</string>
-    <string name="mode_added_choose">Elegir otro archivo…</string>
-    <string name="mode_added_exe_note">Por defecto, el .exe con el nombre de la carpeta o, si no, el más grande.</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">¿Quitar?</string>
+    <string name="games_add">Añadir juego</string>
+    <string name="games_add_title">Añadir un juego:</string>
+    <string name="games_pick_exe_title">Elige el exe:</string>
+    <string name="games_add_unreachable">Esta ubicación no está disponible en la sesión</string>
+    <string name="mode_added_exe_check">Revisa este .exe</string>
     <string name="wincomp_title">Componentes de Windows</string>
     <string name="wincomp_pad_hint">LB / RB saltan entre las secciones.</string>
     <string name="wincomp_card_none">Ninguno</string>
@@ -1139,8 +1139,6 @@
     <string name="main_removing_named">Quitando %1$s…</string>
     <string name="main_forgetting_named">Olvidando %1$s…</string>
     <string name="main_pick_game_storage">Elige la carpeta de almacenamiento de juegos</string>
-    <string name="main_pick_added_games">Elige una carpeta con tus propios juegos</string>
-    <string name="main_pick_game_exe">Elige el .exe del juego</string>
     <string name="main_pick_decky_zip">Elige un ZIP de plugin de Decky</string>
     <string name="main_storage_not_usable">No se puede usar: %1$s</string>
 
@@ -2086,4 +2084,39 @@
     <string name="device_info_copied">Copiado.</string>
     <string name="force_ssbs_title">Forzar SSBS</string>
     <string name="force_ssbs_hint">Mantiene activado un ajuste de velocidad de la CPU que Wine sigue desactivando. Puede hacer más rápidos los juegos de Windows en Snapdragon 8 Elite; poco cambio en chips anteriores. Se aplica en el próximo inicio de un juego.</string>
+    <string name="common_close">Cerrar</string>
+    <string name="common_back">Atrás</string>
+    <string name="common_edit">Editar</string>
+    <string name="games_add_all">Añadir todos los juegos de esta carpeta</string>
+    <string name="games_added_none">Nada nuevo en esta carpeta</string>
+    <string name="edit_name">Nombre</string>
+    <string name="edit_target">Destino</string>
+    <string name="edit_start_in">Iniciar en</string>
+    <string name="edit_launch_options">Opciones de lanzamiento</string>
+    <string name="edit_artwork">Ilustraciones</string>
+    <string name="edit_other_exe">Otro exe…</string>
+    <string name="edit_remove">Quitar</string>
+    <string name="art_cover">Portada</string>
+    <string name="art_background">Fondo</string>
+    <string name="art_logo">Logotipo</string>
+    <string name="art_icon">Icono</string>
+    <string name="art_src_folder">Carpeta del juego</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">Tu archivo</string>
+    <string name="art_src_exe">Del exe</string>
+    <string name="art_src_auto">Automático</string>
+    <string name="art_pick_image">Elegir imagen…</string>
+    <string name="art_pick_title">Elige una imagen: %1$s</string>
+    <string name="art_reset">Restablecer a automático</string>
+    <plurals name="games_added_n">
+        <item quantity="one">%1$d juego añadido</item>
+        <item quantity="many">%1$d juegos añadidos</item>
+        <item quantity="other">%1$d juegos añadidos</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="one">%1$d ya en Juegos</item>
+        <item quantity="many">%1$d ya en Juegos</item>
+        <item quantity="other">%1$d ya en Juegos</item>
+    </plurals>
 </resources>

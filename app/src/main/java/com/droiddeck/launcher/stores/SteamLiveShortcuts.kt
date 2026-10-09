@@ -36,9 +36,9 @@ object SteamLiveShortcuts {
     private const val TAG_NAME = "droiddeck-app"
     private const val COMPAT_TOOL = "droiddeck-proton-arm64"
 
-    /** Adds every store game in [games] the client does not list yet. Blocking; worker thread. */
-    fun sync(context: Context, games: List<AddedGames.Game>) {
-        val wanted = games.filter { it.source != Library.ADDED }
+    /** Adds every game in [games] that [include] takes (store games by default) and the client does not list yet. Blocking; worker thread. */
+    fun sync(context: Context, games: List<AddedGames.Game>, include: (AddedGames.Game) -> Boolean = { it.source != Library.ADDED }) {
+        val wanted = games.filter(include)
         if (wanted.isEmpty() || !clientRunning()) return
         val list = JSONArray()
         for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir))
@@ -69,6 +69,47 @@ object SteamLiveShortcuts {
         if (!clientRunning()) return
         val result = evaluate(context, "(async () => { await SteamClient.Apps.RemoveShortcut(${appId and 0xFFFFFFFFL}); return 1; })()")
         if (result != null) Log.i(TAG, "live shortcuts: removed $appId")
+    }
+
+    /**
+     * The running client's shortcut for [game] made to match it: name, target, Start in and
+     * launch options, on the same appid (an edit never adds a second shortcut). Blocking.
+     */
+    fun update(context: Context, game: AddedGames.Game) {
+        if (!clientRunning()) return
+        val id = game.appId and 0xFFFFFFFFL
+        val js = """
+            (async () => {
+              const id = $id;
+              try { SteamClient.Apps.SetShortcutName(id, ${JSONObject.quote(game.name)}); } catch (e) {}
+              try { SteamClient.Apps.SetShortcutExe(id, ${JSONObject.quote("\"" + game.guestExe + "\"")}); } catch (e) {}
+              try { SteamClient.Apps.SetShortcutStartDir(id, ${JSONObject.quote("\"" + game.guestDir + "\"")}); } catch (e) {}
+              try { SteamClient.Apps.SetShortcutLaunchOptions(id, ${JSONObject.quote(game.launchOptions)}); } catch (e) {}
+              return 1;
+            })()
+        """.trimIndent()
+        if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: updated $id")
+    }
+
+    /**
+     * One piece of art for the running client's shortcut [appId]: [assetType] as the client numbers
+     * them (0 portrait capsule, 1 hero, 2 logo, 3 wide capsule), from [file]; null clears it. The
+     * icon goes by path ([iconPath]). Blocking.
+     */
+    fun setArt(context: Context, appId: Long, assetType: Int?, file: java.io.File?, iconPath: String? = null) {
+        if (!clientRunning()) return
+        val id = appId and 0xFFFFFFFFL
+        val js = when {
+            iconPath != null -> "(async () => { try { SteamClient.Apps.SetShortcutIcon($id, ${JSONObject.quote(iconPath)}); } catch (e) {} return 1; })()"
+            assetType == null -> return
+            file == null -> "(async () => { try { await SteamClient.Apps.ClearCustomArtworkForApp($id, $assetType); } catch (e) {} return 1; })()"
+            else -> {
+                val data = runCatching { Base64.encodeToString(file.readBytes(), Base64.NO_WRAP) }.getOrNull() ?: return
+                val type = if (file.extension.equals("png", true)) "png" else "jpg"
+                "(async () => { try { await SteamClient.Apps.SetCustomArtworkForApp($id, ${JSONObject.quote(data)}, ${JSONObject.quote(type)}, $assetType); } catch (e) {} return 1; })()"
+            }
+        }
+        if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: art $assetType for $id")
     }
 
     private fun clientRunning(): Boolean = SessionState.running && SessionState.mode == SessionService.MODE_STEAM && !SessionState.stopRequested
