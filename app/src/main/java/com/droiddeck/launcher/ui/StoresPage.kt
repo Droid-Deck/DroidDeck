@@ -285,6 +285,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                         // What is leaving is not where a pad's next move should land.
                         val outgoing = transition.targetState == androidx.compose.animation.EnterExitState.PostExit
                         CompositionLocalProvider(LocalFrontFocus provides if (outgoing) null else LocalFrontFocus.current) {
+                          // AnimatedContent stacks its child in a Box: the pane's rows need their own column.
+                          Column(Modifier.fillMaxWidth()) {
                             val st = Store.byId(k.chip)
                             when {
                                 k.chip == DOWNLOADS -> StoresDownloadsPane(s, a)
@@ -293,6 +295,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                 !k.signedIn -> Rise(1) { SignInCard(st) }
                                 else -> Storefront(st, k.tab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
                             }
+                          }
                         }
                     }
                 }
