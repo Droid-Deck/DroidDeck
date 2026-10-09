@@ -128,18 +128,18 @@ class Prefix(unittest.TestCase):
     def test_the_overlay_pointer_names_the_shared_copy_through_z(self):
         (self.overlay / store.OVERLAY_DLL).write_bytes(b'MZ')
         (self.overlay / 'droiddeck-version').write_text('1.0.42')
-        self.assertEqual('overlay-set', store.provision_prefix(str(self.compat), str(self.overlay)))
+        self.assertEqual('overlay-set', store.provision_prefix(str(self.compat), str(self.overlay), overlay=True))
         text = self.reg.read_text()
         self.assertIn('[Software\\\\Epic Games\\\\EOS] ', text)
         self.assertIn('"OverlayPath"="Z:' + str(self.overlay).replace('/', '\\\\') + '"', text)
         self.assertIn('"Browsers"="xdg-open"', text)
         # A second launch adds nothing: the last word already says so.
-        store.provision_prefix(str(self.compat), str(self.overlay))
+        store.provision_prefix(str(self.compat), str(self.overlay), overlay=True)
         self.assertEqual(text, self.reg.read_text())
         self.assertEqual('1.0.42', store.overlay_version(str(self.overlay)))
 
     def test_no_overlay_yet_or_no_prefix_yet(self):
-        self.assertEqual('overlay-missing', store.provision_prefix(str(self.compat), str(self.overlay)))
+        self.assertEqual('overlay-missing', store.provision_prefix(str(self.compat), str(self.overlay), overlay=True))
         self.assertNotIn('OverlayPath', self.reg.read_text())
         self.assertEqual('prefix-not-created', store.provision_prefix(self.tmp.name + '/compatdata/1', str(self.overlay)))
         self.assertEqual('no-prefix', store.provision_prefix('', str(self.overlay)))
@@ -150,7 +150,10 @@ class Choices(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root)
             sidecar = json.loads((folder / '.droiddeck-store.json').read_text())
-            self.assertEqual({'eos': True, 'offline': False, 'overlay': True}, store.options(sidecar))
+            self.assertEqual({'eos': True, 'offline': False, 'overlay': False}, store.options(sidecar))
+            # The old default (no version) never turns it on; a v2 choice does.
+            self.assertFalse(store.options({'epic': {'eos': True, 'offline': False, 'overlay': True}})['overlay'])
+            self.assertTrue(store.options({'epic': {'v': 2, 'overlay': True}})['overlay'])
             sidecar['epic'] = {'eos': True, 'offline': True, 'overlay': False}
             (folder / '.droiddeck-store.json').write_text(json.dumps(sidecar))
             (folder / '.droiddeck-epic-code').write_text('left over')
@@ -185,6 +188,7 @@ class Browser(unittest.TestCase):
             reqs = list((Path(root) / 'stores/req').glob('*.json'))
             self.assertEqual(1, len(reqs))
             self.assertEqual({'op': 'open-url', 'url': 'https://www.epicgames.com/activate'}, json.loads(reqs[0].read_text()))
+            self.assertEqual('https://www.epicgames.com', xdg.where('https://www.epicgames.com/activate?code=SECRET'))
 
 
 class Launchers(unittest.TestCase):

@@ -144,6 +144,24 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Epic overlay off by default** (device A/B, Metalstorm: overlay pointer set → exits while
+  loading, twice; off → signs in to its Starform account and runs at 118 fps). `EpicOptions.overlay`
+  defaults to false; the sidecar's `epic` block carries `"v": 2`, and an older block (the old default
+  wrote `"overlay": true` unasked) reads as off - in the app and in `droiddeck-store-launch` alike.
+  The 656 MB overlay is fetched only for a game that turns it on (the card's switch, or a launch of
+  such a game), no longer after every library sync.
+- **The card's switches are saved where both launch paths read them:** each toggle reads the
+  sidecar fresh from disk, writes it and reads it back (`StoreGameSidecar.updateEpic`), and the card
+  shows what was read back; the app logs `epic options <id> eos= offline= overlay=`.
+- **Registry lines that a running wineserver would drop:** `droiddeck-store-launch` waits up to 8 s
+  for a wineserver still holding the prefix to exit before appending to `user.reg` (it rewrites the
+  file from memory when it exits, which is how `OverlayPath` vanished), reads the value back, and
+  logs `overlay-set`, `overlay-off`, `overlay-not-written` or `overlay-still-set`, plus
+  `server-running` when one never left. The helper's docstring is raw (no SyntaxWarning).
+- **Browser hand-off diagnostics:** the game-PATH `xdg-open` logs every call as `scheme://host`
+  only and accepts `steam://openurl/<address>`. On the device it was never called while EOS waited
+  on its browser flow, so how EOS opens the browser under this Proton is still to be seen in the
+  next log.
 - **The exchange code no longer reaches the game's environment** (device: Metalstorm's Player.log
   dumped `DD_AUTH: … -AUTH_PASSWORD=<code>`). The launcher read the code into a variable the game
   inherited. It now clears the variable on the same line that starts the game - cmd has expanded it

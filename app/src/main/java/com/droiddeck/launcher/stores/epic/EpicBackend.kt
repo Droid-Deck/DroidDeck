@@ -51,8 +51,6 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                 when (result) {
                     is EpicLibrary.SyncResult.Ok -> {
                         StoresState.library[store] = result.games.map { EpicLibrary.toCatalogItem(app, it) }; StoresState.problems.remove(store)
-                        // The EOS overlay, once, so a game's first launch already has it.
-                        EpicOverlay.ensureAsync(app)
                     }
                     is EpicLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
                     EpicLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "Epic session expired: sign in again."

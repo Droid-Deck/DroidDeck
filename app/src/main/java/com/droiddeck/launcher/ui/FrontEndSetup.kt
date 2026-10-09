@@ -508,6 +508,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
 /** The Epic card: sign-in, offline and overlay switches, read from and written to the game's sidecar. */
 @Composable
 private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     var sidecar by remember(folder) { mutableStateOf(com.droiddeck.launcher.stores.StoreGameSidecar.read(folder)) }
     val options = sidecar?.epic ?: com.droiddeck.launcher.stores.EpicOptions()
     val value = buildList {
@@ -515,19 +516,25 @@ private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
         else if (options.eos) add(stringResource(R.string.epic_card_eos))
         if (options.overlay) add(stringResource(R.string.epic_card_overlay))
     }.ifEmpty { listOf(stringResource(R.string.epic_card_none)) }.joinToString(" · ")
-    fun set(next: com.droiddeck.launcher.stores.EpicOptions) {
-        val current = sidecar ?: return
-        val updated = current.copy(epic = next)
-        sidecar = updated
-        Thread({ runCatching { updated.write(folder) } }, "epic-options").start()
+    // Each switch goes straight to the sidecar on disk - both launch paths read it there - and the
+    // card shows what was read back, so a write that did not take is never shown as done.
+    fun set(change: (com.droiddeck.launcher.stores.EpicOptions) -> com.droiddeck.launcher.stores.EpicOptions) {
+        Thread({
+            val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateEpic(folder, change) }
+                .onFailure { android.util.Log.w("EpicLaunchCard", "could not write ${folder.name}: ${it.message}") }.getOrNull()
+            if (written != null) android.util.Log.i("EpicLaunchCard", "epic options ${written.id} eos=${written.epic.eos} offline=${written.epic.offline} overlay=${written.epic.overlay}")
+            if (written?.epic?.overlay == true) com.droiddeck.launcher.stores.epic.EpicOverlay.ensureAsync(appContext)
+            else android.util.Log.w("EpicLaunchCard", "epic options not saved for ${folder.name}")
+            com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: com.droiddeck.launcher.stores.StoreGameSidecar.read(folder) }
+        }, "epic-options").start()
     }
     SettingCard(stringResource(R.string.epic_card_title), value, "card:epic", Modifier.fillMaxSize()) {
         host.open = if (host.open == "epic") null else "epic"
     }
     AnchoredMenu(host.open == "epic", onDismiss = { if (host.open == "epic") host.open = null }, title = stringResource(R.string.epic_card_title)) { first ->
-        MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set(options.copy(eos = !options.eos)) }
-        MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set(options.copy(offline = !options.offline)) }
-        MenuItem(stringResource(R.string.epic_overlay), checked = options.overlay) { set(options.copy(overlay = !options.overlay)) }
+        MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
+        MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }
+        MenuItem(stringResource(R.string.epic_overlay), checked = options.overlay) { set { it.copy(overlay = !it.overlay) } }
     }
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Before Proton starts a store game, asks the app for what that store needs at launch.
+r"""Before Proton starts a store game, asks the app for what that store needs at launch.
 
 Run by droiddeck-proton / droiddeck-proton-wrap (steam-compatibility) for every real game launch,
 whoever started it: the Games tab, a pinned shortcut, or the Steam client's own Play button. It
@@ -39,6 +39,7 @@ EPIC_CODE = ".droiddeck-epic-code"
 TIMEOUT = 5.0
 STALE_SECONDS = 300
 OVERLAY_DIR = "/root/.local/share/droiddeck/epic-overlay"
+SERVER_WAIT = 8.0
 OVERLAY_DLL = "EOSOVH-Win64-Shipping.dll"
 EOS_KEY = "[Software\\\\Epic Games\\\\EOS]"
 BROWSER_KEY = "[Software\\\\Wine\\\\WineBrowser]"
@@ -171,24 +172,74 @@ def remove_value(reg, key, name):
 def options(sidecar):
     """An Epic game's launch choices from its sidecar, as the Games tab's Epic card sets them."""
     e = sidecar.get("epic") if isinstance(sidecar.get("epic"), dict) else {}
-    return {"eos": e.get("eos", True) is not False, "offline": e.get("offline", False) is True, "overlay": e.get("overlay", True) is not False}
+    # The overlay is off unless chosen (v2 on): the old default wrote overlay=true without a version,
+    # and with it on a game could exit while loading. The app's EpicOptions reads it the same way.
+    chosen = isinstance(e.get("v"), int) and e.get("v") >= 2
+    return {"eos": e.get("eos", True) is not False, "offline": e.get("offline", False) is True, "overlay": chosen and e.get("overlay") is True}
 
 
-def provision_prefix(compat_data, overlay_dir=OVERLAY_DIR, overlay=True):
+def server_socket(pfx):
+    """The wineserver socket for prefix [pfx], as Wine names it (server-<dev>-<inode> under /tmp/.wine-<uid>)."""
+    try:
+        st = os.stat(pfx)
+    except OSError:
+        return None
+    base = os.environ.get("BL_WINE_SERVER_BASE") or "/tmp/.wine-%d" % os.getuid()
+    return Path(base) / ("server-%x-%x" % (st.st_dev, st.st_ino)) / "socket"
+
+
+def wait_for_server(pfx, timeout=SERVER_WAIT):
+    """
+    Waits for a wineserver still holding this prefix (an earlier verb's, or the last launch's) to
+    exit: it rewrites user.reg from its own memory when it does, which drops a line appended
+    meanwhile. True when none is left.
+    """
+    sock = server_socket(pfx)
+    if sock is None:
+        return True
+    deadline = time.monotonic() + timeout
+    while sock.exists() and time.monotonic() < deadline:
+        time.sleep(0.1)
+    return not sock.exists()
+
+
+def has_value(reg, key, name, value=None):
+    """Whether the last word on `key` in user.reg sets "name" (to [value], when given)."""
+    if not reg.is_file():
+        return False
+    inside, last = False, None
+    for row in reg.read_text(errors="replace").splitlines():
+        if row.startswith("["):
+            inside = row.startswith(key + " ") or row == key
+        elif inside and row.startswith('"%s"=' % name):
+            last = row
+    if last is None:
+        return False
+    return value is None or last == '"%s"="%s"' % (name, reg_escape(value))
+
+
+def provision_prefix(compat_data, overlay_dir=OVERLAY_DIR, overlay=False, wait=SERVER_WAIT):
     """The EOS overlay pointer (or its removal, when [overlay] is off) and Wine's browser, in the game's prefix."""
     if not compat_data:
         return "no-prefix"
-    reg = Path(compat_data) / "pfx" / "user.reg"
+    pfx = Path(compat_data) / "pfx"
+    reg = pfx / "user.reg"
     if not reg.is_file():
         return "prefix-not-created"
+    # A wineserver still up for this prefix would write its own copy of user.reg over these lines.
+    busy = not wait_for_server(pfx, wait)
     set_value(reg, BROWSER_KEY, "Browsers", "xdg-open")
     if not overlay:
         remove_value(reg, EOS_KEY, "OverlayPath")
-        return "overlay-off"
-    if overlay_version(overlay_dir) is None:
+        state = "overlay-off" if not has_value(reg, EOS_KEY, "OverlayPath") else "overlay-still-set"
+    elif overlay_version(overlay_dir) is None:
         return "overlay-missing"
-    set_value(reg, EOS_KEY, "OverlayPath", windows_path(overlay_dir))
-    return "overlay-set"
+    else:
+        target = windows_path(overlay_dir)
+        set_value(reg, EOS_KEY, "OverlayPath", target)
+        # Read back, so the log says what the file holds, not what was meant.
+        state = "overlay-set" if has_value(reg, EOS_KEY, "OverlayPath", target) else "overlay-not-written"
+    return state + (" server-running" if busy else "")
 
 
 def main(argv):

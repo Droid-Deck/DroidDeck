@@ -20,9 +20,23 @@ def hand_over(url, launch_dir):
     os.rename(tmp, req / (rid + ".json"))
 
 
+def where(url):
+    """scheme://host only, for the log: no path, no query."""
+    from urllib.parse import urlsplit
+    try:
+        u = urlsplit(url)
+        return "%s://%s" % (u.scheme, u.hostname or "")
+    except ValueError:
+        return "?"
+
+
 def main(argv):
     url = argv[0] if argv else ""
+    # The Steam client's own form (steam://openurl/<address>), in case a launcher passes it on.
+    if url.startswith("steam://openurl/"):
+        url = url[len("steam://openurl/"):]
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    print("droiddeck xdg-open: %s" % where(url), file=sys.stderr, flush=True)
     if url.startswith(("https://", "http://")) and launch_dir:
         hand_over(url, launch_dir)
         return 0

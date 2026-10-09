@@ -62,8 +62,10 @@ object StoreLaunchRequests {
                     val code = StoreLaunch.epicCode(app, id)
                     // The overlay is placed once and shared; the launch writes the prefix's pointer.
                     val overlay = com.droiddeck.launcher.stores.epic.EpicOverlay.installedVersion(app)
-                    Log.i(TAG, "epic overlay installed=${overlay ?: "no"} prefix=${request.optString("prefix").ifEmpty { "?" }}")
-                    if (overlay == null) com.droiddeck.launcher.stores.epic.EpicOverlay.ensureAsync(app)
+                    val wanted = StoreInstallRoot.gameFolders(app).firstNotNullOfOrNull { f -> StoreGameSidecar.read(f)?.takeIf { it.store == Store.EPIC && it.id == id } }?.epic?.overlay == true
+                    Log.i(TAG, "epic overlay installed=${overlay ?: "no"} wanted=$wanted prefix=${request.optString("prefix").ifEmpty { "?" }}")
+                    // Fetched only for a game that has the overlay on (656 MB; off by default).
+                    if (overlay == null && wanted) com.droiddeck.launcher.stores.epic.EpicOverlay.ensureAsync(app)
                     JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason).put("overlay", overlay ?: "")
                 }
             }
