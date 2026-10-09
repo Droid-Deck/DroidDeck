@@ -1996,15 +1996,10 @@
     <string name="stores_shelves_loading">Loading the store…</string>
     <string name="stores_amazon_no_catalog">No catalog</string>
     <string name="stores_shelf_new">What\'s new</string>
-    <string name="stores_shelf_new_hint">Just landed</string>
     <string name="stores_shelf_deals">Deals</string>
-    <string name="stores_shelf_deals_hint">On sale this week</string>
     <string name="stores_shelf_free">Free games</string>
-    <string name="stores_shelf_free_hint">Claim and keep</string>
     <string name="stores_shelf_trending">Trending</string>
-    <string name="stores_shelf_trending_hint">Popular right now</string>
     <string name="stores_shelf_library">Your library</string>
-    <string name="stores_shelf_library_hint">Owned on %1$s</string>
     <string name="stores_play">Play</string>
     <string name="stores_install">Install</string>
     <string name="stores_resume_install">Resume install</string>

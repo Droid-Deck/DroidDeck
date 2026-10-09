@@ -144,6 +144,9 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Shelves are titles only** (no "Just landed" / "On sale this week" lines); the chip row sits on
+  the page's own ground with room under it, and what scrolls passes beneath it clipped, with a short
+  fade where it meets the row.
 - **Show mature content** (Setup › Stores and the cog; off by default): the storefront's shelves
   and search leave out titles the store itself rates or tags as adult; Library, Installed and owned
   games always show, and a title without rating data stays. GOG: `ratings[].ageRating` 17+ (ESRB M

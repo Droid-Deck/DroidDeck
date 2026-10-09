@@ -142,8 +142,13 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 onNext = { if (openGame == null && chip != DOWNLOADS) switchTab(TABS[(TABS.indexOf(tab) + 1) % TABS.size]) },
             ),
     ) {
-        Rise(0) { StoreChips(chip, s.storeDownloadsActive, onPick = pickChip, onSettings = { settings = true }) }
-        Column(modifier = Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 10.dp, bottom = 16.dp)) {
+        // The chip row stays put on the page's own ground; what scrolls passes under it, clipped,
+        // with a short fade where it meets the row.
+        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(bottom = 8.dp)) {
+            Rise(0) { StoreChips(chip, s.storeDownloadsActive, onPick = pickChip, onSettings = { settings = true }) }
+        }
+        Box(Modifier.fillMaxWidth().weight(1f, fill = false).clipToBounds()) {
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) {
             when {
                 chip == DOWNLOADS -> StoresDownloadsPane(s, a)
                 store == null -> {}
@@ -153,6 +158,11 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 openGame != null -> Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(store, openGame!!, s, a, onBack = { closeGame() }) }
                 else -> Storefront(store, tab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
             }
+        }
+        if (scroll.value > 0) Spacer(
+            Modifier.align(Alignment.TopCenter).fillMaxWidth().height(14.dp)
+                .background(Brush.verticalGradient(0f to MaterialTheme.colorScheme.background, 1f to Color.Transparent)),
+        )
         }
     }
     if (settings) StoresSettingsDialog(s, a) { settings = false }
@@ -332,11 +342,11 @@ private fun Storefront(
         else -> {
             if (q.isNotEmpty()) Grid(everything.filter { matches(it) && shown(it) }, stringResource(R.string.stores_nothing_matches), card)
             else {
-                Shelf(stringResource(R.string.stores_shelf_new), stringResource(R.string.stores_shelf_new_hint), shelf(shelves?.whatsNew), card)
-                Shelf(stringResource(R.string.stores_shelf_deals), stringResource(R.string.stores_shelf_deals_hint), shelf(shelves?.deals), card)
-                Shelf(stringResource(R.string.stores_shelf_free), stringResource(R.string.stores_shelf_free_hint), shelf(shelves?.free), card)
-                Shelf(stringResource(R.string.stores_shelf_trending), stringResource(R.string.stores_shelf_trending_hint), shelf(shelves?.trending), card)
-                Shelf(stringResource(R.string.stores_shelf_library), stringResource(R.string.stores_shelf_library_hint, store.label), library, card)
+                Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
+                Shelf(stringResource(R.string.stores_shelf_deals), shelf(shelves?.deals), card)
+                Shelf(stringResource(R.string.stores_shelf_free), shelf(shelves?.free), card)
+                Shelf(stringResource(R.string.stores_shelf_trending), shelf(shelves?.trending), card)
+                Shelf(stringResource(R.string.stores_shelf_library), library, card)
                 if (shelves == null && library.isEmpty()) Rise(4) { Note(if (StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_shelves_loading)) }
                 else if (shelves != null && shelves.isEmpty && store == Store.AMAZON) Rise(4) { Note(stringResource(R.string.stores_amazon_no_catalog)) }
             }
@@ -400,13 +410,10 @@ private fun SearchField(query: String, onQuery: (String) -> Unit, placeholder: S
 
 /** A horizontal row of cards under a title; nothing at all when the list is empty or not here yet. */
 @Composable
-private fun Shelf(title: String, hint: String, items: List<CatalogItem>?, card: @Composable (CatalogItem) -> Unit) {
+private fun Shelf(title: String, items: List<CatalogItem>?, card: @Composable (CatalogItem) -> Unit) {
     if (items.isNullOrEmpty()) return
     val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 6.dp)) {
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-        Text(hint, fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 1.dp))
-    }
+    Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 2.dp)) {
         for (item in items.take(24)) key(item.key) { Box(Modifier.width(CardWidth)) { card(item) } }
     }
