@@ -71,6 +71,14 @@ void vkb_emu_patch_features_chain(vkb_physdev *pd, VkBaseOutStructure *b)
         set_feature(pd, VKB_EMU_DIVISOR, &d->vertexAttributeInstanceRateZeroDivisor);
         break;
     }
+    case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT:
+        /* Emulated depth clip is pipeline state (clamp = not clip): neither may be dynamic. */
+        if (MISSING(pd, VKB_EMU_DEPTH_CLIP) || EMU(pd, VKB_EMU_DEPTH_CLIP)) {
+            VkPhysicalDeviceExtendedDynamicState3FeaturesEXT *d3 = (void *)b;
+            d3->extendedDynamicState3DepthClipEnable = VK_FALSE;
+            if (EMU(pd, VKB_EMU_DEPTH_CLIP)) d3->extendedDynamicState3DepthClampEnable = VK_FALSE;
+        }
+        break;
     case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT:
         set_feature(pd, VKB_EMU_DEPTH_CLIP, &((VkPhysicalDeviceDepthClipEnableFeaturesEXT *)b)->depthClipEnable);
         break;

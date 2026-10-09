@@ -204,6 +204,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL emu_CreateGraphicsPipelines(VkDevice devic
     for (uint32_t i = 0; i < n; i++) {
         VkGraphicsPipelineCreateInfo *ci = (VkGraphicsPipelineCreateInfo *)&infos[i];
         vkb_emu_divisor_pipeline(e, device, ci, (div_info *)(divs + i * dsz));
+        vkb_emu_depth_clip_pipeline(e, ci);
         /* Shader rewrites first: they read inline SPIR-V before it becomes a module. */
         vkb_emu_shader_pipeline(e, device, ci, mods, &nmods, 64);
         if (e->flags & VKB_EMU_MAINT5) {
@@ -432,6 +433,7 @@ void vkb_emu_install(vkb_srv_table *dev)
         if (dev->real.vkCmdBindVertexBuffers2) dt->vkCmdBindVertexBuffers2 = emu_CmdBindVertexBuffers2;
     }
     vkb_emu_install_features(dev);
+    vkb_emu_depth_clip_install(dev);
     VKB_INFO("device %u: emulation 0x%x installed", dev->id, e->flags);
 }
 
@@ -452,4 +454,25 @@ void vkb_emu_uninstall(vkb_srv_table *dev)
             free(r);
         }
     }
+}
+
+/* ------------------------------------------------------------------ depth clip enable */
+
+/* VK_EXT_depth_clip_enable on a GPU without it. Without the extension Vulkan clips exactly when
+ * depth clamp is off, so a pipeline's clamp becomes "not clip" (D3D's DepthClipEnable = FALSE is
+ * clamping; clip + clamp only differs for fragments the clip removes anyway). The client hides
+ * dynamic depth clip/clamp while this is emulated, so both are static pipeline state here. */
+void vkb_emu_depth_clip_pipeline(vkb_emu_device *e, VkGraphicsPipelineCreateInfo *ci)
+{
+    if (!(e->flags & VKB_EMU_DEPTH_CLIP)) return;
+    VkPipelineRasterizationStateCreateInfo *rs = (VkPipelineRasterizationStateCreateInfo *)ci->pRasterizationState;
+    if (!rs) return;
+    VkPipelineRasterizationDepthClipStateCreateInfoEXT *dc =
+        vkb_emu_chain_take(rs, VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_DEPTH_CLIP_STATE_CREATE_INFO_EXT);
+    if (dc) rs->depthClampEnable = dc->depthClipEnable ? VK_FALSE : VK_TRUE;
+}
+
+void vkb_emu_depth_clip_install(vkb_srv_table *dev)
+{
+    (void)dev;
 }

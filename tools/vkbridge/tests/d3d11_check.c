@@ -302,6 +302,42 @@ static void test_step_rate(void)
     check(ok, "instance step rate 2", d);
 }
 
+/* ------------------------------------------------------------------ depth clip */
+
+static void test_depth_clip(void)
+{
+    /* A full-screen triangle at z = 1.5 (beyond the far plane): clipped away with depth clip on,
+     * visible (clamped to the far plane) with it off. */
+    const char *vs = "float4 main(uint id : SV_VertexID) : SV_Position { float2 t = float2((id << 1) & 2, id & 2);"
+                     "return float4(t * float2(2, -2) + float2(-1, 1), 1.5, 1); }";
+    const char *ps = "float4 main() : SV_Target { return float4(1, 1, 1, 1); }";
+    ID3DBlob *v = compile(vs, "main", "vs_5_0"), *p = compile(ps, "main", "ps_5_0");
+    ID3D11VertexShader *vsh;
+    ID3D11PixelShader *psh;
+    ID3D11Device_CreateVertexShader(dev, ID3D10Blob_GetBufferPointer(v), ID3D10Blob_GetBufferSize(v), NULL, &vsh);
+    ID3D11Device_CreatePixelShader(dev, ID3D10Blob_GetBufferPointer(p), ID3D10Blob_GetBufferSize(p), NULL, &psh);
+    uint32_t got[2];
+    for (int on = 1; on >= 0; on--) {
+        D3D11_RASTERIZER_DESC rd = {D3D11_FILL_SOLID, D3D11_CULL_NONE, FALSE, 0, 0, 0, on ? TRUE : FALSE, FALSE, FALSE, FALSE};
+        ID3D11RasterizerState *rs;
+        ID3D11Device_CreateRasterizerState(dev, &rd, &rs);
+        ID3D11DeviceContext_RSSetState(ctx, rs);
+        bind_target();
+        clear(0, 0, 0);
+        ID3D11DeviceContext_IASetInputLayout(ctx, NULL);
+        ID3D11DeviceContext_IASetPrimitiveTopology(ctx, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        ID3D11DeviceContext_VSSetShader(ctx, vsh, NULL, 0);
+        ID3D11DeviceContext_PSSetShader(ctx, psh, NULL, 0);
+        ID3D11DeviceContext_Draw(ctx, 3, 0);
+        const uint32_t *px = readback();
+        got[on] = px ? px[TH / 2 * TW + TW / 2] : 0;
+    }
+    ID3D11DeviceContext_RSSetState(ctx, NULL);
+    char d[96];
+    snprintf(d, sizeof d, "clip on 0x%08x (want black), off 0x%08x (want white)", got[1], got[0]);
+    check(close_to(got[1], 0xFF000000, 2) && close_to(got[0], 0xFFFFFFFF, 2), "DepthClipEnable", d);
+}
+
 int main(void)
 {
     D3D_FEATURE_LEVEL fl = D3D_FEATURE_LEVEL_11_0, got;
@@ -324,6 +360,7 @@ int main(void)
     tests_bc();
     test_clip();
     test_step_rate();
+    test_depth_clip();
     printf("%s: %d of %d checks passed\n", failures ? "FAILED" : "OK", checks - failures, checks);
     return failures ? 1 : 0;
 }

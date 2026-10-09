@@ -99,7 +99,7 @@ void vkb_emu_device_create_info(vkb_srv_table *inst, VkPhysicalDevice pd, uint32
     VkPhysicalDeviceFeatures real;
     inst->real.vkGetPhysicalDeviceFeatures(pd, &real);
     VkPhysicalDeviceFeatures *f = find_features(ci);
-    if ((emu & VKB_EMU_BCN) && !f) {
+    if ((emu & (VKB_EMU_BCN | VKB_EMU_DEPTH_CLIP)) && !f) {
         /* The BC decoder writes R8/RG8 storage images: it needs this feature on, so the request
          * gets a features structure if it had none. */
         f = vkb_arena_alloc(a, sizeof(*f));
@@ -114,6 +114,7 @@ void vkb_emu_device_create_info(vkb_srv_table *inst, VkPhysicalDevice pd, uint32
             if (want[i] && !have[i]) want[i] = VK_FALSE;
         }
         if (emu & VKB_EMU_BCN) f->shaderStorageImageExtendedFormats = VK_TRUE;
+        if (emu & VKB_EMU_DEPTH_CLIP) f->depthClamp = VK_TRUE;
     }
     if (emu & VKB_EMU_DIVISOR) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT);
     if (emu & VKB_EMU_DEPTH_CLIP) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT);

@@ -6,7 +6,7 @@
 
 /* Emulations that are implemented (the rest are never offered to the client). */
 #define VKB_EMU_IMPLEMENTED (VKB_EMU_MAINT5 | VKB_EMU_CLIP_DISTANCE | VKB_EMU_CULL_DISTANCE | VKB_EMU_POINT_SIZE | VKB_EMU_BCN | \
-                             VKB_EMU_DIVISOR)
+                             VKB_EMU_DIVISOR | VKB_EMU_DEPTH_CLIP)
 
 #define VKB_EMU_BUCKETS 1024
 
@@ -63,6 +63,8 @@ void vkb_emu_bcn_buffer_usage(vkb_emu_device *e, VkBufferCreateInfo *ci);
 int vkb_emu_bcn_blocks_readback(vkb_emu_device *e, VkImage img);
 
 /* layer (server_emu_layer.c) */
+void vkb_emu_depth_clip_pipeline(vkb_emu_device *e, VkGraphicsPipelineCreateInfo *ci);
+void vkb_emu_depth_clip_install(vkb_srv_table *dev);
 vkb_emu_device *vkb_emu_cur(void);
 const vkb_dispatch *vkb_emu_real(void);
 void *vkb_emu_chain_take(const void *head, VkStructureType t);
