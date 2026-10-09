@@ -83,10 +83,10 @@ def main():
     selected.update(str(p.relative_to(here / 'overlay')) for p in (here / 'overlay').rglob('*') if p.is_file())
     inventories = [inventory(p, pin[1]) for p, pin in zip(archives, PINS)]
     out.mkdir(parents=True, exist_ok=True)
-    write(out, 'lxqt-r1.tsv.gz', inventories[0].values())
-    write(out, 'kde-remove.tsv.gz', [record for inv in inventories[1:3] for path, record in inv.items() if path in selected])
-    write(out, 'kde-keep.txt.gz', [path for inv in inventories[1:3] for path in inv])
-    write(out, 'emulators-keep.txt.gz', inventories[3])
+    write(out, 'lxqt-r1.tsv.gzip', inventories[0].values())
+    write(out, 'kde-remove.tsv.gzip', [record for inv in inventories[1:3] for path, record in inv.items() if path in selected])
+    write(out, 'kde-keep.txt.gzip', [path for inv in inventories[1:3] for path in inv])
+    write(out, 'emulators-keep.txt.gzip', inventories[3])
     (out / 'versions.txt').write_text('desktop-kde-r1\ndesktop-kde-r2\n')
     (out / 'sources.json').write_text(json.dumps({'archives': dict(PINS), 'desktopApplications': {n: h for n, h in packages.items() if n.rsplit('-', 3)[0] in seeds}}, indent=2) + '\n')
     for name, digest in PINS:

@@ -17,7 +17,7 @@ internal object DesktopRemoval {
         GZIPInputStream(context.assets.open("desktop-removal/$name")).bufferedReader().use { it.readLines() }
 
     private fun protected(context: Context, root: File) =
-        DesktopFileRemoval.runtimeFiles(root) + lines(context, "emulators-keep.txt.gz")
+        DesktopFileRemoval.runtimeFiles(root) + lines(context, "emulators-keep.txt.gzip")
 
     /** Called before a guest starts or just after KDE extraction; retries after a process death. */
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) {
@@ -25,11 +25,11 @@ internal object DesktopRemoval {
         if (FileUtils.readString(File(root, CLEANED))?.trim() == "1") return
         if (!File(root, CLEANING).exists() && !File(root, ".droiddeck-pkg-desktop").exists() && !File(root, "usr/bin/lxqt-session").exists()) return
         listener?.onProgress(context.getString(R.string.desktop_cleaning_legacy), -1)
-        val keep = protected(context, root) + lines(context, "kde-keep.txt.gz")
+        val keep = protected(context, root) + lines(context, "kde-keep.txt.gzip")
         val pending = File(root, CLEANING)
         FileUtils.writeString(pending, "1")
         check(FileUtils.readString(pending)?.trim() == "1") { "Could not reserve LXQt cleanup" }
-        val result = GZIPInputStream(context.assets.open("desktop-removal/lxqt-r1.tsv.gz")).bufferedReader().use { reader ->
+        val result = GZIPInputStream(context.assets.open("desktop-removal/lxqt-r1.tsv.gzip")).bufferedReader().use { reader ->
             DesktopFileRemoval.remove(root, reader.lineSequence().map(DesktopFileRemoval.Entry::parse).asIterable(), keep)
         }
         FileUtils.writeString(File(root, CLEANED), "1")
@@ -47,7 +47,7 @@ internal object DesktopRemoval {
         val versions = context.assets.open("desktop-removal/versions.txt").bufferedReader().use { it.readLines() }
         check(version in versions) { context.getString(R.string.desktop_removal_unknown) }
         // Validate all inventories and the runtime database before dropping the installed marker.
-        val entries = lines(context, "kde-remove.tsv.gz").map(DesktopFileRemoval.Entry::parse)
+        val entries = lines(context, "kde-remove.tsv.gzip").map(DesktopFileRemoval.Entry::parse)
         val keep = protected(context, root)
         cleanLegacy(context, listener)
         FileUtils.writeString(pending, version!!)
