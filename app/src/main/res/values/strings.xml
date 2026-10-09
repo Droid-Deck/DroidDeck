@@ -43,9 +43,7 @@
     <string name="hud_fg_failed">%1$s: engine failed</string>
     <string name="hud_fg_needs_lossless">%1$s: needs Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · starting</string>
-    <string name="added_games_import_hint">A folder with one subfolder per Windows game. Games you own on Steam use their Steam entries after Steam restarts; the rest become non-Steam shortcuts. With Second library on Automatic, Steam can install games into this folder too.</string>
     <string name="second_library_import_hint">Adds a Steam library and scans it for Windows games. Owned games use their Steam entries; the rest become non-Steam shortcuts.</string>
-    <string name="added_games_forget_hint">Forget removes the shortcuts next session. Files stay on disk.</string>
     <string name="game_env_title">Game environment</string>
     <string name="game_env_hint">Environment variables for Proton games.</string>
     <string name="game_env_edit">Edit</string>
@@ -305,16 +303,18 @@
     <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
     <string name="mode_steam_repair_queued">The Steam client will be downloaded again the next time Steam starts.</string>
     <string name="mode_steam_repair_button">Repair</string>
-    <string name="mode_added_games">Added games</string>
-    <string name="mode_added_none">no game folders with a .exe found</string>
-    <string name="mode_games_folder">Games folder</string>
-    <string name="mode_games_folder_another">Another games folder</string>
-    <string name="mode_added_art">Artwork from Steam</string>
-    <string name="mode_added_art_hint">Fills in missing art by folder name. Your own cover.jpg, hero.jpg, logo.png or icon.png in the game folder takes priority.</string>
-    <string name="mode_added_launches">Launches %1$s</string>
-    <string name="mode_added_launches_in">Launches %1$s · in %2$s</string>
-    <string name="mode_added_choose">Choose another file…</string>
-    <string name="mode_added_exe_note">Defaults to the .exe named after the folder, or else the largest.</string>
+    <string name="mode_added_art">Artwork</string>
+    <string name="mode_sgdb_key">SteamGridDB API key</string>
+    <string name="mode_sgdb_key_yours">Your key</string>
+    <string name="mode_sgdb_edit">Edit…</string>
+    <string name="mode_added_art_hint">Fills in missing art from Steam, then SteamGridDB. Your own cover.jpg, hero.jpg, logo.png or icon.png in the game folder takes priority.</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">Remove?</string>
+    <string name="games_add">Add game</string>
+    <string name="games_add_title">Add a game:</string>
+    <string name="games_pick_exe_title">Pick the exe:</string>
+    <string name="games_add_unreachable">This location is not available in the session</string>
+    <string name="mode_added_exe_check">Check this exe</string>
     <string name="wincomp_title">Windows components</string>
     <string name="wincomp_pad_hint">LB / RB jump between the sections.</string>
     <string name="wincomp_card_none">None</string>
@@ -1133,8 +1133,6 @@
     <string name="main_removing_named">Removing %1$s…</string>
     <string name="main_forgetting_named">Forgetting %1$s…</string>
     <string name="main_pick_game_storage">Choose the game storage folder</string>
-    <string name="main_pick_added_games">Choose a folder of your own games</string>
-    <string name="main_pick_game_exe">Choose the game\'s .exe</string>
     <string name="main_pick_decky_zip">Choose a Decky plugin ZIP</string>
     <string name="main_storage_not_usable">Not usable: %1$s</string>
     <!-- What is running, when it is a program without a known name -->
@@ -2120,4 +2118,37 @@
     <string name="stores_login_error_ssl">The connection to the sign-in page is not secure.</string>
     <string name="stores_login_error_verification">The sign-in could not be verified. Try again.</string>
     <string name="stores_login_error_generic">Sign-in failed. Try again.</string>
+    <string name="common_close">Close</string>
+    <string name="common_back">Back</string>
+    <string name="common_edit">Edit</string>
+    <string name="games_add_all">Add all games in this folder</string>
+    <string name="games_added_none">Nothing new in this folder</string>
+    <string name="edit_name">Name</string>
+    <string name="edit_target">Target</string>
+    <string name="edit_start_in">Start in</string>
+    <string name="edit_launch_options">Launch options</string>
+    <string name="edit_artwork">Artwork</string>
+    <string name="edit_other_exe">Other exe…</string>
+    <string name="edit_remove">Remove</string>
+    <string name="art_cover">Cover</string>
+    <string name="art_background">Background</string>
+    <string name="art_logo">Logo</string>
+    <string name="art_icon">Icon</string>
+    <string name="art_src_folder">Game folder</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">Your file</string>
+    <string name="art_src_exe">From the exe</string>
+    <string name="art_src_auto">Automatic</string>
+    <string name="art_pick_image">Pick image…</string>
+    <string name="art_pick_title">Pick an image: %1$s</string>
+    <string name="art_reset">Reset to automatic</string>
+    <plurals name="games_added_n">
+        <item quantity="one">%1$d game added</item>
+        <item quantity="other">%1$d games added</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="one">%1$d already in Games</item>
+        <item quantity="other">%1$d already in Games</item>
+    </plurals>
 </resources>

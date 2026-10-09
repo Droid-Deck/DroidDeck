@@ -625,6 +625,60 @@ object SessionPrefs {
         prefs(context).edit().putString("addedGamesDirs", dirs.distinct().joinToString("\n")).remove("addedGamesDir").apply()
     }
 
+    /**
+     * Game folders (by path) the user removed from the added games: a scan skips them, so they
+     * stay off the Games tab and out of Steam until restored. Nothing on disk is touched.
+     */
+    fun removedAddedGames(context: Context): List<String> =
+        (prefs(context).getString("removedAddedGames", "") ?: "").split('\n').filter { it.isNotEmpty() }
+
+    fun setAddedGameRemoved(context: Context, folderPath: String, removed: Boolean) {
+        synchronized(addedGameLock) {
+            val now = removedAddedGames(context).filter { it != folderPath } + listOfNotNull(folderPath.takeIf { removed })
+            prefs(context).edit().putString("removedAddedGames", now.joinToString("\n")).apply()
+        }
+    }
+
+    /** An added game's name as the user set it (in the app, or in Steam's Properties); "" = automatic. */
+    fun addedGameName(context: Context, folderPath: String): String = prefs(context).getString("addedName:$folderPath", "") ?: ""
+
+    fun setAddedGameName(context: Context, folderPath: String, name: String) {
+        prefs(context).edit().putString("addedName:$folderPath", name.trim()).apply()
+    }
+
+    /** An added game's Start in, as the session sees it; "" = the exe's own folder. */
+    fun addedGameStartIn(context: Context, folderPath: String): String = prefs(context).getString("addedStartIn:$folderPath", "") ?: ""
+
+    fun setAddedGameStartIn(context: Context, folderPath: String, guestDir: String) {
+        prefs(context).edit().putString("addedStartIn:$folderPath", guestDir.trim()).apply()
+    }
+
+    /** An added game's launch options, as Steam takes them ("-dx11", "VAR=1 %command%"). */
+    fun addedGameLaunch(context: Context, folderPath: String): String = prefs(context).getString("addedLaunch:$folderPath", "") ?: ""
+
+    fun setAddedGameLaunch(context: Context, folderPath: String, options: String) {
+        prefs(context).edit().putString("addedLaunch:$folderPath", options.trim()).apply()
+    }
+
+    /**
+     * The last value of [field] (AppName, StartDir, LaunchOptions) taken over from Steam's own
+     * Properties for this game, so the same Steam edit is not taken again over a later app edit.
+     */
+    fun addedGameAdopted(context: Context, folderPath: String, field: String): String? =
+        prefs(context).getString("addedAdopted:$field:$folderPath", null)
+
+    fun setAddedGameAdopted(context: Context, folderPath: String, field: String, value: String) {
+        prefs(context).edit().putString("addedAdopted:$field:$folderPath", value).apply()
+    }
+
+    /** Where an added game's art for [slot] comes from when the user chose it ("folder", "steam", "sgdb", "file"); "" = automatic. */
+    fun addedGameArtSource(context: Context, folderPath: String, slot: String): String =
+        prefs(context).getString("addedArt:$slot:$folderPath", "") ?: ""
+
+    fun setAddedGameArtSource(context: Context, folderPath: String, slot: String, source: String) {
+        prefs(context).edit().putString("addedArt:$slot:$folderPath", source).apply()
+    }
+
     /** Whether added games without art of their own get Steam's store art fetched for them. */
     fun addedGamesArt(context: Context): Boolean = prefs(context).getBoolean("addedGamesArt", true)
 
@@ -649,6 +703,10 @@ object SessionPrefs {
             if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
             unchanged
         }
+
+    /** The shortcut appid stored for the folder, or null before its first scan. */
+    fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
+        prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
 
     fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
         val p = prefs(context)
