@@ -33,7 +33,12 @@ object DownloadQueue {
     /** What a running job reports with. */
     class JobHandle internal constructor(val key: String, internal val cancelled: AtomicBoolean) {
         val isCancelled: Boolean get() = cancelled.get()
-        fun stage(stage: DownloadStage, detail: String = "") = update(key) { it.copy(stage = stage, detail = stripSpeed(detail).ifEmpty { it.detail }, state = DownloadState.RUNNING) }
+        /** Enters [stage] (a repeat of the current one only updates the line); a new stage starts its own count from zero. */
+        fun stage(stage: DownloadStage, detail: String = "") = enter(key, stage, stripSpeed(detail))
+        /** The active stage's own count outside Download: an amount (bytes or items) and, when it counts files, the files. */
+        fun stageProgress(done: Long, total: Long, items: Int = 0, itemsTotal: Int = 0) = update(key) {
+            it.copy(stageDone = done, stageTotal = total, stageItems = items, stageItemsTotal = itemsTotal)
+        }
         /**
          * Bytes so far (negative = unchanged), the total (<= 0 = unchanged), a line. [speedBps] is the
          * engine's own figure: a burst rate at the network side, which jumps while the write side
@@ -47,12 +52,37 @@ object DownloadQueue {
     /** "Downloading: data.pak  12.3 MB/s" → "Downloading: data.pak": the engine's burst rate is not shown twice. */
     private fun stripSpeed(s: String): String = s.replace(Regex("\\s+\\S+ [KMG]B/s\\s*$"), "").trimEnd()
 
+    private fun enter(key: String, stage: DownloadStage, detail: String) {
+        synchronized(lock) {
+            val item = items[key] ?: return
+            transitionLocked(item, stage)
+            item.entry = item.entry.copy(detail = detail.ifEmpty { item.entry.detail }, state = DownloadState.RUNNING)
+            publishLocked()
+        }
+    }
+
+    /**
+     * Moves an item to [stage] when it is elsewhere: the old stage is marked passed, the new one
+     * counts from zero, and the measured speed is cleared - the next stage writes or checks, it
+     * does not fetch, and a stale rate there would read as a download. Caller holds [lock].
+     */
+    private fun transitionLocked(item: Item, stage: DownloadStage) {
+        val e = item.entry
+        if (e.stage == stage) return
+        item.speedAt = 0L; item.speedBytes = 0L; item.speedEwma = 0.0
+        item.entry = e.copy(
+            stage = stage, stagesPassed = e.stagesPassed or (1 shl e.stage.ordinal), speedBps = 0, etaSeconds = -1,
+            stageDone = 0, stageTotal = 0, stageItems = 0, stageItemsTotal = 0,
+        )
+    }
+
     /** How far back the shown speed looks: a few seconds, so the figure settles instead of following each file. */
     private const val SPEED_WINDOW_MS = 3000.0
 
     private fun measure(key: String, bytesDone: Long, bytesTotal: Long, detail: String?) {
         synchronized(lock) {
             val item = items[key] ?: return
+            transitionLocked(item, DownloadStage.DOWNLOAD)
             val e = item.entry
             val done = if (bytesDone >= 0) bytesDone else e.bytesDone
             val total = if (bytesTotal > 0) bytesTotal else e.bytesTotal

@@ -43,15 +43,31 @@ data class DownloadEntry(
     val startedAt: Long = 0L,
     /** Where it is going: the install target's name ("Internal storage", the card's name). */
     val location: String = "",
+    /**
+     * The active stage's own progress outside Download (which runs on [bytesDone]/[bytesTotal]):
+     * an amount ([stageDone] of [stageTotal], bytes or items) and, when it counts files, [stageItems]
+     * of [stageItemsTotal]. Reset when the stage changes.
+     */
+    val stageDone: Long = 0L,
+    val stageTotal: Long = 0L,
+    val stageItems: Int = 0,
+    val stageItemsTotal: Int = 0,
+    /** Stages already passed, one bit per [DownloadStage] ordinal; stages can come back (Epic checks files before it fetches). */
+    val stagesPassed: Int = 0,
 ) {
+    fun passed(s: DownloadStage): Boolean = state == DownloadState.INSTALLED || (stagesPassed and (1 shl s.ordinal)) != 0
+
     val key: String get() = "${store.id}:$id"
     val isActive: Boolean get() = state == DownloadState.QUEUED || state == DownloadState.RUNNING || state == DownloadState.PAUSED
-    /** 0..1 for the bar: the byte fraction while downloading, full once past it. */
-    val fraction: Float get() = when {
-        state == DownloadState.INSTALLED -> 1f
-        stage == DownloadStage.VERIFY || stage == DownloadStage.INSTALL || stage == DownloadStage.DONE -> 1f
-        bytesTotal > 0L -> (bytesDone.toDouble() / bytesTotal).toFloat().coerceIn(0f, 1f)
-        else -> 0f
+    /** The active stage's progress, 0..1, or -1 while it has nothing to count yet. */
+    val stageFraction: Float get() = when {
+        state == DownloadState.INSTALLED || stage == DownloadStage.DONE -> 1f
+        stage == DownloadStage.DOWNLOAD -> if (bytesTotal > 0L) (bytesDone.toDouble() / bytesTotal).toFloat().coerceIn(0f, 1f) else -1f
+        stageTotal > 0L -> (stageDone.toDouble() / stageTotal).toFloat().coerceIn(0f, 1f)
+        stageItemsTotal > 0 -> (stageItems.toFloat() / stageItemsTotal).coerceIn(0f, 1f)
+        else -> -1f
     }
+    /** 0..1 for a single bar (a card, the game page): the active stage's progress. */
+    val fraction: Float get() = stageFraction.coerceAtLeast(0f)
     val percent: Int get() = (fraction * 100).toInt()
 }

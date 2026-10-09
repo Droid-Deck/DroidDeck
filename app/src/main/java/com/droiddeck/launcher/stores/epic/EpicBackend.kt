@@ -127,6 +127,10 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                 }
                 override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
                 override fun onLog(line: String) { handle.log(line) }
+                override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                    handle.stage(if (stage == "verify") DownloadStage.VERIFY else DownloadStage.INSTALL)
+                    handle.stageProgress(done, total, items, itemsTotal)
+                }
             }) ?: return null
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL, "Registering with Steam…")

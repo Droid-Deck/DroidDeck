@@ -57,7 +57,8 @@ class StoreDownloadService : Service() {
         val title = if (active.size > 1) getString(R.string.stores_notification_many, active.size) else getString(R.string.stores_notification_one)
         val text = when {
             first == null -> getString(R.string.stores_notification_waiting)
-            first.bytesTotal > 0 -> "${first.name} · ${first.percent}% (${formatBytes(first.bytesDone)} / ${formatBytes(first.bytesTotal)})"
+            first.stage == com.droiddeck.launcher.stores.download.DownloadStage.DOWNLOAD && first.bytesTotal > 0 -> "${first.name} · ${first.percent}% (${formatBytes(first.bytesDone)} / ${formatBytes(first.bytesTotal)})"
+            first.stageFraction >= 0f -> "${first.name} · ${first.percent}%"
             else -> first.name
         }
         val tap = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)

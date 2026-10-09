@@ -56,6 +56,12 @@ public final class EpicDownloadManager {
         void onProgress(String message, int pct);
         default void onBytes(long done, long total, long speedBps) {}
         default void onLog(String line) {}
+        /**
+         * The active stage's own count: {@code stage} is "verify" or "install", {@code done} of
+         * {@code total} an amount (bytes, or items when there are no bytes), {@code items} of
+         * {@code itemsTotal} the files, when it counts files.
+         */
+        default void onStage(String stage, long done, long total, int items, int itemsTotal) {}
     }
 
     private EpicDownloadManager() {}
@@ -154,11 +160,15 @@ public final class EpicDownloadManager {
             cb.onProgress("Verifying existing files…", 0);
             List<FileInfo> pending = new ArrayList<>(selected.size());
             int checked = 0, good = 0;
+            long checkedBytes = 0;
+            cb.onStage("verify", 0, installBytes, 0, selected.size());
             for (FileInfo f : selected) {
                 if (cancel.get()) return null;
                 File out = new File(installDir, f.filename.replace("\\", "/"));
                 if (fileExistsWithCorrectHash(out, f.fileSize(), f.sha1)) good++; else pending.add(f);
                 checked++;
+                checkedBytes += f.fileSize();
+                if ((checked & 15) == 0 || checked == selected.size()) cb.onStage("verify", checkedBytes, installBytes, checked, selected.size());
                 if ((checked & 63) == 0) cb.onProgress("Verifying existing files… (" + checked + "/" + selected.size() + ")", 0);
             }
             cb.onLog("epic: delta " + good + " up to date, " + pending.size() + " to download");
@@ -256,6 +266,8 @@ public final class EpicDownloadManager {
                 cb.onLog("epic: assembler not started (" + r.error + "); writing the files here");
             }
             int totalFiles = pending.size(), doneFiles = 0;
+            long writtenBytes = 0, writeTotal = 0;
+            for (FileInfo f : pending) writeTotal += f.fileSize();
             for (FileInfo file : pending) {
                 if (cancel.get()) return null;
                 String relPath = file.filename.replace("\\", "/");
@@ -272,6 +284,8 @@ public final class EpicDownloadManager {
                     }
                 }
                 doneFiles++;
+                writtenBytes += file.fileSize();
+                cb.onStage("install", writtenBytes, writeTotal, doneFiles, totalFiles);
             }
             deleteDir(chunkCacheDir);
             cb.onProgress("Complete", 100);
@@ -341,6 +355,7 @@ public final class EpicDownloadManager {
             EpicNative.Result res = EpicNative.assemble(manifestBytes, installDirPath, cachePath, pendingIdx, cancel, new EpicNative.Listener() {
                 @Override public void onPlan(int chunksTotal, long bytesTotal, String chunkDir) {}
                 @Override public void onProgress(long bytesDone, long bytesTotal, int done, int total) {
+                    cb.onStage("install", bytesDone, bytesTotal, done, Math.max(total, totalFiles));
                     cb.onProgress("Writing files (" + done + "/" + Math.max(total, totalFiles) + ")", 80 + (int) (done * 20L / Math.max(1, Math.max(total, totalFiles))));
                 }
                 @Override public void onLog(String line) { cb.onLog(line); }

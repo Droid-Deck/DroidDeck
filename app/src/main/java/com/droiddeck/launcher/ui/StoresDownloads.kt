@@ -100,11 +100,7 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                     SourceChip(d.store.id, small = true)
                     if (d.location.isNotBlank()) Text(d.location, fontSize = 11.sp, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (!narrow) Stages(d)
-                ProgressBarThin(
-                    if (d.state == DownloadState.INSTALLED) 1f else d.fraction, paused = d.state == DownloadState.PAUSED,
-                    verify = d.stage == DownloadStage.VERIFY, height = 6.dp, done = d.state == DownloadState.INSTALLED,
-                )
+                StageBar(d)
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     val meta = when (d.state) {
                         DownloadState.INSTALLED -> stringResource(R.string.stores_installed_chip)
@@ -112,13 +108,17 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                         DownloadState.FAILED -> d.error?.let { stringResource(R.string.stores_dl_failed_reason, it) } ?: stringResource(R.string.stores_dl_failed)
                         DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
                         DownloadState.QUEUED -> if (d.queuePosition > 0) stringResource(R.string.stores_dl_queued_at, d.queuePosition) else stringResource(R.string.stores_dl_queued)
-                        DownloadState.RUNNING -> when {
-                            d.stage == DownloadStage.DOWNLOAD && d.bytesTotal > 0 -> stringResource(R.string.stores_dl_bytes, formatBytes(d.bytesDone), formatBytes(d.bytesTotal), d.percent)
-                            else -> stageLabel(d.stage)
+                        DownloadState.RUNNING -> {
+                            val head = if (d.stageFraction >= 0f) stringResource(R.string.stores_dl_active_percent, activeStageLabel(d.stage), d.percent) else activeStageLabel(d.stage)
+                            when {
+                                d.stage == DownloadStage.DOWNLOAD && d.bytesTotal > 0 -> stringResource(R.string.stores_dl_with, head, stringResource(R.string.stores_dl_amount, formatBytes(d.bytesDone), formatBytes(d.bytesTotal)))
+                                d.stageItemsTotal > 0 -> stringResource(R.string.stores_dl_with, head, stringResource(R.string.stores_dl_items, d.stageItems, d.stageItemsTotal))
+                                else -> head
+                            }
                         }
                     }
                     Text(meta, fontSize = 12.sp, color = dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (d.state == DownloadState.RUNNING && d.speedBps > 0) {
+                    if (d.state == DownloadState.RUNNING && d.stage == DownloadStage.DOWNLOAD && d.speedBps > 0) {
                         Text(formatSpeed(d.speedBps), fontSize = 12.sp, color = dim, maxLines = 1)
                         if (d.etaSeconds >= 0) Text(eta(d.etaSeconds), fontSize = 12.sp, color = dim, maxLines = 1)
                     }
@@ -150,22 +150,38 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
     }
 }
 
-/** Manifest → Download → Verify → Install → Done, the one under way lit, the ones behind it green. */
+/**
+ * One segment per stage - Manifest, Download, Verify, Install - equal widths: a passed stage full, the
+ * active one filling with its own progress (a sliver while it has nothing to count), the rest empty.
+ */
 @Composable
-private fun Stages(d: DownloadEntry) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        for (stage in DownloadStage.entries) {
-            val passed = d.state == DownloadState.INSTALLED || stage.ordinal < d.stage.ordinal
-            val on = d.state == DownloadState.RUNNING && stage == d.stage
-            Text(
-                stageLabel(stage), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                color = when { on -> pal.signal; passed -> pal.good; else -> colors.onSurfaceVariant },
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if (on) pal.signal.copy(alpha = 0.18f) else colors.surfaceVariant).padding(horizontal = 6.dp, vertical = 2.dp),
-            )
+private fun StageBar(d: DownloadEntry) {
+    val stages = listOf(DownloadStage.MANIFEST, DownloadStage.DOWNLOAD, DownloadStage.VERIFY, DownloadStage.INSTALL)
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.fillMaxWidth()) {
+        for (st in stages) {
+            val active = d.state != DownloadState.INSTALLED && d.stage == st
+            val fill = when {
+                active -> d.stageFraction.let { if (it < 0f) 0.04f else it }
+                d.passed(st) || d.stage == DownloadStage.DONE -> 1f
+                else -> 0f
+            }
+            Box(Modifier.weight(1f)) {
+                ProgressBarThin(
+                    fill, paused = active && d.state == DownloadState.PAUSED, verify = active && st == DownloadStage.VERIFY,
+                    height = 6.dp, done = !active && fill >= 1f,
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun activeStageLabel(stage: DownloadStage): String = when (stage) {
+    DownloadStage.MANIFEST -> stringResource(R.string.stores_stage_manifest)
+    DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_downloading)
+    DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verifying)
+    DownloadStage.INSTALL -> stringResource(R.string.stores_stage_installing)
+    DownloadStage.DONE -> stringResource(R.string.stores_stage_done)
 }
 
 private fun eta(seconds: Long): String = when {

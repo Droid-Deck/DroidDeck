@@ -135,6 +135,13 @@ without it and Setup says "Stores engine not built").
   when installed, Resume, the download percentage, the install size, or Free / price / discount.
   A thin bar over the art while downloading. Install, Resume, Uninstall, Get and Buy live on the
   game page; A on a card opens it.
+- **Per-stage progress** (device: Epic DOOMBLADE, 13 GB, ~3 min of assembly with a still bar). The
+  entry carries the active stage's own count (amount + files) and which stages are passed; the
+  Downloads row draws one segment per stage (Manifest, Download, Verify, Install), and its line
+  reads e.g. "Installing 42% · 120/515 files" (speed and ETA only during Download). Fed by Epic's
+  verify pass, its native and fallback assembly, and GOG's chunk-cache removal; Amazon writes while
+  it downloads and has no long stage after it. Leaving Download clears the measured speed. Cards
+  and the game page follow the active stage's percent.
 - **The art is the card** (maintainer feedback): a store card is its art edge to edge, sharp above
   and, under the one line, a blurred and darkened copy of the same picture (blur on API 31+, a
   stronger scrim below it). A Downloads row is the game's wide art cropped to the row with a dark

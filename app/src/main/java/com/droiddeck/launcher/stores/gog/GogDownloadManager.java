@@ -62,6 +62,13 @@ public final class GogDownloadManager {
         default void onBytes(long done, long total, long speedBps) {}
         /** A diagnostic line for the engine log. */
         default void onLog(String line) {}
+        /**
+         * The active stage's own count: {@code stage} is "verify" or "install", {@code done} of
+         * {@code total} an amount (bytes, or items when there are no bytes), {@code items} of
+         * {@code itemsTotal} the files, when it counts files.
+         */
+        default void onStage(String stage, long done, long total, int items, int itemsTotal) {}
+
     }
 
     /** What an install leaves behind for the sidecar. */
@@ -245,7 +252,7 @@ public final class GogDownloadManager {
 
             cb.onProgress("Finishing…", 96);
             writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"buildId\":\"" + gm.buildId + "\"}").getBytes("UTF-8"));
-            deleteDir(new File(installPath, ".gog_chunks"));
+            deleteCounted(new File(installPath, ".gog_chunks"), cb);
             String clientId = manifest.optString("clientId", null);
             if (clientId != null && !clientId.isEmpty()) GogPrefs.get(ctx).edit().putString("client_id_" + game.gameId, clientId).apply();
             out.result = new Result(pickExe(installPath, tempExe, game.title), gm.buildId, planned);
@@ -886,6 +893,19 @@ public final class GogDownloadManager {
 
     private static void writeFile(File f, byte[] data) throws IOException {
         try (FileOutputStream fos = new FileOutputStream(f)) { fos.write(data); }
+    }
+
+    /** Removes the chunk cache, counting its files as the Install stage's progress (a large cache takes a while). */
+    private static void deleteCounted(File dir, Callback cb) {
+        File[] files = dir.listFiles();
+        if (files == null) { dir.delete(); return; }
+        int total = files.length, done = 0;
+        for (File f : files) {
+            deleteDir(f);
+            done++;
+            if ((done & 31) == 0 || done == total) cb.onStage("install", done, total, done, total);
+        }
+        dir.delete();
     }
 
     static void deleteDir(File dir) {
