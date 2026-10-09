@@ -69,12 +69,16 @@ object StoreLaunchRequests {
                 val store = Store.byId(request.optString("store"))
                 val id = request.optString("id")
                 if (store == null || id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-game")
-                else CloudSaves.downloadOrDefer(app, store, id).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }
+                else {
+                    // Marked before the game runs: whatever ends it, an upload follows (CloudSaves.uploadDirty).
+                    CloudSaves.markDirty(app, store, id)
+                    CloudSaves.downloadOrDefer(app, store, id).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }
+                }
             }
             "cloud-up" -> {
                 val store = Store.byId(request.optString("store"))
                 val id = request.optString("id")
-                if (store != null && id.isNotEmpty()) Thread({ CloudSaves.upload(app, store, id) }, "cloud-up").start()
+                if (store != null && id.isNotEmpty()) Thread({ CloudSaves.uploadDirty(app, store, id, "exit") }, "cloud-up").start()
                 JSONObject().put("ok", true)
             }
             // A browser a game opens inside the session (an EOS device sign-in, a store page):

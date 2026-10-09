@@ -315,6 +315,49 @@ object CloudSaves {
         return Result("ok", send.size, send.sumOf { files.getValue(it).length() }, if (send.isEmpty()) "up-to-date" else "uploaded", left.size)
     }
 
+    // ---- uploads that do not depend on one hook ---------------------------------------------------
+
+    /**
+     * A game launched with cloud saves is marked dirty in the app's storage when its pre-launch step
+     * runs. The upload happens on the first of: the compat tool's exit request (`exit`), the end of
+     * the session (`session-end`), or the app's next start for a mark a killed app left (`recovery`)
+     * - so a session closed from the drawer, a game Steam killed, or a crash still uploads. The mark
+     * goes only after an upload that went through, or one skipped on purpose with its reason logged.
+     */
+    private fun marks(context: Context) = context.applicationContext.getSharedPreferences("stores.cloud", Context.MODE_PRIVATE)
+
+    fun markDirty(context: Context, store: Store, id: String) {
+        marks(context).edit().putLong("dirty:${store.id}:$id", System.currentTimeMillis()).apply()
+    }
+
+    fun dirty(context: Context): List<Pair<Store, String>> = marks(context).all.keys.mapNotNull { k ->
+        val parts = k.split(':', limit = 3)
+        if (parts.size == 3 && parts[0] == "dirty") Store.byId(parts[1])?.let { it to parts[2] } else null
+    }
+
+    private val markLock = Any()
+
+    /** Why a skip is final: retrying cannot change it, so the mark goes. */
+    private val FINAL_SKIPS = setOf("off", "no-cloud-saves", "no-baseline", "not-installed", "nothing-local")
+
+    /** Uploads [id] if it is marked dirty; null when it is not (another trigger got there first). */
+    fun uploadDirty(context: Context, store: Store, id: String, trigger: String): Result? = synchronized(markLock) {
+        val key = "dirty:${store.id}:$id"
+        if (!marks(context).contains(key)) return null
+        val r = sync(context, store, id, "up trigger=$trigger") { dir, cloud -> upWith(context, store, id, dir, cloud, force = false) }
+        if (r.result == "ok" || (r.result == "skipped" && r.reason in FINAL_SKIPS)) marks(context).edit().remove(key).apply()
+        r
+    }
+
+    /**
+     * Every dirty game, uploaded; [running] says a game session is up, in which case `recovery` waits
+     * - a marked game may be the one running.
+     */
+    fun uploadAllDirty(context: Context, trigger: String, running: Boolean = com.droiddeck.launcher.session.SessionState.running) {
+        if (trigger == "recovery" && running) return
+        for ((store, id) in dirty(context)) uploadDirty(context, store, id, trigger)
+    }
+
     private fun backupRoot(context: Context, store: Store, id: String) =
         File(context.filesDir, "stores/cloud-backups/${store.id}-${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
 

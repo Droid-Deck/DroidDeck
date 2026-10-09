@@ -2098,6 +2098,11 @@
     <string name="stores_notification_one">Downloading</string>
     <string name="stores_notification_many">%1$d downloads</string>
     <string name="stores_notification_waiting">Preparing…</string>
+    <string name="stores_notification_done_channel">Finished store downloads</string>
+    <string name="stores_notification_installed">%1$s installed</string>
+    <string name="stores_notification_failed">%1$s download failed</string>
+    <string name="stores_notification_delete">Delete</string>
+    <string name="stores_notification_keep">Keep</string>
     <string name="stores_login_title">Sign in to %1$s</string>
     <string name="stores_login_provider_title">Sign in with your provider</string>
     <string name="stores_login_reload">Reload</string>

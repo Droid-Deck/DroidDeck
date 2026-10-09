@@ -170,6 +170,23 @@ object StoresState {
         }, "stores-signout").start()
     }
 
+    /** A notification asked for the Downloads chip; the Stores page takes it and clears it. */
+    var openDownloads by mutableStateOf(false)
+
+    /**
+     * Android 13+: notifications need permission. Asked once, the first time a download starts from
+     * a screen; refused, downloads still run, without their notification.
+     */
+    private fun askForNotifications(context: Context) {
+        val activity = context as? android.app.Activity ?: return
+        if (android.os.Build.VERSION.SDK_INT < 33) return
+        if (activity.checkSelfPermission("android.permission.POST_NOTIFICATIONS") == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        val p = activity.getSharedPreferences("stores", Context.MODE_PRIVATE)
+        if (p.getBoolean("asked_notifications", false)) return
+        p.edit().putBoolean("asked_notifications", true).apply()
+        runCatching { activity.requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 7102) }
+    }
+
     /** An install waiting for the user to say where: the page shows the choice while this is set. */
     var pendingInstall by mutableStateOf<CatalogItem?>(null)
 
@@ -179,6 +196,7 @@ object StoresState {
      * storage at once.
      */
     fun requestInstall(context: Context, item: CatalogItem) {
+        askForNotifications(context)
         // A resume goes where the files already are; there is nothing to choose.
         if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
@@ -229,6 +247,9 @@ object StoresState {
         // The EOS overlay an earlier build downloaded (656 MB) is gone with the feature.
         val overlay = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.local/share/droiddeck/epic-overlay")
         if (overlay.exists()) Thread({ overlay.deleteRecursively(); Log.i(TAG, "removed the old EOS overlay download") }, "epic-overlay-cleanup").start()
+        // Cloud saves a killed app never uploaded; not while a session (and maybe that game) runs.
+        val app = context.applicationContext
+        Thread({ CloudSaves.uploadAllDirty(app, "recovery") }, "cloud-recovery").start()
     }
 
     internal fun post(block: () -> Unit) = main.post(block)

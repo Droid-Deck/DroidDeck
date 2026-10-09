@@ -150,6 +150,16 @@ without it and Setup says "Stores engine not built").
   native start takes the whole set (`cdnBases`; the engine spreads its window across the hosts) and
   its `onBytes` - every 250 ms, including files still in flight - drives the bar and the speed, so a
   large file no longer moves the bar in one jump.
+- **Background downloads:** while a download runs the service holds a Wi-Fi lock and a partial wake
+  lock (timed, renewed with the progress, released when nothing runs). The notification shows a
+  real progress bar and "<game> · 42% · 1.2 GB/2.5 GB · 12.3 MB/s · 3 min" (the stage while
+  installing), with Pause / Resume and a two-step Cancel (Delete / Keep, ten seconds); a paused
+  download leaves a notice to resume from; "<game> installed" opens it in Games, "<game> download
+  failed" opens Downloads. Notifications are asked for once on Android 13+. The Android 15 dataSync
+  time limit (and its `onTimeout`) applies only to apps targeting 35+: this app targets 28 and
+  compiles against 34, so there is nothing to handle yet.
+- **Cloud uploads do not depend on the exit hook:** a dirty mark per game launch; uploaded on the
+  first of exit request, session end, or the next app start (`trigger=exit|session-end|recovery`).
 - **Cloud saves, device round 1 (ELDERBORN, `b323a0b`): nothing ran** - a GOG game without arguments
   gets no launcher .bat, Steam runs its exe, and `droiddeck-store-launch` only recognised the .bat.
   It now recognises the exe too (searching the folders above it for the sidecar), and every path

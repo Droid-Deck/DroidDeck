@@ -135,6 +135,8 @@ class FrontEndState(
     val gameStoresSpeedTier: String = "fast",
     /** Setup › Stores: the tab a signed-in store opens on (SessionPrefs.STORES_OPEN_LIBRARY / STORE). */
     val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
+    /** A page to open once: "stores:downloads", or a selection such as "app:<id>" (a notification's tap). */
+    val navigate: String? = null,
     val storesShowMature: Boolean = false,
     /** Downloads queued, running or paused across the three stores; the rail item's badge. */
     val storeDownloadsActive: Int = 0,
@@ -191,6 +193,7 @@ class FrontEndActions(
     val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onStoresOpenTab: (String) -> Unit = {},
+    val onNavigated: () -> Unit = {},
     val onStoresShowMature: (Boolean) -> Unit = {},
     /** The Games list rebuilt now: a store install or removal changed what is on disk. */
     val onLibraryChanged: () -> Unit = {},
@@ -371,6 +374,11 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
 private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
     var selected by rememberSaveable { mutableStateOf(if (s.shortcutPicker) "games" else "steam") }
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
+    LaunchedEffect(s.navigate) {
+        val target = s.navigate ?: return@LaunchedEffect
+        if (target == "stores:downloads") { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" } else selected = target
+        a.onNavigated()
+    }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }

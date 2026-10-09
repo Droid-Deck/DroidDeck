@@ -154,6 +154,12 @@ the prefix's user folder appears, within a minute. Every path logs
   to 15 s; for a store game with cloud saves it returns 10, and the compat tool then waits for
   Proton instead of exec'ing it and runs `droiddeck-store-launch --exited` after, which asks for
   `cloud-up` without waiting. Each sync logs `cloud <store> <id> down|up files= bytes= result=`.
+- **Uploads that do not depend on one hook:** the pre-launch step marks the game dirty in the app's
+  storage; the upload runs on the first of the compat tool's exit request (`trigger=exit`), the
+  session's end (`trigger=session-end`, after teardown, reading the prefix directly) or the app's
+  next start for a mark a killed app left (`trigger=recovery`, not while a session runs). The mark
+  goes only after an upload that went through or a final skip (off, no cloud saves, no baseline,
+  not installed, nothing local).
 - **Per game:** the store card in the Games tab's launch settings has "Cloud saves" (on), kept in the
   sidecar (`"cloud"`) and read by both sides; Manage saves shows the last sync with Upload and
   Download, or "No cloud saves".

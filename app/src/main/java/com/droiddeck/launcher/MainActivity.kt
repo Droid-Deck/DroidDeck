@@ -167,6 +167,8 @@ class MainActivity : ComponentActivity() {
     private var gameStoresEnabled by mutableStateOf(false)
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
+    /** A page a notification asked for ("stores:downloads", "app:<id>"), until the front end has gone there. */
+    private var navRequest by mutableStateOf<String?>(null)
     private var storesShowMature by mutableStateOf(false)
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
@@ -441,6 +443,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun readGameIntent(request: Intent) {
+        request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
         if (shortcutPicker) {
             // The shortcut picker must only offer games from the scan started for this request.
@@ -587,6 +590,7 @@ class MainActivity : ComponentActivity() {
                         gameStoresEnabled = gameStoresEnabled,
                         gameStoresSpeedTier = gameStoresSpeedTier,
                         storesOpenTab = storesOpenTab,
+                        navigate = navRequest,
                         storesShowMature = storesShowMature,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
@@ -719,6 +723,7 @@ class MainActivity : ComponentActivity() {
                         onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on; if (on) com.droiddeck.launcher.stores.StoresState.refresh(this) },
                         onGameStoresSpeedTier = { tier -> SessionPrefs.setGameStoresSpeedTier(this, tier); gameStoresSpeedTier = tier },
                         onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
+                        onNavigated = { navRequest = null },
                         onStoresShowMature = { show -> SessionPrefs.setStoresShowMature(this, show); storesShowMature = show },
                         onLibraryChanged = { refreshAddedGames(); refresh() },
                         onAnimationsEnabled = { on ->

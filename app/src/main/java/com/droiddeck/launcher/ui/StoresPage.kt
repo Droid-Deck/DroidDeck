@@ -108,6 +108,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     var query by rememberSaveable { mutableStateOf("") }
     var openGame by rememberSaveable { mutableStateOf<String?>(null) }
     var settings by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(StoresState.openDownloads) { if (StoresState.openDownloads) { chip = DOWNLOADS; StoresState.openDownloads = false } }
     val store = Store.byId(chip)
     // A tab this store does not have (Store or All on Amazon) reads as Library.
     val shownTab = tabFor(store, tab)

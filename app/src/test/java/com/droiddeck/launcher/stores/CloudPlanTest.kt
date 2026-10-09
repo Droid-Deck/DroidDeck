@@ -6,8 +6,13 @@ import com.droiddeck.launcher.stores.CloudPlan.Remote
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
-/** The rules that keep a cloud sync from replacing real saves. */
+/** The rules that keep a cloud sync from replacing real saves. (Robolectric for org.json.) */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class CloudPlanTest {
     @Test fun noUploadBeforeADownloadHasSetTheBaseline() {
         val plan = CloudPlan.up(mapOf("slot0.sav" to Local("new")), mapOf("slot0.sav" to Remote("real", 1000)), null)

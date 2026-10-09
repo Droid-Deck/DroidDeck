@@ -353,8 +353,15 @@ object DownloadQueue {
                 StoresState.logLine("installed \"${item.entry.name}\" → ${result}")
                 // The folder is on disk and registered: the Installed tab and the Games list follow.
                 StoresState.notifyLibraryChanged(context)
+                val games = runCatching {
+                    com.droiddeck.launcher.frontend.Library.launchableGames(context).firstOrNull { it.gameFiles?.absolutePath == result }?.let { "app:${it.appId}" }
+                }.getOrNull()
+                StoreDownloadService.ended(context, item.entry, installed = true, gamesKey = games)
             }
-            DownloadState.FAILED -> StoresState.logLine("${item.entry.store.label}: \"${item.entry.name}\" failed: $error")
+            DownloadState.FAILED -> {
+                StoresState.logLine("${item.entry.store.label}: \"${item.entry.name}\" failed: $error")
+                StoreDownloadService.ended(context, item.entry, installed = false, gamesKey = null)
+            }
             DownloadState.CANCELLED -> StoresState.notifyLibraryChanged(context)
             else -> {}
         }
