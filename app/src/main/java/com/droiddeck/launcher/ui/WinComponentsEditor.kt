@@ -96,6 +96,7 @@ internal fun WinComponentsDialog(
     // pad, so the d-pad always has somewhere to start; LB and RB jump between the sections, since
     // the full list runs past sixty switches.
     val recFocus = remember { FocusRequester() }
+    val activeFocus = remember { FocusRequester() }
     val allFocus = remember { FocusRequester() }
     val waitFocus = remember { FocusRequester() }
     val doneFocus = remember { FocusRequester() }
@@ -160,14 +161,18 @@ internal fun WinComponentsDialog(
     val recIds = if (all == null) emptyList() else recommended.distinctBy { installable(it.componentName, all) }
     val ready = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.READY }.map { it.name }
     val extra = (installed + picks).filter { all?.containsKey(it) != true }
-    // The ones turned on for this game first, in their usual order among themselves, so what the
-    // game uses is in view; turning one off drops it back to its place in the alphabet.
-    val list = (ready + extra).distinct().sortedWith(compareBy({ it !in picks }, { WinComponentNames.of(it).lowercase() }))
+    // What is turned on for this game gets its own section under the recommendations, which stay
+    // where they are; the rest of the list is everything else, so a component turned off goes back
+    // to its place in the alphabet.
+    val recSet = recIds.map { installable(it.componentName, all.orEmpty()) }.toSet()
+    val active = picks.filter { it !in recSet && (all?.containsKey(it) == true || it in installed) }.distinct()
+        .sortedBy { WinComponentNames.of(it).lowercase() }
+    val list = (ready + extra).distinct().filter { it !in active }.sortedBy { WinComponentNames.of(it).lowercase() }
     val waiting = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.NEEDS_INSTALLER }
         .map { it.name }.sortedBy { WinComponentNames.of(it).lowercase() }
     val hasRec = all != null && recIds.any { supportOf(installable(it.componentName, all)) == Support.READY }
-    val sections = listOfNotNull(recFocus.takeIf { hasRec }, allFocus.takeIf { list.isNotEmpty() },
-        waitFocus.takeIf { waiting.isNotEmpty() }, doneFocus)
+    val sections = listOfNotNull(recFocus.takeIf { hasRec }, activeFocus.takeIf { active.isNotEmpty() },
+        allFocus.takeIf { list.isNotEmpty() }, waitFocus.takeIf { waiting.isNotEmpty() }, doneFocus)
     var section by remember { mutableStateOf(0) }
     fun jump(step: Int) {
         section = (section + step + sections.size) % sections.size
@@ -184,7 +189,7 @@ internal fun WinComponentsDialog(
             withFrameNanos { }
             runCatching { target.requestFocus() }
             withFrameNanos { }
-            if (switchFocused || (target !== recFocus && target !== allFocus)) return@LaunchedEffect
+            if (switchFocused || (target !== recFocus && target !== activeFocus && target !== allFocus)) return@LaunchedEffect
         }
     }
 
@@ -255,6 +260,11 @@ internal fun WinComponentsDialog(
             }
         } else if (all != null && gameDir != null) Small(stringResource(R.string.wincomp_no_recommendation))
 
+        if (active.isNotEmpty()) {
+            Section(stringResource(R.string.wincomp_active, active.size))
+            val focusOf = firstUsable(active, activeFocus)
+            Panel { active.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
+        }
         if (list.isNotEmpty()) {
             Section(stringResource(R.string.wincomp_all, list.size))
             val focusOf = firstUsable(list, allFocus)
