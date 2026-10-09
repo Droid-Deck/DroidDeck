@@ -1525,6 +1525,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">Hidden</string>
     <string name="ctrl_editor_drag">Drag to move</string>
+    <string name="ctrl_editor_snap">Snap</string>
     <string name="ctrl_editor_save">Save</string>
     <!-- What the second screen shows during a session -->
     <string name="second_mode_none">None</string>

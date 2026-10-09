@@ -1558,6 +1558,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">非表示</string>
     <string name="ctrl_editor_drag">ドラッグして移動</string>
+    <string name="ctrl_editor_snap">スナップ</string>
     <string name="ctrl_editor_save">保存</string>
 
     <!-- What the second screen shows during a session -->
