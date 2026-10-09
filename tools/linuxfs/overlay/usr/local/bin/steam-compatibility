@@ -347,6 +347,16 @@ for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
     esac
   fi
 done
+# ld.so looks every library up along the game's search path (its own directory, Steam's runtime
+# and video directories, Proton's), and under proot each miss is a round trip to the tracer. With
+# the fast path, the audit module skips the misses it can prove (tools/proot/fastpath/audit.c).
+audit=/usr/local/lib/libblaudit.so
+if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
+  case ":${LD_AUDIT:-}:" in
+    *":$audit:"*) ;;
+    *) LD_AUDIT="$audit${LD_AUDIT:+:$LD_AUDIT}"; export LD_AUDIT ;;
+  esac
+fi
 # The depot this tool is named after, newest across the libraries that hold it; the others in the
 # list stand in only when it is missing.
 depot=
@@ -427,6 +437,14 @@ for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
     esac
   fi
 done
+# See droiddeck-proton: library lookups that cannot succeed are skipped with the fast path.
+audit=/usr/local/lib/libblaudit.so
+if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
+  case ":${LD_AUDIT:-}:" in
+    *":$audit:"*) ;;
+    *) LD_AUDIT="$audit${LD_AUDIT:+:$LD_AUDIT}"; export LD_AUDIT ;;
+  esac
+fi
 bl_components "$here"
 bl_directaudio "$here"
 bl_game_cpus
