@@ -46,5 +46,8 @@ void vkb_sv_vkbPushDescRaw(vkb_srv_call *c)
         vkb_srv_missing(c, "vkCmdPushDescriptorSetWithTemplate");
         return;
     }
+    extern __thread size_t vkb_emu_push_size;
+    vkb_emu_push_size = n;
     c->dt->vkCmdPushDescriptorSetWithTemplate(cb, tmpl, layout, set, data);
+    vkb_emu_push_size = 0;
 }

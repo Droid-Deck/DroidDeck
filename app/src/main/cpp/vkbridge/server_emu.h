@@ -5,7 +5,7 @@
 #include "vkb_server.h"
 
 /* Emulations that are implemented (the rest are never offered to the client). */
-#define VKB_EMU_IMPLEMENTED (VKB_EMU_MAINT5 | VKB_EMU_CLIP_DISTANCE | VKB_EMU_CULL_DISTANCE | VKB_EMU_POINT_SIZE)
+#define VKB_EMU_IMPLEMENTED (VKB_EMU_MAINT5 | VKB_EMU_CLIP_DISTANCE | VKB_EMU_CULL_DISTANCE | VKB_EMU_POINT_SIZE | VKB_EMU_BCN)
 
 #define VKB_EMU_BUCKETS 1024
 
@@ -33,8 +33,25 @@ typedef struct vkb_emu_device {
     vkb_emu_image *images[VKB_EMU_BUCKETS];
     vkb_emu_buffer *buffers[VKB_EMU_BUCKETS];
     void *bcn;       /* server_emu_bcn.c */
+    void *cmdstate;  /* server_emu_cmdstate.c */
     void *shaders;   /* server_emu_shader.c */
 } vkb_emu_device;
+
+/* command buffer state (server_emu_cmdstate.c) */
+void vkb_emu_cmdstate_install(vkb_srv_table *dev);
+void vkb_emu_cmdstate_uninstall(vkb_srv_table *dev);
+void vkb_emu_restore_compute(vkb_emu_device *e, VkCommandBuffer cb);
+void *vkb_emu_cb_gfx(vkb_emu_device *e, VkCommandBuffer cb, size_t size);
+/* graphics-side hooks (server_emu_divisor.c) */
+void vkb_emu_gfx_bind_pipeline(vkb_emu_device *e, VkCommandBuffer cb, VkPipeline p);
+void vkb_emu_gfx_reset(void *gfx);
+void vkb_emu_gfx_free(void *gfx);
+/* BCn (server_emu_bcn.c) */
+void vkb_emu_bcn_install(vkb_srv_table *dev);
+void vkb_emu_bcn_uninstall(vkb_srv_table *dev);
+VkFormat vkb_emu_bcn_view_format(vkb_emu_device *e, VkImage image, VkFormat requested);
+void vkb_emu_bcn_buffer_usage(vkb_emu_device *e, VkBufferCreateInfo *ci);
+int vkb_emu_bcn_blocks_readback(vkb_emu_device *e, VkImage img);
 
 /* layer (server_emu_layer.c) */
 vkb_emu_device *vkb_emu_cur(void);

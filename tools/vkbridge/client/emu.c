@@ -128,11 +128,11 @@ int vkb_emu_format_properties(vkb_physdev *pd, VkFormat format, VkFormatProperti
 VkFormat vkb_emu_real_format(vkb_physdev *pd, VkFormat format, VkImageUsageFlags *usage, VkImageCreateFlags *flags)
 {
     if (!vkb_emu_is_emulated_format(pd, format)) return format;
-    /* The server creates the decoded image as storage-capable UNORM, mutable to the view format. */
-    *flags &= ~(VkImageCreateFlags)(VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT | VK_IMAGE_CREATE_EXTENDED_USAGE_BIT);
-    *flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    /* As the server creates it (server_emu_bcn.c): decoded format, mutable, extended usage. */
+    *flags &= ~(VkImageCreateFlags)VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT;
+    *flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
     *usage |= VK_IMAGE_USAGE_STORAGE_BIT;
-    return vkb_bc_storage_format(format);
+    return vkb_bc_view_format(format);
 }
 
 /* Image creation is rewritten on the server (it knows the decode); nothing to do here. */

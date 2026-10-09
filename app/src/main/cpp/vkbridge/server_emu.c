@@ -99,6 +99,12 @@ void vkb_emu_device_create_info(vkb_srv_table *inst, VkPhysicalDevice pd, uint32
     VkPhysicalDeviceFeatures real;
     inst->real.vkGetPhysicalDeviceFeatures(pd, &real);
     VkPhysicalDeviceFeatures *f = find_features(ci);
+    if ((emu & VKB_EMU_BCN) && !f) {
+        /* The BC decoder writes R8/RG8 storage images: it needs this feature on, so the request
+         * gets a features structure if it had none. */
+        f = vkb_arena_alloc(a, sizeof(*f));
+        ci->pEnabledFeatures = f;
+    }
     if (f) {
         /* pEnabledFeatures came from the request: it is ours to change. Anything the client asked
          * for that the GPU does not have is either emulated or would fail the call. */
@@ -107,11 +113,11 @@ void vkb_emu_device_create_info(vkb_srv_table *inst, VkPhysicalDevice pd, uint32
         for (size_t i = 0; i < sizeof(*f) / sizeof(VkBool32); i++) {
             if (want[i] && !have[i]) want[i] = VK_FALSE;
         }
+        if (emu & VKB_EMU_BCN) f->shaderStorageImageExtendedFormats = VK_TRUE;
     }
     if (emu & VKB_EMU_DIVISOR) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT);
     if (emu & VKB_EMU_DEPTH_CLIP) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT);
     if (emu & VKB_EMU_MAINT5) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES);
-    (void)a;
 }
 
 void vkb_emu_device_init(vkb_srv_table *dev, uint32_t emu)

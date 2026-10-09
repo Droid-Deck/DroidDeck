@@ -139,6 +139,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL emu_CreateBuffer(VkDevice device, const Vk
         VkBufferUsageFlags2CreateInfo *u = vkb_emu_chain_take(ci, VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO);
         if (u) ci->usage = (VkBufferUsageFlags)u->usage;
     }
+    vkb_emu_bcn_buffer_usage(e, ci);
     VkResult r = vkb_emu_real()->vkCreateBuffer(device, ci, pAllocator, pBuffer);
     if (r == VK_SUCCESS) track_buffer(e, *pBuffer, ci->size);
     return r;
@@ -363,6 +364,7 @@ static VKAPI_ATTR void VKAPI_CALL emu_CmdCopyImageToBuffer(VkCommandBuffer cb, V
 {
     vkb_emu_device *e = vkb_emu_cur();
     for (uint32_t i = 0; i < n; i++) fix_layers(e, src, (VkImageSubresourceLayers *)&regions[i].imageSubresource);
+    if (vkb_emu_bcn_blocks_readback(e, src)) return;
     vkb_emu_real()->vkCmdCopyImageToBuffer(cb, src, sl, dst, n, regions);
 }
 
@@ -371,6 +373,7 @@ static VKAPI_ATTR void VKAPI_CALL emu_CmdCopyImageToBuffer2(VkCommandBuffer cb, 
     vkb_emu_device *e = vkb_emu_cur();
     for (uint32_t i = 0; i < info->regionCount; i++)
         fix_layers(e, info->srcImage, (VkImageSubresourceLayers *)&info->pRegions[i].imageSubresource);
+    if (vkb_emu_bcn_blocks_readback(e, info->srcImage)) return;
     vkb_emu_real()->vkCmdCopyImageToBuffer2(cb, info);
 }
 
@@ -407,6 +410,8 @@ void vkb_emu_install(vkb_srv_table *dev)
     dt->vkCmdCopyBufferToImage = emu_CmdCopyBufferToImage;
     if (dev->real.vkCmdCopyImage2) dt->vkCmdCopyImage2 = emu_CmdCopyImage2;
     if (dev->real.vkCmdCopyBufferToImage2) dt->vkCmdCopyBufferToImage2 = emu_CmdCopyBufferToImage2;
+    dt->vkCmdCopyImageToBuffer = emu_CmdCopyImageToBuffer;
+    if (dev->real.vkCmdCopyImageToBuffer2) dt->vkCmdCopyImageToBuffer2 = emu_CmdCopyImageToBuffer2;
     if (e->flags & VKB_EMU_MAINT5) {
         dt->vkCreateBufferView = emu_CreateBufferView;
         dt->vkCmdBindIndexBuffer2 = emu_CmdBindIndexBuffer2;
@@ -415,10 +420,8 @@ void vkb_emu_install(vkb_srv_table *dev)
         dt->vkGetDeviceImageSubresourceLayout = emu_GetDeviceImageSubresourceLayout;
         dt->vkCmdBlitImage = emu_CmdBlitImage;
         dt->vkCmdResolveImage = emu_CmdResolveImage;
-        dt->vkCmdCopyImageToBuffer = emu_CmdCopyImageToBuffer;
         if (dev->real.vkCmdBlitImage2) dt->vkCmdBlitImage2 = emu_CmdBlitImage2;
         if (dev->real.vkCmdResolveImage2) dt->vkCmdResolveImage2 = emu_CmdResolveImage2;
-        if (dev->real.vkCmdCopyImageToBuffer2) dt->vkCmdCopyImageToBuffer2 = emu_CmdCopyImageToBuffer2;
         if (dev->real.vkCmdBindVertexBuffers2) dt->vkCmdBindVertexBuffers2 = emu_CmdBindVertexBuffers2;
     }
     vkb_emu_install_features(dev);
