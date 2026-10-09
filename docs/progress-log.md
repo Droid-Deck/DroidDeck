@@ -102,7 +102,7 @@ without it and Setup says "Stores engine not built").
   byte deltas (an exponential average over 3 s, sampled at most every 250 ms) and derives the ETA
   from it, for all three stores; the engine's own figure stays in its log lines, and the detail
   line under the bar has it stripped. The tier and downloads-at-a-time controls sit on one compact
-  row with a single caption, on the Downloads page and in the cog's popup.
+  row, on the Downloads page and in the cog's popup.
 - **Install location (user decision):** the default is the app's internal storage for all three
   stores, whatever the session's Game storage says. With a card in the device, Install asks
   "Install to" first (internal / the card, free space per target, pad-focusable, last pick as the
@@ -110,7 +110,7 @@ without it and Setup says "Stores engine not built").
   (`/mnt/droiddeck-stores/<volume uuid>`; the library's own bind covers a library card, so installs
   already registered there keep their appid); every root is scanned and uninstall works for
   either. The Downloads
-  row shows where a game is going, with its art as a small 16:9 thumbnail; the game page names the
+  row shows where a game is going; the game page names the
   place. Epic installs on a card keep their in-flight chunks in the app's cache: the engine's
   `chunkCacheDir` (fetch and the new `nativeAssemble`, which drops each chunk after its last use)
   and the manager's own loops read the same path; internal installs pass `""` as before. Cleaned on
@@ -129,8 +129,7 @@ without it and Setup says "Stores engine not built").
   whole 1 MiB chunk windows shared with files outside this device's install tags - the free-space
   check now counts cache and files; a successful run removes the cache (Kotlin loop and
   `nativeAssemble` both).
-- **Install-to dialog compacted** (440 dp, two tiles that are the action, one-line caption, Cancel
-  in the title row); the cog popup is capped at 440 dp too.
+- **The cog popup is capped at 440 dp**, like the Install dialog.
 - **Store cards are art + one line** (maintainer feedback): no source chip (the tab says the
   store), no "In library" chip, no action button. The title sits left; right-aligned is a check
   when installed, Resume, the download percentage, the install size, or Free / price / discount.
