@@ -51,7 +51,7 @@ object StoreSizes {
         }
     }
 
-    private fun fetch(context: Context, item: CatalogItem): Long = when (item.store) {
+    private fun fetch(context: Context, item: CatalogItem): Long { return when (item.store) {
         Store.EPIC -> {
             val token = EpicCredentialStore.getValidAccessToken(context) ?: return 0L
             val ns = item.extra["namespace"].orEmpty()
@@ -70,5 +70,5 @@ object StoreSizes {
             AmazonManifest.parse(bytes).totalInstallSize
         }
         Store.GOG -> 0L
-    }
+    } }
 }
