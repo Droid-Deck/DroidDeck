@@ -219,37 +219,71 @@ def provision_prefix(compat_data, wait=SERVER_WAIT):
     return state + (" server-running" if busy else "")
 
 
+CLOUD_TIMEOUT = 15.0
+CLOUD_STORES = ("gog", "epic")
+# Exit status that tells droiddeck-proton this was a store game with cloud saves: it then waits for
+# Proton instead of exec'ing it, and runs `droiddeck-store-launch --exited` after.
+STORE_GAME = 10
+
+
+def cloud_on(sidecar):
+    """Cloud saves for this game (the game card's switch; on unless turned off)."""
+    return str(sidecar.get("store")) in CLOUD_STORES and sidecar.get("cloud", True) is not False
+
+
+def exited(argv):
+    """After the game: ask the app to upload what changed, without waiting for it."""
+    found = find_store_game(argv)
+    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if found is None or not launch_dir or not cloud_on(found[1]):
+        return 0
+    store, game = str(found[1].get("store")), str(found[1].get("id"))
+    ask(Path(launch_dir) / "stores", {"op": "cloud-up", "store": store, "id": game}, timeout=1.0)
+    log("cloud %s %s up requested" % (store, game))
+    return 0
+
+
 def main(argv):
+    if argv and argv[0] == "--exited":
+        return exited(argv[1:])
     found = find_store_game(argv)
     if found is None:
         return 0
     folder, sidecar = found
     store, game = str(sidecar.get("store")), str(sidecar.get("id"))
-    if store != "epic":
-        return 0
-    drop_stale(folder)
-    choice = options(sidecar)
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
-    if not (choice["eos"] and not choice["offline"]):
-        # Sign-in off, or offline: no code, and none left over from before.
-        try:
-            (folder / EPIC_CODE).unlink()
-        except OSError:
-            pass
-        log("epic launch id=%s code=no reason=%s" % (game, "offline" if choice["offline"] else "eos-off"))
-    elif not launch_dir:
-        log("epic launch id=%s code=no reason=no-channel" % game)
-    else:
-        answer = ask(Path(launch_dir) / "stores", {"op": "epic-code", "store": store, "id": game, "prefix": prefix_id})
-        if answer is None:
-            log("epic launch id=%s code=no reason=timeout" % game)
+    if store == "epic":
+        drop_stale(folder)
+        choice = options(sidecar)
+        if not (choice["eos"] and not choice["offline"]):
+            # Sign-in off, or offline: no code, and none left over from before.
+            try:
+                (folder / EPIC_CODE).unlink()
+            except OSError:
+                pass
+            log("epic launch id=%s code=no reason=%s" % (game, "offline" if choice["offline"] else "eos-off"))
+        elif not launch_dir:
+            log("epic launch id=%s code=no reason=no-channel" % game)
         else:
-            got = bool(answer.get("code"))
-            log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
-    log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
-    return 0
+            answer = ask(Path(launch_dir) / "stores", {"op": "epic-code", "store": store, "id": game, "prefix": prefix_id})
+            if answer is None:
+                log("epic launch id=%s code=no reason=timeout" % game)
+            else:
+                got = bool(answer.get("code"))
+                log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
+        log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
+    if not cloud_on(sidecar):
+        return 0
+    if launch_dir:
+        # The cloud copy where it is newer, before the game reads its saves; bounded, then on regardless.
+        answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT)
+        if answer is None:
+            log("cloud %s %s down result=timeout" % (store, game))
+        else:
+            log("cloud %s %s down files=%s result=%s" % (store, game, answer.get("files", 0), answer.get("reason", "")))
+    return STORE_GAME
 
 
 if __name__ == "__main__":

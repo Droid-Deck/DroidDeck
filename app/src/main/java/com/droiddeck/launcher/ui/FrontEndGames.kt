@@ -213,6 +213,43 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
                     open = false; a.onBrowseFiles(java.io.File(prefix, "drive_c/users/steamuser/" + d.relPath))
                 }
             }
+            CloudRows(g, open)
+        }
+    }
+}
+
+/**
+ * A GOG or Epic game's cloud saves in Manage saves: when it last synced, and Upload / Download
+ * (newest wins, file by file), or "No cloud saves" when the store keeps none for it.
+ */
+@Composable
+private fun CloudRows(g: Library.SteamGame, open: Boolean) {
+    val store = com.droiddeck.launcher.stores.Store.byId(g.source)?.takeIf { it != com.droiddeck.launcher.stores.Store.AMAZON } ?: return
+    val id = g.storeId ?: return
+    val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    var busy by remember(g.gameId) { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var tick by remember(g.gameId) { androidx.compose.runtime.mutableStateOf(0) }
+    val status by androidx.compose.runtime.produceState<com.droiddeck.launcher.stores.CloudSaves.Status?>(null, g.gameId, open, tick) {
+        if (open) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.droiddeck.launcher.stores.CloudSaves.status(context, store, id) }.getOrNull()
+        }
+    }
+    val st = status
+    when {
+        st == null -> MenuItem(stringResource(R.string.cloud_checking), checked = false, enabled = false) {}
+        !st.supported -> MenuItem(stringResource(R.string.cloud_none), checked = false, enabled = false) {}
+        else -> {
+            val last = if (st.lastSync > 0) stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString()) else stringResource(R.string.cloud_never)
+            fun sync(up: Boolean) {
+                if (busy != null) return
+                busy = if (up) "up" else "down"
+                Thread({
+                    val r = if (up) com.droiddeck.launcher.stores.CloudSaves.upload(context, store, id) else com.droiddeck.launcher.stores.CloudSaves.download(context, store, id)
+                    com.droiddeck.launcher.stores.StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, if (r.ok) context.getString(R.string.cloud_done, r.files) else r.reason, android.widget.Toast.LENGTH_SHORT).show() }
+                }, "cloud-manual").start()
+            }
+            MenuItem(stringResource(R.string.cloud_upload), checked = false, enabled = busy == null, detail = if (busy == "up") stringResource(R.string.cloud_checking) else last) { sync(true) }
+            MenuItem(stringResource(R.string.cloud_download), checked = false, enabled = busy == null, detail = if (busy == "down") stringResource(R.string.cloud_checking) else null) { sync(false) }
         }
     }
 }

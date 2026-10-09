@@ -117,7 +117,22 @@ bl_store_launch() {
     WINEDEBUG="${WINEDEBUG:+$WINEDEBUG,}+shell,+winebrowser"; export WINEDEBUG
   fi
   [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
-  /usr/local/bin/droiddeck-store-launch "$@" || true
+  /usr/local/bin/droiddeck-store-launch "$@"
+  # 10: a store game with cloud saves - the launch waits for Proton and uploads after (bl_run).
+  [ $? -eq 10 ] && BL_STORE_EXIT=1
+  return 0
+}
+
+# Runs Proton: exec'd as always, except for a store game with cloud saves, where the wrapper stays
+# to tell the app the game has exited so it can upload what changed.
+bl_run() {
+  if [ -n "${BL_STORE_EXIT:-}" ]; then
+    "$@"
+    rc=$?
+    /usr/local/bin/droiddeck-store-launch --exited "${BL_STORE_ARGS[@]}" || true
+    exit $rc
+  fi
+  exec "$@"
 }
 """
 
@@ -358,7 +373,8 @@ if [ -n "$depot" ]; then
   bl_idtech3 "$@"
   bl_libpath
   bl_store_launch "$@"
-  exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+  BL_STORE_ARGS=("$@")
+  bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 fi
 echo "droiddeck-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
 exit 1
@@ -417,9 +433,10 @@ bl_game_cpus
 bl_idtech3 "$@"
 bl_libpath
 bl_store_launch "$@"
+BL_STORE_ARGS=("$@")
 # Proton takes its base directory from dirname(sys.argv[0]) without resolving it, so it has to be
 # started from its own tree.
-exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 """
 EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
 {

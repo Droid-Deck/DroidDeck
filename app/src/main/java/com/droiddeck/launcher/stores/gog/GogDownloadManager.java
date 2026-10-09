@@ -258,6 +258,9 @@ public final class GogDownloadManager {
             deleteCounted(new File(installPath, ".gog_chunks"), cb);
             String clientId = manifest.optString("clientId", null);
             if (clientId != null && !clientId.isEmpty()) GogPrefs.get(ctx).edit().putString("client_id_" + game.gameId, clientId).apply();
+            // The game's own client secret: cloud saves need a token issued to the game's client.
+            String clientSecret = manifest.optString("clientSecret", null);
+            if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
             out.result = new Result(pickExe(installPath, tempExe, game.title), gm.buildId, planned);
             return out;
         } catch (Exception e) {

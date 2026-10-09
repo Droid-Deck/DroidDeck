@@ -63,6 +63,20 @@ object StoreLaunchRequests {
                     JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason)
                 }
             }
+            // Cloud saves: down before Proton starts (the wrapper waits a bounded time), up after the
+            // game exits (answered at once; the upload runs on without holding Steam).
+            "cloud-down" -> {
+                val store = Store.byId(request.optString("store"))
+                val id = request.optString("id")
+                if (store == null || id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-game")
+                else CloudSaves.download(app, store, id).let { JSONObject().put("ok", it.ok).put("files", it.files).put("reason", it.reason) }
+            }
+            "cloud-up" -> {
+                val store = Store.byId(request.optString("store"))
+                val id = request.optString("id")
+                if (store != null && id.isNotEmpty()) Thread({ CloudSaves.upload(app, store, id) }, "cloud-up").start()
+                JSONObject().put("ok", true)
+            }
             // A browser a game opens inside the session (an EOS device sign-in, a store page):
             // http(s) only, handed to Android's browser.
             "open-url" -> {

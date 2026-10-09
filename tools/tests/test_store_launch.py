@@ -59,9 +59,12 @@ class Detection(unittest.TestCase):
             (folder / '.droiddeck-store.json').unlink()
             self.assertIsNone(store.find_store_game([str(folder / '.droiddeck-launch.bat')]))
 
-    def test_only_epic_asks(self):
+    def test_only_epic_asks_for_a_code(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog')
+            # Cloud saves off: nothing else to ask for either.
+            sc = json.loads((folder / '.droiddeck-store.json').read_text()); sc['cloud'] = False
+            (folder / '.droiddeck-store.json').write_text(json.dumps(sc))
             os.environ['BL_LAUNCH_DIR'] = str(Path(root) / 'session')
             try:
                 self.assertEqual(0, store.main([str(folder / '.droiddeck-launch.bat')]))
@@ -153,6 +156,7 @@ class Choices(unittest.TestCase):
             # An earlier build's overlay field is read past.
             self.assertEqual({'eos': True, 'offline': False}, store.options({'epic': {'v': 2, 'overlay': True}}))
             sidecar['epic'] = {'eos': True, 'offline': True}
+            sidecar['cloud'] = False
             (folder / '.droiddeck-store.json').write_text(json.dumps(sidecar))
             (folder / '.droiddeck-epic-code').write_text('left over')
             compat = Path(root) / 'compatdata/1'
@@ -187,6 +191,45 @@ class Browser(unittest.TestCase):
             self.assertEqual(1, len(reqs))
             self.assertEqual({'op': 'open-url', 'url': 'https://www.epicgames.com/activate'}, json.loads(reqs[0].read_text()))
             self.assertEqual('https://www.epicgames.com', xdg.where('https://www.epicgames.com/activate?code=SECRET'))
+
+
+class CloudHooks(unittest.TestCase):
+    def test_a_store_game_with_cloud_saves_asks_before_and_after(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207664643')
+            bat = str(folder / '.droiddeck-launch.bat')
+            os.environ['BL_LAUNCH_DIR'] = str(Path(root) / 'session')
+            try:
+                original = store.ask
+                asked = []
+                store.ask = lambda channel, request, timeout=5.0: asked.append((request, timeout)) or {'ok': True, 'files': 2, 'reason': 'ok'}
+                # 10: the launcher waits for Proton and calls --exited afterwards.
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual(0, store.main(['--exited', bat]))
+            finally:
+                store.ask = original
+                del os.environ['BL_LAUNCH_DIR']
+            self.assertEqual({'op': 'cloud-down', 'store': 'gog', 'id': '1207664643'}, asked[0][0])
+            self.assertEqual(store.CLOUD_TIMEOUT, asked[0][1])
+            self.assertEqual('cloud-up', asked[1][0]['op'])
+
+    def test_cloud_off_or_amazon_runs_proton_as_before(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1')
+            sidecar = json.loads((folder / '.droiddeck-store.json').read_text())
+            sidecar['cloud'] = False
+            (folder / '.droiddeck-store.json').write_text(json.dumps(sidecar))
+            self.assertEqual(0, store.main([str(folder / '.droiddeck-launch.bat')]))
+            self.assertFalse(store.cloud_on({'store': 'amazon', 'id': 'x'}))
+            self.assertTrue(store.cloud_on({'store': 'epic', 'id': 'x'}))
+
+    def test_both_launchers_wait_for_proton_only_for_a_store_game(self):
+        for sh in (compat.LAUNCHER_SH, compat.EXTRA_WRAPPER_SH):
+            self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
+            self.assertNotIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
+        self.assertIn('[ $? -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
+        self.assertIn('droiddeck-store-launch --exited "${BL_STORE_ARGS[@]}"', compat.BL_STORE_SETUP)
+        self.assertIn('exec "$@"', compat.BL_STORE_SETUP)
 
 
 class Launchers(unittest.TestCase):

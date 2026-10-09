@@ -115,6 +115,31 @@ in droiddeck-env adds `WINEDEBUG=+shell,+winebrowser`. Epic's EOS overlay is not
 it games exited while loading); an `OverlayPath` an earlier build wrote is removed at launch. The
 parked overlay work is on the branch `park/epic-eos-overlay`.
 
+## Cloud saves
+
+GOG and Epic games sync their saves with the store's cloud (`CloudSaves`, after Bannerlator's
+managers): before a launch the cloud copy comes down where it is newer, after the game exits what
+changed goes up - newest wins, file by file, with an MD5 check so a file the game only touched is
+not sent again. Before a download overwrites anything the folder is copied to
+`files/stores/cloud-backups/<store>-<id>/` (the last three kept).
+
+- **The folder:** GOG's public remote-config gives a location template per game (by its Galaxy client
+  id), e.g. `<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN`; Epic's catalog gives
+  `CloudSaveFolder`, e.g. `{AppData}/Game/Saved/SaveGames`. `CloudSavePaths` expands it inside the
+  game's prefix (`compatdata/<shortcut appid>/pfx/drive_c/users/steamuser`) or its install folder,
+  case-insensitively, and refuses a path that leaves its boundary. A game whose store gives none
+  has no cloud saves.
+- **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
+  own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
+  savesync data storage with signed read and write links.
+- **When:** every launch runs `droiddeck-store-launch`, which asks the app (`cloud-down`) and waits up
+  to 15 s; for a store game with cloud saves it returns 10, and the compat tool then waits for
+  Proton instead of exec'ing it and runs `droiddeck-store-launch --exited` after, which asks for
+  `cloud-up` without waiting. Each sync logs `cloud <store> <id> down|up files= bytes= result=`.
+- **Per game:** the store card in the Games tab's launch settings has "Cloud saves" (on), kept in the
+  sidecar (`"cloud"`) and read by both sides; Manage saves shows the last sync with Upload and
+  Download, or "No cloud saves".
+
 ## Downloads
 
 `DownloadQueue` runs 1–3 jobs at a time (Setup / the Downloads page), each a store's whole install

@@ -2019,6 +2019,15 @@
     <string name="epic_eos">Epic sign-in (EOS)</string>
     <string name="epic_offline">Launch offline</string>
     <string name="epic_resolve">Resolve Epic sign-in</string>
+    <string name="store_card_cloud">Cloud</string>
+    <string name="store_cloud_saves">Cloud saves</string>
+    <string name="cloud_upload">Upload to cloud</string>
+    <string name="cloud_download">Download from cloud</string>
+    <string name="cloud_none">No cloud saves</string>
+    <string name="cloud_checking">Checking cloud…</string>
+    <string name="cloud_last_sync">Last sync %1$s</string>
+    <string name="cloud_never">Not synced yet</string>
+    <string name="cloud_done">%1$d files</string>
     <string name="stores_eyebrow_installed">installed</string>
     <string name="stores_eyebrow_library">in your library</string>
     <string name="stores_eyebrow_store">store</string>

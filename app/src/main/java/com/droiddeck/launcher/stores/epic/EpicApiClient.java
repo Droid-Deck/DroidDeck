@@ -149,6 +149,11 @@ public final class EpicApiClient {
 
     /** `customAttributes.AdditionalCommandLine.value` for the game, "" when it has none, null when the call failed. */
     public static String getAdditionalCommandLine(String accessToken, String namespace, String catalogItemId) {
+        return getCustomAttribute(accessToken, namespace, catalogItemId, "AdditionalCommandLine");
+    }
+
+    /** `customAttributes.<name>.value` for the game (CloudSaveFolder, AdditionalCommandLine), "" when it has none, null when the call failed. */
+    public static String getCustomAttribute(String accessToken, String namespace, String catalogItemId, String name) {
         try {
             String url = CATALOG_BASE + "/" + namespace + "/bulk/items?id=" + catalogItemId + "&country=US";
             String resp = getWithLegendaryUA(url, accessToken);
@@ -159,10 +164,10 @@ public final class EpicApiClient {
             if (item == null) return "";
             JSONObject attrs = item.optJSONObject("customAttributes");
             if (attrs == null) return "";
-            JSONObject attr = attrs.optJSONObject("AdditionalCommandLine");
+            JSONObject attr = attrs.optJSONObject(name);
             return attr == null ? "" : attr.optString("value", "");
         } catch (Exception e) {
-            Log.w(TAG, "additional command line: " + e.getClass().getSimpleName());
+            Log.w(TAG, "catalog attribute " + name + ": " + e.getClass().getSimpleName());
             return null;
         }
     }

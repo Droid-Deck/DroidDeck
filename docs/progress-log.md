@@ -144,6 +144,14 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **GOG and Epic cloud saves** (ported from Bannerlator's managers, device-proven there in August):
+  down before every launch where the cloud copy is newer (the compat tool waits up to 15 s), up
+  after the game exits (the compat tool waits for Proton for such a game, then asks without
+  waiting), newest wins per file with an MD5 check, a backup of what a download overwrites (last
+  three). The save folder comes from GOG's remote-config template or Epic's CloudSaveFolder,
+  expanded inside the game's prefix (`CloudSavePaths`, Bannerlator's cases as tests). A "Cloud
+  saves" switch on the GOG / Epic card, and cloud rows in Manage saves (last sync, Upload,
+  Download, "No cloud saves"). Not yet device-tested.
 - **Epic sign-in device-proven without the overlay (AYANEO Pocket FIT, `bf81104`, Metalstorm):** EOS's
   corrective-action browser flow → `droiddeck xdg-open: https://www.epicgames.com` → Chrome
   `epicgames.com/id/authorize?user_code=…` → approved → `[eos] got logged in`, product user id

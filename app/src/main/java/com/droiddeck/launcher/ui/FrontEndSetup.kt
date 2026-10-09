@@ -477,9 +477,10 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
         // An Epic game's own launch choices, kept in its sidecar so a launch from the Steam client
         // honours them too (droiddeck-store-launch reads the same file).
-        if (game?.source == com.droiddeck.launcher.stores.Store.EPIC.id && game.gameFiles != null) add { m ->
+        val cardStore = com.droiddeck.launcher.stores.Store.byId(game?.source.orEmpty())?.takeIf { it != com.droiddeck.launcher.stores.Store.AMAZON }
+        if (cardStore != null && game?.gameFiles != null) add { m ->
             Box(m) {
-                EpicLaunchCard(host, game.gameFiles!!)
+                StoreLaunchCard(host, game.gameFiles!!, cardStore)
             }
         }
         if (wincompKey != null) add { m ->
@@ -510,14 +511,25 @@ private const val EPIC_RESOLVE_URL = "https://www.epicgames.com/id/login?redirec
 
 /** The Epic card: the sign-in and offline switches, read from and written to the game's sidecar, and Resolve Epic sign-in. */
 @Composable
-private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
+private fun StoreLaunchCard(host: MenuHost, folder: java.io.File, store: com.droiddeck.launcher.stores.Store) {
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     var sidecar by remember(folder) { mutableStateOf(com.droiddeck.launcher.stores.StoreGameSidecar.read(folder)) }
     val options = sidecar?.epic ?: com.droiddeck.launcher.stores.EpicOptions()
+    val cloud = sidecar?.cloud ?: true
+    val epic = store == com.droiddeck.launcher.stores.Store.EPIC
+    val key = "store-" + store.id
     val value = buildList {
-        if (options.offline) add(stringResource(R.string.epic_card_offline))
-        else if (options.eos) add(stringResource(R.string.epic_card_eos))
+        if (epic && options.offline) add(stringResource(R.string.epic_card_offline))
+        else if (epic && options.eos) add(stringResource(R.string.epic_card_eos))
+        if (cloud) add(stringResource(R.string.store_card_cloud))
     }.ifEmpty { listOf(stringResource(R.string.epic_card_none)) }.joinToString(" · ")
+    fun setCloud(on: Boolean) {
+        Thread({
+            val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateCloud(folder, on) }.getOrNull()
+            android.util.Log.i("StoreLaunchCard", "cloud saves ${folder.name} " + (written?.cloud?.toString() ?: "not saved"))
+            com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: com.droiddeck.launcher.stores.StoreGameSidecar.read(folder) }
+        }, "store-options").start()
+    }
     // Each switch goes straight to the sidecar on disk - both launch paths read it there - and the
     // card shows what was read back, so a write that did not take is never shown as done.
     fun set(change: (com.droiddeck.launcher.stores.EpicOptions) -> com.droiddeck.launcher.stores.EpicOptions) {
@@ -529,12 +541,16 @@ private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
             com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: com.droiddeck.launcher.stores.StoreGameSidecar.read(folder) }
         }, "epic-options").start()
     }
-    SettingCard(stringResource(R.string.epic_card_title), value, "card:epic", Modifier.fillMaxSize()) {
-        host.open = if (host.open == "epic") null else "epic"
+    SettingCard(store.shortLabel, value, "card:$key", Modifier.fillMaxSize()) {
+        host.open = if (host.open == key) null else key
     }
-    AnchoredMenu(host.open == "epic", onDismiss = { if (host.open == "epic") host.open = null }, title = stringResource(R.string.epic_card_title)) { first ->
-        MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
-        MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }
+    AnchoredMenu(host.open == key, onDismiss = { if (host.open == key) host.open = null }, title = store.shortLabel) { first ->
+        if (epic) {
+            MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
+            MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }
+        }
+        MenuItem(stringResource(R.string.store_cloud_saves), checked = cloud, focusRequester = if (epic) null else first) { setCloud(!cloud) }
+        if (epic) {
         // Epic asks some accounts to accept something once (privacy policy, EULA) before a game may
         // sign in - EOS's "corrective action". Signing in on Epic's site shows it.
         MenuItem(stringResource(R.string.epic_resolve), checked = false) {
@@ -542,6 +558,7 @@ private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
             runCatching {
                 appContext.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(EPIC_RESOLVE_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
             }
+        }
         }
     }
 }
