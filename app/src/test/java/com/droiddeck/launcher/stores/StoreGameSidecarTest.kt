@@ -88,17 +88,22 @@ class StoreGameSidecarTest {
         val text = StoreLaunch.launcherText(sample.copy(exe = "Binaries/Win64/Celeste.exe"))
         assertTrue(text.contains("cd /d \"%~dp0Binaries\\Win64\"\r\n"))
         assertTrue(text.contains("set \"FOO=bar\"\r\n"))
-        assertTrue(text.contains("\"%~dp0Binaries\\Win64\\Celeste.exe\" -EpicPortal -epicusername=\"Some One\" %DD_AUTH%\r\n"))
+        assertTrue(text.contains("\r\n\"%~dp0Binaries\\Win64\\Celeste.exe\" -EpicPortal -epicusername=\"Some One\"\r\n"))
         // Epic reads the one-shot exchange code the app leaves beside the launcher, then deletes it.
-        assertTrue(text.contains("set /p DD_CODE=<\"%~dp0.droiddeck-epic-code\""))
-        assertTrue(text.contains("-AUTH_TYPE=exchangecode"))
+        assertTrue(text.contains("set /p DD_X=<\"%~dp0.droiddeck-epic-code\""))
+        // The code goes on the command line only: the variable is cleared on the very line that
+        // starts the game (cmd has already expanded it there), so the game inherits none of it.
+        assertTrue(text.contains("set \"DD_X=\" & \"%~dp0Binaries\\Win64\\Celeste.exe\" -EpicPortal -epicusername=\"Some One\" -AUTH_LOGIN=unused -AUTH_PASSWORD=%DD_X% -AUTH_TYPE=exchangecode\r\n"))
+        assertFalse(text.contains("AUTH="))
+        assertFalse(text.contains("DD_AUTH"))
     }
 
     @Test fun gogLauncherHasNoEpicBlockAndIsOnlyWrittenWhenNeeded() {
         val plain = StoreGameSidecar(Store.GOG, "1", "T", "game.exe")
         val text = StoreLaunch.launcherText(plain.copy(args = listOf("-windowed")))
         assertFalse(text.contains("exchangecode"))
-        assertTrue(text.contains("\"%~dp0game.exe\" -windowed %DD_AUTH%"))
+        assertTrue(text.contains("\"%~dp0game.exe\" -windowed\r\n"))
+        assertFalse(text.contains("DD_X"))
         assertEquals("\"two words\"", StoreLaunch.quoteArg("two words"))
         assertEquals("-x=\"a b\"", StoreLaunch.quoteArg("-x=\"a b\""))
     }

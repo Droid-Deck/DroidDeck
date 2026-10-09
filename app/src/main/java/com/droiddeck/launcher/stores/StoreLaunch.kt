@@ -44,16 +44,23 @@ object StoreLaunch {
         lines += "rem Written by DroidDeck for ${sidecar.store.label}: ${sidecar.title}. Steam's shortcut runs this file."
         lines += "cd /d \"%~dp0$dir\""
         for ((k, v) in sidecar.env) if (ENV_NAME.matches(k)) lines += "set \"$k=${v.replace("\"", "")}\""
-        lines += "set \"DD_AUTH=\""
-        if (sidecar.store == Store.EPIC) {
-            lines += "if not exist \"%~dp0$EPIC_CODE\" goto run"
-            lines += "set /p DD_CODE=<\"%~dp0$EPIC_CODE\""
-            lines += "del \"%~dp0$EPIC_CODE\""
-            lines += "set \"DD_AUTH=-AUTH_LOGIN=unused -AUTH_PASSWORD=%DD_CODE% -AUTH_TYPE=exchangecode\""
-            lines += ":run"
-        }
         val args = sidecar.args.joinToString(" ") { quoteArg(it) }
-        lines += "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "") + " %DD_AUTH%"
+        val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
+        if (sidecar.store == Store.EPIC) {
+            // The one-shot code reaches the game on its command line only. cmd expands %DD_X% when it
+            // parses the last line, so the variable is cleared on that same line before the game
+            // starts: nothing of it is left in the environment the game inherits (and dumps).
+            lines += "set \"$CODE_VAR=\""
+            lines += "if exist \"%~dp0$EPIC_CODE\" set /p $CODE_VAR=<\"%~dp0$EPIC_CODE\""
+            lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
+            lines += "if defined $CODE_VAR goto signed"
+            lines += run
+            lines += "goto :eof"
+            lines += ":signed"
+            lines += "set \"$CODE_VAR=\" & $run -AUTH_LOGIN=unused -AUTH_PASSWORD=%$CODE_VAR% -AUTH_TYPE=exchangecode"
+        } else {
+            lines += run
+        }
         return lines.joinToString("\r\n") + "\r\n"
     }
 
@@ -70,6 +77,23 @@ object StoreLaunch {
      * fresh exchange code written beside its launcher (a few seconds at most; the launch goes
      * ahead without one when the store cannot be reached). Other stores need nothing.
      */
+    /** The launcher's variable for the one-shot code; a plain name, cleared before the game starts. */
+    private const val CODE_VAR = "DD_X"
+
+    /**
+     * Rewrites a game's launcher when its text is not what this build writes - an install from an
+     * earlier build keeps its old .bat otherwise. Called before every Epic launch.
+     */
+    fun refreshLauncher(folder: File, sidecar: StoreGameSidecar) {
+        if (sidecar.launcher != LAUNCHER) return
+        val file = File(folder, LAUNCHER)
+        val text = launcherText(sidecar)
+        if (runCatching { file.readText() }.getOrNull() != text) {
+            file.writeText(text)
+            Log.i(TAG, "launcher rewritten for ${sidecar.id}")
+        }
+    }
+
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
         if (store != Store.EPIC) { onReady(); return }
         val app = context.applicationContext
@@ -93,7 +117,9 @@ object StoreLaunch {
         val app = context.applicationContext
         val result = try {
             val folder = StoreInstallRoot.gameFolders(app).firstOrNull { f -> StoreGameSidecar.read(f)?.let { it.store == Store.EPIC && it.id == id } == true }
-            val options = folder?.let { StoreGameSidecar.read(it)?.epic }
+            val sidecar = folder?.let { StoreGameSidecar.read(it) }
+            sidecar?.let { refreshLauncher(folder, it) }
+            val options = sidecar?.epic
             if (folder == null) CodeResult(false, "not-installed")
             else if (options != null && !options.wantsCode) {
                 File(folder, EPIC_CODE).delete()

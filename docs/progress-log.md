@@ -144,6 +144,12 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **The exchange code no longer reaches the game's environment** (device: Metalstorm's Player.log
+  dumped `DD_AUTH: … -AUTH_PASSWORD=<code>`). The launcher read the code into a variable the game
+  inherited. It now clears the variable on the same line that starts the game - cmd has expanded it
+  there already - so the code is on the command line only; the variable has a plain name. An old
+  launcher is rewritten before the next Epic launch (`StoreLaunch.refreshLauncher`, from both the
+  app and the Steam-launch request).
 - **A store game page shows no description that is only its title again** (Metalstorm's).
 - **Epic launch card** (Games tab › Launch settings, Epic games only): "Epic sign-in (EOS)" on,
   "Launch offline" off, "Epic overlay" on, stored in the game's sidecar (`"epic": {"eos", "offline",
