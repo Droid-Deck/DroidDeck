@@ -248,6 +248,14 @@ object DownloadQueue {
         StoreDownloadService.finish(context.applicationContext, key)
     }
 
+    /** Drops every finished, failed or cancelled row; files a failed one kept stay (its game page's Clear removes them). */
+    fun dismissFinished() {
+        synchronized(lock) {
+            items.entries.removeAll { !it.value.entry.isActive }
+            publishLocked()
+        }
+    }
+
     /** Drops a finished, failed or cancelled row from the list. */
     fun dismiss(key: String) {
         synchronized(lock) {

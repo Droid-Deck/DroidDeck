@@ -2070,6 +2070,7 @@
     <string name="stores_dl_cancel">Cancel</string>
     <string name="stores_dl_retry">Retry</string>
     <string name="stores_dl_clear">Clear</string>
+    <string name="stores_dl_clear_all">Clear finished</string>
     <string name="stores_stage_manifest">Manifest</string>
     <string name="stores_stage_download">Download</string>
     <string name="stores_stage_verify">Verify</string>

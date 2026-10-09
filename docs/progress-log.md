@@ -153,6 +153,14 @@ without it and Setup says "Stores engine not built").
 - **Cloud saves device-proven (AYANEO Pocket FIT, `6a175f1`, ELDERBORN on GOG):** the launch logged
   `cloud gog 1732383191 down result=ok files=5 bytes=237499 reason=downloaded` (template found) and
   the in-game slot shows the cloud save (Catacombs: Tutorial part 1, 00:08:40).
+- **Pre-PR device checks pass (AYANEO Pocket FIT):** GOG install, launch and cloud saves down and up
+  (the session-end upload included); Epic with EOS sign-in; Amazon (Dread Templar); an SD-card install
+  (DOOM I Enhanced) launched from `/mnt/droiddeck-sd`.
+- **Downloads page, icons and one Clear** (maintainer): the row actions are round icon buttons -
+  pause, resume, play, retry, and a cancel that asks with a red delete and an undo - their labels as
+  descriptions. Downloads under way sit on top; finished ones below a line whose X clears them all
+  (rows only; a failed download's kept files stay for its game page's Clear), installed ones as a
+  compact row with Play.
 - **Saves menu without explanations:** Import / Export rows (Steam, Custom, GOG and Epic alike) lose
   their descriptive subtitles; only live values remain (last sync, "…", conflict count, the save
   folder and its size). The three strings are gone from every locale.

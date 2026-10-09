@@ -1,5 +1,14 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Pause
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Brush
@@ -75,9 +84,77 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
         }
         return
     }
+    // Under way on top; finished below a line whose X clears them all (rows only - a failed
+    // download's kept files stay until its game page's Clear).
+    val (active, finished) = entries.partition { it.isActive }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // The list changes only when rows come, go or change state; each row reads its own progress.
-        entries.forEachIndexed { i, row -> key(row.key) { Rise(1 + i.coerceAtMost(5)) { DownloadCard(StoresState.download(row.key) ?: row, s, a) } } }
+        active.forEachIndexed { i, row -> key(row.key) { Rise(1 + i.coerceAtMost(5)) { DownloadCard(StoresState.download(row.key) ?: row, s, a) } } }
+        if (finished.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = if (active.isEmpty()) 0.dp else 4.dp)) {
+                Box(Modifier.weight(1f).height(1.dp).background(LocalPalette.current.line))
+                RoundAction(Icons.Outlined.Close, stringResource(R.string.stores_dl_clear_all), size = 30.dp) { DownloadQueue.dismissFinished() }
+            }
+            finished.forEach { row ->
+                key(row.key) {
+                    val d = StoresState.download(row.key) ?: row
+                    if (d.state == DownloadState.FAILED) DownloadCard(d, s, a) else FinishedRow(d, s, a)
+                }
+            }
+        }
+    }
+}
+
+/** A finished download: its name and store, and Play when it installed. */
+@Composable
+private fun FinishedRow(d: DownloadEntry, s: FrontEndState, a: FrontEndActions) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(d.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        SourceChip(d.store.id, small = true)
+        Text(stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, modifier = Modifier.weight(1f))
+        if (d.state == DownloadState.INSTALLED) RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { launchStoreGame(ctx, d.store, d.id, s, a) }
+    }
+}
+
+/**
+ * A row's action as a round icon button - the label is its description - sized like the old
+ * compact buttons and focusable by pad. [primary] fills it with the accent, [danger] in red.
+ */
+@Composable
+internal fun RoundAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, primary: Boolean = false, danger: Boolean = false,
+    enabled: Boolean = true, size: androidx.compose.ui.unit.Dp = 36.dp, onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val fill = when { danger -> Color(0xFFD9443B); primary -> pal.signal; else -> colors.surface.copy(alpha = 0.85f) }
+    val tint = if (primary || danger) Color.White else if (hot) pal.signal else colors.onBackground
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(size).clip(androidx.compose.foundation.shape.CircleShape).background(fill)
+            .glideBorder(hot, androidx.compose.foundation.shape.CircleShape, if (primary || danger) colors.onBackground else pal.signal, pal.line)
+            .alpha(if (enabled) 1f else 0.4f)
+            .hoverable(src).clickable(interactionSource = src, indication = androidx.compose.foundation.LocalIndication.current, enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick),
+    ) { androidx.compose.material3.Icon(icon, description, tint = tint, modifier = Modifier.size(size * 0.5f)) }
+}
+
+/** Cancel in two taps: the stop icon, then a red delete and a keep that undoes it (back by itself after a few seconds). */
+@Composable
+private fun CancelAction(onDelete: () -> Unit) {
+    var armed by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(armed) { if (armed) { kotlinx.coroutines.delay(4000); armed = false } }
+    if (!armed) RoundAction(Icons.Outlined.Close, stringResource(R.string.stores_dl_cancel)) { armed = true }
+    else {
+        RoundAction(Icons.Outlined.Delete, stringResource(R.string.stores_dl_cancel_confirm), danger = true) { armed = false; onDelete() }
+        RoundAction(Icons.AutoMirrored.Outlined.Undo, stringResource(R.string.stores_notification_keep)) { armed = false }
     }
 }
 
@@ -127,26 +204,20 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                     }
                 }
             }
-            // The row's actions on the right, over the art.
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+            // The row's actions on the right, over the art: icons, their labels as descriptions.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 when (d.state) {
                     DownloadState.RUNNING, DownloadState.QUEUED -> {
-                        SecondaryButton(stringResource(R.string.stores_dl_pause), compact = true) { DownloadQueue.pause(d.key) }
-                        ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.cancel(ctx, d.key) }
+                        RoundAction(Icons.Filled.Pause, stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(d.key) }
+                        CancelAction { DownloadQueue.cancel(ctx, d.key) }
                     }
                     DownloadState.PAUSED -> {
-                        PrimaryButton(stringResource(R.string.stores_dl_resume), compact = true) { DownloadQueue.resume(ctx, d.key) }
-                        ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.cancel(ctx, d.key) }
+                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.resume(ctx, d.key) }
+                        CancelAction { DownloadQueue.cancel(ctx, d.key) }
                     }
-                    DownloadState.FAILED -> {
-                        PrimaryButton(stringResource(R.string.stores_dl_resume), compact = true) { DownloadQueue.retry(ctx, d.key) }
-                        ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.clear(ctx, d.key) }
-                    }
-                    DownloadState.INSTALLED -> {
-                        PrimaryButton(stringResource(R.string.stores_play), compact = true, icon = Icons.Filled.PlayArrow) { launchStoreGame(ctx, d.store, d.id, s, a) }
-                        SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
-                    }
-                    DownloadState.CANCELLED -> SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
+                    DownloadState.FAILED -> RoundAction(Icons.Filled.Refresh, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.retry(ctx, d.key) }
+                    DownloadState.INSTALLED -> RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { launchStoreGame(ctx, d.store, d.id, s, a) }
+                    DownloadState.CANCELLED -> {}
                 }
             }
         }
