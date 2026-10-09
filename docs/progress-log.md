@@ -29,6 +29,13 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   `SessionLogShareTest` covers it. Nothing was relaxed: the per-session scrub, `scrubOlder` and
   every existing rule stay as they were.
 - **File manager:** the Session logs shortcut opens `files/logs` (the app reads its own storage).
+- **On main after Stores (#476) and the KDE Plasma desktop (#473):** the stores' log is already
+  `files/logs/stores/stores-<date>.log` and the zip carries its last seven days under `stores/`. One
+  set of rules scrubs both the stores' log and the zip (`SecretScrub`): `StoreLog.redactLine` keeps
+  URLs to their host and first plain segment, the zip pass keeps paths with token segments blanked,
+  both blank token values and Authorization / Cookie headers; the two test suites pass on it. The
+  Plasma desktop writes nothing outside the session folder (its output is the session's
+  `desktop.log`), so there was nothing new to move.
 ## 2026-10-08 - `feat/stores`: GOG, Epic Games and Amazon Games in the launcher (in progress)
 
 A new **Stores** section - the three storefronts' libraries and public catalogs, one download
