@@ -396,12 +396,12 @@ VKAPI_ATTR void VKAPI_CALL vkb_ep_vkUnmapMemory(VkDevice device, VkDeviceMemory 
     (void)memory;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkMapMemory2KHR(VkDevice device, const VkMemoryMapInfoKHR *pInfo, void **ppData)
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkMapMemory2(VkDevice device, const VkMemoryMapInfo *pInfo, void **ppData)
 {
     return vkb_ep_vkMapMemory(device, pInfo->memory, pInfo->offset, pInfo->size, pInfo->flags, ppData);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkUnmapMemory2KHR(VkDevice device, const VkMemoryUnmapInfoKHR *pInfo)
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkUnmapMemory2(VkDevice device, const VkMemoryUnmapInfo *pInfo)
 {
     (void)device;
     (void)pInfo;

@@ -12,7 +12,7 @@ cc=$(ls -d "$ndk"/toolchains/llvm/prebuilt/*/bin/aarch64-linux-android26-clang |
 [ -x "$cc" ] || { echo "no NDK clang under $ndk" >&2; exit 1; }
 mkdir -p "$out"
 "$cc" -O2 -g0 -fPIE -pie -Wall -Wno-unused-parameter -Wno-missing-field-initializers \
-    -I"$here/third_party/Vulkan-Headers-1.3.247/include" -I"$here/common" -I"$here/common/gen" -I"$srv" \
+    -I"$here/third_party/Vulkan-Headers-1.4.341/include" -I"$here/common" -I"$here/common/gen" -I"$srv" \
     -Wl,-z,max-page-size=16384 -Wl,--build-id=none \
     -o "$out/libvkbridge_server.so" \
     "$srv"/*.c "$here/common/vkb_wire.c" "$here/common/gen/vkb_gen_structs.c" "$here/common/gen/vkb_gen_server.c" \

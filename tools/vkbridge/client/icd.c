@@ -160,7 +160,8 @@ static uint32_t server_instance_version(void)
     if (!v) {
         uint32_t sv = VK_API_VERSION_1_0;
         if (vkb_wire_vkEnumerateInstanceVersion(&sv) != VK_SUCCESS) return VK_API_VERSION_1_0;
-        v = sv < VKB_API_VERSION ? sv : VKB_API_VERSION;
+        extern uint32_t vkb_max_api(void);
+        v = sv < vkb_max_api() ? sv : vkb_max_api();
     }
     return v;
 }
@@ -270,6 +271,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateInstance(const VkInstanceCreateInf
     uint32_t n = 0;
     for (uint32_t i = 0; i < ci.enabledExtensionCount; i++) {
         const char *e = ci.ppEnabledExtensionNames[i];
+        VKB_DBG("instance extension requested: %s", e);
         if (is_client_instance_ext(e)) {
             if (!strcmp(e, "VK_KHR_surface")) inst->ext_surface = 1;
             else if (!strcmp(e, "VK_KHR_wayland_surface")) inst->ext_wayland = 1;
@@ -437,6 +439,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDevice(VkPhysicalDevice physicalDe
     uint32_t n = 0;
     for (uint32_t i = 0; i < ci.enabledExtensionCount; i++) {
         const char *e = ci.ppEnabledExtensionNames[i];
+        VKB_DBG("device extension requested: %s", e);
         dev->enabled_exts[dev->enabled_ext_count++] = strdup(e);
         if (!strcmp(e, "VK_KHR_swapchain")) dev->ext_swapchain = 1;
         if (vkb_is_client_device_ext(e)) continue;

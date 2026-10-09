@@ -25,7 +25,7 @@
 #include <vulkan/vk_icd.h>
 
 #define VKB_EXPORT __attribute__((visibility("default")))
-#define VKB_API_VERSION VK_MAKE_API_VERSION(0, 1, 3, VK_HEADER_VERSION)
+#define VKB_API_VERSION VK_MAKE_API_VERSION(0, 1, 4, VK_HEADER_VERSION)
 
 /* ------------------------------------------------------------------ small hash map (u64 -> ptr) */
 typedef struct vkb_map {

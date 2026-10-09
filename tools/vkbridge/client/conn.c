@@ -254,9 +254,20 @@ static void release_enc(vkb_call *c)
     }
 }
 
+static int trace_on(void)
+{
+    static int v = -1;
+    if (v < 0) v = getenv("VKBRIDGE_TRACE") && strcmp(getenv("VKBRIDGE_TRACE"), "0");
+    return v;
+}
+
 int vkb_call_exec(vkb_call *c)
 {
     vkb_conn *conn = c->conn;
+    if (trace_on()) {
+        /* VkResult-returning calls put it first in the reply; peeked after the round trip. */
+        vkb_log(VKB_LOG_ERROR, "trace: %s", vkb_cmd_names[c->cmd]);
+    }
     if (!conn || conn->dead || (c->flags & 0x80000000u)) {
         release_enc(c);
         c->conn = NULL;

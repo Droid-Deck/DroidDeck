@@ -42,9 +42,9 @@ void vkb_sv_vkbPushDescRaw(vkb_srv_call *c)
         vkb_srv_bad_message(c);
         return;
     }
-    if (!c->dt->vkCmdPushDescriptorSetWithTemplateKHR) {
-        vkb_srv_missing(c, "vkCmdPushDescriptorSetWithTemplateKHR");
+    if (!c->dt->vkCmdPushDescriptorSetWithTemplate) {
+        vkb_srv_missing(c, "vkCmdPushDescriptorSetWithTemplate");
         return;
     }
-    c->dt->vkCmdPushDescriptorSetWithTemplateKHR(cb, tmpl, layout, set, data);
+    c->dt->vkCmdPushDescriptorSetWithTemplate(cb, tmpl, layout, set, data);
 }

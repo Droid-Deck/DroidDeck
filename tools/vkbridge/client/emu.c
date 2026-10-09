@@ -15,7 +15,13 @@ const VkExtensionProperties *vkb_emu_extensions(vkb_physdev *pd, uint32_t *n)
 void vkb_emu_patch_limits(vkb_physdev *pd, VkPhysicalDeviceProperties *p) { (void)pd; (void)p; }
 void vkb_emu_patch_properties_chain(vkb_physdev *pd, VkBaseOutStructure *b) { (void)pd; (void)b; }
 void vkb_emu_patch_features(vkb_physdev *pd, VkPhysicalDeviceFeatures *f) { (void)pd; (void)f; }
-void vkb_emu_patch_features_chain(vkb_physdev *pd, VkBaseOutStructure *b) { (void)pd; (void)b; }
+void vkb_emu_patch_features_chain(vkb_physdev *pd, VkBaseOutStructure *b)
+{
+    (void)pd;
+    /* Host image copy hands the driver host pointers: never offered across the bridge. */
+    if (b->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES) ((VkPhysicalDeviceVulkan14Features *)b)->hostImageCopy = VK_FALSE;
+    if (b->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES) ((VkPhysicalDeviceHostImageCopyFeatures *)b)->hostImageCopy = VK_FALSE;
+}
 
 int vkb_emu_format_properties(vkb_physdev *pd, VkFormat format, VkFormatProperties *fp, VkFormatProperties2 *fp2)
 {

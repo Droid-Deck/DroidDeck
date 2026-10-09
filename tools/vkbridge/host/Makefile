@@ -10,7 +10,7 @@ OUT ?= $(VKB)/host/out
 CC ?= gcc
 CFLAGS ?= -O1 -g
 WARN := -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare
-INC := -I$(VKB)/third_party/Vulkan-Headers-1.3.247/include -I$(VKB)/common -I$(VKB)/common/gen
+INC := -I$(VKB)/third_party/Vulkan-Headers-1.4.341/include -I$(VKB)/common -I$(VKB)/common/gen
 COMMON_SRC := $(VKB)/common/vkb_wire.c $(VKB)/common/gen/vkb_gen_structs.c
 SERVER_SRC := $(wildcard $(SRV)/*.c) $(VKB)/common/gen/vkb_gen_server.c $(COMMON_SRC)
 CLIENT_SRC := $(wildcard $(VKB)/client/*.c) $(VKB)/common/gen/vkb_gen_client.c $(COMMON_SRC)
@@ -28,7 +28,7 @@ $(OUT)/libvulkan_droidbridge.so: $(CLIENT_SRC) $(wildcard $(VKB)/client/*.h $(VK
 
 $(OUT)/vkbridge_icd.json:
 	@mkdir -p $(OUT)
-	printf '{"file_format_version":"1.0.0","ICD":{"library_path":"%s","api_version":"1.3.247"}}\n' "$(OUT)/libvulkan_droidbridge.so" > $@
+	printf '{"file_format_version":"1.0.0","ICD":{"library_path":"%s","api_version":"1.4.341"}}\n' "$(OUT)/libvulkan_droidbridge.so" > $@
 
 test: all
 	$(VKB)/host/run_tests.sh $(OUT)

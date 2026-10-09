@@ -223,24 +223,38 @@ void vkb_enc_chain(vkb_enc *e, const void *pNext)
     vkb_enc_chain_elem(e, b);
 }
 
-/* Out-structs that carry a caller-provided array (two-call idiom inside a struct). */
-static int out_array_info(VkStructureType t, size_t *count_off, size_t *ptr_off, size_t *elem)
-{
-    switch ((int)t) {
-    case VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT:
-        *count_off = offsetof(VkDrmFormatModifierPropertiesListEXT, drmFormatModifierCount);
-        *ptr_off = offsetof(VkDrmFormatModifierPropertiesListEXT, pDrmFormatModifierProperties);
-        *elem = sizeof(VkDrmFormatModifierPropertiesEXT);
-        return 1;
-    case VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_2_EXT:
-        *count_off = offsetof(VkDrmFormatModifierPropertiesList2EXT, drmFormatModifierCount);
-        *ptr_off = offsetof(VkDrmFormatModifierPropertiesList2EXT, pDrmFormatModifierProperties);
-        *elem = sizeof(VkDrmFormatModifierProperties2EXT);
-        return 1;
-    default:
-        return 0;
-    }
-}
+/* Out-structs that carry caller-provided arrays (the two-call idiom inside a struct). An
+ * "empty" one is always answered with no elements (its elements carry chains of their own). */
+typedef struct out_arr {
+    VkStructureType t;
+    size_t count_off, ptr_off, elem;
+    int empty;
+} out_arr;
+
+#define OA(T, ST, CNT, PTR, ELEM, EMPTY) {ST, offsetof(T, CNT), offsetof(T, PTR), sizeof(ELEM), EMPTY}
+static const out_arr out_arrays[] = {
+    OA(VkDrmFormatModifierPropertiesListEXT, VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT,
+       drmFormatModifierCount, pDrmFormatModifierProperties, VkDrmFormatModifierPropertiesEXT, 0),
+    OA(VkDrmFormatModifierPropertiesList2EXT, VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_2_EXT,
+       drmFormatModifierCount, pDrmFormatModifierProperties, VkDrmFormatModifierProperties2EXT, 0),
+    OA(VkPhysicalDeviceVulkan14Properties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_PROPERTIES,
+       copySrcLayoutCount, pCopySrcLayouts, VkImageLayout, 0),
+    OA(VkPhysicalDeviceVulkan14Properties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_PROPERTIES,
+       copyDstLayoutCount, pCopyDstLayouts, VkImageLayout, 0),
+    OA(VkPhysicalDeviceHostImageCopyProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_PROPERTIES,
+       copySrcLayoutCount, pCopySrcLayouts, VkImageLayout, 0),
+    OA(VkPhysicalDeviceHostImageCopyProperties, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_PROPERTIES,
+       copyDstLayoutCount, pCopyDstLayouts, VkImageLayout, 0),
+    OA(VkPhysicalDeviceLayeredApiPropertiesListKHR, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LAYERED_API_PROPERTIES_LIST_KHR,
+       layeredApiCount, pLayeredApis, VkPhysicalDeviceLayeredApiPropertiesKHR, 1),
+};
+#undef OA
+#define N_OUT_ARRAYS (sizeof(out_arrays) / sizeof(out_arrays[0]))
+
+static uint32_t rd32(const void *base, size_t off) { uint32_t v; memcpy(&v, (const uint8_t *)base + off, 4); return v; }
+static void wr32(void *base, size_t off, uint32_t v) { memcpy((uint8_t *)base + off, &v, 4); }
+static void *rdp(const void *base, size_t off) { void *v; memcpy(&v, (const uint8_t *)base + off, sizeof(v)); return v; }
+static void wrp(void *base, size_t off, void *v) { memcpy((uint8_t *)base + off, &v, sizeof(v)); }
 
 static const VkBaseInStructure *next_known_out(const void *p)
 {
@@ -261,12 +275,8 @@ void vkb_enc_out_template(vkb_enc *e, const void *s, size_t size)
         size_t sz = vkb_struct_size(b->sType);
         vkb_enc_u32(e, (uint32_t)b->sType);
         vkb_enc_raw(e, b, sz);
-        size_t co, po, el;
-        if (out_array_info(b->sType, &co, &po, &el)) {
-            const void *arr;
-            memcpy(&arr, (const uint8_t *)b + po, sizeof(arr));
-            vkb_enc_u8(e, arr != NULL);
-        }
+        for (size_t i = 0; i < N_OUT_ARRAYS; i++)
+            if (out_arrays[i].t == b->sType) vkb_enc_u8(e, !out_arrays[i].empty && rdp(b, out_arrays[i].ptr_off) != NULL);
         b = next_known_out(b->pNext);
     }
     vkb_enc_u32(e, VKB_CHAIN_END);
@@ -281,16 +291,15 @@ void vkb_enc_out_struct(vkb_enc *e, const void *s, size_t size)
         if (!sz) continue;
         vkb_enc_u32(e, (uint32_t)b->sType);
         vkb_enc_raw(e, b, sz);
-        size_t co, po, el;
-        if (out_array_info(b->sType, &co, &po, &el)) {
-            const void *arr;
-            uint32_t n;
-            memcpy(&arr, (const uint8_t *)b + po, sizeof(arr));
-            memcpy(&n, (const uint8_t *)b + co, 4);
+        for (size_t i = 0; i < N_OUT_ARRAYS; i++) {
+            const out_arr *oa = &out_arrays[i];
+            if (oa->t != b->sType) continue;
+            const void *arr = rdp(b, oa->ptr_off);
             vkb_enc_u8(e, arr != NULL);
             if (arr) {
+                uint32_t n = rd32(b, oa->count_off);
                 vkb_enc_u32(e, n);
-                vkb_enc_raw(e, arr, (size_t)n * el);
+                vkb_enc_raw(e, arr, (size_t)n * oa->elem);
             }
         }
     }
@@ -466,15 +475,17 @@ void vkb_dec_out_template(vkb_dec *d, void *dst, size_t size)
         if (!el) break;
         vkb_dec_raw_into(d, el, sz);
         el->pNext = NULL;
-        size_t co, po, es;
-        if (out_array_info((VkStructureType)t, &co, &po, &es)) {
+        for (size_t i = 0; i < N_OUT_ARRAYS; i++) {
+            const out_arr *oa = &out_arrays[i];
+            if (oa->t != (VkStructureType)t) continue;
             void *arr = NULL;
             if (vkb_dec_u8(d)) {
-                uint32_t n;
-                memcpy(&n, (uint8_t *)el + co, 4);
-                arr = vkb_dec_alloc(d, (size_t)(n ? n : 1) * es);
+                uint32_t n = rd32(el, oa->count_off);
+                arr = vkb_dec_alloc(d, (size_t)(n ? n : 1) * oa->elem);
+            } else {
+                wr32(el, oa->count_off, 0);
             }
-            memcpy((uint8_t *)el + po, &arr, sizeof(arr));
+            wrp(el, oa->ptr_off, arr);
         }
         prev->pNext = el;
         prev = el;
@@ -497,36 +508,44 @@ void vkb_dec_out_struct(vkb_dec *d, void *dst, size_t size)
             d->err = 1;
             break;
         }
-        size_t co, po, es;
-        int has_arr = out_array_info((VkStructureType)t, &co, &po, &es);
-        uint8_t arr_present = has_arr ? vkb_dec_u8(d) : 0;
-        uint32_t arr_n = 0;
-        const uint8_t *arr_src = NULL;
-        if (arr_present) {
-            arr_n = vkb_dec_u32(d);
-            arr_src = vkb_dec_raw_view(d, (size_t)arr_n * es);
-        }
         if (!app || (uint32_t)app->sType != t) {
             /* The server answered for a structure we did not send: protocol mismatch. */
             d->err = 1;
             break;
         }
+        /* The caller's own pointers and array capacities survive the copy. */
         VkBaseOutStructure *keep_next = app->pNext;
-        uint32_t cap = 0;
-        void *app_arr = NULL;
-        if (has_arr) {
-            memcpy(&cap, (uint8_t *)app + co, 4);
-            memcpy(&app_arr, (uint8_t *)app + po, sizeof(app_arr));
+        void *app_arr[4] = {0};
+        uint32_t cap[4] = {0};
+        int na = 0;
+        for (size_t i = 0; i < N_OUT_ARRAYS && na < 4; i++) {
+            if (out_arrays[i].t != (VkStructureType)t) continue;
+            app_arr[na] = rdp(app, out_arrays[i].ptr_off);
+            cap[na] = rd32(app, out_arrays[i].count_off);
+            na++;
         }
         memcpy(app, src, sz);
         app->pNext = keep_next;
-        if (has_arr) {
-            memcpy((uint8_t *)app + po, &app_arr, sizeof(app_arr));
-            if (app_arr && arr_src) {
-                uint32_t n = arr_n < cap ? arr_n : cap;
-                memcpy(app_arr, arr_src, (size_t)n * es);
-                memcpy((uint8_t *)app + co, &n, 4);
+        na = 0;
+        for (size_t i = 0; i < N_OUT_ARRAYS && na < 4; i++) {
+            const out_arr *oa = &out_arrays[i];
+            if (oa->t != (VkStructureType)t) continue;
+            wrp(app, oa->ptr_off, app_arr[na]);
+            uint8_t present = vkb_dec_u8(d);
+            uint32_t n = 0;
+            const uint8_t *arr_src = NULL;
+            if (present) {
+                n = vkb_dec_u32(d);
+                arr_src = vkb_dec_raw_view(d, (size_t)n * oa->elem);
             }
+            if (oa->empty) {
+                wr32(app, oa->count_off, 0);
+            } else if (app_arr[na] && arr_src) {
+                uint32_t m = n < cap[na] ? n : cap[na];
+                memcpy(app_arr[na], arr_src, (size_t)m * oa->elem);
+                wr32(app, oa->count_off, m);
+            }
+            na++;
         }
         app = (VkBaseOutStructure *)next_known_out(keep_next);
     }

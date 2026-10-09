@@ -122,8 +122,35 @@ uint32_t vkb_mem_bits_to_client(vkb_physdev *pd, uint32_t server_bits, int allow
 
 /* ------------------------------------------------------------------ setup */
 
+/* The render node the session presents for this GPU (VKBRIDGE_DRM_RENDER="major:minor"). */
+static int drm_node(int64_t *major, int64_t *minor)
+{
+    const char *v = getenv("VKBRIDGE_DRM_RENDER");
+    long long a, b;
+    if (!v || sscanf(v, "%lld:%lld", &a, &b) != 2) return 0;
+    if (major) *major = a;
+    if (minor) *minor = b;
+    return 1;
+}
+
+/* VKBRIDGE_HIDE_EXTS=a,b,c: pretend the GPU lacks these (testing; imitating another driver). */
+static int hidden_ext(const char *name)
+{
+    const char *h = getenv("VKBRIDGE_HIDE_EXTS");
+    if (!h) return 0;
+    size_t n = strlen(name);
+    for (const char *p = h; (p = strstr(p, name)); p += n)
+        if ((p == h || p[-1] == ',') && (p[n] == ',' || p[n] == 0)) return 1;
+    return 0;
+}
+
 static int bridged_device_ext(const char *name)
 {
+    if (hidden_ext(name)) return 0;
+    /* The server GPU's DRM node means nothing on this side: the session's stand-in node is
+     * reported instead (drm_node), or the extension is hidden. VKBRIDGE_PASS_DRM=1 passes the
+     * server's through (host tests, where both sides share one machine). */
+    if (!strcmp(name, "VK_EXT_physical_device_drm")) return getenv("VKBRIDGE_PASS_DRM") && !getenv("VKBRIDGE_DRM_RENDER");
     for (int i = 0; i < VKB_EXT_COUNT; i++)
         if (vkb_exts[i].device && !vkb_exts[i].client && !strcmp(vkb_exts[i].name, name)) return 1;
     return 0;
@@ -159,7 +186,7 @@ int vkb_physdev_ready(vkb_physdev *pd)
     const char *const *cl = vkb_client_device_exts(&ncl);
     uint32_t nemu = 0;
     const VkExtensionProperties *emu = vkb_emu_extensions(pd, &nemu);
-    pd->exts = calloc(n + ncl + nemu + 1, sizeof(VkExtensionProperties));
+    pd->exts = calloc(n + ncl + nemu + 2, sizeof(VkExtensionProperties));
     pd->next = 0;
     for (uint32_t i = 0; i < n; i++)
         if (bridged_device_ext(srv[i].extensionName)) pd->exts[pd->next++] = srv[i];
@@ -167,6 +194,11 @@ int vkb_physdev_ready(vkb_physdev *pd)
         int dup = 0;
         for (uint32_t j = 0; j < pd->next; j++) dup |= !strcmp(pd->exts[j].extensionName, emu[i].extensionName);
         if (!dup) pd->exts[pd->next++] = emu[i];
+    }
+    if (drm_node(NULL, NULL)) {
+        VkExtensionProperties *e = &pd->exts[pd->next++];
+        snprintf(e->extensionName, sizeof(e->extensionName), "VK_EXT_physical_device_drm");
+        e->specVersion = 1;
     }
     for (uint32_t i = 0; i < ncl; i++) {
         VkExtensionProperties *e = &pd->exts[pd->next++];
@@ -183,9 +215,18 @@ int vkb_physdev_ready(vkb_physdev *pd)
 
 /* ------------------------------------------------------------------ properties */
 
+uint32_t vkb_max_api(void)
+{
+    /* VKBRIDGE_MAX_API=1.3 imitates an older driver (testing). */
+    const char *v = getenv("VKBRIDGE_MAX_API");
+    unsigned ma, mi;
+    if (v && sscanf(v, "%u.%u", &ma, &mi) == 2) return VK_MAKE_API_VERSION(0, ma, mi, 0xfff);
+    return VKB_API_VERSION;
+}
+
 static void patch_props(vkb_physdev *pd, VkPhysicalDeviceProperties *p)
 {
-    if (p->apiVersion > VKB_API_VERSION) p->apiVersion = VKB_API_VERSION;
+    if (p->apiVersion > vkb_max_api()) p->apiVersion = vkb_max_api();
     (void)pd;
 }
 
@@ -209,6 +250,20 @@ VKAPI_ATTR void VKAPI_CALL vkb_ep_vkGetPhysicalDeviceProperties2(VkPhysicalDevic
             VkPhysicalDeviceDriverProperties *d = (VkPhysicalDeviceDriverProperties *)b;
             size_t l = strlen(d->driverInfo);
             if (l + 12 < sizeof(d->driverInfo)) strcat(d->driverInfo, " (vkbridge)");
+        }
+        if (b->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT) {
+            VkPhysicalDeviceDrmPropertiesEXT *d = (VkPhysicalDeviceDrmPropertiesEXT *)b;
+            int64_t ma, mi;
+            if (drm_node(&ma, &mi)) {
+                /* gamescope insists on a primary node; the stand-in serves as both, as with
+                 * KGSL on an Adreno. */
+                d->hasPrimary = VK_TRUE;
+                d->primaryMajor = ma;
+                d->primaryMinor = mi;
+                d->hasRender = VK_TRUE;
+                d->renderMajor = ma;
+                d->renderMinor = mi;
+            }
         }
         vkb_emu_patch_properties_chain(pd, b);
     }

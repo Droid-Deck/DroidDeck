@@ -137,7 +137,7 @@ VKAPI_ATTR void VKAPI_CALL vkb_ep_vkUpdateDescriptorSetWithTemplate(VkDevice dev
     if (vkb_call_exec(&c)) vkb_call_end(&c);
 }
 
-VKAPI_ATTR void VKAPI_CALL vkb_ep_vkCmdPushDescriptorSetWithTemplateKHR(VkCommandBuffer commandBuffer, VkDescriptorUpdateTemplate tmpl,
+VKAPI_ATTR void VKAPI_CALL vkb_ep_vkCmdPushDescriptorSetWithTemplate(VkCommandBuffer commandBuffer, VkDescriptorUpdateTemplate tmpl,
                                                                         VkPipelineLayout layout, uint32_t set, const void *pData)
 {
     vkb_cmdbuf *cb = vkb_cb(commandBuffer);
@@ -267,4 +267,42 @@ VKAPI_ATTR void VKAPI_CALL vkb_ep_vkSubmitDebugUtilsMessageEXT(VkInstance instan
     (void)severity;
     (void)types;
     (void)pData;
+}
+
+VKAPI_ATTR void VKAPI_CALL vkb_ep_vkCmdPushDescriptorSetWithTemplate2(VkCommandBuffer commandBuffer,
+                                                                       const VkPushDescriptorSetWithTemplateInfo *pInfo)
+{
+    vkb_ep_vkCmdPushDescriptorSetWithTemplate(commandBuffer, pInfo->descriptorUpdateTemplate, pInfo->layout, pInfo->set, pInfo->pData);
+}
+
+/* ------------------------------------------------------------------ host image copy (not offered) */
+
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCopyMemoryToImage(VkDevice device, const VkCopyMemoryToImageInfo *pInfo)
+{
+    (void)device;
+    (void)pInfo;
+    return VK_ERROR_FEATURE_NOT_PRESENT;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCopyImageToMemory(VkDevice device, const VkCopyImageToMemoryInfo *pInfo)
+{
+    (void)device;
+    (void)pInfo;
+    return VK_ERROR_FEATURE_NOT_PRESENT;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCopyImageToImage(VkDevice device, const VkCopyImageToImageInfo *pInfo)
+{
+    (void)device;
+    (void)pInfo;
+    return VK_ERROR_FEATURE_NOT_PRESENT;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkTransitionImageLayout(VkDevice device, uint32_t transitionCount,
+                                                              const VkHostImageLayoutTransitionInfo *pTransitions)
+{
+    (void)device;
+    (void)transitionCount;
+    (void)pTransitions;
+    return VK_ERROR_FEATURE_NOT_PRESENT;
 }
