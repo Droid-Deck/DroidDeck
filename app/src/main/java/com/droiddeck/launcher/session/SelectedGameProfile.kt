@@ -11,7 +11,9 @@ data class SelectedGameProfile(
     val name: String,
     val fexPreset: ProfileValue,
     val proton: ProfileValue,
+    val protonId: String?,
     val components: Map<String, ProfileValue>,
+    val componentFiles: Map<String, String>,
     val environmentOverrides: Int,
     val windowsComponentNames: List<String>,
 ) {
@@ -44,7 +46,7 @@ data class SelectedGameProfile(
                 val override = gameComponents[component]
                 ProfileValue(
                     value = override?.let { packages[it]?.version ?: it }
-                        ?: selectedProton?.components?.get(component)?.inUse.orEmpty(),
+                        ?: selectedProton?.components?.get(component)?.selected.orEmpty(),
                     inherited = override == null,
                 )
             }
@@ -57,7 +59,9 @@ data class SelectedGameProfile(
                     selectedProton?.proton?.name ?: gameProtonChoice?.dir.orEmpty(),
                     gameProtonChoice == null,
                 ),
+                protonId = selectedProtonId,
                 components = components,
+                componentFiles = gameComponents,
                 environmentOverrides = otherEnvironment.size,
                 windowsComponentNames = gameWindowsComponents.map(WinComponentNames::of),
             )

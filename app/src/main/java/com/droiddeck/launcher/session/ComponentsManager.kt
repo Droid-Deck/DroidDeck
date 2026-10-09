@@ -80,7 +80,14 @@ object ComponentsManager {
     private const val PLUGIN_DATA = "root/homebrew/data/decky-components-manager"
 
     data class Proton(val id: String, val name: String, val dir: File, val guestPath: String, val version: String, val valve: Boolean)
-    data class Component(val detected: String, val detail: String, val inUse: String, val activeFile: String?, val queued: String?)
+    data class Component(
+        val detected: String,
+        val detail: String,
+        val inUse: String,
+        val selected: String,
+        val activeFile: String?,
+        val queued: String?,
+    )
     data class Original(val comp: String, val protonVersion: String, val label: String, val size: Long)
     data class Package(val file: String, val comp: String, val version: String, val description: String, val size: Long)
     data class CatalogItem(val file: String, val comp: String, val release: String, val url: String, val size: Long, val digest: String)
@@ -473,9 +480,14 @@ object ComponentsManager {
                         else context.getString(R.string.cmgr_changed_outside)
                     }
                 }
+                val selectedLabel = when {
+                    active == null || active.optString("protonVersion") != p.version ->
+                        context.getString(R.string.comp_tag_original)
+                    else -> originalLabel(context, active) ?: active.optString("label", active.optString("file"))
+                }
                 val q = state.sub("queued").optJSONObject(p.id)?.optJSONObject(comp)
                 Component(
-                    detected.ifEmpty { context.getString(R.string.cmgr_not_present) }, detail, inUseLabel,
+                    detected.ifEmpty { context.getString(R.string.cmgr_not_present) }, detail, inUseLabel, selectedLabel,
                     active?.optString("file")?.takeIf { active.optString("protonVersion") == p.version },
                     q?.let { originalLabel(context, it) ?: it.optString("label") },
                 )

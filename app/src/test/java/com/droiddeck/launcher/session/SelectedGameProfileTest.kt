@@ -36,8 +36,10 @@ class SelectedGameProfileTest {
         assertTrue(profile.fexPreset.inherited)
         assertEquals("Proton 10", profile.proton.value)
         assertTrue(profile.proton.inherited)
+        assertEquals("p1", profile.protonId)
         assertEquals("DXVK General", profile.components.getValue("dxvk").value)
         assertTrue(profile.components.getValue("dxvk").inherited)
+        assertEquals(emptyMap<String, String>(), profile.componentFiles)
         assertEquals(0, profile.environmentOverrides)
         assertEquals(emptyList<String>(), profile.windowsComponentNames)
         assertFalse(profile.hasOverrides)
@@ -57,6 +59,7 @@ class SelectedGameProfileTest {
         assertFalse(profile.proton.inherited)
         assertEquals("DXVK Game", profile.components.getValue("dxvk").value)
         assertFalse(profile.components.getValue("dxvk").inherited)
+        assertEquals("dxvk.wcp", profile.componentFiles.getValue("dxvk"))
         assertEquals(1, profile.environmentOverrides)
         assertTrue(profile.hasOverrides)
     }
@@ -91,5 +94,6 @@ class SelectedGameProfileTest {
         gameWindowsComponents = gameWindowsComponents,
     )
 
-    private fun component(label: String) = ComponentsManager.Component(label, "", label, null, null)
+    private fun component(label: String) =
+        ComponentsManager.Component(label, "", "Changed outside Components", label, null, null)
 }
