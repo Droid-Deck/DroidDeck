@@ -62,8 +62,8 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
             // Asks the app for an Epic game's sign-in code at launch, from the compat tool (StoreLaunchRequests).
             "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
-            // A game's web links to Android's browser (winebrowser -> xdg-open), on game PATHs only.
-            "usr/local/lib/droiddeck/browser/xdg-open" to "usr/local/lib/droiddeck/browser/xdg-open",
+            // A game's web links to Android's browser (Wine's winebrowser starts it).
+            "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
             // Flatpak: the bwrap stand-in, the store's helper and setup, and the front end's launcher.

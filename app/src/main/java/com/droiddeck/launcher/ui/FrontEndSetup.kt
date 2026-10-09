@@ -505,6 +505,9 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     }
 }
 
+/** Epic's account page behind its sign-in: signing in there presents any step the account still owes. */
+private const val EPIC_RESOLVE_URL = "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Faccount%2Fpersonal"
+
 /** The Epic card: sign-in, offline and overlay switches, read from and written to the game's sidecar. */
 @Composable
 private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
@@ -535,6 +538,14 @@ private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
         MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
         MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }
         MenuItem(stringResource(R.string.epic_overlay), checked = options.overlay) { set { it.copy(overlay = !it.overlay) } }
+        // Epic asks some accounts to accept something once (privacy policy, EULA) before a game may
+        // sign in - EOS's "corrective action". Signing in on Epic's site shows it.
+        MenuItem(stringResource(R.string.epic_resolve), checked = false) {
+            host.open = null
+            runCatching {
+                appContext.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(EPIC_RESOLVE_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
     }
 }
 

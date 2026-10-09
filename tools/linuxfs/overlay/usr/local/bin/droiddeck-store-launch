@@ -21,8 +21,8 @@ an earlier launch is never used.
 The game's prefix also gets the EOS overlay's pointer, HKCU\Software\Epic Games\EOS "OverlayPath"
 (the mechanism from Legendary's lfs/eos.py), naming the one copy the app keeps at OVERLAY_DIR; with
 it the game's EOS SDK can show Epic's own sign-in steps in game (a consent Epic asks for once per
-product) instead of waiting on a browser. Wine's browser is pointed at xdg-open, which this
-runtime's /usr/local/lib/droiddeck/browser/xdg-open hands to Android.
+product) instead of waiting on a browser. Wine's browser is set to droiddeck-open-url, which hands
+web addresses to Android.
 
     droiddeck-store-launch <the arguments Steam gave the compat tool>
 """
@@ -40,6 +40,7 @@ TIMEOUT = 5.0
 STALE_SECONDS = 300
 OVERLAY_DIR = "/root/.local/share/droiddeck/epic-overlay"
 SERVER_WAIT = 8.0
+BROWSER = "/usr/local/bin/droiddeck-open-url"
 OVERLAY_DLL = "EOSOVH-Win64-Shipping.dll"
 EOS_KEY = "[Software\\\\Epic Games\\\\EOS]"
 BROWSER_KEY = "[Software\\\\Wine\\\\WineBrowser]"
@@ -228,7 +229,9 @@ def provision_prefix(compat_data, overlay_dir=OVERLAY_DIR, overlay=False, wait=S
         return "prefix-not-created"
     # A wineserver still up for this prefix would write its own copy of user.reg over these lines.
     busy = not wait_for_server(pfx, wait)
-    set_value(reg, BROWSER_KEY, "Browsers", "xdg-open")
+    # winebrowser starts the first entry it can; an absolute path does not depend on the PATH Wine
+    # hands it.
+    set_value(reg, BROWSER_KEY, "Browsers", BROWSER + ",xdg-open")
     if not overlay:
         remove_value(reg, EOS_KEY, "OverlayPath")
         state = "overlay-off" if not has_value(reg, EOS_KEY, "OverlayPath") else "overlay-still-set"

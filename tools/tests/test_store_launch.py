@@ -132,7 +132,7 @@ class Prefix(unittest.TestCase):
         text = self.reg.read_text()
         self.assertIn('[Software\\\\Epic Games\\\\EOS] ', text)
         self.assertIn('"OverlayPath"="Z:' + str(self.overlay).replace('/', '\\\\') + '"', text)
-        self.assertIn('"Browsers"="xdg-open"', text)
+        self.assertIn('"Browsers"="/usr/local/bin/droiddeck-open-url,xdg-open"', text)
         # A second launch adds nothing: the last word already says so.
         store.provision_prefix(str(self.compat), str(self.overlay), overlay=True)
         self.assertEqual(text, self.reg.read_text())
@@ -178,7 +178,7 @@ class Choices(unittest.TestCase):
 
 class Browser(unittest.TestCase):
     def test_a_web_address_is_handed_to_the_app(self):
-        xdg = load_path(BIN.parent / 'lib/droiddeck/browser/xdg-open', 'xdg_open')
+        xdg = load_path(BIN / 'droiddeck-open-url', 'open_url')
         with tempfile.TemporaryDirectory() as root:
             os.environ['BL_LAUNCH_DIR'] = root
             try:

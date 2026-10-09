@@ -144,6 +144,21 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Why EOS's browser flow never reached Android:** the hand-off script was never in the APK. The
+  build copies only `usr/local/bin/droiddeck-*`, `steam-compatibility` and `usr/bin/**` of the overlay
+  into the assets, so `usr/local/lib/droiddeck/browser/xdg-open` was skipped, the session staged
+  nothing, the wrapper did not put it on the PATH, and Wine's winebrowser ran the runtime's own
+  `/usr/bin/xdg-open`, which has no browser to open in a Steam session. GE-Proton 11-7's winebrowser
+  (Metalstorm's tool) is Wine's own - registry `Browsers` list, then `xdg-open` by name - with no
+  steam://openurl route. The script is now `usr/local/bin/droiddeck-open-url`: named as Wine's
+  browser in the prefix (`"Browsers"="/usr/local/bin/droiddeck-open-url,xdg-open"`, an absolute path
+  that does not depend on Wine's PATH), linked as `xdg-open` first on the game's PATH, and reading
+  the session channel from `/tmp/droiddeck-browser/launch-dir` when Wine does not pass
+  `BL_LAUNCH_DIR` on. Whether EOS calls ShellExecute at all in its browser flow (rather than handing
+  a verification URI and code to the game to show) is what the next run's `droiddeck xdg-open:` line,
+  or `BL_DEBUG_BROWSER=1` in droiddeck-env (`WINEDEBUG=+shell,+winebrowser`), will show.
+- **Resolve Epic sign-in** (the Epic card): opens Epic's account page behind its sign-in in Android's
+  browser, where a pending corrective action (privacy policy, EULA) is presented.
 - **Epic overlay off by default** (device A/B, Metalstorm: overlay pointer set → exits while
   loading, twice; off → signs in to its Starform account and runs at 118 fps). `EpicOptions.overlay`
   defaults to false; the sidecar's `epic` block carries `"v": 2`, and an older block (the old default
@@ -186,7 +201,7 @@ without it and Setup says "Stores engine not built").
   (`STEAM_COMPAT_DATA_PATH/pfx/user.reg`, appended as DirectAudio's key is; a prefix Proton has not
   created yet gets it on the next launch). Logged as `epic overlay installed=<build> prefix=<appid>`.
   A game's web links now open on Android: Wine's browser is set to xdg-open, and on a game's PATH
-  `/usr/local/lib/droiddeck/browser/xdg-open` hands http(s) addresses to the app, which opens them
+  `droiddeck-open-url` hands http(s) addresses to the app, which opens them
   with Android's browser - so a device-code sign-in can be finished on the phone.
 - **Epic sign-in from Steam's own Play button (device, Metalstorm "Guest Account"):** the game was
   started from the Steam client, so the app never minted its exchange code - the code was only

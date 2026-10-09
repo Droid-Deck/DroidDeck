@@ -2020,6 +2020,7 @@
     <string name="epic_eos">Epic sign-in (EOS)</string>
     <string name="epic_offline">Launch offline</string>
     <string name="epic_overlay">Epic overlay</string>
+    <string name="epic_resolve">Resolve Epic sign-in</string>
     <string name="stores_eyebrow_installed">installed</string>
     <string name="stores_eyebrow_library">in your library</string>
     <string name="stores_eyebrow_store">store</string>
