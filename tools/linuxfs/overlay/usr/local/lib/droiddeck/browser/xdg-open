@@ -1,0 +1,38 @@
+#!/usr/bin/python3
+"""xdg-open for games: a web address a game opens (Wine's winebrowser runs xdg-open) goes to
+Android's browser through the app, so an EOS device sign-in or a store page can be finished on
+the phone. On a game's PATH only (droiddeck-proton puts this directory first); anything that is not
+http(s), or with no session channel, goes on to the system's own xdg-open."""
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+
+def hand_over(url, launch_dir):
+    req = Path(launch_dir) / "stores" / "req"
+    req.mkdir(parents=True, exist_ok=True)
+    rid = "url-%d-%d" % (os.getpid(), int(time.time() * 1000))
+    tmp = req / (rid + ".json.tmp")
+    tmp.write_text(json.dumps({"op": "open-url", "url": url}))
+    os.rename(tmp, req / (rid + ".json"))
+
+
+def main(argv):
+    url = argv[0] if argv else ""
+    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if url.startswith(("https://", "http://")) and launch_dir:
+        hand_over(url, launch_dir)
+        return 0
+    here = os.path.dirname(os.path.abspath(__file__))
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        candidate = os.path.join(d, "xdg-open")
+        if os.path.abspath(d) != here and os.access(candidate, os.X_OK):
+            os.execv(candidate, [candidate] + argv)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

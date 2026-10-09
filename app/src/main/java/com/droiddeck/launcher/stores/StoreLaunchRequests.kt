@@ -58,7 +58,27 @@ object StoreLaunchRequests {
             "epic-code" -> {
                 val id = request.optString("id")
                 if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
-                else StoreLaunch.epicCode(app, id).let { JSONObject().put("ok", true).put("code", it.written).put("reason", it.reason) }
+                else {
+                    val code = StoreLaunch.epicCode(app, id)
+                    // The overlay is placed once and shared; the launch writes the prefix's pointer.
+                    val overlay = com.droiddeck.launcher.stores.epic.EpicOverlay.installedVersion(app)
+                    Log.i(TAG, "epic overlay installed=${overlay ?: "no"} prefix=${request.optString("prefix").ifEmpty { "?" }}")
+                    if (overlay == null) com.droiddeck.launcher.stores.epic.EpicOverlay.ensureAsync(app)
+                    JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason).put("overlay", overlay ?: "")
+                }
+            }
+            // A browser a game opens inside the session (an EOS device sign-in, a store page):
+            // http(s) only, handed to Android's browser.
+            "open-url" -> {
+                val url = request.optString("url")
+                if (!(url.startsWith("https://") || url.startsWith("http://"))) JSONObject().put("ok", false).put("reason", "not-http")
+                else try {
+                    app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    Log.i(TAG, "open-url: " + StoreLog.redactUrl(url))
+                    JSONObject().put("ok", true)
+                } catch (e: Exception) {
+                    JSONObject().put("ok", false).put("reason", e.javaClass.simpleName)
+                }
             }
             else -> JSONObject().put("ok", false).put("reason", "unknown-op")
         }

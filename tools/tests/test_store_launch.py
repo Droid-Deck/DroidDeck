@@ -23,6 +23,14 @@ def load(name):
 
 
 store = load('droiddeck-store-launch')
+
+
+def load_path(path, name):
+    loader = importlib.machinery.SourceFileLoader(name, str(path))
+    spec = importlib.util.spec_from_loader(name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
 compat = load('steam-compatibility')
 
 
@@ -101,6 +109,54 @@ class Asking(unittest.TestCase):
             self.assertFalse(store.drop_stale(folder, now=code.stat().st_mtime + 60))
             self.assertTrue(store.drop_stale(folder, now=code.stat().st_mtime + store.STALE_SECONDS + 1))
             self.assertFalse(code.exists())
+
+
+class Prefix(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.compat = root / 'compatdata/3785150007'
+        (self.compat / 'pfx').mkdir(parents=True)
+        self.reg = self.compat / 'pfx/user.reg'
+        self.reg.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Wine] 1\n"Version"="win10"\n')
+        self.overlay = root / 'epic-overlay'
+        self.overlay.mkdir()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_the_overlay_pointer_names_the_shared_copy_through_z(self):
+        (self.overlay / store.OVERLAY_DLL).write_bytes(b'MZ')
+        (self.overlay / 'droiddeck-version').write_text('1.0.42')
+        self.assertEqual('overlay-set', store.provision_prefix(str(self.compat), str(self.overlay)))
+        text = self.reg.read_text()
+        self.assertIn('[Software\\\\Epic Games\\\\EOS] ', text)
+        self.assertIn('"OverlayPath"="Z:' + str(self.overlay).replace('/', '\\\\') + '"', text)
+        self.assertIn('"Browsers"="xdg-open"', text)
+        # A second launch adds nothing: the last word already says so.
+        store.provision_prefix(str(self.compat), str(self.overlay))
+        self.assertEqual(text, self.reg.read_text())
+        self.assertEqual('1.0.42', store.overlay_version(str(self.overlay)))
+
+    def test_no_overlay_yet_or_no_prefix_yet(self):
+        self.assertEqual('overlay-missing', store.provision_prefix(str(self.compat), str(self.overlay)))
+        self.assertNotIn('OverlayPath', self.reg.read_text())
+        self.assertEqual('prefix-not-created', store.provision_prefix(self.tmp.name + '/compatdata/1', str(self.overlay)))
+        self.assertEqual('no-prefix', store.provision_prefix('', str(self.overlay)))
+
+
+class Browser(unittest.TestCase):
+    def test_a_web_address_is_handed_to_the_app(self):
+        xdg = load_path(BIN.parent / 'lib/droiddeck/browser/xdg-open', 'xdg_open')
+        with tempfile.TemporaryDirectory() as root:
+            os.environ['BL_LAUNCH_DIR'] = root
+            try:
+                self.assertEqual(0, xdg.main(['https://www.epicgames.com/activate']))
+            finally:
+                del os.environ['BL_LAUNCH_DIR']
+            reqs = list((Path(root) / 'stores/req').glob('*.json'))
+            self.assertEqual(1, len(reqs))
+            self.assertEqual({'op': 'open-url', 'url': 'https://www.epicgames.com/activate'}, json.loads(reqs[0].read_text()))
 
 
 class Launchers(unittest.TestCase):

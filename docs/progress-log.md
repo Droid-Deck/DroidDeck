@@ -144,6 +144,18 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **EOS overlay** (device: Metalstorm's EOS grant answered `corrective_action_required`, the overlay
+  was not configured, and EOS fell back to a browser flow that never finished). Epic's own overlay
+  component ("EpicOnlineServicesOverlay", the mechanism from Legendary's `lfs/eos.py`, credits in
+  `EpicOverlay.kt`) is downloaded once, with the Epic account's token, to
+  `/root/.local/share/droiddeck/epic-overlay` in the runtime - after an Epic library sync, or at the
+  first launch that finds it missing. `droiddeck-store-launch` then writes the one pointer,
+  `HKCU\Software\Epic Games\EOS` `OverlayPath` = that folder through Z:, into the game's prefix
+  (`STEAM_COMPAT_DATA_PATH/pfx/user.reg`, appended as DirectAudio's key is; a prefix Proton has not
+  created yet gets it on the next launch). Logged as `epic overlay installed=<build> prefix=<appid>`.
+  A game's web links now open on Android: Wine's browser is set to xdg-open, and on a game's PATH
+  `/usr/local/lib/droiddeck/browser/xdg-open` hands http(s) addresses to the app, which opens them
+  with Android's browser - so a device-code sign-in can be finished on the phone.
 - **Epic sign-in from Steam's own Play button (device, Metalstorm "Guest Account"):** the game was
   started from the Steam client, so the app never minted its exchange code - the code was only
   written when a launch began in the app. Now the compat tool (`droiddeck-proton` and

@@ -18,6 +18,12 @@ here - and the launcher .bat reads and deletes it. No answer within TIMEOUT seco
 with its offline identity. A code file older than STALE_SECONDS is removed first, so a code left by
 an earlier launch is never used.
 
+The game's prefix also gets the EOS overlay's pointer, HKCU\Software\Epic Games\EOS "OverlayPath"
+(the mechanism from Legendary's lfs/eos.py), naming the one copy the app keeps at OVERLAY_DIR; with
+it the game's EOS SDK can show Epic's own sign-in steps in game (a consent Epic asks for once per
+product) instead of waiting on a browser. Wine's browser is pointed at xdg-open, which this
+runtime's /usr/local/lib/droiddeck/browser/xdg-open hands to Android.
+
     droiddeck-store-launch <the arguments Steam gave the compat tool>
 """
 
@@ -32,6 +38,10 @@ SIDECAR = ".droiddeck-store.json"
 EPIC_CODE = ".droiddeck-epic-code"
 TIMEOUT = 5.0
 STALE_SECONDS = 300
+OVERLAY_DIR = "/root/.local/share/droiddeck/epic-overlay"
+OVERLAY_DLL = "EOSOVH-Win64-Shipping.dll"
+EOS_KEY = "[Software\\\\Epic Games\\\\EOS]"
+BROWSER_KEY = "[Software\\\\Wine\\\\WineBrowser]"
 
 
 def log(line):
@@ -93,6 +103,63 @@ def ask(channel, request, timeout=TIMEOUT):
     return None
 
 
+def windows_path(unix):
+    """A guest path as Wine names it through Z: (the whole filesystem)."""
+    return "Z:" + unix.replace("/", "\\")
+
+
+def reg_escape(value):
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def set_value(reg, key, name, value, now=None):
+    """
+    Appends `key` with `"name"="value"` to a prefix's user.reg unless the last word on it already
+    says so. Appended rather than edited in place, as DirectAudio's key is: Wine reads later sections
+    over earlier ones, and nothing of the file is rewritten under a wineserver that might hold it.
+    False when there is no user.reg yet (Proton creates the prefix after this; the next launch has it).
+    """
+    if not reg.is_file():
+        return False
+    line = '"%s"="%s"' % (name, reg_escape(value))
+    inside, last = False, None
+    for row in reg.read_text(errors="replace").splitlines():
+        if row.startswith("["):
+            inside = row.startswith(key + " ") or row == key
+        elif inside and row.startswith('"%s"=' % name):
+            last = row
+    if last == line:
+        return True
+    with open(reg, "a") as out:
+        out.write("\n%s %d\n%s\n" % (key, int(now if now is not None else time.time()), line))
+    return True
+
+
+def overlay_version(overlay_dir=OVERLAY_DIR):
+    """The overlay build the app placed, or None when it is not there."""
+    d = Path(overlay_dir)
+    if not (d / OVERLAY_DLL).is_file():
+        return None
+    try:
+        return (d / "droiddeck-version").read_text().strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+def provision_prefix(compat_data, overlay_dir=OVERLAY_DIR):
+    """The EOS overlay pointer and Wine's browser, in the game's prefix. Returns what was done."""
+    if not compat_data:
+        return "no-prefix"
+    reg = Path(compat_data) / "pfx" / "user.reg"
+    if not reg.is_file():
+        return "prefix-not-created"
+    set_value(reg, BROWSER_KEY, "Browsers", "xdg-open")
+    if overlay_version(overlay_dir) is None:
+        return "overlay-missing"
+    set_value(reg, EOS_KEY, "OverlayPath", windows_path(overlay_dir))
+    return "overlay-set"
+
+
 def main(argv):
     found = find_store_game(argv)
     if found is None:
@@ -106,12 +173,16 @@ def main(argv):
     if not launch_dir:
         log("epic launch id=%s code=no reason=no-channel" % game)
         return 0
-    answer = ask(Path(launch_dir) / "stores", {"op": "epic-code", "store": store, "id": game})
+    compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    prefix_id = os.path.basename(compat_data) if compat_data else ""
+    answer = ask(Path(launch_dir) / "stores", {"op": "epic-code", "store": store, "id": game, "prefix": prefix_id})
     if answer is None:
         log("epic launch id=%s code=no reason=timeout" % game)
     else:
         got = bool(answer.get("code"))
         log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
+    done = provision_prefix(compat_data)
+    log("epic overlay installed=%s prefix=%s %s" % (overlay_version() or "no", prefix_id or "?", done))
     return 0
 
 

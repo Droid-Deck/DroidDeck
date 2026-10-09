@@ -103,6 +103,10 @@ TOOL_MANIFEST_VDF = """"manifest"
 BL_STORE_SETUP = """
 bl_store_launch() {
   [ "${verb:-}" = waitforexitandrun ] || return 0
+  # A web address the game opens (Wine's winebrowser runs xdg-open) goes to Android's browser.
+  if [ -x /usr/local/lib/droiddeck/browser/xdg-open ]; then
+    PATH="/usr/local/lib/droiddeck/browser:$PATH"; export PATH
+  fi
   [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
   /usr/local/bin/droiddeck-store-launch "$@" || true
 }
