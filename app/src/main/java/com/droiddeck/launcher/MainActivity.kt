@@ -595,11 +595,10 @@ class MainActivity : ComponentActivity() {
                     ),
                     FrontEndActions(
                         onPlay = { startSteamSession() },
-                        // Steam's desktop client as a window on the desktop: under gamescope the
-                        // client puts itself into Big Picture whatever it is started with.
+                        // The client's desktop UI, with gamescope's Deck integration disabled.
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
+                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
                                 .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
                         },
                         // A store game may need something done first (an Epic game its sign-in code).

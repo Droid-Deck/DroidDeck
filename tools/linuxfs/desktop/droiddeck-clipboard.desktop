@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Android clipboard
+Exec=/usr/local/bin/droiddeck-desktop-clipboard
+OnlyShowIn=KDE;
+NoDisplay=true

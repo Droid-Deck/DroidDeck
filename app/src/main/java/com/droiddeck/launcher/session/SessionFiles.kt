@@ -48,9 +48,11 @@ object SessionFiles {
             "usr/local/bin/droiddeck-agent" to "usr/local/bin/droiddeck-agent",
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
+            "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
             "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
+            "usr/local/bin/droiddeck-steam-desktop-ui" to "usr/local/bin/droiddeck-steam-desktop-ui",
             "usr/local/bin/droiddeck-steam-library" to "usr/local/bin/droiddeck-steam-library",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
@@ -101,6 +103,7 @@ object SessionFiles {
             // KWin at the app's surface size, for Plasma's session (it starts KWin through this name).
             "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
             "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
+            "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
         )
         // The patched gamescope (tools/gamescope): the runtime's own version rebuilt with the ARM64
         // client fixes, over /usr/local/bin so it comes first in the session's PATH. Only when the
