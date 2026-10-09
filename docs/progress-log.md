@@ -153,6 +153,11 @@ without it and Setup says "Stores engine not built").
 - **Cloud saves device-proven (AYANEO Pocket FIT, `6a175f1`, ELDERBORN on GOG):** the launch logged
   `cloud gog 1732383191 down result=ok files=5 bytes=237499 reason=downloaded` (template found) and
   the in-game slot shows the cloud save (Catacombs: Tutorial part 1, 00:08:40).
+- **Every owned card shows its size** at the right of its title strip, in the title's type: GOG's from
+  its catalog; Epic's (build manifest, the files this device installs) and Amazon's (download
+  manifest) looked up once a card is on screen or close, three at a time in the background, kept in
+  the store's prefs (`size_<id>`). Nothing shows until it is known; a marker (installed, Resume, a
+  download's percent) keeps the slot.
 - **Two tabs, Store and Library** (the All count mixed owned games with whatever shelves had loaded:
   GOG Library 33 / All 120): Library's dropdown filters All (every owned game, the default, the
   tab's count) or Installed, and the tab reads the filter ("Library (33)", "Installed (1)"); the old

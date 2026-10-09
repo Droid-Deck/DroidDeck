@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
@@ -492,8 +494,18 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     val installed = item.id in installedKeys
     val download = StoresState.download("${store.id}:${item.id}")?.takeIf { it.isActive }
     val open = { onOpen(item.key) }
+    // A size the library did not give is looked up once the card is on screen or close to it.
+    val screen = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
+    val ahead = screen / 2
     Column(
-        modifier = Modifier.fillMaxWidth().paneItem("card:${item.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
+        modifier = Modifier.fillMaxWidth()
+            .onGloballyPositioned { c ->
+                if (item.owned && item.sizeBytes <= 0) {
+                    val b = c.boundsInWindow()
+                    if (b.bottom > -ahead && b.top < screen + ahead && b.width > 0f) com.droiddeck.launcher.stores.StoreSizes.request(ctx, item)
+                }
+            }
+            .paneItem("card:${item.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
@@ -565,7 +577,8 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
         installed -> Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(14.dp))
         download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         item.owned && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        item.owned -> if (item.sizeBytes > 0) Text(formatBytes(item.sizeBytes), fontSize = small, color = Color.White.copy(alpha = 0.8f), maxLines = 1)
+        // The size in the title's own type; nothing until it is known.
+        item.owned -> com.droiddeck.launcher.stores.StoreSizes.size(item).takeIf { it > 0 }?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
         item.isFree -> Text(stringResource(R.string.stores_free), fontSize = small, fontWeight = FontWeight.Bold, color = pal.good, maxLines = 1)
         item.isDiscounted -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             StateChip("-${item.discountPercent}%", ChipTone.DEAL, small = true)
