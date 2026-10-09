@@ -26,7 +26,8 @@ object GogStoreCatalog {
     private const val CATALOG = "https://catalog.gog.com/v1/catalog"
     private const val FEATURED_TTL_MS = 30 * 60 * 1000L
     private const val SEARCH_TTL_MS = 5 * 60 * 1000L
-    private const val KEY_FEATURED = "store_featured"
+    // v2: entries carry the mature mark; an older cache would show everything until it aged out.
+    private const val KEY_FEATURED = "store_featured_v2"
 
     private val supportedCurrencies = setOf(
         "USD", "EUR", "GBP", "AUD", "CAD", "CHF", "DKK", "NOK", "PLN", "SEK", "BRL", "CNY",
