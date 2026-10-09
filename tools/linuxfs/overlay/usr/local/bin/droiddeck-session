@@ -596,23 +596,42 @@ case $mode in
         esac
       done
     ) &
-    # The library beat. Both helpers are whole programs under proot (the compat one a python
-    # start and a parse of the client's config), and nearly every beat has nothing new for them.
-    # The seeder marks Proton's prefix template as well as the prefixes, so a new prefix is born
-    # marked and every 15 s is soon enough for the rest. The compat pass runs when a directory it
-    # reads from has changed since its last run - a new manifest, a new depot or tool, the client
-    # rewriting config.vdf - which [ -nt ] answers without starting anything, and once a minute
-    # regardless.
+    # The library beat. Both helpers are whole programs under proot (the seeder some forty of them,
+    # the compat one a python start and a parse of the client's config), and nearly every beat has
+    # nothing new for them: a burst of thousands of proot stops every quarter minute, game loads
+    # included. Each runs only when what it reads has changed, which bash answers without starting
+    # anything ([ -nt ], globs), and every five minutes regardless. The seeder acts on a prefix (or
+    # Proton's template for them) it has not marked, and on new install scripts, which arrive with a
+    # manifest; the compat pass on a new manifest, depot or tool, or the client rewriting config.vdf.
     (
       beat=0
       compat_stamp=$HOME/.bl-compat-beat
-      rm -f "$compat_stamp"
-      compat_due() {
+      seed_stamp=$HOME/.bl-seed-beat
+      rm -f "$compat_stamp" "$seed_stamp"
+      changed_since() {
         local d
-        [ -e "$compat_stamp" ] && [ "$((beat % 12))" -ne 0 ] || return 0
-        for d in "$steam_root/steamapps" "$steam_root/steamapps/common" "$steam_root/config" \
-                 "$steam_root/compatibilitytools.d" /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps; do
-          [ "$d" -nt "$compat_stamp" ] && return 0
+        for d in "${@:2}"; do
+          [ "$d" -nt "$1" ] && return 0
+        done
+        return 1
+      }
+      compat_due() {
+        [ -e "$compat_stamp" ] && [ "$((beat % 60))" -ne 0 ] || return 0
+        changed_since "$compat_stamp" "${libraries[@]}" "$steam_root/steamapps/common" "$steam_root/config" \
+          "$steam_root/compatibilitytools.d"
+      }
+      seed_due() {
+        local reg
+        [ -e "$seed_stamp" ] && [ "$((beat % 60))" -ne 0 ] || return 0
+        changed_since "$seed_stamp" "${libraries[@]}" && return 0
+        for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+                   /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+                   /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+                   "$steam_root"/compatibilitytools.d/*/files/share/default_pfx*/system.reg \
+                   "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
+                   /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
+                   /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
+          [ -f "$reg" ] && [ ! -f "${reg%/*}/.droiddeck-redists" ] && return 0
         done
         return 1
       }
@@ -620,7 +639,11 @@ case $mode in
         nap 5
         beat=$((beat + 1))
         [ "$((beat % 3))" -eq 0 ] || continue
-        droiddeck-seed-redists "$steam_root" >/dev/null 2>&1 || true
+        libraries=("$steam_root/steamapps" /mnt/droiddeck/steamapps /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps)
+        if seed_due; then
+          : > "$seed_stamp"
+          droiddeck-seed-redists "$steam_root" >/dev/null 2>&1 || true
+        fi
         if compat_due; then
           : > "$compat_stamp"
           steam-compatibility "$steam_root" >/dev/null 2>&1 || true
