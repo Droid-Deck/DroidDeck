@@ -88,6 +88,15 @@ private const val DOWNLOADS = "downloads"
 
 private val TABS = listOf("store", "installed", "library", "all")
 
+/**
+ * The tabs a store has. Amazon has no public catalog: its Store and All would only repeat the
+ * library, so it has Installed and Library alone.
+ */
+internal fun tabsFor(store: Store?): List<String> = if (store == Store.AMAZON) listOf("installed", "library") else TABS
+
+/** [tab] if [store] has it, else Library (the open-on Store choice falls back there for Amazon). */
+internal fun tabFor(store: Store?, tab: String): String = if (tab in tabsFor(store)) tab else "library"
+
 @Composable
 internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
@@ -99,6 +108,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     var openGame by rememberSaveable { mutableStateOf<String?>(null) }
     var settings by rememberSaveable { mutableStateOf(false) }
     val store = Store.byId(chip)
+    // A tab this store does not have (Store or All on Amazon) reads as Library.
+    val shownTab = tabFor(store, tab)
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     // A store the account is signed into fills itself when its chip is on screen.
     LaunchedEffect(chip, StoresState.accounts[store]) { if (store != null && StoresState.isSignedIn(store)) StoresState.open(ctx, store) }
@@ -118,7 +129,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     // afterwards stays until another chip is picked.
     val pickChip: (String) -> Unit = { id ->
         chip = id; openGame = null; query = ""
-        if (id != DOWNLOADS) tab = if (s.storesOpenTab == SessionPrefs.STORES_OPEN_STORE) "store" else "library"
+        if (id != DOWNLOADS) tab = tabFor(Store.byId(id), if (s.storesOpenTab == SessionPrefs.STORES_OPEN_STORE) "store" else "library")
         move("first")
     }
     BackHandler(enabled = openGame != null) { closeGame() }
@@ -138,8 +149,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     Column(
         modifier = modifier.padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
             .bumpers(
-                onPrevious = { if (openGame == null && chip != DOWNLOADS) switchTab(TABS[(TABS.indexOf(tab) + TABS.size - 1) % TABS.size]) },
-                onNext = { if (openGame == null && chip != DOWNLOADS) switchTab(TABS[(TABS.indexOf(tab) + 1) % TABS.size]) },
+                onPrevious = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + t.size - 1) % t.size]) } },
+                onNext = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + 1) % t.size]) } },
             ),
     ) {
         // The chip row stays put on the page's own ground; what scrolls passes under it, clipped,
@@ -156,7 +167,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 // One focus group, so the pad walks the page's own controls - back, the hero's
                 // actions, the cards - and reaches the rail only with Left from them.
                 openGame != null -> Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(store, openGame!!, s, a, onBack = { closeGame() }) }
-                else -> Storefront(store, tab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
+                else -> Storefront(store, shownTab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
             }
         }
         if (scroll.value > 0) Spacer(
@@ -307,7 +318,7 @@ private fun Storefront(
                 "installed" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size),
                 "library" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size),
                 "all" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_all), everything.size),
-            ),
+            ).filter { it.first in tabsFor(store) },
             tab, onTab,
             trailing = {
                 val name = StoresState.accounts[store] ?: ""

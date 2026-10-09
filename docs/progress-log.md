@@ -144,6 +144,10 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Amazon has Installed and Library only:** with no public catalog its Store tab repeated the
+  library (Trending = Your library) and All equalled Library. The open-on Store choice falls back to
+  Library for Amazon. Amazon's library API carries no install size, so a size shows only once a
+  game has been installed (the manifest gives it then); no placeholder otherwise.
 - **Shelves are titles only** (no "Just landed" / "On sale this week" lines); the chip row sits on
   the page's own ground with room under it, and what scrolls passes beneath it clipped, with a short
   fade where it meets the row.
