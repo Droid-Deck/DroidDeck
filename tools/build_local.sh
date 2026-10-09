@@ -117,7 +117,7 @@ docker run --rm --platform linux/amd64 \
     '
 
 docker run --rm --platform linux/amd64 \
-    -v "${repo_root}:/src" -w /src debian:bullseye bash -c '
+    -v "${repo_root}:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
         set -euo pipefail
         printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
         apt-get -o Acquire::Check-Valid-Until=false update -qq
