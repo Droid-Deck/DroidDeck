@@ -347,6 +347,17 @@ branch builds the locale archive once).
 A game launch is 4.2 s (35%) shorter, and the game runs as before (60 FPS on its menu). Steam's own
 start is paced by the client and its network checks and does not move.
 
+Four more games, the same way (a fresh client for each launch, three launches per build, median):
+
+| launch to game window | `main` | this branch | saved |
+|---|---|---|---|
+| Palworld | 16.5 s | 12.1 s | 4.5 s (27%) |
+| Fallout: New Vegas | 12.1 s | 7.7 s | 4.4 s (36%) |
+| Stardew Valley | 34.1 s | 29.6 s | 4.5 s (13%) |
+| FINAL FANTASY VII REMAKE INTERGRADE | 22.1 s | 16.5 s | 5.6 s (25%) |
+
+Mortal Kombat X opened no window on either build and is left out.
+
 With the profiler (`PROOT_PROFILE`), the Among Us launch plus a minute of play went from 279,560
 stops and 5.2 s of tracer time to 23,919 stops and 0.48 s; 9–12k of what is left are Wine's
 signals. A Steam start's first 90 s cost 0.78 s of tracer time, of which ld.so's opens are 0.33 s.
