@@ -115,6 +115,11 @@ import androidx.compose.ui.window.PopupProperties
 private val RowShape = RoundedCornerShape(12.dp)
 private val GroupShape = RoundedCornerShape(14.dp)
 
+/** Whether a pad's A is held right now, as the activity sees it: a focus move waits for its release. */
+internal object HeldKeys {
+    @Volatile var confirm = false
+}
+
 internal fun Modifier.controllerConfirm(enabled: Boolean = true, onClick: () -> Unit): Modifier = onPreviewKeyEvent { event ->
     val keyEvent = event.nativeKeyEvent
     if (keyEvent.keyCode != KeyEvent.KEYCODE_BUTTON_A) {

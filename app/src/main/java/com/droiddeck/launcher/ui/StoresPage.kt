@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.toArgb
@@ -177,11 +178,25 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         if (id != DOWNLOADS) tab = tabFor(Store.byId(id), if (s.storesOpenTab == SessionPrefs.STORES_OPEN_STORE) "store" else "library")
         move("first")
     }
+    // A pad moving along the chips shows each store it stops on, without A: a beat after it
+    // settles, so sweeping past two chips does not open both. Focus stays on the chip.
+    var focusedChip by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(focusedChip) {
+        val id = focusedChip ?: return@LaunchedEffect
+        delay(140)
+        if (id != chip) {
+            chip = id; openGame = null; query = ""
+            if (id != DOWNLOADS) tab = tabFor(Store.byId(id), if (s.storesOpenTab == SessionPrefs.STORES_OPEN_STORE) "store" else "library")
+        }
+    }
     // A store's chip steps its modes out of itself (End session's shape, in the store's colour);
     // picking one shows that store in it. A store not signed in has none: its chip just opens it.
     val pal = LocalPalette.current
     fun openModes(st: Store, at: Rect?) {
-        if (at == null || !StoresState.isSignedIn(st) || StoresState.expired[st] == true) { if (chip != st.id) pickChip(st.id); return }
+        // Another store's chip (a tap; a pad's focus has already shown it): that store.
+        if (chip != st.id) { pickChip(st.id); return }
+        // Not signed in: nothing to pick, so A goes on to its Sign in.
+        if (at == null || !StoresState.isSignedIn(st) || StoresState.expired[st] == true) { move("first"); return }
         val modes = tabsFor(st)
         val current = if (chip == st.id) shownTab else null
         var picked = false
@@ -247,6 +262,9 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 else -> null
             }
         }
+        // The press that asked for this move must not land on where focus goes: its release
+        // would press that too (A on a chip went on to Sign in). Wait for A to come up.
+        repeat(60) { if (!HeldKeys.confirm) return@repeat; androidx.compose.runtime.withFrameNanos { } }
         repeat(45) {
             androidx.compose.runtime.withFrameNanos { }
             val (req, id) = target() ?: return@repeat
@@ -303,7 +321,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         // scrolls is clipped at the row's lower edge and, once scrolled, faded out there: the
         // content's own alpha, not a colour laid over it.
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-            Rise(0) { StoreChips(chip, s.storeDownloadsActive, onStore = { st, at -> openModes(st, at) }, onDownloads = { pickChip(DOWNLOADS) }, onSettings = { settings = true }) }
+            Rise(0) { StoreChips(chip, s.storeDownloadsActive, onStore = { st, at -> openModes(st, at) }, onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
+                onFocusChip = { focusedChip = it }, onSettings = { settings = true }) }
         }
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
         Box(
@@ -359,7 +378,15 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                         val outgoing = transition.targetState == androidx.compose.animation.EnterExitState.PostExit
                         CompositionLocalProvider(LocalFrontFocus provides if (outgoing) null else LocalFrontFocus.current) {
                           // AnimatedContent stacks its child in a Box: the pane's rows need their own column.
-                          Column(Modifier.fillMaxWidth()) {
+                          // A pad moving while the pane changes must land on what is coming, not on
+                          // what is leaving: focus there vanishes with it. Same group always, only
+                          // its rule changes (adding one around focus breaks the focus tree).
+                          val leavingNow = androidx.compose.runtime.rememberUpdatedState(outgoing)
+                          Column(
+                              Modifier.fillMaxWidth()
+                                  .focusProperties { enter = { if (leavingNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
+                                  .focusGroup(),
+                          ) {
                             val st = Store.byId(k.chip)
                             when {
                                 k.chip == DOWNLOADS -> StoresDownloadsPane(s, a)
@@ -525,7 +552,11 @@ private fun SignInFloodLayer(hostAt: Offset) {
  * past a chip goes as a drop.
  */
 @Composable
-private fun StoreChips(selected: String, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: () -> Unit) {
+private fun StoreChips(
+    selected: String, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: () -> Unit,
+    /** The chip a pad's focus is on (null when it leaves the row): the page shows that store. */
+    onFocusChip: (String?) -> Unit,
+) {
     val pal = LocalPalette.current
     val keys = Store.entries.map { it.id } + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
@@ -557,6 +588,7 @@ private fun StoreChips(selected: String, active: Int, onStore: (Store, Rect?) ->
                         ) { Box(Modifier.matchParentSize().clip(CircleShape).background(c.dot).alpha(if (signedIn) 1f else 0.35f)) }
                     },
                     description = store.label + if (signedIn) "" else " " + stringResource(R.string.stores_chip_signed_out),
+                    onFocused = onFocusChip,
                 ) { onStore(store, rootBounds[store.id]) }
             }
             StoreChip(
@@ -567,6 +599,7 @@ private fun StoreChips(selected: String, active: Int, onStore: (Store, Rect?) ->
                 },
                 lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
                 trail = if (active > 0) { { CountPill(active) } } else null,
+                onFocused = onFocusChip,
             ) { onDownloads() }
             IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings), onSettings)
         }
@@ -640,8 +673,10 @@ private fun BoxScope.ChipGlide(index: Int, at: Rect?, tint: Color) {
 @Composable
 private fun StoreChip(
     label: String, on: Boolean, key: String, modifier: Modifier, lead: @Composable () -> Unit,
-    trail: (@Composable () -> Unit)? = null, description: String? = null, onClick: () -> Unit,
+    trail: (@Composable () -> Unit)? = null, description: String? = null,
+    onFocused: (String?) -> Unit = {}, onClick: () -> Unit,
 ) {
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -653,7 +688,12 @@ private fun StoreChip(
     // The selected look is the row's glide under the chip, so a chip here draws only its rest state.
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        modifier = modifier.paneItem("storechip:$key").heightIn(min = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
+        modifier = modifier.paneItem("storechip:$key")
+            .onFocusChanged { f ->
+                if (f.isFocused && inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard) onFocused(key)
+                else if (!f.isFocused) onFocused(null)
+            }
+            .heightIn(min = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
             .background(if (on) Color.Transparent else colors.surface)
             .glideBorder(hot, shape, pal.signal, if (on) Color.Transparent else pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
