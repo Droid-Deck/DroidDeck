@@ -107,6 +107,31 @@ if [ -n "${BL_VK_DRIVER:-}" ]; then
   fi
   unset bl_icd_lib
 fi
+# The Mali bridge (Setup's experimental switch on a non-Adreno GPU; tools/vkbridge): the app runs a
+# server on the phone's own Vulkan driver and this session draws through its ICD, which replaces
+# every other driver here. Checked from inside like an imported driver, and on the first pass only
+# the bridge's self-test and the driver's summary go into the log, so a black screen comes with the
+# reason in the same file.
+if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
+  bl_vkb_icd=/usr/local/share/vkbridge/droidbridge_icd.json
+  if [ -r "$bl_vkb_icd" ] && [ -r /usr/local/lib/vkbridge/libvulkan_droidbridge.so ] && [ -S "${VKBRIDGE_SOCKET:-}" ]; then
+    export VK_DRIVER_FILES=$bl_vkb_icd VK_ICD_FILENAMES=$bl_vkb_icd
+    export VKBRIDGE_SOCKET VKBRIDGE_CLIENT_LOG
+    # Turnip's switches mean nothing to the bridge.
+    unset TU_DEBUG
+    if [ -z "${BL_INSIDE:-}" ]; then
+      step "vkbridge self-test"
+      timeout 60 /usr/local/bin/droiddeck-vkbridge-smoke 2>&1 | sed 's/^/== vkbridge: /'
+      if command -v vulkaninfo >/dev/null 2>&1; then
+        timeout 30 vulkaninfo --summary 2>&1 | sed -n '/^Devices:/,$p' | head -40 | sed 's/^/== vulkaninfo: /'
+      fi
+    fi
+    echo "== vulkan driver: Mali bridge ($bl_vkb_icd, server at $VKBRIDGE_SOCKET)"
+  else
+    echo "== vulkan driver: Mali bridge requested but NOT usable (icd $bl_vkb_icd, socket ${VKBRIDGE_SOCKET:-unset}); this GPU will show a black screen"
+  fi
+  unset bl_vkb_icd
+fi
 # The app's gamescope build (tools/gamescope) asks for realtime-priority Vulkan queues on this
 # switch instead of on CAP_SYS_NICE, which proot never has; it falls back to normal priority
 # where the driver refuses, and the runtime's own build ignores it. On KGSL Turnip (Mesa 26.2) it

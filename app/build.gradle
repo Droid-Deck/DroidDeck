@@ -269,6 +269,24 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
+// The Mali bridge's server (tools/vkbridge, app/src/main/cpp/vkbridge) is a program, not a library:
+// it runs beside the session as the app's child, so a driver crash ends that process and not the
+// app. AGP's CMake integration packages only shared libraries, so the NDK's clang builds it here
+// into one more jniLibs source, named libvkbridge_server.so so Android extracts it (the native
+// library directory is the one place the app may exec from).
+def vkbridgeJniLibsDir = layout.buildDirectory.dir('vkbridgeJniLibs')
+def buildVkBridgeServer = tasks.register('buildVkBridgeServer', Exec) {
+    description = 'Builds the Vulkan bridge server (libvkbridge_server.so) with the NDK.'
+    inputs.dir(rootProject.file('tools/vkbridge/common'))
+    inputs.dir(layout.projectDirectory.dir('src/main/cpp/vkbridge'))
+    inputs.file(rootProject.file('tools/vkbridge/build-server-android.sh'))
+    outputs.dir(vkbridgeJniLibsDir)
+    commandLine 'bash', rootProject.file('tools/vkbridge/build-server-android.sh').absolutePath,
+        android.ndkDirectory.absolutePath, vkbridgeJniLibsDir.get().asFile.absolutePath
+}
+android.sourceSets.main.jniLibs.srcDir(vkbridgeJniLibsDir)
+tasks.named('preBuild').configure { dependsOn(buildVkBridgeServer) }
+
 dependencies {
     // The runtime tarball is a zstd-compressed tar.
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
