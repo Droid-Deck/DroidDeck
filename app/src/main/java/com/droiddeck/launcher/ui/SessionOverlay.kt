@@ -261,6 +261,7 @@ class DrawerActions(
     val selectedGameProfileId: Long? = null,
     val selectedGameProfile: SelectedGameProfile? = null,
     val onSelectedGameProfile: (Long?) -> Unit = {},
+    val onSelectedGameProfileFollowSteam: () -> Unit = {},
     val onSelectedGameProfileRefresh: () -> Unit = {},
     /** Swaps [value] ("orig:<build>" or a stored package file) into a Proton's component. */
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
@@ -295,6 +296,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
     LaunchedEffect(open, page) {
         if (open && page == SessionDrawerPage.GAMES) {
+            a.onSelectedGameProfileFollowSteam()
             a.onComponentsRefresh()
             while (true) {
                 a.onSelectedGameProfileRefresh()

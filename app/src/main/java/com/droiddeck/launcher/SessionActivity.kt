@@ -63,6 +63,7 @@ import com.droiddeck.launcher.session.PerfHud
 import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.session.GameProfileFollowState
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionArtifacts
@@ -246,7 +247,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerGameProfiles by mutableStateOf<List<Pair<Long, String>>>(emptyList())
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private var drawerGameProfile by mutableStateOf<SelectedGameProfile?>(null)
-    private var drawerGameProfileFollowsSteam = true
+    private val drawerGameProfileFollowState = GameProfileFollowState()
     private data class DrawerGameProfileRefresh(val followsSteam: Boolean, val requestedAppId: Long?)
     private data class DrawerGameProfileResult(
         val profiles: List<Pair<Long, String>>,
@@ -675,6 +676,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     selectedGameProfileId = drawerGameProfileId,
                     selectedGameProfile = drawerGameProfile,
                     onSelectedGameProfile = ::selectDrawerGameProfile,
+                    onSelectedGameProfileFollowSteam = drawerGameProfileFollowState::resumeFollowingSteam,
                     onSelectedGameProfileRefresh = ::refreshDrawerGameProfile,
                     onComponentSwap = { pid, comp, value -> swapDrawerComponent(pid, comp, value) },
                     onGameComponent = ::setDrawerGameComponent,
@@ -775,7 +777,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun selectDrawerGameProfile(appId: Long?) {
-        drawerGameProfileFollowsSteam = false
+        drawerGameProfileFollowState.selectManually()
         drawerGameProfileId = appId
         drawerGameProfile = null
         readDrawerTextureFiltering(appId)
@@ -789,7 +791,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun refreshDrawerGameProfile() {
-        val refresh = DrawerGameProfileRefresh(drawerGameProfileFollowsSteam, drawerGameProfileId)
+        val refresh = DrawerGameProfileRefresh(drawerGameProfileFollowState.followsSteam, drawerGameProfileId)
         if (!drawerGameProfileRefreshes.submit(refresh)) return
         Thread({
             var request = drawerGameProfileRefreshes.takeLatest()
@@ -834,12 +836,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     ) {
         drawerGameProfiles = result.profiles
         if (refresh.followsSteam) {
-            if (drawerGameProfileFollowsSteam) {
+            if (drawerGameProfileFollowState.followsSteam) {
                 drawerGameProfileId = result.selectedAppId
                 drawerGameProfile = result.profile
                 readDrawerTextureFiltering(result.selectedAppId)
             }
-        } else if (!drawerGameProfileFollowsSteam && drawerGameProfileId == result.selectedAppId) {
+        } else if (!drawerGameProfileFollowState.followsSteam && drawerGameProfileId == result.selectedAppId) {
             drawerGameProfile = result.profile
         }
     }
