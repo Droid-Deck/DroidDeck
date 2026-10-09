@@ -28,6 +28,12 @@ object GogNative {
          */
         fun onProgress(bytesDone: Long, bytesTotal: Long, filesDone: Int, filesTotal: Int, file: String, fileBytes: Long, verified: Boolean)
 
+        /**
+         * Byte progress between file completions, every 250 ms while fetching (and once at the end):
+         * assembled bytes plus what the files in flight have so far. Drives the bar and the speed.
+         */
+        fun onBytes(bytesDone: Long, bytesTotal: Long)
+
         /** Engine diagnostics (already in logcat under `GogNative`). */
         fun onLog(line: String)
 
@@ -60,12 +66,12 @@ object GogNative {
      */
     @JvmStatic
     fun start(
-        kind: Int, depotManifests: Array<String>, cdnBase: String, installDir: String, skipPaths: Array<String>,
+        kind: Int, depotManifests: Array<String>, cdnBases: Array<String>, installDir: String, skipPaths: Array<String>,
         caBundlePath: String, maxWorkers: Int, processWorkers: Int, sortLargestFirst: Boolean, label: String, listener: Listener,
     ): Long {
         if (!isAvailable()) return 0L
         return try {
-            nativeStart(kind, depotManifests, cdnBase, installDir, skipPaths, caBundlePath, maxWorkers, processWorkers, sortLargestFirst, label, listener)
+            nativeStart(kind, depotManifests, cdnBases, installDir, skipPaths, caBundlePath, maxWorkers, processWorkers, sortLargestFirst, label, listener)
         } catch (t: Throwable) {
             Log.e(TAG, "nativeStart threw: ${t.javaClass.simpleName}: ${t.message}")
             0L
@@ -91,7 +97,7 @@ object GogNative {
 
     @JvmStatic
     private external fun nativeStart(
-        kind: Int, depotManifests: Array<String>, cdnBase: String, installDir: String, skipPaths: Array<String>,
+        kind: Int, depotManifests: Array<String>, cdnBases: Array<String>, installDir: String, skipPaths: Array<String>,
         caBundlePath: String, maxWorkers: Int, processWorkers: Int, sortLargestFirst: Boolean, label: String, listener: Listener,
     ): Long
 

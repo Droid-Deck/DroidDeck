@@ -546,25 +546,39 @@ public final class GogDownloadManager {
             final AtomicBoolean okRef = new AtomicBoolean(false);
             final AtomicBoolean linkExpiryRef = new AtomicBoolean(false);
             final AtomicReference<String> errRef = new AtomicReference<>("");
+            // The bar between file completions: what earlier runs counted, plus the files this run
+            // skipped as already verified (the engine credits those no bytes), plus the engine's own
+            // byte count, which includes the files still in flight. Never shown going back.
+            final long runStart = totalBytes.get();
+            final AtomicLong verifiedInRun = new AtomicLong(0);
+            final AtomicLong shownBytes = new AtomicLong(runStart);
             GogNative.Listener listener = new GogNative.Listener() {
                 @Override public void onProgress(long bytesDone, long bytesTotal, int filesDone, int filesTotal, String file, long fileBytes, boolean verified) {
                     donePaths.add(file);
                     int done = doneCount.incrementAndGet();
                     int pct = 15 + (int) ((done / (float) total) * 80);
                     long tb = totalBytes.addAndGet(fileBytes);
-                    if (verified) { cb.onProgress(verifiedMsg, pct); cb.onBytes(tb, planned, speedBps.get()); return; }
-                    sampleSpeed(tb, lastSpeedMs, lastSpeedB, speedBps);
+                    if (verified) verifiedInRun.addAndGet(fileBytes);
+                    long shown = shownBytes.accumulateAndGet(tb, Math::max);
+                    if (verified) { cb.onProgress(verifiedMsg, pct); cb.onBytes(shown, planned, speedBps.get()); return; }
+                    sampleSpeed(shown, lastSpeedMs, lastSpeedB, speedBps);
                     cb.onProgress("Downloading: " + baseName(file) + speedSuffix(speedBps.get()), pct);
-                    cb.onBytes(tb, planned, speedBps.get());
+                    cb.onBytes(shown, planned, speedBps.get());
+                }
+                @Override public void onBytes(long bytesDone, long bytesTotal) {
+                    long shown = shownBytes.accumulateAndGet(Math.min(planned, runStart + verifiedInRun.get() + bytesDone), Math::max);
+                    sampleSpeed(shown, lastSpeedMs, lastSpeedB, speedBps);
+                    cb.onBytes(shown, planned, speedBps.get());
                 }
                 @Override public void onLog(String line) { cb.onLog(line); }
                 @Override public void onComplete(boolean success, boolean wasCancelled, boolean linkExpiry, String error, long bytesWritten, int filesDone) {
                     okRef.set(success); linkExpiryRef.set(linkExpiry); errRef.set(error == null ? "" : error); latch.countDown();
                 }
             };
-            // The engine takes one base today; it gets the first of the set (JNI.md).
-            if (run == 1) cb.onLog("gog: " + base.split("\n").length + " CDN host(s) offered");
-            long handle = GogNative.start(kind, manifests, firstCdn(base), installPath.getAbsolutePath(), donePaths.toArray(new String[0]), "",
+            // Every CDN of the set: the engine spreads its window across the hosts (JNI.md).
+            String[] bases = (base == null || base.isEmpty()) ? new String[0] : base.split("\n");
+            if (run == 1) cb.onLog("gog: " + bases.length + " CDN host(s) offered");
+            long handle = GogNative.start(kind, manifests, bases, installPath.getAbsolutePath(), donePaths.toArray(new String[0]), "",
                     workers, process, sortLargestFirst, label + " run=" + run, listener);
             if (handle == 0L) { cb.onLog("gog: native start failed"); anyFailed.set(true); return; }
             boolean interrupted = false;

@@ -146,9 +146,10 @@ without it and Setup says "Stores engine not built").
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
 - **GOG downloads use every CDN host:** the secure link lists several hosts; only the first was
   taken (`used=1/1 servers`). All are parsed now and kept as one set, refreshed together on
-  expiry; the Java pool takes them in turn, and the native engine gets the first until its contract
-  takes a list. The progress bars glide to each new value over 250 ms. The engine's periodic byte
-  progress (asked of the Rust side) is wired when JNI.md has it.
+  expiry; the Java pool takes them in turn. The progress bars glide to each new value over 250 ms. With the engine's `0849a7c` the
+  native start takes the whole set (`cdnBases`; the engine spreads its window across the hosts) and
+  its `onBytes` - every 250 ms, including files still in flight - drives the bar and the speed, so a
+  large file no longer moves the bar in one jump.
 - **GOG and Epic cloud saves** (ported from Bannerlator's managers, device-proven there in August):
   down before every launch where the cloud copy is newer (the compat tool waits up to 15 s), up
   after the game exits (the compat tool waits for Proton for such a game, then asks without
