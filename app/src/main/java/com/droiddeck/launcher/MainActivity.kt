@@ -868,6 +868,8 @@ class MainActivity : ComponentActivity() {
         if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
         // A session folder left without its ending - the process was killed - gets it now.
         if (!SessionState.running) Thread({
+            com.droiddeck.launcher.session.LogMigration.run(this)
+            SessionLogShare.clear(this)
             SessionArtifacts.finishAbandoned(this)
             SessionArtifacts.scrubOlder(this)
             SessionArtifacts.prune(this)

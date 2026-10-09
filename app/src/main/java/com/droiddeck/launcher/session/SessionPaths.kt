@@ -8,19 +8,20 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * One folder per session under `Download/DroidDeck/`, holding everything that session recorded,
+ * One folder per session under app-private `files/logs/`, holding everything that session recorded,
  * named for the day, that day's session number and what was run, so the one a report is about can
  * be picked out without opening any:
  *
  * ```
- *   Download/DroidDeck/2026-09-30-03-steam/
+ *   files/logs/2026-09-30-03-steam/
  *       device.txt     what this device is, and every setting the session ran with
  *       session.log    the guest session: proot, gamescope, the client's stdout
  *       wayland.log    the app's compositor
  *       steam.log      the Steam client's own log, scrubbed  (Steam mode)
  *       steam/         the rest of the client's logs, scrubbed  (Steam mode)
  *       desktop.log    KWin, Plasma and the programs on it  (desktop mode)
- *   Download/DroidDeck/tools/  one-off commands: Flatpak installs, AppImage imports
+ *   files/logs/tools/  one-off commands: Flatpak installs, AppImage imports
+ *   files/logs/stores/ the stores' engine log, one file a day
  * ```
  *
  * Folders from before this naming (`session-20260930-180642`) are still recognised, shared and
@@ -137,8 +138,7 @@ object SessionPaths {
 
     /** Every session folder in the places logs are written, oldest first. */
     fun sessionFolders(context: Context): List<File> =
-        listOf(com.droiddeck.launcher.runtime.LinuxRuntime.debugLogDir(), File(context.filesDir, "logs"))
-            .flatMap { parent -> parent.listFiles { f -> isSessionFolder(f) }?.toList() ?: emptyList() }
+        (com.droiddeck.launcher.runtime.LinuxRuntime.logDir(context).listFiles { f -> isSessionFolder(f) }?.toList() ?: emptyList())
             .sortedWith(chronological)
 
     internal fun slug(text: String): String =
