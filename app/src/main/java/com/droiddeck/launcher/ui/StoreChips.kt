@@ -1,21 +1,6 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CreateNewFolder
-import androidx.compose.material3.Icon
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +17,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.stores.Store
 
-// Where a game came from, as a small coloured chip with its mark: Steam, one of the stores, or an added folder.
+// Where a game came from, as a small coloured chip: Steam, one of the stores, or an added folder.
 
 /** The chip's colours per source: a tinted ground and a readable ink on it, one pair per store. */
 internal class SourceColours(val fill: Color, val ink: Color, val dot: Color)
@@ -54,37 +39,16 @@ internal fun sourceLabel(source: String): String = when (source) {
     else -> stringResource(R.string.source_added)
 }
 
-/** The source's mark: the store's glyph (Simple Icons, CC0), Steam's, or a folder for a Custom game. */
+/** The source chip itself; [small] for a list row, the regular size for a hero or a card. */
 @Composable
-internal fun sourcePainter(source: String): Painter = when (source) {
-    Store.GOG.id -> painterResource(R.drawable.ic_store_gog)
-    Store.EPIC.id -> painterResource(R.drawable.ic_store_epic)
-    Store.AMAZON.id -> painterResource(R.drawable.ic_store_amazon)
-    Library.SOURCE_STEAM -> painterResource(R.drawable.ic_store_steam)
-    else -> rememberVectorPainter(Icons.Outlined.CreateNewFolder)
-}
-
-/**
- * The source chip: a small rounded square in the source's colours holding its mark, the name as
- * what a screen reader says. [withName] (a hero, a game page) puts the name beside the mark;
- * [small] is a list row's size.
- */
-@Composable
-internal fun SourceChip(source: String, small: Boolean = false, withName: Boolean = false, modifier: Modifier = Modifier) {
+internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier) {
     val c = sourceColours(source)
-    val name = sourceLabel(source)
-    val side = if (small) 22.dp else 24.dp
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = modifier.heightIn(min = side).clip(RoundedCornerShape(6.dp)).background(c.fill)
-            .then(if (withName) Modifier.padding(start = 4.dp, end = 8.dp) else Modifier.widthIn(min = side))
-            .semantics(mergeDescendants = true) { contentDescription = name },
-    ) {
-        Box(Modifier.size(side), contentAlignment = Alignment.Center) {
-            Icon(sourcePainter(source), null, tint = c.ink, modifier = Modifier.size(if (small) 14.dp else 16.dp))
-        }
-        if (withName) Text(name, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, color = c.ink, maxLines = 1)
-    }
+    Text(
+        sourceLabel(source), fontSize = if (small) 10.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
+        color = c.ink, maxLines = 1,
+        modifier = modifier.clip(RoundedCornerShape(6.dp)).background(c.fill)
+            .padding(horizontal = if (small) 6.dp else 8.dp, vertical = if (small) 1.dp else 2.dp),
+    )
 }
 
 /** A status chip in the stores' colours: green for done ("Installed"), blue for busy, amber for a warning. */

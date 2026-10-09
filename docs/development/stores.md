@@ -79,13 +79,8 @@ The appid Steam derives (CRC32 of the quoted exe plus the name, high bit set) is
 listing carries, so the live add and the writer never disagree. Uninstall removes the folder and the
 listing drops the entry; the live client is asked to remove it too.
 
-`Library.SteamGame.source` is `steam`, `gog`, `epic`, `amazon` or `added`; it shows as a small
-square chip with the source's mark (`SourceChip`) on Games rows, store cards and Downloads rows, and
-mark + name in the Games hero and on a store game's page; the name is the chip's content
-description. The marks are `res/drawable/ic_store_*.xml`, converted from Simple Icons v13.21.0
-(CC0-1.0; `gogdotcom`, `epicgames`, `amazongames`, `steam`); a Custom game uses Material's
-CreateNewFolder. The store chips atop the Stores page carry the same marks (dimmed while signed
-out).
+`Library.SteamGame.source` is `steam`, `gog`, `epic`, `amazon` or `added`; the Games tab shows it as
+a chip on every row and in the hero.
 
 ## Launch
 

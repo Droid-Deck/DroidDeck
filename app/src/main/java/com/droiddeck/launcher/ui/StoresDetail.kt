@@ -56,7 +56,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     Rise(0) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 12.dp)) {
             BackLink(store.label, compact = true, onClick = onBack)
-            SourceChip(store.id, withName = true)
+            SourceChip(store.id)
         }
     }
     Rise(1) {

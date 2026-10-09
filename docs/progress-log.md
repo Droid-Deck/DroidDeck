@@ -131,10 +131,6 @@ without it and Setup says "Stores engine not built").
   `nativeAssemble` both).
 - **Install-to dialog compacted** (440 dp, two tiles that are the action, one-line caption, Cancel
   in the title row); the cog popup is capped at 440 dp too.
-- **Source chips are marks now:** GOG / Epic / Amazon / Steam glyphs from Simple Icons (CC0) as
-  vector drawables, a folder-plus for Custom, in the existing per-source colours; icon-only on rows,
-  cards and Downloads, mark + name on the hero and game page; the Stores chip row's dots became the
-  marks too.
 - **Device-proven on the AYANEO Pocket FIT, 2026-10-08 (GOG):** sign-in, the library (33 owned),
   DOOM I Enhanced installed through the GOG engine to the SD Games root, shown in Games with the
   GOG chip and real art, registered as a non-Steam game in the Steam client (grid art present), and
