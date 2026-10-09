@@ -503,8 +503,10 @@ static int access_common(int dirfd, const char *path, int mode, int flags) {
   REAL(faccessat, int (*)(int, const char *, int, int));
   char host[PATH_MAX];
   struct stat st;
-  /* faccessat(2) has no flags: AT_EACCESS and AT_SYMLINK_NOFOLLOW stay with glibc and proot. */
-  long rs = flags == 0 ? resolve(dirfd, path, host) : FP_SLOW;
+  /* faccessat(2) has no flags. AT_EACCESS stays with glibc and proot; AT_SYMLINK_NOFOLLOW (the
+   * Steam client passes it for every file it reserves) only differs on a symlink, which goes to
+   * proot as well. */
+  long rs = (flags & ~AT_SYMLINK_NOFOLLOW) == 0 ? resolve(dirfd, path, host) : FP_SLOW;
   if (rs == -ENOENT) { hits++; return ret(rs); }
   if (rs == 0) {
     long k = kind(host, &st);
