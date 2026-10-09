@@ -508,7 +508,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
 /** Epic's account page behind its sign-in: signing in there presents any step the account still owes. */
 private const val EPIC_RESOLVE_URL = "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Faccount%2Fpersonal"
 
-/** The Epic card: sign-in, offline and overlay switches, read from and written to the game's sidecar. */
+/** The Epic card: the sign-in and offline switches, read from and written to the game's sidecar, and Resolve Epic sign-in. */
 @Composable
 private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
@@ -517,7 +517,6 @@ private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
     val value = buildList {
         if (options.offline) add(stringResource(R.string.epic_card_offline))
         else if (options.eos) add(stringResource(R.string.epic_card_eos))
-        if (options.overlay) add(stringResource(R.string.epic_card_overlay))
     }.ifEmpty { listOf(stringResource(R.string.epic_card_none)) }.joinToString(" · ")
     // Each switch goes straight to the sidecar on disk - both launch paths read it there - and the
     // card shows what was read back, so a write that did not take is never shown as done.
@@ -525,8 +524,7 @@ private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
         Thread({
             val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateEpic(folder, change) }
                 .onFailure { android.util.Log.w("EpicLaunchCard", "could not write ${folder.name}: ${it.message}") }.getOrNull()
-            if (written != null) android.util.Log.i("EpicLaunchCard", "epic options ${written.id} eos=${written.epic.eos} offline=${written.epic.offline} overlay=${written.epic.overlay}")
-            if (written?.epic?.overlay == true) com.droiddeck.launcher.stores.epic.EpicOverlay.ensureAsync(appContext)
+            if (written != null) android.util.Log.i("EpicLaunchCard", "epic options ${written.id} eos=${written.epic.eos} offline=${written.epic.offline}")
             else android.util.Log.w("EpicLaunchCard", "epic options not saved for ${folder.name}")
             com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: com.droiddeck.launcher.stores.StoreGameSidecar.read(folder) }
         }, "epic-options").start()
@@ -537,7 +535,6 @@ private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
     AnchoredMenu(host.open == "epic", onDismiss = { if (host.open == "epic") host.open = null }, title = stringResource(R.string.epic_card_title)) { first ->
         MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
         MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }
-        MenuItem(stringResource(R.string.epic_overlay), checked = options.overlay) { set { it.copy(overlay = !it.overlay) } }
         // Epic asks some accounts to accept something once (privacy policy, EULA) before a game may
         // sign in - EOS's "corrective action". Signing in on Epic's site shows it.
         MenuItem(stringResource(R.string.epic_resolve), checked = false) {

@@ -144,6 +144,14 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Epic sign-in device-proven without the overlay (AYANEO Pocket FIT, `bf81104`, Metalstorm):** EOS's
+  corrective-action browser flow → `droiddeck xdg-open: https://www.epicgames.com` → Chrome
+  `epicgames.com/id/authorize?user_code=…` → approved → `[eos] got logged in`, product user id
+  created, the game in its hangar at 92 fps. The EOS overlay crashed the game on every overlay-on
+  launch, so it is removed (user decision): no overlay switch, no download, no `OverlayPath`; a
+  launch removes a pointer an earlier build wrote, and the app deletes an earlier 656 MB download
+  once. The work is parked on `park/epic-eos-overlay` (at `bf81104`). Kept: the browser hand-off,
+  the Epic card (sign-in, offline, Resolve Epic sign-in) and `BL_DEBUG_BROWSER`.
 - **A game launched from the Games tab with no session running sat at "Launching"** (device,
   2026-10-09-04-steam, and 2026-10-08-05 before it). The session put `steam://rungameid/<id>` on
   the client's command line; the client took it seconds before its interface was up (focus went to

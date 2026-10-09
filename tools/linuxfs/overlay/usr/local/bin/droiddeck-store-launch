@@ -18,11 +18,10 @@ here - and the launcher .bat reads and deletes it. No answer within TIMEOUT seco
 with its offline identity. A code file older than STALE_SECONDS is removed first, so a code left by
 an earlier launch is never used.
 
-The game's prefix also gets the EOS overlay's pointer, HKCU\Software\Epic Games\EOS "OverlayPath"
-(the mechanism from Legendary's lfs/eos.py), naming the one copy the app keeps at OVERLAY_DIR; with
-it the game's EOS SDK can show Epic's own sign-in steps in game (a consent Epic asks for once per
-product) instead of waiting on a browser. Wine's browser is set to droiddeck-open-url, which hands
-web addresses to Android.
+The game's prefix gets Wine's browser set to droiddeck-open-url, which hands web addresses to
+Android: an EOS sign-in step that falls back to a browser (a consent Epic asks for once per product)
+is finished there. An EOS overlay pointer (HKCU\Software\Epic Games\EOS "OverlayPath") an earlier
+build wrote is removed - with it the game exited while loading.
 
     droiddeck-store-launch <the arguments Steam gave the compat tool>
 """
@@ -38,10 +37,8 @@ SIDECAR = ".droiddeck-store.json"
 EPIC_CODE = ".droiddeck-epic-code"
 TIMEOUT = 5.0
 STALE_SECONDS = 300
-OVERLAY_DIR = "/root/.local/share/droiddeck/epic-overlay"
 SERVER_WAIT = 8.0
 BROWSER = "/usr/local/bin/droiddeck-open-url"
-OVERLAY_DLL = "EOSOVH-Win64-Shipping.dll"
 EOS_KEY = "[Software\\\\Epic Games\\\\EOS]"
 BROWSER_KEY = "[Software\\\\Wine\\\\WineBrowser]"
 
@@ -137,20 +134,6 @@ def set_value(reg, key, name, value, now=None):
     return True
 
 
-def overlay_version(overlay_dir=OVERLAY_DIR):
-    """The overlay build the app placed, or None when it is not there."""
-    d = Path(overlay_dir)
-    try:
-        if not (d / OVERLAY_DLL).is_file():
-            return None
-    except OSError:  # unreadable is the same as not there
-        return None
-    try:
-        return (d / "droiddeck-version").read_text().strip() or "unknown"
-    except OSError:
-        return "unknown"
-
-
 def remove_value(reg, key, name):
     """Drops every `"name"=` line under `key` in user.reg; True when one was there."""
     if not reg.is_file():
@@ -173,10 +156,7 @@ def remove_value(reg, key, name):
 def options(sidecar):
     """An Epic game's launch choices from its sidecar, as the Games tab's Epic card sets them."""
     e = sidecar.get("epic") if isinstance(sidecar.get("epic"), dict) else {}
-    # The overlay is off unless chosen (v2 on): the old default wrote overlay=true without a version,
-    # and with it on a game could exit while loading. The app's EpicOptions reads it the same way.
-    chosen = isinstance(e.get("v"), int) and e.get("v") >= 2
-    return {"eos": e.get("eos", True) is not False, "offline": e.get("offline", False) is True, "overlay": chosen and e.get("overlay") is True}
+    return {"eos": e.get("eos", True) is not False, "offline": e.get("offline", False) is True}
 
 
 def server_socket(pfx):
@@ -219,8 +199,8 @@ def has_value(reg, key, name, value=None):
     return value is None or last == '"%s"="%s"' % (name, reg_escape(value))
 
 
-def provision_prefix(compat_data, overlay_dir=OVERLAY_DIR, overlay=False, wait=SERVER_WAIT):
-    """The EOS overlay pointer (or its removal, when [overlay] is off) and Wine's browser, in the game's prefix."""
+def provision_prefix(compat_data, wait=SERVER_WAIT):
+    """Wine's browser set to the hand-off, and an earlier build's EOS overlay pointer removed."""
     if not compat_data:
         return "no-prefix"
     pfx = Path(compat_data) / "pfx"
@@ -232,16 +212,10 @@ def provision_prefix(compat_data, overlay_dir=OVERLAY_DIR, overlay=False, wait=S
     # winebrowser starts the first entry it can; an absolute path does not depend on the PATH Wine
     # hands it.
     set_value(reg, BROWSER_KEY, "Browsers", BROWSER + ",xdg-open")
-    if not overlay:
-        remove_value(reg, EOS_KEY, "OverlayPath")
-        state = "overlay-off" if not has_value(reg, EOS_KEY, "OverlayPath") else "overlay-still-set"
-    elif overlay_version(overlay_dir) is None:
-        return "overlay-missing"
-    else:
-        target = windows_path(overlay_dir)
-        set_value(reg, EOS_KEY, "OverlayPath", target)
-        # Read back, so the log says what the file holds, not what was meant.
-        state = "overlay-set" if has_value(reg, EOS_KEY, "OverlayPath", target) else "overlay-not-written"
+    removed = remove_value(reg, EOS_KEY, "OverlayPath")
+    state = "browser-set" if has_value(reg, BROWSER_KEY, "Browsers", BROWSER + ",xdg-open") else "browser-not-written"
+    if removed:
+        state += " old-overlay-removed"
     return state + (" server-running" if busy else "")
 
 
@@ -274,8 +248,7 @@ def main(argv):
         else:
             got = bool(answer.get("code"))
             log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
-    done = provision_prefix(compat_data, overlay=choice["overlay"])
-    log("epic overlay installed=%s prefix=%s %s" % (overlay_version() or "no", prefix_id or "?", done))
+    log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
     return 0
 
 

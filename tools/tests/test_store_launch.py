@@ -119,30 +119,29 @@ class Prefix(unittest.TestCase):
         (self.compat / 'pfx').mkdir(parents=True)
         self.reg = self.compat / 'pfx/user.reg'
         self.reg.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Wine] 1\n"Version"="win10"\n')
-        self.overlay = root / 'epic-overlay'
-        self.overlay.mkdir()
 
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_the_overlay_pointer_names_the_shared_copy_through_z(self):
-        (self.overlay / store.OVERLAY_DLL).write_bytes(b'MZ')
-        (self.overlay / 'droiddeck-version').write_text('1.0.42')
-        self.assertEqual('overlay-set', store.provision_prefix(str(self.compat), str(self.overlay), overlay=True))
+    def test_wines_browser_is_the_hand_off_by_its_path(self):
+        self.assertEqual('browser-set', store.provision_prefix(str(self.compat)))
         text = self.reg.read_text()
-        self.assertIn('[Software\\\\Epic Games\\\\EOS] ', text)
-        self.assertIn('"OverlayPath"="Z:' + str(self.overlay).replace('/', '\\\\') + '"', text)
+        self.assertIn('[Software\\\\Wine\\\\WineBrowser] ', text)
         self.assertIn('"Browsers"="/usr/local/bin/droiddeck-open-url,xdg-open"', text)
         # A second launch adds nothing: the last word already says so.
-        store.provision_prefix(str(self.compat), str(self.overlay), overlay=True)
+        store.provision_prefix(str(self.compat))
         self.assertEqual(text, self.reg.read_text())
-        self.assertEqual('1.0.42', store.overlay_version(str(self.overlay)))
 
-    def test_no_overlay_yet_or_no_prefix_yet(self):
-        self.assertEqual('overlay-missing', store.provision_prefix(str(self.compat), str(self.overlay), overlay=True))
-        self.assertNotIn('OverlayPath', self.reg.read_text())
-        self.assertEqual('prefix-not-created', store.provision_prefix(self.tmp.name + '/compatdata/1', str(self.overlay)))
-        self.assertEqual('no-prefix', store.provision_prefix('', str(self.overlay)))
+    def test_an_earlier_builds_overlay_pointer_is_removed(self):
+        self.reg.write_text(self.reg.read_text() + '\n[Software\\\\Epic Games\\\\EOS] 2\n"OverlayPath"="Z:\\\\x"\n"Other"="kept"\n')
+        self.assertEqual('browser-set old-overlay-removed', store.provision_prefix(str(self.compat)))
+        text = self.reg.read_text()
+        self.assertNotIn('OverlayPath', text)
+        self.assertIn('"Other"="kept"', text)
+
+    def test_no_prefix_yet(self):
+        self.assertEqual('prefix-not-created', store.provision_prefix(self.tmp.name + '/compatdata/1'))
+        self.assertEqual('no-prefix', store.provision_prefix(''))
 
 
 class Choices(unittest.TestCase):
@@ -150,11 +149,10 @@ class Choices(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root)
             sidecar = json.loads((folder / '.droiddeck-store.json').read_text())
-            self.assertEqual({'eos': True, 'offline': False, 'overlay': False}, store.options(sidecar))
-            # The old default (no version) never turns it on; a v2 choice does.
-            self.assertFalse(store.options({'epic': {'eos': True, 'offline': False, 'overlay': True}})['overlay'])
-            self.assertTrue(store.options({'epic': {'v': 2, 'overlay': True}})['overlay'])
-            sidecar['epic'] = {'eos': True, 'offline': True, 'overlay': False}
+            self.assertEqual({'eos': True, 'offline': False}, store.options(sidecar))
+            # An earlier build's overlay field is read past.
+            self.assertEqual({'eos': True, 'offline': False}, store.options({'epic': {'v': 2, 'overlay': True}}))
+            sidecar['epic'] = {'eos': True, 'offline': True}
             (folder / '.droiddeck-store.json').write_text(json.dumps(sidecar))
             (folder / '.droiddeck-epic-code').write_text('left over')
             compat = Path(root) / 'compatdata/1'
@@ -168,7 +166,7 @@ class Choices(unittest.TestCase):
             finally:
                 del os.environ['BL_LAUNCH_DIR']
                 del os.environ['STEAM_COMPAT_DATA_PATH']
-            # Offline: no request was made and no code is left; overlay off: the pointer is gone.
+            # Offline: no request was made and no code is left; the old overlay pointer is gone.
             self.assertFalse((Path(root) / 'session/stores/req').exists())
             self.assertFalse((folder / '.droiddeck-epic-code').exists())
             text = reg.read_text()

@@ -226,6 +226,9 @@ object StoresState {
     fun init(context: Context) {
         appContext = context.applicationContext
         StoreLogFiles.prune(context)
+        // The EOS overlay an earlier build downloaded (656 MB) is gone with the feature.
+        val overlay = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.local/share/droiddeck/epic-overlay")
+        if (overlay.exists()) Thread({ overlay.deleteRecursively(); Log.i(TAG, "removed the old EOS overlay download") }, "epic-overlay-cleanup").start()
     }
 
     internal fun post(block: () -> Unit) = main.post(block)

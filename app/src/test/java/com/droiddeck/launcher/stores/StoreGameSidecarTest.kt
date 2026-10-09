@@ -47,31 +47,28 @@ class StoreGameSidecarTest {
 
     @Test fun epicLaunchChoicesRoundTripAndDefaultOn() {
         val plain = StoreGameSidecar.parse(StoreGameSidecar(Store.EPIC, "m", "Metalstorm", "M.exe").toJson().toString())!!
-        assertEquals(EpicOptions(eos = true, offline = false, overlay = false), plain.epic)
+        assertEquals(EpicOptions(eos = true, offline = false), plain.epic)
         assertTrue(plain.epic.wantsCode)
-        val set = StoreGameSidecar(Store.EPIC, "m", "Metalstorm", "M.exe", epic = EpicOptions(eos = true, offline = true, overlay = false))
+        val set = StoreGameSidecar(Store.EPIC, "m", "Metalstorm", "M.exe", epic = EpicOptions(eos = true, offline = true))
         val back = StoreGameSidecar.parse(set.toJson().toString())!!
-        assertEquals(EpicOptions(eos = true, offline = true, overlay = false), back.epic)
+        assertEquals(EpicOptions(eos = true, offline = true), back.epic)
         assertFalse(back.epic.wantsCode)
-        // A sidecar from before the choices existed reads as the defaults: sign-in on, overlay off.
+        // A sidecar from before the choices existed reads as the defaults.
         assertEquals(EpicOptions(), StoreGameSidecar.parse("""{"store":"epic","id":"m","title":"M","exe":"M.exe"}""")!!.epic)
-        // The old default wrote overlay=true without a version: nobody chose it, so it reads as off.
-        assertFalse(StoreGameSidecar.parse("""{"store":"epic","id":"m","title":"M","exe":"M.exe","epic":{"eos":true,"offline":false,"overlay":true}}""")!!.epic.overlay)
-        // Chosen from v2 on, it stays.
-        val on = StoreGameSidecar.parse(StoreGameSidecar(Store.EPIC, "m", "M", "M.exe", epic = EpicOptions(overlay = true)).toJson().toString())!!
-        assertTrue(on.epic.overlay)
+        // An earlier build's overlay field is read past.
+        assertEquals(EpicOptions(), StoreGameSidecar.parse("""{"store":"epic","id":"m","title":"M","exe":"M.exe","epic":{"v":2,"eos":true,"offline":false,"overlay":true}}""")!!.epic)
     }
 
     @Test fun aSwitchOnTheEpicCardChangesTheSidecarOnDisk() {
         val folder = java.io.File(org.robolectric.RuntimeEnvironment.getApplication().filesDir, "Games/Stores/Epic/Metalstorm").apply { mkdirs() }
         StoreGameSidecar(Store.EPIC, "m", "Metalstorm", "Metalstorm.exe", launcher = ".droiddeck-launch.bat").write(folder)
-        val written = StoreGameSidecar.updateEpic(folder) { it.copy(overlay = true) }!!
-        assertTrue(written.epic.overlay)
+        val written = StoreGameSidecar.updateEpic(folder) { it.copy(offline = true) }!!
+        assertTrue(written.epic.offline)
         // What the Steam-launch helper reads: the file itself.
         val onDisk = org.json.JSONObject(java.io.File(folder, StoreGameSidecar.FILE_NAME).readText())
-        assertTrue(onDisk.getJSONObject("epic").getBoolean("overlay"))
-        assertEquals(EpicOptions.VERSION, onDisk.getJSONObject("epic").getInt("v"))
+        assertTrue(onDisk.getJSONObject("epic").getBoolean("offline"))
         assertTrue(onDisk.getJSONObject("epic").getBoolean("eos"))
+        assertFalse(onDisk.getJSONObject("epic").has("overlay"))
         // Everything else in it stays.
         assertEquals(".droiddeck-launch.bat", StoreGameSidecar.read(folder)!!.launcher)
         assertEquals(null, StoreGameSidecar.updateEpic(java.io.File(folder, "missing")) { it })

@@ -60,7 +60,7 @@ class StoreGameSidecar(
         put("title", title)
         if (exe.isNotEmpty()) put("exe", exe)
         if (state != STATE_INSTALLED) put("state", state)
-        if (store == Store.EPIC) put("epic", JSONObject().put("v", EpicOptions.VERSION).put("eos", epic.eos).put("offline", epic.offline).put("overlay", epic.overlay))
+        if (store == Store.EPIC) put("epic", JSONObject().put("eos", epic.eos).put("offline", epic.offline))
         if (!launcher.isNullOrEmpty()) put("launcher", launcher)
         if (args.isNotEmpty()) put("args", JSONArray(args))
         if (env.isNotEmpty()) put("env", JSONObject(env as Map<*, *>))
@@ -133,12 +133,8 @@ class StoreGameSidecar(
                 hero = o.optString("hero", "").ifEmpty { null },
                 extra = extra,
                 state = state,
-                epic = o.optJSONObject("epic")?.let { e ->
-                    // Before v2 the overlay was on by default and written so without anyone choosing
-                    // it; the overlay crashed games, so those read as off. From v2 it is a choice.
-                    val chosen = e.optInt("v", 1) >= EpicOptions.VERSION
-                    EpicOptions(eos = e.optBoolean("eos", true), offline = e.optBoolean("offline", false), overlay = chosen && e.optBoolean("overlay", false))
-                } ?: EpicOptions(),
+                // An "overlay" (or "v") field from an earlier build is read past: there is no overlay.
+                epic = o.optJSONObject("epic")?.let { e -> EpicOptions(eos = e.optBoolean("eos", true), offline = e.optBoolean("offline", false)) } ?: EpicOptions(),
             )
         }
 
@@ -151,15 +147,8 @@ class StoreGameSidecar(
 /**
  * An Epic game's launch choices. [eos]: pass a fresh exchange code (Epic sign-in). [offline]: start
  * with the Epic identity arguments only, no code - for a game that will not start when sign-in fails.
- * [overlay]: point the game's prefix at Epic's EOS overlay - off by default: with it on, a game can
- * exit while loading on this stack (Metalstorm did, twice; off, it signs in and runs).
  */
-data class EpicOptions(val eos: Boolean = true, val offline: Boolean = false, val overlay: Boolean = false) {
+data class EpicOptions(val eos: Boolean = true, val offline: Boolean = false) {
     /** Whether a launch asks for a code at all. */
     val wantsCode: Boolean get() = eos && !offline
-
-    companion object {
-        /** v2: the overlay is off unless chosen (Metalstorm exits while loading with it on). */
-        const val VERSION = 2
-    }
 }

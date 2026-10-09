@@ -88,10 +88,32 @@ A Steam shortcut names an exe and nothing more, and the listing carries no launc
 game that needs arguments or environment gets `.droiddeck-launch.bat` (`StoreLaunch.launcherText`):
 `cd` into the exe's folder, `set` each variable, start the exe with the arguments and wait. Proton's
 `steam.exe` shim hands a `.bat` to Wine's `cmd`. For Epic the script also reads
-`.droiddeck-epic-code` when present, deletes it, and appends
-`-AUTH_LOGIN=unused -AUTH_PASSWORD=<code> -AUTH_TYPE=exchangecode`; `StoreLaunch.prepare` mints the
-code right before a launch from the Stores page or the Games tab (the Steam client's own Play
-button gets the offline identity arguments only).
+`.droiddeck-epic-code` when present, deletes it, and passes
+`-AUTH_LOGIN=unused -AUTH_PASSWORD=<code> -AUTH_TYPE=exchangecode` on the game's command line only;
+the variable it read the code into is cleared on that same line, so nothing of it is left in the
+game's environment. A launcher from an earlier build is rewritten before the next Epic launch.
+
+The code is minted for every launch, wherever it starts. The Games tab and Stores call
+`StoreLaunch.prepare` before they launch; the compat tool (`droiddeck-proton`,
+`droiddeck-proton-wrap`) runs `droiddeck-store-launch` before Proton on every real launch, the Steam
+client's Play button included. It finds the store launcher among Steam's arguments, reads the
+sidecar beside it, and for an Epic game asks the app through `<session>/stores/req` and `resp`
+(`StoreLaunchRequests` → `StoreLaunch.epicCode`), waiting up to 5 s; the app writes the code into
+the game's folder itself. Each attempt logs `epic launch id=… code=yes|no reason=…`, never the code.
+
+An Epic game's launch choices are the Epic card in the Games tab's launch settings - "Epic sign-in
+(EOS)" (on) and "Launch offline" (off), stored in the sidecar's `epic` block so both launch paths
+read the same thing - and "Resolve Epic sign-in", which opens Epic's account page behind its
+sign-in in Android's browser.
+
+A game's web links reach Android: `droiddeck-store-launch` sets the prefix's
+`HKCU\Software\Wine\WineBrowser` `Browsers` to `/usr/local/bin/droiddeck-open-url`, which is also
+`xdg-open` first on the game's PATH, and hands http(s) addresses to the app, which opens them in
+Android's browser. EOS uses this when a sign-in needs a one-time step ("corrective action"): it
+falls back to a browser, the user approves on the phone, and the game signs in. `BL_DEBUG_BROWSER=1`
+in droiddeck-env adds `WINEDEBUG=+shell,+winebrowser`. Epic's EOS overlay is not provisioned (with
+it games exited while loading); an `OverlayPath` an earlier build wrote is removed at launch. The
+parked overlay work is on the branch `park/epic-eos-overlay`.
 
 ## Downloads
 
