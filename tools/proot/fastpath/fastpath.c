@@ -391,6 +391,12 @@ static long fp_open(int dirfd, const char *path, int flags, mode_t mode) {
   /* The last component is never followed here: a symlink there is proot's to resolve. */
   long fd = sc(SYS_openat, AT_FDCWD, (long)host, flags | O_NOFOLLOW, (flags & O_CREAT) ? mode : 0, 0);
   if (fd == -ELOOP && !(flags & O_NOFOLLOW)) return FP_SLOW;
+  /* With O_DIRECTORY the kernel checks for a directory before it gets to the symlink, so a link to
+   * a directory (opendir() of it) fails ENOTDIR rather than ELOOP. A real non-directory stays here. */
+  if (fd == -ENOTDIR && (flags & O_DIRECTORY) && !(flags & O_NOFOLLOW)) {
+    struct stat st;
+    if (kind(host, &st) == 1) return FP_SLOW;
+  }
   if (fd >= 0 && (flags & O_PATH) && !(flags & O_NOFOLLOW)) {
     struct stat st;
     if (sc(SYS_fstat, fd, (long)&st, 0, 0, 0) != 0 || S_ISLNK(st.st_mode)) {
@@ -464,6 +470,26 @@ int lstat(const char *path, struct stat *st) {
 }
 int lstat64(const char *p, struct stat64 *st) { return lstat(p, (struct stat *)st); }
 
+/*
+ * The pre-2.33 entry points. Programs linked against an older glibc - the Steam client,
+ * steamclient.so and filesystem_stdio.so among them - call these rather than stat(), so without
+ * them every stat the client makes goes to proot: a download's preallocation stats each file it
+ * creates. On aarch64 the only version is 0 (_STAT_VER), whose struct stat is the one above;
+ * glibc refuses any other with EINVAL, and so does this.
+ */
+#define FP_STAT_VER 0
+static int xstat_common(int ver, int dirfd, const char *path, struct stat *st, int flags) {
+  REAL(fstatat, int (*)(int, const char *, struct stat *, int));
+  if (ver != FP_STAT_VER) { errno = EINVAL; return -1; }
+  return stat_common(dirfd, path, st, flags, real_fstatat);
+}
+int __xstat(int ver, const char *p, struct stat *st) { return xstat_common(ver, AT_FDCWD, p, st, 0); }
+int __xstat64(int ver, const char *p, struct stat64 *st) { return xstat_common(ver, AT_FDCWD, p, (struct stat *)st, 0); }
+int __lxstat(int ver, const char *p, struct stat *st) { return xstat_common(ver, AT_FDCWD, p, st, AT_SYMLINK_NOFOLLOW); }
+int __lxstat64(int ver, const char *p, struct stat64 *st) { return xstat_common(ver, AT_FDCWD, p, (struct stat *)st, AT_SYMLINK_NOFOLLOW); }
+int __fxstatat(int ver, int d, const char *p, struct stat *st, int f) { return xstat_common(ver, d, p, st, f); }
+int __fxstatat64(int ver, int d, const char *p, struct stat64 *st, int f) { return xstat_common(ver, d, p, (struct stat *)st, f); }
+
 int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
   REAL(statx, int (*)(int, const char *, int, unsigned, struct statx *));
   char host[PATH_MAX];
@@ -483,8 +509,10 @@ static int access_common(int dirfd, const char *path, int mode, int flags) {
   REAL(faccessat, int (*)(int, const char *, int, int));
   char host[PATH_MAX];
   struct stat st;
-  /* faccessat(2) has no flags: AT_EACCESS and AT_SYMLINK_NOFOLLOW stay with glibc and proot. */
-  long rs = flags == 0 ? resolve(dirfd, path, host) : FP_SLOW;
+  /* faccessat(2) has no flags. AT_EACCESS stays with glibc and proot; AT_SYMLINK_NOFOLLOW (the
+   * Steam client passes it for every file it reserves) only differs on a symlink, which goes to
+   * proot as well. */
+  long rs = (flags & ~AT_SYMLINK_NOFOLLOW) == 0 ? resolve(dirfd, path, host) : FP_SLOW;
   if (rs == -ENOENT) { hits++; return ret(rs); }
   if (rs == 0) {
     long k = kind(host, &st);

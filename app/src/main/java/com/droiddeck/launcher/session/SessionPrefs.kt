@@ -487,7 +487,8 @@ object SessionPrefs {
     fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
         saved.getString("displayResolution.$mode", null)?.let { value ->
-            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(value) != null) return value
+            if (value == SessionDisplay.MATCH_SCREEN || value == SessionDisplay.FOLLOW_SCREEN ||
+                SessionDisplay.presetHeight(value) != null) return value
             parseResolution(value)?.let { return "${it.first}x${it.second}" }
         }
         if (!resolutionChosen(context, mode) && !saved.contains("shape")) return SessionDisplay.DEFAULT_RESOLUTION
@@ -497,7 +498,8 @@ object SessionPrefs {
     }
 
     fun setResolutionChoice(context: Context, mode: String, choice: String) {
-        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(choice) != null) choice else {
+        val value = if (choice == SessionDisplay.MATCH_SCREEN || choice == SessionDisplay.FOLLOW_SCREEN ||
+                SessionDisplay.presetHeight(choice) != null) choice else {
             val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
         }
