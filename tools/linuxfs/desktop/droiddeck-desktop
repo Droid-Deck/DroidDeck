@@ -38,6 +38,7 @@ export MOZ_SHM_NO_SEALS=1
 # to the app as a Steam session - SteamOS's "Return to Gaming Mode". The session's own GL choice
 # (zink on Turnip, for the Steam client) is put back by droiddeck-gpu.
 export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+export DROIDDECK_GLTHREAD=${mesa_glthread:-}
 unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread
 # The desktop's own log, beside the session's, so KWin and the programs on it can be read apart
 # from the session that started them. The session log keeps the milestones either way.

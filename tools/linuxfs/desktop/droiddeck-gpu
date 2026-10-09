@@ -25,8 +25,10 @@ echo "== droiddeck-gpu $(date -u +%H:%M:%S): $* (gamescope ${width}x${height} on
 export WAYLAND_DISPLAY=wayland-0
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
 # GL on the GPU again (zink on Turnip, as the session sets it): the desktop itself draws GL in software.
-unset LIBGL_ALWAYS_SOFTWARE
+# Qt Quick back on its GPU renderer and KWin's software compositing not passed on, too.
+unset LIBGL_ALWAYS_SOFTWARE QT_QUICK_BACKEND KWIN_COMPOSE
 export MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=true
+[ -n "${DROIDDECK_GLTHREAD:-}" ] && export mesa_glthread=$DROIDDECK_GLTHREAD
 # AppImages cannot mount under proot; the menu entries already say so, a hand-typed one may not.
 export APPIMAGE_EXTRACT_AND_RUN=1
 gamescope "${args[@]}" -- "$@"
