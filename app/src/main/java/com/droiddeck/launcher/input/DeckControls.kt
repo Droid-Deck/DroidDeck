@@ -23,12 +23,31 @@ object DeckControls {
     private const val SLOT = 0
 
     private var controls = 0
+    /** Grips held on a physical pad's extra buttons (PadBridge), kept apart from the panel's. */
+    private var padGrips = 0
     private val pads = ShortArray(4)
     private val pressure = ShortArray(2)
 
     @Synchronized
     fun setGrip(bit: Int, down: Boolean) {
         set(bit, down)
+        publish()
+    }
+
+    /** A physical pad's extra button (e.g. a Razer Kishi's L4/R4) holding a back grip. */
+    @Synchronized
+    fun setPadGrip(bit: Int, down: Boolean) {
+        val next = if (down) padGrips or bit else padGrips and bit.inv()
+        if (next == padGrips) return
+        padGrips = next
+        publish()
+    }
+
+    /** The physical pad's grips let go (session end, the pad stops feeding the game). */
+    @Synchronized
+    fun releasePadGrips() {
+        if (padGrips == 0) return
+        padGrips = 0
         publish()
     }
 
@@ -65,5 +84,5 @@ object DeckControls {
 
     private fun axis(value: Float): Short = (value.coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort()
 
-    private fun publish() = FakeInputWriter.writeDeckControls(SLOT, controls, pads, pressure)
+    private fun publish() = FakeInputWriter.writeDeckControls(SLOT, controls or padGrips, pads, pressure)
 }
