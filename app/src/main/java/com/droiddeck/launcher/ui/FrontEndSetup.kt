@@ -475,6 +475,13 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
             }
         }
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
+        // An Epic game's own launch choices, kept in its sidecar so a launch from the Steam client
+        // honours them too (droiddeck-store-launch reads the same file).
+        if (game?.source == com.droiddeck.launcher.stores.Store.EPIC.id && game.gameFiles != null) add { m ->
+            Box(m) {
+                EpicLaunchCard(host, game.gameFiles!!)
+            }
+        }
         if (wincompKey != null) add { m ->
             SettingCard(
                 stringResource(R.string.wincomp_title),
@@ -495,6 +502,32 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+/** The Epic card: sign-in, offline and overlay switches, read from and written to the game's sidecar. */
+@Composable
+private fun EpicLaunchCard(host: MenuHost, folder: java.io.File) {
+    var sidecar by remember(folder) { mutableStateOf(com.droiddeck.launcher.stores.StoreGameSidecar.read(folder)) }
+    val options = sidecar?.epic ?: com.droiddeck.launcher.stores.EpicOptions()
+    val value = buildList {
+        if (options.offline) add(stringResource(R.string.epic_card_offline))
+        else if (options.eos) add(stringResource(R.string.epic_card_eos))
+        if (options.overlay) add(stringResource(R.string.epic_card_overlay))
+    }.ifEmpty { listOf(stringResource(R.string.epic_card_none)) }.joinToString(" · ")
+    fun set(next: com.droiddeck.launcher.stores.EpicOptions) {
+        val current = sidecar ?: return
+        val updated = current.copy(epic = next)
+        sidecar = updated
+        Thread({ runCatching { updated.write(folder) } }, "epic-options").start()
+    }
+    SettingCard(stringResource(R.string.epic_card_title), value, "card:epic", Modifier.fillMaxSize()) {
+        host.open = if (host.open == "epic") null else "epic"
+    }
+    AnchoredMenu(host.open == "epic", onDismiss = { if (host.open == "epic") host.open = null }, title = stringResource(R.string.epic_card_title)) { first ->
+        MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set(options.copy(eos = !options.eos)) }
+        MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set(options.copy(offline = !options.offline)) }
+        MenuItem(stringResource(R.string.epic_overlay), checked = options.overlay) { set(options.copy(overlay = !options.overlay)) }
     }
 }
 

@@ -145,6 +145,34 @@ class Prefix(unittest.TestCase):
         self.assertEqual('no-prefix', store.provision_prefix('', str(self.overlay)))
 
 
+class Choices(unittest.TestCase):
+    def test_the_sidecars_epic_choices_are_honoured(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root)
+            sidecar = json.loads((folder / '.droiddeck-store.json').read_text())
+            self.assertEqual({'eos': True, 'offline': False, 'overlay': True}, store.options(sidecar))
+            sidecar['epic'] = {'eos': True, 'offline': True, 'overlay': False}
+            (folder / '.droiddeck-store.json').write_text(json.dumps(sidecar))
+            (folder / '.droiddeck-epic-code').write_text('left over')
+            compat = Path(root) / 'compatdata/1'
+            (compat / 'pfx').mkdir(parents=True)
+            reg = compat / 'pfx/user.reg'
+            reg.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Epic Games\\\\EOS] 1\n"OverlayPath"="Z:\\\\x"\n"Other"="kept"\n')
+            os.environ['BL_LAUNCH_DIR'] = str(Path(root) / 'session')
+            os.environ['STEAM_COMPAT_DATA_PATH'] = str(compat)
+            try:
+                self.assertEqual(0, store.main([str(folder / '.droiddeck-launch.bat')]))
+            finally:
+                del os.environ['BL_LAUNCH_DIR']
+                del os.environ['STEAM_COMPAT_DATA_PATH']
+            # Offline: no request was made and no code is left; overlay off: the pointer is gone.
+            self.assertFalse((Path(root) / 'session/stores/req').exists())
+            self.assertFalse((folder / '.droiddeck-epic-code').exists())
+            text = reg.read_text()
+            self.assertNotIn('OverlayPath', text)
+            self.assertIn('"Other"="kept"', text)
+
+
 class Browser(unittest.TestCase):
     def test_a_web_address_is_handed_to_the_app(self):
         xdg = load_path(BIN.parent / 'lib/droiddeck/browser/xdg-open', 'xdg_open')

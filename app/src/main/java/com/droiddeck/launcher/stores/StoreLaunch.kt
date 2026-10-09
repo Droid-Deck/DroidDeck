@@ -93,8 +93,12 @@ object StoreLaunch {
         val app = context.applicationContext
         val result = try {
             val folder = StoreInstallRoot.gameFolders(app).firstOrNull { f -> StoreGameSidecar.read(f)?.let { it.store == Store.EPIC && it.id == id } == true }
+            val options = folder?.let { StoreGameSidecar.read(it)?.epic }
             if (folder == null) CodeResult(false, "not-installed")
-            else {
+            else if (options != null && !options.wantsCode) {
+                File(folder, EPIC_CODE).delete()
+                CodeResult(false, if (options.offline) "offline" else "eos-off")
+            } else {
                 val file = File(folder, EPIC_CODE)
                 file.delete()
                 val support = StoresState.backend(Store.EPIC) as? EpicLaunchSupport

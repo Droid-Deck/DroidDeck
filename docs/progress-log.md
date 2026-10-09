@@ -144,6 +144,13 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Epic launch card** (Games tab › Launch settings, Epic games only): "Epic sign-in (EOS)" on,
+  "Launch offline" off, "Epic overlay" on, stored in the game's sidecar (`"epic": {"eos", "offline",
+  "overlay"}`, kept across updates) so both launch paths honour them alike - the app's
+  `StoreLaunch.epicCode` and `droiddeck-store-launch` for a launch from the Steam client: no code
+  when sign-in is off or offline, the overlay pointer written or removed per the switch. The card
+  reads e.g. "EOS · Overlay". Bannerlator's forced ownership token (`-epicovt`) is not ported, so
+  there is no switch for it.
 - **EOS overlay** (device: Metalstorm's EOS grant answered `corrective_action_required`, the overlay
   was not configured, and EOS fell back to a browser flow that never finished). Epic's own overlay
   component ("EpicOnlineServicesOverlay", the mechanism from Legendary's `lfs/eos.py`, credits in

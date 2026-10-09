@@ -146,14 +146,42 @@ def overlay_version(overlay_dir=OVERLAY_DIR):
         return "unknown"
 
 
-def provision_prefix(compat_data, overlay_dir=OVERLAY_DIR):
-    """The EOS overlay pointer and Wine's browser, in the game's prefix. Returns what was done."""
+def remove_value(reg, key, name):
+    """Drops every `"name"=` line under `key` in user.reg; True when one was there."""
+    if not reg.is_file():
+        return False
+    rows, inside, dropped = [], False, False
+    for row in reg.read_text(errors="replace").splitlines(keepends=True):
+        if row.startswith("["):
+            inside = row.startswith(key + " ") or row.rstrip("\n") == key
+        elif inside and row.startswith('"%s"=' % name):
+            dropped = True
+            continue
+        rows.append(row)
+    if dropped:
+        tmp = reg.with_name(reg.name + ".dd-new")
+        tmp.write_text("".join(rows))
+        os.replace(tmp, reg)
+    return dropped
+
+
+def options(sidecar):
+    """An Epic game's launch choices from its sidecar, as the Games tab's Epic card sets them."""
+    e = sidecar.get("epic") if isinstance(sidecar.get("epic"), dict) else {}
+    return {"eos": e.get("eos", True) is not False, "offline": e.get("offline", False) is True, "overlay": e.get("overlay", True) is not False}
+
+
+def provision_prefix(compat_data, overlay_dir=OVERLAY_DIR, overlay=True):
+    """The EOS overlay pointer (or its removal, when [overlay] is off) and Wine's browser, in the game's prefix."""
     if not compat_data:
         return "no-prefix"
     reg = Path(compat_data) / "pfx" / "user.reg"
     if not reg.is_file():
         return "prefix-not-created"
     set_value(reg, BROWSER_KEY, "Browsers", "xdg-open")
+    if not overlay:
+        remove_value(reg, EOS_KEY, "OverlayPath")
+        return "overlay-off"
     if overlay_version(overlay_dir) is None:
         return "overlay-missing"
     set_value(reg, EOS_KEY, "OverlayPath", windows_path(overlay_dir))
@@ -169,19 +197,27 @@ def main(argv):
     if store != "epic":
         return 0
     drop_stale(folder)
-    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
-    if not launch_dir:
-        log("epic launch id=%s code=no reason=no-channel" % game)
-        return 0
+    choice = options(sidecar)
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
-    answer = ask(Path(launch_dir) / "stores", {"op": "epic-code", "store": store, "id": game, "prefix": prefix_id})
-    if answer is None:
-        log("epic launch id=%s code=no reason=timeout" % game)
+    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if not (choice["eos"] and not choice["offline"]):
+        # Sign-in off, or offline: no code, and none left over from before.
+        try:
+            (folder / EPIC_CODE).unlink()
+        except OSError:
+            pass
+        log("epic launch id=%s code=no reason=%s" % (game, "offline" if choice["offline"] else "eos-off"))
+    elif not launch_dir:
+        log("epic launch id=%s code=no reason=no-channel" % game)
     else:
-        got = bool(answer.get("code"))
-        log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
-    done = provision_prefix(compat_data)
+        answer = ask(Path(launch_dir) / "stores", {"op": "epic-code", "store": store, "id": game, "prefix": prefix_id})
+        if answer is None:
+            log("epic launch id=%s code=no reason=timeout" % game)
+        else:
+            got = bool(answer.get("code"))
+            log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
+    done = provision_prefix(compat_data, overlay=choice["overlay"])
     log("epic overlay installed=%s prefix=%s %s" % (overlay_version() or "no", prefix_id or "?", done))
     return 0
 

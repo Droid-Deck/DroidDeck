@@ -38,6 +38,8 @@ class StoreGameSidecar(
     /** Per-store identifiers the launcher needs again (Epic namespace / catalog id, Amazon entitlement). */
     val extra: Map<String, String> = emptyMap(),
     val state: String = STATE_INSTALLED,
+    /** An Epic game's launch choices (the Games tab's Epic card); both launch paths read them from here. */
+    val epic: EpicOptions = EpicOptions(),
 ) {
     val isInstalled: Boolean get() = state == STATE_INSTALLED
 
@@ -48,8 +50,8 @@ class StoreGameSidecar(
         exe: String = this.exe, launcher: String? = this.launcher, args: List<String> = this.args,
         env: Map<String, String> = this.env, installVersion: String = this.installVersion,
         installedAt: Long = this.installedAt, cover: String? = this.cover, hero: String? = this.hero,
-        extra: Map<String, String> = this.extra, state: String = this.state,
-    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra, state)
+        extra: Map<String, String> = this.extra, state: String = this.state, epic: EpicOptions = this.epic,
+    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra, state, epic)
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", VERSION)
@@ -58,6 +60,7 @@ class StoreGameSidecar(
         put("title", title)
         if (exe.isNotEmpty()) put("exe", exe)
         if (state != STATE_INSTALLED) put("state", state)
+        if (store == Store.EPIC) put("epic", JSONObject().put("eos", epic.eos).put("offline", epic.offline).put("overlay", epic.overlay))
         if (!launcher.isNullOrEmpty()) put("launcher", launcher)
         if (args.isNotEmpty()) put("args", JSONArray(args))
         if (env.isNotEmpty()) put("env", JSONObject(env as Map<*, *>))
@@ -118,6 +121,9 @@ class StoreGameSidecar(
                 hero = o.optString("hero", "").ifEmpty { null },
                 extra = extra,
                 state = state,
+                epic = o.optJSONObject("epic")?.let { e ->
+                    EpicOptions(eos = e.optBoolean("eos", true), offline = e.optBoolean("offline", false), overlay = e.optBoolean("overlay", true))
+                } ?: EpicOptions(),
             )
         }
 
@@ -125,4 +131,14 @@ class StoreGameSidecar(
         private fun relativeInside(path: String): Boolean =
             path.isNotEmpty() && !path.startsWith("/") && !path.contains(":") && path.split('/').none { it == ".." || it.isEmpty() }
     }
+}
+
+/**
+ * An Epic game's launch choices. [eos]: pass a fresh exchange code (Epic sign-in). [offline]: start
+ * with the Epic identity arguments only, no code - for a game that will not start when sign-in fails.
+ * [overlay]: point the game's prefix at Epic's EOS overlay.
+ */
+data class EpicOptions(val eos: Boolean = true, val offline: Boolean = false, val overlay: Boolean = true) {
+    /** Whether a launch asks for a code at all. */
+    val wantsCode: Boolean get() = eos && !offline
 }

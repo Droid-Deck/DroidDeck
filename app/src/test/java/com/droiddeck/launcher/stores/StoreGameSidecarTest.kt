@@ -45,6 +45,18 @@ class StoreGameSidecarTest {
         assertTrue(back.isInstalled)
     }
 
+    @Test fun epicLaunchChoicesRoundTripAndDefaultOn() {
+        val plain = StoreGameSidecar.parse(StoreGameSidecar(Store.EPIC, "m", "Metalstorm", "M.exe").toJson().toString())!!
+        assertEquals(EpicOptions(eos = true, offline = false, overlay = true), plain.epic)
+        assertTrue(plain.epic.wantsCode)
+        val set = StoreGameSidecar(Store.EPIC, "m", "Metalstorm", "M.exe", epic = EpicOptions(eos = true, offline = true, overlay = false))
+        val back = StoreGameSidecar.parse(set.toJson().toString())!!
+        assertEquals(EpicOptions(eos = true, offline = true, overlay = false), back.epic)
+        assertFalse(back.epic.wantsCode)
+        // A sidecar from before the choices existed reads as all on.
+        assertEquals(EpicOptions(), StoreGameSidecar.parse("""{"store":"epic","id":"m","title":"M","exe":"M.exe"}""")!!.epic)
+    }
+
     @Test fun anInstallUnderWayHasNoExeYetAndIsNotInstalled() {
         val started = StoreGameSidecar(Store.EPIC, "Metalstorm", "Metalstorm", exe = "", state = StoreGameSidecar.STATE_INSTALLING)
         val back = StoreGameSidecar.parse(started.toJson().toString())!!
