@@ -20,6 +20,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
@@ -69,6 +70,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Download
@@ -120,15 +123,15 @@ import com.droiddeck.launcher.stores.formatBytes
 /** The chip row's fourth entry, beside the three stores. */
 private const val DOWNLOADS = "downloads"
 
-private val TABS = listOf("store", "library")
+private val TABS = listOf("store", "library", "installed")
 
 /**
- * The tabs a store has: Store and Library (whose dropdown filters All / Installed). Amazon has no
- * public catalog, so Library alone.
+ * The modes a store has, picked from its chip (A steps them out of it) or cycled with LB / RB:
+ * Store, Library and Installed. Amazon has no public catalog, so no Store.
  */
-internal fun tabsFor(store: Store?): List<String> = if (store == Store.AMAZON) listOf("library") else TABS
+internal fun tabsFor(store: Store?): List<String> = if (store == Store.AMAZON) TABS.drop(1) else TABS
 
-/** [tab] if [store] has it, else Library (the open-on Store choice, or an old Installed / All, falls back there). */
+/** [tab] if [store] has it, else Library (the open-on Store choice on Amazon falls back there). */
 internal fun tabFor(store: Store?, tab: String): String = if (tab in tabsFor(store)) tab else "library"
 
 /** What the pane under the chips shows: a store's tab (signed in or not) or the downloads. */
@@ -172,6 +175,45 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         if (id != DOWNLOADS) tab = tabFor(Store.byId(id), if (s.storesOpenTab == SessionPrefs.STORES_OPEN_STORE) "store" else "library")
         move("first")
     }
+    // A store's chip steps its modes out of itself (End session's shape, in the store's colour);
+    // picking one shows that store in it. A store not signed in has none: its chip just opens it.
+    val pal = LocalPalette.current
+    fun openModes(st: Store, at: Rect?) {
+        if (at == null || !StoresState.isSignedIn(st) || StoresState.expired[st] == true) { if (chip != st.id) pickChip(st.id); return }
+        val modes = tabsFor(st)
+        val current = if (chip == st.id) shownTab else null
+        var picked = false
+        StoresMotion.ask(StepAsk(
+            anchor = at, side = StepSide.Right, accent = storePalette(pal, st).signal, items = modes.size,
+            // Folded: focus goes to the first card of what was picked, or back to the chip.
+            onDismiss = { move(if (picked) "first" else "item:storechip:${st.id}") },
+            handle = { ChipLabel(st, MaterialTheme.colorScheme.onBackground) },
+        ) {
+            StoreTheme(st) {
+                val library = StoresState.library[st].orEmpty()
+                val installedCount = remember(StoresState.installed, library) { com.droiddeck.launcher.stores.installedCards(st, StoresState.installed, library).size }
+                StepList {
+                    modes.forEachIndexed { i, m ->
+                        val label = when (m) {
+                            "store" -> stringResource(R.string.stores_tab_store)
+                            "installed" -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedCount)
+                            else -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
+                        }
+                        val focusHere = if (current != null) m == current else i == 0
+                        StepChoice(
+                            label, selected = m == current, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (focusHere) Modifier.focusRequester(first) else Modifier),
+                        ) {
+                            picked = true
+                            if (chip != st.id) { chip = st.id; openGame = null; query = "" }
+                            tab = m
+                            StoresMotion.fold()
+                        }
+                    }
+                }
+            }
+        })
+    }
     BackHandler(enabled = openGame != null) { closeGame() }
     val scroll = rememberScrollState()
     val detailScroll = rememberScrollState()
@@ -181,14 +223,34 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     LaunchedEffect(openGame) { detailScroll.scrollTo(0) }
     LaunchedEffect(focusMove, openGame) {
         if (inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard || ff == null) return@LaunchedEffect
-        val target = when {
-            openGame != null -> if (ff.primaryAttached > 0) ff.primary else ff.items["back:${store?.label}"]
-            focusMove?.first == "card" -> lastOpened?.let { ff.items["card:$it"] } ?: ff.firstTile.takeIf { ff.firstTileAttached > 0 }
-            focusMove?.first == "first" -> ff.firstTile.takeIf { ff.firstTileAttached > 0 }
-            else -> null
-        } ?: return@LaunchedEffect
-        var landed = false
-        focusWithinFrames({ landed }) { target.also { landed = runCatching { it.requestFocus() }.isSuccess } }
+        // Looked up each frame, and asked again until focus is really there: what it goes to (the
+        // game page's action, the card under it) is composed and placed a frame or two after the
+        // move that asks for it, and a request before then is dropped without a word.
+        // A mode with nothing in it (Installed, none installed) has no first card: after a few
+        // frames focus goes to the store's chip rather than falling back to the rail.
+        var frames = 0
+        fun attached(id: String) = (ff.attached[id] ?: 0) > 0
+        fun target(): Pair<androidx.compose.ui.focus.FocusRequester, String?>? {
+            val kind = focusMove?.first
+            return when {
+                openGame != null -> if (ff.primaryAttached > 0) ff.primary to FrontFocus.PRIMARY
+                    else "back:${store?.label}".let { id -> ff.items[id]?.takeIf { attached(id) }?.let { it to id } }
+                kind == "card" -> lastOpened?.let { "card:$it" }?.let { id -> ff.items[id]?.takeIf { attached(id) }?.let { it to id } }
+                    ?: ff.firstTile.takeIf { ff.firstTileAttached > 0 }?.let { it to null }
+                kind == "first" -> ff.firstTile.takeIf { ff.firstTileAttached > 0 }?.let { it to null }
+                    // A store not signed in: its Sign in.
+                    ?: ff.primary.takeIf { ff.primaryAttached > 0 }?.let { it to FrontFocus.PRIMARY }
+                    ?: "storechip:$chip".let { id -> ff.items[id]?.takeIf { ++frames > 12 && attached(id) }?.let { it to id } }
+                kind?.startsWith("item:") == true -> kind.removePrefix("item:").let { id -> ff.items[id]?.takeIf { attached(id) }?.let { it to id } }
+                else -> null
+            }
+        }
+        repeat(45) {
+            androidx.compose.runtime.withFrameNanos { }
+            val (req, id) = target() ?: return@repeat
+            if (id != null && ff.last == id) return@LaunchedEffect
+            if (runCatching { req.requestFocus() }.isSuccess && id == null) return@LaunchedEffect
+        }
     }
 
     // The game page is a layer over the grid: it floods out of the card it was opened from (the
@@ -219,9 +281,12 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         }
     }
     val covering = detail != null && !leaving
+    val coveringNow = androidx.compose.runtime.rememberUpdatedState(covering)
     val gridScale by animateFloatAsState(if (covering) 0.95f else 1f, if (covering) Motion.tw(480) else Motion.tw(460, 40), label = "gridSink")
     val gridAlpha by animateFloatAsState(if (covering) 0f else 1f, if (covering) Motion.tw(320, 80) else Motion.tw(300, 100), label = "gridFade")
 
+    // Each store in its own colour: the focus ring, the buttons and what steps out of them.
+    StoreTheme(store) {
     Box(modifier.onGloballyPositioned { hostAt = it.positionInRoot() }) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
@@ -234,7 +299,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         // scrolls is clipped at the row's lower edge and, once scrolled, faded out there: the
         // content's own alpha, not a colour laid over it.
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-            Rise(0) { StoreChips(chip, s.storeDownloadsActive, onPick = pickChip, onSettings = { settings = true }) }
+            Rise(0) { StoreChips(chip, s.storeDownloadsActive, onStore = { st, at -> openModes(st, at) }, onDownloads = { pickChip(DOWNLOADS) }, onSettings = { settings = true }) }
         }
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
         Box(
@@ -251,13 +316,17 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 },
         ) {
             // Under a game page the grid stays composed - its scroll and the card to come back to
-            // stay put - but sinks away, and a pad can neither reach it nor be sent to it.
-            val gridFocus = if (detail != null) null else ff
+            // stay put - but sinks away, and a pad can neither reach it nor be sent to it. Once the
+            // page starts drawing back the grid takes focus again, so it lands on the card at once.
+            val gridFocus = if (covering) null else ff
             CompositionLocalProvider(LocalFrontFocus provides gridFocus) {
                 Column(
                     modifier = Modifier.fillMaxWidth()
                         .graphicsLayer { scaleX = gridScale; scaleY = gridScale; alpha = gridAlpha }
-                        .then(if (detail != null) Modifier.focusProperties { enter = { androidx.compose.ui.focus.FocusRequester.Cancel } }.focusGroup() else Modifier)
+                        // Always the same group, only its rule changes: a focus group added around
+                        // the card that has focus leaves the focus tree refusing every request after.
+                        .focusProperties { enter = { if (coveringNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
+                        .focusGroup()
                         .verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp),
                 ) {
                     val pane = PaneKey(
@@ -293,7 +362,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                 st == null -> {}
                                 // Signed out, or a sign-in that ran out (a launch could not get its code): sign in again.
                                 !k.signedIn -> Rise(1) { SignInCard(st) }
-                                else -> Storefront(st, k.tab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
+                                else -> Storefront(st, k.tab, query, s, a, onQuery = { query = it }, onOpen = { open(it) })
                             }
                           }
                         }
@@ -307,7 +376,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                     // actions - and reaches the rail only with Left from them. It takes every touch,
                     // so nothing reaches the grid under it.
                     Column(
-                        Modifier.fillMaxSize().background(colors.background).pointerInput(Unit) { detectTapGestures { } }
+                        Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }
                             .verticalScroll(detailScroll).padding(top = 4.dp, bottom = 16.dp),
                     ) {
                         if (detailStore != null) Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(detailStore, key, s, a, onBack = { closeGame() }) }
@@ -316,7 +385,17 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 val from = detailFrom
                 if (from == null) body()
                 else {
-                    val art = detailArt?.let { coil.compose.rememberAsyncImagePainter(it) }
+                    // Sized up front: the flood draws the art only once it knows its size, and a painter
+                    // left to take its size from drawing would never load. The card's own bitmap stands
+                    // in from the memory cache until the full one is decoded.
+                    val art = detailArt?.let { url ->
+                        coil.compose.rememberAsyncImagePainter(
+                            remember(url) {
+                                coil.request.ImageRequest.Builder(ctx).data(url).size(1280, 720)
+                                    .placeholderMemoryCacheKey(url).build()
+                            },
+                        )
+                    }
                     PageFlood(from, leaving, art) { body() }
                 }
             }
@@ -335,6 +414,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         }
     }
     SignInFloodLayer(hostAt)
+    }
     }
     // Leaving the section: nothing stays stepped out of a control that is no longer on screen.
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
@@ -441,10 +521,11 @@ private fun SignInFloodLayer(hostAt: Offset) {
  * past a chip goes as a drop.
  */
 @Composable
-private fun StoreChips(selected: String, active: Int, onPick: (String) -> Unit, onSettings: () -> Unit) {
+private fun StoreChips(selected: String, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: () -> Unit) {
     val pal = LocalPalette.current
     val keys = Store.entries.map { it.id } + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
+    val rootBounds = remember { HashMap<String, Rect>() }
     val tint by androidx.compose.animation.animateColorAsState(
         Store.byId(selected)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
     )
@@ -454,7 +535,7 @@ private fun StoreChips(selected: String, active: Int, onPick: (String) -> Unit, 
                 val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
                 StoreChip(
                     label = store.shortLabel, on = selected == store.id, key = store.id,
-                    modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent() },
+                    modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
                     lead = {
                         val c = sourceColours(store.id)
                         // A store's dot pulses once when it is picked signed in, and when a sign-in lands.
@@ -472,7 +553,7 @@ private fun StoreChips(selected: String, active: Int, onPick: (String) -> Unit, 
                         ) { Box(Modifier.matchParentSize().clip(CircleShape).background(c.dot).alpha(if (signedIn) 1f else 0.35f)) }
                     },
                     description = store.label + if (signedIn) "" else " " + stringResource(R.string.stores_chip_signed_out),
-                ) { onPick(store.id) }
+                ) { onStore(store, rootBounds[store.id]) }
             }
             StoreChip(
                 label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, key = DOWNLOADS,
@@ -482,7 +563,7 @@ private fun StoreChips(selected: String, active: Int, onPick: (String) -> Unit, 
                 },
                 lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
                 trail = if (active > 0) { { CountPill(active) } } else null,
-            ) { onPick(DOWNLOADS) }
+            ) { onDownloads() }
             IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings), onSettings)
         }
         // Over the chips: the fill is translucent, and the other chips' rest fill would hide it in flight.
@@ -664,7 +745,7 @@ internal fun StoreLogo(store: Store, size: Dp) {
 @Composable
 private fun Storefront(
     store: Store, tab: String, query: String, s: FrontEndState, a: FrontEndActions,
-    onTab: (String) -> Unit, onQuery: (String) -> Unit, onOpen: (String) -> Unit,
+    onQuery: (String) -> Unit, onOpen: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
@@ -680,57 +761,35 @@ private fun Storefront(
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
     // The Store tab's search: the catalog the shelves brought and the library, each title once.
     val everything = remember(library, shelves) { (library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
-    // Library's filter: All (every owned game, the default) or Installed. Pressing Library again
-    // steps the choice out of the tab, as End session's confirm steps out of Stop.
-    var installedOnly by rememberSaveable(store) { mutableStateOf(false) }
-    val pal = LocalPalette.current
-    val allLabel = stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_all), library.size)
-    val installedLabel = stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
-    val libraryLabel = if (installedOnly) installedLabel
-        else stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
-    var libraryAt by remember { mutableStateOf<Rect?>(null) }
-    fun openFilter() {
-        val at = libraryAt ?: return
-        val handleLabel = libraryLabel
-        StoresMotion.ask(StepAsk(
-            anchor = at, side = StepSide.Right, accent = pal.signal, pillCorner = 8.dp, items = 2,
-            handle = { Text(handleLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1) },
-        ) {
-            StepList {
-                StepChoice(
-                    allLabel, selected = !installedOnly, enabled = open,
-                    modifier = Modifier.fillMaxWidth().stepItem(0).then(if (!installedOnly) Modifier.focusRequester(first) else Modifier),
-                ) { installedOnly = false; onTab("library"); StoresMotion.fold() }
-                StepChoice(
-                    installedLabel, selected = installedOnly, enabled = open,
-                    modifier = Modifier.fillMaxWidth().stepItem(1).then(if (installedOnly) Modifier.focusRequester(first) else Modifier),
-                ) { installedOnly = true; onTab("library"); StoresMotion.fold() }
-            }
-        })
-    }
+    // Installed is a mode of its own now, picked from the store's chip like Store and Library.
+    val installedOnly = tab == "installed"
+    // Until the cache is read (a moment, off the main thread) there is nothing to count or to say is missing.
+    val loaded = StoresState.library.containsKey(store)
     Rise(1) {
-        SubTabs(
-            listOf("store" to stringResource(R.string.stores_tab_store), "library" to libraryLabel).filter { it.first in tabsFor(store) },
-            tab,
-            onPick = { key -> if (key == "library" && tab == "library") openFilter() else onTab(key) },
-            onPlaced = { key, at -> if (key == "library") libraryAt = at },
-            trailing = {
-                // A purchase made elsewhere shows on a refresh; otherwise the library refreshes itself every six hours.
-                SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
-                val name = StoresState.accounts[store] ?: ""
-                SmallTextButton(stringResource(R.string.stores_signout_named, name)) { StoresState.signOut(ctx, store) }
+        ModeHeader(
+            when {
+                tab == "store" -> stringResource(R.string.stores_tab_store)
+                !loaded -> stringResource(if (installedOnly) R.string.stores_tab_installed else R.string.stores_tab_library)
+                installedOnly -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
+                else -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
             },
-        )
-    }
-    Rise(2) {
-        SearchField(
             query, onQuery,
             placeholder = when {
                 tab == "store" -> stringResource(R.string.stores_search_catalog, store.label)
                 installedOnly -> stringResource(R.string.stores_search_installed)
                 else -> stringResource(R.string.stores_search_library)
             },
-        )
+        ) {
+            // A purchase made elsewhere shows on a refresh; otherwise the library refreshes itself every six hours.
+            SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
+            val name = StoresState.accounts[store] ?: ""
+            // Asks twice: a stray A here costs the sign-in and the library cache.
+            var arm by remember(store) { mutableStateOf(false) }
+            LaunchedEffect(arm) { if (arm) { delay(4000); arm = false } }
+            SmallTextButton(if (arm) stringResource(R.string.stores_signout_confirm) else stringResource(R.string.stores_signout_named, name), key = "signout") {
+                if (!arm) arm = true else { arm = false; StoresState.signOut(ctx, store) }
+            }
+        }
     }
     StoresState.status[store]?.let { line -> Rise(3) { SyncBar(line) } }
     StoresState.problems[store]?.let { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(it) } } }
@@ -742,7 +801,8 @@ private fun Storefront(
         GameCard(item, store, s, a, installedKeys, onOpen, first)
     }
     when (tab) {
-        "library" -> if (installedOnly) Grid(installedItems.filter(::matches), stringResource(R.string.stores_installed_empty), card)
+        "library", "installed" -> if (!loaded) Unit
+            else if (installedOnly) Grid(installedItems.filter(::matches), stringResource(R.string.stores_installed_empty), card)
             else Grid(library.filter(::matches), if (library.isEmpty() && StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_nothing_matches), card)
         else -> {
             if (q.isNotEmpty()) Grid(everything.filter { matches(it) && shown(it) }, stringResource(R.string.stores_nothing_matches), card)
@@ -760,52 +820,34 @@ private fun Storefront(
 }
 
 /**
- * Underlined tabs with [trailing] (the account) at the right. The selected tab steps forward and
- * the rest step back (the drawer's tabs), and the underline glides between them like the focus
- * ring: leading edge first. [onPlaced] gets each tab's bounds on screen.
+ * What the store is showing (Store, Library, Installed), a magnifier beside it that opens into the
+ * search field across the row, and [trailing] (the account) at the right, over a rule.
  */
 @Composable
-private fun SubTabs(
-    tabs: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit,
-    onPlaced: (String, Rect) -> Unit = { _, _ -> }, trailing: @Composable () -> Unit,
-) {
+private fun ModeHeader(title: String, query: String, onQuery: (String) -> Unit, placeholder: String, trailing: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
+    // Open while it holds a query; an empty field closes again once focus leaves it.
+    var searching by remember { mutableStateOf(query.isNotEmpty()) }
+    val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
     Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for ((key, label) in tabs) {
-                        val on = key == selected
-                        val src = remember { MutableInteractionSource() }
-                        val hot = rememberHot(src)
-                        val pick = { onPick(key) }
-                        val step by animateFloatAsState(if (on) 1f else 0f, Motion.tw(340, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "tabStep")
-                        Column(
-                            modifier = Modifier.onGloballyPositioned { bounds[key] = it.boundsInParent(); onPlaced(key, it.boundsInRoot()) }
-                                .paneItem("storetab:$key").clip(RoundedCornerShape(8.dp))
-                                .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
-                                .glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
-                                .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
-                                .controllerConfirm(onClick = pick)
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                        ) {
-                            Text(
-                                label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                                color = androidx.compose.ui.graphics.lerp(colors.onSurfaceVariant, colors.onBackground, step),
-                                modifier = Modifier.graphicsLayer {
-                                    val k = androidx.compose.ui.util.lerp(0.92f, 1f, step)
-                                    scaleX = k; scaleY = k
-                                    alpha = androidx.compose.ui.util.lerp(0.8f, 1f, step)
-                                },
-                            )
-                            // Room for the underline, which the row draws so it can travel.
-                            Spacer(Modifier.padding(top = 4.dp).fillMaxWidth().height(2.dp))
-                        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
+            Text(
+                title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+            )
+            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                if (searching || open > 0.01f) {
+                    // The field grows out of the magnifier, the row's width at most.
+                    val w = androidx.compose.ui.unit.lerp(44.dp, maxWidth.coerceAtMost(520.dp), open)
+                    Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
+                        AdbTextField(
+                            value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                            placeholder = placeholder, compact = true, focusOnShow = true,
+                            onFocusChange = { focused -> if (!focused && query.isEmpty()) searching = false },
+                        )
                     }
-                }
-                TabUnderline(tabs.indexOfFirst { it.first == selected }, bounds[selected], pal.signal)
+                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true }
             }
             trailing()
         }
@@ -813,56 +855,69 @@ private fun SubTabs(
     }
 }
 
-/** The selected tab's underline under tab [index] at [at] (in the row), gliding to the next one leading edge first. */
+/** A store chip's face: its dot and short name, for what steps out of it to carry. */
 @Composable
-private fun BoxScope.TabUnderline(index: Int, at: Rect?, color: Color) {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val left = remember { Animatable(Float.NaN) }
-    val right = remember { Animatable(0f) }
-    val y = remember { mutableStateOf(0f) }
-    val was = remember { intArrayOf(-1) }
-    LaunchedEffect(index, at) {
-        val b = at ?: return@LaunchedEffect
-        val inset = with(density) { 8.dp.toPx() }
-        val l = b.left + inset
-        val r = b.right - inset
-        y.value = b.bottom - with(density) { 8.dp.toPx() }
-        val from = was[0]
-        was[0] = index
-        if (left.value.isNaN() || from == index || from < 0 || Motion.scale == 0f) { left.snapTo(l); right.snapTo(r); return@LaunchedEffect }
-        coroutineScope {
-            val forward = index > from
-            launch { (if (forward) right else left).animateTo(if (forward) r else l, Motion.sp(0.62f, 700f)) }
-            launch { delay(Motion.ms(40).toLong()); (if (forward) left else right).animateTo(if (forward) l else r, Motion.sp(0.78f, 360f)) }
-        }
-    }
-    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
-        if (left.value.isNaN()) return@Canvas
-        val h = 2.dp.toPx()
-        drawRect(color, Offset(minOf(left.value, right.value), y.value), androidx.compose.ui.geometry.Size((right.value - left.value).let { kotlin.math.abs(it) }, h))
+private fun ChipLabel(store: Store, ink: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(12.dp).clip(CircleShape).background(sourceColours(store.id).dot))
+        Text(store.shortLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1)
     }
 }
 
+/** The page's accent in [store]'s own colour (GOG purple, Epic white, Amazon orange); [base] for none. */
+internal fun storePalette(base: Palette, store: Store?): Palette {
+    val (accent, deep) = when (store) {
+        Store.GOG -> Color(0xFFC25BC8) to Color(0xFF9A3FA1)
+        Store.EPIC -> Color(0xFFE6E6E6) to Color(0xFFBDBDBD)
+        Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)
+        null -> return base
+    }
+    val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
+    return Palette(
+        base.id, base.label, base.detail, base.background, base.surface, base.surfaceVariant, base.line, base.line2,
+        base.onBackground, base.onSurfaceVariant, primary = accent, primary2 = deep, onPrimary = on, signal = accent,
+        good = base.good, error = base.error,
+    )
+}
+
+/** [content] with the focus ring, buttons and step-outs in [store]'s colour. */
 @Composable
-private fun SmallTextButton(text: String, onClick: () -> Unit) {
+internal fun StoreTheme(store: Store?, content: @Composable () -> Unit) {
+    val base = LocalPalette.current
+    val p = remember(base, store) { storePalette(base, store) }
+    if (p === base) { content(); return }
+    val scheme = MaterialTheme.colorScheme.copy(primary = p.primary, onPrimary = p.onPrimary)
+    CompositionLocalProvider(LocalPalette provides p) { MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, content = content) }
+}
+
+@Composable
+private fun SmallTextButton(text: String, key: String = text, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     Text(
         text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.paneItem("btn:$text").clip(RoundedCornerShape(8.dp)).glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
+        modifier = Modifier.paneItem("btn:$key").clip(RoundedCornerShape(8.dp)).glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp),
     )
 }
 
+/** The header's magnifier: a round button the search field opens out of. */
 @Composable
-private fun SearchField(query: String, onQuery: (String) -> Unit, placeholder: String) {
-    AdbTextField(
-        value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-        placeholder = placeholder, compact = true, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-    )
+private fun SearchIcon(description: String, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.paneItem("storesearch").size(40.dp).clip(CircleShape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
+            .glideBorder(hot, CircleShape, pal.signal)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
+            .controllerConfirm(onClick = onClick),
+    ) { Icon(Icons.Filled.Search, description, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
 }
 
 /** A horizontal row of cards under a title; nothing at all when the list is empty or not here yet. */
@@ -939,7 +994,7 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
-        CardFace(item, download) { CardMarker(item, installed, download) }
+        CardFace(item, download, hot) { CardMarker(item, installed, download) }
     }
 }
 
@@ -966,8 +1021,9 @@ private val CardStrip = 26.dp
  * picture, placed so the two meet without a seam. Blur needs API 31; below it the copy is only
  * darkened, more strongly.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, marker: @Composable () -> Unit) {
+private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, hot: Boolean, marker: @Composable () -> Unit) {
     val url = item.imageUrl ?: item.tallImageUrl
     val blurs = android.os.Build.VERSION.SDK_INT >= 31
     BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -984,7 +1040,12 @@ private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.matchParentSize().padding(horizontal = 8.dp),
                 ) {
-                    Text(item.title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    // A title too long for the strip scrolls through while the card has focus.
+                    Text(
+                        item.title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1,
+                        overflow = if (hot) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).then(if (hot) Modifier.basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 700, velocity = 40.dp) else Modifier),
+                    )
                     marker()
                 }
             }
