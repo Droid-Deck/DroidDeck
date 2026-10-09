@@ -115,16 +115,70 @@ class RumbleComponentTest {
         assertFalse(pad.vibrating)
     }
 
+    @Test fun aStaleActiveIdFindsTheSamePadUnderItsNewId() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { null }
+        rumble.otherControllerMotors = { skip, _, _ -> if (skip == PAD_ID) pad else null }
+        activeController(PAD_ID)
+        effect()
+        assertTrue(pad.vibrating)
+        assertFalse("the phone buzzed as well", shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun withPhoneFallbackOffAPadWithoutMotorsLeavesThePhoneStill() {
+        ControllerPrefs.setRumblePhoneFallback(context, false)
+        shadowOf(Looper.getMainLooper()).idle()
+        rumble.controllerMotors = { null }
+        rumble.otherControllerMotors = { _, _, _ -> null }
+        activeController(PAD_ID)
+        effect()
+        assertFalse(shadowOf(vibrator).isVibrating)
+        ControllerPrefs.setRumblePhoneFallback(context, true)
+        shadowOf(Looper.getMainLooper()).idle()
+        effect()
+        assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun deckHapticTicksPlayAloneButNeverCutAGameRumble() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect(strong = 0x5800, weak = 0x5800, ms = 15, slot = RumbleComponent.PULSE)
+        assertEquals(listOf(Triple(0x5800, 0x5800, 15L)), pad.played)
+        effect(strong = 0, weak = 0, ms = 0, slot = RumbleComponent.PULSE)
+        assertFalse(pad.vibrating)
+        effect(strong = 60000, weak = 60000, ms = 5000)  // a game's 0xEB rumble
+        effect(strong = 0x5800, weak = 0x5800, ms = 15, slot = RumbleComponent.PULSE)
+        effect(strong = 0, weak = 0, ms = 0, slot = RumbleComponent.PULSE)
+        assertEquals("a tick replaced the rumble", Triple(60000, 60000, 5000L), pad.played.last())
+        assertTrue("a haptic stop ended the rumble", pad.vibrating)
+        effect(strong = 0, weak = 0, ms = 0)
+        assertFalse(pad.vibrating)
+        effect(strong = 0x5800, weak = 0x5800, ms = 15, slot = RumbleComponent.PULSE)
+        assertEquals(Triple(0x5800, 0x5800, 15L), pad.played.last())
+    }
+
+    @Test fun aFullStrengthEffectReachesTheMotorsUnscaled() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect(strong = 65535, weak = 65535, ms = 200)
+        assertEquals(listOf(Triple(65535, 65535, 200L)), pad.played)
+    }
+
     @After fun clearActiveController() { activeController(PadBridge.NO_CONTROLLER) }
 
     private fun activeController(id: Int) {
         PadBridge::class.java.getDeclaredField("activeControllerId").apply { isAccessible = true }.setInt(null, id)
     }
 
-    private fun effect(strong: Int = 65535, weak: Int = 65535) {
+    private fun effect(strong: Int = 65535, weak: Int = 65535, ms: Int = 5000, slot: Int? = null) {
         // Inject a decoded force-feedback packet; transport is outside these tests.
-        RumbleComponent::class.java.getDeclaredMethod("buzz", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-            .apply { isAccessible = true }.invoke(rumble, strong, weak, 5000)
+        val i = Int::class.javaPrimitiveType
+        if (slot == null) RumbleComponent::class.java.getDeclaredMethod("buzz", i, i, i)
+            .apply { isAccessible = true }.invoke(rumble, strong, weak, ms)
+        else RumbleComponent::class.java.getDeclaredMethod("buzz", i, i, i, i)
+            .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot)
     }
 
     private class FakeMotors : RumbleComponent.Motors {
