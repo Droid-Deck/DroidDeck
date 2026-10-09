@@ -34,12 +34,18 @@ object CloudSaves {
     private const val PARALLEL = 6
 
     /** What a sync did, for the log and the Manage saves row. */
-    class Result(val ok: Boolean, val files: Int, val bytes: Long, val reason: String) {
-        val line: String get() = "files=$files bytes=$bytes result=${if (ok) "ok" else reason}"
+    /**
+     * What a sync did, for the log and the Manage saves row. [result]: ok, skipped (nothing to do or
+     * not possible: [reason] says why), deferred (no prefix yet; it runs once Proton makes one),
+     * failed. [conflicts]: files changed on both sides, left alone.
+     */
+    class Result(val result: String, val files: Int, val bytes: Long, val reason: String, val conflicts: Int = 0) {
+        val ok: Boolean get() = result != "failed"
+        val line: String get() = "result=$result files=$files bytes=$bytes reason=$reason" + if (conflicts > 0) " conflicts=$conflicts" else ""
     }
 
     /** A game's cloud state for the Manage saves row. */
-    class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String)
+    class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList())
 
     private fun game(context: Context, store: Store, id: String): Pair<File, StoreGameSidecar>? =
         StoreInstallRoot.gameFolders(context).firstNotNullOfOrNull { f ->
@@ -119,7 +125,7 @@ object CloudSaves {
 
     fun status(context: Context, store: Store, id: String): Status {
         val (dir, reason) = saveFolder(context, store, id)
-        return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason)
+        return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason, conflicts(context, store, id))
     }
 
     // ---- transport ------------------------------------------------------------------------------
@@ -157,27 +163,74 @@ object CloudSaves {
 
     // ---- sync -----------------------------------------------------------------------------------
 
-    /** Cloud → device where the cloud copy is newer. Blocking. */
-    fun download(context: Context, store: Store, id: String): Result = run(context, store, id, "down") { dir, cloud -> pull(context, store, id, dir, cloud) }
+    private fun baseline(context: Context, store: Store, id: String): Map<String, CloudPlan.Entry>? =
+        CloudPlan.fromJson(prefs(context, store).getString("cloud_baseline_$id", null))
 
-    /** Device → cloud where the local copy is newer. Blocking. */
-    fun upload(context: Context, store: Store, id: String): Result = run(context, store, id, "up") { dir, cloud -> push(dir, cloud) }
+    private fun saveBaseline(context: Context, store: Store, id: String, b: Map<String, CloudPlan.Entry>) =
+        prefs(context, store).edit().putString("cloud_baseline_$id", CloudPlan.toJson(b)).apply()
 
-    private fun run(context: Context, store: Store, id: String, way: String, body: (File, CloudTransport) -> Result): Result {
+    /** Files changed on both sides since the last sync, waiting for Keep cloud / Keep local. */
+    fun conflicts(context: Context, store: Store, id: String): List<String> =
+        prefs(context, store).getString("cloud_conflicts_$id", "").orEmpty().split('\n').filter { it.isNotEmpty() }
+
+    private fun saveConflicts(context: Context, store: Store, id: String, names: Collection<String>) =
+        prefs(context, store).edit().putString("cloud_conflicts_$id", names.joinToString("\n")).apply()
+
+    /** Cloud → device where the cloud copy changed (the first time: wherever it differs). [force]: conflicts too (Keep cloud). Blocking. */
+    fun download(context: Context, store: Store, id: String, force: Boolean = false): Result =
+        sync(context, store, id, "down") { dir, cloud -> downWith(context, store, id, dir, cloud, force) }
+
+    /** Device → cloud where the local copy changed, once a download has set the baseline. [force]: conflicts too (Keep local). Blocking. */
+    fun upload(context: Context, store: Store, id: String, force: Boolean = false): Result =
+        sync(context, store, id, "up") { dir, cloud -> upWith(context, store, id, dir, cloud, force) }
+
+    fun keepCloud(context: Context, store: Store, id: String): Result = download(context, store, id, force = true)
+    fun keepLocal(context: Context, store: Store, id: String): Result = upload(context, store, id, force = true)
+
+    /**
+     * The pre-launch download, or - when Proton has not made the game's prefix yet (a first launch)
+     * - a deferred one: answered at once, then run in the background as soon as the prefix's user
+     * folder appears (within [PREFIX_WAIT_MS]), so the launch is not held up for it.
+     */
+    fun downloadOrDefer(context: Context, store: Store, id: String): Result {
+        val app = context.applicationContext
+        val g = game(app, store, id) ?: return done(store, id, "down", Result("skipped", 0, 0, "not-installed"))
+        if (!g.second.cloud) return done(store, id, "down", Result("skipped", 0, 0, "off"))
+        if (prefix(app, g.first)?.let { CloudSavePaths.profile(it).isDirectory } == true) return download(app, store, id)
+        Thread({
+            val end = System.currentTimeMillis() + PREFIX_WAIT_MS
+            while (System.currentTimeMillis() < end) {
+                if (prefix(app, g.first)?.let { CloudSavePaths.profile(it).isDirectory } == true) { download(app, store, id); return@Thread }
+                Thread.sleep(2000)
+            }
+            done(store, id, "down", Result("skipped", 0, 0, "no-prefix"))
+        }, "cloud-deferred").start()
+        return done(store, id, "down", Result("deferred", 0, 0, "no-prefix"))
+    }
+
+    private const val PREFIX_WAIT_MS = 60_000L
+
+    private fun sync(context: Context, store: Store, id: String, way: String, body: (File, CloudTransport) -> Result): Result {
         val result = try {
-            val (folder, sidecar) = game(context, store, id) ?: return done(store, id, way, Result(false, 0, 0, "not-installed"))
-            if (!sidecar.cloud) return done(store, id, way, Result(true, 0, 0, "off"))
-            val (dir, reason) = saveFolder(context, store, id)
-            if (dir == null) Result(reason == "no-cloud-saves", 0, 0, reason)
-            else {
-                val cloud = transport(context, store, id, folder) ?: return done(store, id, way, Result(false, 0, 0, "signed-out"))
-                body(dir, cloud).also { if (it.ok) markSynced(context, store, id) }
+            val g = game(context, store, id)
+            when {
+                g == null -> Result("skipped", 0, 0, "not-installed")
+                !g.second.cloud -> Result("skipped", 0, 0, "off")
+                else -> {
+                    val (dir, reason) = saveFolder(context, store, id)
+                    val cloud = if (dir != null) transport(context, store, id, g.first) else null
+                    when {
+                        dir == null -> Result("skipped", 0, 0, reason)
+                        cloud == null -> Result("skipped", 0, 0, "not-signed-in")
+                        else -> body(dir, cloud).also { if (it.result == "ok") markSynced(context, store, id) }
+                    }
+                }
             }
         } catch (e: NoCloudSaves) {
             prefs(context, store).edit().putString("cloud_template_$id", "").apply()
-            Result(true, 0, 0, "no-cloud-saves")
+            Result("skipped", 0, 0, "no-cloud-saves")
         } catch (e: Exception) {
-            Result(false, 0, 0, e.javaClass.simpleName)
+            Result("failed", 0, 0, e.javaClass.simpleName)
         }
         return done(store, id, way, result)
     }
@@ -192,71 +245,100 @@ object CloudSaves {
         if (!dir.isDirectory) emptyMap()
         else dir.walkTopDown().filter { it.isFile }.associateBy { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
 
-    private fun md5(f: File): String? = runCatching {
-        val md = MessageDigest.getInstance("MD5")
-        f.inputStream().use { input -> val buf = ByteArray(8192); while (true) { val n = input.read(buf); if (n < 0) break; md.update(buf, 0, n) } }
-        md.digest().joinToString("") { "%02x".format(it) }
-    }.getOrNull()
+    internal fun md5(f: File): String = md5(f.readBytes())
 
-    private fun pull(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport): Result {
-        val remote = cloud.list()
-        if (remote.isEmpty()) return Result(true, 0, 0, "empty")
-        val local = localFiles(dir)
+    internal fun md5(data: ByteArray): String = MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
+
+    /** The cloud listing, with MD5 and time filled in (one HEAD each where the listing lacks them, in parallel). */
+    private fun remote(cloud: CloudTransport, wanted: (String) -> Boolean): Map<String, CloudFile> {
+        val files = cloud.list()
         val pool = Executors.newFixedThreadPool(PARALLEL, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("cloud"))
-        val wanted = java.util.concurrent.ConcurrentLinkedQueue<CloudFile>()
-        for (f in remote) pool.execute {
-            val mine = local[f.name]
-            if (mine == null) { wanted.add(f); return@execute }
-            cloud.details(f)
-            if (f.md5 != null && f.md5.equals(md5(mine), ignoreCase = true)) return@execute
-            if (f.modifiedMs > mine.lastModified()) wanted.add(f)
-        }
+        for (f in files) if (wanted(f.name)) pool.execute { runCatching { cloud.details(f) } }
         pool.shutdown(); pool.awaitTermination(2, TimeUnit.MINUTES)
-        if (wanted.isEmpty()) return Result(true, 0, 0, "up-to-date")
-        backup(context, store, id, dir)
+        return files.associateBy { it.name }
+    }
+
+    internal fun downWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
+        val files = localFiles(dir)
+        val remote = remote(cloud) { it in files }
+        val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
+        val base = baseline(context, store, id)
+        val plan = CloudPlan.down(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
+        val take = if (force) plan.transfer + plan.conflicts else plan.transfer
+        if (take.isNotEmpty() && files.isNotEmpty()) backup(context, store, id, dir, "local")
+        val next = HashMap(base.orEmpty())
         var bytes = 0L
-        for (f in wanted) {
+        for (name in take) {
+            val f = remote[name] ?: continue
             val (data, modified) = cloud.get(f)
-            val dest = File(dir, f.name)
+            val dest = File(dir, name)
             if (!dest.canonicalPath.startsWith(dir.canonicalPath + File.separator)) continue
             dest.parentFile?.mkdirs()
             dest.writeBytes(data)
             if (modified > 0) dest.setLastModified(modified)
             bytes += data.size
+            next[name] = CloudPlan.Entry(md5(data), f.md5, if (modified > 0) modified else f.modifiedMs)
         }
-        return Result(true, wanted.size, bytes, "ok")
+        for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
+        // A download that completed sets the baseline even when the cloud was empty: uploads may follow.
+        saveBaseline(context, store, id, next)
+        val left = if (force) emptyList() else plan.conflicts
+        saveConflicts(context, store, id, left)
+        return Result("ok", take.size, bytes, if (take.isEmpty()) "up-to-date" else "downloaded", left.size)
     }
 
-    private fun push(dir: File, cloud: CloudTransport): Result {
-        val local = localFiles(dir)
-        if (local.isEmpty()) return Result(true, 0, 0, "nothing-local")
-        val remote = cloud.list().associateBy { it.name }
-        val pool = Executors.newFixedThreadPool(PARALLEL, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("cloud"))
-        val changed = java.util.concurrent.ConcurrentHashMap<String, File>()
-        for ((name, file) in local) pool.execute {
-            val r = remote[name]
-            if (r == null) { changed[name] = file; return@execute }
-            cloud.details(r)
-            if (r.md5 != null && r.md5.equals(md5(file), ignoreCase = true)) {
-                // Same bytes, touched by the game: line the time up so the next sync skips it cheaply.
-                if (r.modifiedMs > 0) file.setLastModified(r.modifiedMs)
-                return@execute
+    internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
+        val base = baseline(context, store, id) ?: return Result("skipped", 0, 0, "no-baseline")
+        val files = localFiles(dir)
+        if (files.isEmpty()) return Result("skipped", 0, 0, "nothing-local")
+        val remote = remote(cloud) { it in files }
+        val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
+        val plan = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
+        val send = if (force) plan.transfer + plan.conflicts else plan.transfer
+        val next = HashMap(base)
+        for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
+        if (send.isNotEmpty()) {
+            // The cloud copies about to be replaced are kept first, as a download keeps the local ones.
+            backupCloud(context, store, id, cloud, send.mapNotNull { remote[it] })
+            val data = send.associateWith { files.getValue(it).readBytes() }
+            val stamped = cloud.put(data)
+            for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
+            val after = remote(cloud) { it in data }
+            for (name in data.keys) {
+                val r = after[name]
+                next[name] = CloudPlan.Entry(md5(data.getValue(name)), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
             }
-            if (r.modifiedMs < 0 || file.lastModified() > r.modifiedMs) changed[name] = file
         }
-        pool.shutdown(); pool.awaitTermination(2, TimeUnit.MINUTES)
-        if (changed.isEmpty()) return Result(true, 0, 0, "up-to-date")
-        val data = changed.mapValues { it.value.readBytes() }
-        val stamped = cloud.put(data)
-        for ((name, t) in stamped) if (t > 0) changed[name]?.setLastModified(t)
-        return Result(true, stamped.size, data.values.sumOf { it.size.toLong() }, "ok")
+        saveBaseline(context, store, id, next)
+        val left = if (force) emptyList() else plan.conflicts
+        saveConflicts(context, store, id, left)
+        return Result("ok", send.size, send.sumOf { files.getValue(it).length() }, if (send.isEmpty()) "up-to-date" else "uploaded", left.size)
     }
 
-    /** The folder as it is, copied before a download changes it; the last [BACKUPS] are kept. */
-    private fun backup(context: Context, store: Store, id: String, dir: File) {
-        if (!dir.isDirectory || dir.listFiles().isNullOrEmpty()) return
-        val root = File(context.filesDir, "stores/cloud-backups/${store.id}-${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
-        runCatching { dir.copyRecursively(File(root, System.currentTimeMillis().toString()), overwrite = true) }
-        root.listFiles()?.sortedByDescending { it.name }?.drop(BACKUPS)?.forEach { it.deleteRecursively() }
+    private fun backupRoot(context: Context, store: Store, id: String) =
+        File(context.filesDir, "stores/cloud-backups/${store.id}-${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
+
+    /** The local folder as it is, before a download changes it; the last [BACKUPS] of each kind are kept. */
+    private fun backup(context: Context, store: Store, id: String, dir: File, kind: String) {
+        val root = backupRoot(context, store, id)
+        runCatching { dir.copyRecursively(File(root, "$kind-${System.currentTimeMillis()}"), overwrite = true) }
+        prune(root, kind)
+    }
+
+    private fun backupCloud(context: Context, store: Store, id: String, cloud: CloudTransport, files: List<CloudFile>) {
+        if (files.isEmpty()) return
+        val root = backupRoot(context, store, id)
+        val target = File(root, "cloud-${System.currentTimeMillis()}")
+        for (f in files) {
+            val dest = File(target, f.name)
+            if (!dest.canonicalPath.startsWith(target.canonicalPath + File.separator)) continue
+            dest.parentFile?.mkdirs()
+            dest.writeBytes(cloud.get(f).first)
+        }
+        prune(root, "cloud")
+    }
+
+    private fun prune(root: File, kind: String) {
+        root.listFiles { f -> f.name.startsWith("$kind-") }?.sortedByDescending { it.name }?.drop(BACKUPS)?.forEach { it.deleteRecursively() }
     }
 }

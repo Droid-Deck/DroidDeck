@@ -55,7 +55,9 @@ class Detection(unittest.TestCase):
     def test_anything_else_is_left_alone(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root)
-            self.assertIsNone(store.find_store_game([str(folder / 'Metalstorm.exe')]))
+            # The exe of a store game is one too (a GOG game without a launcher); a stray file is not.
+            self.assertEqual(folder, store.find_store_game([str(folder / 'Metalstorm.exe')])[0])
+            self.assertIsNone(store.find_store_game([str(Path(root) / 'elsewhere/readme.txt')]))
             (folder / '.droiddeck-store.json').unlink()
             self.assertIsNone(store.find_store_game([str(folder / '.droiddeck-launch.bat')]))
 
@@ -191,6 +193,20 @@ class Browser(unittest.TestCase):
             self.assertEqual(1, len(reqs))
             self.assertEqual({'op': 'open-url', 'url': 'https://www.epicgames.com/activate'}, json.loads(reqs[0].read_text()))
             self.assertEqual('https://www.epicgames.com', xdg.where('https://www.epicgames.com/activate?code=SECRET'))
+
+
+class ExeTarget(unittest.TestCase):
+    def test_a_game_started_by_its_exe_is_found_from_a_subfolder(self):
+        # Most GOG games have no launcher .bat: Steam runs the exe, which may sit in a subfolder.
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='1207664643')
+            (folder / 'bin/x64').mkdir(parents=True)
+            exe = folder / 'bin/x64/ELDERBORN.exe'
+            exe.write_text('MZ')
+            found = store.find_store_game(['"%s"' % exe])
+            self.assertEqual(folder, found[0])
+            self.assertEqual('gog', found[1]['store'])
+            self.assertIsNone(store.find_store_game(['/root/Games/Other/x.exe']))
 
 
 class CloudHooks(unittest.TestCase):

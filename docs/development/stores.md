@@ -118,10 +118,25 @@ parked overlay work is on the branch `park/epic-eos-overlay`.
 ## Cloud saves
 
 GOG and Epic games sync their saves with the store's cloud (`CloudSaves`, after Bannerlator's
-managers): before a launch the cloud copy comes down where it is newer, after the game exits what
-changed goes up - newest wins, file by file, with an MD5 check so a file the game only touched is
-not sent again. Before a download overwrites anything the folder is copied to
-`files/stores/cloud-backups/<store>-<id>/` (the last three kept).
+managers): before a launch the cloud copy comes down, after the game exits what changed goes up.
+`CloudPlan` decides per file against a baseline - each file's local MD5 and cloud MD5/time as of
+this device's last sync:
+
+- **No upload before a download has completed once on this device** (no baseline): a first launch
+  creates new profile files that must never replace the real saves in the cloud.
+- **The first download lets the cloud win** where the two differ.
+- **A file changed on both sides since the baseline is a conflict:** neither side is overwritten;
+  Manage saves shows "Cloud conflict" with Keep cloud / Keep local.
+- Otherwise the side that changed wins; bytes that match move nothing.
+
+Both sides are backed up before they are replaced: the local folder before a download writes into
+it, the cloud copies before an upload replaces them, under
+`files/stores/cloud-backups/<store>-<id>/local-*` and `cloud-*` (the last three of each).
+
+A game launched before Proton has made its prefix (a first launch) gets its download deferred: the
+request is answered at once (`result=deferred reason=no-prefix`) and the download runs as soon as
+the prefix's user folder appears, within a minute. Every path logs
+`cloud <store> <id> down|up result=ok|skipped|deferred|failed files= bytes= reason=`.
 
 - **The folder:** GOG's public remote-config gives a location template per game (by its Galaxy client
   id), e.g. `<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN`; Epic's catalog gives
@@ -132,6 +147,9 @@ not sent again. Before a download overwrites anything the folder is copied to
 - **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
   own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
   savesync data storage with signed read and write links.
+- **Which launches:** `droiddeck-store-launch` recognises a store game by the launcher .bat Steam runs
+  or, for a game without one (most GOG games), by its exe - the folders above it are searched for
+  the sidecar.
 - **When:** every launch runs `droiddeck-store-launch`, which asks the app (`cloud-down`) and waits up
   to 15 s; for a store game with cloud saves it returns 10, and the compat tool then waits for
   Proton instead of exec'ing it and runs `droiddeck-store-launch --exited` after, which asks for

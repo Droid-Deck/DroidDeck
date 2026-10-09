@@ -240,13 +240,19 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean) {
         !st.supported -> MenuItem(stringResource(R.string.cloud_none), checked = false, enabled = false) {}
         else -> {
             val last = if (st.lastSync > 0) stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString()) else stringResource(R.string.cloud_never)
-            fun sync(up: Boolean) {
+            fun sync(up: Boolean, force: Boolean = false) {
                 if (busy != null) return
                 busy = if (up) "up" else "down"
                 Thread({
-                    val r = if (up) com.droiddeck.launcher.stores.CloudSaves.upload(context, store, id) else com.droiddeck.launcher.stores.CloudSaves.download(context, store, id)
+                    val r = if (up) com.droiddeck.launcher.stores.CloudSaves.upload(context, store, id, force) else com.droiddeck.launcher.stores.CloudSaves.download(context, store, id, force)
                     com.droiddeck.launcher.stores.StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, if (r.ok) context.getString(R.string.cloud_done, r.files) else r.reason, android.widget.Toast.LENGTH_SHORT).show() }
                 }, "cloud-manual").start()
+            }
+            // Files changed on both sides since the last sync: neither is overwritten until the user picks.
+            if (st.conflicts.isNotEmpty()) {
+                MenuItem(stringResource(R.string.cloud_conflict), checked = false, enabled = false, detail = stringResource(R.string.cloud_done, st.conflicts.size)) {}
+                MenuItem(stringResource(R.string.cloud_keep_cloud), checked = false, enabled = busy == null) { sync(up = false, force = true) }
+                MenuItem(stringResource(R.string.cloud_keep_local), checked = false, enabled = busy == null) { sync(up = true, force = true) }
             }
             MenuItem(stringResource(R.string.cloud_upload), checked = false, enabled = busy == null, detail = if (busy == "up") stringResource(R.string.cloud_checking) else last) { sync(true) }
             MenuItem(stringResource(R.string.cloud_download), checked = false, enabled = busy == null, detail = if (busy == "down") stringResource(R.string.cloud_checking) else null) { sync(false) }

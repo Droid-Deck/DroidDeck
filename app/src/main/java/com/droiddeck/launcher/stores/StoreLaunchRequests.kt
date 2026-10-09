@@ -69,7 +69,7 @@ object StoreLaunchRequests {
                 val store = Store.byId(request.optString("store"))
                 val id = request.optString("id")
                 if (store == null || id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-game")
-                else CloudSaves.download(app, store, id).let { JSONObject().put("ok", it.ok).put("files", it.files).put("reason", it.reason) }
+                else CloudSaves.downloadOrDefer(app, store, id).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }
             }
             "cloud-up" -> {
                 val store = Store.byId(request.optString("store"))

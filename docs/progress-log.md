@@ -150,6 +150,13 @@ without it and Setup says "Stores engine not built").
   native start takes the whole set (`cdnBases`; the engine spreads its window across the hosts) and
   its `onBytes` - every 250 ms, including files still in flight - drives the bar and the speed, so a
   large file no longer moves the bar in one jump.
+- **Cloud saves, device round 1 (ELDERBORN, `b323a0b`): nothing ran** - a GOG game without arguments
+  gets no launcher .bat, Steam runs its exe, and `droiddeck-store-launch` only recognised the .bat.
+  It now recognises the exe too (searching the folders above it for the sidecar), and every path
+  logs a result line. A first launch has no prefix yet: the download is deferred until Proton makes
+  it, without holding the launch. Uploads are now safe: none before a download has set this
+  device's baseline, a file changed on both sides is a conflict left for Keep cloud / Keep local,
+  and the cloud copy is backed up before an upload replaces it (`CloudPlan`, tests for each rule).
 - **GOG and Epic cloud saves** (ported from Bannerlator's managers, device-proven there in August):
   down before every launch where the cloud copy is newer (the compat tool waits up to 15 s), up
   after the game exits (the compat tool waits for Proton for such a game, then asks without

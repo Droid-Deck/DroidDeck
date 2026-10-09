@@ -47,20 +47,39 @@ def log(line):
     print("droiddeck-store-launch: " + line, file=sys.stderr, flush=True)
 
 
+MAX_DEPTH = 6
+
+
+def sidecar_at(folder):
+    try:
+        sidecar = json.loads((folder / SIDECAR).read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(sidecar, dict) or not sidecar.get("store") or not sidecar.get("id"):
+        return None
+    return sidecar
+
+
 def find_store_game(argv):
-    """The (folder, sidecar) of the store launcher among [argv], or None when this is not one."""
+    """
+    The (folder, sidecar) of a store game among [argv], or None when this is not one. Steam passes
+    the shortcut's target: the launcher .bat when the game has one (Epic, Amazon, a GOG game with
+    arguments), else the game's exe itself (most GOG games), which may sit in a subfolder - so the
+    folders above it are looked through too, up to MAX_DEPTH, for the sidecar.
+    """
     for raw in argv:
-        arg = raw.strip().strip('"').strip("'")
-        if not arg.lower().endswith(LAUNCHER):
+        arg = raw.strip().strip('"').strip("'").replace("\\", "/")
+        low = arg.lower()
+        if not (low.endswith(LAUNCHER) or low.endswith(".exe") or low.endswith(".bat")) or "/" not in arg:
             continue
-        folder = Path(arg.replace("\\", "/")).parent
-        try:
-            sidecar = json.loads((folder / SIDECAR).read_text())
-        except (OSError, ValueError):
-            continue
-        if not isinstance(sidecar, dict) or not sidecar.get("store") or not sidecar.get("id"):
-            continue
-        return folder, sidecar
+        folder = Path(arg).parent
+        for _ in range(MAX_DEPTH):
+            sidecar = sidecar_at(folder)
+            if sidecar is not None:
+                return folder, sidecar
+            if folder.parent == folder:
+                break
+            folder = folder.parent
     return None
 
 
@@ -275,6 +294,8 @@ def main(argv):
                 log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
         log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
     if not cloud_on(sidecar):
+        if store in CLOUD_STORES:
+            log("cloud %s %s down result=skipped reason=off" % (store, game))
         return 0
     if launch_dir:
         # The cloud copy where it is newer, before the game reads its saves; bounded, then on regardless.
@@ -282,7 +303,9 @@ def main(argv):
         if answer is None:
             log("cloud %s %s down result=timeout" % (store, game))
         else:
-            log("cloud %s %s down files=%s result=%s" % (store, game, answer.get("files", 0), answer.get("reason", "")))
+            log("cloud %s %s down result=%s files=%s reason=%s" % (store, game, answer.get("result", "?"), answer.get("files", 0), answer.get("reason", "")))
+    else:
+        log("cloud %s %s down result=skipped reason=no-channel" % (store, game))
     return STORE_GAME
 
 

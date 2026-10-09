@@ -2024,6 +2024,9 @@
     <string name="cloud_upload">Upload to cloud</string>
     <string name="cloud_download">Download from cloud</string>
     <string name="cloud_none">No cloud saves</string>
+    <string name="cloud_conflict">Cloud conflict</string>
+    <string name="cloud_keep_cloud">Keep cloud</string>
+    <string name="cloud_keep_local">Keep local</string>
     <string name="cloud_checking">Checking cloud…</string>
     <string name="cloud_last_sync">Last sync %1$s</string>
     <string name="cloud_never">Not synced yet</string>
