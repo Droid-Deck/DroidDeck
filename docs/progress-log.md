@@ -135,6 +135,12 @@ without it and Setup says "Stores engine not built").
   when installed, Resume, the download percentage, the install size, or Free / price / discount.
   A thin bar over the art while downloading. Install, Resume, Uninstall, Get and Buy live on the
   game page; A on a card opens it.
+- **Store log lines are redacted at the one choke point** (`StoresState.logLine`, which the engines'
+  lines reach too): every URL is cut to scheme, host and a plain first path segment (a GOG secure
+  link's token sits in the path, so it goes), no query, fragment or userinfo; token-like values
+  (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
+  Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
+  Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
 - **Stages named for what they do; both sizes; Cancel deletes.** Epic's check of the files already
   there is part of Manifest ("Checking 120/515"), never a 100% Verify before anything is fetched.
   Install has its own write rate and ETA from the bytes the assembler writes, and files n/N. The

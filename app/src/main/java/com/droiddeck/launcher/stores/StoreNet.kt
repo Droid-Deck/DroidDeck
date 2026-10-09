@@ -124,4 +124,41 @@ object StoreLog {
             "[url]"
         }
     }
+
+    private val URL_PATTERN = Regex("""[A-Za-z][A-Za-z0-9+.\-]*://[^\s"'<>]+""")
+    private val SAFE_SEGMENT = Regex("""[A-Za-z0-9._\-]{1,40}""")
+    private val SECRET = Regex("""(?i)(?<![A-Za-z0-9_])(__token__|f_token|hdnts|access_token|refresh_token|id_token|token)(["']?\s*[=:]\s*["']?)[^\s&;,"'}]+""")
+    private val CODE = Regex("""(?i)(?<![A-Za-z0-9_])(code|exchange_code|authorizationCode)(["']?\s*=\s*["']?)[^\s&;,"'}]+""")
+    private val AUTH_HEADER = Regex("""(?i)(authorization|cookie)(\s*[:=]\s*).*""")
+
+    /**
+     * What any store line may say, for the Downloads log and logcat alike: every URL cut to
+     * `scheme://host/first-segment/…` (the segment kept only when it is a plain name - a GOG secure
+     * link carries its token in the path), no query, fragment or userinfo; and outside URLs, the
+     * values of token-like keys and of Authorization / Cookie headers blanked.
+     */
+    @JvmStatic
+    fun redactLine(text: String): String {
+        var out = URL_PATTERN.replace(text) { m -> shortUrl(m.value) }
+        out = SECRET.replace(out) { m -> m.groupValues[1] + m.groupValues[2] + "…" }
+        out = CODE.replace(out) { m -> m.groupValues[1] + m.groupValues[2] + "…" }
+        out = AUTH_HEADER.replace(out) { m -> m.groupValues[1] + m.groupValues[2] + "…" }
+        return out
+    }
+
+    private fun shortUrl(url: String): String {
+        val schemeEnd = url.indexOf("://")
+        val scheme = url.substring(0, schemeEnd)
+        var rest = url.substring(schemeEnd + 3)
+        rest = rest.substringBefore('#').substringBefore('?')
+        val slash = rest.indexOf('/')
+        val authority = (if (slash >= 0) rest.substring(0, slash) else rest).substringAfterLast('@')
+        if (slash < 0) return "$scheme://$authority"
+        val path = rest.substring(slash + 1)
+        val first = path.substringBefore('/')
+        val more = path.length > first.length
+        if (first.isEmpty()) return "$scheme://$authority/"
+        val shown = if (SAFE_SEGMENT.matches(first)) first else "…"
+        return "$scheme://$authority/$shown" + if (more && shown != "…") "/…" else ""
+    }
 }

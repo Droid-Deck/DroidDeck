@@ -178,7 +178,9 @@ object StoresState {
     }
 
     /** Appends to the engine log with a clock, keeping the last 80 lines. Any thread. */
-    fun logLine(text: String) {
+    fun logLine(raw: String) {
+        // Every store line passes here, the engines' included: no token or full URL is kept.
+        val text = StoreLog.redactLine(raw)
         val stamped = "${CLOCK.format(Date())}  $text"
         Log.i(TAG, text)
         main.post {
