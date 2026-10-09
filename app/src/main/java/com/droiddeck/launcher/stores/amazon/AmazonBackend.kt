@@ -59,7 +59,7 @@ object AmazonBackend : StoreBackend {
                 when (result) {
                     is AmazonLibrary.SyncResult.Ok -> { publish(app, result.games); StoresState.problems.remove(store) }
                     is AmazonLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
-                    AmazonLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "Amazon session expired: sign in again."
+                    AmazonLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = StoresState.notSignedInLine(store)
                     AmazonLibrary.SyncResult.Throttled -> publish(app, AmazonLibrary.cached(app))
                     AmazonLibrary.SyncResult.Busy -> {}
                 }

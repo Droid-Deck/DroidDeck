@@ -47,16 +47,35 @@ object WinComponents {
     // at the same path, so the native file at that path is the one the registration loads.
     private val FILE_STEPS = setOf("download_archive", "archive_extract", "copy_dll", "copy_file", "override_dll", "register_dll")
     private val INSTALLER_STEPS = setOf("install_exe", "install_msi")
+    /**
+     * Steps done here without any installer running: a Windows version or registry value for the
+     * prefix (written by droiddeck-wincomponents with the rest), files picked out of a cabinet, and
+     * "uninstall Wine Mono", which the mscoree override beside it already does for the game.
+     */
+    private val OFFLINE_STEPS = setOf("set_windows", "set_register_key", "get_from_cab", "uninstall")
+    /**
+     * Installers that are their own setup program (NSIS, InnoSetup, IExpress scripts): nothing
+     * inside them is a package to lay out, so they wait for a way to run them.
+     */
+    private val RUNS_OWN_SETUP = setOf(
+        "K-Lite", "ffdshow", "lavfilters702", "lavfilters741", "quicktime72", "dirac", "webview2", "aairruntime",
+        "gfw", "ie8_kb2936068", "art2kmin", "art2k7min", "vcredist6sp6", "VulkanRT", "jet40", "mdac28", "oalinst",
+        "dotnet20", "dotnet20sp1", "dotnet35", "dotnet35sp1",
+    )
     private const val MSI_INSTALL = "/usr/local/bin/droiddeck-msi-install"
-    /** Where a downloaded .msi waits for the installer, inside the runtime so it can read it. */
+    /** Where a downloaded package or installer waits for the installer, inside the runtime so it can read it. */
     private const val MSI_CACHE = "$STORE/.packages"
     /** Catalog entries Proton already provides newer copies of, which an install would only shadow. */
-    private val PROTON_PROVIDES = setOf("gecko")
+    private val PROTON_PROVIDES = setOf("gecko", "mono")
+    /** The keys the catalog nests under "environment" on a few .NET entries. */
+    private val NESTED_KEYS = setOf("url", "file_name", "file_checksum", "file_size")
 
     fun validId(id: String): Boolean = ID.matches(id) && ".." !in id
 
     class Step(val action: String, val json: JSONObject) {
-        fun str(key: String): String = json.optString(key, "")
+        fun str(key: String): String = json.optString(key, "").ifEmpty {
+            if (key in NESTED_KEYS) json.optJSONObject("environment")?.optString(key, "").orEmpty() else ""
+        }
     }
 
     class Component(
@@ -66,10 +85,27 @@ object WinComponents {
 
     enum class Support { READY, NEEDS_INSTALLER, UNSUPPORTED }
 
-    /** A step that installs a Windows Installer package, which droiddeck-msi-install does here. */
-    private fun isMsi(step: Step): Boolean = step.action in INSTALLER_STEPS && step.str("url").startsWith("https://") &&
+    /** The two halves of an install the page shows one after the other, each 0..100. */
+    enum class Phase { DOWNLOAD, INSTALL }
+
+    /** Progress: the component being worked on, what it is doing, the phase, 0..100 or -1 when unknown. */
+    class Progress(val component: String, val stage: String, val phase: Phase, val percent: Int)
+
+    /** The percent a droiddeck-msi-install progress line carries ("progress 37% placing files"), or -1. */
+    private val PERCENT_LINE = Regex("""^(\d{1,3})% (.*)$""")
+    private fun engineLine(text: String): Pair<String, Int> =
+        PERCENT_LINE.find(text)?.let { it.groupValues[2] to it.groupValues[1].toInt().coerceIn(0, 100) } ?: (text to -1)
+
+    /**
+     * A step that installs a Windows Installer package, or an installer .exe that is a wrapper
+     * around packages (a WiX bundle, a self-extracting cabinet or 7-Zip archive), which
+     * droiddeck-msi-install lays out here without running it.
+     */
+    private fun isPackage(step: Step): Boolean = step.action in INSTALLER_STEPS && step.str("url").startsWith("https://") &&
         (step.action == "install_msi" || listOf(step.str("file_name"), step.str("url").substringBefore('?'))
-            .any { it.endsWith(".msi", ignoreCase = true) })
+            .any { it.endsWith(".msi", ignoreCase = true) || it.endsWith(".exe", ignoreCase = true) })
+
+    private fun protonProvides(name: String): Boolean = name in PROTON_PROVIDES || name.startsWith("mono-")
 
     fun fetch(): List<Component>? {
         val body = Downloader.downloadString(CATALOG_URL) ?: return null
@@ -94,13 +130,14 @@ object WinComponents {
 
     /** Whether [c] can be installed here, its bundled components included. */
     fun support(c: Component, all: Map<String, Component>, depth: Int = 0): Support {
-        if (c.status != "ready" || depth > 8 || c.name in PROTON_PROVIDES) return Support.UNSUPPORTED
+        if (c.status != "ready" || depth > 8 || protonProvides(c.name)) return Support.UNSUPPORTED
         val installers = c.steps.filter { it.action in INSTALLER_STEPS }
+        fun offline(step: Step) = step.action == "delete_dlls" || step.action in OFFLINE_STEPS || step.action in FILE_STEPS && fileStepOk(step)
         val own = when {
-            installers.isNotEmpty() && installers.all { isMsi(it) } &&
-                c.steps.all { it in installers || it.action == "delete_dlls" || it.action in FILE_STEPS && fileStepOk(it) } -> Support.READY
+            installers.isNotEmpty() && c.name !in RUNS_OWN_SETUP && installers.all { isPackage(it) } &&
+                c.steps.all { it in installers || offline(it) } -> Support.READY
             installers.isNotEmpty() -> Support.NEEDS_INSTALLER
-            c.steps.all { it.action in FILE_STEPS && fileStepOk(it) } -> Support.READY
+            c.steps.all { offline(it) } -> Support.READY
             else -> Support.UNSUPPORTED
         }
         if (own != Support.READY) return own
@@ -109,9 +146,10 @@ object WinComponents {
     }
 
     private fun fileStepOk(step: Step): Boolean = when (step.action) {
+        // An .exe or .cab archive (DirectX's redistributable) is opened by the runtime's tools.
         "download_archive", "archive_extract" -> step.str("url").let { url ->
             !url.startsWith("http") || url.startsWith("https://github.com/") &&
-                url.substringBefore('?').let { it.endsWith(".tar.xz") || it.endsWith(".zip") }
+                url.substringBefore('?').lowercase().let { it.endsWith(".tar.xz") || it.endsWith(".zip") || it.endsWith(".exe") || it.endsWith(".cab") }
         }
         "copy_dll", "copy_file" -> ".." !in step.str("dest")
         else -> true
@@ -131,7 +169,7 @@ object WinComponents {
      * Installs [c] and the components it bundles that are not installed yet. [onProgress] gets a
      * line for the step and 0..100 (or -1). Returns null on success, else a message.
      */
-    fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (String, Int) -> Unit): String? {
+    fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? {
         if (support(c, all) != Support.READY) return "${c.name} cannot be installed here yet"
         val order = ArrayList<Component>()
         fun visit(x: Component, depth: Int) {
@@ -146,7 +184,7 @@ object WinComponents {
         val archives = HashMap<String, File>()
         return try {
             for (x in order) {
-                onProgress(x.name, -1)
+                onProgress(Progress(x.name, x.name, Phase.DOWNLOAD, -1))
                 installOne(context, x, work, archives, onProgress)?.let { return "${x.name}: $it" }
             }
             null
@@ -158,18 +196,27 @@ object WinComponents {
         }
     }
 
-    private fun installOne(context: Context, c: Component, work: File, archives: HashMap<String, File>, onProgress: (String, Int) -> Unit): String? {
+    private fun installOne(context: Context, c: Component, work: File, archives: HashMap<String, File>, onProgress: (Progress) -> Unit): String? {
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return "The Linux runtime is not installed"
         val staging = File(root, "$STORE/.${c.name}.new").apply { FileUtils.delete(this); mkdirs() }
         val overrides = ArrayList<String>()
         var source: File? = null
         var msi: JSONObject? = null
+        // The registry values the steps themselves set (a Windows version, a key), beside the packages'.
+        val registry = ArrayList<JSONObject>()
+        // Archives the runtime's tools opened (installer .exe, cabinets), by the name the catalog
+        // calls them, and the folders they were opened into; cleaned up at the end.
+        val runtimeArchives = HashMap<String, File>()
+        val runtimeDirs = ArrayList<File>()
+        val cabs = HashMap<String, File>()
+        val temp = File(root, "$MSI_CACHE/.t-${c.name}").apply { FileUtils.delete(this) }
+        try {
         for (step in c.steps) when (step.action) {
             // A component may have several packages (PowerShell's 32- and 64-bit): each adds to the
             // same folder, the first one names the component.
             "install_msi", "install_exe" -> {
-                val (result, problem) = installMsi(context, c, step, staging, onProgress)
+                val (result, problem) = installPackage(context, c, step, staging, onProgress)
                 if (result == null) return problem
                 msi = msi?.apply {
                     val notes = optJSONArray("notes") ?: JSONArray().also { put("notes", it) }
@@ -183,19 +230,84 @@ object WinComponents {
                 if (!url.startsWith("http")) continue
                 source = archives[url] ?: run {
                     val name = url.substringBefore('?').substringAfterLast('/')
-                    val file = File(work, "${archives.size}-$name")
-                    val ok = Downloader.downloadFile(url, file, false) { f -> onProgress("${c.name}: $name", if (f < 0) -1 else Math.round(f * 100f)) }
+                    // A zip or tar.xz is opened here; an .exe or .cab by the runtime's tools, so it
+                    // is downloaded where the runtime can read it and kept for get_from_cab steps.
+                    val byRuntime = name.lowercase().let { it.endsWith(".exe") || it.endsWith(".cab") }
+                    val file = if (byRuntime) File(root, "$MSI_CACHE/${archives.size}-$name").apply { parentFile?.mkdirs() }
+                        else File(work, "${archives.size}-$name")
+                    val ok = Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }
                     if (!ok) return "download failed: $name"
                     step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
                         if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return "checksum mismatch: $name"
                     }
-                    onProgress("${c.name}: unpacking $name", -1)
-                    val dir = File(work, "${archives.size}-x").apply { mkdirs() }
-                    if (!extract(file, dir)) return "could not unpack $name"
-                    file.delete()
+                    onProgress(Progress(c.name, "unpacking $name", Phase.INSTALL, -1))
+                    val dir = if (byRuntime) {
+                        runtimeArchives[step.str("file_name").ifEmpty { name }] = file
+                        runtimeDirs += file
+                        unpackInRuntime(context, c, file, "${archives.size}-x", onProgress)?.also { runtimeDirs += it }
+                            ?: return "could not unpack $name"
+                    } else {
+                        File(work, "${archives.size}-x").apply { mkdirs() }.also { if (!extract(file, it)) return "could not unpack $name" }
+                            .also { file.delete() }
+                    }
                     dir.also { archives[url] = it }
                 }
             }
+            // Files picked out of a cabinet: one the catalog downloaded (DirectX's redistributable,
+            // a self-extracting cabinet), or cabinets an earlier pick put under temp/.
+            "get_from_cab" -> {
+                val pattern = step.str("source")
+                val containers = runtimeArchives[pattern]?.let { listOf(it) } ?: run {
+                    val folder = File(temp, pattern.substringBeforeLast('/', "").replace('\\', '/'))
+                    val rx = globRegex(pattern.substringAfterLast('/'))
+                    folder.listFiles { f -> f.isFile && rx.matches(f.name) }?.sortedBy { it.name }.orEmpty()
+                }
+                if (containers.isEmpty()) return "nothing is called $pattern"
+                val dest = step.str("dest").replace('\\', '/')
+                for (container in containers) {
+                    val unpacked = cabs.getOrPut(container.path) {
+                        unpackInRuntime(context, c, container, "c${cabs.size}", onProgress)?.also { runtimeDirs += it }
+                            ?: return "could not open ${container.name}"
+                    }
+                    if (dest.startsWith("temp/", ignoreCase = true)) {
+                        copyMatching(unpacked, step.str("file_name"), File(temp, dest.substring(5).trimEnd('/')), null)
+                    } else {
+                        val (arch, base) = when (dest.substringBefore('/').lowercase()) {
+                            "win64", "system32" -> "win64" to "system32"
+                            "win32", "syswow64" -> "win32" to "syswow64"
+                            else -> null to "system32"
+                        }
+                        val sub = dest.substringAfter('/', "").trimEnd('/')
+                        copyMatching(unpacked, step.str("file_name"), File(staging, if (sub.isEmpty()) base else "$base/$sub"), arch)
+                    }
+                }
+            }
+            // The Windows version a game sees: HKCU\Software\Wine "Version", the last word wins.
+            "set_windows" -> step.str("version").takeIf { it.isNotEmpty() }?.let { version ->
+                registry.removeAll { it.optString("key") == "Software\\Wine" && it.optString("name") == "Version" }
+                registry += JSONObject().put("hive", "HKCU").put("key", "Software\\Wine").put("name", "Version").put("type", "sz").put("data", version)
+            }
+            "set_register_key" -> {
+                val full = step.str("key").replace("\\\\", "\\").trim('\\')
+                val hive = when (full.substringBefore('\\').uppercase()) {
+                    "HKLM", "HKEY_LOCAL_MACHINE" -> "HKLM"
+                    "HKCU", "HKEY_CURRENT_USER" -> "HKCU"
+                    else -> return "a registry key outside HKLM and HKCU: $full"
+                }
+                val key = full.substringAfter('\\', "")
+                if (key.isEmpty()) return "a registry value without a key: $full"
+                val data = step.str("data")
+                val value = JSONObject().put("hive", hive).put("key", key).put("name", step.str("value"))
+                when (step.str("type").uppercase()) {
+                    "REG_DWORD" -> value.put("type", "dword").put("data", data.trim().let { it.removePrefix("0x").toLongOrNull(if (it.startsWith("0x")) 16 else 10) ?: 0L })
+                    "REG_EXPAND_SZ" -> value.put("type", "expand_sz").put("data", data)
+                    else -> value.put("type", "sz").put("data", data)
+                }
+                registry += value
+            }
+            // "Uninstall Wine Mono" before a real .NET Framework: the mscoree override the catalog
+            // sets beside it is what takes Mono out of the game's way; nothing to remove here.
+            "uninstall" -> Unit
             "copy_dll", "copy_file" -> {
                 val from = source ?: return "a copy step before any archive"
                 val dest = step.str("dest")
@@ -226,6 +338,17 @@ object WinComponents {
             "register_dll" -> Unit
             else -> return "unsupported step ${step.action}"
         }
+        } finally {
+            runtimeDirs.forEach { FileUtils.delete(it) }
+            FileUtils.delete(temp)
+        }
+        if (registry.isNotEmpty()) {
+            // The packages' values are already in registry.json; the steps' own go after them.
+            val file = File(staging, "registry.json")
+            val values = runCatching { JSONObject(file.readText()).optJSONArray("values") }.getOrNull() ?: JSONArray()
+            registry.forEach { values.put(it) }
+            FileUtils.writeString(file, JSONObject().put("version", 1).put("values", values).toString(1))
+        }
         val version = msi?.optString("version")?.takeIf { it.isNotEmpty() }
             ?: Regex("""\b(\d+\.\d+(\.\d+)*)\b""").find(c.description)?.value ?: "catalog"
         val meta = JSONObject()
@@ -240,31 +363,64 @@ object WinComponents {
         return null
     }
 
+    /** The regex for a catalog file pattern: * matches anything, case does not matter. */
+    private fun globRegex(pattern: String) =
+        Regex("^" + pattern.split("*").joinToString(".*") { Regex.escape(it) } + "$", RegexOption.IGNORE_CASE)
+
     /**
-     * Downloads the component's .msi into the runtime and has droiddeck-msi-install lay it out in
-     * [staging]. Returns the installer's result (product, version, counts, notes), or null and why.
-     * Everything the installer prints also goes to Download/DroidDeck/tools.
+     * Has the runtime's tools open [archive] (an installer .exe, a cabinet, a self-extracting
+     * one) into a folder of the package cache called [tag]; that folder, or null and a log line.
      */
-    private fun installMsi(context: Context, c: Component, step: Step, staging: File, onProgress: (String, Int) -> Unit): Pair<JSONObject?, String> {
+    private fun unpackInRuntime(context: Context, c: Component, archive: File, tag: String, onProgress: (Progress) -> Unit): File? {
+        val root = LinuxRuntime.rootDir(context)
+        val cache = File(root, MSI_CACHE)
+        val dir = File(cache, ".x-$tag").apply { FileUtils.delete(this); mkdirs() }
+        val inside = archive.relativeTo(root).path
+        var problem: String? = null
+        var ok = false
+        val status = GuestCommand.run(context, listOf(MSI_INSTALL, "--unpack", "/$inside", "/$MSI_CACHE/${dir.name}"),
+            logName = "wincomponents-${c.name}") { line ->
+            when {
+                line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, _) -> onProgress(Progress(c.name, text, Phase.INSTALL, -1)) }
+                line.startsWith("result ") -> ok = true
+                line.startsWith("error ") -> problem = line.removePrefix("error ")
+            }
+        }
+        if (status != 0 || !ok) {
+            Log.w(TAG, "unpack ${archive.name}: ${problem ?: "status $status"}")
+            FileUtils.delete(dir)
+            return null
+        }
+        return dir
+    }
+
+    /**
+     * Downloads the component's package (.msi) or installer (.exe) into the runtime and has
+     * droiddeck-msi-install lay it out in [staging]. Returns the installer's result (product,
+     * version, counts, notes), or null and why. Everything the installer prints also goes to
+     * files/logs/tools.
+     */
+    private fun installPackage(context: Context, c: Component, step: Step, staging: File, onProgress: (Progress) -> Unit): Pair<JSONObject?, String> {
         val root = LinuxRuntime.rootDir(context)
         val url = step.str("url")
         val name = url.substringBefore('?').substringAfterLast('/')
         val cache = File(root, MSI_CACHE).apply { mkdirs() }
-        val file = File(cache, "${c.name}.msi")
+        val ext = if (listOf(step.str("file_name"), name).any { it.endsWith(".exe", ignoreCase = true) }) "exe" else "msi"
+        val file = File(cache, "${c.name}-${c.steps.indexOf(step)}.$ext")
         try {
-            if (!Downloader.downloadFile(url, file, false) { f -> onProgress("${c.name}: $name", if (f < 0) -1 else Math.round(f * 100f)) }) {
+            if (!Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                 return null to "download failed: $name"
             }
             step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
                 if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return null to "checksum mismatch: $name"
             }
-            onProgress("${c.name}: installing", -1)
+            onProgress(Progress(c.name, "installing", Phase.INSTALL, 0))
             var result: JSONObject? = null
             var problem: String? = null
             val status = GuestCommand.run(context, listOf(MSI_INSTALL, "/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}"),
                 logName = "wincomponents-${c.name}") { line ->
                 when {
-                    line.startsWith("progress ") -> onProgress("${c.name}: ${line.removePrefix("progress ")}", -1)
+                    line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, pct) -> onProgress(Progress(c.name, text, Phase.INSTALL, pct)) }
                     line.startsWith("result ") -> result = runCatching { JSONObject(line.removePrefix("result ")) }.getOrNull()
                     line.startsWith("error ") -> problem = line.removePrefix("error ")
                 }
@@ -273,7 +429,7 @@ object WinComponents {
             if (status != 0 || done == null) return null to (problem ?: "the installer stopped (status $status)")
             return done to ""
         } catch (e: Exception) {
-            Log.e(TAG, "msi ${c.name}", e)
+            Log.e(TAG, "package ${c.name}", e)
             return null to (e.message ?: "the installer failed")
         } finally {
             file.delete()

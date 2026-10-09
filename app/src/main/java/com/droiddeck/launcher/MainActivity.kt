@@ -866,8 +866,12 @@ class MainActivity : ComponentActivity() {
             SessionPrefs.setMicAsked(this)
         }
         if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
+        // A store sign-in an earlier build left in plain text is sealed with the Keystore key.
+        Thread({ com.droiddeck.launcher.stores.StoreAccounts.encryptAll(this) }, "store-credentials").start()
         // A session folder left without its ending - the process was killed - gets it now.
         if (!SessionState.running) Thread({
+            com.droiddeck.launcher.session.LogMigration.run(this)
+            SessionLogShare.clear(this)
             SessionArtifacts.finishAbandoned(this)
             SessionArtifacts.scrubOlder(this)
             SessionArtifacts.prune(this)

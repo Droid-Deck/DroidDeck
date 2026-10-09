@@ -118,6 +118,11 @@ object StoresState {
 
     fun isSignedIn(store: Store): Boolean = accounts.containsKey(store)
 
+    /** A store action's error line when it found no usable sign-in: gone, or on disk but unreadable for now. */
+    fun notSignedInLine(store: Store): String =
+        if (StoreAccounts.isUnavailable(store)) "${store.shortLabel} sign-in could not be read: try again."
+        else "${store.shortLabel} session expired: sign in again."
+
     /** Stores whose sign-in has run out (a launch could not get a code): their chip dims until the user signs in again. */
     val expired = mutableStateMapOf<Store, Boolean>()
 

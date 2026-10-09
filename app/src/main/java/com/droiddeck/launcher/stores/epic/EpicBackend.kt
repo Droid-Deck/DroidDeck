@@ -57,7 +57,7 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                         StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { EpicLibrary.toCatalogItem(app, it) }); StoresState.problems.remove(store)
                     }
                     is EpicLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
-                    EpicLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "Epic session expired: sign in again."
+                    EpicLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = StoresState.notSignedInLine(store)
                     EpicLibrary.SyncResult.Throttled -> if (!StoresState.library.containsKey(store)) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached)
                     EpicLibrary.SyncResult.Busy -> {}
                 }

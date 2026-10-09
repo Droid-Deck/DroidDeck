@@ -46,7 +46,7 @@ object GogBackend : StoreBackend {
                 when (result) {
                     is GogLibrary.SyncResult.Ok -> { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { GogLibrary.toCatalogItem(app, it) }); StoresState.problems.remove(store) }
                     is GogLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
-                    GogLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "GOG session expired: sign in again."
+                    GogLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = StoresState.notSignedInLine(store)
                     GogLibrary.SyncResult.Busy -> {}
                 }
             }

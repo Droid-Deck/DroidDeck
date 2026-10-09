@@ -117,9 +117,9 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
         // What the Windows components installer reads .msi packages with (tools/msitools).
-        val msitools = listOf("msiinfo", "cabextract", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
+        val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
-            listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
+            listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libfaultreport.so", "libthunkaudit.so", "libvulkan-thunk.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
@@ -361,25 +361,9 @@ object SessionFiles {
     ).joinToString(newline)
 
     /**
-     * Where the session writes its log. Downloads is the point - a failed run is handed over as a
-     * folder rather than dug out of app-private storage - but the session script redirects its own
-     * output there with `exec`, and a redirection a non-interactive shell cannot open ends that
-     * shell. So a public directory is used only once it is proven writable; otherwise the app's
-     * own files directory, which is bound into the session anyway, stands in.
+     * Where the session writes its log: app-private `files/logs`, bound into the session at the same
+     * path, so the session script's own redirection always opens. A folder leaves the device only
+     * through Share logs, which scrubs every file again on the way into the zip.
      */
-    fun logDirectory(context: Context): File {
-        val public = LinuxRuntime.debugLogDir()
-        if (public.isDirectory || public.mkdirs()) {
-            val probe = File(public, ".writable")
-            try {
-                if (probe.createNewFile() || probe.isFile) {
-                    probe.delete()
-                    return public
-                }
-            } catch (ignored: Exception) {
-            }
-        }
-        Log.w(TAG, "$public is not writable (storage permission?); logging to files/logs")
-        return File(context.filesDir, "logs").apply { mkdirs() }
-    }
+    fun logDirectory(context: Context): File = LinuxRuntime.logDir(context).apply { mkdirs() }
 }
