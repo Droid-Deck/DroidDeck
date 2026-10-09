@@ -494,6 +494,19 @@ fun <T> ChoiceRow(
     }
 }
 
+/** A small "?" beside a value the app guessed and is not sure of; [description] says what to check. */
+@Composable
+fun UncertainMark(description: String) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(22.dp).clip(CircleShape).background(colors.surfaceVariant)
+            .semantics { contentDescription = description },
+    ) {
+        Text("?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant)
+    }
+}
+
 @Composable
 fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked: Boolean, enabled: Boolean = true, chipModifier: Modifier = Modifier, onChange: (Boolean) -> Unit) =
     SettingsRow(label, hint) {

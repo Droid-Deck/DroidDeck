@@ -164,6 +164,8 @@ internal fun SetupPanel(
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
+    var editSgdbKey by remember { mutableStateOf(false) }
+    if (editSgdbKey) SgdbKeyDialog(s.sgdbUserKey, onSave = { a.onSgdbKey(it); editSgdbKey = false }, onDismiss = { editSgdbKey = false })
     // Four tabs instead of one long scroll; LB and RB turn them from anywhere on the page. Build
     // and credits are on the Updates page.
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_session), stringResource(R.string.setup_tab_launcher))
@@ -367,6 +369,13 @@ internal fun SetupPanel(
                                 else stringResource(R.string.setup_store_off),
                                 s.storeEnabled,
                             ) { a.onStoreEnabled(it) }
+                        }
+                        SettingsGroup(stringResource(R.string.content_games)) {
+                            ToggleRow(host, "added-art", stringResource(R.string.mode_added_art), stringResource(R.string.mode_added_art_hint), s.addedGamesArt) { a.onAddedGamesArt(it) }
+                            ActionRow(
+                                stringResource(R.string.mode_sgdb_key), if (s.sgdbUserKey) stringResource(R.string.mode_sgdb_key_yours) else null,
+                                stringResource(R.string.mode_sgdb_edit), onClick = { editSgdbKey = true },
+                            )
                         }
                         SettingsGroup(stringResource(R.string.setup_stores)) {
                             ToggleRow(

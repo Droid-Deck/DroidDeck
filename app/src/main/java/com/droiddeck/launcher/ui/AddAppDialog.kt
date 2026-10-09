@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -313,12 +314,17 @@ internal fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolea
 @Composable
 internal fun AppDialog(
     shown: MutableTransitionState<Boolean>, close: () -> Unit, label: String, wide: Boolean,
-    modifier: Modifier = Modifier, maxWidth: Dp? = null, content: @Composable ColumnScope.() -> Unit,
+    modifier: Modifier = Modifier, maxWidth: Dp? = null,
+    /** [width] fixed, else as wide as its content when [fitContent], else as wide as it may be. */
+    width: Dp? = null, fitContent: Boolean = false,
+    /** What B / Back does, when not [close] (a picker goes up a folder first). */
+    back: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
     // The page's ring stays out of sight behind it.
     VeilRing()
-    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    Dialog(onDismissRequest = back ?: close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
       // The page's focus memory stays the page's: nothing in here is a place to come back to.
       CompositionLocalProvider(LocalFrontFocus provides null) {
         Box(
@@ -337,14 +343,20 @@ internal fun AppDialog(
                     modifier = Modifier
                         .padding(12.dp)
                         .widthIn(max = maxWidth ?: if (wide) 860.dp else 560.dp)
-                        .fillMaxWidth()
+                        .then(
+                            when {
+                                width != null -> Modifier.width(width)
+                                fitContent -> Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max)
+                                else -> Modifier.fillMaxWidth()
+                            },
+                        )
                         .heightIn(max = (LocalConfiguration.current.screenHeightDp - 24).dp)
                         .shadow(24.dp, Shape16, ambientColor = Color.Black, spotColor = Color.Black)
                         .clip(Shape16)
                         .background(pal.surfaceVariant.copy(alpha = 0.97f))
                         .border(1.dp, pal.signal.copy(alpha = 0.22f), Shape16)
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-                        .controllerBack(close)
+                        .controllerBack(back ?: close)
                         .then(modifier)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 18.dp, vertical = 16.dp),

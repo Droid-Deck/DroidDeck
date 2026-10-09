@@ -7,6 +7,32 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-09 - `feat/games-add-edit`: add games from the Games tab, edit them like Steam's Properties
+
+- **Steam ⚙ settings:** the Games section is gone (it was a feature, not a setting). Games
+  folders added before keep listing their games.
+- **+ beside "Games N":** a compact in-app picker (storage step, then the storage root; every
+  folder A-Z, unreadable ones greyed; `.exe` only; width fixed at opening; red X; B goes up).
+  Picking an exe adds the game (name from `GameIdentifier`, art, Custom chip, Steam shortcut via
+  the listing and the running client, Start in = exe folder) and selects it; an exe in a listed
+  game switches its target; the same exe again selects it; a path the session cannot see is
+  refused. Internal storage anywhere now maps to `/root/Storage`.
+- **"Add all games in this folder":** each subfolder with its best exe (`GameExePicker`, depth
+  5, "?" when unsure), listed ones skipped, then a summary (added, already there, rows that open
+  the editor with back to the summary).
+- **✎ editor** on a Custom game: Name, Target (ranked, "?", Other exe…), Start in, Launch
+  options, Artwork (Cover, Background, Logo, Icon with thumbnails and sources; chooser with the
+  game folder, Steam and SteamGridDB; Pick image…; Reset to automatic), Remove (two presses, files
+  kept). Every edit goes through the same shortcut on its stored appid (listing + live DevTools);
+  the writer keeps Steam-side edits and records them, and the app takes them over once.
+- **Setup:** Artwork switch and SteamGridDB API key (user key sealed with the Keystore, wins over
+  `BuildConfig.SGDB_API_KEY` from the `SGDB_API_KEY` secret).
+- Brought over from `feat/added-games-remove` (not merged): `GameExePicker`, `GameIdentifier` +
+  `PeVersionInfo`, the art and SteamGridDB work, the build secret, the + and the picker.
+- Docs: `docs/development/added-games.md`. Tests: `AddedExesTest`, `AddedGameEditsTest`,
+  `AddedGamesCandidatesTest`, `AddedGameArtLookupTest`, `GameIdentifierTest`, `PickListingTest`,
+  `AddedGamesRemoveTest`, `test_steam_shortcuts.py`. Not yet on a device.
+
 ## 2026-10-09 - `feat/store-credentials-keystore`: store sign-ins sealed with the Android Keystore
 
 - **What:** `filesDir/stores/<store>/credentials.json` (GOG, Epic, Amazon: tokens, ids, names,

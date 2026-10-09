@@ -137,6 +137,9 @@ class FrontEndState(
     val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
     /** A page to open once: "stores:downloads", or a selection such as "app:<id>" (a notification's tap). */
     val navigate: String? = null,
+    /** Setup: art for added games is fetched; the user has a SteamGridDB key of their own. */
+    val addedGamesArt: Boolean = true,
+    val sgdbUserKey: Boolean = false,
     val storesShowMature: Boolean = false,
     /** Downloads queued, running or paused across the three stores; the rail item's badge. */
     val storeDownloadsActive: Int = 0,
@@ -151,6 +154,15 @@ class FrontEndActions(
     val onGameShortcut: (Library.SteamGame) -> Unit = {},
     val onExportGameFile: (Library.SteamGame) -> Unit = {},
     val onSyncGameFiles: () -> Unit = {},
+    /** The Games tab's +: the .exe picked in its dialog, to add as a game. */
+    val onAddGameExe: (path: String) -> Unit = {},
+    /** These added games (by folder) were added or edited: the Games tab updates just them. */
+    val onAddedGamesChanged: (folders: List<String>) -> Unit = {},
+    /** An added game removed in its editor: off the Games tab at once, out of Steam after. */
+    val onAddedGameRemoved: (folder: String, appId: Long?, name: String) -> Unit = { _, _, _ -> },
+    /** Setup's Artwork switch and the user's SteamGridDB API key ("" removes it). */
+    val onAddedGamesArt: (Boolean) -> Unit = {},
+    val onSgdbKey: (String) -> Unit = {},
     val onStopGameFileSync: () -> Unit = {},
     val onCopyGameLink: (Library.SteamGame) -> Unit = {},
     val onDesktop: () -> Unit,

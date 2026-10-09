@@ -152,20 +152,23 @@ object Library {
     }
 
     /** The same installed-game inventory used for links, shortcuts and file exports. */
-    fun launchableGames(context: Context, strictRead: Boolean = false): List<SteamGame> {
+    /** [added]: the added games when the caller has just scanned them, so they are not scanned again. */
+    fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
         val roots = steamLibraries(context).map { it.first }
-        return (steamGames(context, strictRead) + AddedGames.scan(context).map { g ->
-            AddedGameArt.resolve(context, g).let { art ->
-                SteamGame(
-                    g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
-                    hero = art.hero ?: art.header, gameFiles = g.folder,
-                    protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
-                    icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
-                    source = g.source, storeId = g.storeId,
-                )
-            }
-        }).distinctBy { it.gameId }
+        return (steamGames(context, strictRead) + (added ?: AddedGames.scan(context)).map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
     }
+
+    /** One added game as the Games tab lists it; [roots] the Steam libraries, for its Proton prefix. */
+    fun addedGame(context: Context, g: AddedGames.Game, roots: List<File> = steamLibraries(context).map { it.first }): SteamGame =
+        AddedGameArt.resolve(context, g).let { art ->
+            SteamGame(
+                g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
+                hero = art.hero ?: art.header, gameFiles = g.folder,
+                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
+                icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
+                source = g.source, storeId = g.storeId,
+            )
+        }
 
     /** Steam stores current library art inside hash-named folders under the app's cache dir. */
     private fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {

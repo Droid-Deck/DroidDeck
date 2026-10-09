@@ -41,9 +41,7 @@
     <string name="hud_fg_failed">%1$s：引擎失败</string>
     <string name="hud_fg_needs_lossless">%1$s：需要 Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · 启动中</string>
-    <string name="added_games_import_hint">一个文件夹，其中每个 Windows 游戏各占一个子文件夹。你在 Steam 拥有的游戏会在 Steam 重启后使用其 Steam 条目；其余会变成非 Steam 快捷方式。第二个库设为自动时，Steam 也可以把游戏安装到此文件夹。</string>
     <string name="second_library_import_hint">添加一个 Steam 库并扫描其中的 Windows 游戏。已拥有的游戏使用其 Steam 条目；其余变成非 Steam 快捷方式。</string>
-    <string name="added_games_forget_hint">“移除”会在下次会话删除这些快捷方式。文件仍保留在磁盘上。</string>
     <string name="game_env_title">游戏环境</string>
     <string name="game_env_hint">Proton 游戏的环境变量。</string>
     <string name="game_env_edit">编辑</string>
@@ -299,16 +297,18 @@
     <string name="mode_steam_repair_hint">下次启动 Steam 时重新下载 Steam 客户端。如果 Steam 一直停在加载画面，请使用此项。游戏、登录信息和设置都会保留。</string>
     <string name="mode_steam_repair_queued">下次启动 Steam 时将重新下载 Steam 客户端。</string>
     <string name="mode_steam_repair_button">修复</string>
-    <string name="mode_added_games">已添加的游戏</string>
-    <string name="mode_added_none">未找到含 .exe 的游戏文件夹</string>
-    <string name="mode_games_folder">游戏文件夹</string>
-    <string name="mode_games_folder_another">另一个游戏文件夹</string>
-    <string name="mode_added_art">来自 Steam 的美术图</string>
+    <string name="mode_added_art">美术图</string>
+    <string name="mode_sgdb_key">SteamGridDB API 密钥</string>
+    <string name="mode_sgdb_key_yours">你的密钥</string>
+    <string name="mode_sgdb_edit">编辑…</string>
     <string name="mode_added_art_hint">按文件夹名补齐缺失的美术图。游戏文件夹中你自己的 cover.jpg、hero.jpg、logo.png 或 icon.png 优先。</string>
-    <string name="mode_added_launches">启动 %1$s</string>
-    <string name="mode_added_launches_in">启动 %1$s · 位于 %2$s</string>
-    <string name="mode_added_choose">选择其他文件…</string>
-    <string name="mode_added_exe_note">默认为与文件夹同名的 .exe，否则为最大的那个。</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">移除？</string>
+    <string name="games_add">添加游戏</string>
+    <string name="games_add_title">添加游戏：</string>
+    <string name="games_pick_exe_title">选择 exe：</string>
+    <string name="games_add_unreachable">会话中无法访问此位置</string>
+    <string name="mode_added_exe_check">请检查此 exe</string>
     <string name="wincomp_title">Windows 组件</string>
     <string name="wincomp_pad_hint">按 LB / RB 在各部分之间跳转。</string>
     <string name="wincomp_card_none">无</string>
@@ -1123,8 +1123,6 @@
     <string name="main_removing_named">正在移除 %1$s…</string>
     <string name="main_forgetting_named">正在移除 %1$s…</string>
     <string name="main_pick_game_storage">选择游戏存储文件夹</string>
-    <string name="main_pick_added_games">选择存放你自己游戏的文件夹</string>
-    <string name="main_pick_game_exe">选择游戏的 .exe</string>
     <string name="main_pick_decky_zip">选择 Decky 插件 ZIP 包</string>
     <string name="main_storage_not_usable">无法使用：%1$s</string>
 
@@ -2048,4 +2046,35 @@
     <string name="device_info_copied">已复制。</string>
     <string name="force_ssbs_title">强制 SSBS</string>
     <string name="force_ssbs_hint">保持开启一项 Wine 会不断关闭的 CPU 速度设置。在骁龙 8 至尊版上可能让 Windows 游戏更快；在较旧芯片上变化不大。下次启动游戏时生效。</string>
+    <string name="common_close">关闭</string>
+    <string name="common_back">返回</string>
+    <string name="common_edit">编辑</string>
+    <string name="games_add_all">添加此文件夹中的所有游戏</string>
+    <string name="games_added_none">此文件夹中没有新游戏</string>
+    <string name="edit_name">名称</string>
+    <string name="edit_target">目标</string>
+    <string name="edit_start_in">起始位置</string>
+    <string name="edit_launch_options">启动选项</string>
+    <string name="edit_artwork">美术图</string>
+    <string name="edit_other_exe">其他 exe…</string>
+    <string name="edit_remove">移除</string>
+    <string name="art_cover">封面</string>
+    <string name="art_background">背景</string>
+    <string name="art_logo">标志</string>
+    <string name="art_icon">图标</string>
+    <string name="art_src_folder">游戏文件夹</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">你的文件</string>
+    <string name="art_src_exe">来自 exe</string>
+    <string name="art_src_auto">自动</string>
+    <string name="art_pick_image">选择图片…</string>
+    <string name="art_pick_title">选择图片：%1$s</string>
+    <string name="art_reset">重置为自动</string>
+    <plurals name="games_added_n">
+        <item quantity="other">已添加 %1$d 个游戏</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="other">%1$d 个已在游戏中</item>
+    </plurals>
 </resources>
