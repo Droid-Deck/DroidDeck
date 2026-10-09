@@ -23,7 +23,7 @@ object GogLibrary {
     // v2: the card art moved from the store page's backdrop to the Galaxy library art; an older cache is re-fetched.
     private const val CACHE_KEY = "library_cache_v2"
     private const val LAST_SYNC_KEY = "library_synced_at"
-    private const val THROTTLE_MS = 15L * 60L * 1000L
+    private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
 
     private val syncing = AtomicBoolean(false)
 

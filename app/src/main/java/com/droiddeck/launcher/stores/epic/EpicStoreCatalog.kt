@@ -26,7 +26,7 @@ object EpicStoreCatalog {
     private const val TAG = "EpicStore"
     private const val GRAPHQL = "https://store.epicgames.com/graphql"
     private const val PROMOS = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions"
-    private const val FEATURED_TTL_MS = 30 * 60 * 1000L
+    private const val FEATURED_TTL_MS = 3 * 60 * 60 * 1000L
     private const val SEARCH_TTL_MS = 5 * 60 * 1000L
     private const val KEY_FEATURED = "store_featured"
 
@@ -136,6 +136,8 @@ object EpicStoreCatalog {
     fun featured(context: Context, force: Boolean = false): StoreShelves? {
         val now = System.currentTimeMillis()
         featuredCache?.let { if (!force && now - it.at < FEATURED_TTL_MS) return it.value }
+        // Shelves saved on an earlier run are as good while they are young: shown, not fetched again.
+        if (!force && now - EpicPrefs.get(context).getLong("store_featured_at", 0L) < FEATURED_TTL_MS) cachedFeatured(context)?.let { return it }
         val freeNow = fetchPromos()
         val onSale = searchStore(24, sortBy = "currentPrice", sortDir = "ASC", onSale = true).filter { it.discountPercent > 0 }
         val newest = searchStore(24, sortBy = "releaseDate", sortDir = "DESC", releasedOnly = true)
@@ -211,7 +213,7 @@ object EpicStoreCatalog {
 
     private fun persist(context: Context, f: StoreShelves) {
         runCatching {
-            EpicPrefs.get(context).edit().putString(KEY_FEATURED, JSONObject().put("new", listToJson(f.whatsNew)).put("deals", listToJson(f.deals)).put("free", listToJson(f.free)).put("trending", listToJson(f.trending)).toString()).apply()
+            EpicPrefs.get(context).edit().putString(KEY_FEATURED, JSONObject().put("new", listToJson(f.whatsNew)).put("deals", listToJson(f.deals)).put("free", listToJson(f.free)).put("trending", listToJson(f.trending)).toString()).putLong("store_featured_at", System.currentTimeMillis()).apply()
         }
     }
 

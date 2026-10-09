@@ -343,6 +343,8 @@ private fun Storefront(
                 }
             },
             trailing = {
+                // A purchase made elsewhere shows on a refresh; otherwise the library refreshes itself every six hours.
+                SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
                 val name = StoresState.accounts[store] ?: ""
                 SmallTextButton(stringResource(R.string.stores_signout_named, name)) { StoresState.signOut(ctx, store) }
             },
@@ -475,7 +477,13 @@ private fun Grid(items: List<CatalogItem>, empty: String, card: @Composable (Cat
     }
 }
 
-private val CardWidth = 150.dp
+/**
+ * A card's least width: shelf cards are this wide and a grid fits as many columns as the width
+ * allows at it (the columns then share the leftover), so a display-density setting changes the
+ * column count rather than the cards' size. 25% under the first 150 dp: five columns where there
+ * were four on the Pocket FIT.
+ */
+private val CardWidth = 112.dp
 
 /**
  * One title: its wide art, the title, a price or status line and one button that says the one
@@ -529,7 +537,7 @@ private fun SyncBar(line: String) {
 }
 
 /** How tall the card's one line is, over the blurred foot of its art. */
-private val CardStrip = 28.dp
+private val CardStrip = 26.dp
 
 /**
  * The card is its art: sharp above, and under the one line a blurred, darkened copy of the same
@@ -574,7 +582,14 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
     val pal = LocalPalette.current
     val small = 10.sp
     when {
-        installed -> Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(14.dp))
+        // Installed: its size on disk and a small check after it.
+        installed -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            val ctx = LocalContext.current
+            val game = StoresState.installedGame(item.store, item.id)
+            if (game != null) androidx.compose.runtime.LaunchedEffect(item.key) { com.droiddeck.launcher.stores.StoreSizes.requestDisk(ctx, item.key, game) }
+            com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key]?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
+            Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(11.dp))
+        }
         download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         item.owned && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         // The size in the title's own type; nothing until it is known.

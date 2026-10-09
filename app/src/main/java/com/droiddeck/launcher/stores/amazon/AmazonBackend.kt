@@ -66,7 +66,7 @@ object AmazonBackend : StoreBackend {
     /** The library and, from it, the shelves. */
     private fun publish(app: Context, games: List<AmazonGame>) {
         val items = games.map { AmazonLibrary.toCatalogItem(app, it) }
-        StoresState.library[store] = items
+        StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], items)
         val installed = StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet()
         StoresState.shelves[store] = StoreShelves(trending = items.filter { it.id !in installed }, free = emptyList(), deals = emptyList(), whatsNew = emptyList())
     }

@@ -19,7 +19,7 @@ object EpicLibrary {
     private const val TAG = "EpicLibrary"
     private const val CACHE_KEY = "library_cache"
     private const val LAST_SYNC_KEY = "library_synced_at"
-    private const val THROTTLE_MS = 15L * 60L * 1000L
+    private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
 
     private val syncing = AtomicBoolean(false)
 
@@ -114,6 +114,6 @@ object EpicLibrary {
         developer = g.developer, description = com.droiddeck.launcher.stores.cleanStoreText(g.description), owned = true,
         sizeBytes = EpicPrefs.get(context).getLong("size_${g.appName}", g.installSize),
         storeUrl = "https://store.epicgames.com/en-US/browse?q=${java.net.URLEncoder.encode(g.title, "UTF-8")}",
-        extra = mapOf("namespace" to g.namespace, "catalogItemId" to g.catalogItemId),
+        extra = mapOf("namespace" to g.namespace, "catalogItemId" to g.catalogItemId, "version" to (g.version ?: "")),
     )
 }

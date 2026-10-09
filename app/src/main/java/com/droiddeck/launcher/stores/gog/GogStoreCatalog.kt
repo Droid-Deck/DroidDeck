@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
 object GogStoreCatalog {
     private const val TAG = "GogStore"
     private const val CATALOG = "https://catalog.gog.com/v1/catalog"
-    private const val FEATURED_TTL_MS = 30 * 60 * 1000L
+    private const val FEATURED_TTL_MS = 3 * 60 * 60 * 1000L
     private const val SEARCH_TTL_MS = 5 * 60 * 1000L
     // v2: entries carry the mature mark; an older cache would show everything until it aged out.
     private const val KEY_FEATURED = "store_featured_v2"
@@ -61,6 +61,8 @@ object GogStoreCatalog {
     fun featured(context: Context, force: Boolean = false): StoreShelves? {
         val now = System.currentTimeMillis()
         featuredCache?.let { if (!force && now - it.at < FEATURED_TTL_MS) return it.value }
+        // Shelves saved on an earlier run are as good while they are young: shown, not fetched again.
+        if (!force && now - GogPrefs.get(context).getLong("store_featured_at", 0L) < FEATURED_TTL_MS) cachedFeatured(context)?.let { return it }
         val trending = fetchProducts(baseQuery(24, "desc:trending"))
         val newest = fetchProducts(baseQuery(40, "desc:releaseDate")).filter { !isFuture(it.releaseDate) }.take(24)
         val deals = fetchProducts(baseQuery(24, "desc:discount", "&discounted=eq:true"))
@@ -195,7 +197,7 @@ object GogStoreCatalog {
     private fun persist(context: Context, f: StoreShelves) {
         runCatching {
             val o = JSONObject().put("trending", listToJson(f.trending)).put("new", listToJson(f.whatsNew)).put("deals", listToJson(f.deals)).put("free", listToJson(f.free))
-            GogPrefs.get(context).edit().putString(KEY_FEATURED, o.toString()).apply()
+            GogPrefs.get(context).edit().putString(KEY_FEATURED, o.toString()).putLong("store_featured_at", System.currentTimeMillis()).apply()
         }
     }
 

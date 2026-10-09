@@ -153,6 +153,16 @@ without it and Setup says "Stores engine not built").
 - **Cloud saves device-proven (AYANEO Pocket FIT, `6a175f1`, ELDERBORN on GOG):** the launch logged
   `cloud gog 1732383191 down result=ok files=5 bytes=237499 reason=downloaded` (template found) and
   the in-game slot shows the cloud save (Catacombs: Tutorial part 1, 00:08:40).
+- **Store cards a quarter smaller:** 112 dp least width (was 150) for shelf cards and grid cells; the
+  grid fits as many columns as the width allows and shares the rest, so a density setting changes
+  the column count; titles stay at 11 sp, art 16:9. Downloads rows unchanged.
+- **Cache first, refreshed in the background:** a store's library shows from its saved copy at once
+  and is refreshed at most every six hours (or from the account row's Refresh), the result merged
+  so unchanged cards keep their objects - only changed cards recompose, the grid's scroll and the
+  pad's focus stay. Shelves saved on an earlier run count as fresh for three hours. Sizes are kept
+  per game and version in `filesDir/stores/<store>/sizes.json` (format-versioned) and looked up
+  again only for a new version. An installed card shows its size on disk with a small green check
+  after it.
 - **Every owned card shows its size** at the right of its title strip, in the title's type: GOG's from
   its catalog; Epic's (build manifest, the files this device installs) and Amazon's (download
   manifest) looked up once a card is on screen or close, three at a time in the background, kept in

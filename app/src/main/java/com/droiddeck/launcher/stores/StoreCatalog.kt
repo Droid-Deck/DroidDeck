@@ -81,6 +81,18 @@ fun installedCards(store: Store, installed: List<InstalledStoreGame>, library: L
     }.distinctBy { it.id }.sortedBy { it.title.lowercase() }
 }
 
+/**
+ * A refreshed list with every unchanged item kept as the very object already shown, so a refresh
+ * that lands while the grid is on screen recomposes only the cards that changed - no reset, the
+ * scroll position and the pad's focus stay.
+ */
+fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {
+    if (old.isNullOrEmpty()) return new
+    val before = old.associateBy { it.key }
+    val merged = new.map { n -> before[n.key]?.takeIf { it == n } ?: n }
+    return if (merged.size == old.size && merged.indices.all { merged[it] === old[it] }) old else merged
+}
+
 class InstalledStoreGame(val sidecar: StoreGameSidecar, val folder: java.io.File) {
     val key: String get() = "${sidecar.store.id}:${sidecar.id}"
 }

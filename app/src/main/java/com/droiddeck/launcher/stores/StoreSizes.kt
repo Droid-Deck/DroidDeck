@@ -33,14 +33,21 @@ object StoreSizes {
 
     fun size(item: CatalogItem): Long = known[item.key] ?: item.sizeBytes
 
-    /** A card for [item] is on screen (or about to be): find its size if nothing has yet. */
+    private val caches = ConcurrentHashMap<Store, SizeCache>()
+    private fun cache(context: Context, store: Store) = caches.getOrPut(store) { SizeCache.forStore(context.applicationContext.filesDir, store) }
+
+    /** A card for [item] is on screen (or about to be): its size from the cache for this version, else looked up. */
     fun request(context: Context, item: CatalogItem) {
         if (!item.owned || item.sizeBytes > 0 || item.store == Store.GOG) return
         if (known.containsKey(item.key) || !asked.add(item.key)) return
         val app = context.applicationContext
+        val version = item.extra["version"].orEmpty()
         pool.execute {
+            val cached = cache(app, item.store).get(item.id, version)
+            if (cached != null) { StoresState.post { known[item.key] = cached }; return@execute }
             val bytes = runCatching { fetch(app, item) }.onFailure { Log.w(TAG, "${item.key}: ${it.javaClass.simpleName}") }.getOrNull() ?: 0L
             if (bytes > 0) {
+                cache(app, item.store).put(item.id, version, bytes)
                 when (item.store) {
                     Store.EPIC -> EpicPrefs.get(app).edit().putLong("size_${item.id}", bytes).apply()
                     Store.AMAZON -> AmazonPrefs.get(app).edit().putLong("size_${item.id}", bytes).apply()
@@ -48,6 +55,21 @@ object StoreSizes {
                 }
                 StoresState.post { known[item.key] = bytes }
             }
+        }
+    }
+
+    /** An installed game's size on disk, by card key; worked out once per install. */
+    val onDisk = mutableStateMapOf<String, Long>()
+
+    fun requestDisk(context: Context, key: String, game: InstalledStoreGame) {
+        if (onDisk.containsKey(key) || !asked.add("disk:$key")) return
+        val app = context.applicationContext
+        val version = "disk:${game.sidecar.installedAt}:${game.sidecar.installVersion}"
+        pool.execute {
+            val c = cache(app, game.sidecar.store)
+            val bytes = c.get("disk:${game.sidecar.id}", version)
+                ?: game.folder.walkTopDown().filter { it.isFile && !it.name.startsWith(".droiddeck") }.sumOf { it.length() }.also { c.put("disk:${game.sidecar.id}", version, it) }
+            if (bytes > 0) StoresState.post { onDisk[key] = bytes }
         }
     }
 

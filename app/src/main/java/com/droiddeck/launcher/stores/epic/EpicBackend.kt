@@ -42,7 +42,7 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
         val cached = EpicLibrary.cached(app)
-        if (cached.isNotEmpty()) StoresState.post { StoresState.library[store] = cached.map { EpicLibrary.toCatalogItem(app, it) } }
+        if (cached.isNotEmpty()) StoresState.post { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached.map { EpicLibrary.toCatalogItem(app, it) }) }
         StoresState.post { StoresState.status[store] = "Fetching your library…" }
         Thread({
             val result = EpicLibrary.sync(app, force) { line -> StoresState.post { StoresState.status[store] = line } }
@@ -50,11 +50,11 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                 StoresState.status.remove(store)
                 when (result) {
                     is EpicLibrary.SyncResult.Ok -> {
-                        StoresState.library[store] = result.games.map { EpicLibrary.toCatalogItem(app, it) }; StoresState.problems.remove(store)
+                        StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { EpicLibrary.toCatalogItem(app, it) }); StoresState.problems.remove(store)
                     }
                     is EpicLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
                     EpicLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "Epic session expired: sign in again."
-                    EpicLibrary.SyncResult.Throttled -> if (!StoresState.library.containsKey(store)) StoresState.library[store] = cached.map { EpicLibrary.toCatalogItem(app, it) }
+                    EpicLibrary.SyncResult.Throttled -> if (!StoresState.library.containsKey(store)) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached.map { EpicLibrary.toCatalogItem(app, it) })
                     EpicLibrary.SyncResult.Busy -> {}
                 }
             }

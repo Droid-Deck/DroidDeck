@@ -22,7 +22,7 @@ object AmazonLibrary {
     private const val TAG = "AmazonLibrary"
     private const val CACHE_KEY = "library_cache"
     private const val LAST_SYNC_KEY = "library_synced_at"
-    private const val THROTTLE_MS = 15L * 60L * 1000L
+    private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
     private const val POSTER_BUDGET = 40
 
     private val syncing = AtomicBoolean(false)
@@ -123,6 +123,6 @@ object AmazonLibrary {
         developer = g.developer, owned = true,
         sizeBytes = AmazonPrefs.get(context).getLong("size_${g.productId}", 0L),
         storeUrl = "https://gaming.amazon.com/home",
-        extra = mapOf("entitlementId" to g.entitlementId, "sku" to g.productSku),
+        extra = mapOf("entitlementId" to g.entitlementId, "sku" to g.productSku, "version" to (g.versionId ?: "")),
     )
 }

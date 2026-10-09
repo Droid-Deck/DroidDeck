@@ -33,14 +33,14 @@ object GogBackend : StoreBackend {
         val app = context.applicationContext
         // The cache first, so the tab has something while the sync runs.
         val cached = GogLibrary.cached(app)
-        if (cached.isNotEmpty()) StoresState.post { StoresState.library[store] = cached.map { GogLibrary.toCatalogItem(app, it) } }
+        if (cached.isNotEmpty()) StoresState.post { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached.map { GogLibrary.toCatalogItem(app, it) }) }
         StoresState.post { StoresState.status[store] = "Fetching your library…" }
         Thread({
             val result = GogLibrary.sync(app, force) { line -> StoresState.post { StoresState.status[store] = line } }
             StoresState.post {
                 StoresState.status.remove(store)
                 when (result) {
-                    is GogLibrary.SyncResult.Ok -> { StoresState.library[store] = result.games.map { GogLibrary.toCatalogItem(app, it) }; StoresState.problems.remove(store) }
+                    is GogLibrary.SyncResult.Ok -> { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { GogLibrary.toCatalogItem(app, it) }); StoresState.problems.remove(store) }
                     is GogLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
                     GogLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "GOG session expired: sign in again."
                     GogLibrary.SyncResult.Busy -> {}
