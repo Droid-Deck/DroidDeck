@@ -34,7 +34,9 @@ import kotlin.math.max
  *  2. if that id is stale or reports no motors, any connected gamepad/joystick that does have
  *     motors, preferring the same vendor:product as the last active pad (a USB pad that
  *     re-enumerates with a new id when a companion app switches its mode);
- *  3. only then the device's own vibrator - and only when "phone vibration fallback" is on.
+ *  3. a registered [RumbleProvider] that reaches a pad's motors another way (e.g. a Razer
+ *     Kishi over USB, [com.droiddeck.launcher.session.razer.RazerKishiRumble]);
+ *  4. only then the device's own vibrator - and only when "phone vibration fallback" is on.
  *
  * The packet's slot word carries [PULSE] for the Deck's trackpad / UI haptics: short ticks that
  * play only while no game rumble is running and never end one.
@@ -77,8 +79,12 @@ class RumbleComponent : SessionPart() {
     /** Any other connected pad with motors, preferring this vendor:product. Tests swap it. */
     internal var otherControllerMotors: (Int, Int, Int) -> Motors? = ::scanForMotors
 
+    /** The registered [RumbleProvider]s' motors. Tests swap it. */
+    internal var providerMotors: () -> Motors? = { app()?.let { RumbleProviders.motors(it) } }
+
     /** Until when (elapsedRealtime) a game's rumble runs, so Deck haptic ticks do not cut it short. */
     private var rumbleUntil = 0L
+    private var providerGeneration = 0
 
     @Synchronized private fun refreshEnabled() {
         val ctx = app()
@@ -104,6 +110,8 @@ class RumbleComponent : SessionPart() {
             Log.w(TAG, "rumble: no input device listener ($e)")
         }
         logConnectedPads()
+        // Providers may ask for device access (a USB permission dialog) now rather than mid-game.
+        RumbleProviders.sessionStart(ctx)
         val s = bind(retries = 0)
         if (s != null) {
             listen(s)
@@ -175,6 +183,7 @@ class RumbleComponent : SessionPart() {
         phone = null
         controller = null
         controllerId = UNRESOLVED
+        RumbleProviders.release("session end")
         val s = server
         server = null
         synchronized(RumbleComponent::class.java) { if (activeListener === s) activeListener = null }
@@ -227,7 +236,9 @@ class RumbleComponent : SessionPart() {
         val id = PadBridge.activeControllerId()
         val now = SystemClock.elapsedRealtime()
         val retryFallback = controller == null && now - fallbackSince >= FALLBACK_RETRY_MS
-        if (id != controllerId || retryFallback) {
+        val providersChanged = RumbleProviders.generation != providerGeneration
+        if (id != controllerId || retryFallback || providersChanged) {
+            providerGeneration = RumbleProviders.generation
             controllerId = id
             controller = resolve(id)
             if (controller == null) fallbackSince = now
@@ -239,6 +250,13 @@ class RumbleComponent : SessionPart() {
 
     private fun resolve(id: Int): Motors? {
         if (id == PadBridge.NO_CONTROLLER) {
+            // A pad a provider drives still counts when PadBridge has not seen it (or sees only
+            // the on-screen pad): the player holds it.
+            val provided = providerOrNull()
+            if (provided != null) {
+                logLimited("resolve:none", "rumble: lookup: no physical controller active -> ${provided.name}")
+                return provided
+            }
             logLimited("resolve:none", "rumble: lookup: no physical controller active (on-screen pad or none yet) -> " + fallbackName())
             return null
         }
@@ -255,13 +273,20 @@ class RumbleComponent : SessionPart() {
             logLimited("resolve:$id", "rumble: lookup: active id $id has no usable motors -> other controller ${other.name}")
             return other
         }
+        val provided = providerOrNull()
+        if (provided != null) {
+            logLimited("resolve:$id", "rumble: lookup: active id $id has no Android motors -> ${provided.name}")
+            return provided
+        }
         logLimited("resolve:$id", "rumble: lookup: active id $id and no other connected pad has motors -> " + fallbackName())
         return null
     }
 
+    private fun providerOrNull(): Motors? = try { providerMotors() } catch (e: Exception) { Log.w(TAG, "rumble: provider lookup failed: $e"); null }
+
     /**
      * Settings -> Controller -> "Test controller rumble": the same order as a session (a pad's
-     * Android motors, then the phone if the fallback is on), then a pattern: strong motor, weak
+     * Android motors, then a provider's, then the phone if the fallback is on), then a pattern: strong motor, weak
      * motor, three short Deck-style ticks, all at full strength. Blocks for about two seconds;
      * returns what played where, for a toast.
      */
@@ -272,11 +297,16 @@ class RumbleComponent : SessionPart() {
         phone = vibrator?.takeIf { it.hasVibrator() }?.let { PhoneMotors(it) }
         phoneFallback = ControllerPrefs.rumblePhoneFallback(ctx)
         logConnectedPads()
-        val target = scanForMotors(UNRESOLVED, 0, 0) ?: (if (phoneFallback) phone else null)
+        val target = scanForMotors(UNRESOLVED, 0, 0) ?: providerOrNull() ?: (if (phoneFallback) phone else null)
+        val found = RumbleProviders.describe(ctx)
         if (target == null) {
-            val msg = if (!phoneFallback) "No controller motors found (phone vibration fallback is off)"
-                else "No controller motors and no phone vibrator found"
+            val msg = when {
+                found != null -> "Found $found but could not open a rumble path (see the rumble: log)"
+                !phoneFallback -> "No controller motors found (phone vibration fallback is off)"
+                else -> "No controller motors and no phone vibrator found"
+            }
             Log.i(TAG, "rumble: test: $msg")
+            RumbleProviders.releaseIfIdle("test done")
             return msg
         }
         Log.i(TAG, "rumble: test: playing on ${target.name}")
@@ -288,8 +318,12 @@ class RumbleComponent : SessionPart() {
         } catch (e: Exception) {
             Log.w(TAG, "rumble: test: ${target.name}: $e")
             return "Rumble failed on ${target.name}: $e"
+        } finally {
+            // Let a provider's last stop frame go out before it lets go of the device.
+            if (target !== phone) Thread.sleep(200)
+            RumbleProviders.releaseIfIdle("test done")
         }
-        return "Rumble: strong, weak, 3 ticks on ${target.name}"
+        return "Rumble: strong, weak, 3 ticks on ${target.name}" + if (target === phone && found != null) " (found $found)" else ""
     }
 
     private fun fallbackName() = when {
@@ -371,7 +405,7 @@ class RumbleComponent : SessionPart() {
     }
 
     /** One place an effect can play. Strengths are the evdev 0..65535 magnitudes. */
-    internal interface Motors {
+    interface Motors {
         val name: String
         fun play(strong: Int, weak: Int, ms: Long)
         fun cancel()
