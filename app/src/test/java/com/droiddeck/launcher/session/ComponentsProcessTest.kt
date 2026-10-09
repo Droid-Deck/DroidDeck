@@ -6,7 +6,7 @@ import org.junit.Test
 
 class ComponentsProcessTest {
     private val guestPath = "/root/.local/share/Steam/steamapps/common/Proton"
-    private val hostPath = "/data/user/0/com.droiddeck.launcher.dev/files/root/root/.local/share/Steam/steamapps/common/Proton"
+    private val hostPath = "/data/user/0/com.droiddeck.launcher/files/root/root/.local/share/Steam/steamapps/common/Proton"
 
     @Test
     fun `running game is recognized through guest path`() {
