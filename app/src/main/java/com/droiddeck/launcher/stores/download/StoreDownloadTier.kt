@@ -19,7 +19,11 @@ enum class StoreDownloadTier(val id: String, @StringRes val label: Int, val netw
     MAX("max", R.string.stores_tier_max, 96, 0.8);
 
     /** Inflate / hash / write workers for this device, at least two so a fetch never waits on a single writer. */
-    val processWorkers: Int get() = (Runtime.getRuntime().availableProcessors() * decompressPerCore).toInt().coerceIn(2, 32)
+    /** Inflate / hash / write threads: by the tier, but two cores always left for the UI (at least 2 workers). */
+    val processWorkers: Int get() {
+        val cores = Runtime.getRuntime().availableProcessors()
+        return (cores * decompressPerCore).toInt().coerceIn(2, maxOf(2, minOf(32, cores - 2)))
+    }
 
     companion object {
         val ALL: List<StoreDownloadTier> = entries

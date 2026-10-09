@@ -47,17 +47,47 @@ object StoresState {
     var installed by mutableStateOf<List<InstalledStoreGame>>(emptyList())
         private set
 
-    /** The download queue as the Downloads page lists it, newest first. */
+    /**
+     * The download queue as the Downloads page lists it, newest first. Replaced only when a row is
+     * added, removed, reordered or changes state - not on progress - so whatever iterates it does
+     * not recompose on every byte. A row's progress is read through [download].
+     */
     var downloads by mutableStateOf<List<DownloadEntry>>(emptyList())
-        internal set
+        private set
+
+    /** Downloads queued, running or paused across the stores (the rail badge); changes only when the count does. */
+    var activeDownloads by mutableStateOf(0)
+        private set
+
+    private val rows = HashMap<String, androidx.compose.runtime.MutableState<DownloadEntry?>>()
+
+    /** One row's live entry: a composable reading it recomposes for that row's progress only. Main thread. */
+    fun download(key: String): DownloadEntry? = rows.getOrPut(key) { mutableStateOf(null) }.value
+
+    /** Main thread: each row's holder set (equal entries change nothing), the list and the count only when they change. */
+    /** The newest list as published, progress included; for the notification, which is not composed. */
+    @Volatile var latestDownloads: List<DownloadEntry> = emptyList()
+        private set
+    private var notifiedAt = 0L
+
+    internal fun publishDownloads(list: List<DownloadEntry>) {
+        latestDownloads = list
+        // The notification follows at most once a second.
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - notifiedAt >= 1000) { notifiedAt = now; com.droiddeck.launcher.stores.download.StoreDownloadService.tick() }
+        val keys = list.mapTo(HashSet()) { it.key }
+        for (e in list) rows.getOrPut(e.key) { mutableStateOf(null) }.value = e
+        for ((k, holder) in rows) if (k !in keys) holder.value = null
+        val shape = { l: List<DownloadEntry> -> l.map { it.key to it.state } }
+        if (shape(list) != shape(downloads)) downloads = list
+        activeDownloads = list.count { it.isActive }
+    }
 
 
     /** The native engine's version once probed, "" when the probe said it is missing, null before. */
     var engine by mutableStateOf<String?>(null)
         private set
 
-    /** Downloads queued, running or paused across the stores (the rail badge). */
-    val activeDownloads: Int get() = downloads.count { it.isActive }
 
     private val backends = HashMap<Store, StoreBackend>()
 

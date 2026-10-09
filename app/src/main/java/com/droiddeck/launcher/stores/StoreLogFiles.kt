@@ -25,23 +25,39 @@ object StoreLogFiles {
 
     fun dir(context: Context): File = File(context.applicationContext.filesDir, "logs/stores")
 
-    /** Appends one stamped line to today's file. Any thread. */
+    private val pending = java.util.concurrent.ConcurrentLinkedQueue<String>()
+    private val flushQueued = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val flusher = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
+        Thread({ android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); r.run() }, "store-log-flush").apply { isDaemon = true }
+    }
+
+    /**
+     * Queues one stamped line for today's file. Any thread; nothing touches the disk here. Lines are
+     * written in batches, at most every half second, on [writer] in order.
+     */
     fun append(context: Context, line: String) {
         val app = context.applicationContext
-        val now = Date()
-        writer.execute {
-            try {
-                val dir = dir(app).apply { mkdirs() }
-                val file = File(dir, "stores-${synchronized(DAY) { DAY.format(now) }}.log")
-                if (file.length() > MAX_BYTES) {
-                    val old = File(dir, file.name + ".1")
-                    old.delete()
-                    file.renameTo(old)
-                }
-                file.appendText(line + "\n")
-            } catch (e: Exception) {
-                Log.w(TAG, "could not write the stores log: ${e.message}")
+        pending.add(line)
+        if (flushQueued.compareAndSet(false, true)) {
+            flusher.schedule({ flushQueued.set(false); writer.execute { flush(app) } }, 500, java.util.concurrent.TimeUnit.MILLISECONDS)
+        }
+    }
+
+    private fun flush(app: Context) {
+        if (pending.isEmpty()) return
+        val batch = StringBuilder()
+        while (true) { val l = pending.poll() ?: break; batch.append(l).append('\n') }
+        try {
+            val dir = dir(app).apply { mkdirs() }
+            val file = File(dir, "stores-${synchronized(DAY) { DAY.format(Date()) }}.log")
+            if (file.length() > MAX_BYTES) {
+                val old = File(dir, file.name + ".1")
+                old.delete()
+                file.renameTo(old)
             }
+            file.appendText(batch.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "could not write the stores log: ${e.message}")
         }
     }
 

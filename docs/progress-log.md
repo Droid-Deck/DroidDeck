@@ -144,6 +144,15 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **UI slow while downloading (device):** engines report per chunk or file, and each report
+  published a new queue that the whole front end read (the rail badge was computed from it in the
+  root composition). Now progress-only changes reach the UI at most four times a second (stage and
+  state changes at once), each row and card reads only its own entry, the list replaces itself only
+  when rows come, go or change state, the badge count changes only when it changes, and the
+  notification redraws at most once a second. Download threads run at background priority (the
+  queue's runner and every Java pool), the tier leaves two cores free (`processWorkers` capped at
+  cores - 2, at least 2), and the stores log is written in half-second batches. The native engine's
+  own threads need the same priority on its side.
 - **Installed tab empty under "Installed (2)" (device):** the count came from the installs on disk,
   the grid from the library filtered by id. Both now come from `installedCards`: each install joined
   to its library item by id (or title), else a card from the sidecar's title and art.

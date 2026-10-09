@@ -48,7 +48,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val id = key.substringAfter(':')
     val item = (StoresState.library[store].orEmpty() + StoresState.shelves[store]?.all.orEmpty()).firstOrNull { it.id == id }
     val installed = StoresState.installedGame(store, id)
-    val download = StoresState.downloads.firstOrNull { it.store == store && it.id == id && it.isActive }
+    val download = StoresState.download("${store.id}:$id")?.takeIf { it.isActive }
     // Removal asks twice: one stray press of A should not cost a download.
     var confirmRemove by remember(key) { mutableStateOf(false) }
     LaunchedEffect(confirmRemove) { if (confirmRemove) { kotlinx.coroutines.delay(4000); confirmRemove = false } }

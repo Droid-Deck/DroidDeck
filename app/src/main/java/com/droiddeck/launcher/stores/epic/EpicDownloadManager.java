@@ -225,7 +225,7 @@ public final class EpicDownloadManager {
             }
             if (javaPool) {
                 cb.onLog("epic: engine=built-in (8 threads)");
-                ExecutorService pool = Executors.newFixedThreadPool(8);
+                ExecutorService pool = Executors.newFixedThreadPool(8, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("epic-dl"));
                 for (ChunkInfo chunk : needed) {
                     final ChunkInfo fc = chunk;
                     pool.submit(() -> {

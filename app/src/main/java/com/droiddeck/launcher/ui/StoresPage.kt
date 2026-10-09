@@ -442,7 +442,7 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.985f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "cardScale")
     val installed = item.id in installedKeys
-    val download = StoresState.downloads.firstOrNull { it.store == store && it.id == item.id && it.isActive }
+    val download = StoresState.download("${store.id}:${item.id}")?.takeIf { it.isActive }
     val open = { onOpen(item.key) }
     Column(
         modifier = Modifier.fillMaxWidth().paneItem("card:${item.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }

@@ -58,9 +58,11 @@ object DownloadQueue {
     private fun enter(key: String, stage: DownloadStage, detail: String) {
         synchronized(lock) {
             val item = items[key] ?: return
+            val moved = item.entry.stage != stage || item.entry.state != DownloadState.RUNNING
             transitionLocked(item, stage)
             item.entry = item.entry.copy(detail = detail.ifEmpty { item.entry.detail }, state = DownloadState.RUNNING)
-            publishLocked()
+            // A new stage shows at once; a new line within the same stage (one per file) waits its turn.
+            publishLocked(progressOnly = !moved)
         }
     }
 
@@ -90,7 +92,7 @@ object DownloadQueue {
             if (bytes) speed = sample(item, done)
             val eta = if (bytes && speed > 0 && total > done) (total - done) / speed else -1L
             item.entry = e.copy(stageDone = done, stageTotal = total, stageItems = files, stageItemsTotal = filesTotal, speedBps = if (bytes) speed else 0, etaSeconds = eta)
-            publishLocked()
+            publishLocked(progressOnly = true)
         }
     }
 
@@ -120,8 +122,9 @@ object DownloadQueue {
             if (bytesDone >= 0) sample(item, done)
             val speed = item.speedEwma.toLong()
             val eta = if (speed > 0 && total > done) (total - done) / speed else -1L
+            val moved = e.stage != DownloadStage.DOWNLOAD || e.state != DownloadState.RUNNING
             item.entry = e.copy(state = DownloadState.RUNNING, stage = DownloadStage.DOWNLOAD, bytesDone = done, bytesTotal = total, detail = detail ?: e.detail, speedBps = speed, etaSeconds = eta)
-            publishLocked()
+            publishLocked(progressOnly = !moved)
         }
     }
 
@@ -137,6 +140,18 @@ object DownloadQueue {
     private var running = 0
 
     fun parallel(context: Context): Int = SessionPrefs.gameStoresParallel(context)
+
+    /** Threads for a store's download pool: background priority, so the UI and its render thread come first. */
+    @JvmStatic
+    fun workerFactory(name: String): java.util.concurrent.ThreadFactory {
+        val n = java.util.concurrent.atomic.AtomicInteger()
+        return java.util.concurrent.ThreadFactory { r ->
+            Thread({
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                r.run()
+            }, "$name-${n.incrementAndGet()}")
+        }
+    }
 
     fun setParallel(context: Context, count: Int) {
         SessionPrefs.setGameStoresParallel(context, count)
@@ -258,10 +273,33 @@ object DownloadQueue {
 
     private fun publish(context: Context) { synchronized(lock) { publishLocked() }; StoreDownloadService.sync(context) }
 
-    /** Newest first: what was started last sits on top, as the preview lists them. Caller holds [lock]. */
-    private fun publishLocked() {
+    /** At most this often a progress-only change reaches the UI; a state or stage change goes at once. */
+    private const val PROGRESS_PUBLISH_MS = 250L
+    private var lastPublishAt = 0L
+    private var publishPending = false
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Newest first: what was started last sits on top, as the preview lists them. Caller holds
+     * [lock]. Engines report per chunk or per file - hundreds of times a second at full speed - so
+     * [progressOnly] changes are coalesced to [PROGRESS_PUBLISH_MS]; the UI then recomposes a few
+     * times a second, not on every callback.
+     */
+    private fun publishLocked(progressOnly: Boolean = false) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (progressOnly) {
+            val wait = lastPublishAt + PROGRESS_PUBLISH_MS - now
+            if (wait > 0) {
+                if (!publishPending) {
+                    publishPending = true
+                    main.postDelayed({ synchronized(lock) { publishPending = false; publishLocked() } }, wait)
+                }
+                return
+            }
+        }
+        lastPublishAt = now
         val list = items.values.map { it.entry }.sortedByDescending { it.startedAt }
-        StoresState.post { StoresState.downloads = list }
+        StoresState.post { StoresState.publishDownloads(list) }
     }
 
     /** Starts queued items while slots are free. */
@@ -282,6 +320,9 @@ object DownloadQueue {
     }
 
     private fun runItem(context: Context, item: Item) {
+        // Downloads run beside the UI, never ahead of it: background priority for this thread and
+        // (through [workerFactory]) every pool a store's manager starts.
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
         val handle = JobHandle(item.entry.key, item.cancelled)
         var result: String? = null
         var error: String? = null

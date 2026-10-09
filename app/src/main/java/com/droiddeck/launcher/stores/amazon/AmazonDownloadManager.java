@@ -99,7 +99,7 @@ public final class AmazonDownloadManager {
                 }
             } else {
                 cb.onLog("amazon: engine=built-in (" + MAX_PARALLEL + " threads)");
-                ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL);
+                ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("amazon-dl"));
                 List<Future<Boolean>> futures = new ArrayList<>();
                 for (AmazonManifest.ManifestFile file : files) {
                     final String dlUrl = spec.downloadUrl;

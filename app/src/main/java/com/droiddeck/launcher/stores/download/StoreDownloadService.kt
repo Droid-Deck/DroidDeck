@@ -52,7 +52,7 @@ class StoreDownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun build(): Notification {
-        val entries = StoresState.downloads.filter { it.state == DownloadState.RUNNING }
+        val entries = StoresState.latestDownloads.filter { it.state == DownloadState.RUNNING }
         val first = entries.firstOrNull()
         val title = if (active.size > 1) getString(R.string.stores_notification_many, active.size) else getString(R.string.stores_notification_one)
         val text = when {
@@ -90,7 +90,7 @@ class StoreDownloadService : Service() {
 
         /** A download started: the service is up (idempotent). */
         fun start(context: Context) {
-            StoresState.downloads.filter { it.state == DownloadState.RUNNING }.forEach { active.add(it.key) }
+            StoresState.latestDownloads.filter { it.state == DownloadState.RUNNING }.forEach { active.add(it.key) }
             try {
                 val app = context.applicationContext
                 val intent = Intent(app, StoreDownloadService::class.java)
@@ -98,6 +98,11 @@ class StoreDownloadService : Service() {
             } catch (e: Exception) {
                 Log.w(TAG, "could not start: ${e.message}")
             }
+        }
+
+        /** Progress moved: redraw the notification line (StoresState calls it at most once a second). */
+        fun tick() {
+            instance?.refresh()
         }
 
         /** The queue changed: redraw the notification line. */
@@ -109,7 +114,7 @@ class StoreDownloadService : Service() {
         fun finish(context: Context, key: String) {
             active.remove(key)
             val inst = instance ?: return
-            if (active.isEmpty() && StoresState.downloads.none { it.state == DownloadState.RUNNING }) inst.stopNow() else inst.refresh()
+            if (active.isEmpty() && StoresState.latestDownloads.none { it.state == DownloadState.RUNNING }) inst.stopNow() else inst.refresh()
         }
     }
 }

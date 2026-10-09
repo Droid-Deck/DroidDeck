@@ -76,7 +76,8 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        entries.forEachIndexed { i, d -> key(d.key) { Rise(1 + i.coerceAtMost(5)) { DownloadCard(d, s, a) } } }
+        // The list changes only when rows come, go or change state; each row reads its own progress.
+        entries.forEachIndexed { i, row -> key(row.key) { Rise(1 + i.coerceAtMost(5)) { DownloadCard(StoresState.download(row.key) ?: row, s, a) } } }
     }
 }
 

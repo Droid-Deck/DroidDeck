@@ -216,7 +216,7 @@ public final class GogDownloadManager {
                         cancelled, anyFailed, doneCount, total, planned, totalBytes, lastSpeedMs, lastSpeedB, speedBps, cb);
             } else {
                 cb.onLog("gog: engine=built-in (" + threads + " threads)");
-                ExecutorService pool = Executors.newFixedThreadPool(threads);
+                ExecutorService pool = Executors.newFixedThreadPool(threads, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("gog-dl"));
                 List<Future<Void>> futures = new ArrayList<>();
                 for (DepotFile df : files) {
                     futures.add(pool.submit((Callable<Void>) () -> {
@@ -364,7 +364,7 @@ public final class GogDownloadManager {
                         new AtomicReference<>(""), null, null, new AtomicInteger(0), 0, threads, threads, false, "gog gen1=" + game.gameId,
                         cancelled, anyFailed, done, total, planned, totalBytes, lastSpeedMs, lastSpeedB, speedBps, cb);
             } else {
-                ExecutorService pool = Executors.newFixedThreadPool(threads);
+                ExecutorService pool = Executors.newFixedThreadPool(threads, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("gog-dl"));
                 List<Future<Void>> futures = new ArrayList<>();
                 for (Gen1File gf : files) {
                     futures.add(pool.submit((Callable<Void>) () -> {
