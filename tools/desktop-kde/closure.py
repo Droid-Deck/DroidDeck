@@ -4,7 +4,7 @@ ARM's extracted repository databases, minus what the runtime already has at a ve
 
     closure.py <db dir with x_core, x_extra, x_alarm> <runtime-packages.txt> <seeds.txt>
 
-Prints one "repo/filename" per package to ship.
+Prints one "repo/filename sha256" per package to ship (the sha256 the repository database gives).
 """
 import collections
 import os
@@ -95,6 +95,7 @@ def main():
                 continue
             provides = [parse_dep(p) for p in fields.get("PROVIDES", [])]
             pkgs[name] = {"repo": repo, "file": fields["FILENAME"][0], "version": fields["VERSION"][0],
+                          "sha256": fields.get("SHA256SUM", [""])[0],
                           "depends": fields.get("DEPENDS", []), "provides": provides}
             providers[name].append((name, pkgs[name]["version"]))
             for pname, _, pver in provides:
@@ -145,7 +146,7 @@ def main():
         print("replacing runtime packages: " + " ".join(f"{n} {runtime[n]} -> {pkgs[n]['version']}" for n in upgraded),
               file=sys.stderr)
     for name in sorted(ship):
-        print(pkgs[name]["repo"] + "/" + pkgs[name]["file"])
+        print(pkgs[name]["repo"] + "/" + pkgs[name]["file"], pkgs[name]["sha256"])
 
 
 if __name__ == "__main__":

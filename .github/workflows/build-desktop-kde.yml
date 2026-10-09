@@ -2,8 +2,11 @@ name: Build desktop package (KDE Plasma)
 
 # The desktop the app installs into its Linux runtime on first use: KDE Plasma as SteamOS's desktop
 # mode has it, the closure of tools/desktop-kde/seeds.txt over Arch Linux ARM minus what the runtime
-# already carries, plus tools/desktop-kde/overlay (tools/desktop-kde/build.sh). Published as a
-# release asset; the "desktop-kde" row of the catalog (desktop.json) names its URL, size and sha256.
+# already carries, plus tools/desktop-kde/overlay (tools/desktop-kde/build.sh), every package
+# signature-checked. Published as a release asset; the "desktop-kde" row of the catalog
+# (desktop.json) names its URL, size and sha256. A published tag is never rebuilt: the packages
+# are Arch Linux ARM's current ones, so a rebuild would not match the catalog's sha256. A changed
+# package gets a new tag (desktop-kde-r2, ...) and a catalog update.
 on:
   push:
     paths:
@@ -25,10 +28,19 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - name: Refuse a published tag
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view '${{ inputs.tag }}' >/dev/null 2>&1; then
+            echo "::error::${{ inputs.tag }} is already published, and published tags are never replaced: use a new tag"
+            exit 1
+          fi
       - name: Build
         run: |
           set -euo pipefail
-          sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils >/dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils gpgv >/dev/null
           tools/desktop-kde/build.sh out
           echo "size $(stat -c %s out/desktop-kde.tar.zst) sha256 $(cat out/desktop-kde.sha256)"
       # The package itself too, briefly: enough to try a build on a device before publishing it.
@@ -48,10 +60,11 @@ jobs:
         run: |
           set -euo pipefail
           TAG='${{ inputs.tag }}'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG is already published, and published tags are never replaced: use a new tag"
+            exit 1
+          fi
           gh release create "$TAG" --latest=false --prerelease=false --title "$TAG" \
-            --notes "KDE Plasma desktop package for the Linux runtime (tools/desktop-kde). size $(stat -c %s out/desktop-kde.tar.zst), sha256 $(cat out/desktop-kde.sha256)" \
-            out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt \
-            || gh release upload "$TAG" out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt --clobber
-          # A component the app fetches through its catalog, never something users install by hand:
-          # it must not become the repo's Latest release or appear as a pre-release.
+            --notes "KDE Plasma desktop package for the Linux runtime (tools/desktop-kde). size $(stat -c %s out/desktop-kde.tar.zst), sha256 $(cat out/desktop-kde.sha256). desktop-kde.packages.txt lists the signature-checked Arch Linux ARM packages it was built from." \
+            out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt
           gh release edit "$TAG" --latest=false --prerelease=false
