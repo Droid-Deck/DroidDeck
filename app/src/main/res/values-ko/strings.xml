@@ -358,13 +358,6 @@
     <string name="mode_storage_diagnostics">저장 공간 진단</string>
     <string name="mode_storage_diagnostics_hint">할당 결과와 샘플링한 저장 공간 응답 시간을 \"로그 공유\"에 기록합니다. 켜져 있는 동안 설치가 느려질 수 있습니다. 다음 세션에 적용됩니다.</string>
     <string name="mode_choose_folder">폴더 선택…</string>
-    <string name="mode_renderer">렌더러</string>
-    <string name="mode_desktop_renderer">데스크톱 렌더러</string>
-    <string name="mode_renderer_hint">데스크톱을 그리는 역할을 합니다.</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU(실험적)</string>
-    <string name="mode_renderer_pixman">pixman - 소프트웨어</string>
-    <string name="mode_renderer_note">Vulkan은 GPU를 사용하여 데스크톱 프로그램을 실행하고, 실패하면 pixman으로 대체합니다. pixman을 사용할 때도 게임은 GPU에서 전체 화면으로 실행됩니다.</string>
     <string name="mode_custom_res_title">사용자 정의 해상도</string>
     <string name="mode_custom_res_text">해상도 상한과 화면 비율을 대체합니다. 화면과 일치하지 않는 크기는 검은색 여백으로 표시됩니다.</string>
     <string name="mode_width">너비</string>
@@ -886,7 +879,7 @@
     <string name="content_open_desktop">데스크톱 열기</string>
     <string name="content_install_open_desktop">설치 및 데스크톱 열기</string>
     <string name="content_linux_desktop">Linux 데스크톱</string>
-    <string name="content_linux_desktop_hint">LXQt, Firefox 및 에뮬레이터</string>
+    <string name="content_linux_desktop_hint">KDE Plasma, Firefox 및 에뮬레이터</string>
     <string name="games_empty">Steam에서 설치한 게임은 세션 종료 후 여기에 표시됩니다.</string>
     <string name="games_play_steam">Steam 실행</string>
     <string name="games_launch_settings">실행 설정</string>

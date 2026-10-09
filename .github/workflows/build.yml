@@ -216,14 +216,6 @@ jobs:
             test -f "$D/usr/local/bin/gamescope"
             rm gamescope.tzst
           fi
-          if [ -f tools/wlroots/release.env ]; then
-            . tools/wlroots/release.env
-            gh release download "${WLROOTS_TAG}" -R "${GITHUB_REPOSITORY}" -p wlroots.tzst -O wlroots.tzst
-            echo "${WLROOTS_SHA256}  wlroots.tzst" | sha256sum -c -
-            tar --use-compress-program=unzstd -xf wlroots.tzst -C "$D"
-            test -f "$D/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so"
-            rm wlroots.tzst
-          fi
           . tools/linuxfs/uruntime.env
           curl -fsSL --retry 3 -o uruntime "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}"
           echo "${URUNTIME_SHA256}  uruntime" | sha256sum -c -
@@ -273,9 +265,7 @@ jobs:
           install -Dm644 tools/linuxfs/desktop/droiddeck-desktop "$D/usr/local/bin/droiddeck-desktop"
           install -Dm644 tools/linuxfs/desktop/droiddeck-gpu "$D/usr/local/bin/droiddeck-gpu"
           install -Dm644 tools/linuxfs/desktop/droiddeck-desktop-gpu "$D/usr/local/bin/droiddeck-desktop-gpu"
-          install -Dm644 tools/linuxfs/desktop/autostart "$D/etc/xdg/labwc/autostart"
-          install -Dm644 tools/linuxfs/desktop/rc.xml "$D/etc/xdg/labwc/rc.xml"
-          install -Dm644 tools/linuxfs/desktop/panel.conf "$D/etc/xdg/lxqt/panel.conf"
+          install -Dm644 tools/linuxfs/desktop/kwin_wayland_wrapper "$D/usr/local/bin/kwin_wayland_wrapper"
           install -Dm644 tools/linuxfs/desktop/firefox-droiddeck.js "$D/usr/lib/firefox/defaults/pref/droiddeck.js"
           ls -lR "$D"
 

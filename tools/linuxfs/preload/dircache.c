@@ -768,17 +768,17 @@ ONE_PATH(rmdir, REMOVED, IN_DELETE, next_rmdir(path))
 ONE_PATH(unlink, REMOVED, IN_DELETE, next_unlink(path))
 ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
 
-#define TWO_PATHS(name, gone, event) \
+#define TWO_PATHS(name, gone, event, call) \
   int name(const char *from, const char *to) { \
     NEXT(name); \
     struct side a, b; \
     int track_a = gone && watching(from) && split(from, &a), track_b = watching(to) && split(to, &b); \
-    if (!track_a && !track_b) return next_##name(from, to); \
+    if (!track_a && !track_b) return call(from, to); \
     pthread_mutex_lock(&oplock); \
     begin(); \
     if (track_a) before(&a); \
     if (track_b) before(&b); \
-    int r = next_##name(from, to); \
+    int r = call(from, to); \
     int saved = errno; \
     struct expect x[2]; \
     int nx = 0; \
@@ -795,9 +795,13 @@ ONE_PATH(remove, REMOVED, IN_DELETE, next_remove(path))
     return r; \
   }
 
-TWO_PATHS(rename, 1, IN_MOVED_TO)
-TWO_PATHS(link, 0, IN_CREATE)
-TWO_PATHS(symlink, 0, IN_CREATE)
+/* A refused hard link to a lock file is taken as a symlink (links.c). */
+int bl_link_lock(const char *oldpath, const char *newpath, int result) __attribute__((visibility("hidden")));
+static int link_or_lock(const char *from, const char *to) { return bl_link_lock(from, to, next_link(from, to)); }
+
+TWO_PATHS(rename, 1, IN_MOVED_TO, next_rename)
+TWO_PATHS(link, 0, IN_CREATE, link_or_lock)
+TWO_PATHS(symlink, 0, IN_CREATE, next_symlink)
 
 #else
 

@@ -745,6 +745,21 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
     if (ci && ci->asked_feedback) ci->shm_frames++;  /* since it asked for GPU buffers */
 }
 
+/* A single-pixel buffer (wl_single_pixel.c) as a 1x1 image, which the surface's viewport stretches. */
+static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
+    if (s->shm_img && (vkp_image_width(s->shm_img) != 1 || vkp_image_height(s->shm_img) != 1)) {
+        vkp_image_destroy(s->shm_img);
+        s->shm_img = NULL;
+    }
+    if (!s->shm_img) s->shm_img = vkp_image_create_shm(1, 1);
+    if (s->shm_img) vkp_image_upload_shm(s->shm_img, bgra, 4);
+    wl_buffer_send_release(buffer);
+    s->buf_w = 1;
+    s->buf_h = 1;
+    s->buf_alpha = bgra[3] != 0xff;
+    s->has_content = s->shm_img != NULL;
+}
+
 /* The window the app's performance HUD follows: the latest one at least as big as the last to
  * start presenting GPU frames (take_dmabuf) (X11 binds the HUD to the _MESA_DRV window and counts X presents instead). JNI upcalls. */
 static struct surface *g_hud_surface;
@@ -1084,6 +1099,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         struct wl_resource *buffer = s->pending_buffer;
         struct dmabuf_buffer *db = get_dmabuf(buffer);
         struct wl_shm_buffer *shm = buffer && !db ? wl_shm_buffer_get(buffer) : NULL;
+        uint8_t pixel[4];
 
         /* The previous content is replaced before reaching the screen. */
         feedback_discard_all(&s->feedback);
@@ -1113,6 +1129,9 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         } else if (shm) {
             drop_dmabuf(s, 1);
             take_shm(s, shm, buffer);
+        } else if (single_pixel_buffer_get(buffer, pixel)) {
+            drop_dmabuf(s, 1);
+            take_pixel(s, pixel, buffer);
         } else {
             drop_dmabuf(s, 1);
             s->has_content = 0;

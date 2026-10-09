@@ -1,0 +1,53 @@
+name: Build desktop package (KDE Plasma)
+
+# The desktop the app installs into its Linux runtime on first use: KDE Plasma as SteamOS's desktop
+# mode has it, the closure of tools/desktop-kde/seeds.txt over Arch Linux ARM minus what the runtime
+# already carries, plus tools/desktop-kde/overlay (tools/desktop-kde/build.sh). Published as a
+# release asset; the "desktop-kde" row of the catalog (desktop.json) names its URL, size and sha256.
+on:
+  push:
+    paths:
+      - 'tools/desktop-kde/**'
+      - '.github/workflows/build-desktop-kde.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish as (e.g. desktop-kde-r1); empty = artifact only'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils >/dev/null
+          tools/desktop-kde/build.sh out
+          echo "size $(stat -c %s out/desktop-kde.tar.zst) sha256 $(cat out/desktop-kde.sha256)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-kde
+          path: |
+            out/desktop-kde.packages.txt
+            out/desktop-kde.sha256
+      - name: Publish
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='${{ inputs.tag }}'
+          gh release create "$TAG" --latest=false --prerelease=false --title "$TAG" \
+            --notes "KDE Plasma desktop package for the Linux runtime (tools/desktop-kde). size $(stat -c %s out/desktop-kde.tar.zst), sha256 $(cat out/desktop-kde.sha256)" \
+            out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt \
+            || gh release upload "$TAG" out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt --clobber
+          # A component the app fetches through its catalog, never something users install by hand:
+          # it must not become the repo's Latest release or appear as a pre-release.
+          gh release edit "$TAG" --latest=false --prerelease=false

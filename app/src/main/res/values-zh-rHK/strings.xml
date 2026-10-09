@@ -358,13 +358,6 @@
     <string name="mode_storage_diagnostics">儲存空間診斷</string>
     <string name="mode_storage_diagnostics_hint">在分享的記錄中加入空間分配結果和抽樣的儲存時間數據。啟用時可能會減慢安裝速度。下次會話生效。</string>
     <string name="mode_choose_folder">選擇資料夾…</string>
-    <string name="mode_renderer">渲染器</string>
-    <string name="mode_desktop_renderer">桌面渲染器</string>
-    <string name="mode_renderer_hint">負責繪製桌面。</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU（實驗性）</string>
-    <string name="mode_renderer_pixman">pixman - 軟件</string>
-    <string name="mode_renderer_note">Vulkan 會用 GPU 執行桌面程式，失敗時改用 pixman。使用 pixman 時，遊戲仍會以全螢幕在 GPU 上執行。</string>
     <string name="mode_custom_res_title">自訂解像度</string>
     <string name="mode_custom_res_text">取代解像度上限和螢幕比例。尺寸與螢幕不符時會顯示黑邊。</string>
     <string name="mode_width">寬度</string>
@@ -886,7 +879,7 @@
     <string name="content_open_desktop">開啟桌面</string>
     <string name="content_install_open_desktop">安裝並開啟桌面</string>
     <string name="content_linux_desktop">Linux 桌面</string>
-    <string name="content_linux_desktop_hint">LXQt、Firefox 和你的模擬器</string>
+    <string name="content_linux_desktop_hint">KDE Plasma、Firefox 和你的模擬器</string>
     <string name="games_empty">你在 Steam 安裝的遊戲會在會話結束後顯示在這裡。</string>
     <string name="games_play_steam">開啟 Steam</string>
     <string name="games_launch_settings">啟動設定</string>

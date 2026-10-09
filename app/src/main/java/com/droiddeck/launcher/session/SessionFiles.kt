@@ -5,6 +5,7 @@ import android.os.Environment
 import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LegacyNames
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
@@ -86,16 +87,15 @@ object SessionFiles {
             "usr/bin/steamos-polkit-helpers/jupiter-biosupdate" to "usr/bin/steamos-polkit-helpers/jupiter-biosupdate",
             "usr/bin/steamos-polkit-helpers/jupiter-dock-updater" to "usr/bin/steamos-polkit-helpers/jupiter-dock-updater",
         )
-        // The desktop's launcher and labwc defaults, only where the desktop package is installed:
+        // The desktop's launchers, only where the desktop package is installed:
         // staging them into a runtime without it would make the desktop look present when it is not.
         val desktop = arrayOf(
             "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
             // Games and emulators from the menu, full screen in a gamescope of their own.
             "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
             "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
-            "etc/xdg/labwc/autostart" to "etc/xdg/labwc/autostart",
-            "etc/xdg/labwc/rc.xml" to "etc/xdg/labwc/rc.xml",
-            "etc/xdg/lxqt/panel.conf" to "etc/xdg/lxqt/panel.conf",
+            // KWin at the app's surface size, for Plasma's session (it starts KWin through this name).
+            "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
             "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
         )
         // The patched gamescope (tools/gamescope): the runtime's own version rebuilt with the ARM64
@@ -116,10 +116,6 @@ object SessionFiles {
         val msitools = listOf("msiinfo", "cabextract", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
-        // The patched wlroots (tools/wlroots) the desktop loads for its vulkan / gles2 renderers.
-        val wlroots = if (File(root, "usr/bin/labwc").isFile) {
-            arrayOf("usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so" to "usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so")
-        } else emptyArray()
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libfaultreport.so", "libthunkaudit.so", "libvulkan-thunk.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
@@ -127,11 +123,11 @@ object SessionFiles {
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + wlroots + mangoapp + msitools.map { it to it } + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + msitools.map { it to it } + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
-        val all = (if (File(root, "usr/bin/labwc").isFile) files + desktop else files) + optional
+        val all = (if (DesktopCatalog.desktopInstalled(root)) files + desktop else files) + optional
         for ((asset, relative) in all) {
             val target = File(root, relative)
             val staged = File(target.parentFile, target.name + ".staged")

@@ -4,7 +4,7 @@
 #   droiddeck-session desktop            the file manager
 #   droiddeck-session run <path>         a Linux program (AppImage, script or ELF)
 #   droiddeck-session steam [steam-url]  the native Steam client
-#   droiddeck-session lxqt               the LXQt/labwc desktop (DroidDeck's desktop package)
+#   droiddeck-session lxqt               the KDE Plasma desktop (DroidDeck's desktop package)
 # BL_WIDTH / BL_HEIGHT size the output, BL_FPS limits it, BL_LOG collects everything said here.
 set -u
 export HOME=${HOME:-/root}
@@ -173,7 +173,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
     wayland-info >/dev/null 2>&1 && break
     sleep 0.1
   done
-  # The desktop (DroidDeck's hosted package) is its own nested compositor, labwc, drawing straight
+  # The desktop (DroidDeck's hosted package) is its own nested compositor, KWin, drawing straight
   # into the app's: no gamescope in between.
   if [ "$mode" = lxqt ]; then
     step "starting the desktop"

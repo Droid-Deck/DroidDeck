@@ -76,7 +76,6 @@ class ModeSettings(
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
     val mic: Boolean?,
-    val renderer: String?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
     /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
@@ -140,7 +139,6 @@ class ModeSettingsActions(
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
     val onMic: (Boolean) -> Unit,
-    val onRenderer: (String) -> Unit,
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
@@ -526,14 +524,6 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 host, "storageDiagnostics", stringResource(R.string.mode_storage_diagnostics),
                 stringResource(R.string.mode_storage_diagnostics_hint), s.storageDiagnostics,
                 onChange = a.onStorageDiagnostics,
-            )
-        }
-        if (!steam && tab == ModeSettingsTab.DISPLAY && s.renderer != null) SettingsGroup(stringResource(R.string.mode_renderer)) {
-            ChoiceRow(
-                host, "renderer", stringResource(R.string.mode_desktop_renderer), stringResource(R.string.mode_renderer_hint),
-                listOf("vulkan" to stringResource(R.string.mode_renderer_vulkan), "gles2" to stringResource(R.string.mode_renderer_gles2), "pixman" to stringResource(R.string.mode_renderer_pixman)), s.renderer,
-                note = stringResource(R.string.mode_renderer_note),
-                onPick = a.onRenderer,
             )
         }
     }

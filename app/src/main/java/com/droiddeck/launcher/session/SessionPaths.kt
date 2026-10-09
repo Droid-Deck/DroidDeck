@@ -19,7 +19,7 @@ import java.util.Locale
  *       wayland.log    the app's compositor
  *       steam.log      the Steam client's own log, scrubbed  (Steam mode)
  *       steam/         the rest of the client's logs, scrubbed  (Steam mode)
- *       desktop.log    labwc, the panel and the programs on it  (desktop mode)
+ *       desktop.log    KWin, Plasma and the programs on it  (desktop mode)
  *   Download/DroidDeck/tools/  one-off commands: Flatpak installs, AppImage imports
  * ```
  *

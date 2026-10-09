@@ -74,10 +74,18 @@ object DesktopCatalog {
         installed(context, PROTON_SEED_ID) == null &&
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
 
-    // labwc comes with the hosted desktop package itself (its launcher is staged by the app at
-    // every session, so it cannot tell whether the package is there); SessionFiles uses the same test.
-    fun desktopInstalled(context: Context): Boolean =
-        File(LinuxRuntime.rootDir(context), "usr/bin/labwc").isFile
+    /**
+     * The desktop: KDE Plasma (tools/desktop-kde). It replaced an LXQt/labwc package of id
+     * "desktop", which a runtime may still carry; that one does not count, so the first desktop
+     * after the update installs this one over it.
+     */
+    const val DESKTOP_ID = "desktop-kde"
+
+    // KWin comes with the hosted desktop package itself (its launcher is staged by the app at every
+    // session, so it cannot tell whether the package is there); SessionFiles uses the same test.
+    fun desktopInstalled(context: Context): Boolean = desktopInstalled(LinuxRuntime.rootDir(context))
+
+    fun desktopInstalled(root: File): Boolean = File(root, "usr/bin/kwin_wayland").isFile
 
     /** Downloads, verifies and installs one package. Returns null on success, else a message. */
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {

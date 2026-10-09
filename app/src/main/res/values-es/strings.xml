@@ -358,13 +358,6 @@
     <string name="mode_storage_diagnostics">Diagnóstico de almacenamiento</string>
     <string name="mode_storage_diagnostics_hint">Registra los resultados de asignación y muestras de tiempos de almacenamiento en Compartir registros. Puede ralentizar las instalaciones mientras esté activado. Se aplica en la próxima sesión.</string>
     <string name="mode_choose_folder">Elegir una carpeta…</string>
-    <string name="mode_renderer">Renderizador</string>
-    <string name="mode_desktop_renderer">Renderizador del escritorio</string>
-    <string name="mode_renderer_hint">Dibuja el escritorio.</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU (experimental)</string>
-    <string name="mode_renderer_pixman">pixman - software</string>
-    <string name="mode_renderer_note">Vulkan ejecuta los programas del escritorio en la GPU y recurre a pixman si falla. Con pixman, los juegos se abren a pantalla completa en la GPU.</string>
     <string name="mode_custom_res_title">Resolución personalizada</string>
     <string name="mode_custom_res_text">Sustituye el límite y la relación de aspecto. Un tamaño que no coincide con la pantalla muestra barras.</string>
     <string name="mode_width">Ancho</string>
@@ -894,7 +887,7 @@
     <string name="content_open_desktop">Abrir escritorio</string>
     <string name="content_install_open_desktop">Instalar y abrir escritorio</string>
     <string name="content_linux_desktop">Escritorio de Linux</string>
-    <string name="content_linux_desktop_hint">LXQt, Firefox y tus emuladores</string>
+    <string name="content_linux_desktop_hint">KDE Plasma, Firefox y tus emuladores</string>
     <string name="games_empty">Los juegos que instales en Steam aparecen aquí después de la sesión.</string>
     <string name="games_play_steam">Jugar en Steam</string>
     <string name="games_launch_settings">Ajustes de inicio</string>

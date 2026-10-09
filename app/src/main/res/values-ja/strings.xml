@@ -358,13 +358,6 @@
     <string name="mode_storage_diagnostics">ストレージ診断</string>
     <string name="mode_storage_diagnostics_hint">割り当て結果とサンプリングしたストレージの処理時間を「ログを共有」に記録します。有効中はインストールが遅くなる場合があります。次回のセッションで有効になります。</string>
     <string name="mode_choose_folder">フォルダを選択…</string>
-    <string name="mode_renderer">レンダラー</string>
-    <string name="mode_desktop_renderer">デスクトップレンダラー</string>
-    <string name="mode_renderer_hint">デスクトップの描画を担当します。</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU（実験的）</string>
-    <string name="mode_renderer_pixman">pixman - ソフトウェア</string>
-    <string name="mode_renderer_note">VulkanはGPUを使用してデスクトッププログラムを実行し、失敗した場合はpixmanにフォールバックします。pixmanを使用する場合でも、ゲームはGPU上で全画面実行されます。</string>
     <string name="mode_custom_res_title">カスタム解像度</string>
     <string name="mode_custom_res_text">解像度の上限と画面比率を置き換えます。画面に合わないサイズは黒帯で表示されます。</string>
     <string name="mode_width">幅</string>
@@ -886,7 +879,7 @@
     <string name="content_open_desktop">デスクトップを開く</string>
     <string name="content_install_open_desktop">インストールしてデスクトップを開く</string>
     <string name="content_linux_desktop">Linuxデスクトップ</string>
-    <string name="content_linux_desktop_hint">LXQt、Firefox、エミュレーター</string>
+    <string name="content_linux_desktop_hint">KDE Plasma、Firefox、エミュレーター</string>
     <string name="games_empty">Steamでインストールされたゲームは、セッション終了後にここに表示されます。</string>
     <string name="games_play_steam">Steamを実行</string>
     <string name="games_launch_settings">起動設定</string>

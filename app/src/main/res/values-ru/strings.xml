@@ -333,13 +333,6 @@
     <string name="mode_storage_diagnostics">Диагностика хранилища</string>
     <string name="mode_storage_diagnostics_hint">Записывает результаты выделения места и выборочные замеры скорости хранилища в журналы. Пока включено, установка может идти медленнее. Вступит в силу в следующей сессии.</string>
     <string name="mode_choose_folder">Выбрать папку…</string>
-    <string name="mode_renderer">Рендерер</string>
-    <string name="mode_desktop_renderer">Рендерер рабочего стола</string>
-    <string name="mode_renderer_hint">Отвечает за отрисовку рабочего стола.</string>
-    <string name="mode_renderer_vulkan">vulkan — GPU</string>
-    <string name="mode_renderer_gles2">gles2 — GPU (экспериментально)</string>
-    <string name="mode_renderer_pixman">pixman — программный</string>
-    <string name="mode_renderer_note">Vulkan использует GPU для запуска программ рабочего стола, при сбое переключается на pixman. При использовании pixman игры по-прежнему запускаются в полноэкранном режиме на GPU.</string>
     <string name="mode_custom_res_title">Пользовательское разрешение</string>
     <string name="mode_custom_res_text">Заменяет предел разрешения и соотношение сторон. Размеры, не соответствующие экрану, будут отображаться с черными полосами.</string>
     <string name="mode_width">Ширина</string>
@@ -869,7 +862,7 @@
     <string name="content_open_desktop">Открыть рабочий стол</string>
     <string name="content_install_open_desktop">Установить и открыть рабочий стол</string>
     <string name="content_linux_desktop">Рабочий стол Linux</string>
-    <string name="content_linux_desktop_hint">LXQt, Firefox и ваши эмуляторы</string>
+    <string name="content_linux_desktop_hint">KDE Plasma, Firefox и ваши эмуляторы</string>
     <string name="games_empty">Игры, установленные в Steam, появятся здесь после завершения сессии.</string>
     <string name="games_play_steam">Запустить Steam</string>
     <string name="games_launch_settings">Настройки запуска</string>

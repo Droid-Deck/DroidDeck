@@ -1,15 +1,24 @@
 #!/bin/bash
-# The desktop session: labwc nested as a client of the app's compositor, with LXQt's panel and
-# file manager started from its autostart, and Xwayland for the X11 programs (the Steam client,
-# most emulators). Run by droiddeck-session in place of gamescope for mode "lxqt".
+# The desktop session: KDE Plasma, set up as SteamOS's desktop mode - KWin nested as a client of the
+# app's compositor, Plasma's shell on it, and Xwayland for the X11 programs (the Steam client, most
+# emulators). Run by droiddeck-session in place of gamescope for mode "lxqt" (the mode's name from
+# the LXQt desktop this replaced; it is what the app and its preferences use).
 # Staged by the app over the desktop package's copy on every launch, so a fix here reaches an
 # installed desktop without re-downloading the package.
 set -u
-export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=LXQt XDG_SESSION_DESKTOP=lxqt
+export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=KDE XDG_SESSION_DESKTOP=KDE DESKTOP_SESSION=plasma
+export KDE_FULL_SESSION=true KDE_SESSION_VERSION=6 KDE_APPLICATIONS_AS_SCOPE=0
 # Qt tries Wayland and falls back to X11 (Xwayland): an AppImage that bundles only Qt's xcb
 # plugin - melonDS - exits at once on a plain "wayland" ("Could not find the Qt platform plugin").
 export QT_QPA_PLATFORM="wayland;xcb" GDK_BACKEND=wayland,x11 SDL_VIDEODRIVER=wayland,x11
-export QT_QPA_PLATFORMTHEME=lxqt
+unset QT_QPA_PLATFORMTHEME
+# KDE's programs log through Qt, which writes to the journal when stderr is not a terminal; there is
+# no journal here, so their messages go to the desktop log with everything else.
+export QT_FORCE_STDERR_LOGGING=1
+# SteamOS's /etc/profile.d/kde.sh.
+export MOZ_ENABLE_WAYLAND=1 MOZ_USE_XINPUT2=1
+# Konsole's profile starts the login shell, which it finds here.
+export SHELL=/bin/bash
 # Firefox's child processes sandbox themselves with seccomp and namespaces, neither of which
 # behaves under proot: the content process ends up unable to read the font files its parent can,
 # reports "no fonts" and dies - the tab crash, with the chrome around it still drawing text.
@@ -21,77 +30,33 @@ export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
 # ("Shared memory PlatformHandle is not safe to map") and dies on signal 11 - every page. Firefox's
 # own switch skips the seals. (#280; the line went missing in the fontconfig move of #252.)
 export MOZ_SHM_NO_SEALS=1
-# pixman composites in software and gives programs shm buffers only, so a Vulkan program on it
-# fails at its swapchain. vulkan (or gles2) composite on the GPU and give programs DMA-BUFs, but
-# stock wlroots allocates through gbm on a real DRM node and the KGSL stand-in is not one ("unable
-# to create allocator"): they need the app's patched wlroots (tools/wlroots), whose Vulkan
-# allocator exports the buffers instead. BL_WLR_RENDERER picks; see the fallback at the end.
-export WLR_RENDERER=${BL_WLR_RENDERER:-vulkan}
-WLROOTS_DIR=/usr/local/lib/droiddeck-wlroots
-BASE_LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}
-use_renderer() {
-  export WLR_RENDERER=$1
-  if [ "$1" != pixman ] && [ -f "$WLROOTS_DIR/libwlroots-0.20.so" ]; then
-    export LD_LIBRARY_PATH=$WLROOTS_DIR${BASE_LD_LIBRARY_PATH:+:$BASE_LD_LIBRARY_PATH}
-  elif [ -n "$BASE_LD_LIBRARY_PATH" ]; then
-    export LD_LIBRARY_PATH=$BASE_LD_LIBRARY_PATH
-  else
-    unset LD_LIBRARY_PATH
-  fi
-}
-use_renderer "$WLR_RENDERER"
-# A GPU renderer that failed to start here is not tried again on every desktop start (each try costs
-# up to 20 s): the failure is kept with what it failed on - the renderer, the patched wlroots and the
-# Linux driver - so an app update or a different driver retries, and so does picking a renderer
-# again in the app's settings (which deletes the file).
-FAILED_FILE=$HOME/.droiddeck-renderer-failed
-renderer_key() {
-  echo "$WLR_RENDERER $(md5sum "$WLROOTS_DIR/libwlroots-0.20.so" 2>/dev/null | cut -d' ' -f1) ${BL_VK_DRIVER:-runtime}"
-}
-if [ "$WLR_RENDERER" != pixman ] && [ "$(cat "$FAILED_FILE" 2>/dev/null)" = "$(renderer_key)" ]; then
-  echo "== droiddeck-desktop: $WLR_RENDERER failed to start here before; using pixman (choose a renderer in the settings to retry)"
-  use_renderer pixman
-fi
-# The desktop's own log, beside the session's, so labwc and the programs on it can be read apart
+# KWin composites in software (QPainter): its GPU path allocates through gbm on a DRM render node,
+# and the KGSL stand-in is not one. Its windows get shm buffers only, so GL programs on it draw with
+# Mesa's software rasterizer, Plasma's own Qt Quick draws with Qt's software renderer (plasmashell
+# crashes on llvmpipe here), and a Vulkan program cannot draw at all: games and emulators from the
+# menu run through droiddeck-gpu (their own gamescope on the app's compositor), and Steam goes back
+# to the app as a Steam session - SteamOS's "Return to Gaming Mode". The session's own GL choice
+# (zink on Turnip, for the Steam client) is put back by droiddeck-gpu.
+export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread
+# The desktop's own log, beside the session's, so KWin and the programs on it can be read apart
 # from the session that started them. The session log keeps the milestones either way.
 if [ -n "${BL_DEBUG_DIR:-}" ]; then
   mkdir -p "$BL_DEBUG_DIR" 2>/dev/null || true
   exec >>"$BL_DEBUG_DIR/desktop.log" 2>&1
-  echo "== droiddeck-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') renderer=$WLR_RENDERER"
+  echo "== droiddeck-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${BL_WIDTH:-1280}x${BL_HEIGHT:-720}"
 fi
-export WLR_BACKENDS=wayland
-# The cursor goes to the app's compositor as a wl_pointer cursor surface ("hardware" cursor on the
-# wayland backend), which the app draws as its pointer. Drawn into the desktop's own frames instead
-# (WLR_NO_HARDWARE_CURSORS=1), it cost every frame a full-screen composite: a software cursor
-# rules out direct scan-out, so a full-screen game was never handed to the app as it is.
-mkdir -p "$HOME/.config/labwc" "$HOME/.config/lxqt"
-# Our defaults for labwc and the panel, refreshed every session. What a user changes in the
-# panel's own settings lands in panel.conf and is kept; only rc.xml and autostart are ours.
-# The nested output takes the app's surface size; left alone, wlroots' Wayland backend opens
-# a 1280x720 window and the whole desktop is upscaled from that.
-sed "s/@MODE@/${BL_WIDTH:-1280}x${BL_HEIGHT:-720}/" /etc/xdg/labwc/rc.xml > "$HOME/.config/labwc/rc.xml"
-cp -f /etc/xdg/labwc/autostart "$HOME/.config/labwc/autostart"
-# panel.conf is the user's once the panel has written it, except the one our first package
-# shipped: it never named its panel ([General] panels=), so lxqt-panel built an empty default
-# one. That file is replaced; one that names its panels is kept.
-if ! grep -q '^panels=' "$HOME/.config/lxqt/panel.conf" 2>/dev/null; then
-  cp -f /etc/xdg/lxqt/panel.conf "$HOME/.config/lxqt/panel.conf"
-fi
-[ -f "$HOME/.config/lxqt/lxqt.conf" ] || cp /etc/xdg/lxqt/lxqt.conf "$HOME/.config/lxqt/lxqt.conf"
-# pcmanfm-qt paints the desktop; left unconfigured it paints it black, over swaybg's wallpaper.
-if [ ! -f "$HOME/.config/pcmanfm-qt/lxqt/settings.conf" ]; then
-  mkdir -p "$HOME/.config/pcmanfm-qt/lxqt"
-  printf '[Desktop]\nWallpaper=/usr/share/backgrounds/steamdeck.png\nWallpaperMode=zoom\nBgColor=#1b1030\nShowHidden=false\n' \
-    > "$HOME/.config/pcmanfm-qt/lxqt/settings.conf"
-fi
-# The runtime directory outlives a session. lxqt-panel and pcmanfm-qt are single-instance
-# programs that leave a lock and a socket there; finding last session's, they decide they are
-# already running and exit without a word - a desktop with a wallpaper and nothing on it.
-# Only the app's own compositor socket (wayland-0) is kept.
+# The runtime directory outlives a session. KDE's daemons are single-instance programs that leave a
+# lock and a socket there; finding last session's, they decide they are already running and exit
+# without a word. Only the app's own compositor socket (wayland-0) is kept.
 find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' -exec rm -rf {} + 2>/dev/null
+chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
+# KWin will not start Xwayland when its socket directory is not sticky, as a shared /tmp would be,
+# and Plasma's session manager cannot listen at all without the ICE directory, which only root may
+# create for it.
+mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
 # Fontconfig defaults and Android language fallbacks are set up by droiddeck-session before this
-# script or any desktop program starts. The generated defaults live in conf.d, leaving local.conf
-# available for the user's own final overrides.
+# script or any desktop program starts.
 # The menu's "Steam" / "Steam Big Picture" entries and one entry per installed game: all of them
 # hand off to the app (droiddeck-steam-launch), since the client cannot draw on this desktop.
 export BL_DESKTOP=1
@@ -103,81 +68,50 @@ python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
 # given the controller for its next start without waiting for the next desktop.
 python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 ( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
-# Games and emulators from the menu run through droiddeck-gpu (their own gamescope on the app's
-# compositor) while the desktop is on pixman, where they could not draw with the GPU.
-# BL_DESKTOP_GPU=on/off overrides; each entry keeps "Run in a desktop window" either way.
-gpu_entries() { python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'; }
-gpu_entries
-
-# ~/.droiddeck-desktop-debug: labwc's own debug log (views and layer surfaces mapping) too. The GPU
-# renderers are experimental and always log in full, so a desktop that does not come up says why.
-DEBUG=; { [ -f "$HOME/.droiddeck-desktop-debug" ] || [ "$WLR_RENDERER" != pixman ]; } && DEBUG=-d
-run_labwc() {
-  echo "== droiddeck-desktop: labwc ($WLR_RENDERER${LD_LIBRARY_PATH:+, wlroots from $WLROOTS_DIR}) on $WAYLAND_DISPLAY"
-  # A session bus: the panel's menus, the file manager and the portal all expect one.
-  if command -v dbus-run-session >/dev/null 2>&1; then
-    dbus-run-session -- labwc $DEBUG -C "$HOME/.config/labwc"
-  else
-    labwc $DEBUG -C "$HOME/.config/labwc"
-  fi
-}
-pids_named() {
-  local p
-  for p in /proc/[0-9]*; do
-    [ "$(cat "$p/comm" 2>/dev/null)" = "$1" ] && echo "${p#/proc/}"
-  done
-}
-# labwc answers on its own socket (the one beside the app's wayland-0) once its event loop runs; a
-# labwc stuck on the GPU never does.
-labwc_answers() {
-  local sock
-  for sock in "$XDG_RUNTIME_DIR"/wayland-*; do
-    case $sock in *.lock|*/wayland-0) continue ;; esac
-    [ -S "$sock" ] || continue
-    WAYLAND_DISPLAY=${sock##*/} timeout 3 wayland-info >/dev/null 2>&1 && return 0
-  done
-  return 1
-}
-if [ "$WLR_RENDERER" = pixman ]; then
-  run_labwc
-  exit $?
+# Games and emulators from the menu run through droiddeck-gpu; BL_DESKTOP_GPU=on/off overrides,
+# and each entry keeps "Run in a desktop window" either way.
+python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
+# SteamOS's desktop icons: Return to Gaming Mode and Steam, put there once - what the user moves
+# or deletes stays that way.
+desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null); [ -n "$desktop_dir" ] && [ "$desktop_dir" != "$HOME" ] || desktop_dir=$HOME/Desktop
+if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
+  mkdir -p "$desktop_dir" "$HOME/.config"
+  cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
+  cp -f /usr/share/applications/steamdeck-steam.desktop "$desktop_dir/steam.desktop" 2>/dev/null
+  chmod +x "$desktop_dir"/*.desktop 2>/dev/null
+  touch "$HOME/.config/droiddeck-desktop-icons"
 fi
-# A GPU renderer this device cannot start either ends the desktop at once or leaves it hanging on
-# the loading screen. Either way the desktop comes up on pixman instead, and the log says why.
-started=$(date +%s)
-run_labwc &
-labwc_job=$!
-answered=
-while kill -0 "$labwc_job" 2>/dev/null; do
-  if labwc_answers; then answered=1; break; fi
-  [ $(( $(date +%s) - started )) -ge 20 ] && break
-  sleep 1
-done
-if [ -n "$answered" ]; then
-  echo "== droiddeck-desktop: labwc on $WLR_RENDERER is up after $(( $(date +%s) - started )) s"
-  wait "$labwc_job"
-  exit $?
+# Plasma's caches of the menu, the icons and the MIME types, which a package install never ran.
+update-mime-database /usr/share/mime >/dev/null 2>&1 &
+[ -f /usr/share/icons/hicolor/icon-theme.cache ] || gtk-update-icon-cache -q -t /usr/share/icons/hicolor 2>/dev/null &
+[ -f /usr/share/glib-2.0/schemas/gschemas.compiled ] || glib-compile-schemas /usr/share/glib-2.0/schemas 2>/dev/null
+# In debug runs Firefox (started from the panel or the menu, so it inherits this) writes its
+# own network log: name lookups, connects, HTTP transactions, the link/offline decisions.
+if [ -f "$HOME/.droiddeck-desktop-debug" ]; then
+  mkdir -p "$HOME/.cache/droiddeck"
+  export MOZ_LOG="nsHttp:3,nsSocketTransport:3,nsHostResolver:4,NetworkLinkService:5,NetworkConnectivityService:5,nsIOService:5"
+  export MOZ_LOG_FILE="$HOME/.cache/droiddeck/firefox-net.log"
+  export QT_LOGGING_RULES="kwin_*.debug=true"
 fi
-if kill -0 "$labwc_job" 2>/dev/null; then
-  echo "== droiddeck-desktop: labwc on $WLR_RENDERER did not answer in 20 s; stopping it"
-  kill -TERM $(pids_named labwc) 2>/dev/null
-  sleep 2
-  kill -KILL $(pids_named labwc) 2>/dev/null
-  for prog in lxqt-panel pcmanfm-qt swaybg Xwayland; do kill -KILL $(pids_named "$prog") 2>/dev/null; done
-  wait "$labwc_job" 2>/dev/null
-  rc=124
-else
-  wait "$labwc_job"
-  rc=$?
+# Remote runs, for driving the desktop from a debugger: with ~/.droiddeck-remote-run present (only
+# the app or root can create it), each script dropped into ~/.cache/droiddeck/run/ is run once,
+# inside the session with its environment, its output tagged into the desktop log.
+if [ -f "$HOME/.droiddeck-remote-run" ]; then
+  mkdir -p "$HOME/.cache/droiddeck/run"
+  (
+    while sleep 1; do
+      for f in "$HOME"/.cache/droiddeck/run/*.sh; do
+        [ -f "$f" ] || continue
+        mv -f "$f" "$f.running" || continue
+        ( echo "[run] $(basename "$f") started"; WAYLAND_DISPLAY=wayland-1 DISPLAY=:1 bash "$f.running" 2>&1 | sed "s/^/[run] /"; echo "[run] $(basename "$f") exited"; rm -f "$f.running" ) &
+      done
+    done
+  ) &
 fi
-if [ "$rc" -ne 0 ] && [ $(( $(date +%s) - started )) -lt 40 ]; then
-  echo "== droiddeck-desktop: labwc on $WLR_RENDERER failed at start (exit $rc); starting on pixman instead"
-  renderer_key > "$FAILED_FILE"
-  use_renderer pixman
-  DEBUG=; [ -f "$HOME/.droiddeck-desktop-debug" ] && DEBUG=-d
-  find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' -exec rm -rf {} + 2>/dev/null
-  gpu_entries
-  run_labwc
-  rc=$?
-fi
-exit $rc
+# Plasma as its own login starts it: startplasma-wayland sets up the session's environment and runs
+# plasma_session, which starts KWin (through kwin_wayland_wrapper, ours first on PATH) as a client of
+# the app's compositor with its own Xwayland, then Plasma's daemons, shell and autostart entries on
+# it. The desktop ends with it - Log Out, or Return to Gaming Mode, which asks the app for a Steam
+# session first. The session bus is ours: Plasma, the file manager and the portal all expect one.
+echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
+exec dbus-run-session -- startplasma-wayland
