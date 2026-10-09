@@ -18,9 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from adb_device import DeviceResolutionError, resolve_serial  # noqa: E402
 
 
-DEFAULT_PACKAGE = "com.droiddeck.launcher"
-PACKAGE = DEFAULT_PACKAGE
-AUTHORITY = f"content://{PACKAGE}.agent"
+AUTHORITY = "content://com.droiddeck.launcher.agent"
+PACKAGE = "com.droiddeck.launcher"
 STEAM_CLIENT_APP = 769
 REQUEST_CAP = 256 * 1024
 
@@ -526,11 +525,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adb", help="adb executable (defaults to ADB, PATH, or the Android SDK)")
     parser.add_argument("--serial", help="ADB serial; defaults to ADB_SERIAL or ANDROID_SERIAL")
-    parser.add_argument(
-        "--package",
-        default=os.environ.get("DROIDDECK_PACKAGE", DEFAULT_PACKAGE),
-        help="application package (defaults to DROIDDECK_PACKAGE or com.droiddeck.launcher)",
-    )
     commands = parser.add_subparsers(dest="command", required=True)
 
     state = commands.add_parser("state", help="print machine-readable session state")
@@ -707,9 +701,6 @@ def exit_code(exc: Exception) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    global PACKAGE, AUTHORITY
-    PACKAGE = args.package
-    AUTHORITY = f"content://{PACKAGE}.agent"
     serial = None
     try:
         adb = adb_path(args.adb)

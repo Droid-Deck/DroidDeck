@@ -1,4 +1,0 @@
-# Linux runtime scripts must keep Unix line endings when checked out on Windows.
-tools/linuxfs/overlay/usr/local/bin/** text eol=lf
-tools/linuxfs/overlay/usr/bin/** text eol=lf
-tools/deploy_local.sh text eol=lf

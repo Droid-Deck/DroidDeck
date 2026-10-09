@@ -72,12 +72,6 @@ Every command writes one JSON object to stdout and its resolved serial to stderr
 success, 2 invalid or rejected command, 3 ADB or device error, 4 session error, 5 timeout, 6
 artifact or file error, 7 debugging tools disabled.
 
-Debug builds install beside release as `com.droiddeck.launcher.dev`. Target one with
-`tools/droiddeckctl --package com.droiddeck.launcher.dev ...` or set
-`DROIDDECK_PACKAGE=com.droiddeck.launcher.dev`. `tools/deploy_local.sh` detects the standard
-`app-debug.apk` name automatically; for renamed APKs, pass the package as its second argument or
-set `DROIDDECK_PACKAGE`.
-
 ## Commands
 
 ```sh
