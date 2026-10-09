@@ -71,6 +71,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -261,6 +263,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     var detailFrom by remember { mutableStateOf<Origin?>(null) }
     var detailArt by remember { mutableStateOf<String?>(null) }
     var viewportAt by remember { mutableStateOf(Offset.Zero) }
+    var viewportH by remember { mutableStateOf(0.dp) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
     var hostAt by remember { mutableStateOf(Offset.Zero) }
     LaunchedEffect(openGame) {
         val g = openGame
@@ -304,7 +308,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
         Box(
             Modifier.fillMaxWidth().weight(1f).clipToBounds()
-                .onGloballyPositioned { viewportAt = it.positionInRoot() }
+                .onGloballyPositioned { viewportAt = it.positionInRoot(); viewportH = with(density) { it.size.height.toDp() } }
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
@@ -361,7 +365,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                 k.chip == DOWNLOADS -> StoresDownloadsPane(s, a)
                                 st == null -> {}
                                 // Signed out, or a sign-in that ran out (a launch could not get its code): sign in again.
-                                !k.signedIn -> Rise(1) { SignInCard(st) }
+                                !k.signedIn -> SignInCard(st, viewportH - 20.dp)
                                 else -> Storefront(st, k.tab, query, s, a, onQuery = { query = it }, onOpen = { open(it) })
                             }
                           }
@@ -691,25 +695,75 @@ internal fun CountPill(count: Int) {
 
 // ---- sign-in -----------------------------------------------------------------------------------
 
-/** No account for this store yet: who it signs in as, and the button that opens its login page. */
+/**
+ * No account for this store yet: the Steam tab's shape in the store's colour. A tilted wall of the
+ * store's own games drifts behind (its public storefront; blank capsules in its colour when it has
+ * none), fading out toward the words, and Sign in sits large at the foot. [height] is the pane's.
+ */
 @Composable
-private fun SignInCard(store: Store) {
+private fun SignInCard(store: Store, height: Dp) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
-            modifier = Modifier.fillMaxWidth().clip(Shape16).background(colors.surface).border(1.dp, pal.line, Shape16).padding(18.dp),
-        ) {
-            StoreLogo(store, 56.dp)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(store.label, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+    val c = sourceColours(store.id)
+    // The storefront needs no account; it is what the wall is made of.
+    LaunchedEffect(store) { StoresState.preview(ctx, store) }
+    // A handful of games would repeat down every column: under eight, the blank wall in its colour.
+    val art = remember(StoresState.shelves[store]) {
+        StoresState.shelves[store]?.all.orEmpty().filter { !it.mature }.mapNotNull { it.tallImageUrl ?: it.imageUrl }.distinct().take(48)
+            .takeIf { it.size >= 8 }.orEmpty()
+    }
+    val shape = RoundedCornerShape(20.dp)
+    val capsule = RoundedCornerShape(10.dp)
+    Box(Modifier.fillMaxWidth().height(height.coerceAtLeast(320.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
+        // The storefront arrives a moment after the page: its wall fades in over the blank one.
+        androidx.compose.animation.Crossfade(art, animationSpec = Motion.tw(600), label = "signInWall") { tiles ->
+            TiltedWall(tiles.size, if (tiles.isEmpty()) 75_000 else 50_000) { i, m ->
+                if (tiles.isEmpty()) Box(m.clip(capsule).background(Brush.linearGradient(listOf(c.fill, colors.background))).border(1.dp, c.dot.copy(alpha = 0.22f), capsule))
+                else Box(m.clip(capsule).background(c.fill)) { AsyncImage(model = tiles[i], contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize()) }
             }
-            if (!narrow) SignInButton(store)
         }
-        if (narrow) Actions { SignInButton(store) }
+        // The wall gives way to the words: dark at the left and the foot, and the store's glow under them.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.horizontalGradient(
+                    0f to colors.background.copy(alpha = 0.97f), 0.45f to colors.background.copy(alpha = 0.9f),
+                    0.78f to colors.background.copy(alpha = 0.35f), 1f to colors.background.copy(alpha = 0.15f),
+                ),
+            ),
+        )
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to colors.background.copy(alpha = 0.92f))))
+        Box(
+            Modifier.fillMaxSize().drawBehind {
+                drawRect(Brush.radialGradient(listOf(c.dot.copy(alpha = 0.22f), Color.Transparent), center = Offset(size.width * 0.16f, size.height * 0.9f), radius = size.height * 0.75f))
+            },
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = if (narrow) 20.dp else 40.dp, bottom = if (narrow) 20.dp else 36.dp, end = 20.dp),
+        ) {
+            Rise(1) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(12.dp).clip(CircleShape).background(c.dot))
+                    Text(store.label.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, color = c.ink)
+                }
+            }
+            Rise(2) {
+                Text(
+                    stringResource(R.string.stores_signin_title, store.label), fontSize = if (narrow) 28.sp else 38.sp,
+                    lineHeight = if (narrow) 32.sp else 42.sp, fontWeight = FontWeight.Black, color = colors.onBackground,
+                )
+            }
+            Rise(3) {
+                Text(
+                    stringResource(R.string.stores_signin_tagline, store.label), fontSize = 15.sp, lineHeight = 21.sp,
+                    color = colors.onSurfaceVariant, modifier = Modifier.widthIn(max = 460.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Rise(4) { SignInButton(store, large = true) }
+        }
     }
 }
 
@@ -718,12 +772,12 @@ private fun SignInCard(store: Store) {
  * opens on that colour, and the flood comes home into the store's dot once it closes.
  */
 @Composable
-private fun SignInButton(store: Store) {
+private fun SignInButton(store: Store, large: Boolean = false) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Box(Modifier.onGloballyPositioned { placed[0] = it }) {
-        PrimaryButton(stringResource(R.string.stores_signin), main = true) {
+        PrimaryButton(stringResource(R.string.stores_signin), main = true, large = large, icon = if (large) Icons.AutoMirrored.Filled.Login else null) {
             val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot()
             if (at == null || Motion.scale == 0f || StoresMotion.signIn != null) StoresState.signIn(ctx, store)
             else StoresMotion.signIn = SignInFlood(store, at, colors.primary, sourceColours(store.id).dot)
@@ -783,12 +837,7 @@ private fun Storefront(
             // A purchase made elsewhere shows on a refresh; otherwise the library refreshes itself every six hours.
             SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
             val name = StoresState.accounts[store] ?: ""
-            // Asks twice: a stray A here costs the sign-in and the library cache.
-            var arm by remember(store) { mutableStateOf(false) }
-            LaunchedEffect(arm) { if (arm) { delay(4000); arm = false } }
-            SmallTextButton(if (arm) stringResource(R.string.stores_signout_confirm) else stringResource(R.string.stores_signout_named, name), key = "signout") {
-                if (!arm) arm = true else { arm = false; StoresState.signOut(ctx, store) }
-            }
+            SignOutButton(store, name)
         }
     }
     StoresState.status[store]?.let { line -> Rise(3) { SyncBar(line) } }
@@ -902,6 +951,39 @@ private fun SmallTextButton(text: String, key: String = text, onClick: () -> Uni
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp),
     )
+}
+
+/**
+ * "<account> · sign out", which asks first: are you sure steps out of it (End session's shape, in
+ * red), Stay signed in first, so a stray A costs nothing.
+ */
+@Composable
+private fun SignOutButton(store: Store, name: String) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val label = stringResource(R.string.stores_signout_named, name)
+    val title = stringResource(R.string.stores_signout_title, store.label)
+    val note = stringResource(R.string.stores_signout_note)
+    val stay = stringResource(R.string.stores_signout_stay)
+    val go = stringResource(R.string.stores_signout_go)
+    var at by remember { mutableStateOf<Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        SmallTextButton(label, key = "signout") {
+            val from = at
+            if (from == null) { StoresState.signOut(ctx, store); return@SmallTextButton }
+            StoresMotion.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = colors.error, pillCorner = 8.dp, items = 3,
+                handle = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.error, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            ) {
+                StepTitle(title)
+                Text(note, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.stepItem(2)) {
+                    StepChoice(stay, enabled = open, modifier = Modifier.focusRequester(first)) { StoresMotion.fold() }
+                    StepChoice(go, danger = true, enabled = open) { StoresMotion.fold(); StoresState.signOut(ctx, store) }
+                }
+            })
+        }
+    }
 }
 
 /** The header's magnifier: a round button the search field opens out of. */

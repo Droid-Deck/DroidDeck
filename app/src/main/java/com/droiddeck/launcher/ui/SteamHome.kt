@@ -126,6 +126,20 @@ internal fun CapsuleWall(
     games: List<Library.SteamGame>,
     driftMs: Int = if (games.isEmpty()) 75_000 else 40_000,
     modifier: Modifier = Modifier,
+) = TiltedWall(games.size, driftMs, modifier) { i, m ->
+    Capsule(if (games.isEmpty()) null else games[i], RoundedCornerShape(10.dp), m)
+}
+
+/**
+ * [CapsuleWall]'s tilted, drifting columns for any [count] of capsules; [capsule] draws number i
+ * (0 until [count], or 0 for each blank one when [count] is 0) at the modifier it is given.
+ */
+@Composable
+internal fun TiltedWall(
+    count: Int,
+    driftMs: Int,
+    modifier: Modifier = Modifier,
+    capsule: @Composable (index: Int, modifier: Modifier) -> Unit,
 ) {
     val capW = 112.dp
     val capH = 168.dp
@@ -165,8 +179,7 @@ internal fun CapsuleWall(
                     },
                 ) {
                     repeat(perRun * 2) { i ->
-                        val g = if (games.isEmpty()) null else games[(c * 5 + (i % perRun) * 3) % games.size]
-                        Capsule(g, RoundedCornerShape(10.dp), Modifier.size(capW, capH))
+                        capsule(if (count == 0) 0 else (c * 5 + (i % perRun) * 3) % count, Modifier.size(capW, capH))
                     }
                 }
             }

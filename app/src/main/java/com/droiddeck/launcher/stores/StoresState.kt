@@ -153,6 +153,11 @@ object StoresState {
         if (force || !shelves.containsKey(store)) backend.loadShelves(app, force)
     }
 
+    /** A store not signed into: its public storefront only, for its sign-in page to show. */
+    fun preview(context: Context, store: Store) {
+        if (!shelves.containsKey(store)) backends[store]?.loadShelves(context.applicationContext, false)
+    }
+
     fun signIn(context: Context, store: Store) {
         expired.remove(store)
         backends[store]?.signIn(context) ?: logLine("${store.label}: this build has no sign-in for it yet")
