@@ -150,6 +150,14 @@ without it and Setup says "Stores engine not built").
   native start takes the whole set (`cdnBases`; the engine spreads its window across the hosts) and
   its `onBytes` - every 250 ms, including files still in flight - drives the bar and the speed, so a
   large file no longer moves the bar in one jump.
+- **Cloud saves device-proven (AYANEO Pocket FIT, `6a175f1`, ELDERBORN on GOG):** the launch logged
+  `cloud gog 1732383191 down result=ok files=5 bytes=237499 reason=downloaded` (template found) and
+  the in-game slot shows the cloud save (Catacombs: Tutorial part 1, 00:08:40).
+- **One place for a store game's saves:** a GOG or Epic game's hero button reads "Cloud saves" and
+  opens its saves view, which now holds the Cloud saves switch, the sync status, Upload / Download
+  and the conflict actions ("No cloud saves" when the store keeps none). The switch is gone from the
+  cards; GOG has no card left, Epic's keeps sign-in, offline and Resolve Epic sign-in. Steam and
+  Custom games keep "Manage saves".
 - **Background downloads:** while a download runs the service holds a Wi-Fi lock and a partial wake
   lock (timed, renewed with the progress, released when nothing runs). The notification shows a
   real progress bar and "<game> · 42% · 1.2 GB/2.5 GB · 12.3 MB/s · 3 min" (the stage while

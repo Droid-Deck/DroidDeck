@@ -160,9 +160,9 @@ the prefix's user folder appears, within a minute. Every path logs
   next start for a mark a killed app left (`trigger=recovery`, not while a session runs). The mark
   goes only after an upload that went through or a final skip (off, no cloud saves, no baseline,
   not installed, nothing local).
-- **Per game:** the store card in the Games tab's launch settings has "Cloud saves" (on), kept in the
-  sidecar (`"cloud"`) and read by both sides; Manage saves shows the last sync with Upload and
-  Download, or "No cloud saves".
+- **Per game:** a GOG or Epic game's hero button reads "Cloud saves" and opens its saves view: the
+  Cloud saves switch (on; the sidecar's `"cloud"`, read by both launch paths), the last sync,
+  Upload / Download and the conflict actions, or "No cloud saves".
 
 ## Downloads
 

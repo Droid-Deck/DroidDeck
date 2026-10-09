@@ -477,7 +477,8 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
         // An Epic game's own launch choices, kept in its sidecar so a launch from the Steam client
         // honours them too (droiddeck-store-launch reads the same file).
-        val cardStore = com.droiddeck.launcher.stores.Store.byId(game?.source.orEmpty())?.takeIf { it != com.droiddeck.launcher.stores.Store.AMAZON }
+        // Epic's launch choices; cloud saves live in the game's Cloud saves view, so a GOG game has no card.
+        val cardStore = com.droiddeck.launcher.stores.Store.byId(game?.source.orEmpty())?.takeIf { it == com.droiddeck.launcher.stores.Store.EPIC }
         if (cardStore != null && game?.gameFiles != null) add { m ->
             Box(m) {
                 StoreLaunchCard(host, game.gameFiles!!, cardStore)
@@ -515,21 +516,12 @@ private fun StoreLaunchCard(host: MenuHost, folder: java.io.File, store: com.dro
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     var sidecar by remember(folder) { mutableStateOf(com.droiddeck.launcher.stores.StoreGameSidecar.read(folder)) }
     val options = sidecar?.epic ?: com.droiddeck.launcher.stores.EpicOptions()
-    val cloud = sidecar?.cloud ?: true
     val epic = store == com.droiddeck.launcher.stores.Store.EPIC
     val key = "store-" + store.id
     val value = buildList {
         if (epic && options.offline) add(stringResource(R.string.epic_card_offline))
         else if (epic && options.eos) add(stringResource(R.string.epic_card_eos))
-        if (cloud) add(stringResource(R.string.store_card_cloud))
     }.ifEmpty { listOf(stringResource(R.string.epic_card_none)) }.joinToString(" · ")
-    fun setCloud(on: Boolean) {
-        Thread({
-            val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateCloud(folder, on) }.getOrNull()
-            android.util.Log.i("StoreLaunchCard", "cloud saves ${folder.name} " + (written?.cloud?.toString() ?: "not saved"))
-            com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: com.droiddeck.launcher.stores.StoreGameSidecar.read(folder) }
-        }, "store-options").start()
-    }
     // Each switch goes straight to the sidecar on disk - both launch paths read it there - and the
     // card shows what was read back, so a write that did not take is never shown as done.
     fun set(change: (com.droiddeck.launcher.stores.EpicOptions) -> com.droiddeck.launcher.stores.EpicOptions) {
@@ -549,7 +541,6 @@ private fun StoreLaunchCard(host: MenuHost, folder: java.io.File, store: com.dro
             MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
             MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }
         }
-        MenuItem(stringResource(R.string.store_cloud_saves), checked = cloud, focusRequester = if (epic) null else first) { setCloud(!cloud) }
         if (epic) {
         // Epic asks some accounts to accept something once (privacy policy, EULA) before a game may
         // sign in - EOS's "corrective action". Signing in on Epic's site shows it.

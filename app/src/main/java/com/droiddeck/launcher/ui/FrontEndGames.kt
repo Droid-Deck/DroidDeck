@@ -197,8 +197,12 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
         }
     }
     Box {
-        SecondaryButton(stringResource(R.string.games_manage_saves), compact = true) { open = !open }
-        AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.games_saves), note = summary) { first ->
+        // A GOG or Epic game's saves are its cloud saves: the one place for them, named so.
+        val cloudGame = com.droiddeck.launcher.stores.Store.byId(g.source).let { it == com.droiddeck.launcher.stores.Store.GOG || it == com.droiddeck.launcher.stores.Store.EPIC }
+        val label = stringResource(if (cloudGame) R.string.store_cloud_saves else R.string.games_manage_saves)
+        SecondaryButton(label, compact = true) { open = !open }
+        AnchoredMenu(open, onDismiss = { open = false }, title = if (cloudGame) label else stringResource(R.string.games_saves), note = summary) { first ->
+            if (cloudGame) CloudRows(g, open)
             MenuItem(stringResource(R.string.games_import_saves), checked = false, detail = stringResource(R.string.games_import_saves_hint), focusRequester = first) {
                 open = false; a.onSaveImport(g)
             }
@@ -213,7 +217,6 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
                     open = false; a.onBrowseFiles(java.io.File(prefix, "drive_c/users/steamuser/" + d.relPath))
                 }
             }
-            CloudRows(g, open)
         }
     }
 }
@@ -234,11 +237,22 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean) {
             runCatching { com.droiddeck.launcher.stores.CloudSaves.status(context, store, id) }.getOrNull()
         }
     }
+    // The game's own switch (sidecar "cloud"), read from and written to disk as the launch reads it.
+    val folder = g.gameFiles
+    var enabled by remember(g.gameId, open) { androidx.compose.runtime.mutableStateOf(folder?.let { com.droiddeck.launcher.stores.StoreGameSidecar.read(it)?.cloud } ?: true) }
     val st = status
     when {
         st == null -> MenuItem(stringResource(R.string.cloud_checking), checked = false, enabled = false) {}
         !st.supported -> MenuItem(stringResource(R.string.cloud_none), checked = false, enabled = false) {}
         else -> {
+            MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled) {
+                val f = folder ?: return@MenuItem
+                val next = !enabled
+                Thread({
+                    val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateCloud(f, next) }.getOrNull()
+                    com.droiddeck.launcher.stores.StoresState.post { enabled = written?.cloud ?: enabled }
+                }, "cloud-switch").start()
+            }
             val last = if (st.lastSync > 0) stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString()) else stringResource(R.string.cloud_never)
             fun sync(up: Boolean, force: Boolean = false) {
                 if (busy != null) return
