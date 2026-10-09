@@ -1,0 +1,32 @@
+{
+  "archives": {
+    "lxqt-r1": "c2bb860b3b1688287451e2495be5db313ec07f8c8af501dfac2768a9f417bc86",
+    "desktop-kde-r1": "55747e75d0ec055ab7ea1e92a757f3be227cc3205bb9101f5b53cadef6318579",
+    "desktop-kde-r2": "9ba832677b498654136c69d8c8330434d17e4d53cd099acac9bde3ba429b35bf",
+    "emulators-r1": "a1f4806a9663d28f424b4cab1277e0ede80a92e69de5bc063cdc8b45af220164"
+  },
+  "desktopApplications": {
+    "ark-26.08.1-1-aarch64.pkg.tar.xz": "93e2c2b75ff20cd29b4f312ed1979ef6f27255b93232b93bfcdb31239903c1d4",
+    "breeze-6.7.5-1-aarch64.pkg.tar.xz": "1d7f4eb9d8d234caaea23621909f5233d19462c2f058afeeb54bed7b81bd03bd",
+    "breeze-gtk-6.7.5-1-any.pkg.tar.xz": "a0f59bc4fc426879c8f8a97f6dcc707fb7d1b52913da5eb7e9db83777b6957b7",
+    "breeze-icons-6.30.0-1-aarch64.pkg.tar.xz": "4bae4689032501156687a227024e56554820747644953c67fc8d2e2b6b0b045a",
+    "dolphin-26.08.1-1-aarch64.pkg.tar.xz": "fef738ab8132d3eba1156b98c116699ce0a5efcb4cb462efbacdcf4c47f79a23",
+    "firefox-157.0.1-1-aarch64.pkg.tar.xz": "d142fdb8a339a65eca7cea6a2bba5b29202386166abd9d59851d6757c9eb2163",
+    "gwenview-26.08.1-1-aarch64.pkg.tar.xz": "a9dc7d5ab73fa677905d5a57248b1b9b404b6b16e862958cc7443d387f684a47",
+    "kate-26.08.1-1-aarch64.pkg.tar.xz": "acf50710042746f243a3b219a1ae0f788e338f3dd9d75093e8bb671a618b83b6",
+    "kde-cli-tools-6.7.5-1-aarch64.pkg.tar.xz": "af466398a912a994a97fadfe46aff401d88a90d7fdce7e843dc4218098fa38ac",
+    "kde-gtk-config-6.7.5-1-aarch64.pkg.tar.xz": "ba6cb4cb01dbb3f2c247f2f6973ede3b64c0849f89340217b51dfbf11cb8cb5c",
+    "kinfocenter-6.7.5-1-aarch64.pkg.tar.xz": "f3d5416db96b50f9a5b8a284d82ae21d834a8cce646010abdd7087491c399b0b",
+    "konsole-26.08.1-1-aarch64.pkg.tar.xz": "1ecf87c0d11d620ebe4aeafb02788e0d5f4fe9019ad9c5d9f1011c43237dd5ec",
+    "kscreen-6.7.5-1-aarch64.pkg.tar.xz": "8fbaa6fedf93edeba021a5416b551663654919b27c2ee237d696ec0b0ce7d5b7",
+    "kwin-6.7.5-1-aarch64.pkg.tar.xz": "a7535710c74b90359f80306134b2b7581132cbac508dc84b7e07ef275cc8c3fe",
+    "mpv-1:0.41.0-6-aarch64.pkg.tar.xz": "6c89d00736820210a3c7f32af4cf95d155191d463f9df8bd22137c45f30a554a",
+    "plasma-desktop-6.7.5-1-aarch64.pkg.tar.xz": "b266dd42cea965b5ab1cc1ae600877e9d3bc83ec642c61fe1669c4457e641a55",
+    "plasma-integration-6.7.5-1-aarch64.pkg.tar.xz": "daa96da14d9a4d12c0d9c0341e1be6836a9a437c469d61da5e9844d51e2606cf",
+    "plasma-pa-6.7.5-1-aarch64.pkg.tar.xz": "02dbefe9d3e0069b2bb37cac2a6be18b8f0a1887c87704a0716e7a9268eadcd8",
+    "plasma-workspace-6.7.5-1-aarch64.pkg.tar.xz": "3a1455857afaa9ccf342ab6167f0f15794ee9d248b0925398ea6f62f12730a86",
+    "spectacle-1:6.7.5-1-aarch64.pkg.tar.xz": "0c9837412ea6119edef18bcb0a8fceb74634cb35be0ca78b3e1dd1ff2443866e",
+    "systemsettings-6.7.5-1-aarch64.pkg.tar.xz": "b02b6a726857d5125c92d1ec95379216c7a3bc1f187a3b46e88c0d056b29ce70",
+    "xdg-desktop-portal-kde-6.7.5-1-aarch64.pkg.tar.xz": "2c57d17d34d577023eb9cd7b0fca1ba9163549afe60450f6271aa148af099ef2"
+  }
+}

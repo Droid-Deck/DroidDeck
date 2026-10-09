@@ -305,7 +305,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving()) {
+        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
+            com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
             android.widget.Toast.makeText(this, R.string.session_wait_removal, android.widget.Toast.LENGTH_SHORT).show()
             finish()

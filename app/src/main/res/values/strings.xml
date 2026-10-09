@@ -892,6 +892,12 @@
     <string name="content_page_gone">That page is gone. Pick a section on the left.</string>
     <string name="content_open_desktop">Open desktop</string>
     <string name="content_install_open_desktop">Install &amp; open desktop</string>
+    <string name="desktop_remove_title">Uninstall desktop</string>
+    <string name="desktop_remove_text">Remove the desktop and its bundled apps. Keep games, added apps, settings and shared libraries.</string>
+    <string name="desktop_removing">Removing desktop</string>
+    <string name="desktop_removed">Desktop removed</string>
+    <string name="desktop_cleaning_legacy">Removing old LXQt files</string>
+    <string name="desktop_removal_unknown">Update DroidDeck before removing this desktop version.</string>
     <string name="content_linux_desktop">Linux desktop</string>
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox and your emulators</string>
     <string name="games_empty">Games you install in Steam show up here after the session.</string>

@@ -205,6 +205,10 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
         }
+        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         startForeground(NOTIFICATION_ID, buildNotification())
         if (SessionState.running) return START_NOT_STICKY
         if (SessionState.stopRequested) {
