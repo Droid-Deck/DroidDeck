@@ -2024,6 +2024,8 @@
     <string name="cloud_download">Download from cloud</string>
     <string name="cloud_none">No cloud saves</string>
     <string name="cloud_conflict">Cloud conflict</string>
+    <string name="cloud_conflict_files">Cloud conflict · %1$d files</string>
+    <string name="cloud_pending">…</string>
     <string name="cloud_keep_cloud">Keep cloud</string>
     <string name="cloud_keep_local">Keep local</string>
     <string name="cloud_checking">Checking cloud…</string>

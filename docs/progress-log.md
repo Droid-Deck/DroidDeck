@@ -157,7 +157,9 @@ without it and Setup says "Stores engine not built").
   opens its saves view, which now holds the Cloud saves switch, the sync status, Upload / Download
   and the conflict actions ("No cloud saves" when the store keeps none). The switch is gone from the
   cards; GOG has no card left, Epic's keeps sign-in, offline and Resolve Epic sign-in. Steam and
-  Custom games keep "Manage saves".
+  Custom games keep "Manage saves". The view is laid out in full from the first frame - the switch (focused),
+  Upload and Download with "…" until the cloud check is back - and only subtitles change after; a
+  conflict turns the two actions into Keep local / Keep cloud in place.
 - **Background downloads:** while a download runs the service holds a Wi-Fi lock and a partial wake
   lock (timed, renewed with the progress, released when nothing runs). The notification shows a
   real progress bar and "<game> · 42% · 1.2 GB/2.5 GB · 12.3 MB/s · 3 min" (the stage while

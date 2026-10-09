@@ -202,8 +202,8 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
         val label = stringResource(if (cloudGame) R.string.store_cloud_saves else R.string.games_manage_saves)
         SecondaryButton(label, compact = true) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = if (cloudGame) label else stringResource(R.string.games_saves), note = summary) { first ->
-            if (cloudGame) CloudRows(g, open)
-            MenuItem(stringResource(R.string.games_import_saves), checked = false, detail = stringResource(R.string.games_import_saves_hint), focusRequester = first) {
+            if (cloudGame) CloudRows(g, open, first)
+            MenuItem(stringResource(R.string.games_import_saves), checked = false, detail = stringResource(R.string.games_import_saves_hint), focusRequester = if (cloudGame) null else first) {
                 open = false; a.onSaveImport(g)
             }
             MenuItem(stringResource(R.string.games_export_gamehub), checked = false, detail = stringResource(R.string.games_export_gamehub_hint)) {
@@ -222,11 +222,13 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
 }
 
 /**
- * A GOG or Epic game's cloud saves in Manage saves: when it last synced, and Upload / Download
- * (newest wins, file by file), or "No cloud saves" when the store keeps none for it.
+ * A GOG or Epic game's cloud saves: the Cloud saves switch, Upload and Download - three rows from
+ * the first frame, so nothing moves under the pad while the cloud is checked. Until the check is
+ * back the two actions are disabled and read "…"; then only their subtitles change: the last sync,
+ * "No cloud saves", or a conflict, when Upload and Download become Keep local and Keep cloud.
  */
 @Composable
-private fun CloudRows(g: Library.SteamGame, open: Boolean) {
+private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compose.ui.focus.FocusRequester) {
     val store = com.droiddeck.launcher.stores.Store.byId(g.source)?.takeIf { it != com.droiddeck.launcher.stores.Store.AMAZON } ?: return
     val id = g.storeId ?: return
     val context = androidx.compose.ui.platform.LocalContext.current.applicationContext
@@ -237,41 +239,41 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean) {
             runCatching { com.droiddeck.launcher.stores.CloudSaves.status(context, store, id) }.getOrNull()
         }
     }
-    // The game's own switch (sidecar "cloud"), read from and written to disk as the launch reads it.
+    // The game's own switch (sidecar "cloud"), known locally: right from the first frame.
     val folder = g.gameFiles
     var enabled by remember(g.gameId, open) { androidx.compose.runtime.mutableStateOf(folder?.let { com.droiddeck.launcher.stores.StoreGameSidecar.read(it)?.cloud } ?: true) }
     val st = status
-    when {
-        st == null -> MenuItem(stringResource(R.string.cloud_checking), checked = false, enabled = false) {}
-        !st.supported -> MenuItem(stringResource(R.string.cloud_none), checked = false, enabled = false) {}
-        else -> {
-            MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled) {
-                val f = folder ?: return@MenuItem
-                val next = !enabled
-                Thread({
-                    val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateCloud(f, next) }.getOrNull()
-                    com.droiddeck.launcher.stores.StoresState.post { enabled = written?.cloud ?: enabled }
-                }, "cloud-switch").start()
-            }
-            val last = if (st.lastSync > 0) stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString()) else stringResource(R.string.cloud_never)
-            fun sync(up: Boolean, force: Boolean = false) {
-                if (busy != null) return
-                busy = if (up) "up" else "down"
-                Thread({
-                    val r = if (up) com.droiddeck.launcher.stores.CloudSaves.upload(context, store, id, force) else com.droiddeck.launcher.stores.CloudSaves.download(context, store, id, force)
-                    com.droiddeck.launcher.stores.StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, if (r.ok) context.getString(R.string.cloud_done, r.files) else r.reason, android.widget.Toast.LENGTH_SHORT).show() }
-                }, "cloud-manual").start()
-            }
-            // Files changed on both sides since the last sync: neither is overwritten until the user picks.
-            if (st.conflicts.isNotEmpty()) {
-                MenuItem(stringResource(R.string.cloud_conflict), checked = false, enabled = false, detail = stringResource(R.string.cloud_done, st.conflicts.size)) {}
-                MenuItem(stringResource(R.string.cloud_keep_cloud), checked = false, enabled = busy == null) { sync(up = false, force = true) }
-                MenuItem(stringResource(R.string.cloud_keep_local), checked = false, enabled = busy == null) { sync(up = true, force = true) }
-            }
-            MenuItem(stringResource(R.string.cloud_upload), checked = false, enabled = busy == null, detail = if (busy == "up") stringResource(R.string.cloud_checking) else last) { sync(true) }
-            MenuItem(stringResource(R.string.cloud_download), checked = false, enabled = busy == null, detail = if (busy == "down") stringResource(R.string.cloud_checking) else null) { sync(false) }
-        }
+    val supported = st?.supported ?: true
+    val conflict = st != null && st.conflicts.isNotEmpty()
+    fun sync(up: Boolean, force: Boolean = false) {
+        if (busy != null) return
+        busy = if (up) "up" else "down"
+        Thread({
+            val r = if (up) com.droiddeck.launcher.stores.CloudSaves.upload(context, store, id, force) else com.droiddeck.launcher.stores.CloudSaves.download(context, store, id, force)
+            com.droiddeck.launcher.stores.StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, if (r.ok) context.getString(R.string.cloud_done, r.files) else r.reason, android.widget.Toast.LENGTH_SHORT).show() }
+        }, "cloud-manual").start()
     }
+    MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled && supported, enabled = supported, focusRequester = first,
+        detail = if (!supported) stringResource(R.string.cloud_none) else null) {
+        val f = folder ?: return@MenuItem
+        val next = !enabled
+        Thread({
+            val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateCloud(f, next) }.getOrNull()
+            com.droiddeck.launcher.stores.StoresState.post { enabled = written?.cloud ?: enabled }
+        }, "cloud-switch").start()
+    }
+    val ready = st != null && supported && busy == null
+    val pending = stringResource(R.string.cloud_pending)
+    val summary = when {
+        st == null || busy != null -> pending
+        !supported -> stringResource(R.string.cloud_none)
+        conflict -> stringResource(R.string.cloud_conflict_files, st.conflicts.size)
+        st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
+        else -> stringResource(R.string.cloud_never)
+    }
+    // A conflict turns the two actions into its two answers; the rows stay where they are.
+    MenuItem(stringResource(if (conflict) R.string.cloud_keep_local else R.string.cloud_upload), checked = false, enabled = ready, detail = summary) { sync(up = true, force = conflict) }
+    MenuItem(stringResource(if (conflict) R.string.cloud_keep_cloud else R.string.cloud_download), checked = false, enabled = ready, detail = if (st == null || busy != null) pending else null) { sync(up = false, force = conflict) }
 }
 
 /** When it was last played (or where it is, if never) over its name, then room for Launch. */
