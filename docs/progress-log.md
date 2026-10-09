@@ -41,8 +41,8 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   those folders carried a scrub marker from before the account rules, and the marker never
   expired. The marker is now named after the redactor's rules version (`.scrubbed-r3`), so every
   folder scrubbed under older rules goes through again at app start, steam/ and every subfolder
-  included; folders moved out of `Download/DroidDeck` are scrubbed after the move whatever their
-  markers say (`SessionArtifacts.scrubMoved`). New rules: `OnLoginStateChange <anything>`, and
+  included; folders moved out of `Download/DroidDeck` lose every old marker
+  (`SessionArtifacts.unmarkMoved`), so the same pass takes them whatever those markers said. New rules: `OnLoginStateChange <anything>`, and
   `AccountName` / `account_name` / `username` / `login` fields (`login` only as `login=`, a quoted
   key or a VDF pair, so the "Login:" label stays). The `code=` rule no longer touches Proton's
   exception codes (`code=c0000005`, `406d1388`, `80000003`): a bare `code=` is blanked only right
@@ -50,6 +50,14 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   never when it is 8 hex digits; exchange / authorization codes are always blanked. Tests:
   `LogRedactorTest` (the login line with an email and with a plain name), `SecretScrubTest`,
   `SessionLogShareZipTest` (older and moved folders scrubbed on disk).
+- **Device check (31 migrated folders):** only 4 carried `.scrubbed-r3` a minute in. Nothing was
+  skipped - the pass was still running: one folder holds ~30 MB of Steam logs, ~30 s through the
+  redactor, one folder after another (about 15 minutes for 31). The start pass now scrubs a few
+  folders at a time (half the cores, at most 4, background priority), old markers go whether or
+  not a folder's pass succeeds, a folder the process does not finish is taken up at the next start,
+  and it logs one line: `logs: scrubbed N folders under r3`. Test: nine migrated folders carrying
+  `.scrubbed-2`, `.scrubbed-1` or a stale `.scrubbed-r3` all end up scrubbed under r3 after one
+  migration + start pass.
 ## 2026-10-08 - `feat/stores`: GOG, Epic Games and Amazon Games in the launcher (in progress)
 
 A new **Stores** section - the three storefronts' libraries and public catalogs, one download

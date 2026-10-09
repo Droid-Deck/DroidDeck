@@ -53,39 +53,55 @@ class SessionLogShareZipTest {
         assertEquals(line, com.droiddeck.launcher.core.LogRedactor.redactForShare(line))
     }
 
-    // A folder an earlier build scrubbed and marked under older rules, its copied Steam UI log
-    // still naming the account: the pass at app start (and after the move out of Download/)
-    // scrubs it again on disk.
-    private fun olderFolder(name: String): File {
-        val dir = File(LinuxRuntime.logDir(app), name).apply { mkdirs() }
-        File(dir, ".scrubbed-2").writeText("scrubbed earlier\n")
+    // Folders an earlier build scrubbed and marked under older rules, their copied Steam UI log
+    // still naming the account: one app start (the move out of Download/, then the pass over
+    // older folders) leaves every one scrubbed on disk under the current rules.
+    private fun olderFolder(parent: File, name: String, marker: String = ".scrubbed-2"): File {
+        val dir = File(parent, name).apply { mkdirs() }
+        File(dir, marker).writeText("scrubbed earlier\n")
+        File(dir, SessionArtifacts.SCRUBBED_TREE_MARKER).writeText("rules 2\n")
         File(dir, "steam").apply { mkdirs() }.resolve("webhelper_js.txt").writeText(
             "[2026-10-01 20:00:00] SteamUI: INFO: Login: OnLoginStateChange someone.masked@example.com 2 1 0 0\n" +
                 "[2026-10-01 20:00:01] SteamUI: INFO: Login: OnLoginStateChange maskeduser42 2 1 0 0\n" +
-                "[2026-10-01 20:00:02] SteamUI: INFO: Login: OnLoginStateChange  0 1 0 0\n"
+                "[2026-10-01 20:00:02] SteamUI: INFO: Login: OnLoginStateChange  0 1 0 0\n" +
+                "0024:trace:seh:dispatch_exception code=c0000005 flags=0\n"
         )
         return dir
     }
 
     private fun assertScrubbed(dir: File) {
         val text = File(dir, "steam/webhelper_js.txt").readText()
-        for (secret in listOf("someone.masked", "example.com", "maskeduser42")) assertFalse("$secret survived", text.contains(secret))
+        for (secret in listOf("someone.masked", "example.com", "maskeduser42")) assertFalse("$secret survived in $dir", text.contains(secret))
         assertTrue(text.contains("Login: OnLoginStateChange <redacted:account> 2 1 0 0"))
         assertTrue(text.contains("Login: OnLoginStateChange  0 1 0 0"))
-        assertFalse(File(dir, ".scrubbed-2").exists())
-        assertTrue(File(dir, ".scrubbed-r${com.droiddeck.launcher.core.LogRedactor.RULES_VERSION}").exists())
+        assertTrue(text.contains("code=c0000005"))
+        val markers = dir.list()!!.filter { it.startsWith(".scrubbed-") && it != SessionArtifacts.SCRUBBED_TREE_MARKER }
+        assertEquals("$dir", listOf(".scrubbed-r${com.droiddeck.launcher.core.LogRedactor.RULES_VERSION}"), markers)
+        assertTrue(File(dir, SessionArtifacts.SCRUBBED_TREE_MARKER).readText()
+            .startsWith("rules ${com.droiddeck.launcher.core.LogRedactor.RULES_VERSION}\n"))
     }
 
     @Test fun aFolderMarkedUnderOlderRulesIsScrubbedAgainAtStart() {
-        val dir = olderFolder("2026-10-01-01-steam")
+        val dir = olderFolder(LinuxRuntime.logDir(app), "2026-10-01-01-steam")
         SessionArtifacts.scrubOlder(app)
         assertScrubbed(dir)
     }
 
-    @Test fun aMovedFolderIsScrubbedWhateverItsMarkersSay() {
-        val dir = olderFolder("2026-10-01-02-steam")
-        File(dir, ".scrubbed-r${com.droiddeck.launcher.core.LogRedactor.RULES_VERSION}").writeText("claimed\n")
-        SessionArtifacts.scrubMoved(app, listOf(dir))
-        assertScrubbed(dir)
+    @Test fun everyMigratedFolderIsScrubbedUnderTheCurrentRulesInOneStart() {
+        val legacy = LinuxRuntime.legacyLogDir().apply { mkdirs() }
+        val names = (1..9).map { "2026-10-0${it}-01-steam" }
+        names.forEachIndexed { i, name ->
+            // Old markers of every kind an earlier build left, one even claiming the current rules.
+            olderFolder(legacy, name, marker = listOf(".scrubbed-2", ".scrubbed-1", ".scrubbed-r${com.droiddeck.launcher.core.LogRedactor.RULES_VERSION}")[i % 3])
+        }
+        File(legacy, "Saves").apply { mkdirs() }.resolve("keep.txt").writeText("save\n")
+
+        // What MainActivity runs at start.
+        LogMigration.run(app)
+        SessionArtifacts.scrubOlder(app)
+
+        val logs = LinuxRuntime.logDir(app)
+        for (name in names) assertScrubbed(File(logs, name))
+        assertEquals(listOf("Saves"), legacy.list()!!.toList())
     }
 }

@@ -9,8 +9,8 @@ import java.io.File
 /**
  * Once, on the first start of a build with private logs: the session folders, tools/ and the loose
  * tool logs that earlier builds left in `Download/DroidDeck/` move into `files/logs/`. Best effort:
- * an item that cannot be moved stays where it is. Moved session folders are scrubbed again under the
- * current rules ([SessionArtifacts.scrubMoved]). Nothing else in that folder is touched - game
+ * an item that cannot be moved stays where it is. Moved session folders lose their old scrub markers
+ * ([SessionArtifacts.unmarkMoved]), so [SessionArtifacts.scrubOlder] scrubs them under the current rules. Nothing else in that folder is touched - game
  * save backups (Saves/) stay public - and after this pass the app never reads it again.
  */
 object LogMigration {
@@ -40,9 +40,10 @@ object LogMigration {
                 if (SessionPaths.isSessionFolder(dest)) movedFolders.add(dest)
             } else Log.w(TAG, "could not move ${f.name}; left in place")
         }
-        // Earlier builds scrubbed these under older rules (or not at all) and marked them done;
-        // they go through the current redactor before anything can share them.
-        SessionArtifacts.scrubMoved(context, movedFolders)
+        // Earlier builds scrubbed these under older rules (or not at all) and marked them done:
+        // without their markers, the pass over older folders that follows at the same start puts
+        // them through the current redactor.
+        SessionArtifacts.unmarkMoved(movedFolders)
         try { marker.writeText("moved $moved item(s)\n") } catch (e: Exception) { Log.w(TAG, "could not mark the move: ${e.message}") }
         if (moved > 0) Log.i(TAG, "moved $moved log item(s) from $legacy into $target")
     }
