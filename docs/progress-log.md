@@ -135,6 +135,17 @@ without it and Setup says "Stores engine not built").
   when installed, Resume, the download percentage, the install size, or Free / price / discount.
   A thin bar over the art while downloading. Install, Resume, Uninstall, Get and Buy live on the
   game page; A on a card opens it.
+- **Stages named for what they do; both sizes; Cancel deletes.** Epic's check of the files already
+  there is part of Manifest ("Checking 120/515"), never a 100% Verify before anything is fetched.
+  Install has its own write rate and ETA from the bytes the assembler writes, and files n/N. The
+  row shows the download (compressed) as "1.6 GB / 2.5 GB" and the size on disk beside the
+  location; Epic remembers the disk size for the card and page. Cancel asks twice ("Delete
+  download?") and removes everything the install wrote - folder, sidecar, `.chunks`, scratch,
+  `.gog_chunks` - except a finished install being repaired, which keeps itself; the row says
+  Cancelled for three seconds, then goes, and the game reads Install. Pause keeps everything. A
+  failed row reads "Failed · 2.1 GB kept" (the reason is in the log) with Resume and Clear (Clear
+  deletes like Cancel); the game page offers Resume install and Clear for an unfinished install.
+  Library sync is a thin bar and "25/55", no sentence.
 - **Per-stage progress** (device: Epic DOOMBLADE, 13 GB, ~3 min of assembly with a still bar). The
   entry carries the active stage's own count (amount + files) and which stages are passed; the
   Downloads row draws one segment per stage (Manifest, Download, Verify, Install), and its line

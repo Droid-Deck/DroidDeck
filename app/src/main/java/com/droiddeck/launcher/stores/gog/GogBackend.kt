@@ -96,8 +96,8 @@ object GogBackend : StoreBackend {
                 override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
                 override fun onLog(line: String) { handle.log(line) }
                 override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
-                    handle.stage(if (stage == "verify") DownloadStage.VERIFY else DownloadStage.INSTALL)
-                    handle.stageProgress(done, total, items, itemsTotal)
+                    handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
+                    handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
                 }
             }, cancelled) ?: return null
             if (cancelled.get()) return null
@@ -114,7 +114,7 @@ object GogBackend : StoreBackend {
 
         override fun cancel(deleteFiles: Boolean) {
             cancelled.set(true)
-            if (deleteFiles) Thread({ StoreInstalls.deleteTree(folder) }, "gog-cancel-clean").start()
+            if (deleteFiles) StoreInstalls.discard(app, folder, listOf(File(folder, ".gog_chunks")))
         }
     }
 }

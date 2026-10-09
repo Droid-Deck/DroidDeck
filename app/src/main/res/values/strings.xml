@@ -1991,7 +1991,7 @@
     <string name="stores_search_library">Search your library…</string>
     <string name="stores_search_all">Search everything on %1$s…</string>
     <string name="stores_installed_empty">Nothing installed</string>
-    <string name="stores_library_loading">Fetching your library…</string>
+    <string name="stores_library_loading">Loading</string>
     <string name="stores_nothing_matches">No games</string>
     <string name="stores_shelves_loading">Loading the store…</string>
     <string name="stores_amazon_no_catalog">No catalog</string>
@@ -2062,7 +2062,10 @@
     <string name="stores_stage_verify">Verify</string>
     <string name="stores_stage_install">Install</string>
     <string name="stores_stage_done">Done</string>
+    <string name="stores_stage_checking">Checking</string>
     <string name="stores_stage_downloading">Downloading</string>
+    <string name="stores_dl_cancel_confirm">Delete download?</string>
+    <string name="stores_dl_failed_kept">Failed · %1$s kept</string>
     <string name="stores_stage_verifying">Verifying</string>
     <string name="stores_stage_installing">Installing</string>
     <string name="stores_dl_active_percent">%1$s %2$d%%</string>

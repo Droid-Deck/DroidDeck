@@ -77,6 +77,23 @@ object StoreInstalls {
         StoresState.logLine("uninstalled \"${game.sidecar.title}\"")
     }
 
+    /**
+     * What Cancel does: everything the install wrote goes - the game folder with its sidecar and
+     * the caches in [caches] - unless the folder holds a finished install being repaired or updated;
+     * then only the caches go and the working game stays. Off the caller's thread; the library
+     * follows when it is done, so the game reads Install again.
+     */
+    fun discard(context: Context, folder: File, caches: List<File>) {
+        val app = context.applicationContext
+        Thread({
+            val keep = StoreGameSidecar.read(folder)?.isInstalled == true
+            caches.forEach { deleteTree(it) }
+            if (!keep) deleteTree(folder)
+            StoresState.logLine(if (keep) "removed the partial update of ${folder.name}" else "removed ${folder.name}")
+            StoresState.notifyLibraryChanged(app)
+        }, "store-cancel-clean").start()
+    }
+
     fun deleteTree(dir: File) {
         dir.listFiles()?.forEach { if (it.isDirectory) deleteTree(it) else it.delete() }
         dir.delete()

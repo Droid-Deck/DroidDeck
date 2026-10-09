@@ -98,6 +98,17 @@ object StoresState {
         it.store == item.store && (it.id == item.id || (it.id == null && it.folder.name == StoreInstallRoot.folderName(item.title, item.id)))
     }
 
+    /** Deletes an unfinished install's folder and caches, as Cancel would; drops its row if there is one. */
+    fun clearUnfinished(context: Context, item: CatalogItem) {
+        val app = context.applicationContext
+        val key = "${item.store.id}:${item.id}"
+        if (com.droiddeck.launcher.stores.download.DownloadQueue.entry(key) != null) { com.droiddeck.launcher.stores.download.DownloadQueue.clear(app, key); return }
+        val folder = unfinished.firstOrNull {
+            it.store == item.store && (it.id == item.id || (it.id == null && it.folder.name == StoreInstallRoot.folderName(item.title, item.id)))
+        }?.folder ?: return
+        StoreInstalls.discard(app, folder, listOf(java.io.File(folder, ".chunks"), java.io.File(folder, ".gog_chunks"), StoreInstallRoot.scratchDir(app, item.store, item.id)))
+    }
+
     fun installedGame(store: Store, id: String): InstalledStoreGame? = installed.firstOrNull { it.sidecar.store == store && it.sidecar.id == id }
 
     /** The user's library and the shelves for [store], from the cache first and the network when stale. */

@@ -312,7 +312,7 @@ private fun Storefront(
             },
         )
     }
-    StoresState.status[store]?.let { Rise(3) { Text(it, fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp)) } }
+    StoresState.status[store]?.let { line -> Rise(3) { SyncBar(line) } }
     StoresState.problems[store]?.let { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(it) } } }
     // The first card drawn on the tab is where a pad lands after a tab or chip change.
     var firstPlaced = false
@@ -452,6 +452,21 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     }
 }
 
+/** A store's sync as a thin bar and its count ("25/55"); a moving bar when it has no count yet. */
+@Composable
+private fun SyncBar(line: String) {
+    val count = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line)
+    val done = count?.groupValues?.get(1)?.toIntOrNull()
+    val total = count?.groupValues?.get(2)?.toIntOrNull()?.takeIf { it > 0 }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        Box(Modifier.weight(1f)) {
+            if (done != null && total != null) androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp))
+            else androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
+        }
+        if (done != null && total != null) Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+    }
+}
+
 /** How tall the card's one line is, over the blurred foot of its art. */
 private val CardStrip = 28.dp
 
@@ -535,10 +550,28 @@ internal fun ProgressBarThin(fraction: Float, paused: Boolean = false, verify: B
 }
 
 @Composable
-internal fun downloadLabel(state: DownloadState, stage: DownloadStage, percent: Int): String = when (state) {
+internal fun downloadLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry): String = when (d.state) {
     DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
     DownloadState.QUEUED -> stringResource(R.string.stores_dl_queued)
-    else -> stringResource(R.string.stores_dl_stage_percent, stageLabel(stage), percent)
+    else -> if (d.stageFraction >= 0f) stringResource(R.string.stores_dl_active_percent, activeStageLabel(d), d.percent) else activeStageLabel(d)
+}
+
+/** The active stage as the row and the page name it: Checking (files already there), Downloading, Verifying, Installing. */
+@Composable
+internal fun activeStageLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry): String = when (d.stage) {
+    DownloadStage.MANIFEST -> if (d.stageItemsTotal > 0) stringResource(R.string.stores_stage_checking) else stringResource(R.string.stores_stage_manifest)
+    DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_downloading)
+    DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verifying)
+    DownloadStage.INSTALL -> stringResource(R.string.stores_stage_installing)
+    DownloadStage.DONE -> stringResource(R.string.stores_stage_done)
+}
+
+/** Two taps: the first arms it ([confirm] shows), the second acts; it disarms itself after a few seconds. */
+@Composable
+internal fun ConfirmButton(label: String, confirm: String, compact: Boolean = false, onConfirm: () -> Unit) {
+    var armed by remember { mutableStateOf(false) }
+    LaunchedEffect(armed) { if (armed) { kotlinx.coroutines.delay(4000); armed = false } }
+    SecondaryButton(if (armed) confirm else label, compact = compact) { if (!armed) armed = true else { armed = false; onConfirm() } }
 }
 
 @Composable

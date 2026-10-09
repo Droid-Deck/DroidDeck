@@ -98,18 +98,20 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(d.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     SourceChip(d.store.id, small = true)
-                    if (d.location.isNotBlank()) Text(d.location, fontSize = 11.sp, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val where = listOfNotNull(d.location.takeIf { it.isNotBlank() }, d.diskBytes.takeIf { it > 0 }?.let { formatBytes(it) }).joinToString(" · ")
+                    if (where.isNotEmpty()) Text(where, fontSize = 11.sp, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 StageBar(d)
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     val meta = when (d.state) {
                         DownloadState.INSTALLED -> stringResource(R.string.stores_installed_chip)
                         DownloadState.CANCELLED -> stringResource(R.string.stores_dl_cancelled)
-                        DownloadState.FAILED -> d.error?.let { stringResource(R.string.stores_dl_failed_reason, it) } ?: stringResource(R.string.stores_dl_failed)
+                        // The reason is in the engine log; the row only says what is kept for Resume.
+                        DownloadState.FAILED -> if (d.bytesDone > 0) stringResource(R.string.stores_dl_failed_kept, formatBytes(d.bytesDone)) else stringResource(R.string.stores_dl_failed)
                         DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
                         DownloadState.QUEUED -> if (d.queuePosition > 0) stringResource(R.string.stores_dl_queued_at, d.queuePosition) else stringResource(R.string.stores_dl_queued)
                         DownloadState.RUNNING -> {
-                            val head = if (d.stageFraction >= 0f) stringResource(R.string.stores_dl_active_percent, activeStageLabel(d.stage), d.percent) else activeStageLabel(d.stage)
+                            val head = downloadLabel(d)
                             when {
                                 d.stage == DownloadStage.DOWNLOAD && d.bytesTotal > 0 -> stringResource(R.string.stores_dl_with, head, stringResource(R.string.stores_dl_amount, formatBytes(d.bytesDone), formatBytes(d.bytesTotal)))
                                 d.stageItemsTotal > 0 -> stringResource(R.string.stores_dl_with, head, stringResource(R.string.stores_dl_items, d.stageItems, d.stageItemsTotal))
@@ -118,7 +120,7 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                         }
                     }
                     Text(meta, fontSize = 12.sp, color = dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (d.state == DownloadState.RUNNING && d.stage == DownloadStage.DOWNLOAD && d.speedBps > 0) {
+                    if (d.state == DownloadState.RUNNING && (d.stage == DownloadStage.DOWNLOAD || d.stage == DownloadStage.INSTALL) && d.speedBps > 0) {
                         Text(formatSpeed(d.speedBps), fontSize = 12.sp, color = dim, maxLines = 1)
                         if (d.etaSeconds >= 0) Text(eta(d.etaSeconds), fontSize = 12.sp, color = dim, maxLines = 1)
                     }
@@ -129,15 +131,15 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                 when (d.state) {
                     DownloadState.RUNNING, DownloadState.QUEUED -> {
                         SecondaryButton(stringResource(R.string.stores_dl_pause), compact = true) { DownloadQueue.pause(d.key) }
-                        SecondaryButton(stringResource(R.string.stores_dl_cancel), compact = true) { DownloadQueue.cancel(ctx, d.key) }
+                        ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.cancel(ctx, d.key) }
                     }
                     DownloadState.PAUSED -> {
                         PrimaryButton(stringResource(R.string.stores_dl_resume), compact = true) { DownloadQueue.resume(ctx, d.key) }
-                        SecondaryButton(stringResource(R.string.stores_dl_cancel), compact = true) { DownloadQueue.cancel(ctx, d.key) }
+                        ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.cancel(ctx, d.key) }
                     }
                     DownloadState.FAILED -> {
-                        PrimaryButton(stringResource(R.string.stores_dl_retry), compact = true) { DownloadQueue.retry(ctx, d.key) }
-                        SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
+                        PrimaryButton(stringResource(R.string.stores_dl_resume), compact = true) { DownloadQueue.retry(ctx, d.key) }
+                        ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.clear(ctx, d.key) }
                     }
                     DownloadState.INSTALLED -> {
                         PrimaryButton(stringResource(R.string.stores_play), compact = true, icon = Icons.Filled.PlayArrow) { launchStoreGame(ctx, d.store, d.id, s, a) }
@@ -173,15 +175,6 @@ private fun StageBar(d: DownloadEntry) {
             }
         }
     }
-}
-
-@Composable
-private fun activeStageLabel(stage: DownloadStage): String = when (stage) {
-    DownloadStage.MANIFEST -> stringResource(R.string.stores_stage_manifest)
-    DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_downloading)
-    DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verifying)
-    DownloadStage.INSTALL -> stringResource(R.string.stores_stage_installing)
-    DownloadStage.DONE -> stringResource(R.string.stores_stage_done)
 }
 
 private fun eta(seconds: Long): String = when {

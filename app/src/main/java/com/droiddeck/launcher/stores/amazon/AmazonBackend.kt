@@ -127,7 +127,7 @@ object AmazonBackend : StoreBackend {
 
         override fun cancel(deleteFiles: Boolean) {
             cancelled.set(true)
-            if (deleteFiles) Thread({ StoreInstalls.deleteTree(folder) }, "amazon-cancel-clean").start()
+            if (deleteFiles) StoreInstalls.discard(app, folder, emptyList())
         }
     }
 

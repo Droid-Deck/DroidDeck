@@ -121,15 +121,19 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                     when {
                         message.startsWith("Writing") || message.startsWith("Complete") -> handle.stage(DownloadStage.INSTALL, message)
                         message.startsWith("Downloading chunks") -> { if (!downloading) { downloading = true; handle.stage(DownloadStage.DOWNLOAD, message) } else handle.progress(-1, -1, message) }
-                        message.startsWith("Verifying") -> handle.stage(DownloadStage.VERIFY, message)
+                        message.startsWith("Checking") -> handle.stage(DownloadStage.MANIFEST, message)
                         else -> handle.stage(DownloadStage.MANIFEST, message)
                     }
                 }
                 override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
                 override fun onLog(line: String) { handle.log(line) }
+                override fun onSizes(downloadBytes: Long, diskBytes: Long) {
+                    handle.diskSize(diskBytes)
+                    EpicLibrary.rememberSize(app, item.id, diskBytes)
+                }
                 override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
-                    handle.stage(if (stage == "verify") DownloadStage.VERIFY else DownloadStage.INSTALL)
-                    handle.stageProgress(done, total, items, itemsTotal)
+                    handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
+                    handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
                 }
             }) ?: return null
             if (cancelled.get()) return null
@@ -151,7 +155,7 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
 
         override fun cancel(deleteFiles: Boolean) {
             cancelled.set(true)
-            if (deleteFiles) Thread({ StoreInstalls.deleteTree(folder); scratch?.let { StoreInstalls.deleteTree(it) } }, "epic-cancel-clean").start()
+            if (deleteFiles) StoreInstalls.discard(app, folder, listOfNotNull(File(folder, ".chunks"), scratch, StoreInstallRoot.scratchDir(app, Store.EPIC, item.id)))
         }
     }
 

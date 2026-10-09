@@ -903,7 +903,7 @@ public final class GogDownloadManager {
         for (File f : files) {
             deleteDir(f);
             done++;
-            if ((done & 31) == 0 || done == total) cb.onStage("install", done, total, done, total);
+            if ((done & 31) == 0 || done == total) cb.onStage("cleanup", done, total, done, total);
         }
         dir.delete();
     }

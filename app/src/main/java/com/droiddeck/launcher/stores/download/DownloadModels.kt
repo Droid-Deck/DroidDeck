@@ -52,6 +52,8 @@ data class DownloadEntry(
     val stageTotal: Long = 0L,
     val stageItems: Int = 0,
     val stageItemsTotal: Int = 0,
+    /** What the game takes on disk, when the store has said (the download itself is [bytesTotal], often compressed). */
+    val diskBytes: Long = 0L,
     /** Stages already passed, one bit per [DownloadStage] ordinal; stages can come back (Epic checks files before it fetches). */
     val stagesPassed: Int = 0,
 ) {

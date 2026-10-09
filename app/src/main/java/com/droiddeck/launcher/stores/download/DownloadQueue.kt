@@ -35,10 +35,13 @@ object DownloadQueue {
         val isCancelled: Boolean get() = cancelled.get()
         /** Enters [stage] (a repeat of the current one only updates the line); a new stage starts its own count from zero. */
         fun stage(stage: DownloadStage, detail: String = "") = enter(key, stage, stripSpeed(detail))
-        /** The active stage's own count outside Download: an amount (bytes or items) and, when it counts files, the files. */
-        fun stageProgress(done: Long, total: Long, items: Int = 0, itemsTotal: Int = 0) = update(key) {
-            it.copy(stageDone = done, stageTotal = total, stageItems = items, stageItemsTotal = itemsTotal)
-        }
+        /**
+         * The active stage's own count outside Download: an amount and, when it counts files, the
+         * files. [bytes] = the amount is bytes written, so the stage gets its own rate and ETA.
+         */
+        fun stageProgress(done: Long, total: Long, items: Int = 0, itemsTotal: Int = 0, bytes: Boolean = false) = stageCount(key, done, total, items, itemsTotal, bytes)
+        /** The game's size on disk, once the store has said. */
+        fun diskSize(bytes: Long) = update(key) { if (bytes > 0) it.copy(diskBytes = bytes) else it }
         /**
          * Bytes so far (negative = unchanged), the total (<= 0 = unchanged), a line. [speedBps] is the
          * engine's own figure: a burst rate at the network side, which jumps while the write side
@@ -79,6 +82,34 @@ object DownloadQueue {
     /** How far back the shown speed looks: a few seconds, so the figure settles instead of following each file. */
     private const val SPEED_WINDOW_MS = 3000.0
 
+    private fun stageCount(key: String, done: Long, total: Long, files: Int, filesTotal: Int, bytes: Boolean) {
+        synchronized(lock) {
+            val item = items[key] ?: return
+            val e = item.entry
+            var speed = e.speedBps
+            if (bytes) speed = sample(item, done)
+            val eta = if (bytes && speed > 0 && total > done) (total - done) / speed else -1L
+            item.entry = e.copy(stageDone = done, stageTotal = total, stageItems = files, stageItemsTotal = filesTotal, speedBps = if (bytes) speed else 0, etaSeconds = eta)
+            publishLocked()
+        }
+    }
+
+    /** One sample of the rate behind [done] (bytes so far in this stage), smoothed over [SPEED_WINDOW_MS]. Caller holds [lock]. */
+    private fun sample(item: Item, done: Long): Long {
+        val now = System.currentTimeMillis()
+        if (item.speedAt == 0L) { item.speedAt = now; item.speedBytes = done; return item.speedEwma.toLong() }
+        val dt = now - item.speedAt
+        // Sampled no faster than every quarter second, as an exponential average over
+        // SPEED_WINDOW_MS: one big file landing moves it, it does not define it.
+        if (dt >= 250) {
+            val inst = (done - item.speedBytes).coerceAtLeast(0) * 1000.0 / dt
+            val alpha = 1.0 - Math.exp(-dt / SPEED_WINDOW_MS)
+            item.speedEwma = if (item.speedEwma <= 0.0) inst else item.speedEwma + (inst - item.speedEwma) * alpha
+            item.speedAt = now; item.speedBytes = done
+        }
+        return item.speedEwma.toLong()
+    }
+
     private fun measure(key: String, bytesDone: Long, bytesTotal: Long, detail: String?) {
         synchronized(lock) {
             val item = items[key] ?: return
@@ -86,21 +117,7 @@ object DownloadQueue {
             val e = item.entry
             val done = if (bytesDone >= 0) bytesDone else e.bytesDone
             val total = if (bytesTotal > 0) bytesTotal else e.bytesTotal
-            val now = System.currentTimeMillis()
-            if (bytesDone >= 0) {
-                if (item.speedAt == 0L) { item.speedAt = now; item.speedBytes = done }
-                else {
-                    val dt = now - item.speedAt
-                    // Sampled no faster than every quarter second, as an exponential average over
-                    // SPEED_WINDOW_MS: one big file landing moves it, it does not define it.
-                    if (dt >= 250) {
-                        val inst = (done - item.speedBytes).coerceAtLeast(0) * 1000.0 / dt
-                        val alpha = 1.0 - Math.exp(-dt / SPEED_WINDOW_MS)
-                        item.speedEwma = if (item.speedEwma <= 0.0) inst else item.speedEwma + (inst - item.speedEwma) * alpha
-                        item.speedAt = now; item.speedBytes = done
-                    }
-                }
-            }
+            if (bytesDone >= 0) sample(item, done)
             val speed = item.speedEwma.toLong()
             val eta = if (speed > 0 && total > done) (total - done) / speed else -1L
             item.entry = e.copy(state = DownloadState.RUNNING, stage = DownloadStage.DOWNLOAD, bytesDone = done, bytesTotal = total, detail = detail ?: e.detail, speedBps = speed, etaSeconds = eta)
@@ -198,6 +215,22 @@ object DownloadQueue {
         StoresState.logLine("cancelled \"${item.entry.name}\"")
         StoreDownloadService.finish(app, key)
         advance(app)
+        // The row says Cancelled for a moment, then goes; the game reads Install again.
+        Thread({ Thread.sleep(3000); synchronized(lock) { if (items[key]?.entry?.state == DownloadState.CANCELLED) { items.remove(key); publishLocked() } } }, "store-dl-cancelled").start()
+    }
+
+    /**
+     * Clear on a failed or paused row: deletes what it kept exactly as Cancel does (the job's own
+     * cleanup), then drops the row. An installed or cancelled row is only dropped.
+     */
+    fun clear(context: Context, key: String) {
+        val item = synchronized(lock) { items[key] } ?: return
+        if (item.entry.state == DownloadState.RUNNING || item.entry.state == DownloadState.QUEUED) return
+        if (item.entry.state == DownloadState.FAILED || item.entry.state == DownloadState.PAUSED) {
+            Thread({ runCatching { item.factory().cancel(deleteFiles = true) } }, "store-dl-clear").start()
+        }
+        synchronized(lock) { items.remove(key); publishLocked() }
+        StoreDownloadService.finish(context.applicationContext, key)
     }
 
     /** Drops a finished, failed or cancelled row from the list. */

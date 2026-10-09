@@ -57,11 +57,14 @@ public final class EpicDownloadManager {
         default void onBytes(long done, long total, long speedBps) {}
         default void onLog(String line) {}
         /**
-         * The active stage's own count: {@code stage} is "verify" or "install", {@code done} of
+         * The active stage's own count: {@code stage} is "check" (the files already there, before
+         * anything is fetched), "verify" or "install" (bytes written), {@code done} of
          * {@code total} an amount (bytes, or items when there are no bytes), {@code items} of
          * {@code itemsTotal} the files, when it counts files.
          */
         default void onStage(String stage, long done, long total, int items, int itemsTotal) {}
+        /** What this run fetches (compressed) and what the game takes on disk. */
+        default void onSizes(long downloadBytes, long diskBytes) {}
     }
 
     private EpicDownloadManager() {}
@@ -157,19 +160,19 @@ public final class EpicDownloadManager {
             final long planned = installBytes;
             // Free space is checked after the delta pass, against what is still missing (below).
 
-            cb.onProgress("Verifying existing files…", 0);
+            cb.onProgress("Checking files…", 0);
             List<FileInfo> pending = new ArrayList<>(selected.size());
             int checked = 0, good = 0;
             long checkedBytes = 0;
-            cb.onStage("verify", 0, installBytes, 0, selected.size());
+            cb.onStage("check", 0, installBytes, 0, selected.size());
             for (FileInfo f : selected) {
                 if (cancel.get()) return null;
                 File out = new File(installDir, f.filename.replace("\\", "/"));
                 if (fileExistsWithCorrectHash(out, f.fileSize(), f.sha1)) good++; else pending.add(f);
                 checked++;
                 checkedBytes += f.fileSize();
-                if ((checked & 15) == 0 || checked == selected.size()) cb.onStage("verify", checkedBytes, installBytes, checked, selected.size());
-                if ((checked & 63) == 0) cb.onProgress("Verifying existing files… (" + checked + "/" + selected.size() + ")", 0);
+                if ((checked & 15) == 0 || checked == selected.size()) cb.onStage("check", checkedBytes, installBytes, checked, selected.size());
+                if ((checked & 63) == 0) cb.onProgress("Checking files… (" + checked + "/" + selected.size() + ")", 0);
             }
             cb.onLog("epic: delta " + good + " up to date, " + pending.size() + " to download");
             if (pending.isEmpty()) {
@@ -204,6 +207,7 @@ public final class EpicDownloadManager {
             final AtomicLong lastSpeedMs = new AtomicLong(System.currentTimeMillis());
             final AtomicLong lastSpeedBytes = new AtomicLong(0);
             final AtomicLong speedBps = new AtomicLong(0);
+            cb.onSizes(fTotalBytes, planned);
             cb.onBytes(0, fTotalBytes, 0);
             cb.onLog("epic: " + fmt(fTotalBytes) + " in " + totalChunks + " chunks");
 
