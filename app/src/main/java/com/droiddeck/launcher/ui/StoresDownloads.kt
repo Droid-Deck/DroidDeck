@@ -193,14 +193,6 @@ private fun DownloadSettings(s: FrontEndState, a: FrontEndActions) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).border(1.dp, pal.line, Shape12).padding(horizontal = 14.dp, vertical = 10.dp)) {
         DownloadControls(s, a)
     }
-    SectionTitle(stringResource(R.string.stores_engine_log), null)
-    Box(Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 220.dp).clip(Shape12).background(Color.Black).border(1.dp, pal.line, Shape12).padding(12.dp)) {
-        val lines = StoresState.log
-        Text(
-            if (lines.isEmpty()) stringResource(R.string.stores_log_idle) else lines.asReversed().joinToString("\n"),
-            fontSize = 11.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace, color = Color(0xFF9BE27A),
-        )
-    }
 }
 
 /**

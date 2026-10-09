@@ -2078,8 +2078,6 @@
     <string name="stores_install_title">Install %1$s:</string>
     <string name="stores_target_internal">Internal</string>
     <string name="stores_target_free">%1$s free</string>
-    <string name="stores_engine_log">Engine log</string>
-    <string name="stores_log_idle">idle</string>
     <string name="stores_notification_channel">Store downloads</string>
     <string name="stores_notification_channel_hint">Shows game download progress and keeps downloads running in the background</string>
     <string name="stores_notification_one">Downloading</string>

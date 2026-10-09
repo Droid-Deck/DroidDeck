@@ -73,7 +73,9 @@ object SessionLogShare {
         // every share kept the share sheet from appearing for ten seconds or more.
         val scrubbed = SessionArtifacts.scrubbedFiles(folder)
         val live = liveSteamLogs(context, folder)
-        val total = (files + live).sumOf { it.length() }.coerceAtLeast(1L)
+        // The stores' own log (last 7 days, app-private, already redacted), under stores/.
+        val storeLogs = com.droiddeck.launcher.stores.StoreLogFiles.files(context)
+        val total = (files + live + storeLogs).sumOf { it.length() }.coerceAtLeast(1L)
         var done = 0L
         var shown = -1
         fun advance(f: File) {
@@ -84,6 +86,7 @@ object SessionLogShare {
         ZipOutputStream(zip.outputStream().buffered()).use { z ->
             files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f, f.relativeTo(folder).path in scrubbed); advance(f) }
             live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f, false); advance(f) }
+            storeLogs.forEach { f -> addEntry(z, folder.name + "/stores/" + f.name, f, false); advance(f) }
         }
         return zip
     }

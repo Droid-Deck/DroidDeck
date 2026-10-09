@@ -51,8 +51,6 @@ object StoresState {
     var downloads by mutableStateOf<List<DownloadEntry>>(emptyList())
         internal set
 
-    /** The engine log the Downloads page shows: the last lines, newest last. */
-    val log = mutableStateListOf<String>()
 
     /** The native engine's version once probed, "" when the probe said it is missing, null before. */
     var engine by mutableStateOf<String?>(null)
@@ -181,17 +179,22 @@ object StoresState {
     fun logLine(raw: String) {
         // Every store line passes here, the engines' included: no token or full URL is kept.
         val text = StoreLog.redactLine(raw)
-        val stamped = "${CLOCK.format(Date())}  $text"
         Log.i(TAG, text)
-        main.post {
-            log.add(stamped)
-            while (log.size > 80) log.removeAt(0)
-        }
+        val app = appContext ?: return
+        StoreLogFiles.append(app, "${synchronized(CLOCK) { CLOCK.format(Date()) }}  $text")
+    }
+
+    private var appContext: Context? = null
+
+    /** Called once as the app starts: where the log file goes, and the old days pruned. */
+    fun init(context: Context) {
+        appContext = context.applicationContext
+        StoreLogFiles.prune(context)
     }
 
     internal fun post(block: () -> Unit) = main.post(block)
 
-    private val CLOCK = SimpleDateFormat("HH:mm:ss", Locale.US)
+    private val CLOCK = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 }
 
 /** What one store contributes: sign-in, its library, its shelves, installs and removals. */

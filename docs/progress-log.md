@@ -135,6 +135,9 @@ without it and Setup says "Stores engine not built").
   when installed, Resume, the download percentage, the install size, or Free / price / discount.
   A thin bar over the art while downloading. Install, Resume, Uninstall, Get and Buy live on the
   game page; A on a card opens it.
+- **No log panel:** the Downloads page's engine log is gone. Store lines go to logcat and to
+  app-private daily files (`filesDir/stores/logs/stores-<date>.log`, seven days, ~2 MB rolling to
+  `.1`), pruned as the app starts; the session's Share logs zip includes them under `stores/`.
 - **Store log lines are redacted at the one choke point** (`StoresState.logLine`, which the engines'
   lines reach too): every URL is cut to scheme, host and a plain first path segment (a GOG secure
   link's token sits in the path, so it goes), no query, fragment or userinfo; token-like values
