@@ -226,9 +226,14 @@ internal fun StepOut(
             }
         }
 
-        // The rest of the screen dims behind it, and a tap there folds it.
+        // Opened by touch and then answered with a pad: the pad starts in the box, not behind it.
+        LaunchedEffect(open, grown, inputMode.inputMode) {
+            if (open && grown && inputMode.inputMode == InputMode.Keyboard) { withFrameNanos { }; runCatching { first.requestFocus() } }
+        }
+        // The rest of the screen dims behind it, and a tap there folds it. Never a pad's stop.
         Box(
             Modifier.fillMaxSize().graphicsLayer { alpha = dim.value }.background(Color(0x59000000))
+                .focusProperties { canFocus = false }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open, onClick = onDismiss),
         )
         val path = remember { Path() }
