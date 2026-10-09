@@ -144,6 +144,18 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **A game launched from the Games tab with no session running sat at "Launching"** (device,
+  2026-10-09-04-steam, and 2026-10-08-05 before it). The session put `steam://rungameid/<id>` on
+  the client's command line; the client took it seconds before its interface was up (focus went to
+  769 at 04:29:07, the launch at 04:29:09) and its launch stopped at `LaunchApp waiting for user
+  response to ShowInterstitials` with nothing to answer - the next launch from inside Steam went
+  straight through. Not store-specific: the 2026-10-08 cold launch of another shortcut stopped the
+  same way. `droiddeck-session` now holds such a URL back and hands it over through the same
+  `steam-game` request an in-session launch uses, once gamescope's focused app is the interface
+  (769) and four seconds have passed, or after two minutes regardless. The `rc=139` at the end of
+  both sessions is the client crashing in its own shutdown, after "Shutdown", unrelated to the
+  launch. The shortcuts writer keeps a compat tool the user chose (`plan_mapping` skips an entry
+  that is not one it set itself), and the live add sets one only for a new shortcut.
 - **Why EOS's browser flow never reached Android:** the hand-off script was never in the APK. The
   build copies only `usr/local/bin/droiddeck-*`, `steam-compatibility` and `usr/bin/**` of the overlay
   into the assets, so `usr/local/lib/droiddeck/browser/xdg-open` was skipped, the session staged
