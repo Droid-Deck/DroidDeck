@@ -181,7 +181,7 @@ object SessionArtifacts {
             Log.w(TAG, "$dir is not fully scrubbed; it is scrubbed again when shared")
             return false
         }
-        try {
+        return try {
             File(dir, SCRUBBED_MARKER).writeText("scrubbed ${now()}\n")
             val lines = StringBuilder("rules ${LogRedactor.RULES_VERSION}\n")
             record.files.forEach { (f, s) ->

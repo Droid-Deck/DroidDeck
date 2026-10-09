@@ -222,6 +222,15 @@ object LogRedactor {
      */
     const val RULES_VERSION = 3
 
+    /**
+     * A private IPv4 address (10/8, 172.16/12, 192.168/16, link-local 169.254/16): the home
+     * network's layout, e.g. its router as the resolver. Blanked in a shared zip only; public
+     * server addresses stay. Not part of a longer dotted number (a version like 10.0.19041.1).
+     */
+    private val LAN_IPV4 = Regex(
+        "(?<![\\d.])(?:10\\.\\d{1,3}|192\\.168|172\\.(?:1[6-9]|2\\d|3[01])|169\\.254)\\.\\d{1,3}\\.\\d{1,3}(?!\\.?\\d)"
+    )
+
     /** [src]'s lines, scrubbed, to [out]. */
     fun scrubTo(src: java.io.File, out: java.io.Writer) {
         src.forEachLine { line -> out.write(redact(line)); out.write("\n") }
@@ -230,13 +239,14 @@ object LogRedactor {
     /**
      * The last pass for a file going into a shared zip: [redact], then the rules the stores' log
      * uses too ([SecretScrub]) - URLs without query, fragment and user:password and with any
-     * token-bearing path segment blanked, token values and Authorization / Cookie headers blanked.
-     * A line already clean comes out unchanged.
+     * token-bearing path segment blanked, token values and Authorization / Cookie headers blanked
+     * - and private IPv4 addresses as `<lan-address>`. A line already clean comes out unchanged.
      */
     fun redactForShare(line: String): String {
         if (line.isEmpty()) return line
         return try {
-            SecretScrub.scrub(redact(line), SecretScrub.Urls.KEEP_PATH, "<redacted:token>")
+            val out = SecretScrub.scrub(redact(line), SecretScrub.Urls.KEEP_PATH, "<redacted:token>")
+            LAN_IPV4.replace(out, "<lan-address>")
         } catch (t: Throwable) {
             "<redaction failed; line withheld>"
         }

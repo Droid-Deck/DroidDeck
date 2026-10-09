@@ -58,6 +58,9 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   and it logs one line: `logs: scrubbed N folders under r3`. Test: nine migrated folders carrying
   `.scrubbed-2`, `.scrubbed-1` or a stale `.scrubbed-r3` all end up scrubbed under r3 after one
   migration + start pass.
+- **LAN addresses in the zip:** private IPv4 addresses (10/8, 172.16/12, 192.168/16, 169.254/16;
+  e.g. the router in `LinuxNetworkLink: resolver: ...`) become `<lan-address>` in the zip pass;
+  public server addresses and dotted version numbers stay (`LogRedactorTest`).
 ## 2026-10-08 - `feat/stores`: GOG, Epic Games and Amazon Games in the launcher (in progress)
 
 A new **Stores** section - the three storefronts' libraries and public catalogs, one download

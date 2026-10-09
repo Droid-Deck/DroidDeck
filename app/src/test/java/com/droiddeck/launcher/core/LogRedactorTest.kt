@@ -133,4 +133,19 @@ class LogRedactorTest {
             assertEquals(line, LogRedactor.redact(line))
         }
     }
+
+    @Test fun privateAddressesLeaveTheZipPublicOnesStay() {
+        assertEquals("I/LinuxNetworkLink: resolver: <lan-address> <lan-address> 8.8.8.8",
+            LogRedactor.redactForShare("I/LinuxNetworkLink: resolver: 192.168.1.1 10.0.0.138 8.8.8.8"))
+        assertEquals("gateway <lan-address>:53 link <lan-address> lan <lan-address>",
+            LogRedactor.redactForShare("gateway 172.16.4.20:53 link 169.254.10.2 lan 172.31.255.254"))
+        for (line in listOf(
+            "connecting to CM 162.254.193.47:27017",
+            "public 172.32.0.1 and 11.0.0.1 and 193.168.1.1",
+            "Windows 10.0.19041.1 build 10.0.19045",
+            "Proton 10.0-3, driver 25.1.0.4",
+        )) assertEquals(line, LogRedactor.redactForShare(line))
+        val once = LogRedactor.redactForShare("resolver: 192.168.0.1")
+        assertEquals(once, LogRedactor.redactForShare(once))
+    }
 }
