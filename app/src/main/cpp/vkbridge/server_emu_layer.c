@@ -200,13 +200,14 @@ static VKAPI_ATTR VkResult VKAPI_CALL emu_CreateGraphicsPipelines(VkDevice devic
     uint32_t nmods = 0;
     for (uint32_t i = 0; i < n; i++) {
         VkGraphicsPipelineCreateInfo *ci = (VkGraphicsPipelineCreateInfo *)&infos[i];
+        /* Shader rewrites first: they read inline SPIR-V before it becomes a module. */
+        vkb_emu_shader_pipeline(e, device, ci, mods, &nmods, 64);
         if (e->flags & VKB_EMU_MAINT5) {
             VkPipelineCreateFlags2CreateInfo *f2 = vkb_emu_chain_take(ci, VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO);
             if (f2) ci->flags = (VkPipelineCreateFlags)f2->flags;
             for (uint32_t s = 0; s < ci->stageCount; s++)
                 prep_stage(device, (VkPipelineShaderStageCreateInfo *)&ci->pStages[s], mods, &nmods, 64);
         }
-        vkb_emu_graphics_pipeline_info(e, ci);
     }
     VkResult r = vkb_emu_real()->vkCreateGraphicsPipelines(device, cache, n, infos, pAllocator, pPipelines);
     for (uint32_t i = 0; i < nmods; i++) vkb_emu_real()->vkDestroyShaderModule(device, mods[i], NULL);

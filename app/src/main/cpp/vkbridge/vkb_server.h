@@ -107,7 +107,7 @@ void vkb_mem_release(vkb_srv_table *dev, vkb_srv_mem *m);
 void vkb_mem_free_all(vkb_srv_table *dev);
 
 /* emulation (server_emu*.c) */
-uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd);
+uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd, uint32_t *missing);
 void vkb_emu_device_create_info(vkb_srv_table *inst, VkPhysicalDevice pd, uint32_t emu,
                                 VkDeviceCreateInfo *ci, vkb_arena *a);
 void vkb_emu_device_init(vkb_srv_table *dev, uint32_t emu);

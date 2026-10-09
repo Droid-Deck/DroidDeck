@@ -25,7 +25,7 @@ static int env_off(const char *name)
     return v && !strcmp(v, "0");
 }
 
-uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd)
+uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd, uint32_t *missing)
 {
     VkPhysicalDeviceFeatures f;
     idt->vkGetPhysicalDeviceFeatures(pd, &f);
@@ -65,6 +65,14 @@ uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd)
     if (!depth_clip && f.depthClamp && !env_off("VKBRIDGE_EMU_DEPTHCLIP")) emu |= VKB_EMU_DEPTH_CLIP;
     /* PointSize in geometry/tessellation stages: stripped when the feature is missing. */
     if (!f.shaderTessellationAndGeometryPointSize && (f.geometryShader || f.tessellationShader)) emu |= VKB_EMU_POINT_SIZE;
+    uint32_t miss = 0;
+    if (!f.textureCompressionBC) miss |= VKB_EMU_BCN;
+    if (!divisor) miss |= VKB_EMU_DIVISOR;
+    if (!f.shaderClipDistance) miss |= VKB_EMU_CLIP_DISTANCE;
+    if (!f.shaderCullDistance) miss |= VKB_EMU_CULL_DISTANCE;
+    if (!depth_clip) miss |= VKB_EMU_DEPTH_CLIP;
+    if (emu & VKB_EMU_MAINT5) miss |= VKB_EMU_MAINT5;
+    *missing = miss;
     return emu & VKB_EMU_IMPLEMENTED;
 }
 

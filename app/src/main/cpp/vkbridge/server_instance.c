@@ -119,12 +119,13 @@ void vkb_selftest_all(void)
         snprintf(k->name, sizeof(k->name), "%s", p2.properties.deviceName);
         k->info.real_api_version = p2.properties.apiVersion;
         vkb_mem_selftest(k, inst, &dt, pds[i]);
-        k->info.emu_available = vkb_emu_detect(&dt, pds[i]);
+        k->info.emu_available = vkb_emu_detect(&dt, pds[i], &k->info.missing);
         k->info.emu = k->info.emu_available;
         const char *emu_env = getenv("VKBRIDGE_EMULATE");
         if (emu_env && !strcmp(emu_env, "0")) k->info.emu = 0;
         k->valid = 1;
-        VKB_INFO("%s: memory sharing = %s, emulating 0x%x", k->name, vkb_mem_strategy_name(k->info.strategy), k->info.emu);
+        VKB_INFO("%s: memory sharing = %s, missing 0x%x, emulating 0x%x", k->name, vkb_mem_strategy_name(k->info.strategy),
+                 k->info.missing, k->info.emu);
     }
     dt.vkDestroyInstance(inst, NULL);
 }

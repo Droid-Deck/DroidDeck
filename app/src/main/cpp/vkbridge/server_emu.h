@@ -5,7 +5,7 @@
 #include "vkb_server.h"
 
 /* Emulations that are implemented (the rest are never offered to the client). */
-#define VKB_EMU_IMPLEMENTED (VKB_EMU_MAINT5)
+#define VKB_EMU_IMPLEMENTED (VKB_EMU_MAINT5 | VKB_EMU_CLIP_DISTANCE | VKB_EMU_CULL_DISTANCE | VKB_EMU_POINT_SIZE)
 
 #define VKB_EMU_BUCKETS 1024
 
@@ -51,7 +51,11 @@ void vkb_emu_install_features(vkb_srv_table *dev);
 void vkb_emu_uninstall_features(vkb_srv_table *dev);
 void vkb_emu_image_create_info(vkb_emu_device *e, VkImageCreateInfo *ci);
 void vkb_emu_image_release(vkb_emu_device *e, vkb_emu_image *img);
-void vkb_emu_graphics_pipeline_info(vkb_emu_device *e, VkGraphicsPipelineCreateInfo *ci);
+/* Rewrites a graphics pipeline's shaders; temporary modules are appended to mods. */
+void vkb_emu_shader_pipeline(vkb_emu_device *e, VkDevice device, VkGraphicsPipelineCreateInfo *ci, VkShaderModule *mods,
+                             uint32_t *nmods, uint32_t cap);
+void vkb_emu_shader_install(vkb_srv_table *dev);
+void vkb_emu_shader_uninstall(vkb_srv_table *dev);
 /* 1 = handled (the emulation recorded its own commands instead). */
 int vkb_emu_copy_image(vkb_emu_device *e, VkCommandBuffer cb, VkImage src, VkImageLayout sl, VkImage dst, VkImageLayout dl,
                        uint32_t n, const VkImageCopy *regions);

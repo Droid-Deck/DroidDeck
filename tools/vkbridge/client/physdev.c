@@ -144,6 +144,16 @@ static int hidden_ext(const char *name)
     return 0;
 }
 
+static int bridged_device_ext_for(vkb_physdev *pd, const char *name)
+{
+    /* Clip distance emulation rewrites the vertex and fragment shaders together, at pipeline
+     * creation: pipeline libraries and shader identifiers would split them. */
+    if ((pd->info.emu & VKB_EMU_CLIP_DISTANCE) &&
+        (!strcmp(name, "VK_EXT_graphics_pipeline_library") || !strcmp(name, "VK_EXT_shader_module_identifier")))
+        return 0;
+    return 1;
+}
+
 static int bridged_device_ext(const char *name)
 {
     if (hidden_ext(name)) return 0;
@@ -189,7 +199,7 @@ int vkb_physdev_ready(vkb_physdev *pd)
     pd->exts = calloc(n + ncl + nemu + 2, sizeof(VkExtensionProperties));
     pd->next = 0;
     for (uint32_t i = 0; i < n; i++)
-        if (bridged_device_ext(srv[i].extensionName)) pd->exts[pd->next++] = srv[i];
+        if (bridged_device_ext(srv[i].extensionName) && bridged_device_ext_for(pd, srv[i].extensionName)) pd->exts[pd->next++] = srv[i];
     for (uint32_t i = 0; i < nemu; i++) {
         int dup = 0;
         for (uint32_t j = 0; j < pd->next; j++) dup |= !strcmp(pd->exts[j].extensionName, emu[i].extensionName);

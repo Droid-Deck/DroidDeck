@@ -46,7 +46,8 @@ typedef struct vkb_server_pd_info {
     uint32_t emu;                  /* VKB_EMU_* the server will perform */
     uint32_t emu_available;        /* VKB_EMU_* the server could perform */
     uint32_t real_api_version;
-    uint32_t reserved[7];
+    uint32_t missing;              /* VKB_EMU_* features the GPU lacks (emulated or not) */
+    uint32_t reserved[6];
 } vkb_server_pd_info;
 
 /* vkAllocateMemory wire extras (after VkMemoryAllocateInfo). */
