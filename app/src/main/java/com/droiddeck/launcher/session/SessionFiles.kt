@@ -49,6 +49,7 @@ object SessionFiles {
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
             "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
+            "usr/local/bin/droiddeck-gpu-window" to "usr/local/bin/droiddeck-gpu-window",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
             "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
