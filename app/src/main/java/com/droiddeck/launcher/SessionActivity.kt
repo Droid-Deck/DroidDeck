@@ -147,7 +147,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var onScreenControls: OnScreenControls? = null
     /** Steam's touch controls (SteamTouchControls), made once the session offers the device. */
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
-    private var oscStyle by mutableStateOf(SessionPrefs.OSC_STYLE_DROIDDECK)
     private var steamTouchAvailable by mutableStateOf(false)
     private val steamTouchRetry = Runnable { updateOnScreenControls() }
     /** While Steam's touch controls are up: how the game's touch config says touches outside them
@@ -571,16 +570,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
                         backActionsInverted = inverted
                     },
-                    onOsc = { v -> SessionPrefs.setOscMode(this@SessionActivity, v); readPrefs(); updateOnScreenControls() },
-                    oscStyle = if (SessionState.mode == SessionService.MODE_STEAM) oscStyle else null,
-                    onOscStyle = { v ->
-                        SessionPrefs.setOscStyle(this@SessionActivity, v)
+                    onOsc = { v ->
+                        SessionPrefs.setOscMode(this@SessionActivity, v)
                         readPrefs()
                         updateOnScreenControls()
-                        if (v == SessionPrefs.OSC_STYLE_STEAM && com.droiddeck.launcher.input.SteamTouchDevice.current == null)
+                        if (v == SessionPrefs.OSC_STEAM_TOUCH && com.droiddeck.launcher.input.SteamTouchDevice.current == null)
                             Toast.makeText(this@SessionActivity, R.string.osc_style_next_session, Toast.LENGTH_LONG).show()
                     },
-                    onEditSteamTouch = if (steamTouchAvailable && oscStyle == SessionPrefs.OSC_STYLE_STEAM && onScreenButtonsVisible) ({
+                    onEditSteamTouch = if (steamTouchAvailable && oscMode == SessionPrefs.OSC_STEAM_TOUCH && onScreenButtonsVisible) ({
                         drawerOpen = false
                         steamTouchControls?.startEditing()
                     }) else null,
@@ -824,7 +821,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
-        oscStyle = SessionPrefs.oscStyle(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
     }
 
@@ -1897,8 +1893,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val buttonsOnly = forced == SessionPrefs.OSC_STEAM_QAM
         // Steam's touch controller stands in for the app's pad, and is plugged into the client only
         // while it is shown - as Steam Link withdraws its controls when a physical pad is in use.
-        val wantsSteam = !buttonsOnly && SessionState.mode == SessionService.MODE_STEAM &&
-            SessionPrefs.oscStyle(this) == SessionPrefs.OSC_STYLE_STEAM
+        val wantsSteam = forced == SessionPrefs.OSC_STEAM_TOUCH && SessionState.mode == SessionService.MODE_STEAM
         val steam = if (wantsSteam) steamTouch() else null
         // The service makes the device while the session starts, after this activity: the app's
         // own pad until then, and another look in a moment.
@@ -1915,6 +1910,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionPrefs.OSC_ALWAYS -> true
             SessionPrefs.OSC_STEAM_QAM -> true
             SessionPrefs.OSC_NEVER -> false
+            // Shown throughout a Steam session: a handheld's built-in pad would keep Auto off for good.
+            // Outside Steam it is Auto.
+            SessionPrefs.OSC_STEAM_TOUCH -> SessionState.mode == SessionService.MODE_STEAM ||
+                (!PadBridge.anyControllerConnected() && SessionState.mode != SessionService.MODE_DESKTOP)
             // Auto: the touch pad when there is no controller - except on the desktop, where the
             // screen is a touchpad for the pointer and a pad over it would be in the way. A game
             // started from the rail, or Steam, gets it; the drawer turns it on anywhere.

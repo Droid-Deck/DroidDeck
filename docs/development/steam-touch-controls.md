@@ -1,6 +1,6 @@
 # Steam's touch controls
 
-Drawer → Controller → **Touch controls: Steam (beta)** replaces DroidDeck's own on-screen pad, in a
+Drawer → Controller → **On-screen controls: Steam touch (beta)** replaces DroidDeck's own on-screen pad, in a
 Steam session, with Steam's touch controller: the one the Steam Link apps use. Bindings, action
 sets, per-game configs, Valve's touch templates, official and community touch configs and Steam
 Cloud sync are all Steam's; DroidDeck draws the controls and turns touches into the controller's
@@ -35,8 +35,8 @@ SteamTouchConfig (Steam's configs)  ←───  output reports  ←──  Ste
 - **Output reports from the client:** 4 = app id and action set (decides which layout is shown),
   5/6 = action set layer added/removed, 1 = rumble (also sent to the app's vibration like any
   pad's), 3 = a setting. Feature report 2 is the battery.
-- **Plugging.** The device is plugged in only while Steam's controls are shown: with Auto it steps
-  aside when a controller is connected, as Steam Link withdraws its touch controls. Unplugging
+- **Plugging.** The device is plugged in only while Steam's controls are shown: always in a Steam
+  session with that choice, since a handheld's built-in pad would keep Auto off for good. Unplugging
   ends the device's report stream (the client lets the controller go); either way libfakeinput
   sends a udev event through `udevmon.c`'s stand-in monitor (`bl_udevmon_inject`), since the
   sandbox gives the client no kernel uevents and its HID discovery would never look again.

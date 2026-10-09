@@ -22,9 +22,8 @@ object SessionPrefs {
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
     const val OSC_NEVER = "never"
-    /** Whose on-screen controls: the app's own pad, or Steam's touch controller (SteamTouchControls). */
-    const val OSC_STYLE_DROIDDECK = "droiddeck"
-    const val OSC_STYLE_STEAM = "steam"
+    /** Steam's touch controller (SteamTouchControls) in place of the app's pad; Steam sessions only. */
+    const val OSC_STEAM_TOUCH = "steam-touch"
 
     /** What Back does in a Steam session, first press then second: the labels of the two orders. */
     val BACK_MENU_THEN_QAM = R.string.back_menu_then_qam
@@ -112,12 +111,6 @@ object SessionPrefs {
 
     fun setOscMode(context: Context, mode: String) {
         prefs(context).edit().putString("osc", mode).apply()
-    }
-
-    fun oscStyle(context: Context): String = prefs(context).getString("oscStyle", OSC_STYLE_DROIDDECK) ?: OSC_STYLE_DROIDDECK
-
-    fun setOscStyle(context: Context, style: String) {
-        prefs(context).edit().putString("oscStyle", style).apply()
     }
 
     /**

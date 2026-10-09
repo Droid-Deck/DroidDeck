@@ -217,9 +217,6 @@ class DrawerActions(
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
     val onOsc: (String) -> Unit,
-    /** Whose on-screen controls (SessionPrefs.OSC_STYLE_*); null where Steam's are not offered. */
-    val oscStyle: String? = null,
-    val onOscStyle: (String) -> Unit = {},
     /** Edits the Steam touch layout of the game in front, when Steam's controls are up. */
     val onEditSteamTouch: (() -> Unit)? = null,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
@@ -423,14 +420,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)),
                                     a.touchMode, chipModifier = focus.track(page, "touch"), onPick = a.onTouch)
                                 ChoiceRow(host, "osc", stringResource(R.string.mode_osc), null,
-                                    if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
+                                    if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
                                     else listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
-                                    a.oscMode, chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
-                                a.oscStyle?.let { style ->
-                                    ChoiceRow(host, "osc-style", stringResource(R.string.osc_style), stringResource(R.string.osc_style_hint),
-                                        listOf(SessionPrefs.OSC_STYLE_DROIDDECK to stringResource(R.string.osc_style_droiddeck), SessionPrefs.OSC_STYLE_STEAM to stringResource(R.string.osc_style_steam)),
-                                        style, chipModifier = focus.track(page, "osc-style"), onPick = a.onOscStyle)
-                                }
+                                    // Steam's touch controller is Steam's alone; elsewhere that choice behaves as Auto.
+                                    if (!a.steam && a.oscMode == SessionPrefs.OSC_STEAM_TOUCH) SessionPrefs.OSC_AUTO else a.oscMode,
+                                    chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
                                 a.onEditSteamTouch?.let { edit ->
                                     ActionRow(stringResource(R.string.osc_steam_layout), stringResource(R.string.osc_steam_layout_hint), stringResource(R.string.ctrl_edit), edit)
                                 }
