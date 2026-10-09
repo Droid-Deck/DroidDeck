@@ -34,15 +34,17 @@ use crate::fetch_tuning::{
     WINDOW_PLATEAU_REARM_MS, WINDOW_PROBE_INTERVAL_MS, WINDOW_SHRINK_FACTOR,
     WINDOW_SLOW_START_FACTOR, WINDOW_STEP_UP,
 };
+use futures_util::future::{select, Either};
 use futures_util::stream::FuturesUnordered;
 use futures_util::StreamExt;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
+use std::pin::pin;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{mpsc as std_mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use tokio::sync::Semaphore;
+use tokio::sync::{Notify, Semaphore};
 
 /// Maximum attempts per item (fetch failures AND `SinkError::Retry` both count). Same as Steam.
 pub const MAX_ITEM_ATTEMPTS: u32 = MAX_CHUNK_ATTEMPTS;
@@ -50,6 +52,44 @@ pub const MAX_ITEM_ATTEMPTS: u32 = MAX_CHUNK_ATTEMPTS;
 pub const THROUGHPUT_SAMPLE_INTERVAL_MS: u64 = 5_000;
 /// Upper bound on how long the driver sits in one `await` before re-checking cancel/error/feedback.
 const DRIVER_POLL_MS: u64 = 250;
+
+// ── Delay awareness (bufferbloat) ──
+// On a 5G hotspot the window kept growing (31 → 84) while the per-request delay went from 3 s to
+// 11 s and throughput stayed at 10-20 MB/s: every extra request only queued behind the others in
+// the link's buffer. The signal used here is time-to-first-byte (request sent → response headers),
+// which on a link with a deep buffer grows with the queue, while on a fast link it stays at a few
+// round trips however wide the window gets. The baseline is the lowest per-probe mean seen.
+
+/// A probe needs at least this many TTFB samples before its mean is trusted.
+pub const LATENCY_MIN_SAMPLES: u32 = 3;
+/// Mean TTFB at or above `baseline ×` this counts as queueing delay…
+pub const LATENCY_HOLD_FACTOR: f64 = 2.5;
+/// …and only when it is also this far above the baseline in absolute terms: a fast link whose
+/// TTFB goes from 20 ms to 60 ms (new connections' TLS handshakes) is not bufferbloat.
+pub const LATENCY_MIN_EXCESS_MS: f64 = 250.0;
+/// Throughput above `best × (1 + this)` is a gain that justifies the extra delay: hold, but never
+/// shrink, while it lasts.
+pub const LATENCY_GAIN_EPS: f64 = 0.25;
+/// Gentle proportional shrink while the delay keeps rising (gentler than the error shrink).
+pub const LATENCY_SHRINK_FACTOR: f64 = 0.85;
+
+// ── Stalled hosts ──
+// A CDN host can stop delivering while its connections stay open: on the device the Fastly host
+// froze at 49 MB for the rest of the run while the other host carried everything, and its requests
+// sat until their idle timeout. A host whose in-flight requests receive no byte for this long,
+// while another host is receiving, has its requests cancelled and re-queued and is put to rest.
+
+/// No byte from any of a host's in-flight requests for this long (while another host delivers).
+pub const HOST_STALL_MS: u64 = if cfg!(test) { 1_500 } else { 10_000 };
+/// First rest for a stalled host; doubles per further stall of the same host, reset on success.
+pub const HOST_STALL_COOLDOWN_MS: u64 = 30_000;
+pub const HOST_STALL_COOLDOWN_MAX_MS: u64 = 300_000;
+/// How often the driver looks for stalled hosts.
+const STALL_CHECK_MS: u64 = 250;
+/// Stream mode: the longest a request may sit with no byte arriving before it is failed (the
+/// store's own timeout when it is shorter). A dead connection on a single-host run, where the
+/// stall detector has no healthy host to compare with, never holds an item longer than this.
+pub const STREAM_IDLE_CAP: Duration = Duration::from_secs(30);
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // Public contract
@@ -746,31 +786,53 @@ async fn send_checked(
     Ok(response)
 }
 
-/// Whole-body mode: one attempt for one item (the driver owns retry/rotation).
+/// Whole-body mode: one attempt for one item (the driver owns retry/rotation). `timeout` bounds the
+/// whole request (headers + body). The body is read piece by piece so `host_rx` sees every byte as
+/// it arrives (the stall detector's signal); `ttfb` is set when the response headers arrive.
 async fn fetch_once(
     http: &Http,
     url: &str,
     range: Option<(u64, u64)>,
     timeout: Duration,
+    host_rx: &AtomicU64,
+    started: Instant,
+    ttfb: &mut Option<Duration>,
 ) -> Result<Vec<u8>, AsyncFetchError> {
-    let response = send_checked(http, url, range, Some(timeout)).await?;
-    let content_length = response.content_length();
-    let body = match response.bytes().await {
-        Ok(body) => body.to_vec(),
-        Err(err) => {
-            let kind = if err.is_timeout() {
-                FetchFailKind::Timeout
-            } else {
-                FetchFailKind::Other
-            };
-            return Err(AsyncFetchError {
-                message: format!("http body: {err}"),
-                kind,
-            });
+    let whole = async {
+        let mut response = send_checked(http, url, range, None).await?;
+        *ttfb = Some(started.elapsed());
+        let content_length = response.content_length();
+        let mut body = Vec::with_capacity(content_length.unwrap_or(0).min(64 << 20) as usize);
+        loop {
+            match response.chunk().await {
+                Ok(Some(piece)) => {
+                    host_rx.fetch_add(piece.len() as u64, Ordering::Relaxed);
+                    body.extend_from_slice(&piece);
+                }
+                Ok(None) => break,
+                Err(err) => {
+                    let kind = if err.is_timeout() {
+                        FetchFailKind::Timeout
+                    } else {
+                        FetchFailKind::Other
+                    };
+                    return Err(AsyncFetchError {
+                        message: format!("http body: {err}"),
+                        kind,
+                    });
+                }
+            }
         }
+        validate_body_len(body.len() as u64, content_length, range)?;
+        Ok(body)
     };
-    validate_body_len(body.len() as u64, content_length, range)?;
-    Ok(body)
+    match tokio::time::timeout(timeout, whole).await {
+        Ok(res) => res,
+        Err(_) => Err(AsyncFetchError {
+            message: "http get: request timed out".to_string(),
+            kind: FetchFailKind::Timeout,
+        }),
+    }
 }
 
 /// Stream mode: one attempt for one item. Pieces are pushed to the item's pool worker as they
@@ -790,7 +852,11 @@ async fn fetch_stream(
     budget: u64,
     cancel: &AtomicBool,
     abandon: Option<&AtomicU32>,
+    host_rx: &AtomicU64,
+    started: Instant,
+    ttfb: &mut Option<Duration>,
 ) -> Result<u64, AsyncFetchError> {
+    let idle = timeout.min(STREAM_IDLE_CAP);
     let mut response =
         match tokio::time::timeout(timeout, send_checked(http, url, range, None)).await {
             Ok(res) => res?,
@@ -801,6 +867,7 @@ async fn fetch_stream(
                 })
             }
         };
+    *ttfb = Some(started.elapsed());
     let content_length = response.content_length();
     let mut offset = 0u64;
     loop {
@@ -820,7 +887,7 @@ async fn fetch_stream(
                 kind: FetchFailKind::Other,
             });
         }
-        let piece = match tokio::time::timeout(timeout, response.chunk()).await {
+        let piece = match tokio::time::timeout(idle, response.chunk()).await {
             Ok(Ok(Some(piece))) => piece,
             Ok(Ok(None)) => break,
             Ok(Err(err)) => {
@@ -839,6 +906,7 @@ async fn fetch_stream(
         if piece.is_empty() {
             continue;
         }
+        host_rx.fetch_add(piece.len() as u64, Ordering::Relaxed);
         let data = piece.to_vec();
         let len = data.len() as u64;
         in_flight.fetch_add(len, Ordering::Relaxed);
@@ -927,6 +995,12 @@ struct FetchDone {
     reserve: u64,
     server_idx: usize,
     elapsed: Duration,
+    /// Request sent → response headers, when the headers arrived.
+    ttfb: Option<Duration>,
+    /// Key in the driver's registry of running requests.
+    req_id: u64,
+    /// The request was cancelled because its host stalled (not a failure of the item).
+    stalled: bool,
     res: Result<Fetched, AsyncFetchError>,
 }
 
@@ -989,6 +1063,18 @@ async fn run_driver(ctx: DriverCtx<'_>) {
     let mut errors_logged: u32 = 0;
     // Bodies / finishes handed to the pool whose verdict has not come back yet.
     let mut outstanding = 0usize;
+    // Stall detection: bytes received per server (bumped by the request futures as pieces
+    // arrive), when that count last moved, since when the server has had requests to answer,
+    // how many requests it is running, and each running request's abort switch.
+    let host_rx: Vec<AtomicU64> = hosts.iter().map(|_| AtomicU64::new(0)).collect();
+    let mut last_rx: Vec<u64> = vec![0; hosts.len()];
+    let mut last_rx_at: Vec<Option<Instant>> = vec![None; hosts.len()];
+    let mut watch_from: Vec<Instant> = vec![Instant::now(); hosts.len()];
+    let mut running: Vec<usize> = vec![0; hosts.len()];
+    let mut stall_count: Vec<u32> = vec![0; hosts.len()];
+    let mut aborts: HashMap<u64, (usize, Arc<Notify>)> = HashMap::new();
+    let mut next_req_id: u64 = 0;
+    let mut last_stall_check = Instant::now();
     // Declared AFTER `txs`/`http` so it is dropped BEFORE them (its futures borrow both).
     let mut inflight: FuturesUnordered<_> = FuturesUnordered::new();
 
@@ -1035,6 +1121,51 @@ async fn run_driver(ctx: DriverCtx<'_>) {
         let probe_now = Instant::now();
         if window.maybe_probe(probe_now, meter.total_bytes()) {
             log(&window.summary_line(label, inflight.len(), probe_now));
+        }
+
+        // ── Stalled hosts: requests that receive nothing while another host delivers. ──
+        if probe_now.duration_since(last_stall_check) >= Duration::from_millis(STALL_CHECK_MS) {
+            last_stall_check = probe_now;
+            for s in 0..hosts.len() {
+                let rx = host_rx[s].load(Ordering::Relaxed);
+                if rx != last_rx[s] {
+                    last_rx[s] = rx;
+                    last_rx_at[s] = Some(probe_now);
+                }
+            }
+            let stall = Duration::from_millis(HOST_STALL_MS);
+            for s in 0..hosts.len() {
+                let silent_since = silent_since(last_rx_at[s], watch_from[s]);
+                if running[s] == 0 || probe_now.duration_since(silent_since) < stall {
+                    continue;
+                }
+                let others_deliver = (0..hosts.len()).any(|o| {
+                    o != s && last_rx_at[o].is_some_and(|at| probe_now.duration_since(at) < stall)
+                });
+                if !others_deliver {
+                    continue;
+                }
+                let mut requeued = 0usize;
+                for (srv, notify) in aborts.values() {
+                    if *srv == s {
+                        notify.notify_one();
+                        requeued += 1;
+                    }
+                }
+                let rest = HOST_STALL_COOLDOWN_MS
+                    .saturating_mul(1u64 << stall_count[s].min(8))
+                    .min(HOST_STALL_COOLDOWN_MAX_MS);
+                stall_count[s] = stall_count[s].saturating_add(1);
+                sched.rest(s, probe_now, Duration::from_millis(rest));
+                window.note_stalled_host();
+                log(&format!(
+                    "host-stall label={label} host={} requeued={requeued} idle_ms={} cooldown_ms={rest}",
+                    hosts[s],
+                    probe_now.duration_since(silent_since).as_millis()
+                ));
+                // Do not fire again for the same silence while the cancelled requests wind down.
+                watch_from[s] = probe_now;
+            }
         }
 
         // ── Dispatch up to the current window ──
@@ -1097,28 +1228,57 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             let http = &http;
             let tx = &txs[if stream { idx % txs.len() } else { 0 }];
             let abandon_flag = abandon.get(idx);
+            let rx_counter = &host_rx[server_idx];
             let started = Instant::now();
+            if running[server_idx] == 0 {
+                // The host had nothing to answer until now: its silence is measured from here.
+                watch_from[server_idx] = started;
+            }
+            running[server_idx] += 1;
+            let req_id = next_req_id;
+            next_req_id += 1;
+            let abort = Arc::new(Notify::new());
+            aborts.insert(req_id, (server_idx, Arc::clone(&abort)));
             inflight.push(async move {
-                let res = if stream {
-                    fetch_stream(
-                        http,
-                        &url,
-                        range,
-                        timeout,
-                        idx,
-                        attempts + 1,
-                        tx,
-                        in_flight,
-                        budget,
-                        cancel,
-                        abandon_flag,
-                    )
-                    .await
-                    .map(Fetched::Streamed)
-                } else {
-                    fetch_once(http, &url, range, timeout)
-                        .await
-                        .map(Fetched::Body)
+                let mut ttfb: Option<Duration> = None;
+                let (res, stalled) = {
+                    let fetch = async {
+                        if stream {
+                            fetch_stream(
+                                http,
+                                &url,
+                                range,
+                                timeout,
+                                idx,
+                                attempts + 1,
+                                tx,
+                                in_flight,
+                                budget,
+                                cancel,
+                                abandon_flag,
+                                rx_counter,
+                                started,
+                                &mut ttfb,
+                            )
+                            .await
+                            .map(Fetched::Streamed)
+                        } else {
+                            fetch_once(http, &url, range, timeout, rx_counter, started, &mut ttfb)
+                                .await
+                                .map(Fetched::Body)
+                        }
+                    };
+                    // The stall detector's switch: dropping the fetch future closes its connection.
+                    match select(pin!(fetch), pin!(abort.notified())).await {
+                        Either::Left((res, _)) => (res, false),
+                        Either::Right(((), _)) => (
+                            Err(AsyncFetchError {
+                                message: "host stalled; request re-queued".to_string(),
+                                kind: FetchFailKind::Other,
+                            }),
+                            true,
+                        ),
+                    }
                 };
                 drop(permit); // RAII per-host permit release (also on future drop / cancel-abort)
                 FetchDone {
@@ -1127,6 +1287,9 @@ async fn run_driver(ctx: DriverCtx<'_>) {
                     reserve,
                     server_idx,
                     elapsed: started.elapsed(),
+                    ttfb,
+                    req_id,
+                    stalled,
                     res,
                 }
             });
@@ -1151,6 +1314,26 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             Err(_elapsed) => continue,
         };
         let now = Instant::now();
+        aborts.remove(&done.req_id);
+        running[done.server_idx] = running[done.server_idx].saturating_sub(1);
+        if done.stalled {
+            // Not the item's fault: straight back into the queue for a healthy host, no window
+            // or host penalty beyond the rest the detector already gave the host. It still counts
+            // as an attempt, which keeps each stream attempt's pieces distinguishable.
+            in_flight.fetch_sub(done.reserve, Ordering::Relaxed);
+            retry.push_front(PendingItem {
+                idx: done.idx,
+                attempts: done.attempts,
+                not_before: now,
+            });
+            continue;
+        }
+        if let Some(ttfb) = done.ttfb {
+            window.record_ttfb(ttfb.as_secs_f64() * 1000.0);
+        }
+        if done.res.is_ok() {
+            stall_count[done.server_idx] = 0;
+        }
         match done.res {
             Ok(Fetched::Body(body)) => {
                 let raw_len = body.len() as u64;
@@ -1244,6 +1427,15 @@ window_shrink={} msg={}",
     // teardown path); dropping the senders then closes the channels so the pool drains and exits.
     drop(inflight);
     drop(txs);
+}
+
+/// Since when a server has been silent: its last byte, or when it was last given work to do if
+/// that came later.
+fn silent_since(last_rx_at: Option<Instant>, watch_from: Instant) -> Instant {
+    match last_rx_at {
+        Some(at) if at > watch_from => at,
+        _ => watch_from,
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -1443,6 +1635,14 @@ impl FetchScheduler {
         h.cooldown_until = None;
     }
 
+    /// A stalled host: out of the rotation for `rest`, and its speed estimate cut so it comes
+    /// back behind the hosts that kept delivering.
+    fn rest(&mut self, server_idx: usize, now: Instant, rest: Duration) {
+        let h = &mut self.health[server_idx];
+        h.cooldown_until = Some(now + rest);
+        h.ewma_bps *= 0.25;
+    }
+
     fn on_error(&mut self, server_idx: usize, now: Instant, kind: FetchFailKind) {
         let h = &mut self.health[server_idx];
         h.consecutive_errors = h.consecutive_errors.saturating_add(1);
@@ -1466,6 +1666,8 @@ enum WindowReason {
     HoldCeiling,
     HoldErrors,
     HoldThroughputDown,
+    HoldLatency,
+    ShrinkLatency,
     ShrinkRateLimited,
     ShrinkTimeout,
     ShrinkReset,
@@ -1486,6 +1688,8 @@ impl WindowReason {
             WindowReason::HoldCeiling => "hold:ceiling",
             WindowReason::HoldErrors => "hold:errors",
             WindowReason::HoldThroughputDown => "hold:throughput-down",
+            WindowReason::HoldLatency => "hold:latency",
+            WindowReason::ShrinkLatency => "shrink:latency",
             WindowReason::ShrinkRateLimited => "shrink:429",
             WindowReason::ShrinkTimeout => "shrink:timeout",
             WindowReason::ShrinkReset => "shrink:reset",
@@ -1529,6 +1733,16 @@ struct AdaptiveWindow {
     last_budget_stalls: u32,
     last_host_stalls: u32,
     latency_ewma_ms: f64,
+    /// TTFB samples of the current probe interval.
+    ttfb_sum_ms: f64,
+    ttfb_samples: u32,
+    /// Lowest per-probe mean TTFB seen this run (0 = none yet): the no-queue baseline.
+    ttfb_base_ms: f64,
+    /// Mean TTFB of the last probe that had enough samples.
+    ttfb_last_ms: f64,
+    /// Consecutive probes with queueing delay.
+    latency_streak: u32,
+    stalled_hosts: u32,
     cooldown_until: Option<Instant>,
     last_reason: WindowReason,
     last_err_rate: f64,
@@ -1559,6 +1773,12 @@ impl AdaptiveWindow {
             last_budget_stalls: 0,
             last_host_stalls: 0,
             latency_ewma_ms: 0.0,
+            ttfb_sum_ms: 0.0,
+            ttfb_samples: 0,
+            ttfb_base_ms: 0.0,
+            ttfb_last_ms: 0.0,
+            latency_streak: 0,
+            stalled_hosts: 0,
             cooldown_until: None,
             last_reason: WindowReason::Start,
             last_err_rate: 0.0,
@@ -1572,6 +1792,26 @@ impl AdaptiveWindow {
 
     fn note_host_stall(&mut self) {
         self.host_stalls = self.host_stalls.saturating_add(1);
+    }
+
+    fn record_ttfb(&mut self, ttfb_ms: f64) {
+        self.ttfb_sum_ms += ttfb_ms;
+        self.ttfb_samples = self.ttfb_samples.saturating_add(1);
+    }
+
+    fn note_stalled_host(&mut self) {
+        self.stalled_hosts = self.stalled_hosts.saturating_add(1);
+    }
+
+    /// The latency brake's shrink: proportional and gentle, never below the floor, at least −1.
+    fn shrink_latency(&mut self, now: Instant) {
+        let scaled = (self.current as f64 * LATENCY_SHRINK_FACTOR).floor() as usize;
+        self.current = scaled.min(self.current.saturating_sub(1)).max(self.min);
+        self.cooldown_until = Some(now + Duration::from_millis(WINDOW_COOLDOWN_MS));
+        self.slow_start = false;
+        self.plateau_streak = 0;
+        self.plateau_since = None;
+        self.last_reason = WindowReason::ShrinkLatency;
     }
 
     fn record_ok(&mut self, latency_ms: f64) {
@@ -1644,10 +1884,43 @@ impl AdaptiveWindow {
         let before = self.current;
         let cooling = self.cooldown_until.is_some_and(|t| now < t);
 
+        // Queueing delay: this probe's mean TTFB against the run's baseline.
+        let probe_ttfb = (self.ttfb_samples >= LATENCY_MIN_SAMPLES)
+            .then(|| self.ttfb_sum_ms / self.ttfb_samples as f64);
+        let mut queueing = false;
+        let mut rising = false;
+        if let Some(ttfb) = probe_ttfb {
+            if self.ttfb_base_ms == 0.0 || ttfb < self.ttfb_base_ms {
+                self.ttfb_base_ms = ttfb;
+            }
+            queueing = ttfb >= self.ttfb_base_ms * LATENCY_HOLD_FACTOR
+                && ttfb - self.ttfb_base_ms >= LATENCY_MIN_EXCESS_MS;
+            rising = self.ttfb_last_ms > 0.0 && ttfb >= self.ttfb_last_ms;
+            self.ttfb_last_ms = ttfb;
+        }
+        if queueing {
+            self.latency_streak = self.latency_streak.saturating_add(1);
+        } else if probe_ttfb.is_some() {
+            self.latency_streak = 0;
+        }
+
         if err_rate > WINDOW_ERR_RATE_HIGH {
             self.shrink(now, WindowReason::ShrinkErrorRate);
         } else if cooling {
             self.last_reason = WindowReason::HoldCooldown;
+        } else if queueing {
+            // More requests only made each one wait longer. Hold while a real gain still comes
+            // with the delay; once the delay keeps rising without one, give some of the window
+            // back, gently, and let the cooldown show whether that helped.
+            let gain = self.bps_ewma > self.best_bps * (1.0 + LATENCY_GAIN_EPS);
+            if gain {
+                self.best_bps = self.bps_ewma;
+            }
+            if !gain && rising && self.latency_streak >= 2 && self.current > self.min {
+                self.shrink_latency(now);
+            } else {
+                self.last_reason = WindowReason::HoldLatency;
+            }
         } else if self.current >= self.max {
             self.last_reason = WindowReason::HoldCeiling;
         } else if err_rate > WINDOW_ERR_RATE_LOW {
@@ -1694,6 +1967,8 @@ impl AdaptiveWindow {
         self.last_host_stalls = self.host_stalls;
         self.budget_stalls = 0;
         self.host_stalls = 0;
+        self.ttfb_sum_ms = 0.0;
+        self.ttfb_samples = 0;
         self.probes_since_log = self.probes_since_log.saturating_add(1);
         let changed = before != self.current;
         if changed || self.probes_since_log >= WINDOW_LOG_EVERY_PROBES {
@@ -1715,7 +1990,8 @@ impl AdaptiveWindow {
         format!(
             "fetch-window label={label} window={} (min={} max={}) in_flight={in_flight_requests} \
 last={:.2}MB/s ewma={:.2}MB/s best={:.2}MB/s reason={} cooldown={}ms err_rate={:.1}% \
-phase={} rtt={:.0}ms budget_stalls={} host_stalls={}",
+phase={} rtt={:.0}ms budget_stalls={} host_stalls={} ttfb={:.0}ms ttfb_base={:.0}ms \
+stalled_hosts={}",
             self.current,
             self.min,
             self.max,
@@ -1728,7 +2004,10 @@ phase={} rtt={:.0}ms budget_stalls={} host_stalls={}",
             if self.slow_start { "slow-start" } else { "steady" },
             self.latency_ewma_ms,
             self.last_budget_stalls,
-            self.last_host_stalls
+            self.last_host_stalls,
+            self.ttfb_last_ms,
+            self.ttfb_base_ms,
+            self.stalled_hosts
         )
     }
 }
@@ -1871,6 +2150,155 @@ mod tests {
         assert!(line.starts_with("fetch-window label=t window=6 (min=2 max=42) in_flight=3 "));
         assert!(line.contains("reason=shrink:timeout"));
         assert!(line.contains("phase=steady"));
+    }
+
+    const MIB: u64 = 1024 * 1024;
+
+    /// Drive the window through probes 2.1 s apart, each with `samples` TTFB values and the
+    /// bytes that arrived in it; returns (reason, window) after every probe.
+    fn run_probes(w: &mut AdaptiveWindow, t0: Instant, probes: &[(f64, u64)]) -> Vec<(WindowReason, usize)> {
+        let mut total = 0u64;
+        let mut out = Vec::new();
+        for (k, &(ttfb_ms, bytes)) in probes.iter().enumerate() {
+            for _ in 0..5 {
+                w.record_ttfb(ttfb_ms);
+            }
+            total += bytes;
+            w.maybe_probe(t0 + Duration::from_millis(2_100 * (k as u64 + 1)), total);
+            out.push((w.last_reason, w.current));
+        }
+        out
+    }
+
+    #[test]
+    fn rising_delay_without_more_throughput_holds_then_shrinks_gently() {
+        let t0 = Instant::now();
+        let mut w = AdaptiveWindow::new(8, 2, 256, t0);
+        // Flat ~15 MB/s while the time to first byte climbs from 0.4 s to 12 s (the 5G log).
+        let flat = 32 * MIB;
+        let probes: Vec<(f64, u64)> = [400.0, 400.0, 450.0, 900.0, 1500.0, 2500.0, 4000.0, 6000.0, 9000.0, 12000.0]
+            .iter()
+            .map(|&ttfb| (ttfb, flat))
+            .collect();
+        let seen = run_probes(&mut w, t0, &probes);
+        let first_hold = seen.iter().position(|(r, _)| *r == WindowReason::HoldLatency).expect("hold:latency");
+        let first_shrink = seen.iter().position(|(r, _)| *r == WindowReason::ShrinkLatency).expect("shrink:latency");
+        assert!(first_hold < first_shrink, "{seen:?}");
+        let before = seen[first_shrink - 1].1;
+        assert_eq!(seen[first_shrink].1, (before as f64 * LATENCY_SHRINK_FACTOR).floor() as usize, "{seen:?}");
+        // From the first sign of queueing on, the window never grows again.
+        for pair in seen[first_hold..].windows(2) {
+            assert!(pair[1].1 <= pair[0].1, "grew under queueing delay: {seen:?}");
+        }
+        assert!(seen.last().unwrap().1 < before, "{seen:?}");
+        let line = w.summary_line("t", 0, t0);
+        assert!(line.contains(" ttfb_base=400ms"), "{line}");
+    }
+
+    #[test]
+    fn a_fast_link_keeps_growing_while_its_delay_stays_low() {
+        let t0 = Instant::now();
+        let mut w = AdaptiveWindow::new(8, 2, 256, t0);
+        // Throughput doubles with the window; TTFB wobbles between 25 and 70 ms (new connections).
+        let probes: Vec<(f64, u64)> = (0..6)
+            .map(|k| ([25.0, 70.0, 40.0, 60.0, 30.0, 65.0][k], (8 * MIB) << k))
+            .collect();
+        let seen = run_probes(&mut w, t0, &probes);
+        assert!(
+            seen.iter().all(|(r, _)| *r != WindowReason::HoldLatency && *r != WindowReason::ShrinkLatency),
+            "{seen:?}"
+        );
+        assert!(w.current >= 128, "{seen:?}");
+    }
+
+    /// Two-behaviour stub for the stall test: `freeze` answers the headers and 100 bytes, then
+    /// never sends another byte; otherwise every path gets 10 000 bytes in ten paced slices.
+    fn start_paced_stub(freeze: bool) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { break };
+                thread::spawn(move || {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                        match stream.read(&mut tmp) {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                        }
+                    }
+                    let body = vec![7u8; 10_000];
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    if stream.write_all(head.as_bytes()).is_err() {
+                        return;
+                    }
+                    if freeze {
+                        let _ = stream.write_all(&body[..100]);
+                        let _ = stream.flush();
+                        thread::sleep(Duration::from_secs(30));
+                        return;
+                    }
+                    for slice in body.chunks(1_000) {
+                        if stream.write_all(slice).is_err() {
+                            return;
+                        }
+                        let _ = stream.flush();
+                        thread::sleep(Duration::from_millis(100));
+                    }
+                });
+            }
+        });
+        format!("http://127.0.0.1:{port}")
+    }
+
+    #[test]
+    fn a_frozen_host_is_detected_and_its_items_move_to_the_healthy_one() {
+        let frozen = start_paced_stub(true);
+        let healthy = start_paced_stub(false);
+        let hosts = vec![frozen.clone(), healthy.clone()];
+        let items: Vec<FetchItem> = (0..12u64)
+            .map(|i| {
+                let a = format!("{frozen}/item{i}");
+                let b = format!("{healthy}/item{i}");
+                item(i, &[a.as_str(), b.as_str()], None)
+            })
+            .collect();
+        let sink = CollectSink {
+            got: Mutex::new(HashMap::new()),
+            retry_once_id: None,
+            retried: AtomicUsize::new(0),
+        };
+        let cancel = AtomicBool::new(false);
+        let lines: Mutex<Vec<String>> = Mutex::new(Vec::new());
+        let started = Instant::now();
+        let outcome = run_fetch(
+            items,
+            &hosts,
+            &opts("stall"),
+            &sink,
+            &cancel,
+            &|_: u64, _: u64| {},
+            &|line: &str| lines.lock().unwrap().push(line.to_string()),
+        );
+        let elapsed = started.elapsed();
+        let lines = lines.lock().unwrap();
+        assert!(outcome.ok(), "outcome={outcome:?} lines={lines:?}");
+        assert_eq!(outcome.items_ok, 12);
+        let got = sink.got.lock().unwrap();
+        assert!(got.values().all(|b| b.len() == 10_000));
+        let stall = lines
+            .iter()
+            .find(|l| l.starts_with("host-stall label=stall "))
+            .unwrap_or_else(|| panic!("no host-stall line: {lines:?}"));
+        assert!(stall.contains(&format!(" host={frozen} ")), "{stall}");
+        assert!(!stall.contains(" requeued=0 "), "{stall}");
+        // Well inside the 10 s request timeout that would otherwise have freed the items.
+        assert!(elapsed < Duration::from_secs(8), "took {elapsed:?}: {lines:?}");
+        assert!(!lines.iter().any(|l| l.contains(&format!("host={healthy}")) && l.starts_with("host-stall")));
     }
 
     // ── Minimal HTTP/1.1 stub: one thread per connection, `Connection: close`, Range-aware. ──
