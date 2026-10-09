@@ -21,7 +21,7 @@
      m_surface->setScale(1);
      // commit the subsurfaces before the main surface
      for (OutputLayer *layer : layersToUpdate) {
-@@ -375,9 +380,10 @@
+@@ -375,9 +380,11 @@
      next.enabled = props->enabled.value_or(m_state.enabled);
      next.transform = props->transform.value_or(m_state.transform);
      next.position = props->pos.value_or(m_state.position);
@@ -31,11 +31,12 @@
 +    // DroidDeck owns the outer window size; Display Settings owns the inner UI scale.
 +    if (qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")) {
 +        next.scale = props->scale.value_or(m_state.scale);
++        next.scaleSetting = props->scaleSetting.value_or(m_state.scaleSetting);
 +    }
      next.desiredMode = props->desiredMode.value_or(m_state.desiredMode);
      next.uuid = props->uuid.value_or(m_state.uuid);
      next.replicationSource = props->replicationSource.value_or(m_state.replicationSource);
-@@ -466,7 +472,9 @@
+@@ -466,7 +473,9 @@
          State next = m_state;
          next.modes = {mode};
          next.currentMode = mode;
