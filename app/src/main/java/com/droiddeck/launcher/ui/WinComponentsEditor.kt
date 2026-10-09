@@ -160,7 +160,9 @@ internal fun WinComponentsDialog(
     val recIds = if (all == null) emptyList() else recommended.distinctBy { installable(it.componentName, all) }
     val ready = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.READY }.map { it.name }
     val extra = (installed + picks).filter { all?.containsKey(it) != true }
-    val list = (ready + extra).distinct().sortedBy { WinComponentNames.of(it).lowercase() }
+    // The ones turned on for this game first, in their usual order among themselves, so what the
+    // game uses is in view; turning one off drops it back to its place in the alphabet.
+    val list = (ready + extra).distinct().sortedWith(compareBy({ it !in picks }, { WinComponentNames.of(it).lowercase() }))
     val waiting = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.NEEDS_INSTALLER }
         .map { it.name }.sortedBy { WinComponentNames.of(it).lowercase() }
     val hasRec = all != null && recIds.any { supportOf(installable(it.componentName, all)) == Support.READY }
