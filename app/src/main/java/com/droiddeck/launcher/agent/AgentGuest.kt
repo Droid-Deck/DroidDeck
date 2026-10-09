@@ -125,6 +125,13 @@ object AgentGuest {
         ?: focusableAppIds.filter { it in installedAppIds }.distinct().singleOrNull()
         ?: baselayerAppIds.filter { it in installedAppIds }.distinct().singleOrNull()
 
+    internal fun preferredInstalledSteamAppId(
+        selectedAppId: Long?,
+        activeAppId: Long?,
+        installedAppIds: Set<Long>,
+    ): Long? = selectedAppId?.takeIf { it in installedAppIds }
+        ?: activeAppId?.takeIf { it in installedAppIds }
+
     /** Send one request and wait for its answer. Throws [AgentException] with a stable code. */
     fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
         if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)

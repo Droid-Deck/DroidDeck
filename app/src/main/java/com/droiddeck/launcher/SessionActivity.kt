@@ -815,9 +815,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }.sortedBy { it.second.lowercase() }
             val installedAppIds = options.mapTo(mutableSetOf()) { it.first }
             val activeAppId = AgentGuest.activeSteamAppId(this, installedAppIds)
+            val selectedSteamAppId = runCatching { AgentGuest.selectedSteamAppId(this) }.getOrNull()
             val selectedAppId = if (refresh.followsSteam) {
-                activeAppId
-                    ?: runCatching { AgentGuest.selectedSteamAppId(this) }.getOrNull()
+                AgentGuest.preferredInstalledSteamAppId(selectedSteamAppId, activeAppId, installedAppIds)
                     ?: refresh.requestedAppId
             } else {
                 refresh.requestedAppId
