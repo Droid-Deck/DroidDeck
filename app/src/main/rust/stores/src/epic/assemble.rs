@@ -234,9 +234,10 @@ pub fn run_assemble(
         ..AssembleOutcome::default()
     };
     log(&format!(
-        "assemble cache_dir={} scratch={} files={files_total} bytes={} chunks_referenced={}",
+        "assemble cache_dir={} scratch={} {} files={files_total} bytes={} chunks_referenced={}",
         plan.cache_dir.display(),
         plan.scratch_cache,
+        crate::priority::log_field(),
         plan.bytes_total,
         plan.refs.len()
     ));

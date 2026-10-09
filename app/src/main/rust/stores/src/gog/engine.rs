@@ -722,7 +722,7 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     let per_host_cap = per_host_cap_for(max_workers, 1);
 
     events.on_log(&format!(
-        "engine=rust kind=gen2 mode=stream label={} files={} chunks={} planned_bytes={} skip_paths={} workers={} per_host_cap={} process_workers={} sort_largest_first={} host={}",
+        "engine=rust kind=gen2 mode=stream label={} files={} chunks={} planned_bytes={} skip_paths={} workers={} per_host_cap={} process_workers={} sort_largest_first={} host={} {}",
         req.label,
         files_total,
         chunk_count,
@@ -732,7 +732,8 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         per_host_cap,
         process_workers,
         req.sort_largest_first,
-        host
+        host,
+        crate::priority::log_field()
     ));
 
     let files_done = AtomicU32::new(0);
@@ -757,33 +758,36 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     let verify_threads = process_workers.min(files.len().max(1));
     std::thread::scope(|scope| {
         for _ in 0..verify_threads {
-            scope.spawn(|| loop {
-                if cancel.load(Ordering::Relaxed) {
-                    break;
-                }
-                let idx = next.fetch_add(1, Ordering::Relaxed);
-                if idx >= files.len() {
-                    break;
-                }
-                let file = &files[idx];
-                if skip.contains(file.relative_path.as_str()) {
-                    continue;
-                }
-                let out_path = install_dir.join(&file.relative_path);
-                if file_verified(&out_path, file.total_size, &file.md5) {
-                    files_verified.fetch_add(1, Ordering::Relaxed);
-                    let done = files_done.fetch_add(1, Ordering::Relaxed) + 1;
-                    events.on_file_done(
-                        &file.relative_path,
-                        file.total_size,
-                        true,
-                        done,
-                        files_total,
-                        bytes_done.load(Ordering::Relaxed),
-                        planned_bytes,
-                    );
-                } else {
-                    pending[idx].store(true, Ordering::Relaxed);
+            scope.spawn(|| {
+                crate::priority::background();
+                loop {
+                    if cancel.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let idx = next.fetch_add(1, Ordering::Relaxed);
+                    if idx >= files.len() {
+                        break;
+                    }
+                    let file = &files[idx];
+                    if skip.contains(file.relative_path.as_str()) {
+                        continue;
+                    }
+                    let out_path = install_dir.join(&file.relative_path);
+                    if file_verified(&out_path, file.total_size, &file.md5) {
+                        files_verified.fetch_add(1, Ordering::Relaxed);
+                        let done = files_done.fetch_add(1, Ordering::Relaxed) + 1;
+                        events.on_file_done(
+                            &file.relative_path,
+                            file.total_size,
+                            true,
+                            done,
+                            files_total,
+                            bytes_done.load(Ordering::Relaxed),
+                            planned_bytes,
+                        );
+                    } else {
+                        pending[idx].store(true, Ordering::Relaxed);
+                    }
                 }
             });
         }
@@ -1064,7 +1068,7 @@ fn run_gen1(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
 
     let per_host_cap = per_host_cap_for(max_workers, 1);
     events.on_log(&format!(
-        "engine=rust kind=gen1 mode=stream label={} files={} planned_bytes={} skip_paths={} workers={} per_host_cap={} process_workers={} host={}",
+        "engine=rust kind=gen1 mode=stream label={} files={} planned_bytes={} skip_paths={} workers={} per_host_cap={} process_workers={} host={} {}",
         req.label,
         files_total,
         planned_bytes,
@@ -1072,7 +1076,8 @@ fn run_gen1(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         max_workers,
         per_host_cap,
         process_workers,
-        host
+        host,
+        crate::priority::log_field()
     ));
 
     let files_done = AtomicU32::new(0);

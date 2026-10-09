@@ -261,6 +261,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativeSt
     let spawned = thread::Builder::new()
         .name("gog-dl".to_string())
         .spawn(move || {
+            crate::priority::background();
             let events = JniEvents { vm, listener };
             let result = engine::run(&request, &worker.cancel, &events);
             events.complete(&result);

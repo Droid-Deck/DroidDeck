@@ -547,7 +547,7 @@ pub fn run_download(
     let fetch_bytes: u64 = plan.items.iter().map(|item| item.reserve).sum();
     let per_host_cap = per_host_cap_for(max_workers, plan.hosts.len());
     log(&format!(
-        "engine=rust mode=stream plan={} files skip={} ({} bytes) fetch={} ({} bytes) hosts={} workers={} per_host_cap={} process={} dir={}",
+        "engine=rust mode=stream plan={} files skip={} ({} bytes) fetch={} ({} bytes) hosts={} workers={} per_host_cap={} process={} dir={} {}",
         files_total,
         plan.skipped_files,
         plan.skipped_bytes,
@@ -557,7 +557,8 @@ pub fn run_download(
         max_workers,
         per_host_cap,
         process_workers,
-        install_dir
+        install_dir,
+        crate::priority::log_field()
     ));
     progress(plan.skipped_bytes, plan.total_bytes, plan.skipped_files, files_total);
     if plan.items.is_empty() {

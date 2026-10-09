@@ -317,6 +317,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
     let handle = Box::new(EpicDownloadHandle { cancel });
 
     thread::spawn(move || {
+        crate::priority::background();
         run_on_thread(vm, listener, plan, req, thread_cancel);
     });
 
@@ -427,6 +428,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_epic_EpicNative_native
     let handle = Box::new(EpicDownloadHandle { cancel });
 
     thread::spawn(move || {
+        crate::priority::background();
         let progress = |bytes_done: u64, bytes_total: u64, files_done: u64, files_total: u64| {
             let Ok(mut env) = vm.attach_current_thread_as_daemon() else {
                 return;

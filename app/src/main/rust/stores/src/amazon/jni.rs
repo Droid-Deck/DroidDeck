@@ -171,6 +171,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_amazon_AmazonNative_na
     });
 
     thread::spawn(move || {
+        crate::priority::background();
         let log_listener = listener.clone();
         let log = move |line: &str| {
             with_attached_env(&log_listener, |env, obj| call_log(env, obj, line));

@@ -253,20 +253,23 @@ mode={}",
 
         // Periodic throughput reporter — atomics only, never on the fetch hot path. Its samples are
         // also the `peak_mbps` source.
-        let reporter = scope.spawn(move || loop {
-            let mut waited = 0u64;
-            while waited < THROUGHPUT_SAMPLE_INTERVAL_MS {
+        let reporter = scope.spawn(move || {
+            crate::priority::background();
+            loop {
+                let mut waited = 0u64;
+                while waited < THROUGHPUT_SAMPLE_INTERVAL_MS {
+                    if reporter_done.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    thread::sleep(Duration::from_millis(100));
+                    waited += 100;
+                }
                 if reporter_done.load(Ordering::Relaxed) {
                     return;
                 }
-                thread::sleep(Duration::from_millis(100));
-                waited += 100;
+                meter.sample();
+                log(&meter.summary_line(label));
             }
-            if reporter_done.load(Ordering::Relaxed) {
-                return;
-            }
-            meter.sample();
-            log(&meter.summary_line(label));
         });
 
         // ── Process pool ──
@@ -275,6 +278,7 @@ mode={}",
             let rx = Arc::clone(&rxs[if stream { worker } else { 0 }]);
             let fb = fb_tx.clone();
             proc_handles.push(scope.spawn(move || {
+                crate::priority::background();
                 // Stream mode: (item → attempt, message) whose pieces the sink rejected; the rest
                 // of that attempt's pieces are dropped and its Finish becomes a Retry verdict.
                 let mut poisoned: HashMap<usize, (u32, String)> = HashMap::new();
@@ -430,8 +434,11 @@ mode={}",
         // ── Async fetch driver on one current-thread runtime. `txs` are moved in and dropped when
         // the driver returns, which closes the channels so the pool's `blocking_recv` yields
         // `None`. ──
+        // The runtime drives on this (already lowered) thread; `on_thread_start` covers the
+        // blocking pool it starts for DNS lookups.
         match tokio::runtime::Builder::new_current_thread()
             .enable_all()
+            .on_thread_start(crate::priority::background)
             .build()
         {
             Ok(rt) => {
