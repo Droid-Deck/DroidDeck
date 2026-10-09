@@ -36,7 +36,7 @@ waits; it does not establish a full-install PRoot overhead percentage.
 - **Recommendation: proot plus an in-process fast path.** A preloaded library answers the common
   path calls inside the process. It sends them through a trampoline page that proot's filter lets
   through, and it falls back to proot for anything it can't prove proot would answer the same way.
-  - It ships: `tools/proot/fastpath/` and `patches/0014` (see [The fast path](#the-fast-path)).
+  - The prototype is in this branch: `tools/proot/fastpath/` and `patches/0014`.
   - Speed: `stat` 25 µs → 0.6 µs, `open` 25 µs → 0.9 µs, missing-file lookups 23 µs → 1.6 µs.
     Eight threads doing `stat` went from 89k/s to 3.6M/s.
   - Correctness: an equivalence suite of awkward paths produced byte-identical results.
@@ -102,8 +102,8 @@ proot options and a similar set of binds.
 | access | | 27.2 | 26.2 | **1.0** |
 | fstatat relative to a dirfd | | 45.5 | 26.8 | **1.9** |
 | stat of a missing file | | 38.9 | 22.9 | **1.6** |
-| readlink /proc/self/exe | | 42.8 | 38–43 | in-process (`/proc/self/fd/N`: **4.4**) |
-| getcwd / uname / brk | | 31–35 | 30–33 | **1.0** / **0.006** / (proot) |
+| readlink /proc/self/exe | | 42.8 | 38–43 | (proot) |
+| getcwd / uname / brk | | 31–35 | 30–33 | (proot) |
 | memfd_create | | 20.4 | 18.6 | (proot) |
 | pthread create+join | | 58 | 48 | 48 |
 | fork + exec + wait | ~1.1 ms | 1.16 ms | 0.70–0.78 ms | +0.2–0.4 ms (see open items) |
@@ -203,15 +203,15 @@ call can be answered in-process with the 0014 design.
 
 | syscalls | why proot traps them | can it bypass proot? |
 |---|---|---|
-| `openat`/`open`/`creat`, `newfstatat`/`stat`/`lstat`, `statx`, `faccessat`/`access`, `readlinkat` (exit), `mkdirat`, `unlinkat`, `renameat(2)`, `symlinkat`, `linkat`, `fchmodat`, `fchownat`, `utimensat`, `truncate`, `*xattr`, `inotify_add_watch`, `name_to_handle_at` | path translation (guest → host), plus exit fixups for `readlink` and `rename` | **Yes, through libc wrappers**, all of these but `linkat`, `fchownat`, setting or removing xattrs, `name_to_handle_at` and renaming a directory. Raw `svc` and glibc's internal callers (ld.so, fts, nss) still go to proot; `libblaudit.so` keeps ld.so's failing lookups away from it. |
+| `openat`/`open`/`creat`, `newfstatat`/`stat`/`lstat`, `statx`, `faccessat`/`access`, `readlinkat` (exit), `mkdirat`, `unlinkat`, `renameat(2)`, `symlinkat`, `linkat`, `fchmodat`, `fchownat`, `utimensat`, `truncate`, `*xattr`, `inotify_add_watch`, `name_to_handle_at` | path translation (guest → host), plus exit fixups for `readlink` and `rename` | **Yes, through libc wrappers.** The prototype covers open, stat, statx, access, readlink, opendir and fopen; the write family is next. Raw `svc` and glibc's internal callers (ld.so, fts, realpath, nss) still go to proot. |
 | `chdir`/`fchdir`, `getcwd` (exit) | proot emulates the cwd; until 0014 the kernel's cwd never moved | With 0014 the kernel's cwd follows the guest's. `getcwd` stays in proot (cheap, rare). |
 | `execve`/`execveat` | runs the loader, maps `PT_INTERP` inside the rootfs, shebangs, tracks `/proc/self/exe` | **No.** This is the core of what proot is for. Costs 0.4–0.8 ms per exec; the session scripts already avoid exec-heavy loops (`nap`). |
 | `brk` (entry and exit) | heap emulation: programs are mapped by proot's loader, so the kernel's brk area is the loader's | No (`PR_SET_MM` needs `CAP_SYS_RESOURCE`). **Fewer calls:** `GLIBC_TUNABLES=glibc.malloc.top_pad=…` grows the heap in larger steps. |
-| `bind`, `connect`, `accept(4)`, `getsockname`, `getpeername` | `sun_path` of Unix sockets | Through the fast path's libc wrappers, unless the host path does not fit `sun_path` or a blocking `accept` has nothing waiting. |
+| `bind`, `connect`, `accept(4)`, `getsockname`, `getpeername` | `sun_path` of Unix sockets | Same-path binds (runtime dir, files dir) need no translation, but the filter can't see the address. Possible fast-path candidate. |
 | `wait4`/`waitpid`, `ptrace` | ptrace emulation inside the guest (breakpad, gdb) | Could become opt-in; then `wait4` is free (one stop per wait today). |
 | `prctl(PR_SET_DUMPABLE)`, `setrlimit`/`prlimit64(RLIMIT_STACK)` | loader and stack fixups | Already narrowed to these arguments (0004). |
 | `ioctl(TCSETSF, termios2, FICLONE)` | Android pty policy, FICLONE `EACCES` | Already narrowed to these requests; GPU ioctls are free (0013). |
-| `uname`, `sethostname`, `setdomainname` | the `DroidDeck` hostname (kompat) | `uname`/`gethostname` are answered in-process from the first answer (libX11 asks for each connection). |
+| `uname`, `sethostname`, `setdomainname` | the `DroidDeck` hostname (kompat) | Rare. Keep. |
 | `set*id`, `*setxattr` | fake_id0 identity mode (0012) | Rare. Keep. |
 | `memfd_create` | Qt JIT and php workarounds (string argument) | Every Wayland `wl_shm` buffer and Chromium shared memory pays one stop. Could be dropped if the DroidDeck runtime doesn't need those workarounds. |
 | `statfs` (exit) | fakes tmpfs for `/dev/shm` | Rare. |
@@ -257,135 +257,60 @@ call can be answered in-process with the 0014 design.
    - Set `GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216` in the session
      environment.
 
-## The fast path
+## The fast path (prototype)
 
-The code is `tools/proot/fastpath/fastpath.c` (`libblfastpath.so`, in `/etc/ld.so.preload`) and
-`tools/proot/fastpath/audit.c` (`libblaudit.so`, an `LD_AUDIT` module). On the proot side it needs
-`patches/0014`. `ProotFastPath.kt` hands both sides the rootfs, the binds and a key derived from
-them; the library answers nothing unless the process tracing it carries the same key.
+The code is `tools/proot/fastpath/fastpath.c`, preloaded into every guest process. On the proot side
+it needs `patches/0014`, enabled with `PROOT_FASTPATH=1`.
 
-- **Trampoline.** The library maps a 4 KiB page at `0xffff00000` holding `mov x8,x0 … svc #0; ret`.
-  proot's filter lets syscalls from that page through. Only calls the app policy allows go through it.
-- **Resolution, as proot's `canonicalize()` does it.** A guest path is walked component by
-  component: `lstat` of each host path, symlinks read and followed in guest terms, the longest guest
-  binding wins (the last of two for the same path). Intermediate directories are cached by their
-  literal path for 2 s (`PROOT_FP_TTL_MS`); anything that renames, removes a directory or makes a
-  symlink drops the cache. A relative path starts from `/proc/self/cwd` or `/proc/self/fd/N`.
-  The call is then made on the host path, with `O_NOFOLLOW` or `AT_SYMLINK_NOFOLLOW` where the walk
-  already followed the last link.
-- **proot's quirks are reproduced, not avoided:**
-  - a binding whose host path did not resolve when proot started is dropped, as proot drops it;
-  - a binding onto `/proc/self/...` names proot's own descriptor (`/dev/null` in a session);
-  - a directory above a binding that is missing on the host is proot's glue;
-  - a missing intermediate component is `ENOENT` whatever the kernel would say, but a last
-    component proot cannot stat is left to the kernel (sysfs and `/proc` nodes the app may not stat);
-  - link text is detranslated as `detranslate_path()` does it: from the rootfs only the rootfs
-    prefix goes, from a binding text into that same binding takes its guest path, `/proc` links get
-    proot's own answers (`exe`, `cwd`), and `readlink` writes its result exactly as proot does,
-    including a buffer the kernel cut short;
-  - `/proc/<pid>/fd/N` named last is followed by the kernel, not proot;
-  - a `dirfd` that is a pipe or a socket is `ENOTDIR`;
-  - `rmdir("dir/")` removes `dir`, never a link's target; `.` and `..` are left to proot.
-- **Covered:** `open`/`openat`/`creat`/`fopen` (and the `_2` and 64 forms), the `stat` family
-  including glibc's pre-2.33 `__xstat` entry points (the Steam client uses them), `statx`, `access`,
-  `readlink`, `realpath`, `getcwd` (and their `_FORTIFY_SOURCE` forms), `mkdir`, `unlink`/`rmdir`,
-  `rename` of files, `symlink`, `chmod`, `utimens`/`utimes`, `truncate`, `statfs`/`statvfs`,
-  `getxattr`/`listxattr`, `inotify_add_watch`, Unix `connect`/`bind`/`accept`, `getsockname`/
-  `getpeername`, `shm_open`/`shm_unlink`, `get_nprocs`, `uname`/`gethostname`, `isatty`, and
-  `getpwnam`/`getpwuid` (and `_r`) when `nsswitch.conf` sends `passwd` to `files` first with no action
-  after it and the entry is in `/etc/passwd`, read as strictly as glibc reads it, buffer sizes
-  included (Xwayland looks its user up for every client).
-- **Left to proot:** anything the library cannot prove proot would answer the same way. That
-  includes `O_TMPFILE`, unknown flags, a binding name with two guest paths, renaming a directory
-  (proot moves the cwd records of every process under it), a blocking `accept` with nothing
-  waiting, and a named socket whose host path does not fit `sun_path`. `PROOT_FP_LOG=<file>` logs
-  each call left to proot with the program, call and path, which is how the remaining ones were
-  found.
-- **Library lookups.** ld.so finds a library by opening it in each directory of its search path in
-  turn, and each failed open is a stop. A game's environment puts the game's own directory,
-  `linuxarm64`, Steam's `*/video` directories and Proton's library directories ahead of `/usr/lib`:
-  in an Among Us launch 72% of ld.so's opens failed. `libblaudit.so`'s `la_objsearch()` skips a
-  candidate that proot would certainly fail with `ENOENT`: its directory walked as `canonicalize()`
-  walks it (rootfs symlinks followed, nothing inside a binding followed, no glue, not `/proc`, `/dev`
-  or `/sys`) and the name missing there, or a directory on the way missing (Proton's
-  `lib/x86_64-linux-gnu` and `lib/i386-linux-gnu` on ARM64). Two ld.so details shape it:
-  - a skipped candidate counts as an open that failed with ld.so's current `errno`, and ld.so gives
-    up on the whole search path unless that is `ENOENT`/`EACCES`, so each lookup's first candidate
-    is always opened for real;
-  - the default directories are never skipped, so a library that is nowhere still fails with the
-    same `dlerror()` text.
+- **Trampoline.** The library maps a 4 KiB executable page at the fixed address `0xffff00000`. It
+  holds `mov x8,x0 … svc #0; ret`. With `PROOT_FASTPATH`, proot's filter checks the caller's address
+  just before each `RET_TRACE` and allows syscalls coming from that page.
+- **Mapping a path.** The library takes the literal guest path and finds the longest binding whose
+  guest path is a prefix of it; otherwise the path is under the rootfs.
+  - It opens the *parent* host directory `O_PATH` and requires `/proc/self/fd` to name exactly that
+    path. That proves no component on the way was a symlink, so proot would have walked the same
+    directories.
+  - The last component is never followed: a symlink there goes to proot.
+- **Missing files.** For a missing file, the deepest existing ancestor is verified the same way, and
+  the next component must not exist even as a symlink. Then `ENOENT` is exact.
+- **What always goes to proot:**
+  - `..`, a trailing `/`, `/proc`, `/dev/fd` and `/dev/std*`;
+  - `O_TMPFILE`, `AT_EACCESS`, and any flag not handled;
+  - any doubt at all. "Go to proot" means calling the real libc function, so proot decides.
+- **Relative paths.** Patch 0014 keeps the kernel's cwd at the guest cwd's host directory. Relative
+  and dirfd lookups are mapped through `/proc/self/{cwd,fd/N}`.
+- **Verified-parent cache.** Verified parents are cached for 2 s (`PROOT_FP_TTL_MS`). That is the
+  same trade-off `preload/pathcache.c` already makes for the Steam client. A parent directory turned
+  into a symlink inside that window would be missed; `PROOT_FP_TTL_MS=0` verifies every call, at
+  2.0 µs instead of 0.6 µs.
+- **Allowed syscalls only.** It uses only `openat`, `newfstatat`, `statx`, `faccessat`, `readlinkat`
+  and `close`, all allowed for apps. A first version used `openat2 RESOLVE_IN_ROOT`, which the app
+  policy blocks.
+- **Equivalence check.** `bench/equiv.py` runs stat, lstat, readlink, read, listdir and access over
+  awkward paths, from several working directories and through a dirfd. Its output is byte-identical
+  with and without the fast path, at TTL 0 and at TTL 2000. The paths include:
+  - absolute and relative symlinks into binds, `..` symlinks, dangling links and loops;
+  - files inside binds, nested binds (`/dev/shm` inside `/dev`) and `/proc`;
+  - missing paths behind symlinks.
 
-  It has no libc (an audit module gets a namespace of its own, and a libc there would be searched for
-  along the same path) and maps the trampoline itself. `droiddeck-proton` sets `LD_AUDIT` for the
-  game's tree when the fast path is on.
-- **Locale archive.** With `LANG=C.UTF-8` and no locale archive, every glibc program made about 30
-  failed opens at start-up. `droiddeck-session` builds `/usr/lib/locale/locale-archive` once per
-  glibc package (`localedef --add-to-archive`, which needs `link()`: `DROIDDECK_LINK_RENAME=1` makes
-  the preload fall back to a non-replacing rename).
+### Open items before shipping it
 
-### Checking it
-
-`tools/proot/bench/equiv.py`, `equiv2.py` and `equiv3.py` run every covered call over awkward paths
-(links into and out of binds, glue, `/proc` links of every kind, deleted files, pipes and sockets,
-long host paths, trailing slashes, buffers of every size around a link's length, unstatable nodes,
-`.`/`..`) under `run-device.sh fpoff` and `fastpath`. The outputs must match line for line: 222, 507
-and 924 lines, all identical (the third includes `/etc/passwd` and `nsswitch.conf` variants
-glibc must read the same way: comments, `+`/`-` lines, a bad or huge uid, a duplicate, CRLF, an
-extra field, actions, `files` second, every `_r` buffer size around the line length). `fpbench` times the calls.
-
-### Results
-
-RedMagic (SM8850), 2026-10-09, the same Steam library and prefix. Timings are from builds without
-the profiler, both on CI's proot; round 1 of each is left out (it re-stages the rootfs, and on this
-branch builds the locale archive once).
-
-| | `main` (8e1a676f) | this branch |
-|---|---|---|
-| Among Us (945360), launch to game window, rounds 2–4 | 11.95 / 11.95 / 11.95 s | **7.73 / 7.82 / 7.71 s** |
-| Steam start to ready, rounds 2–4 | 7.01 / 6.94 / 6.97 s | 6.93 / 5.14 / 6.94 s |
-
-A game launch is 4.2 s (35%) shorter, and the game runs as before (60 FPS on its menu). Steam's own
-start is paced by the client and its network checks and does not move.
-
-Four more games, the same way (a fresh client for each launch, three launches per build, median):
-
-| launch to game window | `main` | this branch | saved |
-|---|---|---|---|
-| Palworld | 16.5 s | 12.1 s | 4.5 s (27%) |
-| Fallout: New Vegas | 12.1 s | 7.7 s | 4.4 s (36%) |
-| Stardew Valley | 34.1 s | 29.6 s | 4.5 s (13%) |
-| FINAL FANTASY VII REMAKE INTERGRADE | 22.1 s | 16.5 s | 5.6 s (25%) |
-
-Mortal Kombat X opened no window on either build and is left out.
-
-With the profiler (`PROOT_PROFILE`), the Among Us launch plus a minute of play went from 279,560
-stops and 5.2 s of tracer time to 23,919 stops and 0.48 s; 9–12k of what is left are Wine's
-signals. A Steam start's first 90 s cost 0.78 s of tracer time, of which ld.so's opens are 0.33 s.
-
-| per call (µs) | proot | fast path |
-|---|---|---|
-| `realpath` | 240 | 1.0 |
-| `realpath` through a `c:` link | 312 | 1.0 |
-| `realpath /proc/self/fd/N` | 408 | 9.9 |
-| `stat` / `open+close` | 26 / 35 | 2.3 / 3.0 |
-| `stat` of a missing `dir/` | 24 | 0.9 |
-| `connect`+`accept`, Unix socket | 35 | 3.7 |
-| `getpwuid` | 41.5 | 4.6 |
-| `uname` / `isatty` | 28 / 29 | 0.006 / 0.17 |
-
-### What is left
-
-- **Signals.** Every signal delivered to a tracee is a stop. Wine's `SIGUSR2`/`SIGBUS` traffic was
-  9–14k stops in a Steam start and ~12k in a minute of Among Us, about a third of what remains.
-  Not avoidable while proot traces.
-- **ld.so's own opens.** Each library found is an open, and so is the first candidate of each lookup
-  (Proton puts Steam's `ubuntu12_64/video` first): a skipped candidate fails with ld.so's `errno` as
-  it stands, which is only known to be `ENOENT` after a real failure in the same lookup.
-- **glibc's internal opens**: NSS lookups the passwd shortcut leaves alone (groups, hosts), locale
-  and gconv loading, `opendir`. A proot-aware glibc (option 6) would cover them, and ld.so's opens
-  with them.
-- **Per exec:** proot's loader opens, `/etc/ld.so.preload`, ld.so's `uname`, `set_robust_list`
-  (`SIGSYS`) and `brk`. A proot patch letting the loader open host paths from its own address range
-  would take two stops off every exec.
-- **`fchdir`**: proot keeps the cwd record, so it has to see each change (Wine changes directory
-  around many file operations).
+- **Validate inside the app**, not just from adb. Three things to check:
+  - The app domain allows an anonymous `PROT_EXEC` page (`execmem`). If not, map a page of the
+    library file itself at the fixed address instead, as proot's loader does for every program.
+  - Nothing claims `0xffff00000` first.
+  - The stub's syscalls pass Android's filter. They should: all are allowed.
+- **Integrate into `libblsession.so`** rather than a second preload. `opens.c` and `pathcache.c`
+  already define `open` and `access`, so their "real" call should become the fast path. That also
+  removes the second library's load cost, about 0.2–0.4 ms per exec that is still unexplained (see
+  the exec row above).
+- **Wire the launcher.** The app already knows the binds (`LinuxRuntime.binds`):
+  - set `PROOT_FASTPATH=1` in proot's environment;
+  - pass `PROOT_FP_ROOT` and `PROOT_FP_BINDS` to the guest;
+  - add a Performance toggle next to "Run proot without seccomp", with the fast path off whenever
+    seccomp is off.
+- **Cover the write family** (mkdir, unlink, rename, symlink, chmod, utimens) and Unix-socket
+  `connect`/`bind` for same-path binds. Then measure a real Steam start in the app, a game load,
+  and `PROOT_FP_STATS` hit rates for steam, steamwebhelper, wine and wineserver.
+- **FEX**, inside Proton as a DLL, translates x86 path syscalls through glibc's `syscall()`, not the
+  wrappers, so they still trap. A `syscall()` hook could route `openat` and `newfstatat` there too.

@@ -85,8 +85,7 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
 
 - `0014-fastpath-trampoline.patch` - with `PROOT_FASTPATH`, every `SECCOMP_RET_TRACE` in the filter
   is preceded by a check of the caller's address, and a syscall made from the fast path's trampoline
-  page (`0xffff00000`, mapped by `fastpath/fastpath.c`, or by `fastpath/audit.c` for ld.so's
-  library lookups) runs without a stop: the tracee already translated it.
+  page (`fastpath/fastpath.c`, `0xffff00000`) runs without a stop: the tracee already translated it.
   The check comes after the syscall-number dispatch, so untraced syscalls stay constant-ALLOW and keep
   the kernel's seccomp action cache (checking first cost every syscall the full filter: +0.5 ms an
   exec). `chdir`/`fchdir`, still emulated, also move the kernel's cwd to the host directory, and the
