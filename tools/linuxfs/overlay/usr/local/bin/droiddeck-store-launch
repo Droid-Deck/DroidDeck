@@ -138,7 +138,10 @@ def set_value(reg, key, name, value, now=None):
 def overlay_version(overlay_dir=OVERLAY_DIR):
     """The overlay build the app placed, or None when it is not there."""
     d = Path(overlay_dir)
-    if not (d / OVERLAY_DLL).is_file():
+    try:
+        if not (d / OVERLAY_DLL).is_file():
+            return None
+    except OSError:  # unreadable is the same as not there
         return None
     try:
         return (d / "droiddeck-version").read_text().strip() or "unknown"
