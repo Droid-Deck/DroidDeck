@@ -73,6 +73,8 @@ python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 # Games and emulators from the menu run through droiddeck-gpu; BL_DESKTOP_GPU=on/off overrides,
 # and each entry keeps "Run in a desktop window" either way.
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
+# The windowed action still opens melonDS at the size/placement the LXQt desktop used.
+/usr/local/bin/droiddeck-desktop-window-rules 2>&1 | sed 's/^/[rules] /'
 # SteamOS's desktop icons: Return to Gaming Mode and Steam, put there once - what the user moves
 # or deletes stays that way.
 desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null); [ -n "$desktop_dir" ] && [ "$desktop_dir" != "$HOME" ] || desktop_dir=$HOME/Desktop

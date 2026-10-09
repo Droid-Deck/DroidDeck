@@ -101,6 +101,7 @@ object SessionFiles {
             // Games and emulators from the menu, full screen in a gamescope of their own.
             "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
             "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
+            "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
             // KWin at the app's surface size, for Plasma's session (it starts KWin through this name).
             "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
             "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
