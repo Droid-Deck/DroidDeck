@@ -39,7 +39,8 @@ pub const TMP_SUFFIX: &str = ".bhtmp";
 /// Floor for the per-host cap (the core's default); a single-host store gets the whole ceiling.
 pub const PER_HOST_CAP_FLOOR: usize = 6;
 
-/// `max(6, ceil(max_workers / distinct_hosts))` — GOG's one CDN host gets the whole ceiling.
+/// `max(6, ceil(max_workers / distinct_hosts))` — one CDN host gets the whole ceiling, several
+/// share it.
 pub fn per_host_cap_for(max_workers: usize, distinct_hosts: usize) -> usize {
     let hosts = distinct_hosts.max(1);
     let workers = max_workers.max(1);
@@ -74,9 +75,12 @@ pub struct GogRequest {
     /// gen2: inflated depot-manifest JSON strings, in the order Java fetched them (already filtered
     /// by base-product / DLC-product and language in Java). gen1: the inflated build manifest.
     pub depot_manifests: Vec<String>,
-    /// gen2: resolved CDN base from `parseCdnUrl` (secure-link query string kept), or the
-    /// unauthenticated dependency store base. gen1: unused (file URLs live in the manifest).
-    pub cdn_base: String,
+    /// gen2: the resolved CDN bases from the secure-link answer (every `urls[]` entry, query
+    /// strings kept, in the order GOG lists them), or the one unauthenticated dependency store
+    /// base. Several bases on distinct hosts let the fetch core spread the window across CDNs
+    /// with its per-host cap; a base on a host already listed is dropped (the first one wins).
+    /// gen1: unused (file URLs live in the manifest).
+    pub cdn_bases: Vec<String>,
     pub install_dir: String,
     /// Files already completed by an earlier run of this same download (secure-link refresh
     /// re-run): counted as done WITHOUT re-hashing and WITHOUT a progress event.
@@ -109,6 +113,10 @@ pub trait GogEvents: Sync {
         bytes_total: u64,
     );
     fn on_log(&self, line: &str);
+    /// Periodic byte progress while files are in flight (~4/s, only when the value moved):
+    /// assembled bytes plus the bytes of files not yet finished. Same `bytes_total` as
+    /// `on_file_done`. Default: ignored (test recorders).
+    fn on_bytes(&self, _bytes_done: u64, _bytes_total: u64) {}
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -178,6 +186,9 @@ pub fn is_link_expiry_status(code: u16) -> bool {
 struct FileState {
     handle: Option<Arc<File>>,
     chunks_done: usize,
+    /// Decompressed bytes of this file's finished chunks, credited to the sink's `partial`
+    /// counter until the file itself is finalized and moves into `bytes_done`.
+    partial: u64,
     finalized: bool,
     failed: bool,
     tmp_path: PathBuf,
@@ -322,6 +333,9 @@ struct GogSink<'a> {
     bytes_done: &'a AtomicU64,
     events: &'a dyn GogEvents,
     speed: Mutex<SpeedSampler>,
+    /// Bytes of files still in flight (finished chunks; for gen1, the current attempt's pieces).
+    /// `bytes_done + partial` is what the byte ticker reports between file completions.
+    partial: AtomicU64,
 }
 
 impl<'a> GogSink<'a> {
@@ -374,7 +388,7 @@ impl<'a> GogSink<'a> {
     /// One verified chunk landed: count it; on the file's last chunk run the whole-file verify +
     /// rename and fire the per-file progress event (Java: doneCount++, totalBytes += df.totalSize,
     /// "Downloading: <name>  <speed>").
-    fn chunk_done(&self, file_idx: usize) -> Result<(), SinkError> {
+    fn chunk_done(&self, file_idx: usize, chunk_bytes: u64) -> Result<(), SinkError> {
         let file = &self.files[file_idx];
         let mut st = self
             .states
@@ -388,6 +402,8 @@ impl<'a> GogSink<'a> {
             )));
         }
         st.chunks_done += 1;
+        st.partial += chunk_bytes;
+        self.partial.fetch_add(chunk_bytes, Ordering::Relaxed);
         if st.chunks_done < file.chunks.len() {
             return Ok(());
         }
@@ -395,12 +411,14 @@ impl<'a> GogSink<'a> {
             st.failed = true;
             return Err(SinkError::Fatal(err));
         }
+        let partial = std::mem::take(&mut st.partial);
         drop(st);
         let done = self.files_done.fetch_add(1, Ordering::Relaxed) + 1;
         let bytes = self
             .bytes_done
             .fetch_add(file.total_size, Ordering::Relaxed)
             + file.total_size;
+        self.partial.fetch_sub(partial, Ordering::Relaxed);
         self.events.on_file_done(
             &file.relative_path,
             file.total_size,
@@ -541,7 +559,7 @@ impl<'a> FetchSink for GogSink<'a> {
         }
         drop(handle);
         let credited = inflated.len() as u64;
-        self.chunk_done(file_idx)?;
+        self.chunk_done(file_idx, credited)?;
         Ok(credited)
     }
 
@@ -694,9 +712,57 @@ impl<'a> FetchSink for GogSink<'a> {
             return Err(SinkError::Retry(msg));
         }
         drop(writer.file);
-        self.chunk_done(file_idx)?;
+        self.chunk_done(file_idx, writer.written)?;
         Ok(0)
     }
+}
+
+/// How often the byte ticker reports while files are in flight.
+pub const BYTE_TICK: Duration = Duration::from_millis(250);
+
+/// The CDN bases to fetch from: empty entries dropped, then one per distinct host (`host_key`),
+/// the first base seen for a host kept, order preserved.
+pub fn distinct_bases(bases: &[String]) -> Vec<String> {
+    let mut seen: HashSet<String> = HashSet::new();
+    bases
+        .iter()
+        .map(|b| b.trim())
+        .filter(|b| !b.is_empty() && seen.insert(host_key(b)))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Runs `fetch` with a reporter thread beside it that calls `on_bytes(bytes_done + partial,
+/// bytes_total)` every [`BYTE_TICK`] when the value moved. `on_file_done` only fires when a whole
+/// file is finished, so a game made of a few large files gave the UI a progress bar that sat
+/// still and then jumped; this fills the gaps. One last report is made when `fetch` returns.
+fn with_byte_ticker<T>(
+    events: &dyn GogEvents,
+    bytes_done: &AtomicU64,
+    partial: &AtomicU64,
+    bytes_total: u64,
+    fetch: impl FnOnce() -> T,
+) -> T {
+    let stop = AtomicBool::new(false);
+    let current = || bytes_done.load(Ordering::Relaxed) + partial.load(Ordering::Relaxed);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            crate::priority::background();
+            let mut last = u64::MAX;
+            while !stop.load(Ordering::Relaxed) {
+                std::thread::sleep(BYTE_TICK);
+                let now = current();
+                if now != last {
+                    last = now;
+                    events.on_bytes(now, bytes_total);
+                }
+            }
+        });
+        let out = fetch();
+        stop.store(true, Ordering::Relaxed);
+        events.on_bytes(current(), bytes_total);
+        out
+    })
 }
 
 /// Runs one download loop. Blocking; returns when every pending file is finalized, on the first
@@ -718,11 +784,12 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     let chunk_count: usize = files.iter().map(|f| f.chunks.len()).sum();
     let max_workers = req.max_workers.max(1);
     let process_workers = req.process_workers.max(1);
-    let host = host_key(&req.cdn_base);
-    let per_host_cap = per_host_cap_for(max_workers, 1);
+    let bases = distinct_bases(&req.cdn_bases);
+    let hosts: Vec<String> = bases.iter().map(|b| host_key(b)).collect();
+    let per_host_cap = per_host_cap_for(max_workers, hosts.len());
 
     events.on_log(&format!(
-        "engine=rust kind=gen2 mode=stream label={} files={} chunks={} planned_bytes={} skip_paths={} workers={} per_host_cap={} process_workers={} sort_largest_first={} host={} {}",
+        "engine=rust kind=gen2 mode=stream label={} files={} chunks={} planned_bytes={} skip_paths={} workers={} per_host_cap={} process_workers={} sort_largest_first={} hosts={} {}",
         req.label,
         files_total,
         chunk_count,
@@ -732,7 +799,7 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         per_host_cap,
         process_workers,
         req.sort_largest_first,
-        host,
+        hosts.join(","),
         crate::priority::log_field()
     ));
 
@@ -816,6 +883,7 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         states.push(Mutex::new(FileState {
             handle: None,
             chunks_done: 0,
+            partial: 0,
             // Files not pending (verified or skip-listed) are already final for this run.
             finalized: !is_pending,
             failed: false,
@@ -828,10 +896,11 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         pending_files += 1;
         pending_bytes = pending_bytes.saturating_add(file.total_size);
         for (chunk_idx, chunk) in file.chunks.iter().enumerate() {
-            let url = build_chunk_url(&req.cdn_base, &build_cdn_path(&chunk.hash));
+            let path = build_cdn_path(&chunk.hash);
             items.push(FetchItem {
                 id: table.len() as u64,
-                urls: vec![url],
+                // One URL per host, in `hosts` order: the core picks `urls[host_idx]`.
+                urls: bases.iter().map(|b| build_chunk_url(b, &path)).collect(),
                 reserve: chunk.compressed_size,
                 range: None,
             });
@@ -870,11 +939,11 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         bytes_done: &bytes_done,
         events,
         speed: Mutex::new(SpeedSampler::new()),
+        partial: AtomicU64::new(0),
     };
-    let hosts = vec![host];
     let opts = FetchOptions {
         max_workers,
-        // One CDN host gets the whole ceiling (Java has no per-host cap either).
+        // The ceiling split across the distinct CDN hosts (floor 6); one host gets all of it.
         per_host_cap,
         timeout: CHUNK_TIMEOUT,
         headers: vec![("User-Agent".to_string(), USER_AGENT.to_string())],
@@ -887,7 +956,9 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     };
     let log = |line: &str| events.on_log(line);
     let progress = |_bytes: u64, _items_ok: u64| {};
-    let outcome = run_fetch(items, &hosts, &opts, &sink, cancel, &progress, &log);
+    let outcome = with_byte_ticker(events, &bytes_done, &sink.partial, planned_bytes, || {
+        run_fetch(items, &hosts, &opts, &sink, cancel, &progress, &log)
+    });
 
     let cancelled = outcome.cancelled || cancel.load(Ordering::Relaxed);
     let mut error = outcome.error.clone().unwrap_or_default();
@@ -945,6 +1016,9 @@ fn run_gen2(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
 
 struct Gen1State {
     handle: Option<File>,
+    /// Bytes this file's current attempt has written (credited to the sink's `partial`); a new
+    /// attempt starts over, so a retry never counts its bytes twice.
+    attempt_bytes: u64,
     out_path: PathBuf,
     finalized: bool,
 }
@@ -962,6 +1036,9 @@ struct Gen1Sink<'a> {
     bytes_done: &'a AtomicU64,
     events: &'a dyn GogEvents,
     speed: Mutex<SpeedSampler>,
+    /// Bytes of files still in flight (finished chunks; for gen1, the current attempt's pieces).
+    /// `bytes_done + partial` is what the byte ticker reports between file completions.
+    partial: AtomicU64,
 }
 
 impl<'a> FetchSink for Gen1Sink<'a> {
@@ -985,6 +1062,8 @@ impl<'a> FetchSink for Gen1Sink<'a> {
             .map_err(|_| SinkError::Fatal("gen1 state poisoned".to_string()))?;
         if offset == 0 {
             // New attempt: Java `outFile.delete()` + `new FileOutputStream(out)`.
+            self.partial
+                .fetch_sub(std::mem::take(&mut st.attempt_bytes), Ordering::Relaxed);
             st.handle = None;
             if let Some(parent) = st.out_path.parent() {
                 let _ = fs::create_dir_all(parent);
@@ -1016,6 +1095,8 @@ impl<'a> FetchSink for Gen1Sink<'a> {
             st.handle = None;
             return Err(SinkError::Retry(msg));
         }
+        st.attempt_bytes += data.len() as u64;
+        self.partial.fetch_add(data.len() as u64, Ordering::Relaxed);
         Ok(())
     }
 
@@ -1030,9 +1111,12 @@ impl<'a> FetchSink for Gen1Sink<'a> {
                 .map_err(|_| SinkError::Fatal("gen1 state poisoned".to_string()))?;
             st.handle = None; // close
             st.finalized = true;
+            let attempt = std::mem::take(&mut st.attempt_bytes);
+            self.bytes_done.fetch_add(file.size, Ordering::Relaxed);
+            self.partial.fetch_sub(attempt, Ordering::Relaxed);
         }
         let done = self.files_done.fetch_add(1, Ordering::Relaxed) + 1;
-        let bytes = self.bytes_done.fetch_add(file.size, Ordering::Relaxed) + file.size;
+        let bytes = self.bytes_done.load(Ordering::Relaxed);
         self.events.on_file_done(
             &file.path,
             file.size,
@@ -1115,6 +1199,7 @@ fn run_gen1(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
                 .unwrap_or(false);
         states.push(Mutex::new(Gen1State {
             handle: None,
+            attempt_bytes: 0,
             out_path,
             finalized: skipped || resumed,
         }));
@@ -1169,6 +1254,7 @@ fn run_gen1(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
         bytes_done: &bytes_done,
         events,
         speed: Mutex::new(SpeedSampler::new()),
+        partial: AtomicU64::new(0),
     };
     let hosts = vec![host];
     let opts = FetchOptions {
@@ -1183,7 +1269,9 @@ fn run_gen1(req: &GogRequest, cancel: &AtomicBool, events: &dyn GogEvents) -> Go
     };
     let log = |line: &str| events.on_log(line);
     let progress = |_bytes: u64, _items_ok: u64| {};
-    let outcome = run_fetch(items, &hosts, &opts, &sink, cancel, &progress, &log);
+    let outcome = with_byte_ticker(events, &bytes_done, &sink.partial, planned_bytes, || {
+        run_fetch(items, &hosts, &opts, &sink, cancel, &progress, &log)
+    });
 
     let cancelled = outcome.cancelled || cancel.load(Ordering::Relaxed);
     let error = outcome.error.clone().unwrap_or_default();
@@ -1286,6 +1374,24 @@ mod tests {
         assert_eq!(http_status_in("HTTP 404 not found"), Some(404));
         assert_eq!(http_status_in("chunk=abc403def timed out"), None, "hash digits are not a status");
         assert_eq!(http_status_in("timeout"), None);
+        let bases = vec![
+            "https://gog-cdn-fastly.gog.com/token/a?x=1".to_string(),
+            " ".to_string(),
+            "https://GOG-CDN-FASTLY.gog.com/token/b?x=2".to_string(),
+            "https://gog-cdn-akamai.gog.com/token/c?y=3".to_string(),
+            "https://gog-cdn-lumen.gog.com/token/d".to_string(),
+        ];
+        assert_eq!(
+            distinct_bases(&bases),
+            vec![
+                "https://gog-cdn-fastly.gog.com/token/a?x=1".to_string(),
+                "https://gog-cdn-akamai.gog.com/token/c?y=3".to_string(),
+                "https://gog-cdn-lumen.gog.com/token/d".to_string(),
+            ],
+            "blank dropped, second fastly base dropped, order kept"
+        );
+        assert_eq!(per_host_cap_for(96, 3), 32);
+        assert_eq!(per_host_cap_for(96, 1), 96);
         assert!(is_link_expiry_status(401));
         assert!(is_link_expiry_status(403));
         assert!(is_link_expiry_status(404));
@@ -1345,6 +1451,7 @@ mod tests {
             states: vec![Mutex::new(FileState {
                 handle: None,
                 chunks_done: 0,
+                partial: 0,
                 finalized: false,
                 failed: false,
                 tmp_path: tmp_path.clone(),
@@ -1357,6 +1464,7 @@ mod tests {
             bytes_done: &bytes_done,
             events: &rec,
             speed: Mutex::new(SpeedSampler::new()),
+            partial: AtomicU64::new(0),
         };
         let item = |id: u64| FetchItem { id, urls: vec!["x".into()], reserve: 0, range: None };
 
@@ -1401,6 +1509,7 @@ mod tests {
             states: vec![Mutex::new(FileState {
                 handle: None,
                 chunks_done: 0,
+                partial: 0,
                 finalized: false,
                 failed: false,
                 tmp_path: tmp_path.clone(),
@@ -1413,6 +1522,7 @@ mod tests {
             bytes_done: &bytes_done,
             events: &rec,
             speed: Mutex::new(SpeedSampler::new()),
+            partial: AtomicU64::new(0),
         };
         let item = FetchItem { id: 0, urls: vec!["x".into()], reserve: 0, range: None };
         match sink.process(&item, raw) {
@@ -1438,7 +1548,7 @@ mod tests {
         );
         let req = GogRequest {
             depot_manifests: vec![manifest],
-            cdn_base: "https://example.invalid/store?tok=1".to_string(),
+            cdn_bases: vec!["https://example.invalid/store?tok=1".to_string()],
             install_dir: dir.to_string_lossy().into_owned(),
             skip_paths: vec!["skipped.bin".to_string()],
             max_workers: 4,
@@ -1505,6 +1615,7 @@ mod tests {
             states: vec![Mutex::new(FileState {
                 handle: None,
                 chunks_done: 0,
+                partial: 0,
                 finalized: false,
                 failed: false,
                 tmp_path: tmp_path.clone(),
@@ -1517,6 +1628,7 @@ mod tests {
             bytes_done: &bytes_done,
             events: &rec,
             speed: Mutex::new(SpeedSampler::new()),
+            partial: AtomicU64::new(0),
         };
         let item = |id: u64| FetchItem { id, urls: vec!["x".into()], reserve: 0, range: None };
 
@@ -1580,6 +1692,7 @@ mod tests {
             files: &files,
             states: vec![Mutex::new(Gen1State {
                 handle: None,
+                attempt_bytes: 0,
                 out_path: dir.join("sub/blob.bin"),
                 finalized: false,
             })],
@@ -1589,6 +1702,7 @@ mod tests {
             bytes_done: &bytes_done,
             events: &rec,
             speed: Mutex::new(SpeedSampler::new()),
+            partial: AtomicU64::new(0),
         };
         let item = FetchItem { id: 0, urls: vec!["x".into()], reserve: 8, range: Some((100, 107)) };
         // Attempt 1 writes a partial, attempt 2 restarts from offset 0 and truncates it.
@@ -1642,7 +1756,7 @@ mod tests {
         let manifest = r#"{"depot":{"items":[{"path":"a.bin","chunks":[{"compressedMd5":"ab","size":4}]}]}}"#;
         let req = GogRequest {
             depot_manifests: vec![manifest.to_string()],
-            cdn_base: "https://example.invalid/store".to_string(),
+            cdn_bases: vec!["https://example.invalid/store".to_string()],
             install_dir: dir.to_string_lossy().into_owned(),
             max_workers: 1,
             process_workers: 1,
@@ -1654,5 +1768,33 @@ mod tests {
         assert!(res.cancelled && !res.success);
         assert_eq!(res.error, "cancelled");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn byte_ticker_reports_in_flight_bytes_between_file_completions() {
+        struct Bytes(StdMutex<Vec<(u64, u64)>>);
+        impl GogEvents for Bytes {
+            #[allow(clippy::too_many_arguments)]
+            fn on_file_done(&self, _: &str, _: u64, _: bool, _: u32, _: u32, _: u64, _: u64) {}
+            fn on_log(&self, _: &str) {}
+            fn on_bytes(&self, done: u64, total: u64) {
+                self.0.lock().unwrap().push((done, total));
+            }
+        }
+        let rec = Bytes(StdMutex::new(Vec::new()));
+        let bytes_done = AtomicU64::new(100);
+        let partial = AtomicU64::new(0);
+        let out = with_byte_ticker(&rec, &bytes_done, &partial, 1000, || {
+            partial.store(50, Ordering::Relaxed);
+            std::thread::sleep(BYTE_TICK * 3);
+            bytes_done.store(400, Ordering::Relaxed);
+            partial.store(0, Ordering::Relaxed);
+            7
+        });
+        assert_eq!(out, 7);
+        let calls = rec.0.lock().unwrap().clone();
+        assert!(calls.contains(&(150, 1000)), "in-flight bytes reported mid-run: {calls:?}");
+        assert_eq!(calls.last(), Some(&(400, 1000)), "final report when the fetch returns");
+        assert!(calls.windows(2).all(|w| w[0] != w[1] || w[1] == (400, 1000)), "no repeats while idle: {calls:?}");
     }
 }

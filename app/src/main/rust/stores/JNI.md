@@ -70,7 +70,7 @@ after it (marker files, exe resolution, DLC markers, redist orchestration).
 | Method | JNI signature | Symbol |
 |---|---|---|
 | `nativeProbe(): Int` | `()I` | `Java_com_droiddeck_launcher_stores_gog_GogNative_nativeProbe` |
-| `nativeStart(...)`: Long | `(I[Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;IIZLjava/lang/String;Ljava/lang/Object;)J` (last parameter is the listener; its static type is the app's choice) | `Java_com_droiddeck_launcher_stores_gog_GogNative_nativeStart` |
+| `nativeStart(...)`: Long | `(I[Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;IIZLjava/lang/String;Ljava/lang/Object;)J` (last parameter is the listener; its static type is the app's choice) | `Java_com_droiddeck_launcher_stores_gog_GogNative_nativeStart` |
 | `nativeCancel(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_gog_GogNative_nativeCancel` |
 | `nativeRelease(handle: Long)` | `(J)V` | `Java_com_droiddeck_launcher_stores_gog_GogNative_nativeRelease` |
 
@@ -83,7 +83,7 @@ once at startup instead of mid-download.
 |---|---|---|
 | 1 | `kind: Int` | `0` = `KIND_GEN2_CHUNKS`, `1` = `KIND_GEN1_RANGES` (anything else → gen2) |
 | 2 | `depotManifests: Array<String>` | gen2: the inflated depot-manifest JSON strings, in fetch order, already filtered by product + language; gen1: the inflated build manifest (one element) |
-| 3 | `cdnBase: String` | gen2: the resolved secure-link base (query string intact) or the unauthenticated dependency store base; gen1: `""` (file URLs are in the manifest) |
+| 3 | `cdnBases: Array<String>` | gen2: **every** CDN base of the secure-link answer — one per `urls[]` entry, each resolved the way `parseCdnUrl` resolves `urls[0]` today (query string intact), in GOG's order — or the one unauthenticated dependency store base (an array of one); gen1: `emptyArray()` (file URLs are in the manifest). Blank entries are ignored and a base whose host already appeared is dropped (the first wins). The fetch core spreads the window across the distinct hosts with a per-host cap of `max(6, ceil(maxWorkers / hosts))`, rotating a failed chunk to another CDN; one base behaves exactly like the old single `cdnBase`. The start log line lists them as `hosts=a,b,c`. |
 | 4 | `installDir: String` | absolute install directory |
 | 5 | `skipPaths: Array<String>` | relative paths already completed by an earlier run of this same download (secure-link refresh re-run): counted done without re-hashing, no progress event |
 | 6 | `caBundlePath: String` | see conventions |
@@ -94,14 +94,15 @@ once at startup instead of mid-download.
 | 11 | `listener` | see below |
 
 Returns `0` without any callback when: the listener is null, the JavaVM cannot be obtained, the
-install dir or manifest list is empty, `cdnBase` is empty for gen2, or the worker thread cannot be
-spawned. Otherwise the run is on a thread named `gog-dl` and `onComplete` fires exactly once.
+install dir or manifest list is empty, `cdnBases` holds no usable base for gen2, or the worker
+thread cannot be spawned. Otherwise the run is on a thread named `gog-dl` and `onComplete` fires exactly once.
 
 Suggested listener: `com.droiddeck.launcher.stores.gog.GogNative.Listener` (an interface).
 
 | Listener method | JNI signature | When |
 |---|---|---|
 | `onProgress(bytesDone: Long, bytesTotal: Long, filesDone: Int, filesTotal: Int, file: String, fileBytes: Long, verified: Boolean)` | `(JJIILjava/lang/String;JZ)V` | one file reached its final state. `verified = true` = resume-skip (existing file passed size+MD5; no bytes credited, `fileBytes` = its size); `false` = freshly assembled, size+MD5-verified and renamed (`fileBytes` = its decompressed size). `filesDone` counts both, `bytesDone` counts assembled bytes only. Process-pool / worker thread. |
+| `onBytes(bytesDone: Long, bytesTotal: Long)` | `(JJ)V` | byte progress between file completions: every 250 ms while the run is fetching, only when the value moved, plus once when the fetch ends. `bytesDone` = bytes of assembled files + bytes of files still in flight (gen2: their finished chunks, decompressed; gen1: what the current attempt has written; a retried attempt starts over, so nothing is counted twice); `bytesTotal` is the same total `onProgress` reports. It never goes past the next `onProgress.bytesDone` by more than the in-flight files and is equal to it once they finish. Drive the progress bar and speed from this; keep `onProgress` for file counts and per-file events. Called from the engine's ticker thread. Optional: a listener without it still works (the call fails quietly). |
 | `onLog(line: String)` | `(Ljava/lang/String;)V` | engine diagnostics; the same line already went to logcat under the tag `GogNative`. Any native thread. |
 | `onComplete(success: Boolean, cancelled: Boolean, linkExpiry: Boolean, error: String, bytesWritten: Long, filesDone: Int)` | `(ZZZLjava/lang/String;JI)V` | exactly once, from the worker thread, last. `linkExpiry = true` = the run died on an HTTP 401/403/404/500, the codes the GOG secure link returns once it expired: refresh the link and call `nativeStart` again with the finished files in `skipPaths`. `error` is `""` on success. |
 
