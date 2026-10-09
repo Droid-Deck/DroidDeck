@@ -22,14 +22,14 @@ through `kwin_wayland_wrapper`. KWin composites in software (QPainter) - the Adr
 DRM device - so games and emulators from the menu go through `droiddeck-gpu`, and Steam goes back
 to the app as a Steam session.
 
-`build-kwin.sh` builds KWin 6.7.5's Wayland executable on a native ARM64 runner, using a disposable
+`build-kwin.sh` builds KWin 6.7.5's Wayland executable and library on a native ARM64 runner, using a disposable
 Arch Linux ARM chroot with every build package signature-checked. The KDE source tarball is pinned
 by SHA-256 (the same digest in Arch's KWin PKGBUILD); `patches/0001-respect-nested-desktop-scale.patch`
 lets Display Settings control the inner desktop scale independently of the outer window size.
 It keeps layer sizes, pointer/touch coordinates and the cursor in the same physical pixels.
 The behavior is enabled only with `DROIDDECK_NESTED_SCALE`, which the desktop script supplies.
 
-The desktop workflow replaces only the same-version `kwin_wayland` executable; the rest of KWin
+The desktop workflow replaces the same-version `kwin_wayland` executable and `libkwin.so`; the rest
 comes from the signature-checked Arch packages. `desktop-kde.kwin.txt` records the source, patch,
-executable and build package hashes. Corresponding source is
+executable, library and build package hashes. Corresponding source is
 https://download.kde.org/stable/plasma/6.7.5/kwin-6.7.5.tar.xz plus the patch in this repository.

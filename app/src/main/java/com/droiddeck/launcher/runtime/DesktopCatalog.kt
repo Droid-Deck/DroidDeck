@@ -95,12 +95,14 @@ object DesktopCatalog {
 
     // The desktop package installed to the end: KWin is there and the marker install() writes once
     // the whole package is extracted. An install cut short (the app killed, storage full) leaves
-    // KWin without the marker, and the next desktop installs it again. The launcher is staged by
+    // KWin without the marker, and the next desktop installs it again. A newer pinned package also
+    // replaces the installed one, keeping the user's home and settings. The launcher is staged by
     // the app at every session, so it cannot tell. SessionFiles uses the same test.
     fun desktopInstalled(context: Context): Boolean = desktopInstalled(LinuxRuntime.rootDir(context))
 
     fun desktopInstalled(root: File): Boolean =
-        File(root, "usr/bin/kwin_wayland").isFile && File(root, ".droiddeck-pkg-$DESKTOP_ID").isFile
+        File(root, "usr/bin/kwin_wayland").isFile &&
+            FileUtils.readString(File(root, ".droiddeck-pkg-$DESKTOP_ID"))?.trim() == BuildConfig.DESKTOP_KDE_TAG
 
     /** Downloads, verifies and installs one package. Returns null on success, else a message. */
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
