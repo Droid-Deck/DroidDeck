@@ -1,5 +1,33 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.outlined.SdCard
+import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
+import com.droiddeck.launcher.stores.StoreInstallRoot
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -23,6 +51,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -102,9 +131,14 @@ internal fun tabsFor(store: Store?): List<String> = if (store == Store.AMAZON) l
 /** [tab] if [store] has it, else Library (the open-on Store choice, or an old Installed / All, falls back there). */
 internal fun tabFor(store: Store?, tab: String): String = if (tab in tabsFor(store)) tab else "library"
 
+/** What the pane under the chips shows: a store's tab (signed in or not) or the downloads. */
+private data class PaneKey(val chip: String, val tab: String, val signedIn: Boolean)
+
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.animation.ExperimentalAnimationApi::class)
 @Composable
 internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 14.dp else 22.dp
     var chip by rememberSaveable { mutableStateOf(Store.GOG.id) }
@@ -140,7 +174,11 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     }
     BackHandler(enabled = openGame != null) { closeGame() }
     val scroll = rememberScrollState()
-    LaunchedEffect(chip, tab, openGame) { scroll.scrollTo(0) }
+    val detailScroll = rememberScrollState()
+    // A store or tab just picked starts at the top. Closing a game page leaves the grid where it
+    // was, so the page draws back into the card it came from and focus lands on it.
+    LaunchedEffect(chip, tab) { scroll.scrollTo(0) }
+    LaunchedEffect(openGame) { detailScroll.scrollTo(0) }
     LaunchedEffect(focusMove, openGame) {
         if (inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard || ff == null) return@LaunchedEffect
         val target = when {
@@ -152,8 +190,41 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         var landed = false
         focusWithinFrames({ landed }) { target.also { landed = runCatching { it.requestFocus() }.isSuccess } }
     }
+
+    // The game page is a layer over the grid: it floods out of the card it was opened from (the
+    // cog's PageFlood, carrying the card's art), and Back draws it into that card again. [detail]
+    // outlives [openGame] while it draws back.
+    var detail by remember { mutableStateOf<String?>(null) }
+    var leaving by remember { mutableStateOf(false) }
+    var detailFrom by remember { mutableStateOf<Origin?>(null) }
+    var detailArt by remember { mutableStateOf<String?>(null) }
+    var viewportAt by remember { mutableStateOf(Offset.Zero) }
+    var hostAt by remember { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(openGame) {
+        val g = openGame
+        if (g != null) {
+            val mark = StoresMotion.takeCard(g)
+            detailFrom = mark?.let { Origin(it.bounds.translate(-viewportAt), it.corner) }
+            detailArt = mark?.art
+            leaving = false
+            detail = g
+        } else if (detail != null) {
+            if (detailFrom != null) {
+                leaving = true
+                delay(Motion.ms(PAGE_RETURN_MS).toLong())
+            }
+            detail = null
+            leaving = false
+            detailFrom = null
+        }
+    }
+    val covering = detail != null && !leaving
+    val gridScale by animateFloatAsState(if (covering) 0.95f else 1f, if (covering) Motion.tw(480) else Motion.tw(460, 40), label = "gridSink")
+    val gridAlpha by animateFloatAsState(if (covering) 0f else 1f, if (covering) Motion.tw(320, 80) else Motion.tw(300, 100), label = "gridFade")
+
+    Box(modifier.onGloballyPositioned { hostAt = it.positionInRoot() }) {
     Column(
-        modifier = modifier.padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
             .bumpers(
                 onPrevious = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + t.size - 1) % t.size]) } },
                 onNext = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + 1) % t.size]) } },
@@ -167,56 +238,314 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         }
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
         Box(
-            Modifier.fillMaxWidth().weight(1f, fill = false).clipToBounds()
+            Modifier.fillMaxWidth().weight(1f).clipToBounds()
+                .onGloballyPositioned { viewportAt = it.positionInRoot() }
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
-                    if (scroll.value > 0 && size.height > fade) drawRect(
+                    val scrolled = if (detail != null) detailScroll.value > 0 else scroll.value > 0
+                    if (scrolled && size.height > fade) drawRect(
                         Brush.verticalGradient(0f to Color.Transparent, fade / size.height to Color.Black),
                         blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
                     )
                 },
         ) {
-        Column(modifier = Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) {
-            when {
-                chip == DOWNLOADS -> StoresDownloadsPane(s, a)
-                store == null -> {}
-                // Signed out, or a sign-in that ran out (a launch could not get its code): sign in again.
-                !StoresState.isSignedIn(store) || StoresState.expired[store] == true -> Rise(1) { SignInCard(store) }
-                // One focus group, so the pad walks the page's own controls - back, the hero's
-                // actions, the cards - and reaches the rail only with Left from them.
-                openGame != null -> Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(store, openGame!!, s, a, onBack = { closeGame() }) }
-                else -> Storefront(store, shownTab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
+            // Under a game page the grid stays composed - its scroll and the card to come back to
+            // stay put - but sinks away, and a pad can neither reach it nor be sent to it.
+            val gridFocus = if (detail != null) null else ff
+            CompositionLocalProvider(LocalFrontFocus provides gridFocus) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .graphicsLayer { scaleX = gridScale; scaleY = gridScale; alpha = gridAlpha }
+                        .then(if (detail != null) Modifier.focusProperties { enter = { androidx.compose.ui.focus.FocusRequester.Cancel } }.focusGroup() else Modifier)
+                        .verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp),
+                ) {
+                    val pane = PaneKey(
+                        chip, if (store == null) "" else shownTab,
+                        store == null || (StoresState.isSignedIn(store) && StoresState.expired[store] != true),
+                    )
+                    AnimatedContent(
+                        targetState = pane,
+                        transitionSpec = {
+                            val sameStore = initialState.chip == targetState.chip && initialState.signedIn == targetState.signedIn
+                            (if (sameStore && initialState.tab != targetState.tab) {
+                                // LB / RB: the tab's contents leave the way the bumper points and the
+                                // next tab's come in from the other side, the column nearest leading.
+                                val dir = if (TABS.indexOf(targetState.tab) > TABS.indexOf(initialState.tab)) 1 else -1
+                                (slideInHorizontally(Motion.sp(0.7f, Spring.StiffnessMediumLow)) { it / 6 * dir } + fadeIn(Motion.tw(220, 60)))
+                                    .togetherWith(slideOutHorizontally(Motion.tw(170)) { -it / 6 * dir } + fadeOut(Motion.tw(170)) + scaleOut(Motion.tw(170), targetScale = 0.97f))
+                            } else {
+                                // Another store: the shelf sinks away, the next rises in (the pane's own move).
+                                (fadeIn(Motion.tw(300, 80)) + slideInVertically(Motion.tw(420, 80)) { it / 24 })
+                                    .togetherWith(fadeOut(Motion.tw(170)) + scaleOut(Motion.tw(170), targetScale = 0.97f))
+                            }).using(SizeTransform(clip = false))
+                        },
+                        label = "storesPane",
+                    ) { k ->
+                        // What is leaving is not where a pad's next move should land.
+                        val outgoing = transition.targetState == androidx.compose.animation.EnterExitState.PostExit
+                        CompositionLocalProvider(LocalFrontFocus provides if (outgoing) null else LocalFrontFocus.current) {
+                            val st = Store.byId(k.chip)
+                            when {
+                                k.chip == DOWNLOADS -> StoresDownloadsPane(s, a)
+                                st == null -> {}
+                                // Signed out, or a sign-in that ran out (a launch could not get its code): sign in again.
+                                !k.signedIn -> Rise(1) { SignInCard(st) }
+                                else -> Storefront(st, k.tab, query, s, a, onTab = { switchTab(it) }, onQuery = { query = it }, onOpen = { open(it) })
+                            }
+                        }
+                    }
+                }
+            }
+            detail?.let { key ->
+                val detailStore = Store.byId(key.substringBefore(':')) ?: store
+                val body: @Composable () -> Unit = {
+                    // One focus group, so the pad walks the page's own controls - back, the hero's
+                    // actions - and reaches the rail only with Left from them. It takes every touch,
+                    // so nothing reaches the grid under it.
+                    Column(
+                        Modifier.fillMaxSize().background(colors.background).pointerInput(Unit) { detectTapGestures { } }
+                            .verticalScroll(detailScroll).padding(top = 4.dp, bottom = 16.dp),
+                    ) {
+                        if (detailStore != null) Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(detailStore, key, s, a, onBack = { closeGame() }) }
+                    }
+                }
+                val from = detailFrom
+                if (from == null) body()
+                else {
+                    val art = detailArt?.let { coil.compose.rememberAsyncImagePainter(it) }
+                    PageFlood(from, leaving, art) { body() }
+                }
             }
         }
+    }
+    // Over the whole page: an install's dot on its way to Downloads, a confirm stepping out of the
+    // control that asked for it, and a sign-in's flood.
+    FlightLayer(hostAt)
+    StoresMotion.step?.let { ask ->
+        key(ask) {
+            StepOut(
+                open = StoresMotion.stepOpen, pill = ask.anchor.translate(-hostAt), side = ask.side, accent = ask.accent,
+                onDismiss = { StoresMotion.fold() }, onClosed = { StoresMotion.closed(ask) },
+                pillCorner = ask.pillCorner, items = ask.items, handle = ask.handle, content = ask.content,
+            )
         }
     }
+    SignInFloodLayer(hostAt)
+    }
+    // Leaving the section: nothing stays stepped out of a control that is no longer on screen.
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
+    // An install that started from a button here flies from it to the Downloads chip.
+    val activeKeys = StoresState.downloads.filter { it.isActive }.map { it.key }.toSet()
+    val seenActive = remember { mutableSetOf<String>().also { it.addAll(activeKeys) } }
+    LaunchedEffect(activeKeys) {
+        val fresh = activeKeys - seenActive
+        seenActive.clear(); seenActive.addAll(activeKeys)
+        if (fresh.isNotEmpty()) StoresMotion.takeInstall()?.let { StoresMotion.fly(it) }
+    }
     if (settings) StoresSettingsDialog(s, a) { settings = false }
-    StoresState.pendingInstall?.let { item -> InstallWhereDialog(item) { StoresState.pendingInstall = null } }
+    StoresState.pendingInstall?.let { item -> InstallWhere(item) }
+}
+
+/**
+ * "Install <game>:" with a row per place, grown out of the Install button that asked (End
+ * session's step-out, in blue); the plain dialog when that button is not on screen.
+ */
+@Composable
+private fun InstallWhere(item: CatalogItem) {
+    val ctx = LocalContext.current
+    val pal = LocalPalette.current
+    val from = remember(item) { StoresMotion.recentInstall() }
+    if (from == null) { InstallWhereDialog(item) { StoresState.pendingInstall = null }; return }
+    val title = stringResource(R.string.stores_install_title, item.title)
+    val internalLabel = stringResource(R.string.stores_target_internal)
+    val label = StoresMotion.installLabel
+    LaunchedEffect(item) {
+        val targets = StoreInstallRoot.targets(ctx)
+        val remembered = SessionPrefs.storesInstallTarget(ctx)
+        val defaultIndex = targets.indexOfFirst { it.root.absolutePath == remembered }.coerceAtLeast(0)
+        StoresMotion.ask(StepAsk(
+            anchor = from, side = StepSide.Right, accent = pal.signal, pillCorner = 12.dp, items = 1 + targets.size,
+            onDismiss = { if (StoresState.pendingInstall === item) StoresState.pendingInstall = null },
+            handle = { Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1) },
+        ) {
+            StepTitle(title)
+            StepList {
+                targets.forEachIndexed { i, t ->
+                    StepChoice(
+                        label = if (t.removable) t.label else internalLabel,
+                        icon = if (t.removable) androidx.compose.material.icons.Icons.Outlined.SdCard else androidx.compose.material.icons.Icons.Outlined.Smartphone,
+                        trailing = stringResource(R.string.stores_target_free, formatBytes(t.freeBytes)),
+                        enabled = open,
+                        modifier = Modifier.fillMaxWidth().stepItem(1 + i).then(if (i == defaultIndex) Modifier.focusRequester(first) else Modifier),
+                    ) {
+                        SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
+                        // The fold and the dot leave together: the download it starts flies from Install.
+                        StoresMotion.markInstall(from, label)
+                        StoresState.install(ctx, item, t.root)
+                        StoresMotion.fold()
+                    }
+                }
+            }
+        })
+    }
+}
+
+/** A sign-in's flood: out of the button in the store's colour, and home again once the login page closes. */
+@Composable
+private fun SignInFloodLayer(hostAt: Offset) {
+    val f = StoresMotion.signIn ?: return
+    val ctx = LocalContext.current
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    key(f) {
+        var paused by remember { mutableStateOf(false) }
+        // Signed in: into the store's dot on its chip. Not (closed, or it failed): back into the button.
+        fun back() { if (f.drainTo == null) f.drainTo = if (StoresState.isSignedIn(f.store)) StoresMotion.dots[f.store] ?: f.from else f.from }
+        androidx.compose.runtime.DisposableEffect(lifecycle) {
+            val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_PAUSE && f.away) paused = true
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && f.away && paused) back()
+            }
+            lifecycle.addObserver(obs)
+            onDispose { lifecycle.removeObserver(obs) }
+        }
+        // The store had no login page to open: nothing will come back, so drain now.
+        LaunchedEffect(f.away) { if (f.away) { delay(1_500); if (!paused) back() } }
+        val to = f.drainTo
+        if (to == null) ColorFlood(f.from.translate(-hostAt), f.start, f.color) {
+            if (!f.away) {
+                f.away = true
+                com.droiddeck.launcher.stores.StoreLoginActivity.floodColor = f.color.toArgb()
+                StoresState.signIn(ctx, f.store)
+            }
+        } else {
+            val corner = if (to === f.from) with(density) { 12.dp.toPx() } else to.minDimension / 2f
+            ColorDrain(f.color, to.translate(-hostAt), corner) {
+                if (StoresMotion.signIn === f) StoresMotion.signIn = null
+                if (StoresState.isSignedIn(f.store)) StoresMotion.pulse(f.store)
+            }
+        }
+    }
 }
 
 // ---- the chip row -------------------------------------------------------------------------------
 
-/** Four equal chips - the stores with a signed-in dot, Downloads with its count - and the cog. */
+/**
+ * Four equal chips - the stores with a signed-in dot, Downloads with its count - and the cog. The
+ * selection is one shape that belongs to the row, not each chip's background: it glides from chip
+ * to chip like the focus ring, its leading edge first, tinted in the store's colour, and a hop
+ * past a chip goes as a drop.
+ */
 @Composable
 private fun StoreChips(selected: String, active: Int, onPick: (String) -> Unit, onSettings: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        for (store in Store.entries) {
+    val pal = LocalPalette.current
+    val keys = Store.entries.map { it.id } + DOWNLOADS
+    val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
+    val tint by androidx.compose.animation.animateColorAsState(
+        Store.byId(selected)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
+    )
+    Box(Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            for (store in Store.entries) {
+                val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
+                StoreChip(
+                    label = store.shortLabel, on = selected == store.id, key = store.id,
+                    modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent() },
+                    lead = {
+                        val c = sourceColours(store.id)
+                        // A store's dot pulses once when it is picked signed in, and when a sign-in lands.
+                        var picked by remember { mutableStateOf(0) }
+                        val on = selected == store.id
+                        val wasOn = remember { booleanArrayOf(on) }
+                        LaunchedEffect(on) {
+                            if (on && !wasOn[0] && signedIn) picked++
+                            wasOn[0] = on
+                        }
+                        Box(
+                            Modifier.size(12.dp)
+                                .onGloballyPositioned { StoresMotion.dots[store] = it.boundsInRoot() }
+                                .pulseRing(picked + (StoresMotion.pulses[store] ?: 0), c.dot),
+                        ) { Box(Modifier.matchParentSize().clip(CircleShape).background(c.dot).alpha(if (signedIn) 1f else 0.35f)) }
+                    },
+                    description = store.label + if (signedIn) "" else " " + stringResource(R.string.stores_chip_signed_out),
+                ) { onPick(store.id) }
+            }
             StoreChip(
-                label = store.shortLabel, on = selected == store.id, key = store.id, modifier = Modifier.weight(1f),
-                lead = {
-                    val c = sourceColours(store.id)
-                    Box(Modifier.size(12.dp).clip(CircleShape).background(c.dot).alpha(if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f))
+                label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, key = DOWNLOADS,
+                modifier = Modifier.weight(1f).onGloballyPositioned {
+                    bounds[DOWNLOADS] = it.boundsInParent()
+                    StoresMotion.downloadsChip = it.boundsInRoot()
                 },
-                description = store.label + if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) "" else " " + stringResource(R.string.stores_chip_signed_out),
-            ) { onPick(store.id) }
+                lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
+                trail = if (active > 0) { { CountPill(active) } } else null,
+            ) { onPick(DOWNLOADS) }
+            IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings), onSettings)
         }
-        StoreChip(
-            label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, key = DOWNLOADS, modifier = Modifier.weight(1f),
-            lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
-            trail = if (active > 0) { { CountPill(active) } } else null,
-        ) { onPick(DOWNLOADS) }
-        IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings), onSettings)
+        // Over the chips: the fill is translucent, and the other chips' rest fill would hide it in flight.
+        ChipGlide(keys.indexOf(selected), bounds[selected], tint)
+    }
+}
+
+/**
+ * The selection under the chips: [at] (in the row) of chip [index], in [tint]. A move to the next
+ * chip stretches it - the leading edge on the focus ring's lead spring, the trailing one a beat
+ * later on its trail spring - and a hop past a chip pinches it to a drop, carries it and opens it.
+ */
+@Composable
+private fun BoxScope.ChipGlide(index: Int, at: Rect?, tint: Color) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val left = remember { Animatable(Float.NaN) }
+    val right = remember { Animatable(0f) }
+    val pinch = remember { Animatable(0f) }
+    val top = remember { mutableStateOf(0f) }
+    val bottom = remember { mutableStateOf(0f) }
+    val was = remember { intArrayOf(-1) }
+    LaunchedEffect(index, at) {
+        val b = at ?: return@LaunchedEffect
+        top.value = b.top; bottom.value = b.bottom
+        val from = was[0]
+        was[0] = index
+        if (left.value.isNaN() || from == index || from < 0 || Motion.scale == 0f) {
+            left.snapTo(b.left); right.snapTo(b.right); pinch.snapTo(0f)
+            return@LaunchedEffect
+        }
+        coroutineScope {
+            if (kotlin.math.abs(index - from) > 1) {
+                // Too far to stretch: pinch into a drop where it is, carry it over, open it there.
+                pinch.animateTo(1f, Motion.tw(90))
+                val l = launch { left.animateTo(b.left, Motion.sp(0.7f, 380f)) }
+                val r = launch { right.animateTo(b.right, Motion.sp(0.7f, 380f)) }
+                l.join(); r.join()
+                pinch.animateTo(0f, Motion.sp(0.6f, 500f))
+            } else {
+                val forward = index > from
+                val (lead, trail) = if (forward) right to left else left to right
+                val leadTo = if (forward) b.right else b.left
+                val trailTo = if (forward) b.left else b.right
+                launch { lead.animateTo(leadTo, Motion.sp(0.62f, 700f)) }
+                launch { delay(Motion.ms(40).toLong()); trail.animateTo(trailTo, Motion.sp(0.78f, 360f)) }
+            }
+        }
+    }
+    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+        if (left.value.isNaN() || bottom.value <= top.value) return@Canvas
+        val l = minOf(left.value, right.value)
+        val r = maxOf(left.value, right.value)
+        val cx = (l + r) / 2f
+        val cy = (top.value + bottom.value) / 2f
+        val drop = with(density) { 6.dp.toPx() }
+        val p = pinch.value
+        val x0 = androidx.compose.ui.util.lerp(l, cx - drop, p)
+        val x1 = androidx.compose.ui.util.lerp(r, cx + drop, p)
+        val y0 = androidx.compose.ui.util.lerp(top.value, cy - drop, p)
+        val y1 = androidx.compose.ui.util.lerp(bottom.value, cy + drop, p)
+        val size = androidx.compose.ui.geometry.Size(x1 - x0, y1 - y0)
+        val corner = androidx.compose.ui.geometry.CornerRadius(minOf(size.width, size.height) / 2f)
+        val at0 = Offset(x0, y0)
+        // A drop in flight is solid; on a chip it is the chip's tinted fill and outline.
+        drawRoundRect(tint.copy(alpha = androidx.compose.ui.util.lerp(0.16f, 0.9f, p)), at0, size, corner)
+        drawRoundRect(tint.copy(alpha = 0.7f * (1f - p)), at0, size, corner, style = androidx.compose.ui.graphics.drawscope.Stroke(with(density) { 1.dp.toPx() }))
     }
 }
 
@@ -229,13 +558,16 @@ private fun StoreChip(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.95f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "chipScale")
     val shape = RoundedCornerShape(99.dp)
     val ink = if (on) colors.onBackground else if (hot) colors.onBackground else colors.onSurfaceVariant
+    // The selected look is the row's glide under the chip, so a chip here draws only its rest state.
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        modifier = modifier.paneItem("storechip:$key").heightIn(min = 44.dp).clip(shape)
-            .background(if (on) pal.signal.copy(alpha = 0.16f) else colors.surface)
-            .glideBorder(hot, shape, pal.signal, if (on) pal.signal.copy(alpha = 0.7f) else pal.line)
+        modifier = modifier.paneItem("storechip:$key").heightIn(min = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
+            .background(if (on) Color.Transparent else colors.surface)
+            .glideBorder(hot, shape, pal.signal, if (on) Color.Transparent else pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
@@ -268,7 +600,8 @@ internal fun CountPill(count: Int) {
     val pal = LocalPalette.current
     Text(
         count.toString(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = pal.onSignal, maxLines = 1,
-        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(pal.signal).padding(horizontal = 6.dp, vertical = 1.dp),
+        // Pops as an install's dot lands in it.
+        modifier = Modifier.landingPop().clip(RoundedCornerShape(8.dp)).background(pal.signal).padding(horizontal = 6.dp, vertical = 1.dp),
     )
 }
 
@@ -290,9 +623,27 @@ private fun SignInCard(store: Store) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(store.label, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
             }
-            if (!narrow) PrimaryButton(stringResource(R.string.stores_signin), main = true) { StoresState.signIn(ctx, store) }
+            if (!narrow) SignInButton(store)
         }
-        if (narrow) Actions { PrimaryButton(stringResource(R.string.stores_signin), main = true) { StoresState.signIn(ctx, store) } }
+        if (narrow) Actions { SignInButton(store) }
+    }
+}
+
+/**
+ * Sign in: the button floods the page in the store's colour (LaunchFlood's move), the login page
+ * opens on that colour, and the flood comes home into the store's dot once it closes.
+ */
+@Composable
+private fun SignInButton(store: Store) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    Box(Modifier.onGloballyPositioned { placed[0] = it }) {
+        PrimaryButton(stringResource(R.string.stores_signin), main = true) {
+            val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot()
+            if (at == null || Motion.scale == 0f || StoresMotion.signIn != null) StoresState.signIn(ctx, store)
+            else StoresMotion.signIn = SignInFlood(store, at, colors.primary, sourceColours(store.id).dot)
+        }
     }
 }
 
@@ -326,22 +677,40 @@ private fun Storefront(
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
     // The Store tab's search: the catalog the shelves brought and the library, each title once.
     val everything = remember(library, shelves) { (library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
-    // Library's dropdown: All (every owned game, the default) or Installed.
+    // Library's filter: All (every owned game, the default) or Installed. Pressing Library again
+    // steps the choice out of the tab, as End session's confirm steps out of Stop.
     var installedOnly by rememberSaveable(store) { mutableStateOf(false) }
-    var filterOpen by remember { mutableStateOf(false) }
-    val libraryLabel = if (installedOnly) stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
+    val pal = LocalPalette.current
+    val allLabel = stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_all), library.size)
+    val installedLabel = stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
+    val libraryLabel = if (installedOnly) installedLabel
         else stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
+    var libraryAt by remember { mutableStateOf<Rect?>(null) }
+    fun openFilter() {
+        val at = libraryAt ?: return
+        val handleLabel = libraryLabel
+        StoresMotion.ask(StepAsk(
+            anchor = at, side = StepSide.Right, accent = pal.signal, pillCorner = 8.dp, items = 2,
+            handle = { Text(handleLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1) },
+        ) {
+            StepList {
+                StepChoice(
+                    allLabel, selected = !installedOnly, enabled = open,
+                    modifier = Modifier.fillMaxWidth().stepItem(0).then(if (!installedOnly) Modifier.focusRequester(first) else Modifier),
+                ) { installedOnly = false; onTab("library"); StoresMotion.fold() }
+                StepChoice(
+                    installedLabel, selected = installedOnly, enabled = open,
+                    modifier = Modifier.fillMaxWidth().stepItem(1).then(if (installedOnly) Modifier.focusRequester(first) else Modifier),
+                ) { installedOnly = true; onTab("library"); StoresMotion.fold() }
+            }
+        })
+    }
     Rise(1) {
         SubTabs(
             listOf("store" to stringResource(R.string.stores_tab_store), "library" to libraryLabel).filter { it.first in tabsFor(store) },
             tab,
-            onPick = { key -> if (key == "library") { if (tab == "library") filterOpen = !filterOpen else onTab(key) } else onTab(key) },
-            menuFor = { key, tabWidth ->
-                if (key == "library") AnchoredMenu(filterOpen, onDismiss = { filterOpen = false }, compact = true, minWidth = tabWidth) { first ->
-                    MenuItem(stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_all), library.size), checked = !installedOnly, focusRequester = first) { installedOnly = false; filterOpen = false; onTab("library") }
-                    MenuItem(stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size), checked = installedOnly) { installedOnly = true; filterOpen = false; onTab("library") }
-                }
-            },
+            onPick = { key -> if (key == "library" && tab == "library") openFilter() else onTab(key) },
+            onPlaced = { key, at -> if (key == "library") libraryAt = at },
             trailing = {
                 // A purchase made elsewhere shows on a refresh; otherwise the library refreshes itself every six hours.
                 SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
@@ -387,44 +756,87 @@ private fun Storefront(
     }
 }
 
-/** Underlined tabs as the preview draws them, with [trailing] (the account) at the right. */
+/**
+ * Underlined tabs with [trailing] (the account) at the right. The selected tab steps forward and
+ * the rest step back (the drawer's tabs), and the underline glides between them like the focus
+ * ring: leading edge first. [onPlaced] gets each tab's bounds on screen.
+ */
 @Composable
 private fun SubTabs(
     tabs: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit,
-    menuFor: @Composable (String, androidx.compose.ui.unit.Dp) -> Unit = { _, _ -> }, trailing: @Composable () -> Unit,
+    onPlaced: (String, Rect) -> Unit = { _, _ -> }, trailing: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-                for ((key, label) in tabs) {
-                    val on = key == selected
-                    val src = remember { MutableInteractionSource() }
-                    val hot = rememberHot(src)
-                    val pick = { onPick(key) }
-                    val density = androidx.compose.ui.platform.LocalDensity.current
-                    var width by remember { mutableStateOf(0.dp) }
-                    Box(Modifier.onSizeChanged { width = with(density) { it.width.toDp() } }) {
-                    Column(
-                        modifier = Modifier.paneItem("storetab:$key").clip(RoundedCornerShape(8.dp))
-                            .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
-                            .glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
-                            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
-                            .controllerConfirm(onClick = pick)
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                    ) {
-                        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (on) colors.onBackground else colors.onSurfaceVariant, maxLines = 1)
-                        Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(2.dp).background(if (on) pal.signal else Color.Transparent))
-                    }
-                    // A tab's own dropdown (Library's filter), anchored under it.
-                    menuFor(key, width)
+            Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((key, label) in tabs) {
+                        val on = key == selected
+                        val src = remember { MutableInteractionSource() }
+                        val hot = rememberHot(src)
+                        val pick = { onPick(key) }
+                        val step by animateFloatAsState(if (on) 1f else 0f, Motion.tw(340, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "tabStep")
+                        Column(
+                            modifier = Modifier.onGloballyPositioned { bounds[key] = it.boundsInParent(); onPlaced(key, it.boundsInRoot()) }
+                                .paneItem("storetab:$key").clip(RoundedCornerShape(8.dp))
+                                .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+                                .glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
+                                .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
+                                .controllerConfirm(onClick = pick)
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                        ) {
+                            Text(
+                                label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                color = androidx.compose.ui.graphics.lerp(colors.onSurfaceVariant, colors.onBackground, step),
+                                modifier = Modifier.graphicsLayer {
+                                    val k = androidx.compose.ui.util.lerp(0.92f, 1f, step)
+                                    scaleX = k; scaleY = k
+                                    alpha = androidx.compose.ui.util.lerp(0.8f, 1f, step)
+                                },
+                            )
+                            // Room for the underline, which the row draws so it can travel.
+                            Spacer(Modifier.padding(top = 4.dp).fillMaxWidth().height(2.dp))
+                        }
                     }
                 }
+                TabUnderline(tabs.indexOfFirst { it.first == selected }, bounds[selected], pal.signal)
             }
             trailing()
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+    }
+}
+
+/** The selected tab's underline under tab [index] at [at] (in the row), gliding to the next one leading edge first. */
+@Composable
+private fun BoxScope.TabUnderline(index: Int, at: Rect?, color: Color) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val left = remember { Animatable(Float.NaN) }
+    val right = remember { Animatable(0f) }
+    val y = remember { mutableStateOf(0f) }
+    val was = remember { intArrayOf(-1) }
+    LaunchedEffect(index, at) {
+        val b = at ?: return@LaunchedEffect
+        val inset = with(density) { 8.dp.toPx() }
+        val l = b.left + inset
+        val r = b.right - inset
+        y.value = b.bottom - with(density) { 8.dp.toPx() }
+        val from = was[0]
+        was[0] = index
+        if (left.value.isNaN() || from == index || from < 0 || Motion.scale == 0f) { left.snapTo(l); right.snapTo(r); return@LaunchedEffect }
+        coroutineScope {
+            val forward = index > from
+            launch { (if (forward) right else left).animateTo(if (forward) r else l, Motion.sp(0.62f, 700f)) }
+            launch { delay(Motion.ms(40).toLong()); (if (forward) left else right).animateTo(if (forward) l else r, Motion.sp(0.78f, 360f)) }
+        }
+    }
+    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+        if (left.value.isNaN()) return@Canvas
+        val h = 2.dp.toPx()
+        drawRect(color, Offset(minOf(left.value, right.value), y.value), androidx.compose.ui.geometry.Size((right.value - left.value).let { kotlin.math.abs(it) }, h))
     }
 }
 
@@ -501,13 +913,20 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     val scale by animateFloatAsState(if (pressed) 0.985f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "cardScale")
     val installed = item.id in installedKeys
     val download = StoresState.download("${store.id}:${item.id}")?.takeIf { it.isActive }
-    val open = { onOpen(item.key) }
+    // Where it sits, so the game page can flood out of it (and draw back into it).
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
+    val open = {
+        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, item.imageUrl ?: item.tallImageUrl)) }
+        onOpen(item.key)
+    }
     // A size the library did not give is looked up once the card is on screen or close to it.
     val screen = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
     val ahead = screen / 2
     Column(
         modifier = Modifier.fillMaxWidth()
             .onGloballyPositioned { c ->
+                placed[0] = c
                 if (item.owned && item.sizeBytes <= 0) {
                     val b = c.boundsInWindow()
                     if (b.bottom > -ahead && b.top < screen + ahead && b.width > 0f) com.droiddeck.launcher.stores.StoreSizes.request(ctx, item)

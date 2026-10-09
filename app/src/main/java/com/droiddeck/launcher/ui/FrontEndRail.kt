@@ -193,8 +193,9 @@ private fun RailItem(
         if (count > 0) Text(
             if (count > 9) "9+" else count.toString(),
             fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.onSignal, maxLines = 1,
+            // Pops with the Downloads chip's count as an install's dot lands there.
             modifier = Modifier.align(Alignment.TopEnd).padding(top = if (iconOnly) 4.dp else 6.dp, end = if (iconOnly) 5.dp else 12.dp)
-                .clip(RoundedCornerShape(8.dp)).background(pal.signal).padding(horizontal = 5.dp, vertical = 1.dp),
+                .landingPop().clip(RoundedCornerShape(8.dp)).background(pal.signal).padding(horizontal = 5.dp, vertical = 1.dp),
         )
     }
 }

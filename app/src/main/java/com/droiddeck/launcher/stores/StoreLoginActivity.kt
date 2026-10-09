@@ -47,6 +47,11 @@ class StoreLoginActivity : ComponentActivity() {
         private const val TAG = "StoreLogin"
         const val EXTRA_STORE = "store"
         private const val KEY_STATE = "oauth_state"
+        /**
+         * The colour the Stores page flooded to before opening this page, read once: the page opens
+         * on it, with no window animation, and its chrome rises in, as a session opens on Play's blue.
+         */
+        @Volatile internal var floodColor: Int? = null
         private const val CHROME_UA = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
 
         fun generateState(): String {
@@ -80,6 +85,8 @@ class StoreLoginActivity : ComponentActivity() {
     private lateinit var titleText: TextView
     private var oauthState: String? = null
     private val captured = AtomicBoolean(false)
+    /** Opened behind a flood: it opens and closes with no window animation. */
+    private var flooded = false
 
     private fun dp(value: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
 
@@ -88,8 +95,20 @@ class StoreLoginActivity : ComponentActivity() {
         store = Store.byId(intent.getStringExtra(EXTRA_STORE))
         oauthState = savedInstanceState?.getString(KEY_STATE) ?: generateState()
         flow = store?.let { LoginFlows.forStore(it, oauthState!!) }
+        floodColor?.let { c ->
+            floodColor = null
+            flooded = true
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(c))
+            @Suppress("DEPRECATION") overridePendingTransition(0, 0)
+        }
         if (flow == null) { finish(); return }
-        setContentView(buildChrome())
+        val chrome = buildChrome()
+        setContentView(chrome)
+        if (flooded) {
+            chrome.alpha = 0f
+            chrome.translationY = dp(14).toFloat()
+            chrome.animate().alpha(1f).translationY(0f).setStartDelay(60).setDuration(320).start()
+        }
         val webView = newWebView(flow!!.userAgent, isPopup = false)
         webViewRef = webView
         contentHost.addView(webView, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -103,6 +122,12 @@ class StoreLoginActivity : ComponentActivity() {
             }
         })
         webView.loadUrl(flow!!.startUrl)
+    }
+
+    override fun finish() {
+        super.finish()
+        // Back to the Stores page, which is still covered in the flood and drains it from there.
+        @Suppress("DEPRECATION") if (flooded) overridePendingTransition(0, 0)
     }
 
     private fun buildChrome(): View {

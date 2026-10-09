@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -94,11 +96,11 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                             ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm)) { com.droiddeck.launcher.stores.download.DownloadQueue.cancel(ctx, download.key) }
                         }
                         item?.owned == true && StoresState.isUnfinished(item) -> {
-                            PrimaryButton(stringResource(R.string.stores_resume_install), main = true) { StoresState.requestInstall(ctx, item) }
+                            InstallButton(stringResource(R.string.stores_resume_install)) { StoresState.requestInstall(ctx, item) }
                             ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
                         }
-                        item?.owned == true -> PrimaryButton(
-                            if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install), main = true,
+                        item?.owned == true -> InstallButton(
+                            if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
                         ) { StoresState.requestInstall(ctx, item) }
                         item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true) { openStoreUrl(ctx, item) }
                         item != null -> PrimaryButton(if (item.hasPrice && item.finalPrice.isNotBlank()) stringResource(R.string.stores_buy_price, item.finalPrice) else stringResource(R.string.stores_view_on, store.shortLabel), main = true) { openStoreUrl(ctx, item) }
@@ -114,5 +116,20 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
     if (description.isNotBlank()) Rise(2) {
         Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+/**
+ * Install (or Resume install) that says where it sits when pressed: where to install grows out of
+ * it, and the download it starts leaves it as a dot for the Downloads chip.
+ */
+@Composable
+private fun InstallButton(label: String, onInstall: () -> Unit) {
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    Box(Modifier.onGloballyPositioned { placed[0] = it }) {
+        PrimaryButton(label, main = true) {
+            StoresMotion.markInstall(placed[0]?.takeIf { it.isAttached }?.boundsInRoot(), label)
+            onInstall()
+        }
     }
 }
