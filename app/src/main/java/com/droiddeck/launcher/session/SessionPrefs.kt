@@ -75,6 +75,13 @@ object SessionPrefs {
         prefs(context).edit().putString("storesOpenTab", if (tab == STORES_OPEN_STORE) STORES_OPEN_STORE else STORES_OPEN_LIBRARY).apply()
     }
 
+    /** Mature titles (the stores' own 17+/18 ratings or adult tags) in the storefront's shelves and search; off by default. Owned games always show. */
+    fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
+
+    fun setStoresShowMature(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("storesShowMature", show).apply()
+    }
+
     const val STORES_OPEN_LIBRARY = "library"
     const val STORES_OPEN_STORE = "store"
 

@@ -380,6 +380,7 @@ internal fun SetupPanel(
                                     s.storesOpenTab,
                                 ) { a.onStoresOpenTab(it) }
                             }
+                            ToggleRow(host, "stores-show-mature", stringResource(R.string.stores_show_mature), null, s.storesShowMature) { a.onStoresShowMature(it) }
                             SettingsRow(stringResource(R.string.setup_stores_speed), null) {
                                 SegmentedTabs(StoreDownloadTier.ALL.map { it.id to stringResource(it.label) }, s.gameStoresSpeedTier) { a.onGameStoresSpeedTier(it) }
                             }

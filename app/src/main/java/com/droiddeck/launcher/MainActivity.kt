@@ -167,6 +167,7 @@ class MainActivity : ComponentActivity() {
     private var gameStoresEnabled by mutableStateOf(false)
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
+    private var storesShowMature by mutableStateOf(false)
     private var mic by mutableStateOf(false)
     private var wifiDiscovery by mutableStateOf(false)
     private var wifiDiscoveryPermission by mutableStateOf(false)
@@ -529,6 +530,7 @@ class MainActivity : ComponentActivity() {
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
         storesOpenTab = SessionPrefs.storesOpenTab(this)
+        storesShowMature = SessionPrefs.storesShowMature(this)
         applyLauncherFullscreen()
         updates.start()
         setContent {
@@ -585,6 +587,7 @@ class MainActivity : ComponentActivity() {
                         gameStoresEnabled = gameStoresEnabled,
                         gameStoresSpeedTier = gameStoresSpeedTier,
                         storesOpenTab = storesOpenTab,
+                        storesShowMature = storesShowMature,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
                     FrontEndActions(
@@ -716,6 +719,7 @@ class MainActivity : ComponentActivity() {
                         onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on; if (on) com.droiddeck.launcher.stores.StoresState.refresh(this) },
                         onGameStoresSpeedTier = { tier -> SessionPrefs.setGameStoresSpeedTier(this, tier); gameStoresSpeedTier = tier },
                         onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
+                        onStoresShowMature = { show -> SessionPrefs.setStoresShowMature(this, show); storesShowMature = show },
                         onLibraryChanged = { refreshAddedGames(); refresh() },
                         onAnimationsEnabled = { on ->
                             SessionPrefs.setAnimationsEnabled(this, on)

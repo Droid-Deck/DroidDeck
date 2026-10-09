@@ -135,6 +135,7 @@ class FrontEndState(
     val gameStoresSpeedTier: String = "fast",
     /** Setup › Stores: the tab a signed-in store opens on (SessionPrefs.STORES_OPEN_LIBRARY / STORE). */
     val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
+    val storesShowMature: Boolean = false,
     /** Downloads queued, running or paused across the three stores; the rail item's badge. */
     val storeDownloadsActive: Int = 0,
     /** The Updates page: DroidDeck's own builds and the channel followed. */
@@ -190,6 +191,7 @@ class FrontEndActions(
     val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onStoresOpenTab: (String) -> Unit = {},
+    val onStoresShowMature: (Boolean) -> Unit = {},
     /** The Games list rebuilt now: a store install or removal changed what is on disk. */
     val onLibraryChanged: () -> Unit = {},
     val onHomeApp: () -> Unit = {},

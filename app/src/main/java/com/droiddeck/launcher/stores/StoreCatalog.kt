@@ -34,6 +34,8 @@ data class CatalogItem(
     val sizeBytes: Long = 0L,
     /** Per-store identifiers the install needs (Epic namespace / catalog id / app name, Amazon entitlement / sku). */
     val extra: Map<String, String> = emptyMap(),
+    /** Rated or tagged for adults by the store's own data; hidden from the storefront unless Show mature content is on. */
+    val mature: Boolean = false,
 ) {
     val isDiscounted: Boolean get() = discountPercent > 0 && originalPrice.isNotBlank()
     /** Stable key across stores ("gog:1207658924"). */
@@ -52,6 +54,18 @@ class StoreShelves(
 }
 
 /** A game a store installed, as found on disk through its sidecar. */
+/** Store tags that mark adult content, by slug or name, lowercased. */
+private val MATURE_TAGS = setOf("mature", "nsfw", "adult", "adult only", "adults only", "nudity", "sexual content", "sexual-content")
+
+/** Whether a store's own tags mark a title as adult. */
+fun matureByTags(tags: Collection<String>): Boolean = tags.any { it.trim().lowercase() in MATURE_TAGS }
+
+/**
+ * Whether a store's own age ratings mark a title as adult: ESRB M (17) or AO (18), PEGI / USK / the
+ * store's own rating 18, or any rating system's 17+. Ratings are ages, as GOG gives them.
+ */
+fun matureByAge(ages: Collection<Int>): Boolean = ages.any { it >= 17 }
+
 /**
  * The Installed tab's cards for [store], from the installs on disk - the same source as its count:
  * each joined to its library item by store id (by title when the ids differ), else a card made

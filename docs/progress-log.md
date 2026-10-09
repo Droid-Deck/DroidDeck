@@ -144,6 +144,15 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **Show mature content** (Setup › Stores and the cog; off by default): the storefront's shelves
+  and search leave out titles the store itself rates or tags as adult; Library, Installed and owned
+  games always show, and a title without rating data stays. GOG: `ratings[].ageRating` 17+ (ESRB M
+  17, PEGI / USK / GOG 18) or the tags `mature`, `nsfw`, `sexual-content`, `nudity` - the catalog
+  API has no server-side filter for either, so it is client-side. Epic: its public store GraphQL
+  carries no age rating on an offer (no age-gating or rating field on CatalogOffer or StoreConfig;
+  introspection is off), so only an adult content tag would mark one, and none of the probed
+  titles have one - Epic's storefront is effectively unfiltered. Amazon's Store tab is the user's
+  own games.
 - **UI slow while downloading (device):** engines report per chunk or file, and each report
   published a new queue that the whole front end read (the rail badge was computed from it in the
   root composition). Now progress-only changes reach the UI at most four times a second (stage and

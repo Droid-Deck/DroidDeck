@@ -245,6 +245,9 @@ internal fun StoresSettingsDialog(s: FrontEndState, a: FrontEndActions, onDismis
                         s.storesOpenTab,
                     ) { a.onStoresOpenTab(it) }
                 }
+                SettingsRow(stringResource(R.string.stores_show_mature), null) {
+                    ToggleSwitch(s.storesShowMature, label = stringResource(R.string.stores_show_mature)) { a.onStoresShowMature(it) }
+                }
                 // The queue's two knobs as one compact row, the same control the Downloads page has.
                 Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(s, a) }
             }

@@ -285,6 +285,9 @@ private fun Storefront(
     val installedKeys = remember(installedItems) { installedItems.map { it.id }.toSet() + StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id } }
     val q = query.trim().lowercase()
     fun matches(i: CatalogItem) = q.isEmpty() || i.title.lowercase().contains(q)
+    // The storefront leaves out what the store rates or tags as adult unless the user shows it; owned games always show.
+    fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.owned
+    fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
     // Everything this store knows about: the library plus whatever the shelves brought, each title once.
     val everything = remember(library, shelves) { (library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
     Rise(1) {
@@ -327,12 +330,12 @@ private fun Storefront(
         "library" -> Grid(library.filter(::matches), if (library.isEmpty() && StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_nothing_matches), card)
         "all" -> Grid(everything.filter(::matches), stringResource(R.string.stores_nothing_matches), card)
         else -> {
-            if (q.isNotEmpty()) Grid(everything.filter(::matches), stringResource(R.string.stores_nothing_matches), card)
+            if (q.isNotEmpty()) Grid(everything.filter { matches(it) && shown(it) }, stringResource(R.string.stores_nothing_matches), card)
             else {
-                Shelf(stringResource(R.string.stores_shelf_new), stringResource(R.string.stores_shelf_new_hint), shelves?.whatsNew, card)
-                Shelf(stringResource(R.string.stores_shelf_deals), stringResource(R.string.stores_shelf_deals_hint), shelves?.deals, card)
-                Shelf(stringResource(R.string.stores_shelf_free), stringResource(R.string.stores_shelf_free_hint), shelves?.free, card)
-                Shelf(stringResource(R.string.stores_shelf_trending), stringResource(R.string.stores_shelf_trending_hint), shelves?.trending, card)
+                Shelf(stringResource(R.string.stores_shelf_new), stringResource(R.string.stores_shelf_new_hint), shelf(shelves?.whatsNew), card)
+                Shelf(stringResource(R.string.stores_shelf_deals), stringResource(R.string.stores_shelf_deals_hint), shelf(shelves?.deals), card)
+                Shelf(stringResource(R.string.stores_shelf_free), stringResource(R.string.stores_shelf_free_hint), shelf(shelves?.free), card)
+                Shelf(stringResource(R.string.stores_shelf_trending), stringResource(R.string.stores_shelf_trending_hint), shelf(shelves?.trending), card)
                 Shelf(stringResource(R.string.stores_shelf_library), stringResource(R.string.stores_shelf_library_hint, store.label), library, card)
                 if (shelves == null && library.isEmpty()) Rise(4) { Note(if (StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_shelves_loading)) }
                 else if (shelves != null && shelves.isEmpty && store == Store.AMAZON) Rise(4) { Note(stringResource(R.string.stores_amazon_no_catalog)) }
