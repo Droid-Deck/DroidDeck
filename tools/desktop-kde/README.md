@@ -11,9 +11,10 @@ icon, Plasma's default bottom panel, and "Return to Gaming Mode" and Steam on th
 - `overlay/`: our files on top - system-wide KDE defaults in `/etc/xdg`, the Vapor theme and its
   layout script, the menu entries Steam and Return to Gaming Mode use.
 
-`.github/workflows/build-desktop-kde.yml` builds it; run it with a tag to publish a release, then
-point the `desktop-kde` row of the catalog (`desktop.json`) at the asset's URL, size and sha256.
-The app looks for that row (`DesktopCatalog.DESKTOP_ID`).
+`.github/workflows/build-desktop-kde.yml` builds it and, run with a new tag, publishes it as a
+release in Droid-Deck/DroidDeck-Components. `release.env` pins the tag, sha256 and size the apk
+installs (`DesktopCatalog.desktopEntry`); a published tag is never replaced, so a changed package
+is a new tag and a `release.env` update.
 
 At run time the desktop is started by `tools/linuxfs/desktop/droiddeck-desktop` (the app stages it
 at every session): Plasma's own `startplasma-wayland`, with KWin nested in the app's compositor

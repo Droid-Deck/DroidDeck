@@ -3,10 +3,11 @@ name: Build desktop package (KDE Plasma)
 # The desktop the app installs into its Linux runtime on first use: KDE Plasma as SteamOS's desktop
 # mode has it, the closure of tools/desktop-kde/seeds.txt over Arch Linux ARM minus what the runtime
 # already carries, plus tools/desktop-kde/overlay (tools/desktop-kde/build.sh), every package
-# signature-checked. Published as a release asset; the "desktop-kde" row of the catalog
-# (desktop.json) names its URL, size and sha256. A published tag is never rebuilt: the packages
-# are Arch Linux ARM's current ones, so a rebuild would not match the catalog's sha256. A changed
-# package gets a new tag (desktop-kde-r2, ...) and a catalog update.
+# signature-checked. Published as a release in Droid-Deck/DroidDeck-Components with DroidDeck's
+# other components; the apk pins it in tools/desktop-kde/release.env (tag, sha256, size). A
+# published tag is never rebuilt: the packages are Arch Linux ARM's current ones, so a rebuild
+# would not match the pinned sha256. A changed package gets a new tag (desktop-kde-r2, ...) and a
+# release.env update.
 on:
   push:
     paths:
@@ -28,12 +29,20 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@v2
+        id: components-token
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-Components
       - name: Refuse a published tag
         if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.components-token.outputs.token }}
         run: |
-          if gh release view '${{ inputs.tag }}' >/dev/null 2>&1; then
+          if gh release view '${{ inputs.tag }}' -R Droid-Deck/DroidDeck-Components >/dev/null 2>&1; then
             echo "::error::${{ inputs.tag }} is already published, and published tags are never replaced: use a new tag"
             exit 1
           fi
@@ -56,15 +65,16 @@ jobs:
       - name: Publish
         if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.components-token.outputs.token }}
+          GH_REPO: Droid-Deck/DroidDeck-Components
         run: |
           set -euo pipefail
           TAG='${{ inputs.tag }}'
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::$TAG is already published, and published tags are never replaced: use a new tag"
+            echo "::error::$TAG is already published in DroidDeck-Components, and published tags are never replaced: use a new tag"
             exit 1
           fi
           gh release create "$TAG" --latest=false --prerelease=false --title "$TAG" \
-            --notes "KDE Plasma desktop package for the Linux runtime (tools/desktop-kde). size $(stat -c %s out/desktop-kde.tar.zst), sha256 $(cat out/desktop-kde.sha256). desktop-kde.packages.txt lists the signature-checked Arch Linux ARM packages it was built from." \
+            --notes "KDE Plasma desktop package for DroidDeck's Linux runtime ($GITHUB_REPOSITORY tools/desktop-kde, $GITHUB_SHA). size $(stat -c %s out/desktop-kde.tar.zst), sha256 $(cat out/desktop-kde.sha256). desktop-kde.packages.txt lists the signature-checked Arch Linux ARM packages it was built from." \
             out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt
           gh release edit "$TAG" --latest=false --prerelease=false

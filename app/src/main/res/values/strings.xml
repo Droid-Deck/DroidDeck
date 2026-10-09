@@ -1243,7 +1243,6 @@
     <string name="session_proton_unpacking">unpacking Proton Experimental (ARM64)</string>
     <string name="session_runtime_catalog_unreachable">Could not reach the runtime catalog. Check the connection and press Play again.</string>
     <string name="session_runtime_install_failed">The Linux runtime did not install. Check the runtime in Setup and press Play again.</string>
-    <string name="session_desktop_catalog_unreachable">Could not reach the desktop catalog. Check the connection and press Desktop again.</string>
     <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">The desktop did not install (%1$s). Check the connection and press Desktop again.</string>
     <!-- %1$s is the program's name, or Steam -->

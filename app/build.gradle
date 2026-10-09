@@ -59,6 +59,12 @@ def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'tr
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 // When the source was committed, for "built 3 hours ago": fixed per commit, so it costs no rebuilds.
 def commitTime = (gitValue(['show', '-s', '--format=%ct', 'HEAD']) ?: '0').with { it.isLong() ? it : '0' }
+// The desktop package this apk installs (tools/desktop-kde/release.env): published once per tag in
+// DroidDeck-Components, pinned here with its checksum like gamescope and the esync packs, so the
+// desktop scripts in the apk always get the package they were made for.
+def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
+    .findAll { it.contains('=') && !it.startsWith('#') }
+    .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
 // tools/release/variants.txt as "package=suffix;...", so the updater picks the apk of the package it runs as.
 def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
     .findAll { it.trim() && !it.startsWith('#') }
@@ -88,6 +94,10 @@ android {
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
+        buildConfigField "String", "DESKTOP_KDE_TAG", "\"${desktopKde.DESKTOP_KDE_TAG}\""
+        buildConfigField "String", "DESKTOP_KDE_URL", "\"https://github.com/${desktopKde.DESKTOP_KDE_REPO}/releases/download/${desktopKde.DESKTOP_KDE_TAG}/desktop-kde.tar.zst\""
+        buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
+        buildConfigField "long", "DESKTOP_KDE_SIZE", "${desktopKde.DESKTOP_KDE_SIZE}L"
 
         ndk {
             abiFilters 'arm64-v8a'

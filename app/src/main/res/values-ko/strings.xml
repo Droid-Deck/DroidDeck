@@ -1255,7 +1255,6 @@
     <string name="session_proton_unpacking">Proton Experimental(ARM64) 압축 해제 중</string>
     <string name="session_runtime_catalog_unreachable">런타임 카탈로그에 연결할 수 없습니다. 연결을 확인한 후 \"Steam 실행\"을 다시 누르세요.</string>
     <string name="session_runtime_install_failed">Linux 런타임이 설치되지 않았습니다. \"설정\"에서 런타임을 확인한 후 \"Steam 실행\"을 다시 누르세요.</string>
-    <string name="session_desktop_catalog_unreachable">데스크톱 카탈로그에 연결할 수 없습니다. 연결을 확인한 후 \"데스크톱\"을 다시 누르세요.</string>
 
     <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">데스크톱이 설치되지 않았습니다(%1$s). 연결을 확인한 후 \"데스크톱\"을 다시 누르세요.</string>

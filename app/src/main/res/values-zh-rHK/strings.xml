@@ -1255,7 +1255,6 @@
     <string name="session_proton_unpacking">正在解壓 Proton Experimental (ARM64)</string>
     <string name="session_runtime_catalog_unreachable">無法連接運行環境目錄。請檢查網絡連線，然後再按「開啟 Steam」。</string>
     <string name="session_runtime_install_failed">Linux 運行環境未能安裝。請在「設定」中檢查運行環境，然後再按「開啟 Steam」。</string>
-    <string name="session_desktop_catalog_unreachable">無法連接桌面目錄。請檢查網絡連線，然後再按「桌面」。</string>
 
     <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">桌面未能安裝（%1$s）。請檢查網絡連線，然後再按「桌面」。</string>

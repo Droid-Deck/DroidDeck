@@ -3,6 +3,7 @@ package com.droiddeck.launcher.runtime
 import com.droiddeck.launcher.core.Hashes
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
@@ -80,6 +81,17 @@ object DesktopCatalog {
      * after the update installs this one over it.
      */
     const val DESKTOP_ID = "desktop-kde"
+
+    /**
+     * The desktop package this apk installs: pinned in tools/desktop-kde/release.env and published
+     * in DroidDeck-Components, not read from the catalog, so the desktop scripts staged by this
+     * apk always get the package they were made for.
+     */
+    fun desktopEntry(context: Context) = Entry(
+        DESKTOP_ID, context.getString(R.string.content_linux_desktop), 1, BuildConfig.DESKTOP_KDE_TAG, "tar",
+        BuildConfig.DESKTOP_KDE_URL, BuildConfig.DESKTOP_KDE_SHA256, BuildConfig.DESKTOP_KDE_SIZE, "",
+        "", "",
+    )
 
     // The desktop package installed to the end: KWin is there and the marker install() writes once
     // the whole package is extracted. An install cut short (the app killed, storage full) leaves
