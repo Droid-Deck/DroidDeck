@@ -1,10 +1,10 @@
-// The first desktop: SteamOS's - the wallpaper, and Plasma's default bottom panel with the Steam Deck
+// The first desktop: DroidDeck's wallpaper, and SteamOS's Plasma's default bottom panel with the Steam Deck
 // launcher icon, Steam, the file manager, the browser and Konsole pinned to the task manager.
 var desktops = desktopsForActivity(currentActivity());
 for (var i = 0; i < desktops.length; i++) {
     desktops[i].wallpaperPlugin = "org.kde.image";
     desktops[i].currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
-    desktops[i].writeConfig("Image", "file:///usr/share/backgrounds/steamdeck.png");
+    desktops[i].writeConfig("Image", "file:///usr/share/wallpapers/DroidDeck");
 }
 
 var panel = new Panel;
