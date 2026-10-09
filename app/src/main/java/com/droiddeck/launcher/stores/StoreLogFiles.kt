@@ -9,7 +9,8 @@ import java.util.Locale
 import java.util.concurrent.Executors
 
 /**
- * The stores' log on disk, app-private: `filesDir/stores/logs/stores-<yyyy-MM-dd>.log`, one file a
+ * The stores' log on disk, app-private: `filesDir/logs/stores/stores-<yyyy-MM-dd>.log` (beside the
+ * session folders, where every log lives), one file a
  * day, the last [KEEP_DAYS] kept, each capped near [MAX_BYTES] (the full one moves to `.1`). Lines
  * arrive already redacted ([StoreLog.redactLine]). Written on one background thread, in order. The
  * session's Share logs zip carries these files, so they can be attached to a report when asked.
@@ -22,7 +23,7 @@ object StoreLogFiles {
     private val NAME = Regex("""stores-(\d{4}-\d{2}-\d{2})\.log(\.1)?""")
     private val writer = Executors.newSingleThreadExecutor { r -> Thread(r, "store-log").apply { isDaemon = true } }
 
-    fun dir(context: Context): File = File(context.applicationContext.filesDir, "stores/logs")
+    fun dir(context: Context): File = File(context.applicationContext.filesDir, "logs/stores")
 
     /** Appends one stamped line to today's file. Any thread. */
     fun append(context: Context, line: String) {
