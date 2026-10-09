@@ -153,6 +153,11 @@ without it and Setup says "Stores engine not built").
 - **Cloud saves device-proven (AYANEO Pocket FIT, `6a175f1`, ELDERBORN on GOG):** the launch logged
   `cloud gog 1732383191 down result=ok files=5 bytes=237499 reason=downloaded` (template found) and
   the in-game slot shows the cloud save (Catacombs: Tutorial part 1, 00:08:40).
+- **Two tabs, Store and Library** (the All count mixed owned games with whatever shelves had loaded:
+  GOG Library 33 / All 120): Library's dropdown filters All (every owned game, the default, the
+  tab's count) or Installed, and the tab reads the filter ("Library (33)", "Installed (1)"); the old
+  All view is gone. Amazon has Library alone. Search follows the filter; the shoulders cycle Store
+  and Library.
 - **The Stores chip row paints nothing** (maintainer: a black box behind the chips): it sits over the
   page's own background; the content scrolling under it is clipped at its edge and faded there by
   the content's alpha once scrolled, never by a colour.

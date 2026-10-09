@@ -1986,7 +1986,6 @@
     <string name="stores_search_catalog">Search the %1$s catalog…</string>
     <string name="stores_search_installed">Search installed games…</string>
     <string name="stores_search_library">Search your library…</string>
-    <string name="stores_search_all">Search everything on %1$s…</string>
     <string name="stores_installed_empty">Nothing installed</string>
     <string name="stores_library_loading">Loading</string>
     <string name="stores_nothing_matches">No games</string>

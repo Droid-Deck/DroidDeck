@@ -88,15 +88,15 @@ import com.droiddeck.launcher.stores.formatBytes
 /** The chip row's fourth entry, beside the three stores. */
 private const val DOWNLOADS = "downloads"
 
-private val TABS = listOf("store", "installed", "library", "all")
+private val TABS = listOf("store", "library")
 
 /**
- * The tabs a store has. Amazon has no public catalog: its Store and All would only repeat the
- * library, so it has Installed and Library alone.
+ * The tabs a store has: Store and Library (whose dropdown filters All / Installed). Amazon has no
+ * public catalog, so Library alone.
  */
-internal fun tabsFor(store: Store?): List<String> = if (store == Store.AMAZON) listOf("installed", "library") else TABS
+internal fun tabsFor(store: Store?): List<String> = if (store == Store.AMAZON) listOf("library") else TABS
 
-/** [tab] if [store] has it, else Library (the open-on Store choice falls back there for Amazon). */
+/** [tab] if [store] has it, else Library (the open-on Store choice, or an old Installed / All, falls back there). */
 internal fun tabFor(store: Store?, tab: String): String = if (tab in tabsFor(store)) tab else "library"
 
 @Composable
@@ -321,17 +321,24 @@ private fun Storefront(
     // The storefront leaves out what the store rates or tags as adult unless the user shows it; owned games always show.
     fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.owned
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
-    // Everything this store knows about: the library plus whatever the shelves brought, each title once.
+    // The Store tab's search: the catalog the shelves brought and the library, each title once.
     val everything = remember(library, shelves) { (library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
+    // Library's dropdown: All (every owned game, the default) or Installed.
+    var installedOnly by rememberSaveable(store) { mutableStateOf(false) }
+    var filterOpen by remember { mutableStateOf(false) }
+    val libraryLabel = if (installedOnly) stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
+        else stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
     Rise(1) {
         SubTabs(
-            listOf(
-                "store" to stringResource(R.string.stores_tab_store),
-                "installed" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size),
-                "library" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size),
-                "all" to stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_all), everything.size),
-            ).filter { it.first in tabsFor(store) },
-            tab, onTab,
+            listOf("store" to stringResource(R.string.stores_tab_store), "library" to libraryLabel).filter { it.first in tabsFor(store) },
+            tab,
+            onPick = { key -> if (key == "library") { if (tab == "library") filterOpen = !filterOpen else onTab(key) } else onTab(key) },
+            menuFor = { key ->
+                if (key == "library") AnchoredMenu(filterOpen, onDismiss = { filterOpen = false }) { first ->
+                    MenuItem(stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_all), library.size), checked = !installedOnly, focusRequester = first) { installedOnly = false; filterOpen = false; onTab("library") }
+                    MenuItem(stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size), checked = installedOnly) { installedOnly = true; filterOpen = false; onTab("library") }
+                }
+            },
             trailing = {
                 val name = StoresState.accounts[store] ?: ""
                 SmallTextButton(stringResource(R.string.stores_signout_named, name)) { StoresState.signOut(ctx, store) }
@@ -341,11 +348,10 @@ private fun Storefront(
     Rise(2) {
         SearchField(
             query, onQuery,
-            placeholder = when (tab) {
-                "store" -> stringResource(R.string.stores_search_catalog, store.label)
-                "installed" -> stringResource(R.string.stores_search_installed)
-                "library" -> stringResource(R.string.stores_search_library)
-                else -> stringResource(R.string.stores_search_all, store.label)
+            placeholder = when {
+                tab == "store" -> stringResource(R.string.stores_search_catalog, store.label)
+                installedOnly -> stringResource(R.string.stores_search_installed)
+                else -> stringResource(R.string.stores_search_library)
             },
         )
     }
@@ -359,9 +365,8 @@ private fun Storefront(
         GameCard(item, store, s, a, installedKeys, onOpen, first)
     }
     when (tab) {
-        "installed" -> Grid(installedItems.filter(::matches), stringResource(R.string.stores_installed_empty), card)
-        "library" -> Grid(library.filter(::matches), if (library.isEmpty() && StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_nothing_matches), card)
-        "all" -> Grid(everything.filter(::matches), stringResource(R.string.stores_nothing_matches), card)
+        "library" -> if (installedOnly) Grid(installedItems.filter(::matches), stringResource(R.string.stores_installed_empty), card)
+            else Grid(library.filter(::matches), if (library.isEmpty() && StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_nothing_matches), card)
         else -> {
             if (q.isNotEmpty()) Grid(everything.filter { matches(it) && shown(it) }, stringResource(R.string.stores_nothing_matches), card)
             else {
@@ -379,7 +384,10 @@ private fun Storefront(
 
 /** Underlined tabs as the preview draws them, with [trailing] (the account) at the right. */
 @Composable
-private fun SubTabs(tabs: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit, trailing: @Composable () -> Unit) {
+private fun SubTabs(
+    tabs: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit,
+    menuFor: @Composable (String) -> Unit = {}, trailing: @Composable () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Column(Modifier.fillMaxWidth()) {
@@ -390,6 +398,7 @@ private fun SubTabs(tabs: List<Pair<String, String>>, selected: String, onPick: 
                     val src = remember { MutableInteractionSource() }
                     val hot = rememberHot(src)
                     val pick = { onPick(key) }
+                    Box {
                     Column(
                         modifier = Modifier.paneItem("storetab:$key").clip(RoundedCornerShape(8.dp))
                             .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
@@ -400,6 +409,9 @@ private fun SubTabs(tabs: List<Pair<String, String>>, selected: String, onPick: 
                     ) {
                         Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (on) colors.onBackground else colors.onSurfaceVariant, maxLines = 1)
                         Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(2.dp).background(if (on) pal.signal else Color.Transparent))
+                    }
+                    // A tab's own dropdown (Library's filter), anchored under it.
+                    menuFor(key)
                     }
                 }
             }
