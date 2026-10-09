@@ -52,4 +52,40 @@ class SessionLogShareZipTest {
         val line = "dxvk: Device 0x5 (Adreno 750) https://github.com/doitsujin/dxvk/releases code 403"
         assertEquals(line, com.droiddeck.launcher.core.LogRedactor.redactForShare(line))
     }
+
+    // A folder an earlier build scrubbed and marked under older rules, its copied Steam UI log
+    // still naming the account: the pass at app start (and after the move out of Download/)
+    // scrubs it again on disk.
+    private fun olderFolder(name: String): File {
+        val dir = File(LinuxRuntime.logDir(app), name).apply { mkdirs() }
+        File(dir, ".scrubbed-2").writeText("scrubbed earlier\n")
+        File(dir, "steam").apply { mkdirs() }.resolve("webhelper_js.txt").writeText(
+            "[2026-10-01 20:00:00] SteamUI: INFO: Login: OnLoginStateChange someone.masked@example.com 2 1 0 0\n" +
+                "[2026-10-01 20:00:01] SteamUI: INFO: Login: OnLoginStateChange maskeduser42 2 1 0 0\n" +
+                "[2026-10-01 20:00:02] SteamUI: INFO: Login: OnLoginStateChange  0 1 0 0\n"
+        )
+        return dir
+    }
+
+    private fun assertScrubbed(dir: File) {
+        val text = File(dir, "steam/webhelper_js.txt").readText()
+        for (secret in listOf("someone.masked", "example.com", "maskeduser42")) assertFalse("$secret survived", text.contains(secret))
+        assertTrue(text.contains("Login: OnLoginStateChange <redacted:account> 2 1 0 0"))
+        assertTrue(text.contains("Login: OnLoginStateChange  0 1 0 0"))
+        assertFalse(File(dir, ".scrubbed-2").exists())
+        assertTrue(File(dir, ".scrubbed-r${com.droiddeck.launcher.core.LogRedactor.RULES_VERSION}").exists())
+    }
+
+    @Test fun aFolderMarkedUnderOlderRulesIsScrubbedAgainAtStart() {
+        val dir = olderFolder("2026-10-01-01-steam")
+        SessionArtifacts.scrubOlder(app)
+        assertScrubbed(dir)
+    }
+
+    @Test fun aMovedFolderIsScrubbedWhateverItsMarkersSay() {
+        val dir = olderFolder("2026-10-01-02-steam")
+        File(dir, ".scrubbed-r${com.droiddeck.launcher.core.LogRedactor.RULES_VERSION}").writeText("claimed\n")
+        SessionArtifacts.scrubMoved(app, listOf(dir))
+        assertScrubbed(dir)
+    }
 }

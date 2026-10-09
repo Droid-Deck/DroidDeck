@@ -31,8 +31,12 @@ object SessionArtifacts {
     /** Written last; a folder without it did not get its ending. */
     const val COMPLETE_MARKER = ".complete"
 
-    /** Every file in the folder has been through the redactor, own addresses and accounts included (-2: accounts added). */
-    private const val SCRUBBED_MARKER = ".scrubbed-2"
+    /**
+     * Every file in the folder has been through the redactor under its current rules. Named after
+     * [LogRedactor.RULES_VERSION], so a folder scrubbed under older rules is scrubbed again.
+     */
+    private val SCRUBBED_MARKER = ".scrubbed-r${LogRedactor.RULES_VERSION}"
+    private val OLD_SCRUBBED_MARKER = Regex("""\.scrubbed-(r?\d+)""")
 
     /**
      * Written by a session's own ending, and only when every file in the folder, subfolders
@@ -67,10 +71,11 @@ object SessionArtifacts {
     }
 
     /**
-     * Once, for session folders written before every file was scrubbed and before the device's own
-     * addresses were (network.txt listed them; the client's IPv6 check logs "external address"
-     * into steam/connection_log.txt): the whole folder, steam/ included, through the redactor.
-     * A marker records it. Runs at app start with [finishAbandoned].
+     * For session folders not yet scrubbed under the redactor's current rules - written before
+     * every file was scrubbed, before the device's own addresses or the Steam account were, or
+     * moved in from Download/ ([LogMigration]): the whole folder, steam/ and every other subfolder
+     * included, through the redactor. A marker records it. Runs at app start with
+     * [finishAbandoned].
      */
     @Synchronized
     fun scrubOlder(context: Context) {
@@ -78,13 +83,20 @@ object SessionArtifacts {
         val dirs = LinuxRuntime.logDir(context).listFiles { f ->
             SessionPaths.isSessionFolder(f) && f != current && !File(f, SCRUBBED_MARKER).exists()
         } ?: return
+        scrubFolders(context, dirs.toList())
+        if (dirs.isNotEmpty()) Log.i(TAG, "scrubbed ${dirs.size} older session folder(s)")
+    }
+
+    /** [dirs] (session folders [LogMigration] just moved in) through the redactor, whatever their markers say. */
+    @Synchronized
+    fun scrubMoved(context: Context, dirs: List<File>) {
+        scrubFolders(context, dirs.filter { SessionPaths.isSessionFolder(it) && it != SessionPaths.current() })
+    }
+
+    private fun scrubFolders(context: Context, dirs: List<File>) {
         if (dirs.isEmpty()) return
         LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
-        dirs.forEach { dir ->
-            Record(dir).let { r -> scrubFolder(dir, r); File(dir, "steam").takeIf { it.isDirectory }?.let { scrubFolder(it, r) } }
-            try { File(dir, SCRUBBED_MARKER).writeText("scrubbed ${now()}\n") } catch (e: Exception) {}
-        }
-        Log.i(TAG, "scrubbed ${dirs.size} older session folder(s)")
+        dirs.forEach { scrubAndMark(it) }
     }
 
     /**
@@ -152,6 +164,7 @@ object SessionArtifacts {
             return
         }
         try {
+            dir.listFiles { f -> OLD_SCRUBBED_MARKER.matches(f.name) }?.forEach { it.delete() }
             File(dir, SCRUBBED_MARKER).writeText("scrubbed ${now()}\n")
             val lines = StringBuilder("rules ${LogRedactor.RULES_VERSION}\n")
             record.files.forEach { (f, s) ->
@@ -181,8 +194,7 @@ object SessionArtifacts {
         }.toSet()
     }
 
-    /** The end-of-session scrub of [dir] on its own (steam/ already in place), for tests. */
-    @androidx.annotation.VisibleForTesting
+    /** The end-of-session scrub of [dir] on its own (steam/ already in place); also the pass over older and moved folders. */
     internal fun scrubAndMark(dir: File) = markScrubbed(scrubTree(Record(dir)))
 
     /**

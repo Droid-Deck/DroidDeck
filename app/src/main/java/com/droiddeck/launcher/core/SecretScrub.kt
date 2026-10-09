@@ -9,7 +9,9 @@ package com.droiddeck.launcher.core
  *   and a plain first path segment (the stores' lines, where a GOG secure link carries its token in
  *   the path); [Urls.KEEP_PATH] keeps the path but blanks any segment that carries a token.
  * - Outside URLs, the values of token-like keys (`token`, `__token__`, `f_token`, `hdnts`, access /
- *   refresh / id tokens; `code=` and exchange codes of four characters or more) and of
+ *   refresh / id tokens; exchange and authorization codes of four characters or more, and a bare
+ *   `code=` where it is one: in a query string or on a line with OAuth keys such as `client_id`,
+ *   `redirect_uri` or `state`, never an 8-hex exception code like Proton's `code=c0000005`) and of
  *   Authorization / Cookie headers are blanked with [mark].
  *
  * A line already scrubbed comes out unchanged.
@@ -21,13 +23,26 @@ object SecretScrub {
     private val SAFE_SEGMENT = Regex("""[A-Za-z0-9._\-]{1,40}""")
     private val TOKEN_SEGMENT = Regex("""(?i)(token|hdnts|hmac|signature|sig|exp)=""")
     private val TOKEN = Regex("""(?i)(?<![A-Za-z0-9_])(__token__|f_token|hdnts|access_token|refresh_token|id_token|token)(["']?\s*[=:]\s*["']?)[^\s&;,"'<>}]+""")
-    private val CODE = Regex("""(?i)(?<![A-Za-z0-9_])(code|exchange_code|authorizationCode)(["']?\s*=\s*["']?)[^\s&;,"'<>}]{4,}""")
+    /** Codes that are only ever OAuth grants. */
+    private val GRANT_CODE = Regex("""(?i)(?<![A-Za-z0-9_])(exchange_code|authorization_?code)(["']?\s*=\s*["']?)[^\s&;,"'<>}]{4,}""")
+    /** A bare `code=`: a grant only right after `?` / `&` (a query string) or beside OAuth keys ([OAUTH_CONTEXT]). */
+    private val CODE = Regex("""(?i)(?<![A-Za-z0-9_])(code)(["']?\s*=\s*["']?)([^\s&;,"'<>}]{4,})""")
+    private val OAUTH_CONTEXT = Regex("""(?i)(?<![A-Za-z0-9_])(client_id|client_secret|redirect_uri|state|grant_type|response_type|access_token|refresh_token|id_token)["']?\s*[=:]""")
+    /** A Windows exception or status code (`code=c0000005`, `code=0x80000003`): never a grant. */
+    private val STATUS_CODE = Regex("""(?i)(0x)?[0-9a-f]{8}""")
     private val HEADER = Regex("""(?i)\b(authorization|cookie|set-cookie)(\s*[:=]\s*).+""")
 
     fun scrub(text: String, urls: Urls, mark: String): String {
         var out = URL.replace(text) { m -> if (urls == Urls.SHORT) short(m.value) else keepPath(m.value, mark) }
         out = TOKEN.replace(out) { m -> m.groupValues[1] + m.groupValues[2] + mark }
-        out = CODE.replace(out) { m -> m.groupValues[1] + m.groupValues[2] + mark }
+        out = GRANT_CODE.replace(out) { m -> m.groupValues[1] + m.groupValues[2] + mark }
+        val oauth = OAUTH_CONTEXT.containsMatchIn(text)
+        val src = out
+        out = CODE.replace(src) { m ->
+            val inQuery = m.range.first > 0 && src[m.range.first - 1] in "?&"
+            val grant = !STATUS_CODE.matches(m.groupValues[3]) && (oauth || inQuery)
+            if (grant) m.groupValues[1] + m.groupValues[2] + mark else m.value
+        }
         out = HEADER.replace(out) { m -> m.groupValues[1] + m.groupValues[2] + mark }
         return out
     }

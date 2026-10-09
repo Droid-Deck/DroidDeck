@@ -87,4 +87,50 @@ class LogRedactorTest {
             assertEquals(once, LogRedactor.redact(once))
         }
     }
+
+    // The Steam UI's own login line (webhelper_js.txt), as the privacy scan found it.
+    @Test fun loginStateLineLosesAnEmailAccount() {
+        val line = "[2026-10-07 21:14:03] SteamUI: INFO: Login: OnLoginStateChange someone.masked@example.com 2 1 0 0"
+        val out = LogRedactor.redact(line)
+        assertFalse(out.contains("someone.masked"))
+        assertFalse(out.contains("example.com"))
+        assertEquals("[2026-10-07 21:14:03] SteamUI: INFO: Login: OnLoginStateChange <redacted:account> 2 1 0 0", out)
+        assertEquals(out, LogRedactor.redactForShare(line))
+    }
+
+    @Test fun loginStateLineLosesAPlainAccountName() {
+        val line = "[2026-10-07 21:14:03] SteamUI: INFO: Login: OnLoginStateChange maskeduser42 2 1 0 0"
+        val out = LogRedactor.redact(line)
+        assertFalse(out.contains("maskeduser42"))
+        assertEquals("[2026-10-07 21:14:03] SteamUI: INFO: Login: OnLoginStateChange <redacted:account> 2 1 0 0", out)
+        assertEquals(out, LogRedactor.redactForShare(line))
+    }
+
+    @Test fun loginStateWithoutAnAccountIsKept() {
+        val line = "SteamUI: INFO: Login: OnLoginStateChange  0 1 0 0"
+        assertEquals(line, LogRedactor.redact(line))
+    }
+
+    @Test fun accountNameFieldsAreRedacted() {
+        val lines = listOf(
+            "\t\"AccountName\"\t\t\"maskeduser42\"",
+            "account_name=maskeduser42 remember=1",
+            "{\"login\":\"maskeduser42\",\"persist\":1}",
+            "auth: login=maskeduser42&remember=1",
+            "accountName: maskeduser42",
+            "{\"username\": \"masked user 42\"}",
+        )
+        for (line in lines) {
+            val out = LogRedactor.redactForShare(line)
+            assertFalse(out, out.contains("maskeduser42") || out.contains("masked user"))
+            assertTrue(out, out.contains("<redacted:account>"))
+            assertEquals(out, LogRedactor.redactForShare(out))
+        }
+    }
+
+    @Test fun loginAsAWordIsNotAField() {
+        for (line in listOf("SteamUI: INFO: Login: OnLoginStateChange  0 1 0 0", "login refresh pending", "Login: state 5")) {
+            assertEquals(line, LogRedactor.redact(line))
+        }
+    }
 }
