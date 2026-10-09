@@ -31,10 +31,14 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils >/dev/null
           tools/desktop-kde/build.sh out
           echo "size $(stat -c %s out/desktop-kde.tar.zst) sha256 $(cat out/desktop-kde.sha256)"
+      # The package itself too, briefly: enough to try a build on a device before publishing it.
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-kde
+          retention-days: 7
+          compression-level: 0
           path: |
+            out/desktop-kde.tar.zst
             out/desktop-kde.packages.txt
             out/desktop-kde.sha256
       - name: Publish
