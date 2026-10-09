@@ -109,7 +109,9 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
         }
     }
     // Plain text only, and nothing at all when the store sent a template key instead of words.
+    // A description that is only the title again (some stores fill it so) is no description.
     val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()
+        .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
     if (description.isNotBlank()) Rise(2) {
         Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
     }
