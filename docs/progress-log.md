@@ -153,6 +153,9 @@ without it and Setup says "Stores engine not built").
 - **Cloud saves device-proven (AYANEO Pocket FIT, `6a175f1`, ELDERBORN on GOG):** the launch logged
   `cloud gog 1732383191 down result=ok files=5 bytes=237499 reason=downloaded` (template found) and
   the in-game slot shows the cloud save (Catacombs: Tutorial part 1, 00:08:40).
+- **Saves menu without explanations:** Import / Export rows (Steam, Custom, GOG and Epic alike) lose
+  their descriptive subtitles; only live values remain (last sync, "…", conflict count, the save
+  folder and its size). The three strings are gone from every locale.
 - **One place for a store game's saves:** a GOG or Epic game's hero button reads "Cloud saves" and
   opens its saves view, which now holds the Cloud saves switch, the sync status, Upload / Download
   and the conflict actions ("No cloud saves" when the store keeps none). The switch is gone from the

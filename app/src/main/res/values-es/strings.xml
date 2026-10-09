@@ -909,11 +909,8 @@
     <string name="games_manage_saves">Gestionar partidas guardadas</string>
     <string name="games_saves">Partidas guardadas</string>
     <string name="games_import_saves">Importar partidas guardadas…</string>
-    <string name="games_import_saves_hint">Zip de GameHub o Winlator. Antes se hace una copia de las partidas actuales.</string>
     <string name="games_export_gamehub">Exportar como zip de GameHub…</string>
-    <string name="games_export_gamehub_hint">Para GameHub y BannerHub</string>
     <string name="games_export_winlator">Exportar como zip de Winlator…</string>
-    <string name="games_export_winlator_hint">Para Winlator, WinNative y Bannerlator</string>
     <string name="games_open_save_folder">Abrir carpeta de guardado</string>
     <string name="games_never_played">Nunca jugado</string>
     <string name="games_runtime_busy_percent">Runtime ocupado · %1$d%%</string>

@@ -901,11 +901,8 @@
     <string name="games_manage_saves">저장 데이터 관리</string>
     <string name="games_saves">게임 저장 데이터</string>
     <string name="games_import_saves">저장 데이터 가져오기…</string>
-    <string name="games_import_saves_hint">GameHub 또는 Winlator 아카이브. 가져오기 전에 현재 저장 데이터를 백업합니다.</string>
     <string name="games_export_gamehub">GameHub 아카이브로 내보내기…</string>
-    <string name="games_export_gamehub_hint">GameHub 및 BannerHub에 적합</string>
     <string name="games_export_winlator">Winlator 아카이브로 내보내기…</string>
-    <string name="games_export_winlator_hint">Winlator, WinNative 및 Bannerlator에 적합</string>
     <string name="games_open_save_folder">저장 폴더 열기</string>
     <string name="games_never_played">플레이한 적 없음</string>
     <string name="games_runtime_busy_percent">런타임 사용 중 · %1$d%%</string>

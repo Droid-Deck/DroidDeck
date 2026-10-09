@@ -203,13 +203,13 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
         SecondaryButton(label, compact = true) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = if (cloudGame) label else stringResource(R.string.games_saves), note = summary) { first ->
             if (cloudGame) CloudRows(g, open, first)
-            MenuItem(stringResource(R.string.games_import_saves), checked = false, detail = stringResource(R.string.games_import_saves_hint), focusRequester = if (cloudGame) null else first) {
+            MenuItem(stringResource(R.string.games_import_saves), checked = false, focusRequester = if (cloudGame) null else first) {
                 open = false; a.onSaveImport(g)
             }
-            MenuItem(stringResource(R.string.games_export_gamehub), checked = false, detail = stringResource(R.string.games_export_gamehub_hint)) {
+            MenuItem(stringResource(R.string.games_export_gamehub), checked = false) {
                 open = false; a.onSaveExport(g, com.droiddeck.launcher.session.GameSaves.Layout.GAMEHUB)
             }
-            MenuItem(stringResource(R.string.games_export_winlator), checked = false, detail = stringResource(R.string.games_export_winlator_hint)) {
+            MenuItem(stringResource(R.string.games_export_winlator), checked = false) {
                 open = false; a.onSaveExport(g, com.droiddeck.launcher.session.GameSaves.Layout.WINLATOR)
             }
             found?.firstOrNull()?.let { d ->
