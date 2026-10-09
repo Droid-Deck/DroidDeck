@@ -105,6 +105,7 @@ object AmazonBackend : StoreBackend {
                 }
                 override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
                 override fun onLog(line: String) { handle.log(line) }
+                override fun onSizes(downloadBytes: Long, diskBytes: Long) { handle.diskSize(diskBytes) }
             }) ?: return null
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL, "Registering with Steam…")
@@ -121,7 +122,7 @@ object AmazonBackend : StoreBackend {
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
                 extra = mapOf("entitlementId" to game.entitlementId, "sku" to game.productSku),
             )
-            StoreInstalls.complete(app, folder, sidecar)
+            StoreInstalls.complete(app, folder, onStep = { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }, sidecar = sidecar)
             return folder.path
         }
 

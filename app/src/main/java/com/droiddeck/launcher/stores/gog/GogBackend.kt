@@ -95,6 +95,7 @@ object GogBackend : StoreBackend {
                 }
                 override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
                 override fun onLog(line: String) { handle.log(line) }
+                override fun onSizes(downloadBytes: Long, diskBytes: Long) { handle.diskSize(diskBytes) }
                 override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
                     handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
                     handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
@@ -108,7 +109,7 @@ object GogBackend : StoreBackend {
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
             )
             if (sidecar.exe.isEmpty()) handle.log("gog: no exe found in ${folder.name}; pick one in Steam settings › Added games")
-            StoreInstalls.complete(app, folder, if (sidecar.exe.isEmpty()) sidecar.copy(exe = "game.exe") else sidecar)
+            StoreInstalls.complete(app, folder, onStep = { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }, sidecar = if (sidecar.exe.isEmpty()) sidecar.copy(exe = "game.exe") else sidecar)
             return folder.path
         }
 

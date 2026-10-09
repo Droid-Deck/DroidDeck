@@ -62,6 +62,8 @@ public final class GogDownloadManager {
         default void onBytes(long done, long total, long speedBps) {}
         /** A diagnostic line for the engine log. */
         default void onLog(String line) {}
+        /** What this run fetches and what the game takes on disk. */
+        default void onSizes(long downloadBytes, long diskBytes) {}
         /**
          * The active stage's own count: {@code stage} is "verify" or "install", {@code done} of
          * {@code total} an amount (bytes, or items when there are no bytes), {@code items} of
@@ -203,6 +205,7 @@ public final class GogDownloadManager {
             final AtomicReference<String> cdnBaseRef = new AtomicReference<>(cdnBase);
             final AtomicInteger cdnRefreshCount = new AtomicInteger(0);
             final int MAX_CDN_REFRESH = 5;
+            cb.onSizes(planned, planned);
             cb.onBytes(0, planned, 0);
             cb.onLog("gog: " + total + " files, " + formatBytes(planned) + ", base=" + baseProductId);
 
@@ -353,6 +356,7 @@ public final class GogDownloadManager {
             final AtomicLong lastSpeedB = new AtomicLong(0);
             final AtomicLong speedBps = new AtomicLong(0);
             final AtomicBoolean anyFailed = new AtomicBoolean(false);
+            cb.onSizes(planned, planned);
             cb.onBytes(0, planned, 0);
             int threads = downloadThreads();
             if (GogNative.isAvailable()) {
@@ -527,7 +531,8 @@ public final class GogDownloadManager {
         StoreDownloadTier tier = StoreDownloadTier.Companion.current(ctx);
         int workers = Math.max(1, Math.min(128, tier.getNetworkWindow()));
         int process = Math.max(16, Math.max(processWorkers, tier.getProcessWorkers()));
-        cb.onLog("gog: engine=native workers=" + workers + " process_workers=" + process + " tier=" + tier.getId());
+        // The tier's window goes to the engine as its ceiling (Max = 96); the per-host spread is the engine's.
+        cb.onLog("gog: plan kind=" + kind + " files=" + total + " bytes=" + planned + " window=" + workers + " process_workers=" + process + " tier=" + tier.getId() + " engine=native");
         final String[] manifests = depotJsons.toArray(new String[0]);
         final java.util.Set<String> donePaths = java.util.concurrent.ConcurrentHashMap.newKeySet();
         int run = 0;

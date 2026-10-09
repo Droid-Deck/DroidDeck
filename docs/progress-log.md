@@ -144,6 +144,12 @@ without it and Setup says "Stores engine not built").
   (`token`, `__token__`, `f_token`, `hdnts`, access/refresh/id tokens, `code=`) and Authorization /
   Cookie headers are blanked outside URLs too. `StoreLogTest` covers a GOG secure link and an Epic
   Akamai URL. The engine's own logcat lines (tag `EpicNative` etc.) are written on the native side.
+- **GOG rows (device, DOOM + DOOM II):** bytes read "0 B" instead of blank; GOG and Amazon report
+  their size on disk from the manifest; their Install stage counts its finishing steps (record and
+  launcher, art, Steam) instead of sitting empty - GOG writes files in place while downloading, so
+  there is no file move to count. A stage a store skips reads complete once a later one starts.
+  The tier's window does reach GOG's engine (Max = 96 as its ceiling); the plan line now says so
+  (`gog: plan … window=96 … tier=max`). The per-host spread is the engine's and was not changed.
 - **Stages named for what they do; both sizes; Cancel deletes.** Epic's check of the files already
   there is part of Manifest ("Checking 120/515"), never a 100% Verify before anything is fetched.
   Install has its own write rate and ETA from the bytes the assembler writes, and files n/N. The

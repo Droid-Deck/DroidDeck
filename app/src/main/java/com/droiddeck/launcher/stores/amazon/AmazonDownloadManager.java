@@ -46,6 +46,8 @@ public final class AmazonDownloadManager {
         void onProgress(String message, int pct);
         default void onBytes(long done, long total, long speedBps) {}
         default void onLog(String line) {}
+        /** What this run fetches and what the game takes on disk. */
+        default void onSizes(long downloadBytes, long diskBytes) {}
     }
 
     public static final class Result {
@@ -78,6 +80,7 @@ public final class AmazonDownloadManager {
             long usable = installDir.getUsableSpace();
             if (manifest.totalInstallSize > 0 && usable > 0 && manifest.totalInstallSize > usable)
                 throw new InstallException("Not enough free space: need " + fmt(manifest.totalInstallSize) + ", only " + fmt(usable) + " free");
+            cb.onSizes(manifest.totalInstallSize, manifest.totalInstallSize);
             cb.onBytes(0, manifest.totalInstallSize, 0);
             if (cancel.get()) return null;
 

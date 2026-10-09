@@ -39,15 +39,22 @@ object StoreInstalls {
      * throw, so a failure there fails the download with its message; the art and the Steam side
      * are best-effort and only logged.
      */
-    fun complete(context: Context, folder: File, sidecar: StoreGameSidecar) {
+    fun complete(context: Context, folder: File, sidecar: StoreGameSidecar, onStep: ((Int, Int) -> Unit)? = null) {
         val app = context.applicationContext
+        onStep?.invoke(0, STEPS)
         val finished = StoreLaunch.writeLauncher(folder, sidecar.copy(state = StoreGameSidecar.STATE_INSTALLED))
         finished.write(folder)
         if (StoreGameSidecar.read(folder)?.isInstalled != true) throw java.io.IOException("the install record could not be written in ${folder.name}")
+        onStep?.invoke(1, STEPS)
         // The art before the listing, so the listing already carries it for the client's grid.
         try { StoreArt.fetchInto(folder, finished) } catch (e: Exception) { Log.w(TAG, "art for ${folder.name}: ${e.message}") }
+        onStep?.invoke(2, STEPS)
         register(app)
+        onStep?.invoke(STEPS, STEPS)
     }
+
+    /** The finishing steps [complete] reports: the record and launcher, the art, Steam. */
+    private const val STEPS = 3
 
     /** Rewrites the session's listing from a fresh scan and, with a client running, adds live. */
     fun register(context: Context) {
