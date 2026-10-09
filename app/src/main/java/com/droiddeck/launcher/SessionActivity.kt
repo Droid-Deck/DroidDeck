@@ -677,6 +677,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onSelectedGameProfile = ::selectDrawerGameProfile,
                     onSelectedGameProfileRefresh = ::refreshDrawerGameProfile,
                     onComponentSwap = { pid, comp, value -> swapDrawerComponent(pid, comp, value) },
+                    onGameComponent = ::setDrawerGameComponent,
                 ))
                 if (SessionState.suspended) SessionPausedOverlay(
                     title = pausedTitle(),
@@ -884,6 +885,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 refreshDrawerComponents()
             }
         }, "drawer-components-swap").start()
+    }
+
+    private fun setDrawerGameComponent(appId: Long, comp: String, file: String?) {
+        val name = drawerGameProfiles.firstOrNull { it.first == appId }?.second ?: appId.toString()
+        Thread({
+            val message = runCatching {
+                ComponentsManager.setGameComponent(this, appId.toString(), comp, file)
+                getString(R.string.comp_game_saved_next, name)
+            }.getOrElse { e ->
+                getString(R.string.session_profile_save_failed, e.message ?: e.javaClass.simpleName)
+            }
+            uiHandler.post {
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+                refreshDrawerComponents()
+                refreshDrawerGameProfile()
+            }
+        }, "drawer-game-component").start()
     }
 
     /** The session this screen is bringing up: the live one when re-attached, else the intent's. */

@@ -264,6 +264,8 @@ class DrawerActions(
     val onSelectedGameProfileRefresh: () -> Unit = {},
     /** Swaps [value] ("orig:<build>" or a stored package file) into a Proton's component. */
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
+    /** Saves a stored package for a game, or null to inherit that component from the Default profile. */
+    val onGameComponent: (appId: Long, comp: String, file: String?) -> Unit = { _, _, _ -> },
 )
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -1023,6 +1025,54 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
         SettingsGroup(stringResource(R.string.drawer_page_components)) {
             Text(stringResource(R.string.comp_reading), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(14.dp))
         }
+        return
+    }
+    val gameProfile = a.selectedGameProfileId?.let { appId ->
+        a.selectedGameProfile?.takeIf { it.appId == appId }
+    }
+    if (a.selectedGameProfileId != null) {
+        if (gameProfile == null) {
+            SettingsGroup(stringResource(R.string.drawer_page_components)) {
+                Text(
+                    stringResource(R.string.comp_reading),
+                    fontSize = 13.sp,
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.padding(14.dp),
+                )
+            }
+            return
+        }
+        SettingsGroup(stringResource(R.string.drawer_page_components)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp)) {
+                ProfileSummaryRow(stringResource(R.string.comp_proton), gameProfile.proton.value)
+            }
+            for (comp in ComponentsManager.COMPONENTS) {
+                val value = gameProfile.components.getValue(comp)
+                val options: List<Pair<String?, String>> =
+                    listOf(null to stringResource(R.string.comp_game_use_general)) +
+                        snap.packages.filter { it.comp == comp }.map { it.file to it.version }
+                DrawerStackedChoice(
+                    host = host,
+                    key = "game-cmp-$comp",
+                    label = ComponentsManager.LABEL.getValue(comp),
+                    hint = if (value.inherited) {
+                        stringResource(R.string.drawer_component_inherited, value.value)
+                    } else {
+                        null
+                    },
+                    options = options,
+                    selected = gameProfile.componentFiles[comp],
+                    chipModifier = track("cmp-$comp"),
+                    onPick = { file -> a.onGameComponent(gameProfile.appId, comp, file) },
+                )
+            }
+        }
+        Text(
+            stringResource(R.string.drawer_game_components_note, gameProfile.name),
+            fontSize = 12.sp,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
+        )
         return
     }
     val running = snap.protons.filter { it.inUseByGame }

@@ -429,6 +429,7 @@
     <string name="comp_game_proton_live">%1$s\'s Proton choice is saved and available in Steam now.</string>
     <string name="comp_game_proton_next">%1$s\'s Proton choice is saved. Restart Steam before launching the game.</string>
     <string name="comp_game_proton_not_runnable">%1$s cannot use the selected Proton on this device.</string>
+    <string name="comp_game_load_failed">Could not load %1$s\'s profile: %2$s</string>
     <string name="comp_game_save_failed">The game profile could not be saved: %1$s</string>
     <string name="comp_game_reset">Reset game profile</string>
     <string name="comp_game_reset_title">Reset %1$s\'s profile?</string>
@@ -600,9 +601,11 @@
     <string name="drawer_no_game">No game is running on a Proton</string>
     <string name="drawer_selected_profile">Game profile</string>
     <string name="drawer_selected_profile_none">Profile details are not available yet.</string>
-    <string name="drawer_profile_inspect_hint">Inspect the saved settings used on the next launch.</string>
+    <string name="drawer_profile_inspect_hint">View and edit the saved settings used on the next launch.</string>
     <string name="drawer_profile_default">Using Default profile</string>
     <string name="drawer_profile_custom">Custom profile</string>
+    <string name="drawer_component_inherited">Using %1$s from the Default profile.</string>
+    <string name="drawer_game_components_note">Changes are saved to %1$s\'s profile and apply the next time the game launches.</string>
     <plurals name="drawer_profile_environment_overrides">
         <item quantity="one">%1$d game override</item>
         <item quantity="other">%1$d game overrides</item>
@@ -1270,6 +1273,7 @@
     <!-- Shown as "Auto (direct)" in the drawer's touch setting -->
     <string name="session_touch_auto_direct">direct</string>
     <string name="session_swap_failed">Swap failed: %1$s</string>
+    <string name="session_profile_save_failed">Profile save failed: %1$s</string>
     <string name="session_desktop_paused">The desktop is paused</string>
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s is paused</string>

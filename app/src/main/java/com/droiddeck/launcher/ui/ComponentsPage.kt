@@ -68,6 +68,7 @@ import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.droiddeck.launcher.session.GameProfileManager
 import com.droiddeck.launcher.session.ProtonDefault
 import com.droiddeck.launcher.session.WinComponents
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -150,6 +151,8 @@ fun ComponentsPage(
     var winComponentsOpen by remember { mutableStateOf<Boolean?>(null) }
     var winComponentsRevision by remember { mutableStateOf(0) }
     var environment by remember { mutableStateOf<GameEnvironment.Config?>(null) }
+    var profileLoading by remember { mutableStateOf(false) }
+    var profileLoadGeneration by remember { mutableStateOf(0L) }
     var environmentBusy by remember { mutableStateOf(false) }
     var environmentError by remember { mutableStateOf(false) }
     var profileNotice by remember { mutableStateOf<String?>(null) }
@@ -166,27 +169,49 @@ fun ComponentsPage(
         if (selectedGameKey != null && games.none { it.profileKey == selectedGameKey }) selectedGameKey = null
     }
     LaunchedEffect(selectedGame?.profileKey, snapshot) {
+        profileLoadGeneration++
+        val generation = profileLoadGeneration
+        val game = selectedGame
         profileNotice = null
         environmentError = false
-        selectedGame?.let { game ->
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    val choice = ProtonDefault.gameChoice(ctx, game.profileKey)
-                    Triple(
-                        choice,
-                        ProtonDefault.gameSelectedId(ctx, game.profileKey, snapshot?.protons.orEmpty().map { it.proton }),
-                        ComponentsManager.gameComponents(ctx, game.profileKey),
-                    )
-                }
-            }.onSuccess { (choice, id, components) ->
+        gameProtonChoice = null
+        gameProtonId = null
+        gameComponents = emptyMap()
+        gameProtonMenu = false
+        gameComponentMenu = null
+        fexMenu = false
+        if (game == null) {
+            profileLoading = false
+            return@LaunchedEffect
+        }
+        profileLoading = true
+        try {
+            val (choice, id, components) = withContext(Dispatchers.IO) {
+                val choice = ProtonDefault.gameChoice(ctx, game.profileKey)
+                Triple(
+                    choice,
+                    ProtonDefault.gameSelectedId(ctx, game.profileKey, snapshot?.protons.orEmpty().map { it.proton }),
+                    ComponentsManager.gameComponents(ctx, game.profileKey),
+                )
+            }
+            if (profileLoadGeneration == generation && selectedGameKey == game.profileKey) {
                 gameProtonChoice = choice
                 gameProtonId = id
                 gameComponents = components
             }
-        } ?: run {
-            gameProtonChoice = null
-            gameProtonId = null
-            gameComponents = emptyMap()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (profileLoadGeneration == generation && selectedGameKey == game.profileKey) {
+                environmentError = true
+                profileNotice = ctx.getString(
+                    R.string.comp_game_load_failed,
+                    game.name,
+                    error.message ?: error.javaClass.simpleName,
+                )
+            }
+        } finally {
+            if (profileLoadGeneration == generation) profileLoading = false
         }
     }
     fun setGameFexPreset(preset: String?) {
@@ -464,7 +489,7 @@ fun ComponentsPage(
                 componentMenu = gameComponentMenu,
                 protonMenu = gameProtonMenu,
                 fexMenu = fexMenu,
-                busy = environmentBusy,
+                busy = environmentBusy || profileLoading,
                 error = environmentError,
                 notice = profileNotice,
                 winComponentsRevision = winComponentsRevision,
