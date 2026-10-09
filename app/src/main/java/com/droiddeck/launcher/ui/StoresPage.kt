@@ -56,6 +56,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -69,6 +70,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
@@ -83,6 +90,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -156,6 +164,13 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val store = Store.byId(chip)
     // A tab this store does not have (Store or All on Amazon) reads as Library.
     val shownTab = tabFor(store, tab)
+    val pane = PaneKey(
+        chip, if (store == null) "" else shownTab,
+        store == null || (StoresState.isSignedIn(store) && StoresState.expired[store] != true),
+    )
+    // Incoming and outgoing panes must not share a scroll state while both are on screen.
+    val grids = remember { HashMap<PaneKey, LazyGridState>() }
+    val grid = grids.getOrPut(pane) { LazyGridState() }
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     // A store the account is signed into fills itself when its chip is on screen.
     LaunchedEffect(chip, StoresState.accounts[store]) { if (store != null && StoresState.isSignedIn(store)) StoresState.open(ctx, store) }
@@ -236,7 +251,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val detailScroll = rememberScrollState()
     // A store or tab just picked starts at the top. Closing a game page leaves the grid where it
     // was, so the page draws back into the card it came from and focus lands on it.
-    LaunchedEffect(chip, tab) { scroll.scrollTo(0) }
+    LaunchedEffect(chip, tab) { scroll.scrollTo(0); grid.scrollToItem(0) }
     LaunchedEffect(openGame) { detailScroll.scrollTo(0) }
     LaunchedEffect(focusMove, openGame) {
         if (inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard || ff == null) return@LaunchedEffect
@@ -307,8 +322,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val gridScale by animateFloatAsState(if (covering) 0.95f else 1f, if (covering) Motion.tw(480) else Motion.tw(460, 40), label = "gridSink")
     val gridAlpha by animateFloatAsState(if (covering) 0f else 1f, if (covering) Motion.tw(320, 80) else Motion.tw(300, 100), label = "gridFade")
 
-    // Each store in its own colour: the focus ring, the buttons and what steps out of them.
-    StoreTheme(store) {
     Box(modifier.onGloballyPositioned { hostAt = it.positionInRoot() }) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
@@ -321,8 +334,10 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         // scrolls is clipped at the row's lower edge and, once scrolled, faded out there: the
         // content's own alpha, not a colour laid over it.
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-            Rise(0) { StoreChips(chip, s.storeDownloadsActive, onStore = { st, at -> openModes(st, at) }, onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
-                onFocusChip = { focusedChip = it }, onSettings = { settings = true }) }
+            StoreTheme(Store.byId(focusedChip ?: chip)) {
+                Rise(0) { StoreChips(chip, focusedChip, s.storeDownloadsActive, onStore = { st, at -> openModes(st, at) }, onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
+                    onFocusChip = { focusedChip = it }, onSettings = { settings = true }) }
+            }
         }
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
         Box(
@@ -331,7 +346,9 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
-                    val scrolled = if (detail != null) detailScroll.value > 0 else scroll.value > 0
+                    val scrolled = if (detail != null) detailScroll.value > 0
+                        else if (store != null && pane.signedIn) grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 0
+                        else scroll.value > 0
                     if (scrolled && size.height > fade) drawRect(
                         Brush.verticalGradient(0f to Color.Transparent, fade / size.height to Color.Black),
                         blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
@@ -344,20 +361,16 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             val gridFocus = if (covering) null else ff
             CompositionLocalProvider(LocalFrontFocus provides gridFocus) {
                 Column(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxSize()
                         .graphicsLayer { scaleX = gridScale; scaleY = gridScale; alpha = gridAlpha }
                         // Always the same group, only its rule changes: a focus group added around
                         // the card that has focus leaves the focus tree refusing every request after.
                         .focusProperties { enter = { if (coveringNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
-                        .focusGroup()
-                        .verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp),
+                        .focusGroup(),
                 ) {
-                    val pane = PaneKey(
-                        chip, if (store == null) "" else shownTab,
-                        store == null || (StoresState.isSignedIn(store) && StoresState.expired[store] != true),
-                    )
                     AnimatedContent(
                         targetState = pane,
+                        modifier = Modifier.fillMaxSize(),
                         transitionSpec = {
                             val sameStore = initialState.chip == targetState.chip && initialState.signedIn == targetState.signedIn
                             (if (sameStore && initialState.tab != targetState.tab) {
@@ -382,19 +395,22 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                           // what is leaving: focus there vanishes with it. Same group always, only
                           // its rule changes (adding one around focus breaks the focus tree).
                           val leavingNow = androidx.compose.runtime.rememberUpdatedState(outgoing)
-                          Column(
-                              Modifier.fillMaxWidth()
-                                  .focusProperties { enter = { if (leavingNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
-                                  .focusGroup(),
-                          ) {
-                            val st = Store.byId(k.chip)
-                            when {
-                                k.chip == DOWNLOADS -> StoresDownloadsPane(s, a)
-                                st == null -> {}
-                                // Signed out, or a sign-in that ran out (a launch could not get its code): sign in again.
-                                !k.signedIn -> SignInCard(st, viewportH - 20.dp)
-                                else -> Storefront(st, k.tab, query, s, a, onQuery = { query = it }, onOpen = { open(it) })
-                            }
+                          val st = Store.byId(k.chip)
+                          // Keep the outgoing pane's palette stable while the next store comes in.
+                          StoreTheme(st) {
+                              Column(
+                                  Modifier.fillMaxSize()
+                                      .focusProperties { enter = { if (leavingNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
+                                      .focusGroup(),
+                              ) {
+                                when {
+                                    k.chip == DOWNLOADS -> Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { StoresDownloadsPane(s, a) }
+                                    st == null -> {}
+                                    // Signed out, or a sign-in that ran out (a launch could not get its code): sign in again.
+                                    !k.signedIn -> Box(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { SignInCard(st, viewportH - 20.dp) }
+                                    else -> Storefront(st, k.tab, query, s, a, grids.getOrPut(k) { LazyGridState() }, onQuery = { query = it }, onOpen = { open(it) })
+                                }
+                              }
                           }
                         }
                     }
@@ -402,32 +418,34 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             }
             detail?.let { key ->
                 val detailStore = Store.byId(key.substringBefore(':')) ?: store
-                val body: @Composable () -> Unit = {
-                    // One focus group, so the pad walks the page's own controls - back, the hero's
-                    // actions - and reaches the rail only with Left from them. It takes every touch,
-                    // so nothing reaches the grid under it.
-                    Column(
-                        Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }
-                            .verticalScroll(detailScroll).padding(top = 4.dp, bottom = 16.dp),
-                    ) {
-                        if (detailStore != null) Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(detailStore, key, s, a, onBack = { closeGame() }) }
+                StoreTheme(detailStore) {
+                    val body: @Composable () -> Unit = {
+                        // One focus group, so the pad walks the page's own controls - back, the hero's
+                        // actions - and reaches the rail only with Left from them. It takes every touch,
+                        // so nothing reaches the grid under it.
+                        Column(
+                            Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }
+                                .verticalScroll(detailScroll).padding(top = 4.dp, bottom = 16.dp),
+                        ) {
+                            if (detailStore != null) Column(Modifier.fillMaxWidth().focusGroup()) { StoreGameDetail(detailStore, key, s, a, onBack = { closeGame() }) }
+                        }
                     }
-                }
-                val from = detailFrom
-                if (from == null) body()
-                else {
-                    // Sized up front: the flood draws the art only once it knows its size, and a painter
-                    // left to take its size from drawing would never load. The card's own bitmap stands
-                    // in from the memory cache until the full one is decoded.
-                    val art = detailArt?.let { url ->
-                        coil.compose.rememberAsyncImagePainter(
-                            remember(url) {
-                                coil.request.ImageRequest.Builder(ctx).data(url).size(1280, 720)
-                                    .placeholderMemoryCacheKey(url).build()
-                            },
-                        )
+                    val from = detailFrom
+                    if (from == null) body()
+                    else {
+                        // Sized up front: the flood draws the art only once it knows its size, and a painter
+                        // left to take its size from drawing would never load. The card's own bitmap stands
+                        // in from the memory cache until the full one is decoded.
+                        val art = detailArt?.let { url ->
+                            coil.compose.rememberAsyncImagePainter(
+                                remember(url) {
+                                    coil.request.ImageRequest.Builder(ctx).data(url).size(1280, 720)
+                                        .placeholderMemoryCacheKey(url).build()
+                                },
+                            )
+                        }
+                        PageFlood(from, leaving, art) { body() }
                     }
-                    PageFlood(from, leaving, art) { body() }
                 }
             }
         }
@@ -445,7 +463,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         }
     }
     SignInFloodLayer(hostAt)
-    }
     }
     // Leaving the section: nothing stays stepped out of a control that is no longer on screen.
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
@@ -553,7 +570,7 @@ private fun SignInFloodLayer(hostAt: Offset) {
  */
 @Composable
 private fun StoreChips(
-    selected: String, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: () -> Unit,
+    selected: String, focused: String?, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: () -> Unit,
     /** The chip a pad's focus is on (null when it leaves the row): the page shows that store. */
     onFocusChip: (String?) -> Unit,
 ) {
@@ -561,8 +578,10 @@ private fun StoreChips(
     val keys = Store.entries.map { it.id } + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
     val rootBounds = remember { HashMap<String, Rect>() }
-    val tint by androidx.compose.animation.animateColorAsState(
-        Store.byId(selected)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
+    // The fill travels with focus; only the expensive pane change waits for the debounce.
+    val highlighted = focused ?: selected
+    val tint = androidx.compose.animation.animateColorAsState(
+        Store.byId(highlighted)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
     )
     Box(Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -604,7 +623,7 @@ private fun StoreChips(
             IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings), onSettings)
         }
         // Over the chips: the fill is translucent, and the other chips' rest fill would hide it in flight.
-        ChipGlide(keys.indexOf(selected), bounds[selected], tint)
+        ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint)
     }
 }
 
@@ -614,7 +633,7 @@ private fun StoreChips(
  * later on its trail spring - and a hop past a chip pinches it to a drop, carries it and opens it.
  */
 @Composable
-private fun BoxScope.ChipGlide(index: Int, at: Rect?, tint: Color) {
+private fun BoxScope.ChipGlide(index: Int, at: Rect?, tint: State<Color>) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val left = remember { Animatable(Float.NaN) }
     val right = remember { Animatable(0f) }
@@ -665,8 +684,8 @@ private fun BoxScope.ChipGlide(index: Int, at: Rect?, tint: Color) {
         val corner = androidx.compose.ui.geometry.CornerRadius(minOf(size.width, size.height) / 2f)
         val at0 = Offset(x0, y0)
         // A drop in flight is solid; on a chip it is the chip's tinted fill and outline.
-        drawRoundRect(tint.copy(alpha = androidx.compose.ui.util.lerp(0.16f, 0.9f, p)), at0, size, corner)
-        drawRoundRect(tint.copy(alpha = 0.7f * (1f - p)), at0, size, corner, style = androidx.compose.ui.graphics.drawscope.Stroke(with(density) { 1.dp.toPx() }))
+        drawRoundRect(tint.value.copy(alpha = androidx.compose.ui.util.lerp(0.16f, 0.9f, p)), at0, size, corner)
+        drawRoundRect(tint.value.copy(alpha = 0.7f * (1f - p)), at0, size, corner, style = androidx.compose.ui.graphics.drawscope.Stroke(with(density) { 1.dp.toPx() }))
     }
 }
 
@@ -827,6 +846,7 @@ internal fun StoreLogo(store: Store, size: Dp) {
 @Composable
 private fun Storefront(
     store: Store, tab: String, query: String, s: FrontEndState, a: FrontEndActions,
+    grid: LazyGridState,
     onQuery: (String) -> Unit, onOpen: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -847,50 +867,75 @@ private fun Storefront(
     val installedOnly = tab == "installed"
     // Until the cache is read (a moment, off the main thread) there is nothing to count or to say is missing.
     val loaded = StoresState.library.containsKey(store)
-    Rise(1) {
-        ModeHeader(
-            when {
-                tab == "store" -> stringResource(R.string.stores_tab_store)
-                !loaded -> stringResource(if (installedOnly) R.string.stores_tab_installed else R.string.stores_tab_library)
-                installedOnly -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
-                else -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
-            },
-            query, onQuery,
-            placeholder = when {
-                tab == "store" -> stringResource(R.string.stores_search_catalog, store.label)
-                installedOnly -> stringResource(R.string.stores_search_installed)
-                else -> stringResource(R.string.stores_search_library)
-            },
-        ) {
-            // A purchase made elsewhere shows on a refresh; otherwise the library refreshes itself every six hours.
-            SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
-            val name = StoresState.accounts[store] ?: ""
-            SignOutButton(store, name)
+    val showGrid = tab != "store" || q.isNotEmpty()
+    val visible = remember(library, installedItems, everything, tab, q, s.storesShowMature) {
+        when (tab) {
+            "library" -> library.filter(::matches)
+            "installed" -> installedItems.filter(::matches)
+            else -> everything.filter { matches(it) && shown(it) }
         }
     }
-    StoresState.status[store]?.let { line -> Rise(3) { SyncBar(line) } }
-    StoresState.problems[store]?.let { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(it) } } }
-    // The first card drawn on the tab is where a pad lands after a tab or chip change.
+    val empty = stringResource(when {
+        installedOnly -> R.string.stores_installed_empty
+        tab == "library" && library.isEmpty() && StoresState.status[store] != null -> R.string.stores_library_loading
+        else -> R.string.stores_nothing_matches
+    })
+    // A lazy item can be recomposed or prefetched out of order; the first grid card is identified
+    // by its key, rather than whichever happens to compose first.
     var firstPlaced = false
     val card: @Composable (CatalogItem) -> Unit = { item ->
-        val first = !firstPlaced
+        val first = if (showGrid) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
         GameCard(item, store, s, a, installedKeys, onOpen, first)
     }
-    when (tab) {
-        "library", "installed" -> if (!loaded) Unit
-            else if (installedOnly) Grid(installedItems.filter(::matches), stringResource(R.string.stores_installed_empty), card)
-            else Grid(library.filter(::matches), if (library.isEmpty() && StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_nothing_matches), card)
-        else -> {
-            if (q.isNotEmpty()) Grid(everything.filter { matches(it) && shown(it) }, stringResource(R.string.stores_nothing_matches), card)
-            else {
-                Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
-                Shelf(stringResource(R.string.stores_shelf_deals), shelf(shelves?.deals), card)
-                Shelf(stringResource(R.string.stores_shelf_free), shelf(shelves?.free), card)
-                Shelf(stringResource(R.string.stores_shelf_trending), shelf(shelves?.trending), card)
-                Shelf(stringResource(R.string.stores_shelf_library), library, card)
-                if (shelves == null && library.isEmpty()) Rise(4) { Note(if (StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_shelves_loading)) }
-                else if (shelves != null && shelves.isEmpty && store == Store.AMAZON) Rise(4) { Note(stringResource(R.string.stores_amazon_no_catalog)) }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(CardWidth), state = grid, modifier = Modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
+    ) {
+        item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+            Rise(1) {
+                ModeHeader(
+                    when {
+                        tab == "store" -> stringResource(R.string.stores_tab_store)
+                        !loaded -> stringResource(if (installedOnly) R.string.stores_tab_installed else R.string.stores_tab_library)
+                        installedOnly -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
+                        else -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
+                    },
+                    query, onQuery,
+                    placeholder = when {
+                        tab == "store" -> stringResource(R.string.stores_search_catalog, store.label)
+                        installedOnly -> stringResource(R.string.stores_search_installed)
+                        else -> stringResource(R.string.stores_search_library)
+                    },
+                ) {
+                    // A purchase made elsewhere shows on a refresh; otherwise the library refreshes itself every six hours.
+                    SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
+                    val name = StoresState.accounts[store] ?: ""
+                    SignOutButton(store, name)
+                }
+            }
+        }
+        StoresState.status[store]?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
+        StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
+        when (tab) {
+            "library", "installed" -> if (!loaded) Unit
+                else storeGrid(visible, empty, card)
+            else -> {
+                if (q.isNotEmpty()) storeGrid(visible, empty, card)
+                else {
+                    item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
+                        Column {
+                            Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
+                            Shelf(stringResource(R.string.stores_shelf_deals), shelf(shelves?.deals), card)
+                            Shelf(stringResource(R.string.stores_shelf_free), shelf(shelves?.free), card)
+                            Shelf(stringResource(R.string.stores_shelf_trending), shelf(shelves?.trending), card)
+                            Shelf(stringResource(R.string.stores_shelf_library), library, card)
+                            if (shelves == null && library.isEmpty()) Rise(4) { Note(if (StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_shelves_loading)) }
+                            else if (shelves != null && shelves.isEmpty && store == Store.AMAZON) Rise(4) { Note(stringResource(R.string.stores_amazon_no_catalog)) }
+                        }
+                    }
+                }
             }
         }
     }
@@ -962,7 +1007,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
 internal fun StoreTheme(store: Store?, content: @Composable () -> Unit) {
     val base = LocalPalette.current
     val p = remember(base, store) { storePalette(base, store) }
-    if (p === base) { content(); return }
+    // Downloads uses the base palette, but the provider stays in the same focus tree.
     val scheme = MaterialTheme.colorScheme.copy(primary = p.primary, onPrimary = p.onPrimary)
     CompositionLocalProvider(LocalPalette provides p) { MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, content = content) }
 }
@@ -1041,20 +1086,14 @@ private fun Shelf(title: String, items: List<CatalogItem>?, card: @Composable (C
     }
 }
 
-/** Cards in rows that fill the width; [empty] when there are none. */
-@Composable
-private fun Grid(items: List<CatalogItem>, empty: String, card: @Composable (CatalogItem) -> Unit) {
-    if (items.isEmpty()) { Box(Modifier.padding(vertical = 32.dp).fillMaxWidth(), contentAlignment = Alignment.Center) { Text(empty, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }; return }
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-        val gap = 10.dp
-        val cols = ((maxWidth + gap) / (CardWidth + gap)).toInt().coerceAtLeast(1)
-        val w = (maxWidth - gap * (cols - 1)) / cols
-        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-            for (row in items.chunked(cols)) Row(horizontalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.fillMaxWidth()) {
-                for (item in row) key(item.key) { Box(Modifier.width(w)) { card(item) } }
-            }
+/** Only visible cards (and the grid's prefetch) compose; [empty] spans the row when there are none. */
+private fun LazyGridScope.storeGrid(games: List<CatalogItem>, empty: String, card: @Composable (CatalogItem) -> Unit) {
+    if (games.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+        Box(Modifier.padding(vertical = 32.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(empty, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+    else items(games, key = { it.key }, contentType = { "game" }) { card(it) }
 }
 
 /**
