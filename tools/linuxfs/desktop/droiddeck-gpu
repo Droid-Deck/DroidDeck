@@ -31,7 +31,7 @@ export MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=tr
 [ -n "${DROIDDECK_GLTHREAD:-}" ] && export mesa_glthread=$DROIDDECK_GLTHREAD
 # AppImages cannot mount under proot; the menu entries already say so, a hand-typed one may not.
 export APPIMAGE_EXTRACT_AND_RUN=1
-gamescope "${args[@]}" -- "$@"
+gamescope "${args[@]}" -- /usr/local/bin/droiddeck-gpu-window "$@"
 rc=$?
 echo "== droiddeck-gpu $(date -u +%H:%M:%S): exited $rc"
 exit $rc

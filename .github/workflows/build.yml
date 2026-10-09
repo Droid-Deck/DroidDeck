@@ -279,7 +279,7 @@ jobs:
         if: steps.preloads.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          docker run --rm -v "$PWD:/src" -w /src debian:bullseye bash -c '
+          docker run --rm -v "$PWD:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
             printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
             apt-get -o Acquire::Check-Valid-Until=false update -qq
@@ -343,8 +343,9 @@ jobs:
           install -m755 sink-out/module-aaudio-sink.so pa-bundle/modules/arm64/module-aaudio-sink.so
           install -m755 sink-out/module-directaudio-native-sink.so pa-bundle/modules/arm64/module-directaudio-native-sink.so
           (cd pa-bundle && tar --use-compress-program='zstd -19' -cf ../pulseaudio.tzst .)
-          mv pulseaudio.tzst app/src/main/assets/pulseaudio.tzst
-          tar --use-compress-program=unzstd -tf app/src/main/assets/pulseaudio.tzst | grep -c '\.so$'
+          mkdir -p app/build/prepared-assets
+          mv pulseaudio.tzst app/build/prepared-assets/pulseaudio.tzst
+          tar --use-compress-program=unzstd -tf app/build/prepared-assets/pulseaudio.tzst | grep -c '\.so$'
           rm -rf pa-bundle sink-out
       - name: Cache proot
         id: proot
@@ -364,42 +365,7 @@ jobs:
       - name: Check the preloads
         run: |
           set -euo pipefail
-          D=app/src/main/assets/linuxfs
-          NEED=$(readelf -d "$D/libfakeinput.so" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p')
-          for bad in libstdc++.so.6 libgcc_s.so.1; do
-            if printf '%s\n' "$NEED" | grep -qx "$bad"; then
-              echo "::error::libfakeinput.so links $bad - the C++ runtime must stay static"; exit 1
-            fi
-          done
-          syms() { readelf -Ws "$1" | awk '$4 == "FUNC" && $5 == "GLOBAL" {sub(/@.*/, "", $8); print $8}'; }
-          FAKE=$(syms "$D/libfakeinput.so")
-          for sym in open openat ioctl read close poll ppoll select stat fstat access scandir; do
-            grep -qx "$sym" <<<"$FAKE" || { echo "::error::libfakeinput.so does not export $sym"; exit 1; }
-          done
-          # The static C++ runtime stays private: every session process preloads this library,
-          # and an exported personality routine takes over other programs' unwinding (shadPS4
-          # aborted in pthread_exit).
-          if grep -qxE '__gxx_personality_v0|__cxa_throw|_Unwind_Resume' <<<"$FAKE"; then
-            echo "::error::libfakeinput.so exports the C++ runtime"; exit 1
-          fi
-          SESSION=$(syms "$D/libblsession.so")
-          for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap drmPrimeFDToHandle drmCloseBufferHandle; do
-            grep -qx "$sym" <<<"$SESSION" || { echo "::error::libblsession.so does not export $sym"; exit 1; }
-          done
-          # Zink's GEM_CLOSE is caught at ioctl(); an exported drmIoctl made NMS replay old frames.
-          if grep -qx drmIoctl <<<"$SESSION"; then
-            echo "::error::libblsession.so exports drmIoctl"; exit 1
-          fi
-          SSBS=$(syms "$D/libssbs.so")
-          for sym in sigaction signal bsd_signal sysv_signal; do
-            grep -qx "$sym" <<<"$SSBS" || { echo "::error::libssbs.so does not export $sym"; exit 1; }
-          done
-          test -f "$D/usr/local/bin/droiddeck-session"
-          test -f "$D/usr/local/bin/droiddeck-proton-extra"
-          test -f "$D/usr/local/bin/droiddeck-msi-install"
-          for f in msiinfo cabextract 7z 7z.so libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
-            test -f "$D/usr/local/lib/droiddeck-msitools/$f" || { echo "::error::droiddeck-msitools/$f missing"; exit 1; }
-          done
+          bash tools/linuxfs/check-preloads.sh app/src/main/assets/linuxfs
 
       # The store download engines (app/src/main/rust/stores) are Rust, built by Gradle's
       # buildRustStores task through cargo-ndk. rustup and cargo are on the runner image; the Android
@@ -450,8 +416,10 @@ jobs:
           DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
         run: |
           set -o pipefail
+          python3 tools/release/runtime_inputs.py record
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
+          python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
 
       - name: Check the store engines' library
         # The exports Kotlin binds must be in the apk's libdroiddeckstores.so, or the stores fail on
@@ -460,21 +428,8 @@ jobs:
         run: |
           set -euo pipefail
           NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
-          NM="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
-          SO=app/build/rustJniLibs/arm64-v8a/libdroiddeckstores.so
-          test -s "$SO"
-          ls -la "$SO"
-          unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'lib/arm64-v8a/libdroiddeckstores.so' \
-            || { echo "::error::libdroiddeckstores.so is not in the apk"; exit 1; }
-          for sym in \
-              Java_com_droiddeck_launcher_stores_StoresNative_nativeVersion \
-              Java_com_droiddeck_launcher_stores_gog_GogNative_nativeStart \
-              Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStart \
-              Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeAssemble \
-              Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeStart; do
-            "$NM" -D --defined-only "$SO" | grep -q " ${sym}\$" \
-              || { echo "::error::libdroiddeckstores.so does not export $sym"; exit 1; }
-          done
+          python3 tools/release/check_android_libraries.py app/build/outputs/apk/release/app-release.apk \
+            --readelf "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           git diff --stat -- app/src/main/rust/stores/Cargo.lock
           git diff --exit-code -- app/src/main/rust/stores/Cargo.lock \
             || { echo "::error::Cargo.lock changed during the build; commit the regenerated lockfile (uploaded as stores-cargo-lock)"; exit 1; }
@@ -504,27 +459,6 @@ jobs:
 
       - name: Unit tests
         run: ./gradlew testReleaseUnitTest --console=plain -PndkVersion="$NDK_VERSION"
-
-      - name: Check the native dependency closure
-        run: |
-          set -euo pipefail
-          APK=$(find app/build/outputs/apk -name '*.apk' | head -1)
-          WORK=$(mktemp -d)
-          unzip -q "$APK" 'lib/arm64-v8a/*' -d "$WORK"
-          cd "$WORK/lib/arm64-v8a"
-          SYSTEM="libc.so libm.so libdl.so liblog.so libandroid.so libz.so libvulkan.so libstdc++.so
-                  libGLESv2.so libEGL.so libnativewindow.so libjnigraphics.so libaaudio.so
-                  libOpenSLES.so libmediandk.so libcamera2ndk.so libsync.so libneuralnetworks.so"
-          fail=0
-          for so in *.so; do
-            for need in $(readelf -d "$so" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p'); do
-              [ -f "$need" ] && continue
-              case " $(echo $SYSTEM) " in *" $need "*) continue ;; esac
-              echo "::error::$so needs $need, which is neither in the apk nor a platform library"
-              fail=1
-            done
-          done
-          exit $fail
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |

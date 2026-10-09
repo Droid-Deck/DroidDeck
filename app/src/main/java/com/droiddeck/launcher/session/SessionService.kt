@@ -734,6 +734,7 @@ class SessionService : Service() {
         // Decided only once its sysfs is in place: without it the client would find no Deck, and
         // with the Deck asked for the pad's own nodes are withdrawn - no controller at all.
         val wantsDeck = uinput && SessionState.mode == MODE_STEAM &&
+            SessionState.steamUi != "desktop" &&
             SessionPrefs.steamController(this) == SessionPrefs.CONTROLLER_DECK &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
         deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!) else emptyList()

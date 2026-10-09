@@ -13,6 +13,7 @@ captures/
 app/src/main/assets/linuxfs/
 app/src/main/jniLibs/arm64-v8a/libproot.so
 app/src/main/jniLibs/arm64-v8a/.proot-inputs
+app/src/main/jniLibs/arm64-v8a/.proot-outputs
 app/src/main/jniLibs/arm64-v8a/libproot-loader.so
 app/src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so
 # The store download engines (app/src/main/rust/stores) are cross-compiled by Gradle into

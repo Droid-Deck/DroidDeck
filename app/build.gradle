@@ -198,6 +198,28 @@ def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
 }
 tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 
+// Prepared audio lives under build/, so native builds never rewrite the tracked base bundle.
+// Copying into one asset root also prevents an old base bundle winning a duplicate asset merge.
+def runtimeAssetsDir = layout.buildDirectory.dir('runtimeAssets')
+def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
+    dependsOn(stageSessionScripts)
+    from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
+    from(layout.buildDirectory.dir('prepared-assets'))
+    into(runtimeAssetsDir)
+}
+android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
+tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
+
+// Unit tests and previews remain usable without Docker. Packaging an APK requires the complete
+// runtime payload prepared by the local helper or CI, with matching sources and output hashes.
+def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
+}
+tasks.configureEach { task ->
+    if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
+}
+
 // The GOG / Epic / Amazon download engines are Rust (app/src/main/rust/stores, ported from
 // Bannerlator's bl-steam-client crate). cargo-ndk cross-compiles them for arm64-v8a into the build
 // directory, which is one more jniLibs source below: nothing compiled is committed, the same rule
@@ -214,6 +236,11 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     onlyIf { !skipRust }
     inputs.dir(rustCrateDir.dir('src'))
     inputs.files(rustCrateDir.file('Cargo.toml'), rustCrateDir.file('Cargo.lock'))
+    inputs.property('ndkVersion', android.ndkVersion)
+    if (!skipRust) inputs.property('rustToolchain', providers.exec {
+        environment 'PATH', "${System.getProperty('user.home')}/.cargo/bin${File.pathSeparator}${System.getenv('PATH')}"
+        commandLine 'rustup', 'run', 'stable', 'rustc', '-Vv'
+    }.standardOutput.asText)
     outputs.dir(rustJniLibsDir)
     workingDir rustCrateDir
     // The configuration cache serialises the task, so everything it needs is resolved here, not
@@ -223,12 +250,18 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     environment 'PATH', "${cargoBin}${File.pathSeparator}${System.getenv('PATH')}"
     environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
     environment 'CARGO_TERM_COLOR', 'never'
+    if (!skipRust) environment 'RUSTC', providers.exec {
+        commandLine 'rustup', 'which', '--toolchain', 'stable', 'rustc'
+    }.standardOutput.asText.get().trim()
     // --platform 26 = minSdkVersion: the engines link against the API 26 libc, like the C++ code.
-    commandLine 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '26',
+    // Homebrew's cargo/rustc can precede rustup on macOS and use a different sysroot, despite
+    // rustup reporting the Android target installed. Run both through the selected toolchain.
+    commandLine 'rustup', 'run', 'stable', 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '26',
         '--output-dir', rustJniLibsDir.get().asFile.absolutePath,
-        'build', '--release'
+        'build', '--release', '--locked'
 }
-android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
+// Skipping Rust must omit its library even if another build left a cached .so behind.
+if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {

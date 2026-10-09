@@ -23,6 +23,9 @@ object GogLibrary {
     // v2: the card art moved from the store page's backdrop to the Galaxy library art; an older cache is re-fetched.
     private const val CACHE_KEY = "library_cache_v2"
     private const val LAST_SYNC_KEY = "library_synced_at"
+    // Owned products that are not Windows games (DLC, films, soundtracks, other platforms): never in
+    // the cache, so without this every sync would fetch each of them again.
+    private const val SKIPPED_KEY = "library_skipped"
     private const val THROTTLE_MS = 6L * 60L * 60L * 1000L
 
     private val syncing = AtomicBoolean(false)
@@ -75,18 +78,22 @@ object GogLibrary {
             val stale = System.currentTimeMillis() - p.getLong(LAST_SYNC_KEY, 0L) >= THROTTLE_MS
             val heavy = force || cachedList.isEmpty() || stale
             val cachedIds = cachedList.mapTo(HashSet()) { it.gameId }
-            val idsToFetch = if (heavy) ids else ids.filter { it !in cachedIds }
+            val skipped = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+            if (!heavy) skipped.addAll(p.getStringSet(SKIPPED_KEY, emptySet()).orEmpty())
+            val idsToFetch = if (heavy) ids else ids.filter { it !in cachedIds && it !in skipped }
             val fetchSet = idsToFetch.toHashSet()
             val merged = LinkedHashMap<String, GogGame>()
             for (g in cachedList) if (g.gameId in ownedSet && g.gameId !in fetchSet) merged[g.gameId] = g
             if (idsToFetch.isEmpty()) {
                 val list = merged.values.toList()
+                skipped.retainAll(ownedSet)
+                p.edit().putStringSet(SKIPPED_KEY, HashSet(skipped)).apply()
                 saveCache(p, list)
                 return SyncResult.Ok(list.sortedBy { it.title.lowercase() }, 0)
             }
             onStatus("Syncing ${idsToFetch.size} game${if (idsToFetch.size == 1) "" else "s"}…")
             val pool = Executors.newFixedThreadPool(5)
-            val futures = idsToFetch.map { id -> pool.submit(Callable<GogGame?> { fetchGame(p, id, token) }) }
+            val futures = idsToFetch.map { id -> pool.submit(Callable<GogGame?> { fetchGame(p, id, token, skipped) }) }
             pool.shutdown()
             var fetched = 0
             for ((idx, f) in futures.withIndex()) {
@@ -96,6 +103,8 @@ object GogLibrary {
             }
             val finalList = merged.values.toList()
             saveCache(p, finalList)
+            skipped.retainAll(ownedSet)
+            p.edit().putStringSet(SKIPPED_KEY, HashSet(skipped)).apply()
             if (heavy) p.edit().putLong(LAST_SYNC_KEY, System.currentTimeMillis()).apply()
             Log.i(TAG, "sync: owned=${ids.size} fetched=$fetched cached=${finalList.size} heavy=$heavy")
             return SyncResult.Ok(finalList.sortedBy { it.title.lowercase() }, fetched)
@@ -108,16 +117,18 @@ object GogLibrary {
     }
 
     /** One product's details, or null for anything that is not a Windows game (DLC, movies, other platforms). */
-    private fun fetchGame(prefs: SharedPreferences, id: String, token: String): GogGame? {
+    private fun fetchGame(prefs: SharedPreferences, id: String, token: String, skipped: MutableSet<String>): GogGame? {
+        // Not a game this app installs: remembered, so the next sync does not ask again.
+        fun skip(): GogGame? { skipped.add(id); return null }
         try {
             val productJson = StoreNet.get("https://api.gog.com/products/$id?expand=downloads,description", bearer = token) ?: return null
             val prod = JSONObject(productJson)
-            if (prod.optBoolean("is_secret", false)) return null
+            if (prod.optBoolean("is_secret", false)) return skip()
             val gameType = prod.optString("game_type", "")
-            if (gameType.isNotEmpty() && gameType != "game" && gameType != "pack") return null
+            if (gameType.isNotEmpty() && gameType != "game" && gameType != "pack") return skip()
             var title = prod.optJSONObject("title")?.optString("*")
             if (title.isNullOrEmpty()) title = prod.optString("title")
-            if (title.isNullOrEmpty()) return null
+            if (title.isNullOrEmpty()) return skip()
             // Card art from the v2 game record, the way the Galaxy client draws its library: the dark
             // Galaxy background for the wide card and the box art for the tall one. The product's
             // `images.background` is the store page's fade-out backdrop (it ends in white on a
@@ -164,7 +175,7 @@ object GogLibrary {
             prod.optJSONObject("downloads")?.optJSONArray("installers")?.let { arr ->
                 for (di in 0 until arr.length()) if (arr.optJSONObject(di)?.optString("os", "") == "windows") { hasWindowsInstaller = true; break }
             }
-            if (!hasWindowsBuild && !hasWindowsInstaller) return null
+            if (!hasWindowsBuild && !hasWindowsInstaller) return skip()
 
             var verticalCover: String? = boxArt.ifEmpty { prefs.getString("vcover_$id", null) }
             if (verticalCover.isNullOrEmpty()) {

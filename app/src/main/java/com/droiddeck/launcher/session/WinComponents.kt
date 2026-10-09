@@ -398,7 +398,7 @@ object WinComponents {
      * Downloads the component's package (.msi) or installer (.exe) into the runtime and has
      * droiddeck-msi-install lay it out in [staging]. Returns the installer's result (product,
      * version, counts, notes), or null and why. Everything the installer prints also goes to
-     * Download/DroidDeck/tools.
+     * files/logs/tools.
      */
     private fun installPackage(context: Context, c: Component, step: Step, staging: File, onProgress: (Progress) -> Unit): Pair<JSONObject?, String> {
         val root = LinuxRuntime.rootDir(context)

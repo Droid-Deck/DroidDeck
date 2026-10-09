@@ -7,6 +7,80 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-09 - `feat/store-credentials-keystore`: store sign-ins sealed with the Android Keystore
+
+- **What:** `filesDir/stores/<store>/credentials.json` (GOG, Epic, Amazon: tokens, ids, names,
+  expiry) is now an AES-256-GCM envelope (`{"v":1,"alg":"AES/GCM","iv","ct"}`) under a
+  non-exportable AndroidKeyStore key (StrongBox if present, else TEE; no user authentication).
+  `StoreAccounts` is the one layer; `CredentialCipher` holds the envelope and the key.
+- **Upgrade:** a plain file is sealed at the first start (verified, then replaced); users stay
+  signed in. Log: `stores: credentials encrypted <store>`.
+- **Fallbacks:** no Keystore - stays plain, logged once, retried next start. A file that can never
+  open (bad tag, key invalidated or missing, not an envelope) - deleted, signed out (sign-in card).
+  Any other Keystore or I/O failure - file kept, store stays signed in but unavailable (actions show
+  `<Store> sign-in could not be read: try again.`), logged once, retried on the next access. Never
+  a crash.
+- **Session:** the guest sees the envelope only; it never read the files (the Epic code comes over
+  the request channel, written beside the launcher and deleted by it).
+- **Tests:** `StoreAccountsCipherTest` (round trip, sealed on disk, migration of all three stores,
+  tampered file, lost key, key missing, garbage, no-Keystore fallback then sealed next start,
+  transient Keystore / I/O failures keep the file and a later read succeeds, sign-out). Not yet
+  on a device.
+
+## 2026-10-08 - `feat/private-logs`: every log in app-private storage, shared as one scrubbed zip
+
+- **Where logs live:** `files/logs/` (`LinuxRuntime.logDir`), nothing under `Download/DroidDeck`
+  any more. Session folders (`<day>-NN-<what>/`), `tools/` (GuestCommand, Flatpak, Windows
+  component installers) and `stores/` (the stores' engine log, one file a day) all sit there. The
+  files directory is bound into every session at the same path, so the session script, gamescope
+  and the guest tools write there as before. Thirty sessions kept; the Logs switch off still means
+  a cache folder deleted at session end. Game save backups stay public in `Download/DroidDeck/Saves`.
+- **Moving the old ones:** on the first start of this build, session folders, `tools/` and loose
+  `*.log` files move from `Download/DroidDeck/` into `files/logs/` (rename, else copy and delete;
+  an item that fails stays). A marker records the pass; `Saves/` and anything else there is never
+  touched, and the app does not read `Download/DroidDeck/` again.
+- **Share logs:** one zip in `cache/share/`, made on demand: the newest session folder (or the one
+  the session screen shares), the last seven days of `stores/` and `tools/`. Every text file goes
+  through `LogRedactor.redactForShare` on the way in - the existing rules (Steam tokens, JWTs,
+  SteamIDs, account names, emails, own addresses, MACs, serials) plus URLs without query, fragment
+  or userinfo and with token-bearing path segments blanked (GOG secure links), `__token__`,
+  `f_token`, `hdnts`, OAuth `code=`, and Authorization / Cookie headers - so a file written before a
+  rule existed is clean in the zip. The zip is deleted at the next share or app start.
+  `SessionLogShareTest` covers it. Nothing was relaxed: the per-session scrub, `scrubOlder` and
+  every existing rule stay as they were.
+- **File manager:** the Session logs shortcut opens `files/logs` (the app reads its own storage).
+- **On main after Stores (#476) and the KDE Plasma desktop (#473):** the stores' log is already
+  `files/logs/stores/stores-<date>.log` and the zip carries its last seven days under `stores/`. One
+  set of rules scrubs both the stores' log and the zip (`SecretScrub`): `StoreLog.redactLine` keeps
+  URLs to their host and first plain segment, the zip pass keeps paths with token segments blanked,
+  both blank token values and Authorization / Cookie headers; the two test suites pass on it. The
+  Plasma desktop writes nothing outside the session folder (its output is the session's
+  `desktop.log`), so there was nothing new to move.
+- **Privacy scan fixes:** the Steam login account (an email, 374 times) was still in older
+  folders' copied `steam/webhelper_js.txt` (`SteamUI: INFO: Login: OnLoginStateChange <account>`):
+  those folders carried a scrub marker from before the account rules, and the marker never
+  expired. The marker is now named after the redactor's rules version (`.scrubbed-r3`), so every
+  folder scrubbed under older rules goes through again at app start, steam/ and every subfolder
+  included; folders moved out of `Download/DroidDeck` lose every old marker
+  (`SessionArtifacts.unmarkMoved`), so the same pass takes them whatever those markers said. New rules: `OnLoginStateChange <anything>`, and
+  `AccountName` / `account_name` / `username` / `login` fields (`login` only as `login=`, a quoted
+  key or a VDF pair, so the "Login:" label stays). The `code=` rule no longer touches Proton's
+  exception codes (`code=c0000005`, `406d1388`, `80000003`): a bare `code=` is blanked only right
+  after `?`/`&` or on a line with OAuth keys (`client_id`, `redirect_uri`, `state`, tokens), and
+  never when it is 8 hex digits; exchange / authorization codes are always blanked. Tests:
+  `LogRedactorTest` (the login line with an email and with a plain name), `SecretScrubTest`,
+  `SessionLogShareZipTest` (older and moved folders scrubbed on disk).
+- **Device check (31 migrated folders):** only 4 carried `.scrubbed-r3` a minute in. Nothing was
+  skipped - the pass was still running: one folder holds ~30 MB of Steam logs, ~30 s through the
+  redactor, one folder after another (about 15 minutes for 31). The start pass now scrubs a few
+  folders at a time (half the cores, at most 4, background priority), old markers go whether or
+  not a folder's pass succeeds, a folder the process does not finish is taken up at the next start,
+  and it logs one line: `logs: scrubbed N folders under r3`. Test: nine migrated folders carrying
+  `.scrubbed-2`, `.scrubbed-1` or a stale `.scrubbed-r3` all end up scrubbed under r3 after one
+  migration + start pass.
+- **LAN addresses in the zip:** private IPv4 addresses (10/8, 172.16/12, 192.168/16, 169.254/16;
+  e.g. the router in `LinuxNetworkLink: resolver: ...`) become `<lan-address>` in the zip pass;
+  public server addresses and dotted version numbers stay (`LogRedactorTest`).
 ## 2026-10-08 - `feat/stores`: GOG, Epic Games and Amazon Games in the launcher (in progress)
 
 A new **Stores** section - the three storefronts' libraries and public catalogs, one download

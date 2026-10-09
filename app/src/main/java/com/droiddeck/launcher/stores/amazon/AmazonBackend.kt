@@ -45,17 +45,21 @@ object AmazonBackend : StoreBackend {
 
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
-        val cached = AmazonLibrary.cached(app)
-        if (cached.isNotEmpty()) StoresState.post { publish(app, cached) }
-        StoresState.post { StoresState.status[store] = "Fetching your library…" }
         Thread({
-            val result = AmazonLibrary.sync(app, force) { line -> StoresState.post { StoresState.status[store] = line } }
+            // The cache off the main thread; with it on screen a background sync keeps quiet.
+            val cached = AmazonLibrary.cached(app)
+            val quiet = cached.isNotEmpty() && !force
+            StoresState.post {
+                if (cached.isNotEmpty()) publish(app, cached)
+                if (!quiet) StoresState.status[store] = "Fetching your library…"
+            }
+            val result = AmazonLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
             StoresState.post {
                 StoresState.status.remove(store)
                 when (result) {
                     is AmazonLibrary.SyncResult.Ok -> { publish(app, result.games); StoresState.problems.remove(store) }
                     is AmazonLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
-                    AmazonLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "Amazon session expired: sign in again."
+                    AmazonLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = StoresState.notSignedInLine(store)
                     AmazonLibrary.SyncResult.Throttled -> publish(app, AmazonLibrary.cached(app))
                     AmazonLibrary.SyncResult.Busy -> {}
                 }

@@ -56,6 +56,12 @@ done < "$work/pkglist.txt"
 
 cp -a "$here/overlay/." "$work/root/"
 
+# Same-version KWin, built by build-kwin.sh with the nested desktop scale patch.
+if [ -n "${KDE_KWIN_OVERRIDE:-}" ]; then
+  install -m 755 "$KDE_KWIN_OVERRIDE/kwin_wayland" "$work/root/usr/bin/kwin_wayland"
+  install -m 755 "$KDE_KWIN_OVERRIDE/libkwin.so.6.7.5" "$work/root/usr/lib/libkwin.so.6.7.5"
+fi
+
 # Weight that no desktop on a phone reads.
 rm -rf "$work/root/usr/share/doc" "$work/root/usr/share/man" "$work/root/usr/share/info" \
        "$work/root/usr/share/gtk-doc" "$work/root/usr/include" "$work/root/usr/lib/pkgconfig" \

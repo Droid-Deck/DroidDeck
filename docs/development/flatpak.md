@@ -22,7 +22,7 @@ The script then unpacks them without hooks and checks what the binaries link. Li
 the Desktop package normally brings (PyGObject, json-glib, fuse3 and others) are fetched too,
 but only when their files are missing. Flathub is added as a per-user remote from a copy of
 its `.flatpakrepo` carried in the script, so that step needs no network. Every store command
-writes its output to `Download/DroidDeck/flatpak-<verb>.log`, next to the session logs. The
+writes its output to `files/logs/tools/flatpak-<verb>.log`, next to the session logs. The
 setup script also puts Flatpak's own error text in the failure message the app shows.
 
 ## bubblewrap without namespaces

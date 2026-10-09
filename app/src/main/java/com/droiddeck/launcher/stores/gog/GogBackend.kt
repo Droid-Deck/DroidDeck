@@ -31,18 +31,22 @@ object GogBackend : StoreBackend {
 
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
-        // The cache first, so the tab has something while the sync runs.
-        val cached = GogLibrary.cached(app)
-        if (cached.isNotEmpty()) StoresState.post { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached.map { GogLibrary.toCatalogItem(app, it) }) }
-        StoresState.post { StoresState.status[store] = "Fetching your library…" }
         Thread({
-            val result = GogLibrary.sync(app, force) { line -> StoresState.post { StoresState.status[store] = line } }
+            // The cache first, so the tab has something while the sync runs; read here, not on the
+            // main thread. With a cache on screen a background sync keeps quiet: only Refresh shows its bar.
+            val cached = GogLibrary.cached(app).map { GogLibrary.toCatalogItem(app, it) }
+            val quiet = cached.isNotEmpty() && !force
+            StoresState.post {
+                if (cached.isNotEmpty()) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached)
+                if (!quiet) StoresState.status[store] = "Fetching your library…"
+            }
+            val result = GogLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
             StoresState.post {
                 StoresState.status.remove(store)
                 when (result) {
                     is GogLibrary.SyncResult.Ok -> { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { GogLibrary.toCatalogItem(app, it) }); StoresState.problems.remove(store) }
                     is GogLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
-                    GogLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "GOG session expired: sign in again."
+                    GogLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = StoresState.notSignedInLine(store)
                     GogLibrary.SyncResult.Busy -> {}
                 }
             }

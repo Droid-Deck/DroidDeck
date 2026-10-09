@@ -235,7 +235,9 @@ if [ -z "${BL_INSIDE:-}" ]; then
   elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
     args+=(-r "$BL_REFRESH")
   fi
-  [ "$mode" = steam ] && args+=(-e)
+  # Steam integration advertises a Deck session and makes the client select Big Picture even
+  # without -gamepadui. The desktop UI uses ordinary gamescope window management instead.
+  [ "$mode" = steam ] && [ "${BL_STEAM_UI:-}" != desktop ] && args+=(-e)
   # Two Xwayland servers, as SteamOS runs Steam: the client on the first, games on the second
   # (STEAM_GAME_DISPLAY_0). The client then sizes the games' server to each game's Game Resolution
   # (GAMESCOPE_XWAYLAND_MODE_CONTROL; native unless one is set), and gamescope scales it to the
@@ -961,10 +963,19 @@ BUSCONF
         droiddeck-steam-language "$HOME" "$BL_STEAM_LANGUAGE" || true
       fi
       step "starting the Steam client${BL_STEAM_UI:+ ($BL_STEAM_UI UI)}"
+      desktop_ui_pid=
+      if [ "${BL_STEAM_UI:-}" = desktop ]; then
+        /usr/local/bin/droiddeck-steam-desktop-ui &
+        desktop_ui_pid=$!
+      fi
       "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 \
         -cef-use-gl=angle -cef-use-angle=vulkan "$@"
       rc=$?
+      if [ -n "$desktop_ui_pid" ]; then
+        kill "$desktop_ui_pid" 2>/dev/null || true
+        wait "$desktop_ui_pid" 2>/dev/null || true
+      fi
       echo "== steam exited rc=$rc"
       if [ -n "${BL_ADDED_GAMES:-}" ] && [ -f "$BL_ADDED_GAMES" ]; then
         droiddeck-steam-shortcuts "$steam_root" "$BL_ADDED_GAMES" || true

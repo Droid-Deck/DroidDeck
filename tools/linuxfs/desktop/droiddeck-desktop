@@ -38,6 +38,7 @@ export MOZ_SHM_NO_SEALS=1
 # to the app as a Steam session - SteamOS's "Return to Gaming Mode". The session's own GL choice
 # (zink on Turnip, for the Steam client) is put back by droiddeck-gpu.
 export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+export DROIDDECK_NESTED_SCALE=1
 export DROIDDECK_GLTHREAD=${mesa_glthread:-}
 unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread
 # The desktop's own log, beside the session's, so KWin and the programs on it can be read apart
@@ -72,6 +73,8 @@ python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 # Games and emulators from the menu run through droiddeck-gpu; BL_DESKTOP_GPU=on/off overrides,
 # and each entry keeps "Run in a desktop window" either way.
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
+# The windowed action still opens melonDS at the size/placement the LXQt desktop used.
+/usr/local/bin/droiddeck-desktop-window-rules 2>&1 | sed 's/^/[rules] /'
 # SteamOS's desktop icons: Return to Gaming Mode and Steam, put there once - what the user moves
 # or deletes stays that way.
 desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null); [ -n "$desktop_dir" ] && [ "$desktop_dir" != "$HOME" ] || desktop_dir=$HOME/Desktop

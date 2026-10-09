@@ -1979,9 +1979,14 @@
     <string name="stores_tab_count">%1$s (%2$d)</string>
     <string name="stores_signin">Sign in</string>
     <string name="stores_signout_named">%1$s · sign out</string>
+    <string name="stores_signout_title">Sign out of %1$s?</string>
+    <string name="stores_signout_note">Installed games stay. The library is fetched again when you sign back in.</string>
+    <string name="stores_signout_stay">Stay signed in</string>
+    <string name="stores_signout_go">Sign out</string>
     <string name="stores_search_catalog">Search the %1$s catalog…</string>
     <string name="stores_search_installed">Search installed games…</string>
     <string name="stores_search_library">Search your library…</string>
+    <string name="stores_search_open">Search</string>
     <string name="stores_installed_empty">Nothing installed</string>
     <string name="stores_library_loading">Loading</string>
     <string name="stores_nothing_matches">No games</string>

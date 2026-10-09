@@ -41,11 +41,15 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
 
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
-        val cached = EpicLibrary.cached(app)
-        if (cached.isNotEmpty()) StoresState.post { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached.map { EpicLibrary.toCatalogItem(app, it) }) }
-        StoresState.post { StoresState.status[store] = "Fetching your library…" }
         Thread({
-            val result = EpicLibrary.sync(app, force) { line -> StoresState.post { StoresState.status[store] = line } }
+            // The cache off the main thread; with it on screen a background sync keeps quiet.
+            val cached = EpicLibrary.cached(app).map { EpicLibrary.toCatalogItem(app, it) }
+            val quiet = cached.isNotEmpty() && !force
+            StoresState.post {
+                if (cached.isNotEmpty()) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached)
+                if (!quiet) StoresState.status[store] = "Fetching your library…"
+            }
+            val result = EpicLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
             StoresState.post {
                 StoresState.status.remove(store)
                 when (result) {
@@ -53,8 +57,8 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                         StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { EpicLibrary.toCatalogItem(app, it) }); StoresState.problems.remove(store)
                     }
                     is EpicLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
-                    EpicLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = "Epic session expired: sign in again."
-                    EpicLibrary.SyncResult.Throttled -> if (!StoresState.library.containsKey(store)) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached.map { EpicLibrary.toCatalogItem(app, it) })
+                    EpicLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = StoresState.notSignedInLine(store)
+                    EpicLibrary.SyncResult.Throttled -> if (!StoresState.library.containsKey(store)) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached)
                     EpicLibrary.SyncResult.Busy -> {}
                 }
             }

@@ -127,6 +127,29 @@ public final class PadBridge {
                 || (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
     }
 
+    /** A Bluetooth keyboard can share a device with a joystick. Classify the key, not just
+     * the device, so its letters and modifiers still reach the desktop keyboard. */
+    public static boolean isControllerKey(KeyEvent event) {
+        return isFromController(event.getDevice())
+                && isPadKey(event.getKeyCode(), event.getDevice().getKeyboardType());
+    }
+
+    public static boolean isPadKey(int keyCode, int keyboardType) {
+        if ((keyCode >= KeyEvent.KEYCODE_BUTTON_A && keyCode <= KeyEvent.KEYCODE_BUTTON_MODE)
+                || (keyCode >= KeyEvent.KEYCODE_BUTTON_1 && keyCode <= KeyEvent.KEYCODE_BUTTON_16)) return true;
+        if (keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC) return false;
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_HOME:
+            case KeyEvent.KEYCODE_MENU: return true;
+            default: return false;
+        }
+    }
+
     /** Whether any real controller is attached right now. */
     public static boolean anyControllerConnected() {
         for (int id : InputDevice.getDeviceIds()) {
@@ -155,7 +178,7 @@ public final class PadBridge {
 
     /** @return true when the event was a pad button and has been consumed. */
     public synchronized boolean onKeyEvent(KeyEvent event) {
-        if (!isFromController(event.getDevice())) return false;
+        if (!isControllerKey(event)) return false;
         noteDevice(event.getDevice());
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         switch (event.getKeyCode()) {

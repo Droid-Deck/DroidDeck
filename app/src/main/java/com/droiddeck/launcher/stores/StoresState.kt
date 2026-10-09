@@ -118,6 +118,11 @@ object StoresState {
 
     fun isSignedIn(store: Store): Boolean = accounts.containsKey(store)
 
+    /** A store action's error line when it found no usable sign-in: gone, or on disk but unreadable for now. */
+    fun notSignedInLine(store: Store): String =
+        if (StoreAccounts.isUnavailable(store)) "${store.shortLabel} sign-in could not be read: try again."
+        else "${store.shortLabel} session expired: sign in again."
+
     /** Stores whose sign-in has run out (a launch could not get a code): their chip dims until the user signs in again. */
     val expired = mutableStateMapOf<Store, Boolean>()
 
@@ -151,6 +156,11 @@ object StoresState {
         if (!isSignedIn(store)) return
         if (force || !library.containsKey(store)) backend.syncLibrary(app, force)
         if (force || !shelves.containsKey(store)) backend.loadShelves(app, force)
+    }
+
+    /** A store not signed into: its public storefront only, for its sign-in page to show. */
+    fun preview(context: Context, store: Store) {
+        if (!shelves.containsKey(store)) backends[store]?.loadShelves(context.applicationContext, false)
     }
 
     fun signIn(context: Context, store: Store) {
