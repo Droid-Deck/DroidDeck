@@ -35,7 +35,7 @@ class RumbleComponentTest {
         vibrator = if (Build.VERSION.SDK_INT >= 31) context.getSystemService(VibratorManager::class.java).defaultVibrator
             else context.getSystemService(Vibrator::class.java)
         shadowOf(vibrator).setHasVibrator(true)
-        rumble = RumbleComponent().also { it.attach(context); it.start() }
+        rumble = RumbleComponent().also { it.providerMotors = { null }; it.attach(context); it.start() }
     }
 
     @After fun stopListener() { rumble.stop() }
@@ -137,6 +137,36 @@ class RumbleComponentTest {
         shadowOf(Looper.getMainLooper()).idle()
         effect()
         assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun aPadWithoutAndroidMotorsRumblesThroughAProviderBeforeThePhone() {
+        val usb = FakeMotors()
+        rumble.controllerMotors = { null }
+        rumble.otherControllerMotors = { _, _, _ -> null }
+        rumble.providerMotors = { usb }
+        activeController(PAD_ID)
+        effect(strong = 40000, weak = 1000)
+        assertEquals(listOf(Triple(40000, 1000, 5000L)), usb.played)
+        assertFalse("the phone buzzed as well", shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun androidMotorsWinOverAProvider() {
+        val pad = FakeMotors(); val usb = FakeMotors()
+        rumble.controllerMotors = { pad }
+        rumble.providerMotors = { usb }
+        activeController(PAD_ID)
+        effect()
+        assertTrue(pad.vibrating)
+        assertTrue(usb.played.isEmpty())
+    }
+
+    @Test fun aProvidersPadStillRumblesWhenNoAndroidControllerIsActive() {
+        val usb = FakeMotors()
+        rumble.providerMotors = { usb }
+        activeController(PadBridge.NO_CONTROLLER)
+        effect()
+        assertTrue(usb.vibrating)
+        assertFalse(shadowOf(vibrator).isVibrating)
     }
 
     @Test fun deckHapticTicksPlayAloneButNeverCutAGameRumble() {

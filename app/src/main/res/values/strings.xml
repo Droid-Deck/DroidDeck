@@ -845,7 +845,7 @@
     <string name="ctrl_rumble_phone">Phone vibration fallback</string>
     <string name="ctrl_rumble_phone_hint">Vibrate the phone when the controller has no motors Android can drive. Off: controller only</string>
     <string name="ctrl_rumble_test">Test controller rumble</string>
-    <string name="ctrl_rumble_test_hint">Strong motor, weak motor, then three short ticks, all at full strength, on the controller or the phone</string>
+    <string name="ctrl_rumble_test_hint">Strong motor, weak motor, then three short ticks, all at full strength, on the controller (over USB for a Razer Kishi) or the phone</string>
     <string name="ctrl_rumble_test_button">Test</string>
     <string name="ctrl_steam_button">Steam button</string>
     <string name="ctrl_qam_button">QAM button</string>
