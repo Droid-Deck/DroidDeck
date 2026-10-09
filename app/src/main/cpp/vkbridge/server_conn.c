@@ -21,6 +21,7 @@ static pthread_mutex_t procs_lock = PTHREAD_MUTEX_INITIALIZER;
 static vkb_srv_proc *procs;
 
 static __thread vkb_srv_table *tls_table;
+__thread const char *vkb_srv_current_cmd;
 
 vkb_srv_table *vkb_srv_current_table(void) { return tls_table; }
 void vkb_srv_set_current_table(vkb_srv_table *t) { tls_table = t; }
@@ -193,7 +194,9 @@ void vkb_sv_vkEndCommandBuffer(vkb_srv_call *c)
         sub.table = c->table;
         sub.conn = c->conn;
         sub.in_stream = 1;
+        vkb_srv_current_cmd = vkb_cmd_names[id];
         vkb_srv_handlers[id](&sub);
+        vkb_srv_current_cmd = vkb_cmd_names[VKB_CMD_vkEndCommandBuffer];
         scratch = sub.r;
         if (sub.status != VKB_ST_OK) {
             VKB_ERR("command stream: %s failed (status %u)", vkb_cmd_names[id], sub.status);
@@ -274,7 +277,9 @@ static void *conn_main(void *arg)
             if (c.status == VKB_ST_OK) {
                 vkb_srv_set_current_table(c.table);
                 if (vkb_verbose) VKB_DBG("-> %s", vkb_cmd_names[h.cmd]);
+                vkb_srv_current_cmd = vkb_cmd_names[h.cmd];
                 vkb_srv_handlers[h.cmd](&c);
+                vkb_srv_current_cmd = NULL;
                 vkb_srv_set_current_table(NULL);
             }
         }

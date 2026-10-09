@@ -67,6 +67,25 @@ void vkb_log(int level, const char *fmt, ...)
 #endif
 }
 
+extern __thread const char *vkb_srv_current_cmd;
+
+/* A crash is almost always the driver's: say in which call, then die as we would have. */
+static void on_crash(int sig)
+{
+    char buf[256];
+    const char *cmd = vkb_srv_current_cmd ? vkb_srv_current_cmd : "(no Vulkan call)";
+    int n = snprintf(buf, sizeof(buf), "vkbridge-server E crashed with signal %d in %s\n", sig, cmd);
+    if (log_file) {
+        if (write(fileno(log_file), buf, (size_t)n) < 0) {}
+    }
+    if (write(2, buf, (size_t)n) < 0) {}
+#ifdef __ANDROID__
+    __android_log_write(ANDROID_LOG_FATAL, "vkbridge", buf);
+#endif
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
 static void *load_vulkan(const char *override)
 {
     const char *names[] = {
@@ -149,6 +168,11 @@ int main(int argc, char **argv)
         if (!log_file) fprintf(stderr, "vkbridge-server: cannot open log %s: %s\n", log_path, strerror(errno));
     }
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGSEGV, on_crash);
+    signal(SIGBUS, on_crash);
+    signal(SIGABRT, on_crash);
+    signal(SIGILL, on_crash);
+    signal(SIGFPE, on_crash);
     /* The server is the app's child: when the app dies, so does the session's GPU. */
     prctl(PR_SET_PDEATHSIG, SIGTERM);
 

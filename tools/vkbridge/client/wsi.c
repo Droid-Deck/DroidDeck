@@ -6,7 +6,9 @@
 #include "wsi.h"
 #include "gen/vkb_client_gen.h"
 
+#include <stdio.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -709,6 +711,42 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAcquireNextImage2KHR(VkDevice device, co
     return vkb_ep_vkAcquireNextImageKHR(device, pInfo->swapchain, pInfo->timeout, pInfo->semaphore, pInfo->fence, pImageIndex);
 }
 
+/* VKBRIDGE_WSI_DUMP=/path/prefix: writes presented frame 60 as a PPM (debugging aid). */
+static void dump_frame(vkb_swapchain *sc, uint32_t index)
+{
+    if (sc->presents != 60) return;
+    uint32_t w = sc->info.imageExtent.width, h = sc->info.imageExtent.height, stride = w * 4;
+    const uint8_t *px = NULL;
+    void *map = NULL;
+    size_t maplen = 0;
+    if (sc->copy_present) {
+        px = sc->staging_ptr;
+    } else if (sc->images[index].dmabuf_fd >= 0) {
+        stride = sc->images[index].stride;
+        maplen = (size_t)sc->images[index].offset + (size_t)stride * h;
+        map = mmap(NULL, maplen, PROT_READ, MAP_SHARED, sc->images[index].dmabuf_fd, 0);
+        if (map == MAP_FAILED) return;
+        px = (const uint8_t *)map + sc->images[index].offset;
+    }
+    if (!px) return;
+    char path[512];
+    snprintf(path, sizeof(path), "%s-%d.ppm", getenv("VKBRIDGE_WSI_DUMP"), (int)getpid());
+    FILE *f = fopen(path, "wb");
+    if (f) {
+        int bgr = sc->info.imageFormat == VK_FORMAT_B8G8R8A8_UNORM || sc->info.imageFormat == VK_FORMAT_B8G8R8A8_SRGB;
+        fprintf(f, "P6 %u %u 255\n", w, h);
+        for (uint32_t y = 0; y < h; y++)
+            for (uint32_t x = 0; x < w; x++) {
+                const uint8_t *p = px + (size_t)y * stride + x * 4;
+                uint8_t rgb[3] = {p[bgr ? 2 : 0], p[1], p[bgr ? 0 : 2]};
+                fwrite(rgb, 1, 3, f);
+            }
+        fclose(f);
+        VKB_INFO("dumped frame to %s", path);
+    }
+    if (map) munmap(map, maplen);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *pPresentInfo)
 {
     const VkPresentRegionsKHR *regions = NULL;
@@ -729,6 +767,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkQueuePresentKHR(VkQueue queue, const VkP
             sc->images[index].busy = sc->dmabuf && !sc->copy_present;
         }
         pthread_mutex_unlock(&sc->lock);
+        if (r >= 0 && getenv("VKBRIDGE_WSI_DUMP")) dump_frame(sc, index);
         if (r >= 0) {
             r = sc->backend->present(sc, index, regions && i < regions->swapchainCount ? &regions->pRegions[i] : NULL);
             sc->presents++;

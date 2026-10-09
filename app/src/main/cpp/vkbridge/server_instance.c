@@ -246,7 +246,7 @@ void vkb_sv_vkCreateDevice(vkb_srv_call *c)
     inst->real.vkEnumerateDeviceExtensionProperties(pd, NULL, &avail_n, avail);
     uint32_t extra_n = 0;
     const char *const *extra = vkb_mem_required_extensions(strategy, &extra_n);
-    const char **exts = vkb_dec_alloc(&c->d, (ci->enabledExtensionCount + extra_n + 1) * sizeof(char *));
+    const char **exts = vkb_dec_alloc(&c->d, (ci->enabledExtensionCount + extra_n + 8) * sizeof(char *));
     uint32_t n = 0;
     for (uint32_t i = 0; i < ci->enabledExtensionCount; i++) {
         const char *e = ci->ppEnabledExtensionNames[i];
@@ -258,6 +258,13 @@ void vkb_sv_vkCreateDevice(vkb_srv_call *c)
     }
     for (uint32_t i = 0; i < extra_n; i++)
         if (has_ext(avail, avail_n, extra[i]) && !list_has(exts, n, extra[i])) exts[n++] = extra[i];
+    /* What the client's presentation code uses on every device (dma-buf swapchains, sync fds). */
+    static const char *const wsi_exts[] = {
+        "VK_KHR_external_memory_fd", "VK_EXT_external_memory_dma_buf", "VK_KHR_image_format_list",
+        "VK_EXT_image_drm_format_modifier", "VK_KHR_external_semaphore_fd", "VK_KHR_external_fence_fd",
+    };
+    for (size_t i = 0; i < sizeof(wsi_exts) / sizeof(wsi_exts[0]); i++)
+        if (has_ext(avail, avail_n, wsi_exts[i]) && !list_has(exts, n, wsi_exts[i])) exts[n++] = wsi_exts[i];
     ci->enabledExtensionCount = n;
     ci->ppEnabledExtensionNames = exts;
     ci->enabledLayerCount = 0;
