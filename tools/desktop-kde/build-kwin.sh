@@ -53,12 +53,17 @@ sudo chroot "$work/root" /usr/bin/env PATH=/usr/bin:/bin HOME=/root LC_ALL=C.UTF
 sudo chroot "$work/root" /usr/bin/env PATH=/usr/bin:/bin HOME=/root LC_ALL=C.UTF-8 \
     /usr/bin/cmake --build /build/out --target kwin_wayland --parallel 4
 sudo cp "$work/root/build/out/bin/kwin_wayland" "$out/kwin_wayland"
-sudo chown "$(id -u):$(id -g)" "$out/kwin_wayland"
-strip --strip-unneeded "$out/kwin_wayland"
+sudo cp "$work/root/build/out/bin/libkwin.so.$version" "$out/libkwin.so.$version"
+sudo chown "$(id -u):$(id -g)" "$out/kwin_wayland" "$out/libkwin.so.$version"
+strip --strip-unneeded "$out/kwin_wayland" "$out/libkwin.so.$version"
+# The backend lives in libkwin, not the small launcher. Catch accidentally shipping only the
+# executable, which boots successfully but still loads the distribution's unpatched backend.
+grep -aq DROIDDECK_NESTED_SCALE "$out/libkwin.so.$version"
 {
     echo "KWin $version source sha256 $source_sha"
     echo "Patch sha256 $(sha256sum "$here/patches/0001-respect-nested-desktop-scale.patch" | cut -d' ' -f1)"
     echo "Executable sha256 $(sha256sum "$out/kwin_wayland" | cut -d' ' -f1)"
+    echo "Library sha256 $(sha256sum "$out/libkwin.so.$version" | cut -d' ' -f1)"
     echo 'Build packages (Arch Linux ARM signatures verified):'
     cat "$work/packages.txt"
 } > "$out/desktop-kde.kwin.txt"

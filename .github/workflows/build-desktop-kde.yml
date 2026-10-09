@@ -69,7 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils gpgv >/dev/null
-          KDE_KWIN_OVERRIDE="$PWD/out/kwin/kwin_wayland" tools/desktop-kde/build.sh out
+          KDE_KWIN_OVERRIDE="$PWD/out/kwin" tools/desktop-kde/build.sh out
           cp out/kwin/desktop-kde.kwin.txt out/
           echo "size $(stat -c %s out/desktop-kde.tar.zst) sha256 $(cat out/desktop-kde.sha256)"
       # The package itself too, briefly: enough to try a build on a device before publishing it.
