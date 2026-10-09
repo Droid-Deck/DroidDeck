@@ -27,7 +27,22 @@ object CredentialCipher {
     fun interface KeyProvider {
         /** The key, created on first use. Throws when no key can be had (no Keystore on this ROM). */
         fun key(): SecretKey
+
+        /** The key that sealed earlier files: never a new one. Throws [KeyMissing] when there is none. */
+        fun existing(): SecretKey = key()
     }
+
+    /** The Keystore answered and holds no key: nothing sealed before can open again. */
+    class KeyMissing : java.security.GeneralSecurityException("no key")
+
+    /**
+     * Whether [e], from [open], means the file can never open: it does not authenticate (tampered,
+     * or sealed under another key), the key is permanently invalidated or gone, or the file is not
+     * an envelope. Anything else - the Keystore busy or erroring, an I/O error - may pass.
+     */
+    fun isPermanent(e: Throwable): Boolean = e is javax.crypto.AEADBadTagException ||
+        e is android.security.keystore.KeyPermanentlyInvalidatedException ||
+        e is KeyMissing || e is org.json.JSONException || e is IllegalArgumentException
 
     /**
      * An AES-256 key in the AndroidKeyStore: not exportable, encrypt/decrypt with GCM only, no user
@@ -37,6 +52,12 @@ object CredentialCipher {
     object Keystore : KeyProvider {
         private const val ALIAS = "droiddeck-store-credentials"
         private const val PROVIDER = "AndroidKeyStore"
+
+        @Synchronized
+        override fun existing(): SecretKey {
+            val ks = KeyStore.getInstance(PROVIDER).apply { load(null) }
+            return ks.getKey(ALIAS, null) as? SecretKey ?: throw KeyMissing()
+        }
 
         @Synchronized
         override fun key(): SecretKey {
@@ -73,7 +94,7 @@ object CredentialCipher {
         require(envelope.optInt("v", -1) == VERSION && envelope.optString("alg") == ALG) { "unknown envelope" }
         val iv = Base64.decode(envelope.getString("iv"), Base64.NO_WRAP)
         val ct = Base64.decode(envelope.getString("ct"), Base64.NO_WRAP)
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, keys.key(), GCMParameterSpec(TAG_BITS, iv)) }
+        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, keys.existing(), GCMParameterSpec(TAG_BITS, iv)) }
         return String(cipher.doFinal(ct), Charsets.UTF_8)
     }
 

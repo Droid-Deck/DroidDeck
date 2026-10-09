@@ -15,12 +15,16 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   `StoreAccounts` is the one layer; `CredentialCipher` holds the envelope and the key.
 - **Upgrade:** a plain file is sealed at the first start (verified, then replaced); users stay
   signed in. Log: `stores: credentials encrypted <store>`.
-- **Fallbacks:** no Keystore - stays plain, logged once, retried next start; a file that will not
-  open - deleted, signed out (sign-in card), never a crash.
+- **Fallbacks:** no Keystore - stays plain, logged once, retried next start. A file that can never
+  open (bad tag, key invalidated or missing, not an envelope) - deleted, signed out (sign-in card).
+  Any other Keystore or I/O failure - file kept, store stays signed in but unavailable (actions show
+  `<Store> sign-in could not be read: try again.`), logged once, retried on the next access. Never
+  a crash.
 - **Session:** the guest sees the envelope only; it never read the files (the Epic code comes over
   the request channel, written beside the launcher and deleted by it).
 - **Tests:** `StoreAccountsCipherTest` (round trip, sealed on disk, migration of all three stores,
-  tampered file, lost key, garbage, no-Keystore fallback then sealed next start, sign-out). Not yet
+  tampered file, lost key, key missing, garbage, no-Keystore fallback then sealed next start,
+  transient Keystore / I/O failures keep the file and a later read succeeds, sign-out). Not yet
   on a device.
 
 ## 2026-10-08 - `feat/private-logs`: every log in app-private storage, shared as one scrubbed zip

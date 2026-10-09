@@ -18,8 +18,9 @@ import java.io.File
  *   start), verified by opening it again, and the plain text is replaced.
  * - Where the Keystore does not work (some ROMs), the file stays plain, the log says so once, and
  *   the next start tries again.
- * - A sealed file that no longer opens (the key is gone: data cleared, a backup restored on another
- *   device) is deleted and the store reads as signed out.
+ * - A sealed file that can never open again (the key is gone: data cleared, a backup restored on
+ *   another device) is deleted and the store reads as signed out; one that fails for a reason that
+ *   may pass is kept and tried again (see [read]).
  */
 object StoreAccounts {
     private const val TAG = "StoreAccounts"
@@ -39,36 +40,69 @@ object StoreAccounts {
 
     fun credentialsFile(context: Context, store: Store): File = File(dir(context, store), FILE)
 
-    /** The stored credentials, or null when signed out or unreadable (never logged: the text is the secret). */
+    /** Stores whose sealed sign-in could not be opened this time for a reason that may pass (see [read]). */
+    private val unavailable = java.util.concurrent.ConcurrentHashMap.newKeySet<Store>()
+
+    @Volatile
+    private var unavailableLogged = false
+
+    /**
+     * The stored credentials, or null when signed out or unreadable (never logged: the text is the
+     * secret).
+     *
+     * A sealed file is deleted - the store signs in again - only when it can never open: it does
+     * not authenticate (tampered, or another key: data cleared, restored on another device), the
+     * key is permanently invalidated or gone from the Keystore, or it is not an envelope at all. Any
+     * other failure (the Keystore busy or erroring, an I/O error) keeps the file, marks the store
+     * [isUnavailable] - signed in, its actions failing for now - and the next read tries again.
+     */
     @Synchronized
     fun read(context: Context, store: Store): JSONObject? {
         val f = credentialsFile(context, store)
-        if (!f.isFile) return null
-        val json = try { JSONObject(f.readText()) } catch (e: Exception) {
-            Log.w(TAG, "${store.id}: credentials unreadable (${e.javaClass.simpleName})"); null
-        } ?: return null
+        if (!f.isFile) { unavailable.remove(store); return null }
+        val text = try { f.readText() } catch (e: Exception) { return markUnavailable(store, e) }
+        val json = try { JSONObject(text) } catch (e: Exception) { return unreadable(f, store, e) }
         if (!CredentialCipher.isEnvelope(json)) {
+            unavailable.remove(store)
             seal(f, json)?.let { Log.i(TAG, "stores: credentials encrypted ${store.id}") }
             return json
         }
         return try {
-            JSONObject(CredentialCipher.open(json, keys))
+            JSONObject(CredentialCipher.open(json, keys)).also { unavailable.remove(store) }
         } catch (e: Exception) {
-            // The key that sealed it is gone; the sign-in cannot come back, so the store signs in again.
-            Log.w(TAG, "stores: credentials for ${store.id} cannot be opened (${e.javaClass.simpleName}); signed out")
-            f.delete()
-            null
+            if (CredentialCipher.isPermanent(e)) unreadable(f, store, e) else markUnavailable(store, e)
         }
+    }
+
+    /** The store's sign-in is on disk but could not be opened this time (see [read]). */
+    fun isUnavailable(store: Store): Boolean = store in unavailable
+
+    private fun unreadable(f: File, store: Store, e: Exception): JSONObject? {
+        Log.w(TAG, "stores: credentials for ${store.id} cannot be opened (${e.javaClass.simpleName}); signed out")
+        f.delete()
+        unavailable.remove(store)
+        return null
+    }
+
+    private fun markUnavailable(store: Store, e: Exception): JSONObject? {
+        unavailable.add(store)
+        if (!unavailableLogged) {
+            unavailableLogged = true
+            Log.w(TAG, "stores: credentials unreadable this start (${e.javaClass.simpleName})")
+        }
+        return null
     }
 
     @Synchronized
     fun write(context: Context, store: Store, json: JSONObject) {
+        unavailable.remove(store)
         val f = credentialsFile(context, store)
         if (seal(f, json) == null) put(f, json.toString())
     }
 
     @Synchronized
     fun clear(context: Context, store: Store) {
+        unavailable.remove(store)
         credentialsFile(context, store).delete()
         File(credentialsFile(context, store).path + ".tmp").delete()
     }
@@ -82,9 +116,13 @@ object StoreAccounts {
         }
     }
 
-    /** The account's display name when signed in (the store's own name for it, or a stand-in), else null. */
+    /**
+     * The account's display name when signed in (the store's own name for it, or a stand-in), else
+     * null. A sign-in that could not be opened this time ([isUnavailable]) still counts, under the
+     * store's name, so the sign-in card does not ask for what is still there.
+     */
     fun signedInAs(context: Context, store: Store): String? {
-        val json = read(context, store) ?: return null
+        val json = read(context, store) ?: return if (isUnavailable(store)) store.label else null
         if (json.optString("access_token", "").isEmpty()) return null
         return json.optString("display_name", "").ifEmpty { json.optString("username", "") }.ifEmpty { store.label }
     }

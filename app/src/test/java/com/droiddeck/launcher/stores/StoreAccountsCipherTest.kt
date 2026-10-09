@@ -33,7 +33,10 @@ class StoreAccountsCipherTest {
     private fun file(store: Store) = StoreAccounts.credentialsFile(app, store)
 
     @Before fun setUp() { StoreAccounts.keys = fake; StoreAccounts.keystoreFailed = false }
-    @After fun tearDown() { StoreAccounts.keys = CredentialCipher.Keystore; StoreAccounts.keystoreFailed = false }
+    @After fun tearDown() {
+        StoreAccounts.keys = CredentialCipher.Keystore; StoreAccounts.keystoreFailed = false
+        for (store in Store.entries) StoreAccounts.clear(app, store)
+    }
 
     @Test fun envelopeRoundTrips() {
         val envelope = CredentialCipher.seal(creds.toString(), fake)
@@ -118,5 +121,53 @@ class StoreAccountsCipherTest {
         StoreAccounts.clear(app, Store.GOG)
         assertFalse(file(Store.GOG).exists())
         assertNull(StoreAccounts.read(app, Store.GOG))
+    }
+
+    /** A Keystore whose key is there but which fails to hand it over [failures] times first. */
+    private class Flaky(private val key: SecretKey, var failures: Int, private val error: () -> Exception) : CredentialCipher.KeyProvider {
+        override fun key(): SecretKey = key
+        override fun existing(): SecretKey { if (failures > 0) { failures--; throw error() }; return key }
+    }
+
+    @Test fun aTransientKeystoreFailureKeepsTheFileAndALaterReadSucceeds() {
+        StoreAccounts.write(app, Store.EPIC, creds)
+        val sealed = file(Store.EPIC).readText()
+        for (error in listOf<() -> Exception>(
+            { java.security.ProviderException("busy") },
+            { java.security.KeyStoreException("keystore down") },
+            { java.security.InvalidKeyException("not now") },
+            { java.io.IOException("read") },
+        )) {
+            StoreAccounts.keys = Flaky(key, 1, error)
+            assertNull(StoreAccounts.read(app, Store.EPIC))
+            assertTrue(StoreAccounts.isUnavailable(Store.EPIC))
+            assertEquals(sealed, file(Store.EPIC).readText())
+            // Still signed in for the page: no sign-in card, and an action says why it failed.
+            assertEquals("Epic sign-in could not be read: try again.", StoresState.notSignedInLine(Store.EPIC))
+
+            // The next access, once the Keystore answers.
+            assertEquals(creds.toString(), StoreAccounts.read(app, Store.EPIC).toString())
+            assertFalse(StoreAccounts.isUnavailable(Store.EPIC))
+            assertEquals("Someone", StoreAccounts.signedInAs(app, Store.EPIC))
+            assertEquals("Epic session expired: sign in again.", StoresState.notSignedInLine(Store.EPIC))
+        }
+    }
+
+    @Test fun signedInAsKeepsTheStoreWhileItsSignInIsUnavailable() {
+        StoreAccounts.write(app, Store.GOG, creds)
+        StoreAccounts.keys = Flaky(key, 5) { java.security.ProviderException("busy") }
+        assertEquals("GOG", StoreAccounts.signedInAs(app, Store.GOG))
+        assertTrue(file(Store.GOG).exists())
+    }
+
+    @Test fun aKeyGoneFromTheKeystoreReadsAsSignedOutAndIsDeleted() {
+        StoreAccounts.write(app, Store.AMAZON, creds)
+        StoreAccounts.keys = object : CredentialCipher.KeyProvider {
+            override fun key(): SecretKey = newKey()
+            override fun existing(): SecretKey = throw CredentialCipher.KeyMissing()
+        }
+        assertNull(StoreAccounts.read(app, Store.AMAZON))
+        assertFalse(StoreAccounts.isUnavailable(Store.AMAZON))
+        assertFalse(file(Store.AMAZON).exists())
     }
 }

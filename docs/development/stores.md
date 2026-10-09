@@ -207,8 +207,16 @@ tokens live.
 - **No Keystore** (some ROMs): the file stays plain, the log says
   `stores: keystore unavailable, credentials stay plain (<exception class>)` once, and the next
   start tries again.
-- **A file that no longer opens** (key invalidated: data cleared, a backup restored on another
-  device, tampering): deleted, and the store reads as signed out, so its sign-in card shows.
+- **A file that can never open** - it does not authenticate (`AEADBadTagException`: tampered, or
+  another key after data was cleared or a backup restored on another device), the key is
+  permanently invalidated or gone from the Keystore, or it is not an envelope: deleted, and the
+  store reads as signed out, so its sign-in card shows.
+- **A failure that may pass** (`KeyStoreException`, `ProviderException`, any other
+  `InvalidKeyException`, an I/O error, StrongBox busy): the file is kept, the store stays signed in
+  (no sign-in card) and is marked unavailable (`StoreAccounts.isUnavailable`), a store action shows
+  `<Store> sign-in could not be read: try again.`, the log says
+  `stores: credentials unreadable this start (<exception class>)` once, and the next access tries
+  again.
 - **The Linux session:** the app's files directory is bound into every session, so the guest can
   see `credentials.json` - as the envelope only; the key never leaves the Keystore. Nothing in the
   guest reads the files: `droiddeck-store-launch` asks the app over `<session>/stores/req|resp`
