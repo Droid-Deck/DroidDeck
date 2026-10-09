@@ -155,11 +155,23 @@ bl_components() {
   cm_build=$(awk 'NR == 1 { print $2 }' "$base/version" 2>/dev/null)
   cm_fixed=0
   cm_checked=0
+  # One sha256sum for every file: each program started here pays a dozen traced library lookups
+  # under the game's search path before it does anything.
+  local cm_rows=() cm_files=() row h p
+  local -A cm_sums=()
   while IFS=$'\\t' read -r t want comp rel sum src; do
     [ "$t" = "$cm_tool" ] && [ "$want" = "$cm_build" ] || continue
+    cm_rows+=("$comp"$'\\t'"$rel"$'\\t'"$sum"$'\\t'"$src")
+    [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
+  done < "$cm_list"
+  if [ ${#cm_files[@]} -gt 0 ]; then
+    while read -r h p; do cm_sums["$p"]=$h; done < <(sha256sum -- "${cm_files[@]}" 2>/dev/null)
+  fi
+  for row in "${cm_rows[@]}"; do
+    IFS=$'\\t' read -r comp rel sum src <<< "$row"
     cm_checked=$((cm_checked + 1))
     f="$base/$rel"
-    if [ -f "$f" ] && [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$sum" ]; then continue; fi
+    if [ -f "$f" ] && [ "${cm_sums[$f]:-}" = "$sum" ]; then continue; fi
     if [ ! -f "$src" ]; then
       echo "droiddeck-proton: components: $comp source missing ($src), left as it is" >&2
       continue
@@ -168,7 +180,7 @@ bl_components() {
     cp -f "$src" "$f.bl-new" && mv -f "$f.bl-new" "$f" || continue
     case "$rel" in *.so) chmod 755 "$f" ;; *) chmod 644 "$f" ;; esac
     cm_fixed=$((cm_fixed + 1))
-  done < "$cm_list"
+  done
   [ "$cm_checked" -gt 0 ] && echo "droiddeck-proton: components: checked $cm_checked file(s) in $cm_tool for app $cm_app" >&2
   if [ "$cm_fixed" -gt 0 ]; then
     echo "droiddeck-proton: components: re-applied $cm_fixed of $cm_checked file(s) in $cm_tool before this launch" >&2
