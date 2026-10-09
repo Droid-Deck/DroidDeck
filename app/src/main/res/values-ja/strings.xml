@@ -1230,7 +1230,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$sは一時停止中です</string>
     <string name="session_program_paused">プログラムは一時停止中です</string>
-    <string name="session_starting_steam_desktop">デスクトップでSteamを起動中</string>
     <string name="session_starting_desktop">デスクトップを起動中</string>
 
     <!-- %1$s is the program's name -->

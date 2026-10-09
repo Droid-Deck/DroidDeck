@@ -1230,7 +1230,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s 已暂停</string>
     <string name="session_program_paused">程序已暂停</string>
-    <string name="session_starting_steam_desktop">正在桌面上启动 Steam</string>
     <string name="session_starting_desktop">正在启动桌面</string>
 
     <!-- %1$s is the program's name -->

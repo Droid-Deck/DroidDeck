@@ -1220,7 +1220,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s is paused</string>
     <string name="session_program_paused">The program is paused</string>
-    <string name="session_starting_steam_desktop">Starting Steam on the desktop</string>
     <string name="session_starting_desktop">Starting the desktop</string>
     <!-- %1$s is the program's name -->
     <string name="session_starting_named">Starting %1$s</string>

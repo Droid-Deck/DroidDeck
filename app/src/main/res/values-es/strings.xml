@@ -1252,7 +1252,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s está en pausa</string>
     <string name="session_program_paused">El programa está en pausa</string>
-    <string name="session_starting_steam_desktop">Iniciando Steam en el escritorio</string>
     <string name="session_starting_desktop">Iniciando el escritorio</string>
 
     <!-- %1$s is the program's name -->

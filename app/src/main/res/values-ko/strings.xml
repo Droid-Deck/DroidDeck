@@ -1230,7 +1230,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s 일시 중지됨</string>
     <string name="session_program_paused">프로그램이 일시 중지됨</string>
-    <string name="session_starting_steam_desktop">데스크톱에서 Steam 시작 중</string>
     <string name="session_starting_desktop">데스크톱 시작 중</string>
 
     <!-- %1$s is the program's name -->
