@@ -562,7 +562,9 @@ public final class GogDownloadManager {
                     okRef.set(success); linkExpiryRef.set(linkExpiry); errRef.set(error == null ? "" : error); latch.countDown();
                 }
             };
-            long handle = GogNative.start(kind, manifests, base, installPath.getAbsolutePath(), donePaths.toArray(new String[0]), "",
+            // The engine takes one base today; it gets the first of the set (JNI.md).
+            if (run == 1) cb.onLog("gog: " + base.split("\n").length + " CDN host(s) offered");
+            long handle = GogNative.start(kind, manifests, firstCdn(base), installPath.getAbsolutePath(), donePaths.toArray(new String[0]), "",
                     workers, process, sortLargestFirst, label + " run=" + run, listener);
             if (handle == 0L) { cb.onLog("gog: native start failed"); anyFailed.set(true); return; }
             boolean interrupted = false;
@@ -651,24 +653,53 @@ public final class GogDownloadManager {
         return tmpFile.renameTo(outFile);
     }
 
+    /**
+     * Every CDN the secure link offers, as one value - their bases, one per line - so the set is
+     * refreshed (and compared on expiry) as a whole. GOG answers with several hosts in {@code urls[]};
+     * taking only the first left every request on one host.
+     */
     private static String parseCdnUrl(String json) {
-        if (json == null) return null;
+        java.util.List<String> all = parseCdnUrls(json);
+        return all.isEmpty() ? null : String.join("\n", all);
+    }
+
+    /** The CDN bases of a secure_link answer, in the order GOG gives them. */
+    static java.util.List<String> parseCdnUrls(String json) {
+        java.util.List<String> out = new ArrayList<>();
+        if (json == null) return out;
         try {
             JSONArray urls = new JSONObject(json).optJSONArray("urls");
-            if (urls == null || urls.length() == 0) return null;
-            JSONObject first = urls.getJSONObject(0);
-            String urlFormat = first.optString("url_format");
-            JSONObject params = first.optJSONObject("parameters");
-            if (urlFormat == null || params == null) return null;
-            java.util.Iterator<String> keys = params.keys();
-            while (keys.hasNext()) { String k = keys.next(); urlFormat = urlFormat.replace("{" + k + "}", params.optString(k)); }
-            urlFormat = urlFormat.replace("\\/", "/");
-            int idx = urlFormat.indexOf("/{path}");
-            if (idx >= 0) urlFormat = urlFormat.substring(0, idx);
-            return urlFormat;
-        } catch (Exception e) {
-            return null;
+            if (urls == null) return out;
+            for (int i = 0; i < urls.length(); i++) {
+                JSONObject u = urls.optJSONObject(i);
+                if (u == null) continue;
+                String urlFormat = u.optString("url_format");
+                JSONObject params = u.optJSONObject("parameters");
+                if (urlFormat == null || urlFormat.isEmpty() || params == null) continue;
+                java.util.Iterator<String> keys = params.keys();
+                while (keys.hasNext()) { String k = keys.next(); urlFormat = urlFormat.replace("{" + k + "}", params.optString(k)); }
+                urlFormat = urlFormat.replace("\\/", "/");
+                int idx = urlFormat.indexOf("/{path}");
+                if (idx >= 0) urlFormat = urlFormat.substring(0, idx);
+                if (!out.contains(urlFormat)) out.add(urlFormat);
+            }
+        } catch (Exception ignored) {
         }
+        return out;
+    }
+
+    private static final AtomicInteger CDN_TURN = new AtomicInteger();
+
+    /** One of the set's CDNs, in turn, so the Java pool spreads its requests over all of them. */
+    static String pickCdn(String set) {
+        String[] all = set.split("\n");
+        return all[Math.floorMod(CDN_TURN.getAndIncrement(), all.length)];
+    }
+
+    /** The first CDN of the set - what a caller that takes a single base gets. */
+    static String firstCdn(String set) {
+        int nl = set.indexOf('\n');
+        return nl < 0 ? set : set.substring(0, nl);
     }
 
     private static boolean downloadRange(String url, long offset, long size, File out) {
@@ -850,7 +881,7 @@ public final class GogDownloadManager {
         while (guard++ < 8) {
             if (cancelled.get()) return null;
             String base = cdnBaseRef.get();
-            HttpResult res = fetchBytesEx(buildChunkUrl(base, chunkPath), null);
+            HttpResult res = fetchBytesEx(buildChunkUrl(pickCdn(base), chunkPath), null);
             if (res.body == null) {
                 int code = res.status;
                 if ((code == 401 || code == 403 || code == 404 || code == 500) && tryRefreshCdn(cdnBaseRef, base, secureLinkUrl, token, cdnRefreshCount, maxCdnRefresh, cb)) continue;

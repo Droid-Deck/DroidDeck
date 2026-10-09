@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.blur
@@ -567,9 +568,15 @@ internal fun ProgressBarThin(fraction: Float, paused: Boolean = false, verify: B
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     val fill = when { done -> pal.good; paused -> Color(0xFFFFC24D); verify -> Color(0xFF9B6DFF); else -> pal.signal }
-    Box(Modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(height / 2)).background(colors.surfaceVariant)) {
-        Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).height(height).background(fill))
-    }
+    // The fill glides to each new value over a quarter second - progress arrives a few times a second
+    // and in steps - and is read only while drawing, so the bar animates without relayout.
+    val shown = androidx.compose.animation.core.animateFloatAsState(
+        fraction.coerceIn(0f, 1f), androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.LinearEasing), label = "bar",
+    )
+    Box(
+        Modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(height / 2)).background(colors.surfaceVariant)
+            .drawBehind { drawRect(fill, size = androidx.compose.ui.geometry.Size(size.width * shown.value, size.height)) },
+    )
 }
 
 @Composable
