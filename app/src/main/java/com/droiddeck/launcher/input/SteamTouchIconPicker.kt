@@ -215,13 +215,12 @@ class SteamTouchIconPicker(
                 isClickable = true
                 isFocusable = true
             }
-            // Steam Link's panel: navy, square, a blue rule along the top.
+            // DroidDeck's panel: dark surface, rounded, a hairline border.
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                background = android.graphics.drawable.LayerDrawable(arrayOf(
-                    GradientDrawable().apply { setColor(Color.rgb(49, 106, 196)) },
-                    GradientDrawable().apply { setColor(Color.rgb(32, 40, 51)) },
-                )).apply { setLayerInset(1, 0, dp(2), 0, 0) }
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(18).toFloat(); setColor(Color.rgb(18, 20, 23)); setStroke(dp(1), Color.rgb(38, 42, 49))
+                }
                 setPadding(dp(12), dp(14), dp(12), dp(10))
                 isClickable = true
             }
@@ -247,7 +246,12 @@ class SteamTouchIconPicker(
                     gravity = Gravity.CENTER
                     textSize = 14f
                     setTextColor(Color.WHITE)
-                    background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(62, 112, 178), Color.rgb(51, 92, 154)))
+                    val primary = i == buttons.size - 1
+                    setTextColor(if (primary) Color.rgb(3, 17, 31) else Color.rgb(242, 244, 247))
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        if (primary) setColor(Color.rgb(26, 159, 255)) else { setColor(Color.rgb(26, 29, 34)); setStroke(dp(1), Color.rgb(52, 58, 67)) }
+                    }
                     setPadding(dp(20), dp(10), dp(20), dp(10))
                     setOnClickListener { close(); action() }
                 }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginStart = dp(6); marginEnd = dp(6) })
