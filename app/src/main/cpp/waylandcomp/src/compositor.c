@@ -3230,7 +3230,7 @@ static void key_event(uint32_t evdev, int pressed) {
 
 /* The output changed size under a running session (a foldable opened or closed, with the
  * session following the screen). Every client that has had its first configure is told the new
- * size: gamescope's Wayland backend and the desktop's labwc both resize their output to it, and
+ * size: gamescope's Wayland backend and the desktop's KWin both resize their output to it, and
  * the next buffers they commit fill the new panel instead of being letterboxed onto it. */
 static void output_resized(void) {
     struct surface *s;
