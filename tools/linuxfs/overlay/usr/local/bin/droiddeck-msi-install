@@ -106,8 +106,21 @@ class MsiError(Exception):
     pass
 
 
-def progress(text):
-    print("progress " + text, flush=True)
+def progress(text, fraction=None):
+    """A progress line: "progress <text>", or "progress NN% <text>" when how far along is known."""
+    if fraction is None:
+        print("progress " + text, flush=True)
+    else:
+        print("progress %d%% %s" % (max(0, min(100, int(fraction * 100))), text), flush=True)
+
+
+class Span:
+    """The slice of the whole job one package's progress maps into (a wrapper runs several)."""
+    def __init__(self, lo=0.0, hi=1.0):
+        self.lo, self.hi = lo, hi
+
+    def report(self, fraction, text):
+        progress(text, self.lo + (self.hi - self.lo) * max(0.0, min(1.0, fraction)))
 
 
 # ---------------------------------------------------------------- reading the package
@@ -356,9 +369,10 @@ def clr_version(path):
 
 
 class Installer:
-    def __init__(self, msi, out, package=None):
+    def __init__(self, msi, out, package=None, span=None):
         self.pkg = package or Package(msi)
         self.out = Path(out)
+        self.span = span or Span()
         self.notes = []
         self.registry = []
         self.files = {}          # File key -> rel path it was installed to
@@ -556,14 +570,13 @@ class Installer:
     def unpack(self, work):
         """Every cabinet in the package, unpacked; returns File key -> unpacked file."""
         found = {}
-        for index, row in enumerate(self.pkg.table("Media")):
+        media = [row for row in self.pkg.table("Media") if row.get("Cabinet", "")]
+        for index, row in enumerate(media):
             cabinet = row.get("Cabinet", "")
-            if not cabinet:
-                continue
+            self.span.report(0.05 + 0.3 * index / max(1, len(media)), "unpacking %s" % cabinet.lstrip("#"))
             dest = Path(work) / ("media%d" % index)
             dest.mkdir()
             if cabinet.startswith("#"):
-                progress("unpacking %s" % cabinet[1:])
                 cab = Path(work) / ("media%d.cab" % index)
                 self.pkg.stream(cabinet[1:], cab)
                 own = True
@@ -574,7 +587,6 @@ class Installer:
                 if cab is None:
                     self.notes.append("external cabinet %s is not part of the package; its files are missing" % cabinet)
                     continue
-                progress("unpacking %s" % cabinet)
                 own = False
             result = subprocess.run([CABEXTRACT, "-q", "-d", str(dest), str(cab)], capture_output=True, timeout=1800,
                                     env=tool_env())
@@ -630,9 +642,13 @@ class Installer:
             if rel:
                 self.files[key] = rel
         assembly_folders = set()
-        for key, rel in destinations.items():
-            if not rel:
-                continue
+        todo = [(key, rel) for key, rel in destinations.items() if rel]
+        last = -1
+        for done, (key, rel) in enumerate(todo):
+            step = done * 20 // max(1, len(todo))
+            if step != last:
+                last = step
+                self.span.report(0.35 + 0.55 * done / max(1, len(todo)), "placing files (%d of %d)" % (done, len(todo)))
             source = unpacked.get(key)
             if source is None:
                 missing += 1
@@ -754,13 +770,14 @@ class Installer:
                 self.notes.append("%d %s" % (count, what))
 
     def install(self):
-        progress("reading %s" % (self.pkg.summary.get("subject") or Path(self.pkg.path).name))
+        self.span.report(0.0, "reading %s" % (self.pkg.summary.get("subject") or Path(self.pkg.path).name))
         self.run_set_actions()
         self.select()
         with tempfile.TemporaryDirectory(dir=str(self.out.parent), prefix=".msi-") as work:
             unpacked = self.unpack(work)
-            progress("placing files")
+            self.span.report(0.35, "placing files")
             self.install_files(unpacked)
+        self.span.report(0.9, "writing the registry values")
         self.install_registry()
         self.check()
         if not self.counts["files"] and not self.registry:
@@ -774,6 +791,7 @@ class Installer:
             pass
         with open(self.out / "registry.json", "w", encoding="utf-8") as out:
             json.dump({"version": 1, "values": values + self.registry}, out, indent=1)
+        self.span.report(1.0, "done")
         return {"product": self.props.get("ProductName", ""), "version": self.props.get("ProductVersion", ""),
                 "counts": self.counts, "notes": self.notes}
 
@@ -858,7 +876,7 @@ def unpack_burn(path, dest, containers):
     data = path.read_bytes()
     names = {}
     for index, (start, size) in enumerate(containers):
-        progress("unpacking the bundle, part %d of %d" % (index + 1, len(containers)))
+        progress("unpacking the bundle, part %d of %d" % (index + 1, len(containers)), 0.02 + 0.08 * index / max(1, len(containers)))
         cab = dest / ("container%d.cab" % index)
         cab.write_bytes(data[start:start + size])
         folder = dest / ("container%d" % index)
@@ -899,7 +917,7 @@ def unpack_installer(path, dest):
             return "cabinet"
         for stale in list(dest.iterdir()):
             shutil.rmtree(stale) if stale.is_dir() else stale.unlink()
-    progress("unpacking %s" % path.name)
+    progress("unpacking %s" % path.name, 0.02)
     result = run_tool([SEVENZIP, "x", "-y", "-bd", "-bso0", "-bsp0", "-o" + str(dest), str(path)])
     if result.returncode not in (0, 1) or not any(dest.rglob("*")):
         raise MsiError("could not open %s: %s" % (path.name, (result.stderr or result.stdout).decode("utf-8", "replace").strip()[:200]
@@ -951,9 +969,10 @@ def install_wrapper(path, out):
         if not packages:
             raise MsiError("%s holds no installer package: it is its own setup program, which cannot be run here" % path.name)
         for index, package in enumerate(packages):
-            progress("package %d of %d: %s" % (index + 1, len(packages), package.name))
+            lo, hi = 0.1 + 0.9 * index / len(packages), 0.1 + 0.9 * (index + 1) / len(packages)
+            progress("package %d of %d: %s" % (index + 1, len(packages), package.name), lo)
             try:
-                result = Installer(str(package), out).install()
+                result = Installer(str(package), out, span=Span(lo, hi)).install()
             except MsiError as error:
                 # A package with nothing for this prefix (a patch for another Windows) is skipped,
                 # unless it is the only one; anything else is the whole installer's failure.

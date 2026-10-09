@@ -85,6 +85,17 @@ object WinComponents {
 
     enum class Support { READY, NEEDS_INSTALLER, UNSUPPORTED }
 
+    /** The two halves of an install the page shows one after the other, each 0..100. */
+    enum class Phase { DOWNLOAD, INSTALL }
+
+    /** Progress: the component being worked on, what it is doing, the phase, 0..100 or -1 when unknown. */
+    class Progress(val component: String, val stage: String, val phase: Phase, val percent: Int)
+
+    /** The percent a droiddeck-msi-install progress line carries ("progress 37% placing files"), or -1. */
+    private val PERCENT_LINE = Regex("""^(\d{1,3})% (.*)$""")
+    private fun engineLine(text: String): Pair<String, Int> =
+        PERCENT_LINE.find(text)?.let { it.groupValues[2] to it.groupValues[1].toInt().coerceIn(0, 100) } ?: (text to -1)
+
     /**
      * A step that installs a Windows Installer package, or an installer .exe that is a wrapper
      * around packages (a WiX bundle, a self-extracting cabinet or 7-Zip archive), which
@@ -158,7 +169,7 @@ object WinComponents {
      * Installs [c] and the components it bundles that are not installed yet. [onProgress] gets a
      * line for the step and 0..100 (or -1). Returns null on success, else a message.
      */
-    fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (String, Int) -> Unit): String? {
+    fun install(context: Context, c: Component, all: Map<String, Component>, onProgress: (Progress) -> Unit): String? {
         if (support(c, all) != Support.READY) return "${c.name} cannot be installed here yet"
         val order = ArrayList<Component>()
         fun visit(x: Component, depth: Int) {
@@ -173,7 +184,7 @@ object WinComponents {
         val archives = HashMap<String, File>()
         return try {
             for (x in order) {
-                onProgress(x.name, -1)
+                onProgress(Progress(x.name, x.name, Phase.DOWNLOAD, -1))
                 installOne(context, x, work, archives, onProgress)?.let { return "${x.name}: $it" }
             }
             null
@@ -185,7 +196,7 @@ object WinComponents {
         }
     }
 
-    private fun installOne(context: Context, c: Component, work: File, archives: HashMap<String, File>, onProgress: (String, Int) -> Unit): String? {
+    private fun installOne(context: Context, c: Component, work: File, archives: HashMap<String, File>, onProgress: (Progress) -> Unit): String? {
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return "The Linux runtime is not installed"
         val staging = File(root, "$STORE/.${c.name}.new").apply { FileUtils.delete(this); mkdirs() }
@@ -224,12 +235,12 @@ object WinComponents {
                     val byRuntime = name.lowercase().let { it.endsWith(".exe") || it.endsWith(".cab") }
                     val file = if (byRuntime) File(root, "$MSI_CACHE/${archives.size}-$name").apply { parentFile?.mkdirs() }
                         else File(work, "${archives.size}-$name")
-                    val ok = Downloader.downloadFile(url, file, false) { f -> onProgress("${c.name}: $name", if (f < 0) -1 else Math.round(f * 100f)) }
+                    val ok = Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }
                     if (!ok) return "download failed: $name"
                     step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
                         if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return "checksum mismatch: $name"
                     }
-                    onProgress("${c.name}: unpacking $name", -1)
+                    onProgress(Progress(c.name, "unpacking $name", Phase.INSTALL, -1))
                     val dir = if (byRuntime) {
                         runtimeArchives[step.str("file_name").ifEmpty { name }] = file
                         runtimeDirs += file
@@ -360,7 +371,7 @@ object WinComponents {
      * Has the runtime's tools open [archive] (an installer .exe, a cabinet, a self-extracting
      * one) into a folder of the package cache called [tag]; that folder, or null and a log line.
      */
-    private fun unpackInRuntime(context: Context, c: Component, archive: File, tag: String, onProgress: (String, Int) -> Unit): File? {
+    private fun unpackInRuntime(context: Context, c: Component, archive: File, tag: String, onProgress: (Progress) -> Unit): File? {
         val root = LinuxRuntime.rootDir(context)
         val cache = File(root, MSI_CACHE)
         val dir = File(cache, ".x-$tag").apply { FileUtils.delete(this); mkdirs() }
@@ -370,7 +381,7 @@ object WinComponents {
         val status = GuestCommand.run(context, listOf(MSI_INSTALL, "--unpack", "/$inside", "/$MSI_CACHE/${dir.name}"),
             logName = "wincomponents-${c.name}") { line ->
             when {
-                line.startsWith("progress ") -> onProgress("${c.name}: ${line.removePrefix("progress ")}", -1)
+                line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, _) -> onProgress(Progress(c.name, text, Phase.INSTALL, -1)) }
                 line.startsWith("result ") -> ok = true
                 line.startsWith("error ") -> problem = line.removePrefix("error ")
             }
@@ -389,7 +400,7 @@ object WinComponents {
      * version, counts, notes), or null and why. Everything the installer prints also goes to
      * Download/DroidDeck/tools.
      */
-    private fun installPackage(context: Context, c: Component, step: Step, staging: File, onProgress: (String, Int) -> Unit): Pair<JSONObject?, String> {
+    private fun installPackage(context: Context, c: Component, step: Step, staging: File, onProgress: (Progress) -> Unit): Pair<JSONObject?, String> {
         val root = LinuxRuntime.rootDir(context)
         val url = step.str("url")
         val name = url.substringBefore('?').substringAfterLast('/')
@@ -397,19 +408,19 @@ object WinComponents {
         val ext = if (listOf(step.str("file_name"), name).any { it.endsWith(".exe", ignoreCase = true) }) "exe" else "msi"
         val file = File(cache, "${c.name}-${c.steps.indexOf(step)}.$ext")
         try {
-            if (!Downloader.downloadFile(url, file, false) { f -> onProgress("${c.name}: $name", if (f < 0) -1 else Math.round(f * 100f)) }) {
+            if (!Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
                 return null to "download failed: $name"
             }
             step.str("file_checksum").takeIf { it.length == 32 }?.let { md5 ->
                 if (!digest(file, "MD5").equals(md5, ignoreCase = true)) return null to "checksum mismatch: $name"
             }
-            onProgress("${c.name}: installing", -1)
+            onProgress(Progress(c.name, "installing", Phase.INSTALL, 0))
             var result: JSONObject? = null
             var problem: String? = null
             val status = GuestCommand.run(context, listOf(MSI_INSTALL, "/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}"),
                 logName = "wincomponents-${c.name}") { line ->
                 when {
-                    line.startsWith("progress ") -> onProgress("${c.name}: ${line.removePrefix("progress ")}", -1)
+                    line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, pct) -> onProgress(Progress(c.name, text, Phase.INSTALL, pct)) }
                     line.startsWith("result ") -> result = runCatching { JSONObject(line.removePrefix("result ")) }.getOrNull()
                     line.startsWith("error ") -> problem = line.removePrefix("error ")
                 }

@@ -336,6 +336,9 @@
     <string name="wincomp_loading">Loading the components…</string>
     <string name="wincomp_failed">Could not install: %1$s</string>
     <string name="wincomp_downloaded">Downloaded</string>
+    <string name="wincomp_downloading">Downloading %1$s</string>
+    <string name="wincomp_installing">Installing: %1$s</string>
+    <string name="wincomp_reverting">Turning off…</string>
     <string name="wincomp_download_size">%1$s download</string>
     <string name="wincomp_next_launch">Takes effect the next time the game starts.</string>
     <string name="mode_stretch169">Stretch 16:9 games</string>
