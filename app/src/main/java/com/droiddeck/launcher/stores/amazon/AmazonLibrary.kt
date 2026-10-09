@@ -6,6 +6,7 @@ import android.util.Log
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreNet
+import com.droiddeck.launcher.stores.StoresState
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.Callable
@@ -70,7 +71,7 @@ object AmazonLibrary {
             }
             onStatus("Checking sign-in…")
             val creds = AmazonCredentialStore.load(app) ?: return SyncResult.NotLoggedIn
-            val token = AmazonCredentialStore.getValidAccessToken(app) ?: return SyncResult.Failed("Amazon session expired: sign in again.")
+            val token = AmazonCredentialStore.getValidAccessToken(app) ?: return SyncResult.Failed(StoresState.notSignedInLine(Store.AMAZON))
             onStatus("Fetching game list…")
             val all = AmazonApiClient.getEntitlements(token, creds.deviceSerial)
             if (all.isNullOrEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed("No games found in your Amazon library") else SyncResult.Ok(cachedList)

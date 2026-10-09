@@ -189,5 +189,37 @@ Store log lines (the engines' included) go through `StoresState.logLine`, which 
 (`StoreLogFiles`: one file a day, seven days kept, ~2 MB each before it rolls to `.1`). Nothing
 shows them in the app; the session's Share logs zip carries them under `stores/`.
 
-Credentials live in `filesDir/stores/<store>/credentials.json` only (`StoreAccounts`); store URLs
-are logged through `StoreLog.redactUrl`, which drops the query string where the signed tokens live.
+Store URLs are logged through `StoreLog.redactUrl`, which drops the query string where the signed
+tokens live.
+
+## Security
+
+- **Sign-ins:** `filesDir/stores/<store>/credentials.json` only, read and written through
+  `StoreAccounts` alone (`GogAuth`, `EpicCredentialStore`, `AmazonCredentialStore`, cloud saves
+  all call it). The file is an envelope `{"v":1,"alg":"AES/GCM","iv":...,"ct":...}` (base64):
+  AES-256-GCM (`CredentialCipher`) under a key generated in the AndroidKeyStore (alias
+  `droiddeck-store-credentials`; encrypt/decrypt, GCM, no padding, not exportable, no user
+  authentication so background downloads and launch-time exchange codes work with the screen off;
+  StrongBox where present, else the TEE). Written through a temp file and a rename, mode 600.
+- **Earlier plain files:** sealed at app start (`StoreAccounts.encryptAll`, and on any read),
+  verified by opening the result, the plain file replaced; the log says
+  `stores: credentials encrypted <store>`. A plain `.tmp` left by an older build is deleted.
+- **No Keystore** (some ROMs): the file stays plain, the log says
+  `stores: keystore unavailable, credentials stay plain (<exception class>)` once, and the next
+  start tries again.
+- **A file that can never open** - it does not authenticate (`AEADBadTagException`: tampered, or
+  another key after data was cleared or a backup restored on another device), the key is
+  permanently invalidated or gone from the Keystore, or it is not an envelope: deleted, and the
+  store reads as signed out, so its sign-in card shows.
+- **A failure that may pass** (`KeyStoreException`, `ProviderException`, any other
+  `InvalidKeyException`, an I/O error, StrongBox busy): the file is kept, the store stays signed in
+  (no sign-in card) and is marked unavailable (`StoreAccounts.isUnavailable`), a store action shows
+  `<Store> sign-in could not be read: try again.`, the log says
+  `stores: credentials unreadable this start (<exception class>)` once, and the next access tries
+  again.
+- **The Linux session:** the app's files directory is bound into every session, so the guest can
+  see `credentials.json` - as the envelope only; the key never leaves the Keystore. Nothing in the
+  guest reads the files: `droiddeck-store-launch` asks the app over `<session>/stores/req|resp`
+  for an Epic exchange code, which the app writes beside the game's launcher; the launcher reads
+  it into a variable and deletes it before the game starts (single use, expires in minutes).
+  Steam's own client files are outside this.

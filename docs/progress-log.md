@@ -7,6 +7,26 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-09 - `feat/store-credentials-keystore`: store sign-ins sealed with the Android Keystore
+
+- **What:** `filesDir/stores/<store>/credentials.json` (GOG, Epic, Amazon: tokens, ids, names,
+  expiry) is now an AES-256-GCM envelope (`{"v":1,"alg":"AES/GCM","iv","ct"}`) under a
+  non-exportable AndroidKeyStore key (StrongBox if present, else TEE; no user authentication).
+  `StoreAccounts` is the one layer; `CredentialCipher` holds the envelope and the key.
+- **Upgrade:** a plain file is sealed at the first start (verified, then replaced); users stay
+  signed in. Log: `stores: credentials encrypted <store>`.
+- **Fallbacks:** no Keystore - stays plain, logged once, retried next start. A file that can never
+  open (bad tag, key invalidated or missing, not an envelope) - deleted, signed out (sign-in card).
+  Any other Keystore or I/O failure - file kept, store stays signed in but unavailable (actions show
+  `<Store> sign-in could not be read: try again.`), logged once, retried on the next access. Never
+  a crash.
+- **Session:** the guest sees the envelope only; it never read the files (the Epic code comes over
+  the request channel, written beside the launcher and deleted by it).
+- **Tests:** `StoreAccountsCipherTest` (round trip, sealed on disk, migration of all three stores,
+  tampered file, lost key, key missing, garbage, no-Keystore fallback then sealed next start,
+  transient Keystore / I/O failures keep the file and a later read succeeds, sign-out). Not yet
+  on a device.
+
 ## 2026-10-08 - `feat/private-logs`: every log in app-private storage, shared as one scrubbed zip
 
 - **Where logs live:** `files/logs/` (`LinuxRuntime.logDir`), nothing under `Download/DroidDeck`
