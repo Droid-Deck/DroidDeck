@@ -136,6 +136,12 @@ without it and Setup says "Stores engine not built").
   when installed, Resume, the download percentage, the install size, or Free / price / discount.
   A thin bar over the art while downloading. Install, Resume, Uninstall, Get and Buy live on the
   game page; A on a card opens it.
+- **The art is the card** (maintainer feedback): a store card is its art edge to edge, sharp above
+  and, under the one line, a blurred and darkened copy of the same picture (blur on API 31+, a
+  stronger scrim below it). A Downloads row is the game's wide art cropped to the row with a dark
+  wash from the left, the copy in white there and the actions on the right; no thumbnail.
+- **Install dialog:** one plain line "Install <game>:", then one row per place (icon, name, free
+  space), Cancel small in the title line; 440 dp wide.
 - **No flavor text** (standing rule from the maintainer): Setup › Stores and the cog popup keep
   only control labels; the download-controls caption, the Downloads footnote, the sign-in blurbs
   and footnote, the engine note and the Install-to caption are gone; empty states read "No games",

@@ -1,5 +1,9 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.blur
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -441,22 +445,48 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     val open = { onOpen(item.key) }
     Column(
         modifier = Modifier.fillMaxWidth().paneItem("card:${item.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(10.dp)).background(colors.surface).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
+            .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
-        Box {
-            CardArt(item, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
-            if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(horizontal = 6.dp, vertical = 5.dp)) {
+        CardFace(item, download) { CardMarker(item, installed, download) }
+    }
+}
+
+/** How tall the card's one line is, over the blurred foot of its art. */
+private val CardStrip = 28.dp
+
+/**
+ * The card is its art: sharp above, and under the one line a blurred, darkened copy of the same
+ * picture, placed so the two meet without a seam. Blur needs API 31; below it the copy is only
+ * darkened, more strongly.
+ */
+@Composable
+private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, marker: @Composable () -> Unit) {
+    val url = item.imageUrl ?: item.tallImageUrl
+    val blurs = android.os.Build.VERSION.SDK_INT >= 31
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val total = maxWidth * 9f / 16f + CardStrip
+        Box(Modifier.fillMaxWidth().height(total).background(Color(0xFF101318)).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
+            if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(CardStrip).clipToBounds()) {
+                if (url != null) AsyncImage(
+                    model = url, contentDescription = null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().wrapContentHeight(Alignment.Bottom, unbounded = true).height(total).blur(24.dp),
+                )
+                Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.45f else 0.7f)))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.matchParentSize().padding(horizontal = 8.dp),
+                ) {
+                    Text(item.title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    marker()
+                }
+            }
+            // A soft edge where the sharp art meets the strip.
+            Spacer(Modifier.align(Alignment.BottomCenter).padding(bottom = CardStrip).fillMaxWidth().height(14.dp).background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.35f))))
+            if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(start = 6.dp, end = 6.dp, bottom = CardStrip + 5.dp)) {
                 ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
             }
-        }
-        // One line: the title, and on the right the one thing the tab does not already say.
-        Row(
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
-        ) {
-            Text(item.title, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            CardMarker(item, installed, download)
         }
     }
 }
@@ -471,13 +501,13 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
         installed -> Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(14.dp))
         download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         item.owned && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        item.owned -> if (item.sizeBytes > 0) Text(formatBytes(item.sizeBytes), fontSize = small, color = colors.onSurfaceVariant, maxLines = 1)
+        item.owned -> if (item.sizeBytes > 0) Text(formatBytes(item.sizeBytes), fontSize = small, color = Color.White.copy(alpha = 0.8f), maxLines = 1)
         item.isFree -> Text(stringResource(R.string.stores_free), fontSize = small, fontWeight = FontWeight.Bold, color = pal.good, maxLines = 1)
         item.isDiscounted -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             StateChip("-${item.discountPercent}%", ChipTone.DEAL, small = true)
-            Text(item.finalPrice, fontSize = small, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+            Text(item.finalPrice, fontSize = small, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
         }
-        item.hasPrice -> Text(item.finalPrice, fontSize = small, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+        item.hasPrice -> Text(item.finalPrice, fontSize = small, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
     }
 }
 

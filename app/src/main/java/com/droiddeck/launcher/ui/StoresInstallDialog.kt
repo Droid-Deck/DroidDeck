@@ -41,8 +41,8 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.formatBytes
 
 /**
- * "Install to": a small card with one tile per place - internal storage, the card - each the
- * action itself: icon, name, free space. Asked only when a card is there. The tile picked last time
+ * "Install <game>:" over one row per place - internal storage, the card - each the action
+ * itself: icon, name, free space. Asked only when a card is there. The row picked last time
  * starts focused, so a pad confirms the usual place with one press; nothing is chosen for the user.
  */
 @Composable
@@ -59,10 +59,10 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
     AppDialog(shown, close, "installWhere", wide = false, maxWidth = 440.dp) {
         Rise(0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    Eyebrow(item.title)
-                    Text(stringResource(R.string.stores_install_where), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+                Text(
+                    stringResource(R.string.stores_install_title, item.title), fontSize = 15.sp, color = colors.onBackground,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
                 Text(
                     stringResource(R.string.common_cancel), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
                     modifier = Modifier.clip(Shape12).clickable(role = Role.Button, onClick = close).padding(horizontal = 10.dp, vertical = 6.dp),
@@ -70,12 +70,12 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
             }
         }
         Rise(1) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 targets.forEachIndexed { i, t ->
-                    TargetTile(
+                    TargetRow(
                         label = if (t.removable) t.label else stringResource(R.string.stores_target_internal),
                         free = stringResource(R.string.stores_target_free, formatBytes(t.freeBytes)),
-                        removable = t.removable, focus = focus[i], modifier = Modifier.weight(1f),
+                        removable = t.removable, focus = focus[i],
                     ) {
                         SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
                         StoresState.install(ctx, item, t.root)
@@ -88,25 +88,22 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun TargetTile(label: String, free: String, removable: Boolean, focus: FocusRequester, modifier: Modifier, onPick: () -> Unit) {
+private fun TargetRow(label: String, free: String, removable: Boolean, focus: FocusRequester, onPick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    Box(
-        modifier.focusRequester(focus).clip(Shape12)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.fillMaxWidth().focusRequester(focus).clip(Shape12)
             .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface.copy(alpha = 0.6f))
             .glideBorder(hot, Shape12, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onPick)
             .controllerConfirm(onClick = onPick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(22.dp))
-            Column {
-                Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(free, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
-            }
-        }
+        Icon(if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(22.dp))
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(free, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
     }
 }

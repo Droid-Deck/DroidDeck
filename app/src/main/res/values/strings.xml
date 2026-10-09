@@ -2065,6 +2065,7 @@
     <string name="stores_download_manager">Download manager</string>
     <string name="stores_parallel">Downloads at a time</string>
     <string name="stores_install_where">Install to</string>
+    <string name="stores_install_title">Install %1$s:</string>
     <string name="stores_target_internal">Internal</string>
     <string name="stores_target_free">%1$s free</string>
     <string name="stores_engine_log">Engine log</string>

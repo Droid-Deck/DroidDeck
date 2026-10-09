@@ -1,5 +1,9 @@
 package com.droiddeck.launcher.ui
 
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -79,67 +83,68 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
 @Composable
 private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions) {
     val ctx = LocalContext.current
-    val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Column(
-        verticalArrangement = Arrangement.spacedBy(7.dp),
-        modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).border(1.dp, pal.line, Shape12).padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            // The game's art, small and fixed, so the row stays one line tall on a narrow page.
-            CardArt(CatalogItem(d.store, d.id, d.name, d.cover), Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(6.dp)))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(d.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 2.dp)) {
+    val narrow = LocalNarrowPane.current
+    val ink = Color.White
+    val dim = Color.White.copy(alpha = 0.72f)
+    // The game's wide art is the row: cropped to it, a dark wash from the left so the copy reads
+    // in white there, the art clear on the right.
+    Box(Modifier.fillMaxWidth().heightIn(min = 88.dp).clip(Shape12).background(Color(0xFF101318)).border(1.dp, pal.line, Shape12)) {
+        if (!d.cover.isNullOrEmpty()) AsyncImage(model = d.cover, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        else Spacer(Modifier.matchParentSize().background(artBrush(hueOf(d.name))))
+        Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.92f), 0.5f to Color.Black.copy(alpha = 0.7f), 1f to Color.Black.copy(alpha = 0.15f))))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(d.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     SourceChip(d.store.id, small = true)
-                    if (d.location.isNotBlank()) Text(d.location, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (d.location.isNotBlank()) Text(d.location, fontSize = 11.sp, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (!narrow) Stages(d)
+                ProgressBarThin(
+                    if (d.state == DownloadState.INSTALLED) 1f else d.fraction, paused = d.state == DownloadState.PAUSED,
+                    verify = d.stage == DownloadStage.VERIFY, height = 6.dp, done = d.state == DownloadState.INSTALLED,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    val meta = when (d.state) {
+                        DownloadState.INSTALLED -> stringResource(R.string.stores_installed_chip)
+                        DownloadState.CANCELLED -> stringResource(R.string.stores_dl_cancelled)
+                        DownloadState.FAILED -> d.error?.let { stringResource(R.string.stores_dl_failed_reason, it) } ?: stringResource(R.string.stores_dl_failed)
+                        DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
+                        DownloadState.QUEUED -> if (d.queuePosition > 0) stringResource(R.string.stores_dl_queued_at, d.queuePosition) else stringResource(R.string.stores_dl_queued)
+                        DownloadState.RUNNING -> when {
+                            d.stage == DownloadStage.DOWNLOAD && d.bytesTotal > 0 -> stringResource(R.string.stores_dl_bytes, formatBytes(d.bytesDone), formatBytes(d.bytesTotal), d.percent)
+                            else -> stageLabel(d.stage)
+                        }
+                    }
+                    Text(meta, fontSize = 12.sp, color = dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (d.state == DownloadState.RUNNING && d.speedBps > 0) {
+                        Text(formatSpeed(d.speedBps), fontSize = 12.sp, color = dim, maxLines = 1)
+                        if (d.etaSeconds >= 0) Text(eta(d.etaSeconds), fontSize = 12.sp, color = dim, maxLines = 1)
+                    }
                 }
             }
-            if (!LocalNarrowPane.current) Stages(d)
-        }
-        if (LocalNarrowPane.current) Stages(d)
-        ProgressBarThin(
-            if (d.state == DownloadState.INSTALLED) 1f else d.fraction, paused = d.state == DownloadState.PAUSED,
-            verify = d.stage == DownloadStage.VERIFY, height = 8.dp, done = d.state == DownloadState.INSTALLED,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            val meta = when (d.state) {
-                DownloadState.INSTALLED -> stringResource(R.string.stores_installed_chip)
-                DownloadState.CANCELLED -> stringResource(R.string.stores_dl_cancelled)
-                DownloadState.FAILED -> d.error?.let { stringResource(R.string.stores_dl_failed_reason, it) } ?: stringResource(R.string.stores_dl_failed)
-                DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
-                DownloadState.QUEUED -> if (d.queuePosition > 0) stringResource(R.string.stores_dl_queued_at, d.queuePosition) else stringResource(R.string.stores_dl_queued)
-                DownloadState.RUNNING -> when {
-                    d.stage == DownloadStage.DOWNLOAD && d.bytesTotal > 0 -> stringResource(R.string.stores_dl_bytes, formatBytes(d.bytesDone), formatBytes(d.bytesTotal), d.percent)
-                    else -> stageLabel(d.stage)
+            // The row's actions on the right, over the art.
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+                when (d.state) {
+                    DownloadState.RUNNING, DownloadState.QUEUED -> {
+                        SecondaryButton(stringResource(R.string.stores_dl_pause), compact = true) { DownloadQueue.pause(d.key) }
+                        SecondaryButton(stringResource(R.string.stores_dl_cancel), compact = true) { DownloadQueue.cancel(ctx, d.key) }
+                    }
+                    DownloadState.PAUSED -> {
+                        PrimaryButton(stringResource(R.string.stores_dl_resume), compact = true) { DownloadQueue.resume(ctx, d.key) }
+                        SecondaryButton(stringResource(R.string.stores_dl_cancel), compact = true) { DownloadQueue.cancel(ctx, d.key) }
+                    }
+                    DownloadState.FAILED -> {
+                        PrimaryButton(stringResource(R.string.stores_dl_retry), compact = true) { DownloadQueue.retry(ctx, d.key) }
+                        SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
+                    }
+                    DownloadState.INSTALLED -> {
+                        PrimaryButton(stringResource(R.string.stores_play), compact = true, icon = Icons.Filled.PlayArrow) { launchStoreGame(ctx, d.store, d.id, s, a) }
+                        SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
+                    }
+                    DownloadState.CANCELLED -> SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
                 }
-            }
-            Text(meta, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            if (d.state == DownloadState.RUNNING && d.speedBps > 0) {
-                Text(formatSpeed(d.speedBps), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
-                if (d.etaSeconds >= 0) Text(eta(d.etaSeconds), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
-            }
-        }
-        if (d.detail.isNotBlank() && d.state == DownloadState.RUNNING) Text(d.detail, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Actions {
-            when (d.state) {
-                DownloadState.RUNNING, DownloadState.QUEUED -> {
-                    SecondaryButton(stringResource(R.string.stores_dl_pause), compact = true) { DownloadQueue.pause(d.key) }
-                    SecondaryButton(stringResource(R.string.stores_dl_cancel), compact = true) { DownloadQueue.cancel(ctx, d.key) }
-                }
-                DownloadState.PAUSED -> {
-                    PrimaryButton(stringResource(R.string.stores_dl_resume), compact = true) { DownloadQueue.resume(ctx, d.key) }
-                    SecondaryButton(stringResource(R.string.stores_dl_cancel), compact = true) { DownloadQueue.cancel(ctx, d.key) }
-                }
-                DownloadState.FAILED -> {
-                    PrimaryButton(stringResource(R.string.stores_dl_retry), compact = true) { DownloadQueue.retry(ctx, d.key) }
-                    SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
-                }
-                DownloadState.INSTALLED -> {
-                    PrimaryButton(stringResource(R.string.stores_play), compact = true, icon = Icons.Filled.PlayArrow) { launchStoreGame(ctx, d.store, d.id, s, a) }
-                    SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
-                }
-                DownloadState.CANCELLED -> SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { DownloadQueue.dismiss(d.key) }
             }
         }
     }
