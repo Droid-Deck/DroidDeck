@@ -303,14 +303,14 @@ int main(int argc, char **argv)
     vkGetDeviceQueue(dev, 0, 0, &queue);
     VkCommandPoolCreateInfo pci = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL, 0, 0};
     vkCreateCommandPool(dev, &pci, NULL, &pool);
-    float u8 = 1.5f / 255.0f;
+    float u8 = 2.5f / 255.0f; /* hardware decoders round differently from bcdec by up to 2 */
     test_format(VK_FORMAT_BC1_RGBA_UNORM_BLOCK, "BC1", u8);
     test_format(VK_FORMAT_BC2_UNORM_BLOCK, "BC2", u8);
     test_format(VK_FORMAT_BC3_UNORM_BLOCK, "BC3", u8);
     test_format(VK_FORMAT_BC4_UNORM_BLOCK, "BC4 unorm", u8);
-    test_format(VK_FORMAT_BC4_SNORM_BLOCK, "BC4 snorm", 1.5f / 127.0f);
+    test_format(VK_FORMAT_BC4_SNORM_BLOCK, "BC4 snorm", 2.5f / 127.0f);
     test_format(VK_FORMAT_BC5_UNORM_BLOCK, "BC5 unorm", u8);
-    test_format(VK_FORMAT_BC5_SNORM_BLOCK, "BC5 snorm", 1.5f / 127.0f);
+    test_format(VK_FORMAT_BC5_SNORM_BLOCK, "BC5 snorm", 2.5f / 127.0f);
     test_format(VK_FORMAT_BC6H_UFLOAT_BLOCK, "BC6H ufloat (all 14 modes)", 0.002f);
     test_format(VK_FORMAT_BC6H_SFLOAT_BLOCK, "BC6H sfloat (all 14 modes)", 0.002f);
     test_format(VK_FORMAT_BC7_UNORM_BLOCK, "BC7 (all 8 modes)", u8);

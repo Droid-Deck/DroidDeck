@@ -95,6 +95,7 @@ typedef struct vkb_device {
     const char **enabled_exts;
     uint32_t enabled_ext_count;
     uint8_t ext_swapchain;
+    uint32_t api_version;
 } vkb_device;
 
 typedef struct vkb_queue {

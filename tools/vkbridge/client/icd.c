@@ -50,6 +50,8 @@ PFN_vkVoidFunction vkb_lookup_proc(const char *name, int level_max, vkb_device *
     if (level_max == VKB_LEVEL_DEVICE) {
         if (p->level != VKB_LEVEL_DEVICE) return NULL;
         if (dev && p->ext && !vkb_device_ext_enabled(dev, p->ext)) return NULL;
+        /* Core commands newer than the device's Vulkan version do not exist for it. */
+        if (dev && p->core && p->core > dev->api_version) return NULL;
     }
     return p->fn;
 }
@@ -288,13 +290,10 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateInstance(const VkInstanceCreateInf
     ci.ppEnabledExtensionNames = exts;
     ci.enabledLayerCount = 0;
     ci.ppEnabledLayerNames = NULL;
-    VkApplicationInfo app;
-    uint32_t api = server_instance_version();
+    /* The app's version goes through as asked: the device's effective version is the lower of it
+     * and the GPU's, which is what a driver does (and what apps compute for themselves). */
     if (ci.pApplicationInfo) {
-        app = *ci.pApplicationInfo;
-        if (app.apiVersion > api) app.apiVersion = api;
-        ci.pApplicationInfo = &app;
-        inst->api_version = app.apiVersion ? app.apiVersion : VK_API_VERSION_1_0;
+        inst->api_version = ci.pApplicationInfo->apiVersion ? ci.pApplicationInfo->apiVersion : VK_API_VERSION_1_0;
     } else {
         inst->api_version = VK_API_VERSION_1_0;
     }
@@ -471,6 +470,11 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDevice(VkPhysicalDevice physicalDe
         free(dev->enabled_exts);
         free(dev);
         return r;
+    }
+    {
+        extern uint32_t vkb_max_api(void);
+        uint32_t v = pd->props.apiVersion < vkb_max_api() ? pd->props.apiVersion : vkb_max_api();
+        dev->api_version = v < pd->instance->api_version ? v : pd->instance->api_version;
     }
     vkb_map_init(&dev->memories);
     vkb_map_init(&dev->templates);

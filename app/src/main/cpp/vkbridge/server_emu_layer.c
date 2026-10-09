@@ -199,8 +199,11 @@ static VKAPI_ATTR VkResult VKAPI_CALL emu_CreateGraphicsPipelines(VkDevice devic
     vkb_emu_device *e = vkb_emu_cur();
     VkShaderModule mods[64];
     uint32_t nmods = 0;
+    size_t dsz = vkb_emu_divisor_info_size();
+    uint8_t *divs = calloc(n ? n : 1, dsz);
     for (uint32_t i = 0; i < n; i++) {
         VkGraphicsPipelineCreateInfo *ci = (VkGraphicsPipelineCreateInfo *)&infos[i];
+        vkb_emu_divisor_pipeline(e, device, ci, (div_info *)(divs + i * dsz));
         /* Shader rewrites first: they read inline SPIR-V before it becomes a module. */
         vkb_emu_shader_pipeline(e, device, ci, mods, &nmods, 64);
         if (e->flags & VKB_EMU_MAINT5) {
@@ -211,7 +214,11 @@ static VKAPI_ATTR VkResult VKAPI_CALL emu_CreateGraphicsPipelines(VkDevice devic
         }
     }
     VkResult r = vkb_emu_real()->vkCreateGraphicsPipelines(device, cache, n, infos, pAllocator, pPipelines);
+    /* Before the temporary modules go: a divisor variant is built from the same stages. */
+    for (uint32_t i = 0; i < n; i++)
+        vkb_emu_divisor_created(e, device, cache, &infos[i], r >= 0 ? pPipelines[i] : VK_NULL_HANDLE, (div_info *)(divs + i * dsz));
     for (uint32_t i = 0; i < nmods; i++) vkb_emu_real()->vkDestroyShaderModule(device, mods[i], NULL);
+    free(divs);
     return r;
 }
 

@@ -5,7 +5,8 @@
 #include "vkb_server.h"
 
 /* Emulations that are implemented (the rest are never offered to the client). */
-#define VKB_EMU_IMPLEMENTED (VKB_EMU_MAINT5 | VKB_EMU_CLIP_DISTANCE | VKB_EMU_CULL_DISTANCE | VKB_EMU_POINT_SIZE | VKB_EMU_BCN)
+#define VKB_EMU_IMPLEMENTED (VKB_EMU_MAINT5 | VKB_EMU_CLIP_DISTANCE | VKB_EMU_CULL_DISTANCE | VKB_EMU_POINT_SIZE | VKB_EMU_BCN | \
+                             VKB_EMU_DIVISOR)
 
 #define VKB_EMU_BUCKETS 1024
 
@@ -34,6 +35,7 @@ typedef struct vkb_emu_device {
     vkb_emu_buffer *buffers[VKB_EMU_BUCKETS];
     void *bcn;       /* server_emu_bcn.c */
     void *cmdstate;  /* server_emu_cmdstate.c */
+    void *divisor;   /* server_emu_divisor.c */
     void *shaders;   /* server_emu_shader.c */
 } vkb_emu_device;
 
@@ -42,7 +44,14 @@ void vkb_emu_cmdstate_install(vkb_srv_table *dev);
 void vkb_emu_cmdstate_uninstall(vkb_srv_table *dev);
 void vkb_emu_restore_compute(vkb_emu_device *e, VkCommandBuffer cb);
 void *vkb_emu_cb_gfx(vkb_emu_device *e, VkCommandBuffer cb, size_t size);
-/* graphics-side hooks (server_emu_divisor.c) */
+/* vertex attribute divisor (server_emu_divisor.c) */
+typedef struct div_info div_info;
+size_t vkb_emu_divisor_info_size(void);
+void vkb_emu_divisor_pipeline(vkb_emu_device *e, VkDevice device, VkGraphicsPipelineCreateInfo *ci, div_info *out);
+void vkb_emu_divisor_created(vkb_emu_device *e, VkDevice device, VkPipelineCache cache, const VkGraphicsPipelineCreateInfo *ci,
+                             VkPipeline p, div_info *info);
+void vkb_emu_divisor_install(vkb_srv_table *dev);
+void vkb_emu_divisor_uninstall(vkb_srv_table *dev);
 void vkb_emu_gfx_bind_pipeline(vkb_emu_device *e, VkCommandBuffer cb, VkPipeline p);
 void vkb_emu_gfx_reset(void *gfx);
 void vkb_emu_gfx_free(void *gfx);
@@ -72,6 +81,7 @@ void vkb_emu_image_release(vkb_emu_device *e, vkb_emu_image *img);
 void vkb_emu_shader_pipeline(vkb_emu_device *e, VkDevice device, VkGraphicsPipelineCreateInfo *ci, VkShaderModule *mods,
                              uint32_t *nmods, uint32_t cap);
 void vkb_emu_shader_install(vkb_srv_table *dev);
+VkShaderModule vkb_emu_shader_zero_base_instance(vkb_emu_device *e, VkDevice device, const VkPipelineShaderStageCreateInfo *vs);
 void vkb_emu_shader_uninstall(vkb_srv_table *dev);
 /* 1 = handled (the emulation recorded its own commands instead). */
 int vkb_emu_copy_image(vkb_emu_device *e, VkCommandBuffer cb, VkImage src, VkImageLayout sl, VkImage dst, VkImageLayout dl,

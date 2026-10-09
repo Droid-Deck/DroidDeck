@@ -1,9 +1,9 @@
 #!/bin/bash
-# Source this: starts a host vkbridge server on the given desktop driver (default RADV) and
+# Source this: starts a host vkbridge server on a desktop driver (VKB_HOST_ICD, default RADV) and
 # points this shell's Vulkan programs at the bridge ICD.
-#   . tools/vkbridge/host/bridge_env.sh [icd-json]
+#   [VKB_HOST_ICD=...] . tools/vkbridge/host/bridge_env.sh
 _vkb_host=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-_vkb_icd=${1:-/usr/share/vulkan/icd.d/radeon_icd.json}
+_vkb_icd=${VKB_HOST_ICD:-/usr/share/vulkan/icd.d/radeon_icd.json}
 export VKBRIDGE_SOCKET=${VKBRIDGE_SOCKET:-${XDG_RUNTIME_DIR:-/tmp}/vkbridge-host.sock}
 pgrep -x vkbridge-server >/dev/null && kill $(pgrep -x vkbridge-server) 2>/dev/null; sleep 0.3
 rm -f "$VKBRIDGE_SOCKET"

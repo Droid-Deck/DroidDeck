@@ -397,1114 +397,1114 @@ void vkb_dispatch_load_device(vkb_dispatch *dt, PFN_vkGetDeviceProcAddr gdpa, Vk
 {
     {
         PFN_vkAllocateCommandBuffers f_ = (PFN_vkAllocateCommandBuffers)gdpa(device, "vkAllocateCommandBuffers");
-        if (f_) dt->vkAllocateCommandBuffers = f_;
+        dt->vkAllocateCommandBuffers = f_;
     }
     {
         PFN_vkAllocateDescriptorSets f_ = (PFN_vkAllocateDescriptorSets)gdpa(device, "vkAllocateDescriptorSets");
-        if (f_) dt->vkAllocateDescriptorSets = f_;
+        dt->vkAllocateDescriptorSets = f_;
     }
     {
         PFN_vkAllocateMemory f_ = (PFN_vkAllocateMemory)gdpa(device, "vkAllocateMemory");
-        if (f_) dt->vkAllocateMemory = f_;
+        dt->vkAllocateMemory = f_;
     }
     {
         PFN_vkBeginCommandBuffer f_ = (PFN_vkBeginCommandBuffer)gdpa(device, "vkBeginCommandBuffer");
-        if (f_) dt->vkBeginCommandBuffer = f_;
+        dt->vkBeginCommandBuffer = f_;
     }
     {
         PFN_vkBindBufferMemory f_ = (PFN_vkBindBufferMemory)gdpa(device, "vkBindBufferMemory");
-        if (f_) dt->vkBindBufferMemory = f_;
+        dt->vkBindBufferMemory = f_;
     }
     {
         PFN_vkBindBufferMemory2 f_ = (PFN_vkBindBufferMemory2)gdpa(device, "vkBindBufferMemory2");
         if (!f_) f_ = (PFN_vkBindBufferMemory2)gdpa(device, "vkBindBufferMemory2KHR");
-        if (f_) dt->vkBindBufferMemory2 = f_;
+        dt->vkBindBufferMemory2 = f_;
     }
     {
         PFN_vkBindImageMemory f_ = (PFN_vkBindImageMemory)gdpa(device, "vkBindImageMemory");
-        if (f_) dt->vkBindImageMemory = f_;
+        dt->vkBindImageMemory = f_;
     }
     {
         PFN_vkBindImageMemory2 f_ = (PFN_vkBindImageMemory2)gdpa(device, "vkBindImageMemory2");
         if (!f_) f_ = (PFN_vkBindImageMemory2)gdpa(device, "vkBindImageMemory2KHR");
-        if (f_) dt->vkBindImageMemory2 = f_;
+        dt->vkBindImageMemory2 = f_;
     }
     {
         PFN_vkBindTensorMemoryARM f_ = (PFN_vkBindTensorMemoryARM)gdpa(device, "vkBindTensorMemoryARM");
-        if (f_) dt->vkBindTensorMemoryARM = f_;
+        dt->vkBindTensorMemoryARM = f_;
     }
     {
         PFN_vkCmdBeginConditionalRenderingEXT f_ = (PFN_vkCmdBeginConditionalRenderingEXT)gdpa(device, "vkCmdBeginConditionalRenderingEXT");
-        if (f_) dt->vkCmdBeginConditionalRenderingEXT = f_;
+        dt->vkCmdBeginConditionalRenderingEXT = f_;
     }
     {
         PFN_vkCmdBeginCustomResolveEXT f_ = (PFN_vkCmdBeginCustomResolveEXT)gdpa(device, "vkCmdBeginCustomResolveEXT");
-        if (f_) dt->vkCmdBeginCustomResolveEXT = f_;
+        dt->vkCmdBeginCustomResolveEXT = f_;
     }
     {
         PFN_vkCmdBeginQuery f_ = (PFN_vkCmdBeginQuery)gdpa(device, "vkCmdBeginQuery");
-        if (f_) dt->vkCmdBeginQuery = f_;
+        dt->vkCmdBeginQuery = f_;
     }
     {
         PFN_vkCmdBeginQueryIndexedEXT f_ = (PFN_vkCmdBeginQueryIndexedEXT)gdpa(device, "vkCmdBeginQueryIndexedEXT");
-        if (f_) dt->vkCmdBeginQueryIndexedEXT = f_;
+        dt->vkCmdBeginQueryIndexedEXT = f_;
     }
     {
         PFN_vkCmdBeginRenderPass f_ = (PFN_vkCmdBeginRenderPass)gdpa(device, "vkCmdBeginRenderPass");
-        if (f_) dt->vkCmdBeginRenderPass = f_;
+        dt->vkCmdBeginRenderPass = f_;
     }
     {
         PFN_vkCmdBeginRenderPass2 f_ = (PFN_vkCmdBeginRenderPass2)gdpa(device, "vkCmdBeginRenderPass2");
         if (!f_) f_ = (PFN_vkCmdBeginRenderPass2)gdpa(device, "vkCmdBeginRenderPass2KHR");
-        if (f_) dt->vkCmdBeginRenderPass2 = f_;
+        dt->vkCmdBeginRenderPass2 = f_;
     }
     {
         PFN_vkCmdBeginRendering f_ = (PFN_vkCmdBeginRendering)gdpa(device, "vkCmdBeginRendering");
         if (!f_) f_ = (PFN_vkCmdBeginRendering)gdpa(device, "vkCmdBeginRenderingKHR");
-        if (f_) dt->vkCmdBeginRendering = f_;
+        dt->vkCmdBeginRendering = f_;
     }
     {
         PFN_vkCmdBeginTransformFeedbackEXT f_ = (PFN_vkCmdBeginTransformFeedbackEXT)gdpa(device, "vkCmdBeginTransformFeedbackEXT");
-        if (f_) dt->vkCmdBeginTransformFeedbackEXT = f_;
+        dt->vkCmdBeginTransformFeedbackEXT = f_;
     }
     {
         PFN_vkCmdBindDescriptorSets f_ = (PFN_vkCmdBindDescriptorSets)gdpa(device, "vkCmdBindDescriptorSets");
-        if (f_) dt->vkCmdBindDescriptorSets = f_;
+        dt->vkCmdBindDescriptorSets = f_;
     }
     {
         PFN_vkCmdBindDescriptorSets2 f_ = (PFN_vkCmdBindDescriptorSets2)gdpa(device, "vkCmdBindDescriptorSets2");
         if (!f_) f_ = (PFN_vkCmdBindDescriptorSets2)gdpa(device, "vkCmdBindDescriptorSets2KHR");
-        if (f_) dt->vkCmdBindDescriptorSets2 = f_;
+        dt->vkCmdBindDescriptorSets2 = f_;
     }
     {
         PFN_vkCmdBindIndexBuffer f_ = (PFN_vkCmdBindIndexBuffer)gdpa(device, "vkCmdBindIndexBuffer");
-        if (f_) dt->vkCmdBindIndexBuffer = f_;
+        dt->vkCmdBindIndexBuffer = f_;
     }
     {
         PFN_vkCmdBindIndexBuffer2 f_ = (PFN_vkCmdBindIndexBuffer2)gdpa(device, "vkCmdBindIndexBuffer2");
         if (!f_) f_ = (PFN_vkCmdBindIndexBuffer2)gdpa(device, "vkCmdBindIndexBuffer2KHR");
-        if (f_) dt->vkCmdBindIndexBuffer2 = f_;
+        dt->vkCmdBindIndexBuffer2 = f_;
     }
     {
         PFN_vkCmdBindPipeline f_ = (PFN_vkCmdBindPipeline)gdpa(device, "vkCmdBindPipeline");
-        if (f_) dt->vkCmdBindPipeline = f_;
+        dt->vkCmdBindPipeline = f_;
     }
     {
         PFN_vkCmdBindTransformFeedbackBuffersEXT f_ = (PFN_vkCmdBindTransformFeedbackBuffersEXT)gdpa(device, "vkCmdBindTransformFeedbackBuffersEXT");
-        if (f_) dt->vkCmdBindTransformFeedbackBuffersEXT = f_;
+        dt->vkCmdBindTransformFeedbackBuffersEXT = f_;
     }
     {
         PFN_vkCmdBindVertexBuffers f_ = (PFN_vkCmdBindVertexBuffers)gdpa(device, "vkCmdBindVertexBuffers");
-        if (f_) dt->vkCmdBindVertexBuffers = f_;
+        dt->vkCmdBindVertexBuffers = f_;
     }
     {
         PFN_vkCmdBindVertexBuffers2 f_ = (PFN_vkCmdBindVertexBuffers2)gdpa(device, "vkCmdBindVertexBuffers2");
         if (!f_) f_ = (PFN_vkCmdBindVertexBuffers2)gdpa(device, "vkCmdBindVertexBuffers2EXT");
-        if (f_) dt->vkCmdBindVertexBuffers2 = f_;
+        dt->vkCmdBindVertexBuffers2 = f_;
     }
     {
         PFN_vkCmdBlitImage f_ = (PFN_vkCmdBlitImage)gdpa(device, "vkCmdBlitImage");
-        if (f_) dt->vkCmdBlitImage = f_;
+        dt->vkCmdBlitImage = f_;
     }
     {
         PFN_vkCmdBlitImage2 f_ = (PFN_vkCmdBlitImage2)gdpa(device, "vkCmdBlitImage2");
         if (!f_) f_ = (PFN_vkCmdBlitImage2)gdpa(device, "vkCmdBlitImage2KHR");
-        if (f_) dt->vkCmdBlitImage2 = f_;
+        dt->vkCmdBlitImage2 = f_;
     }
     {
         PFN_vkCmdClearAttachments f_ = (PFN_vkCmdClearAttachments)gdpa(device, "vkCmdClearAttachments");
-        if (f_) dt->vkCmdClearAttachments = f_;
+        dt->vkCmdClearAttachments = f_;
     }
     {
         PFN_vkCmdClearColorImage f_ = (PFN_vkCmdClearColorImage)gdpa(device, "vkCmdClearColorImage");
-        if (f_) dt->vkCmdClearColorImage = f_;
+        dt->vkCmdClearColorImage = f_;
     }
     {
         PFN_vkCmdClearDepthStencilImage f_ = (PFN_vkCmdClearDepthStencilImage)gdpa(device, "vkCmdClearDepthStencilImage");
-        if (f_) dt->vkCmdClearDepthStencilImage = f_;
+        dt->vkCmdClearDepthStencilImage = f_;
     }
     {
         PFN_vkCmdCopyBuffer f_ = (PFN_vkCmdCopyBuffer)gdpa(device, "vkCmdCopyBuffer");
-        if (f_) dt->vkCmdCopyBuffer = f_;
+        dt->vkCmdCopyBuffer = f_;
     }
     {
         PFN_vkCmdCopyBuffer2 f_ = (PFN_vkCmdCopyBuffer2)gdpa(device, "vkCmdCopyBuffer2");
         if (!f_) f_ = (PFN_vkCmdCopyBuffer2)gdpa(device, "vkCmdCopyBuffer2KHR");
-        if (f_) dt->vkCmdCopyBuffer2 = f_;
+        dt->vkCmdCopyBuffer2 = f_;
     }
     {
         PFN_vkCmdCopyBufferToImage f_ = (PFN_vkCmdCopyBufferToImage)gdpa(device, "vkCmdCopyBufferToImage");
-        if (f_) dt->vkCmdCopyBufferToImage = f_;
+        dt->vkCmdCopyBufferToImage = f_;
     }
     {
         PFN_vkCmdCopyBufferToImage2 f_ = (PFN_vkCmdCopyBufferToImage2)gdpa(device, "vkCmdCopyBufferToImage2");
         if (!f_) f_ = (PFN_vkCmdCopyBufferToImage2)gdpa(device, "vkCmdCopyBufferToImage2KHR");
-        if (f_) dt->vkCmdCopyBufferToImage2 = f_;
+        dt->vkCmdCopyBufferToImage2 = f_;
     }
     {
         PFN_vkCmdCopyImage f_ = (PFN_vkCmdCopyImage)gdpa(device, "vkCmdCopyImage");
-        if (f_) dt->vkCmdCopyImage = f_;
+        dt->vkCmdCopyImage = f_;
     }
     {
         PFN_vkCmdCopyImage2 f_ = (PFN_vkCmdCopyImage2)gdpa(device, "vkCmdCopyImage2");
         if (!f_) f_ = (PFN_vkCmdCopyImage2)gdpa(device, "vkCmdCopyImage2KHR");
-        if (f_) dt->vkCmdCopyImage2 = f_;
+        dt->vkCmdCopyImage2 = f_;
     }
     {
         PFN_vkCmdCopyImageToBuffer f_ = (PFN_vkCmdCopyImageToBuffer)gdpa(device, "vkCmdCopyImageToBuffer");
-        if (f_) dt->vkCmdCopyImageToBuffer = f_;
+        dt->vkCmdCopyImageToBuffer = f_;
     }
     {
         PFN_vkCmdCopyImageToBuffer2 f_ = (PFN_vkCmdCopyImageToBuffer2)gdpa(device, "vkCmdCopyImageToBuffer2");
         if (!f_) f_ = (PFN_vkCmdCopyImageToBuffer2)gdpa(device, "vkCmdCopyImageToBuffer2KHR");
-        if (f_) dt->vkCmdCopyImageToBuffer2 = f_;
+        dt->vkCmdCopyImageToBuffer2 = f_;
     }
     {
         PFN_vkCmdCopyQueryPoolResults f_ = (PFN_vkCmdCopyQueryPoolResults)gdpa(device, "vkCmdCopyQueryPoolResults");
-        if (f_) dt->vkCmdCopyQueryPoolResults = f_;
+        dt->vkCmdCopyQueryPoolResults = f_;
     }
     {
         PFN_vkCmdCopyTensorARM f_ = (PFN_vkCmdCopyTensorARM)gdpa(device, "vkCmdCopyTensorARM");
-        if (f_) dt->vkCmdCopyTensorARM = f_;
+        dt->vkCmdCopyTensorARM = f_;
     }
     {
         PFN_vkCmdDispatch f_ = (PFN_vkCmdDispatch)gdpa(device, "vkCmdDispatch");
-        if (f_) dt->vkCmdDispatch = f_;
+        dt->vkCmdDispatch = f_;
     }
     {
         PFN_vkCmdDispatchBase f_ = (PFN_vkCmdDispatchBase)gdpa(device, "vkCmdDispatchBase");
         if (!f_) f_ = (PFN_vkCmdDispatchBase)gdpa(device, "vkCmdDispatchBaseKHR");
-        if (f_) dt->vkCmdDispatchBase = f_;
+        dt->vkCmdDispatchBase = f_;
     }
     {
         PFN_vkCmdDispatchIndirect f_ = (PFN_vkCmdDispatchIndirect)gdpa(device, "vkCmdDispatchIndirect");
-        if (f_) dt->vkCmdDispatchIndirect = f_;
+        dt->vkCmdDispatchIndirect = f_;
     }
     {
         PFN_vkCmdDraw f_ = (PFN_vkCmdDraw)gdpa(device, "vkCmdDraw");
-        if (f_) dt->vkCmdDraw = f_;
+        dt->vkCmdDraw = f_;
     }
     {
         PFN_vkCmdDrawIndexed f_ = (PFN_vkCmdDrawIndexed)gdpa(device, "vkCmdDrawIndexed");
-        if (f_) dt->vkCmdDrawIndexed = f_;
+        dt->vkCmdDrawIndexed = f_;
     }
     {
         PFN_vkCmdDrawIndexedIndirect f_ = (PFN_vkCmdDrawIndexedIndirect)gdpa(device, "vkCmdDrawIndexedIndirect");
-        if (f_) dt->vkCmdDrawIndexedIndirect = f_;
+        dt->vkCmdDrawIndexedIndirect = f_;
     }
     {
         PFN_vkCmdDrawIndexedIndirectCount f_ = (PFN_vkCmdDrawIndexedIndirectCount)gdpa(device, "vkCmdDrawIndexedIndirectCount");
         if (!f_) f_ = (PFN_vkCmdDrawIndexedIndirectCount)gdpa(device, "vkCmdDrawIndexedIndirectCountAMD");
         if (!f_) f_ = (PFN_vkCmdDrawIndexedIndirectCount)gdpa(device, "vkCmdDrawIndexedIndirectCountKHR");
-        if (f_) dt->vkCmdDrawIndexedIndirectCount = f_;
+        dt->vkCmdDrawIndexedIndirectCount = f_;
     }
     {
         PFN_vkCmdDrawIndirect f_ = (PFN_vkCmdDrawIndirect)gdpa(device, "vkCmdDrawIndirect");
-        if (f_) dt->vkCmdDrawIndirect = f_;
+        dt->vkCmdDrawIndirect = f_;
     }
     {
         PFN_vkCmdDrawIndirectByteCountEXT f_ = (PFN_vkCmdDrawIndirectByteCountEXT)gdpa(device, "vkCmdDrawIndirectByteCountEXT");
-        if (f_) dt->vkCmdDrawIndirectByteCountEXT = f_;
+        dt->vkCmdDrawIndirectByteCountEXT = f_;
     }
     {
         PFN_vkCmdDrawIndirectCount f_ = (PFN_vkCmdDrawIndirectCount)gdpa(device, "vkCmdDrawIndirectCount");
         if (!f_) f_ = (PFN_vkCmdDrawIndirectCount)gdpa(device, "vkCmdDrawIndirectCountAMD");
         if (!f_) f_ = (PFN_vkCmdDrawIndirectCount)gdpa(device, "vkCmdDrawIndirectCountKHR");
-        if (f_) dt->vkCmdDrawIndirectCount = f_;
+        dt->vkCmdDrawIndirectCount = f_;
     }
     {
         PFN_vkCmdDrawMultiEXT f_ = (PFN_vkCmdDrawMultiEXT)gdpa(device, "vkCmdDrawMultiEXT");
-        if (f_) dt->vkCmdDrawMultiEXT = f_;
+        dt->vkCmdDrawMultiEXT = f_;
     }
     {
         PFN_vkCmdDrawMultiIndexedEXT f_ = (PFN_vkCmdDrawMultiIndexedEXT)gdpa(device, "vkCmdDrawMultiIndexedEXT");
-        if (f_) dt->vkCmdDrawMultiIndexedEXT = f_;
+        dt->vkCmdDrawMultiIndexedEXT = f_;
     }
     {
         PFN_vkCmdEndConditionalRenderingEXT f_ = (PFN_vkCmdEndConditionalRenderingEXT)gdpa(device, "vkCmdEndConditionalRenderingEXT");
-        if (f_) dt->vkCmdEndConditionalRenderingEXT = f_;
+        dt->vkCmdEndConditionalRenderingEXT = f_;
     }
     {
         PFN_vkCmdEndQuery f_ = (PFN_vkCmdEndQuery)gdpa(device, "vkCmdEndQuery");
-        if (f_) dt->vkCmdEndQuery = f_;
+        dt->vkCmdEndQuery = f_;
     }
     {
         PFN_vkCmdEndQueryIndexedEXT f_ = (PFN_vkCmdEndQueryIndexedEXT)gdpa(device, "vkCmdEndQueryIndexedEXT");
-        if (f_) dt->vkCmdEndQueryIndexedEXT = f_;
+        dt->vkCmdEndQueryIndexedEXT = f_;
     }
     {
         PFN_vkCmdEndRenderPass f_ = (PFN_vkCmdEndRenderPass)gdpa(device, "vkCmdEndRenderPass");
-        if (f_) dt->vkCmdEndRenderPass = f_;
+        dt->vkCmdEndRenderPass = f_;
     }
     {
         PFN_vkCmdEndRenderPass2 f_ = (PFN_vkCmdEndRenderPass2)gdpa(device, "vkCmdEndRenderPass2");
         if (!f_) f_ = (PFN_vkCmdEndRenderPass2)gdpa(device, "vkCmdEndRenderPass2KHR");
-        if (f_) dt->vkCmdEndRenderPass2 = f_;
+        dt->vkCmdEndRenderPass2 = f_;
     }
     {
         PFN_vkCmdEndRendering f_ = (PFN_vkCmdEndRendering)gdpa(device, "vkCmdEndRendering");
         if (!f_) f_ = (PFN_vkCmdEndRendering)gdpa(device, "vkCmdEndRenderingKHR");
-        if (f_) dt->vkCmdEndRendering = f_;
+        dt->vkCmdEndRendering = f_;
     }
     {
         PFN_vkCmdEndRendering2KHR f_ = (PFN_vkCmdEndRendering2KHR)gdpa(device, "vkCmdEndRendering2KHR");
         if (!f_) f_ = (PFN_vkCmdEndRendering2KHR)gdpa(device, "vkCmdEndRendering2EXT");
-        if (f_) dt->vkCmdEndRendering2KHR = f_;
+        dt->vkCmdEndRendering2KHR = f_;
     }
     {
         PFN_vkCmdEndTransformFeedbackEXT f_ = (PFN_vkCmdEndTransformFeedbackEXT)gdpa(device, "vkCmdEndTransformFeedbackEXT");
-        if (f_) dt->vkCmdEndTransformFeedbackEXT = f_;
+        dt->vkCmdEndTransformFeedbackEXT = f_;
     }
     {
         PFN_vkCmdExecuteCommands f_ = (PFN_vkCmdExecuteCommands)gdpa(device, "vkCmdExecuteCommands");
-        if (f_) dt->vkCmdExecuteCommands = f_;
+        dt->vkCmdExecuteCommands = f_;
     }
     {
         PFN_vkCmdFillBuffer f_ = (PFN_vkCmdFillBuffer)gdpa(device, "vkCmdFillBuffer");
-        if (f_) dt->vkCmdFillBuffer = f_;
+        dt->vkCmdFillBuffer = f_;
     }
     {
         PFN_vkCmdNextSubpass f_ = (PFN_vkCmdNextSubpass)gdpa(device, "vkCmdNextSubpass");
-        if (f_) dt->vkCmdNextSubpass = f_;
+        dt->vkCmdNextSubpass = f_;
     }
     {
         PFN_vkCmdNextSubpass2 f_ = (PFN_vkCmdNextSubpass2)gdpa(device, "vkCmdNextSubpass2");
         if (!f_) f_ = (PFN_vkCmdNextSubpass2)gdpa(device, "vkCmdNextSubpass2KHR");
-        if (f_) dt->vkCmdNextSubpass2 = f_;
+        dt->vkCmdNextSubpass2 = f_;
     }
     {
         PFN_vkCmdPipelineBarrier f_ = (PFN_vkCmdPipelineBarrier)gdpa(device, "vkCmdPipelineBarrier");
-        if (f_) dt->vkCmdPipelineBarrier = f_;
+        dt->vkCmdPipelineBarrier = f_;
     }
     {
         PFN_vkCmdPipelineBarrier2 f_ = (PFN_vkCmdPipelineBarrier2)gdpa(device, "vkCmdPipelineBarrier2");
         if (!f_) f_ = (PFN_vkCmdPipelineBarrier2)gdpa(device, "vkCmdPipelineBarrier2KHR");
-        if (f_) dt->vkCmdPipelineBarrier2 = f_;
+        dt->vkCmdPipelineBarrier2 = f_;
     }
     {
         PFN_vkCmdPushConstants f_ = (PFN_vkCmdPushConstants)gdpa(device, "vkCmdPushConstants");
-        if (f_) dt->vkCmdPushConstants = f_;
+        dt->vkCmdPushConstants = f_;
     }
     {
         PFN_vkCmdPushConstants2 f_ = (PFN_vkCmdPushConstants2)gdpa(device, "vkCmdPushConstants2");
         if (!f_) f_ = (PFN_vkCmdPushConstants2)gdpa(device, "vkCmdPushConstants2KHR");
-        if (f_) dt->vkCmdPushConstants2 = f_;
+        dt->vkCmdPushConstants2 = f_;
     }
     {
         PFN_vkCmdPushDescriptorSet f_ = (PFN_vkCmdPushDescriptorSet)gdpa(device, "vkCmdPushDescriptorSet");
         if (!f_) f_ = (PFN_vkCmdPushDescriptorSet)gdpa(device, "vkCmdPushDescriptorSetKHR");
-        if (f_) dt->vkCmdPushDescriptorSet = f_;
+        dt->vkCmdPushDescriptorSet = f_;
     }
     {
         PFN_vkCmdPushDescriptorSet2 f_ = (PFN_vkCmdPushDescriptorSet2)gdpa(device, "vkCmdPushDescriptorSet2");
         if (!f_) f_ = (PFN_vkCmdPushDescriptorSet2)gdpa(device, "vkCmdPushDescriptorSet2KHR");
-        if (f_) dt->vkCmdPushDescriptorSet2 = f_;
+        dt->vkCmdPushDescriptorSet2 = f_;
     }
     {
         PFN_vkCmdPushDescriptorSetWithTemplate f_ = (PFN_vkCmdPushDescriptorSetWithTemplate)gdpa(device, "vkCmdPushDescriptorSetWithTemplate");
         if (!f_) f_ = (PFN_vkCmdPushDescriptorSetWithTemplate)gdpa(device, "vkCmdPushDescriptorSetWithTemplateKHR");
-        if (f_) dt->vkCmdPushDescriptorSetWithTemplate = f_;
+        dt->vkCmdPushDescriptorSetWithTemplate = f_;
     }
     {
         PFN_vkCmdResetEvent f_ = (PFN_vkCmdResetEvent)gdpa(device, "vkCmdResetEvent");
-        if (f_) dt->vkCmdResetEvent = f_;
+        dt->vkCmdResetEvent = f_;
     }
     {
         PFN_vkCmdResetEvent2 f_ = (PFN_vkCmdResetEvent2)gdpa(device, "vkCmdResetEvent2");
         if (!f_) f_ = (PFN_vkCmdResetEvent2)gdpa(device, "vkCmdResetEvent2KHR");
-        if (f_) dt->vkCmdResetEvent2 = f_;
+        dt->vkCmdResetEvent2 = f_;
     }
     {
         PFN_vkCmdResetQueryPool f_ = (PFN_vkCmdResetQueryPool)gdpa(device, "vkCmdResetQueryPool");
-        if (f_) dt->vkCmdResetQueryPool = f_;
+        dt->vkCmdResetQueryPool = f_;
     }
     {
         PFN_vkCmdResolveImage f_ = (PFN_vkCmdResolveImage)gdpa(device, "vkCmdResolveImage");
-        if (f_) dt->vkCmdResolveImage = f_;
+        dt->vkCmdResolveImage = f_;
     }
     {
         PFN_vkCmdResolveImage2 f_ = (PFN_vkCmdResolveImage2)gdpa(device, "vkCmdResolveImage2");
         if (!f_) f_ = (PFN_vkCmdResolveImage2)gdpa(device, "vkCmdResolveImage2KHR");
-        if (f_) dt->vkCmdResolveImage2 = f_;
+        dt->vkCmdResolveImage2 = f_;
     }
     {
         PFN_vkCmdSetAlphaToCoverageEnableEXT f_ = (PFN_vkCmdSetAlphaToCoverageEnableEXT)gdpa(device, "vkCmdSetAlphaToCoverageEnableEXT");
-        if (f_) dt->vkCmdSetAlphaToCoverageEnableEXT = f_;
+        dt->vkCmdSetAlphaToCoverageEnableEXT = f_;
     }
     {
         PFN_vkCmdSetAlphaToOneEnableEXT f_ = (PFN_vkCmdSetAlphaToOneEnableEXT)gdpa(device, "vkCmdSetAlphaToOneEnableEXT");
-        if (f_) dt->vkCmdSetAlphaToOneEnableEXT = f_;
+        dt->vkCmdSetAlphaToOneEnableEXT = f_;
     }
     {
         PFN_vkCmdSetAttachmentFeedbackLoopEnableEXT f_ = (PFN_vkCmdSetAttachmentFeedbackLoopEnableEXT)gdpa(device, "vkCmdSetAttachmentFeedbackLoopEnableEXT");
-        if (f_) dt->vkCmdSetAttachmentFeedbackLoopEnableEXT = f_;
+        dt->vkCmdSetAttachmentFeedbackLoopEnableEXT = f_;
     }
     {
         PFN_vkCmdSetBlendConstants f_ = (PFN_vkCmdSetBlendConstants)gdpa(device, "vkCmdSetBlendConstants");
-        if (f_) dt->vkCmdSetBlendConstants = f_;
+        dt->vkCmdSetBlendConstants = f_;
     }
     {
         PFN_vkCmdSetColorBlendAdvancedEXT f_ = (PFN_vkCmdSetColorBlendAdvancedEXT)gdpa(device, "vkCmdSetColorBlendAdvancedEXT");
-        if (f_) dt->vkCmdSetColorBlendAdvancedEXT = f_;
+        dt->vkCmdSetColorBlendAdvancedEXT = f_;
     }
     {
         PFN_vkCmdSetColorBlendEnableEXT f_ = (PFN_vkCmdSetColorBlendEnableEXT)gdpa(device, "vkCmdSetColorBlendEnableEXT");
-        if (f_) dt->vkCmdSetColorBlendEnableEXT = f_;
+        dt->vkCmdSetColorBlendEnableEXT = f_;
     }
     {
         PFN_vkCmdSetColorBlendEquationEXT f_ = (PFN_vkCmdSetColorBlendEquationEXT)gdpa(device, "vkCmdSetColorBlendEquationEXT");
-        if (f_) dt->vkCmdSetColorBlendEquationEXT = f_;
+        dt->vkCmdSetColorBlendEquationEXT = f_;
     }
     {
         PFN_vkCmdSetColorWriteEnableEXT f_ = (PFN_vkCmdSetColorWriteEnableEXT)gdpa(device, "vkCmdSetColorWriteEnableEXT");
-        if (f_) dt->vkCmdSetColorWriteEnableEXT = f_;
+        dt->vkCmdSetColorWriteEnableEXT = f_;
     }
     {
         PFN_vkCmdSetColorWriteMaskEXT f_ = (PFN_vkCmdSetColorWriteMaskEXT)gdpa(device, "vkCmdSetColorWriteMaskEXT");
-        if (f_) dt->vkCmdSetColorWriteMaskEXT = f_;
+        dt->vkCmdSetColorWriteMaskEXT = f_;
     }
     {
         PFN_vkCmdSetConservativeRasterizationModeEXT f_ = (PFN_vkCmdSetConservativeRasterizationModeEXT)gdpa(device, "vkCmdSetConservativeRasterizationModeEXT");
-        if (f_) dt->vkCmdSetConservativeRasterizationModeEXT = f_;
+        dt->vkCmdSetConservativeRasterizationModeEXT = f_;
     }
     {
         PFN_vkCmdSetCullMode f_ = (PFN_vkCmdSetCullMode)gdpa(device, "vkCmdSetCullMode");
         if (!f_) f_ = (PFN_vkCmdSetCullMode)gdpa(device, "vkCmdSetCullModeEXT");
-        if (f_) dt->vkCmdSetCullMode = f_;
+        dt->vkCmdSetCullMode = f_;
     }
     {
         PFN_vkCmdSetDepthBias f_ = (PFN_vkCmdSetDepthBias)gdpa(device, "vkCmdSetDepthBias");
-        if (f_) dt->vkCmdSetDepthBias = f_;
+        dt->vkCmdSetDepthBias = f_;
     }
     {
         PFN_vkCmdSetDepthBias2EXT f_ = (PFN_vkCmdSetDepthBias2EXT)gdpa(device, "vkCmdSetDepthBias2EXT");
-        if (f_) dt->vkCmdSetDepthBias2EXT = f_;
+        dt->vkCmdSetDepthBias2EXT = f_;
     }
     {
         PFN_vkCmdSetDepthBiasEnable f_ = (PFN_vkCmdSetDepthBiasEnable)gdpa(device, "vkCmdSetDepthBiasEnable");
         if (!f_) f_ = (PFN_vkCmdSetDepthBiasEnable)gdpa(device, "vkCmdSetDepthBiasEnableEXT");
-        if (f_) dt->vkCmdSetDepthBiasEnable = f_;
+        dt->vkCmdSetDepthBiasEnable = f_;
     }
     {
         PFN_vkCmdSetDepthBounds f_ = (PFN_vkCmdSetDepthBounds)gdpa(device, "vkCmdSetDepthBounds");
-        if (f_) dt->vkCmdSetDepthBounds = f_;
+        dt->vkCmdSetDepthBounds = f_;
     }
     {
         PFN_vkCmdSetDepthBoundsTestEnable f_ = (PFN_vkCmdSetDepthBoundsTestEnable)gdpa(device, "vkCmdSetDepthBoundsTestEnable");
         if (!f_) f_ = (PFN_vkCmdSetDepthBoundsTestEnable)gdpa(device, "vkCmdSetDepthBoundsTestEnableEXT");
-        if (f_) dt->vkCmdSetDepthBoundsTestEnable = f_;
+        dt->vkCmdSetDepthBoundsTestEnable = f_;
     }
     {
         PFN_vkCmdSetDepthClampEnableEXT f_ = (PFN_vkCmdSetDepthClampEnableEXT)gdpa(device, "vkCmdSetDepthClampEnableEXT");
-        if (f_) dt->vkCmdSetDepthClampEnableEXT = f_;
+        dt->vkCmdSetDepthClampEnableEXT = f_;
     }
     {
         PFN_vkCmdSetDepthClampRangeEXT f_ = (PFN_vkCmdSetDepthClampRangeEXT)gdpa(device, "vkCmdSetDepthClampRangeEXT");
-        if (f_) dt->vkCmdSetDepthClampRangeEXT = f_;
+        dt->vkCmdSetDepthClampRangeEXT = f_;
     }
     {
         PFN_vkCmdSetDepthClipEnableEXT f_ = (PFN_vkCmdSetDepthClipEnableEXT)gdpa(device, "vkCmdSetDepthClipEnableEXT");
-        if (f_) dt->vkCmdSetDepthClipEnableEXT = f_;
+        dt->vkCmdSetDepthClipEnableEXT = f_;
     }
     {
         PFN_vkCmdSetDepthClipNegativeOneToOneEXT f_ = (PFN_vkCmdSetDepthClipNegativeOneToOneEXT)gdpa(device, "vkCmdSetDepthClipNegativeOneToOneEXT");
-        if (f_) dt->vkCmdSetDepthClipNegativeOneToOneEXT = f_;
+        dt->vkCmdSetDepthClipNegativeOneToOneEXT = f_;
     }
     {
         PFN_vkCmdSetDepthCompareOp f_ = (PFN_vkCmdSetDepthCompareOp)gdpa(device, "vkCmdSetDepthCompareOp");
         if (!f_) f_ = (PFN_vkCmdSetDepthCompareOp)gdpa(device, "vkCmdSetDepthCompareOpEXT");
-        if (f_) dt->vkCmdSetDepthCompareOp = f_;
+        dt->vkCmdSetDepthCompareOp = f_;
     }
     {
         PFN_vkCmdSetDepthTestEnable f_ = (PFN_vkCmdSetDepthTestEnable)gdpa(device, "vkCmdSetDepthTestEnable");
         if (!f_) f_ = (PFN_vkCmdSetDepthTestEnable)gdpa(device, "vkCmdSetDepthTestEnableEXT");
-        if (f_) dt->vkCmdSetDepthTestEnable = f_;
+        dt->vkCmdSetDepthTestEnable = f_;
     }
     {
         PFN_vkCmdSetDepthWriteEnable f_ = (PFN_vkCmdSetDepthWriteEnable)gdpa(device, "vkCmdSetDepthWriteEnable");
         if (!f_) f_ = (PFN_vkCmdSetDepthWriteEnable)gdpa(device, "vkCmdSetDepthWriteEnableEXT");
-        if (f_) dt->vkCmdSetDepthWriteEnable = f_;
+        dt->vkCmdSetDepthWriteEnable = f_;
     }
     {
         PFN_vkCmdSetDeviceMask f_ = (PFN_vkCmdSetDeviceMask)gdpa(device, "vkCmdSetDeviceMask");
         if (!f_) f_ = (PFN_vkCmdSetDeviceMask)gdpa(device, "vkCmdSetDeviceMaskKHR");
-        if (f_) dt->vkCmdSetDeviceMask = f_;
+        dt->vkCmdSetDeviceMask = f_;
     }
     {
         PFN_vkCmdSetDiscardRectangleEXT f_ = (PFN_vkCmdSetDiscardRectangleEXT)gdpa(device, "vkCmdSetDiscardRectangleEXT");
-        if (f_) dt->vkCmdSetDiscardRectangleEXT = f_;
+        dt->vkCmdSetDiscardRectangleEXT = f_;
     }
     {
         PFN_vkCmdSetDiscardRectangleEnableEXT f_ = (PFN_vkCmdSetDiscardRectangleEnableEXT)gdpa(device, "vkCmdSetDiscardRectangleEnableEXT");
-        if (f_) dt->vkCmdSetDiscardRectangleEnableEXT = f_;
+        dt->vkCmdSetDiscardRectangleEnableEXT = f_;
     }
     {
         PFN_vkCmdSetDiscardRectangleModeEXT f_ = (PFN_vkCmdSetDiscardRectangleModeEXT)gdpa(device, "vkCmdSetDiscardRectangleModeEXT");
-        if (f_) dt->vkCmdSetDiscardRectangleModeEXT = f_;
+        dt->vkCmdSetDiscardRectangleModeEXT = f_;
     }
     {
         PFN_vkCmdSetEvent f_ = (PFN_vkCmdSetEvent)gdpa(device, "vkCmdSetEvent");
-        if (f_) dt->vkCmdSetEvent = f_;
+        dt->vkCmdSetEvent = f_;
     }
     {
         PFN_vkCmdSetEvent2 f_ = (PFN_vkCmdSetEvent2)gdpa(device, "vkCmdSetEvent2");
         if (!f_) f_ = (PFN_vkCmdSetEvent2)gdpa(device, "vkCmdSetEvent2KHR");
-        if (f_) dt->vkCmdSetEvent2 = f_;
+        dt->vkCmdSetEvent2 = f_;
     }
     {
         PFN_vkCmdSetExtraPrimitiveOverestimationSizeEXT f_ = (PFN_vkCmdSetExtraPrimitiveOverestimationSizeEXT)gdpa(device, "vkCmdSetExtraPrimitiveOverestimationSizeEXT");
-        if (f_) dt->vkCmdSetExtraPrimitiveOverestimationSizeEXT = f_;
+        dt->vkCmdSetExtraPrimitiveOverestimationSizeEXT = f_;
     }
     {
         PFN_vkCmdSetFragmentShadingRateKHR f_ = (PFN_vkCmdSetFragmentShadingRateKHR)gdpa(device, "vkCmdSetFragmentShadingRateKHR");
-        if (f_) dt->vkCmdSetFragmentShadingRateKHR = f_;
+        dt->vkCmdSetFragmentShadingRateKHR = f_;
     }
     {
         PFN_vkCmdSetFrontFace f_ = (PFN_vkCmdSetFrontFace)gdpa(device, "vkCmdSetFrontFace");
         if (!f_) f_ = (PFN_vkCmdSetFrontFace)gdpa(device, "vkCmdSetFrontFaceEXT");
-        if (f_) dt->vkCmdSetFrontFace = f_;
+        dt->vkCmdSetFrontFace = f_;
     }
     {
         PFN_vkCmdSetLineRasterizationModeEXT f_ = (PFN_vkCmdSetLineRasterizationModeEXT)gdpa(device, "vkCmdSetLineRasterizationModeEXT");
-        if (f_) dt->vkCmdSetLineRasterizationModeEXT = f_;
+        dt->vkCmdSetLineRasterizationModeEXT = f_;
     }
     {
         PFN_vkCmdSetLineStipple f_ = (PFN_vkCmdSetLineStipple)gdpa(device, "vkCmdSetLineStipple");
         if (!f_) f_ = (PFN_vkCmdSetLineStipple)gdpa(device, "vkCmdSetLineStippleEXT");
         if (!f_) f_ = (PFN_vkCmdSetLineStipple)gdpa(device, "vkCmdSetLineStippleKHR");
-        if (f_) dt->vkCmdSetLineStipple = f_;
+        dt->vkCmdSetLineStipple = f_;
     }
     {
         PFN_vkCmdSetLineStippleEnableEXT f_ = (PFN_vkCmdSetLineStippleEnableEXT)gdpa(device, "vkCmdSetLineStippleEnableEXT");
-        if (f_) dt->vkCmdSetLineStippleEnableEXT = f_;
+        dt->vkCmdSetLineStippleEnableEXT = f_;
     }
     {
         PFN_vkCmdSetLineWidth f_ = (PFN_vkCmdSetLineWidth)gdpa(device, "vkCmdSetLineWidth");
-        if (f_) dt->vkCmdSetLineWidth = f_;
+        dt->vkCmdSetLineWidth = f_;
     }
     {
         PFN_vkCmdSetLogicOpEXT f_ = (PFN_vkCmdSetLogicOpEXT)gdpa(device, "vkCmdSetLogicOpEXT");
-        if (f_) dt->vkCmdSetLogicOpEXT = f_;
+        dt->vkCmdSetLogicOpEXT = f_;
     }
     {
         PFN_vkCmdSetLogicOpEnableEXT f_ = (PFN_vkCmdSetLogicOpEnableEXT)gdpa(device, "vkCmdSetLogicOpEnableEXT");
-        if (f_) dt->vkCmdSetLogicOpEnableEXT = f_;
+        dt->vkCmdSetLogicOpEnableEXT = f_;
     }
     {
         PFN_vkCmdSetPatchControlPointsEXT f_ = (PFN_vkCmdSetPatchControlPointsEXT)gdpa(device, "vkCmdSetPatchControlPointsEXT");
-        if (f_) dt->vkCmdSetPatchControlPointsEXT = f_;
+        dt->vkCmdSetPatchControlPointsEXT = f_;
     }
     {
         PFN_vkCmdSetPolygonModeEXT f_ = (PFN_vkCmdSetPolygonModeEXT)gdpa(device, "vkCmdSetPolygonModeEXT");
-        if (f_) dt->vkCmdSetPolygonModeEXT = f_;
+        dt->vkCmdSetPolygonModeEXT = f_;
     }
     {
         PFN_vkCmdSetPrimitiveRestartEnable f_ = (PFN_vkCmdSetPrimitiveRestartEnable)gdpa(device, "vkCmdSetPrimitiveRestartEnable");
         if (!f_) f_ = (PFN_vkCmdSetPrimitiveRestartEnable)gdpa(device, "vkCmdSetPrimitiveRestartEnableEXT");
-        if (f_) dt->vkCmdSetPrimitiveRestartEnable = f_;
+        dt->vkCmdSetPrimitiveRestartEnable = f_;
     }
     {
         PFN_vkCmdSetPrimitiveTopology f_ = (PFN_vkCmdSetPrimitiveTopology)gdpa(device, "vkCmdSetPrimitiveTopology");
         if (!f_) f_ = (PFN_vkCmdSetPrimitiveTopology)gdpa(device, "vkCmdSetPrimitiveTopologyEXT");
-        if (f_) dt->vkCmdSetPrimitiveTopology = f_;
+        dt->vkCmdSetPrimitiveTopology = f_;
     }
     {
         PFN_vkCmdSetProvokingVertexModeEXT f_ = (PFN_vkCmdSetProvokingVertexModeEXT)gdpa(device, "vkCmdSetProvokingVertexModeEXT");
-        if (f_) dt->vkCmdSetProvokingVertexModeEXT = f_;
+        dt->vkCmdSetProvokingVertexModeEXT = f_;
     }
     {
         PFN_vkCmdSetRasterizationSamplesEXT f_ = (PFN_vkCmdSetRasterizationSamplesEXT)gdpa(device, "vkCmdSetRasterizationSamplesEXT");
-        if (f_) dt->vkCmdSetRasterizationSamplesEXT = f_;
+        dt->vkCmdSetRasterizationSamplesEXT = f_;
     }
     {
         PFN_vkCmdSetRasterizationStreamEXT f_ = (PFN_vkCmdSetRasterizationStreamEXT)gdpa(device, "vkCmdSetRasterizationStreamEXT");
-        if (f_) dt->vkCmdSetRasterizationStreamEXT = f_;
+        dt->vkCmdSetRasterizationStreamEXT = f_;
     }
     {
         PFN_vkCmdSetRasterizerDiscardEnable f_ = (PFN_vkCmdSetRasterizerDiscardEnable)gdpa(device, "vkCmdSetRasterizerDiscardEnable");
         if (!f_) f_ = (PFN_vkCmdSetRasterizerDiscardEnable)gdpa(device, "vkCmdSetRasterizerDiscardEnableEXT");
-        if (f_) dt->vkCmdSetRasterizerDiscardEnable = f_;
+        dt->vkCmdSetRasterizerDiscardEnable = f_;
     }
     {
         PFN_vkCmdSetRenderingAttachmentLocations f_ = (PFN_vkCmdSetRenderingAttachmentLocations)gdpa(device, "vkCmdSetRenderingAttachmentLocations");
         if (!f_) f_ = (PFN_vkCmdSetRenderingAttachmentLocations)gdpa(device, "vkCmdSetRenderingAttachmentLocationsKHR");
-        if (f_) dt->vkCmdSetRenderingAttachmentLocations = f_;
+        dt->vkCmdSetRenderingAttachmentLocations = f_;
     }
     {
         PFN_vkCmdSetRenderingInputAttachmentIndices f_ = (PFN_vkCmdSetRenderingInputAttachmentIndices)gdpa(device, "vkCmdSetRenderingInputAttachmentIndices");
         if (!f_) f_ = (PFN_vkCmdSetRenderingInputAttachmentIndices)gdpa(device, "vkCmdSetRenderingInputAttachmentIndicesKHR");
-        if (f_) dt->vkCmdSetRenderingInputAttachmentIndices = f_;
+        dt->vkCmdSetRenderingInputAttachmentIndices = f_;
     }
     {
         PFN_vkCmdSetSampleLocationsEXT f_ = (PFN_vkCmdSetSampleLocationsEXT)gdpa(device, "vkCmdSetSampleLocationsEXT");
-        if (f_) dt->vkCmdSetSampleLocationsEXT = f_;
+        dt->vkCmdSetSampleLocationsEXT = f_;
     }
     {
         PFN_vkCmdSetSampleLocationsEnableEXT f_ = (PFN_vkCmdSetSampleLocationsEnableEXT)gdpa(device, "vkCmdSetSampleLocationsEnableEXT");
-        if (f_) dt->vkCmdSetSampleLocationsEnableEXT = f_;
+        dt->vkCmdSetSampleLocationsEnableEXT = f_;
     }
     {
         PFN_vkCmdSetSampleMaskEXT f_ = (PFN_vkCmdSetSampleMaskEXT)gdpa(device, "vkCmdSetSampleMaskEXT");
-        if (f_) dt->vkCmdSetSampleMaskEXT = f_;
+        dt->vkCmdSetSampleMaskEXT = f_;
     }
     {
         PFN_vkCmdSetScissor f_ = (PFN_vkCmdSetScissor)gdpa(device, "vkCmdSetScissor");
-        if (f_) dt->vkCmdSetScissor = f_;
+        dt->vkCmdSetScissor = f_;
     }
     {
         PFN_vkCmdSetScissorWithCount f_ = (PFN_vkCmdSetScissorWithCount)gdpa(device, "vkCmdSetScissorWithCount");
         if (!f_) f_ = (PFN_vkCmdSetScissorWithCount)gdpa(device, "vkCmdSetScissorWithCountEXT");
-        if (f_) dt->vkCmdSetScissorWithCount = f_;
+        dt->vkCmdSetScissorWithCount = f_;
     }
     {
         PFN_vkCmdSetStencilCompareMask f_ = (PFN_vkCmdSetStencilCompareMask)gdpa(device, "vkCmdSetStencilCompareMask");
-        if (f_) dt->vkCmdSetStencilCompareMask = f_;
+        dt->vkCmdSetStencilCompareMask = f_;
     }
     {
         PFN_vkCmdSetStencilOp f_ = (PFN_vkCmdSetStencilOp)gdpa(device, "vkCmdSetStencilOp");
         if (!f_) f_ = (PFN_vkCmdSetStencilOp)gdpa(device, "vkCmdSetStencilOpEXT");
-        if (f_) dt->vkCmdSetStencilOp = f_;
+        dt->vkCmdSetStencilOp = f_;
     }
     {
         PFN_vkCmdSetStencilReference f_ = (PFN_vkCmdSetStencilReference)gdpa(device, "vkCmdSetStencilReference");
-        if (f_) dt->vkCmdSetStencilReference = f_;
+        dt->vkCmdSetStencilReference = f_;
     }
     {
         PFN_vkCmdSetStencilTestEnable f_ = (PFN_vkCmdSetStencilTestEnable)gdpa(device, "vkCmdSetStencilTestEnable");
         if (!f_) f_ = (PFN_vkCmdSetStencilTestEnable)gdpa(device, "vkCmdSetStencilTestEnableEXT");
-        if (f_) dt->vkCmdSetStencilTestEnable = f_;
+        dt->vkCmdSetStencilTestEnable = f_;
     }
     {
         PFN_vkCmdSetStencilWriteMask f_ = (PFN_vkCmdSetStencilWriteMask)gdpa(device, "vkCmdSetStencilWriteMask");
-        if (f_) dt->vkCmdSetStencilWriteMask = f_;
+        dt->vkCmdSetStencilWriteMask = f_;
     }
     {
         PFN_vkCmdSetTessellationDomainOriginEXT f_ = (PFN_vkCmdSetTessellationDomainOriginEXT)gdpa(device, "vkCmdSetTessellationDomainOriginEXT");
-        if (f_) dt->vkCmdSetTessellationDomainOriginEXT = f_;
+        dt->vkCmdSetTessellationDomainOriginEXT = f_;
     }
     {
         PFN_vkCmdSetVertexInputEXT f_ = (PFN_vkCmdSetVertexInputEXT)gdpa(device, "vkCmdSetVertexInputEXT");
-        if (f_) dt->vkCmdSetVertexInputEXT = f_;
+        dt->vkCmdSetVertexInputEXT = f_;
     }
     {
         PFN_vkCmdSetViewport f_ = (PFN_vkCmdSetViewport)gdpa(device, "vkCmdSetViewport");
-        if (f_) dt->vkCmdSetViewport = f_;
+        dt->vkCmdSetViewport = f_;
     }
     {
         PFN_vkCmdSetViewportWithCount f_ = (PFN_vkCmdSetViewportWithCount)gdpa(device, "vkCmdSetViewportWithCount");
         if (!f_) f_ = (PFN_vkCmdSetViewportWithCount)gdpa(device, "vkCmdSetViewportWithCountEXT");
-        if (f_) dt->vkCmdSetViewportWithCount = f_;
+        dt->vkCmdSetViewportWithCount = f_;
     }
     {
         PFN_vkCmdUpdateBuffer f_ = (PFN_vkCmdUpdateBuffer)gdpa(device, "vkCmdUpdateBuffer");
-        if (f_) dt->vkCmdUpdateBuffer = f_;
+        dt->vkCmdUpdateBuffer = f_;
     }
     {
         PFN_vkCmdWaitEvents f_ = (PFN_vkCmdWaitEvents)gdpa(device, "vkCmdWaitEvents");
-        if (f_) dt->vkCmdWaitEvents = f_;
+        dt->vkCmdWaitEvents = f_;
     }
     {
         PFN_vkCmdWaitEvents2 f_ = (PFN_vkCmdWaitEvents2)gdpa(device, "vkCmdWaitEvents2");
         if (!f_) f_ = (PFN_vkCmdWaitEvents2)gdpa(device, "vkCmdWaitEvents2KHR");
-        if (f_) dt->vkCmdWaitEvents2 = f_;
+        dt->vkCmdWaitEvents2 = f_;
     }
     {
         PFN_vkCmdWriteTimestamp f_ = (PFN_vkCmdWriteTimestamp)gdpa(device, "vkCmdWriteTimestamp");
-        if (f_) dt->vkCmdWriteTimestamp = f_;
+        dt->vkCmdWriteTimestamp = f_;
     }
     {
         PFN_vkCmdWriteTimestamp2 f_ = (PFN_vkCmdWriteTimestamp2)gdpa(device, "vkCmdWriteTimestamp2");
         if (!f_) f_ = (PFN_vkCmdWriteTimestamp2)gdpa(device, "vkCmdWriteTimestamp2KHR");
-        if (f_) dt->vkCmdWriteTimestamp2 = f_;
+        dt->vkCmdWriteTimestamp2 = f_;
     }
     {
         PFN_vkCreateBuffer f_ = (PFN_vkCreateBuffer)gdpa(device, "vkCreateBuffer");
-        if (f_) dt->vkCreateBuffer = f_;
+        dt->vkCreateBuffer = f_;
     }
     {
         PFN_vkCreateBufferView f_ = (PFN_vkCreateBufferView)gdpa(device, "vkCreateBufferView");
-        if (f_) dt->vkCreateBufferView = f_;
+        dt->vkCreateBufferView = f_;
     }
     {
         PFN_vkCreateCommandPool f_ = (PFN_vkCreateCommandPool)gdpa(device, "vkCreateCommandPool");
-        if (f_) dt->vkCreateCommandPool = f_;
+        dt->vkCreateCommandPool = f_;
     }
     {
         PFN_vkCreateComputePipelines f_ = (PFN_vkCreateComputePipelines)gdpa(device, "vkCreateComputePipelines");
-        if (f_) dt->vkCreateComputePipelines = f_;
+        dt->vkCreateComputePipelines = f_;
     }
     {
         PFN_vkCreateDescriptorPool f_ = (PFN_vkCreateDescriptorPool)gdpa(device, "vkCreateDescriptorPool");
-        if (f_) dt->vkCreateDescriptorPool = f_;
+        dt->vkCreateDescriptorPool = f_;
     }
     {
         PFN_vkCreateDescriptorSetLayout f_ = (PFN_vkCreateDescriptorSetLayout)gdpa(device, "vkCreateDescriptorSetLayout");
-        if (f_) dt->vkCreateDescriptorSetLayout = f_;
+        dt->vkCreateDescriptorSetLayout = f_;
     }
     {
         PFN_vkCreateDescriptorUpdateTemplate f_ = (PFN_vkCreateDescriptorUpdateTemplate)gdpa(device, "vkCreateDescriptorUpdateTemplate");
         if (!f_) f_ = (PFN_vkCreateDescriptorUpdateTemplate)gdpa(device, "vkCreateDescriptorUpdateTemplateKHR");
-        if (f_) dt->vkCreateDescriptorUpdateTemplate = f_;
+        dt->vkCreateDescriptorUpdateTemplate = f_;
     }
     {
         PFN_vkCreateEvent f_ = (PFN_vkCreateEvent)gdpa(device, "vkCreateEvent");
-        if (f_) dt->vkCreateEvent = f_;
+        dt->vkCreateEvent = f_;
     }
     {
         PFN_vkCreateFence f_ = (PFN_vkCreateFence)gdpa(device, "vkCreateFence");
-        if (f_) dt->vkCreateFence = f_;
+        dt->vkCreateFence = f_;
     }
     {
         PFN_vkCreateFramebuffer f_ = (PFN_vkCreateFramebuffer)gdpa(device, "vkCreateFramebuffer");
-        if (f_) dt->vkCreateFramebuffer = f_;
+        dt->vkCreateFramebuffer = f_;
     }
     {
         PFN_vkCreateGraphicsPipelines f_ = (PFN_vkCreateGraphicsPipelines)gdpa(device, "vkCreateGraphicsPipelines");
-        if (f_) dt->vkCreateGraphicsPipelines = f_;
+        dt->vkCreateGraphicsPipelines = f_;
     }
     {
         PFN_vkCreateImage f_ = (PFN_vkCreateImage)gdpa(device, "vkCreateImage");
-        if (f_) dt->vkCreateImage = f_;
+        dt->vkCreateImage = f_;
     }
     {
         PFN_vkCreateImageView f_ = (PFN_vkCreateImageView)gdpa(device, "vkCreateImageView");
-        if (f_) dt->vkCreateImageView = f_;
+        dt->vkCreateImageView = f_;
     }
     {
         PFN_vkCreatePipelineCache f_ = (PFN_vkCreatePipelineCache)gdpa(device, "vkCreatePipelineCache");
-        if (f_) dt->vkCreatePipelineCache = f_;
+        dt->vkCreatePipelineCache = f_;
     }
     {
         PFN_vkCreatePipelineLayout f_ = (PFN_vkCreatePipelineLayout)gdpa(device, "vkCreatePipelineLayout");
-        if (f_) dt->vkCreatePipelineLayout = f_;
+        dt->vkCreatePipelineLayout = f_;
     }
     {
         PFN_vkCreateQueryPool f_ = (PFN_vkCreateQueryPool)gdpa(device, "vkCreateQueryPool");
-        if (f_) dt->vkCreateQueryPool = f_;
+        dt->vkCreateQueryPool = f_;
     }
     {
         PFN_vkCreateRenderPass f_ = (PFN_vkCreateRenderPass)gdpa(device, "vkCreateRenderPass");
-        if (f_) dt->vkCreateRenderPass = f_;
+        dt->vkCreateRenderPass = f_;
     }
     {
         PFN_vkCreateRenderPass2 f_ = (PFN_vkCreateRenderPass2)gdpa(device, "vkCreateRenderPass2");
         if (!f_) f_ = (PFN_vkCreateRenderPass2)gdpa(device, "vkCreateRenderPass2KHR");
-        if (f_) dt->vkCreateRenderPass2 = f_;
+        dt->vkCreateRenderPass2 = f_;
     }
     {
         PFN_vkCreateSampler f_ = (PFN_vkCreateSampler)gdpa(device, "vkCreateSampler");
-        if (f_) dt->vkCreateSampler = f_;
+        dt->vkCreateSampler = f_;
     }
     {
         PFN_vkCreateSamplerYcbcrConversion f_ = (PFN_vkCreateSamplerYcbcrConversion)gdpa(device, "vkCreateSamplerYcbcrConversion");
         if (!f_) f_ = (PFN_vkCreateSamplerYcbcrConversion)gdpa(device, "vkCreateSamplerYcbcrConversionKHR");
-        if (f_) dt->vkCreateSamplerYcbcrConversion = f_;
+        dt->vkCreateSamplerYcbcrConversion = f_;
     }
     {
         PFN_vkCreateSemaphore f_ = (PFN_vkCreateSemaphore)gdpa(device, "vkCreateSemaphore");
-        if (f_) dt->vkCreateSemaphore = f_;
+        dt->vkCreateSemaphore = f_;
     }
     {
         PFN_vkCreateShaderModule f_ = (PFN_vkCreateShaderModule)gdpa(device, "vkCreateShaderModule");
-        if (f_) dt->vkCreateShaderModule = f_;
+        dt->vkCreateShaderModule = f_;
     }
     {
         PFN_vkCreateTensorARM f_ = (PFN_vkCreateTensorARM)gdpa(device, "vkCreateTensorARM");
-        if (f_) dt->vkCreateTensorARM = f_;
+        dt->vkCreateTensorARM = f_;
     }
     {
         PFN_vkCreateTensorViewARM f_ = (PFN_vkCreateTensorViewARM)gdpa(device, "vkCreateTensorViewARM");
-        if (f_) dt->vkCreateTensorViewARM = f_;
+        dt->vkCreateTensorViewARM = f_;
     }
     {
         PFN_vkDestroyBuffer f_ = (PFN_vkDestroyBuffer)gdpa(device, "vkDestroyBuffer");
-        if (f_) dt->vkDestroyBuffer = f_;
+        dt->vkDestroyBuffer = f_;
     }
     {
         PFN_vkDestroyBufferView f_ = (PFN_vkDestroyBufferView)gdpa(device, "vkDestroyBufferView");
-        if (f_) dt->vkDestroyBufferView = f_;
+        dt->vkDestroyBufferView = f_;
     }
     {
         PFN_vkDestroyCommandPool f_ = (PFN_vkDestroyCommandPool)gdpa(device, "vkDestroyCommandPool");
-        if (f_) dt->vkDestroyCommandPool = f_;
+        dt->vkDestroyCommandPool = f_;
     }
     {
         PFN_vkDestroyDescriptorPool f_ = (PFN_vkDestroyDescriptorPool)gdpa(device, "vkDestroyDescriptorPool");
-        if (f_) dt->vkDestroyDescriptorPool = f_;
+        dt->vkDestroyDescriptorPool = f_;
     }
     {
         PFN_vkDestroyDescriptorSetLayout f_ = (PFN_vkDestroyDescriptorSetLayout)gdpa(device, "vkDestroyDescriptorSetLayout");
-        if (f_) dt->vkDestroyDescriptorSetLayout = f_;
+        dt->vkDestroyDescriptorSetLayout = f_;
     }
     {
         PFN_vkDestroyDescriptorUpdateTemplate f_ = (PFN_vkDestroyDescriptorUpdateTemplate)gdpa(device, "vkDestroyDescriptorUpdateTemplate");
         if (!f_) f_ = (PFN_vkDestroyDescriptorUpdateTemplate)gdpa(device, "vkDestroyDescriptorUpdateTemplateKHR");
-        if (f_) dt->vkDestroyDescriptorUpdateTemplate = f_;
+        dt->vkDestroyDescriptorUpdateTemplate = f_;
     }
     {
         PFN_vkDestroyDevice f_ = (PFN_vkDestroyDevice)gdpa(device, "vkDestroyDevice");
-        if (f_) dt->vkDestroyDevice = f_;
+        dt->vkDestroyDevice = f_;
     }
     {
         PFN_vkDestroyEvent f_ = (PFN_vkDestroyEvent)gdpa(device, "vkDestroyEvent");
-        if (f_) dt->vkDestroyEvent = f_;
+        dt->vkDestroyEvent = f_;
     }
     {
         PFN_vkDestroyFence f_ = (PFN_vkDestroyFence)gdpa(device, "vkDestroyFence");
-        if (f_) dt->vkDestroyFence = f_;
+        dt->vkDestroyFence = f_;
     }
     {
         PFN_vkDestroyFramebuffer f_ = (PFN_vkDestroyFramebuffer)gdpa(device, "vkDestroyFramebuffer");
-        if (f_) dt->vkDestroyFramebuffer = f_;
+        dt->vkDestroyFramebuffer = f_;
     }
     {
         PFN_vkDestroyImage f_ = (PFN_vkDestroyImage)gdpa(device, "vkDestroyImage");
-        if (f_) dt->vkDestroyImage = f_;
+        dt->vkDestroyImage = f_;
     }
     {
         PFN_vkDestroyImageView f_ = (PFN_vkDestroyImageView)gdpa(device, "vkDestroyImageView");
-        if (f_) dt->vkDestroyImageView = f_;
+        dt->vkDestroyImageView = f_;
     }
     {
         PFN_vkDestroyPipeline f_ = (PFN_vkDestroyPipeline)gdpa(device, "vkDestroyPipeline");
-        if (f_) dt->vkDestroyPipeline = f_;
+        dt->vkDestroyPipeline = f_;
     }
     {
         PFN_vkDestroyPipelineCache f_ = (PFN_vkDestroyPipelineCache)gdpa(device, "vkDestroyPipelineCache");
-        if (f_) dt->vkDestroyPipelineCache = f_;
+        dt->vkDestroyPipelineCache = f_;
     }
     {
         PFN_vkDestroyPipelineLayout f_ = (PFN_vkDestroyPipelineLayout)gdpa(device, "vkDestroyPipelineLayout");
-        if (f_) dt->vkDestroyPipelineLayout = f_;
+        dt->vkDestroyPipelineLayout = f_;
     }
     {
         PFN_vkDestroyQueryPool f_ = (PFN_vkDestroyQueryPool)gdpa(device, "vkDestroyQueryPool");
-        if (f_) dt->vkDestroyQueryPool = f_;
+        dt->vkDestroyQueryPool = f_;
     }
     {
         PFN_vkDestroyRenderPass f_ = (PFN_vkDestroyRenderPass)gdpa(device, "vkDestroyRenderPass");
-        if (f_) dt->vkDestroyRenderPass = f_;
+        dt->vkDestroyRenderPass = f_;
     }
     {
         PFN_vkDestroySampler f_ = (PFN_vkDestroySampler)gdpa(device, "vkDestroySampler");
-        if (f_) dt->vkDestroySampler = f_;
+        dt->vkDestroySampler = f_;
     }
     {
         PFN_vkDestroySamplerYcbcrConversion f_ = (PFN_vkDestroySamplerYcbcrConversion)gdpa(device, "vkDestroySamplerYcbcrConversion");
         if (!f_) f_ = (PFN_vkDestroySamplerYcbcrConversion)gdpa(device, "vkDestroySamplerYcbcrConversionKHR");
-        if (f_) dt->vkDestroySamplerYcbcrConversion = f_;
+        dt->vkDestroySamplerYcbcrConversion = f_;
     }
     {
         PFN_vkDestroySemaphore f_ = (PFN_vkDestroySemaphore)gdpa(device, "vkDestroySemaphore");
-        if (f_) dt->vkDestroySemaphore = f_;
+        dt->vkDestroySemaphore = f_;
     }
     {
         PFN_vkDestroyShaderModule f_ = (PFN_vkDestroyShaderModule)gdpa(device, "vkDestroyShaderModule");
-        if (f_) dt->vkDestroyShaderModule = f_;
+        dt->vkDestroyShaderModule = f_;
     }
     {
         PFN_vkDestroyTensorARM f_ = (PFN_vkDestroyTensorARM)gdpa(device, "vkDestroyTensorARM");
-        if (f_) dt->vkDestroyTensorARM = f_;
+        dt->vkDestroyTensorARM = f_;
     }
     {
         PFN_vkDestroyTensorViewARM f_ = (PFN_vkDestroyTensorViewARM)gdpa(device, "vkDestroyTensorViewARM");
-        if (f_) dt->vkDestroyTensorViewARM = f_;
+        dt->vkDestroyTensorViewARM = f_;
     }
     {
         PFN_vkDeviceWaitIdle f_ = (PFN_vkDeviceWaitIdle)gdpa(device, "vkDeviceWaitIdle");
-        if (f_) dt->vkDeviceWaitIdle = f_;
+        dt->vkDeviceWaitIdle = f_;
     }
     {
         PFN_vkEndCommandBuffer f_ = (PFN_vkEndCommandBuffer)gdpa(device, "vkEndCommandBuffer");
-        if (f_) dt->vkEndCommandBuffer = f_;
+        dt->vkEndCommandBuffer = f_;
     }
     {
         PFN_vkFlushMappedMemoryRanges f_ = (PFN_vkFlushMappedMemoryRanges)gdpa(device, "vkFlushMappedMemoryRanges");
-        if (f_) dt->vkFlushMappedMemoryRanges = f_;
+        dt->vkFlushMappedMemoryRanges = f_;
     }
     {
         PFN_vkFreeCommandBuffers f_ = (PFN_vkFreeCommandBuffers)gdpa(device, "vkFreeCommandBuffers");
-        if (f_) dt->vkFreeCommandBuffers = f_;
+        dt->vkFreeCommandBuffers = f_;
     }
     {
         PFN_vkFreeDescriptorSets f_ = (PFN_vkFreeDescriptorSets)gdpa(device, "vkFreeDescriptorSets");
-        if (f_) dt->vkFreeDescriptorSets = f_;
+        dt->vkFreeDescriptorSets = f_;
     }
     {
         PFN_vkFreeMemory f_ = (PFN_vkFreeMemory)gdpa(device, "vkFreeMemory");
-        if (f_) dt->vkFreeMemory = f_;
+        dt->vkFreeMemory = f_;
     }
     {
         PFN_vkGetBufferDeviceAddress f_ = (PFN_vkGetBufferDeviceAddress)gdpa(device, "vkGetBufferDeviceAddress");
         if (!f_) f_ = (PFN_vkGetBufferDeviceAddress)gdpa(device, "vkGetBufferDeviceAddressEXT");
         if (!f_) f_ = (PFN_vkGetBufferDeviceAddress)gdpa(device, "vkGetBufferDeviceAddressKHR");
-        if (f_) dt->vkGetBufferDeviceAddress = f_;
+        dt->vkGetBufferDeviceAddress = f_;
     }
     {
         PFN_vkGetBufferMemoryRequirements f_ = (PFN_vkGetBufferMemoryRequirements)gdpa(device, "vkGetBufferMemoryRequirements");
-        if (f_) dt->vkGetBufferMemoryRequirements = f_;
+        dt->vkGetBufferMemoryRequirements = f_;
     }
     {
         PFN_vkGetBufferMemoryRequirements2 f_ = (PFN_vkGetBufferMemoryRequirements2)gdpa(device, "vkGetBufferMemoryRequirements2");
         if (!f_) f_ = (PFN_vkGetBufferMemoryRequirements2)gdpa(device, "vkGetBufferMemoryRequirements2KHR");
-        if (f_) dt->vkGetBufferMemoryRequirements2 = f_;
+        dt->vkGetBufferMemoryRequirements2 = f_;
     }
     {
         PFN_vkGetBufferOpaqueCaptureAddress f_ = (PFN_vkGetBufferOpaqueCaptureAddress)gdpa(device, "vkGetBufferOpaqueCaptureAddress");
         if (!f_) f_ = (PFN_vkGetBufferOpaqueCaptureAddress)gdpa(device, "vkGetBufferOpaqueCaptureAddressKHR");
-        if (f_) dt->vkGetBufferOpaqueCaptureAddress = f_;
+        dt->vkGetBufferOpaqueCaptureAddress = f_;
     }
     {
         PFN_vkGetCalibratedTimestampsKHR f_ = (PFN_vkGetCalibratedTimestampsKHR)gdpa(device, "vkGetCalibratedTimestampsKHR");
         if (!f_) f_ = (PFN_vkGetCalibratedTimestampsKHR)gdpa(device, "vkGetCalibratedTimestampsEXT");
-        if (f_) dt->vkGetCalibratedTimestampsKHR = f_;
+        dt->vkGetCalibratedTimestampsKHR = f_;
     }
     {
         PFN_vkGetDescriptorSetLayoutSupport f_ = (PFN_vkGetDescriptorSetLayoutSupport)gdpa(device, "vkGetDescriptorSetLayoutSupport");
         if (!f_) f_ = (PFN_vkGetDescriptorSetLayoutSupport)gdpa(device, "vkGetDescriptorSetLayoutSupportKHR");
-        if (f_) dt->vkGetDescriptorSetLayoutSupport = f_;
+        dt->vkGetDescriptorSetLayoutSupport = f_;
     }
     {
         PFN_vkGetDeviceBufferMemoryRequirements f_ = (PFN_vkGetDeviceBufferMemoryRequirements)gdpa(device, "vkGetDeviceBufferMemoryRequirements");
         if (!f_) f_ = (PFN_vkGetDeviceBufferMemoryRequirements)gdpa(device, "vkGetDeviceBufferMemoryRequirementsKHR");
-        if (f_) dt->vkGetDeviceBufferMemoryRequirements = f_;
+        dt->vkGetDeviceBufferMemoryRequirements = f_;
     }
     {
         PFN_vkGetDeviceGroupPeerMemoryFeatures f_ = (PFN_vkGetDeviceGroupPeerMemoryFeatures)gdpa(device, "vkGetDeviceGroupPeerMemoryFeatures");
         if (!f_) f_ = (PFN_vkGetDeviceGroupPeerMemoryFeatures)gdpa(device, "vkGetDeviceGroupPeerMemoryFeaturesKHR");
-        if (f_) dt->vkGetDeviceGroupPeerMemoryFeatures = f_;
+        dt->vkGetDeviceGroupPeerMemoryFeatures = f_;
     }
     {
         PFN_vkGetDeviceImageMemoryRequirements f_ = (PFN_vkGetDeviceImageMemoryRequirements)gdpa(device, "vkGetDeviceImageMemoryRequirements");
         if (!f_) f_ = (PFN_vkGetDeviceImageMemoryRequirements)gdpa(device, "vkGetDeviceImageMemoryRequirementsKHR");
-        if (f_) dt->vkGetDeviceImageMemoryRequirements = f_;
+        dt->vkGetDeviceImageMemoryRequirements = f_;
     }
     {
         PFN_vkGetDeviceImageSparseMemoryRequirements f_ = (PFN_vkGetDeviceImageSparseMemoryRequirements)gdpa(device, "vkGetDeviceImageSparseMemoryRequirements");
         if (!f_) f_ = (PFN_vkGetDeviceImageSparseMemoryRequirements)gdpa(device, "vkGetDeviceImageSparseMemoryRequirementsKHR");
-        if (f_) dt->vkGetDeviceImageSparseMemoryRequirements = f_;
+        dt->vkGetDeviceImageSparseMemoryRequirements = f_;
     }
     {
         PFN_vkGetDeviceImageSubresourceLayout f_ = (PFN_vkGetDeviceImageSubresourceLayout)gdpa(device, "vkGetDeviceImageSubresourceLayout");
         if (!f_) f_ = (PFN_vkGetDeviceImageSubresourceLayout)gdpa(device, "vkGetDeviceImageSubresourceLayoutKHR");
-        if (f_) dt->vkGetDeviceImageSubresourceLayout = f_;
+        dt->vkGetDeviceImageSubresourceLayout = f_;
     }
     {
         PFN_vkGetDeviceMemoryCommitment f_ = (PFN_vkGetDeviceMemoryCommitment)gdpa(device, "vkGetDeviceMemoryCommitment");
-        if (f_) dt->vkGetDeviceMemoryCommitment = f_;
+        dt->vkGetDeviceMemoryCommitment = f_;
     }
     {
         PFN_vkGetDeviceMemoryOpaqueCaptureAddress f_ = (PFN_vkGetDeviceMemoryOpaqueCaptureAddress)gdpa(device, "vkGetDeviceMemoryOpaqueCaptureAddress");
         if (!f_) f_ = (PFN_vkGetDeviceMemoryOpaqueCaptureAddress)gdpa(device, "vkGetDeviceMemoryOpaqueCaptureAddressKHR");
-        if (f_) dt->vkGetDeviceMemoryOpaqueCaptureAddress = f_;
+        dt->vkGetDeviceMemoryOpaqueCaptureAddress = f_;
     }
     {
         PFN_vkGetDeviceQueue f_ = (PFN_vkGetDeviceQueue)gdpa(device, "vkGetDeviceQueue");
-        if (f_) dt->vkGetDeviceQueue = f_;
+        dt->vkGetDeviceQueue = f_;
     }
     {
         PFN_vkGetDeviceQueue2 f_ = (PFN_vkGetDeviceQueue2)gdpa(device, "vkGetDeviceQueue2");
-        if (f_) dt->vkGetDeviceQueue2 = f_;
+        dt->vkGetDeviceQueue2 = f_;
     }
     {
         PFN_vkGetDeviceTensorMemoryRequirementsARM f_ = (PFN_vkGetDeviceTensorMemoryRequirementsARM)gdpa(device, "vkGetDeviceTensorMemoryRequirementsARM");
-        if (f_) dt->vkGetDeviceTensorMemoryRequirementsARM = f_;
+        dt->vkGetDeviceTensorMemoryRequirementsARM = f_;
     }
     {
         PFN_vkGetEventStatus f_ = (PFN_vkGetEventStatus)gdpa(device, "vkGetEventStatus");
-        if (f_) dt->vkGetEventStatus = f_;
+        dt->vkGetEventStatus = f_;
     }
     {
         PFN_vkGetFenceFdKHR f_ = (PFN_vkGetFenceFdKHR)gdpa(device, "vkGetFenceFdKHR");
-        if (f_) dt->vkGetFenceFdKHR = f_;
+        dt->vkGetFenceFdKHR = f_;
     }
     {
         PFN_vkGetFenceStatus f_ = (PFN_vkGetFenceStatus)gdpa(device, "vkGetFenceStatus");
-        if (f_) dt->vkGetFenceStatus = f_;
+        dt->vkGetFenceStatus = f_;
     }
     {
         PFN_vkGetImageDrmFormatModifierPropertiesEXT f_ = (PFN_vkGetImageDrmFormatModifierPropertiesEXT)gdpa(device, "vkGetImageDrmFormatModifierPropertiesEXT");
-        if (f_) dt->vkGetImageDrmFormatModifierPropertiesEXT = f_;
+        dt->vkGetImageDrmFormatModifierPropertiesEXT = f_;
     }
     {
         PFN_vkGetImageMemoryRequirements f_ = (PFN_vkGetImageMemoryRequirements)gdpa(device, "vkGetImageMemoryRequirements");
-        if (f_) dt->vkGetImageMemoryRequirements = f_;
+        dt->vkGetImageMemoryRequirements = f_;
     }
     {
         PFN_vkGetImageMemoryRequirements2 f_ = (PFN_vkGetImageMemoryRequirements2)gdpa(device, "vkGetImageMemoryRequirements2");
         if (!f_) f_ = (PFN_vkGetImageMemoryRequirements2)gdpa(device, "vkGetImageMemoryRequirements2KHR");
-        if (f_) dt->vkGetImageMemoryRequirements2 = f_;
+        dt->vkGetImageMemoryRequirements2 = f_;
     }
     {
         PFN_vkGetImageSparseMemoryRequirements f_ = (PFN_vkGetImageSparseMemoryRequirements)gdpa(device, "vkGetImageSparseMemoryRequirements");
-        if (f_) dt->vkGetImageSparseMemoryRequirements = f_;
+        dt->vkGetImageSparseMemoryRequirements = f_;
     }
     {
         PFN_vkGetImageSparseMemoryRequirements2 f_ = (PFN_vkGetImageSparseMemoryRequirements2)gdpa(device, "vkGetImageSparseMemoryRequirements2");
         if (!f_) f_ = (PFN_vkGetImageSparseMemoryRequirements2)gdpa(device, "vkGetImageSparseMemoryRequirements2KHR");
-        if (f_) dt->vkGetImageSparseMemoryRequirements2 = f_;
+        dt->vkGetImageSparseMemoryRequirements2 = f_;
     }
     {
         PFN_vkGetImageSubresourceLayout f_ = (PFN_vkGetImageSubresourceLayout)gdpa(device, "vkGetImageSubresourceLayout");
-        if (f_) dt->vkGetImageSubresourceLayout = f_;
+        dt->vkGetImageSubresourceLayout = f_;
     }
     {
         PFN_vkGetImageSubresourceLayout2 f_ = (PFN_vkGetImageSubresourceLayout2)gdpa(device, "vkGetImageSubresourceLayout2");
         if (!f_) f_ = (PFN_vkGetImageSubresourceLayout2)gdpa(device, "vkGetImageSubresourceLayout2EXT");
         if (!f_) f_ = (PFN_vkGetImageSubresourceLayout2)gdpa(device, "vkGetImageSubresourceLayout2KHR");
-        if (f_) dt->vkGetImageSubresourceLayout2 = f_;
+        dt->vkGetImageSubresourceLayout2 = f_;
     }
     {
         PFN_vkGetMemoryFdKHR f_ = (PFN_vkGetMemoryFdKHR)gdpa(device, "vkGetMemoryFdKHR");
-        if (f_) dt->vkGetMemoryFdKHR = f_;
+        dt->vkGetMemoryFdKHR = f_;
     }
     {
         PFN_vkGetMemoryFdPropertiesKHR f_ = (PFN_vkGetMemoryFdPropertiesKHR)gdpa(device, "vkGetMemoryFdPropertiesKHR");
-        if (f_) dt->vkGetMemoryFdPropertiesKHR = f_;
+        dt->vkGetMemoryFdPropertiesKHR = f_;
     }
     {
         PFN_vkGetMemoryHostPointerPropertiesEXT f_ = (PFN_vkGetMemoryHostPointerPropertiesEXT)gdpa(device, "vkGetMemoryHostPointerPropertiesEXT");
-        if (f_) dt->vkGetMemoryHostPointerPropertiesEXT = f_;
+        dt->vkGetMemoryHostPointerPropertiesEXT = f_;
     }
     {
         PFN_vkGetPipelineCacheData f_ = (PFN_vkGetPipelineCacheData)gdpa(device, "vkGetPipelineCacheData");
-        if (f_) dt->vkGetPipelineCacheData = f_;
+        dt->vkGetPipelineCacheData = f_;
     }
     {
         PFN_vkGetQueryPoolResults f_ = (PFN_vkGetQueryPoolResults)gdpa(device, "vkGetQueryPoolResults");
-        if (f_) dt->vkGetQueryPoolResults = f_;
+        dt->vkGetQueryPoolResults = f_;
     }
     {
         PFN_vkGetRenderAreaGranularity f_ = (PFN_vkGetRenderAreaGranularity)gdpa(device, "vkGetRenderAreaGranularity");
-        if (f_) dt->vkGetRenderAreaGranularity = f_;
+        dt->vkGetRenderAreaGranularity = f_;
     }
     {
         PFN_vkGetRenderingAreaGranularity f_ = (PFN_vkGetRenderingAreaGranularity)gdpa(device, "vkGetRenderingAreaGranularity");
         if (!f_) f_ = (PFN_vkGetRenderingAreaGranularity)gdpa(device, "vkGetRenderingAreaGranularityKHR");
-        if (f_) dt->vkGetRenderingAreaGranularity = f_;
+        dt->vkGetRenderingAreaGranularity = f_;
     }
     {
         PFN_vkGetSemaphoreCounterValue f_ = (PFN_vkGetSemaphoreCounterValue)gdpa(device, "vkGetSemaphoreCounterValue");
         if (!f_) f_ = (PFN_vkGetSemaphoreCounterValue)gdpa(device, "vkGetSemaphoreCounterValueKHR");
-        if (f_) dt->vkGetSemaphoreCounterValue = f_;
+        dt->vkGetSemaphoreCounterValue = f_;
     }
     {
         PFN_vkGetSemaphoreFdKHR f_ = (PFN_vkGetSemaphoreFdKHR)gdpa(device, "vkGetSemaphoreFdKHR");
-        if (f_) dt->vkGetSemaphoreFdKHR = f_;
+        dt->vkGetSemaphoreFdKHR = f_;
     }
     {
         PFN_vkGetShaderModuleCreateInfoIdentifierEXT f_ = (PFN_vkGetShaderModuleCreateInfoIdentifierEXT)gdpa(device, "vkGetShaderModuleCreateInfoIdentifierEXT");
-        if (f_) dt->vkGetShaderModuleCreateInfoIdentifierEXT = f_;
+        dt->vkGetShaderModuleCreateInfoIdentifierEXT = f_;
     }
     {
         PFN_vkGetShaderModuleIdentifierEXT f_ = (PFN_vkGetShaderModuleIdentifierEXT)gdpa(device, "vkGetShaderModuleIdentifierEXT");
-        if (f_) dt->vkGetShaderModuleIdentifierEXT = f_;
+        dt->vkGetShaderModuleIdentifierEXT = f_;
     }
     {
         PFN_vkGetTensorMemoryRequirementsARM f_ = (PFN_vkGetTensorMemoryRequirementsARM)gdpa(device, "vkGetTensorMemoryRequirementsARM");
-        if (f_) dt->vkGetTensorMemoryRequirementsARM = f_;
+        dt->vkGetTensorMemoryRequirementsARM = f_;
     }
     {
         PFN_vkImportFenceFdKHR f_ = (PFN_vkImportFenceFdKHR)gdpa(device, "vkImportFenceFdKHR");
-        if (f_) dt->vkImportFenceFdKHR = f_;
+        dt->vkImportFenceFdKHR = f_;
     }
     {
         PFN_vkImportSemaphoreFdKHR f_ = (PFN_vkImportSemaphoreFdKHR)gdpa(device, "vkImportSemaphoreFdKHR");
-        if (f_) dt->vkImportSemaphoreFdKHR = f_;
+        dt->vkImportSemaphoreFdKHR = f_;
     }
     {
         PFN_vkInvalidateMappedMemoryRanges f_ = (PFN_vkInvalidateMappedMemoryRanges)gdpa(device, "vkInvalidateMappedMemoryRanges");
-        if (f_) dt->vkInvalidateMappedMemoryRanges = f_;
+        dt->vkInvalidateMappedMemoryRanges = f_;
     }
     {
         PFN_vkMapMemory f_ = (PFN_vkMapMemory)gdpa(device, "vkMapMemory");
-        if (f_) dt->vkMapMemory = f_;
+        dt->vkMapMemory = f_;
     }
     {
         PFN_vkMergePipelineCaches f_ = (PFN_vkMergePipelineCaches)gdpa(device, "vkMergePipelineCaches");
-        if (f_) dt->vkMergePipelineCaches = f_;
+        dt->vkMergePipelineCaches = f_;
     }
     {
         PFN_vkQueueBindSparse f_ = (PFN_vkQueueBindSparse)gdpa(device, "vkQueueBindSparse");
-        if (f_) dt->vkQueueBindSparse = f_;
+        dt->vkQueueBindSparse = f_;
     }
     {
         PFN_vkQueueSubmit f_ = (PFN_vkQueueSubmit)gdpa(device, "vkQueueSubmit");
-        if (f_) dt->vkQueueSubmit = f_;
+        dt->vkQueueSubmit = f_;
     }
     {
         PFN_vkQueueSubmit2 f_ = (PFN_vkQueueSubmit2)gdpa(device, "vkQueueSubmit2");
         if (!f_) f_ = (PFN_vkQueueSubmit2)gdpa(device, "vkQueueSubmit2KHR");
-        if (f_) dt->vkQueueSubmit2 = f_;
+        dt->vkQueueSubmit2 = f_;
     }
     {
         PFN_vkQueueWaitIdle f_ = (PFN_vkQueueWaitIdle)gdpa(device, "vkQueueWaitIdle");
-        if (f_) dt->vkQueueWaitIdle = f_;
+        dt->vkQueueWaitIdle = f_;
     }
     {
         PFN_vkResetCommandBuffer f_ = (PFN_vkResetCommandBuffer)gdpa(device, "vkResetCommandBuffer");
-        if (f_) dt->vkResetCommandBuffer = f_;
+        dt->vkResetCommandBuffer = f_;
     }
     {
         PFN_vkResetCommandPool f_ = (PFN_vkResetCommandPool)gdpa(device, "vkResetCommandPool");
-        if (f_) dt->vkResetCommandPool = f_;
+        dt->vkResetCommandPool = f_;
     }
     {
         PFN_vkResetDescriptorPool f_ = (PFN_vkResetDescriptorPool)gdpa(device, "vkResetDescriptorPool");
-        if (f_) dt->vkResetDescriptorPool = f_;
+        dt->vkResetDescriptorPool = f_;
     }
     {
         PFN_vkResetEvent f_ = (PFN_vkResetEvent)gdpa(device, "vkResetEvent");
-        if (f_) dt->vkResetEvent = f_;
+        dt->vkResetEvent = f_;
     }
     {
         PFN_vkResetFences f_ = (PFN_vkResetFences)gdpa(device, "vkResetFences");
-        if (f_) dt->vkResetFences = f_;
+        dt->vkResetFences = f_;
     }
     {
         PFN_vkResetQueryPool f_ = (PFN_vkResetQueryPool)gdpa(device, "vkResetQueryPool");
         if (!f_) f_ = (PFN_vkResetQueryPool)gdpa(device, "vkResetQueryPoolEXT");
-        if (f_) dt->vkResetQueryPool = f_;
+        dt->vkResetQueryPool = f_;
     }
     {
         PFN_vkSetDeviceMemoryPriorityEXT f_ = (PFN_vkSetDeviceMemoryPriorityEXT)gdpa(device, "vkSetDeviceMemoryPriorityEXT");
-        if (f_) dt->vkSetDeviceMemoryPriorityEXT = f_;
+        dt->vkSetDeviceMemoryPriorityEXT = f_;
     }
     {
         PFN_vkSetEvent f_ = (PFN_vkSetEvent)gdpa(device, "vkSetEvent");
-        if (f_) dt->vkSetEvent = f_;
+        dt->vkSetEvent = f_;
     }
     {
         PFN_vkSignalSemaphore f_ = (PFN_vkSignalSemaphore)gdpa(device, "vkSignalSemaphore");
         if (!f_) f_ = (PFN_vkSignalSemaphore)gdpa(device, "vkSignalSemaphoreKHR");
-        if (f_) dt->vkSignalSemaphore = f_;
+        dt->vkSignalSemaphore = f_;
     }
     {
         PFN_vkTrimCommandPool f_ = (PFN_vkTrimCommandPool)gdpa(device, "vkTrimCommandPool");
         if (!f_) f_ = (PFN_vkTrimCommandPool)gdpa(device, "vkTrimCommandPoolKHR");
-        if (f_) dt->vkTrimCommandPool = f_;
+        dt->vkTrimCommandPool = f_;
     }
     {
         PFN_vkUnmapMemory f_ = (PFN_vkUnmapMemory)gdpa(device, "vkUnmapMemory");
-        if (f_) dt->vkUnmapMemory = f_;
+        dt->vkUnmapMemory = f_;
     }
     {
         PFN_vkUpdateDescriptorSetWithTemplate f_ = (PFN_vkUpdateDescriptorSetWithTemplate)gdpa(device, "vkUpdateDescriptorSetWithTemplate");
         if (!f_) f_ = (PFN_vkUpdateDescriptorSetWithTemplate)gdpa(device, "vkUpdateDescriptorSetWithTemplateKHR");
-        if (f_) dt->vkUpdateDescriptorSetWithTemplate = f_;
+        dt->vkUpdateDescriptorSetWithTemplate = f_;
     }
     {
         PFN_vkUpdateDescriptorSets f_ = (PFN_vkUpdateDescriptorSets)gdpa(device, "vkUpdateDescriptorSets");
-        if (f_) dt->vkUpdateDescriptorSets = f_;
+        dt->vkUpdateDescriptorSets = f_;
     }
     {
         PFN_vkWaitForFences f_ = (PFN_vkWaitForFences)gdpa(device, "vkWaitForFences");
-        if (f_) dt->vkWaitForFences = f_;
+        dt->vkWaitForFences = f_;
     }
     {
         PFN_vkWaitSemaphores f_ = (PFN_vkWaitSemaphores)gdpa(device, "vkWaitSemaphores");
         if (!f_) f_ = (PFN_vkWaitSemaphores)gdpa(device, "vkWaitSemaphoresKHR");
-        if (f_) dt->vkWaitSemaphores = f_;
+        dt->vkWaitSemaphores = f_;
     }
 }
 

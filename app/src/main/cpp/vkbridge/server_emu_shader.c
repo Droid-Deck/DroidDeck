@@ -36,6 +36,8 @@ typedef struct shader_state {
 } shader_state;
 
 #define SHADER_EMU (VKB_EMU_CLIP_DISTANCE | VKB_EMU_CULL_DISTANCE | VKB_EMU_POINT_SIZE)
+/* Emulations that need the shader modules' SPIR-V kept. */
+#define SHADER_STORE (SHADER_EMU | VKB_EMU_DIVISOR)
 
 static unsigned mh(VkShaderModule m)
 {
@@ -358,10 +360,50 @@ void vkb_emu_shader_pipeline(vkb_emu_device *e, VkDevice device, VkGraphicsPipel
     if (have_frag) spv_free(&fm);
 }
 
+/* A vertex shader that reads BaseInstance as 0 (divisor emulation splits draws, which moves
+ * BaseInstance; DXVK derives SV_InstanceID from it). VK_NULL_HANDLE when the shader never reads it. */
+VkShaderModule vkb_emu_shader_zero_base_instance(vkb_emu_device *e, VkDevice device, const VkPipelineShaderStageCreateInfo *vs)
+{
+    const uint32_t *code;
+    size_t size;
+    if (!e->shaders || !stage_code(e, vs, &code, &size)) return VK_NULL_HANDLE;
+    spv_mod m;
+    if (spv_parse(&m, code, size) != 0) return VK_NULL_HANDLE;
+    int in_block;
+    uint32_t var = builtin_var(&m, SpvBuiltInBaseInstance, SpvStorageClassInput, &in_block);
+    VkShaderModule out = VK_NULL_HANDLE;
+    if (var) {
+        int d = spv_find_def(&m, var);
+        int p = d >= 0 ? spv_find_def(&m, m.ins[d].w[0]) : -1;
+        uint32_t type = p >= 0 ? m.ins[p].w[2] : 0;
+        int td = spv_find_def(&m, type);
+        uint32_t zero = 0;
+        if (td >= 0 && m.ins[td].op == SpvOpTypeInt) {
+            zero = spv_new_id(&m);
+            uint32_t ops[3] = {type, zero, 0};
+            spv_insert(&m, spv_types_end(&m), SpvOpConstant, ops, 3);
+        }
+        int changed = 0;
+        for (uint32_t i = 0; zero && i < m.count; i++) {
+            spv_inst *in = &m.ins[i];
+            if (in->op == SpvOpLoad && in->w[2] == var) {
+                /* %r = OpLoad %int %BaseInstance  ->  %r = OpCopyObject %int %zero */
+                in->op = 83; /* OpCopyObject */
+                in->w[2] = zero;
+                in->n = 4;
+                changed = 1;
+            }
+        }
+        if (changed) make_module(device, &m, &out);
+    }
+    spv_free(&m);
+    return out;
+}
+
 void vkb_emu_shader_install(vkb_srv_table *dev)
 {
     vkb_emu_device *e = dev->emu;
-    if (!(e->flags & SHADER_EMU)) return;
+    if (!(e->flags & SHADER_STORE)) return;
     shader_state *s = calloc(1, sizeof(*s));
     pthread_mutex_init(&s->lock, NULL);
     e->shaders = s;

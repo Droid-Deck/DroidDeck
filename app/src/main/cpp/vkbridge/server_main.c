@@ -30,6 +30,8 @@
 
 #ifdef __ANDROID__
 #include <android/log.h>
+#elif defined(__GLIBC__)
+#include <execinfo.h>
 #endif
 
 PFN_vkGetInstanceProcAddr vkb_gipa;
@@ -81,6 +83,11 @@ static void on_crash(int sig)
     if (write(2, buf, (size_t)n) < 0) {}
 #ifdef __ANDROID__
     __android_log_write(ANDROID_LOG_FATAL, "vkbridge", buf);
+#elif defined(__GLIBC__)
+    void *frames[32];
+    int nf = backtrace(frames, 32);
+    backtrace_symbols_fd(frames, nf, 2);
+    if (log_file) backtrace_symbols_fd(frames, nf, fileno(log_file));
 #endif
     signal(sig, SIG_DFL);
     raise(sig);

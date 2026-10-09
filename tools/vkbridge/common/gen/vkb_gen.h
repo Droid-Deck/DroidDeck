@@ -2595,7 +2595,7 @@ typedef struct vkb_ext_desc { const char *name; uint8_t device; uint8_t client; 
 extern const vkb_ext_desc vkb_exts[VKB_EXT_COUNT];
 
 /* Client: name -> entry point (canonical names and aliases). */
-typedef struct vkb_proc_desc { const char *name; PFN_vkVoidFunction fn; uint8_t level; const char *ext; } vkb_proc_desc;
+typedef struct vkb_proc_desc { const char *name; PFN_vkVoidFunction fn; uint8_t level; const char *ext; uint32_t core; } vkb_proc_desc;
 #define VKB_LEVEL_GLOBAL 0
 #define VKB_LEVEL_INSTANCE 1
 #define VKB_LEVEL_PHYSDEV 2

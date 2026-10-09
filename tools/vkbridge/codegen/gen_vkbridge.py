@@ -262,6 +262,7 @@ included_cmds = set()
 cmd_aliases_included = {}   # alias name -> canonical
 ext_info = {}               # ext name -> (type, [commands])
 cmd_origin = {}             # canonical cmd -> 'core' or ext name
+cmd_version = {}            # canonical cmd -> core version (major, minor) that introduced it
 
 
 def require_blocks(el):
@@ -275,10 +276,13 @@ for f in reg.root.findall('feature'):
     if f.get('name') not in CORE_FEATURES or not api_ok(f):
         continue
     for req in require_blocks(f):
+        ver = tuple(int(x) for x in f.get('number').split('.'))
         for c in req.findall('command'):
             n = reg.canon_cmd(c.get('name'))
             included_cmds.add(n)
             cmd_origin.setdefault(n, 'core')
+            if c.get('name') == n:
+                cmd_version[n] = min(cmd_version.get(n, ver), ver)
             if c.get('name') != n:
                 cmd_aliases_included[c.get('name')] = n
 
@@ -888,7 +892,7 @@ hw(f'#define VKB_EXT_COUNT {len(bridged_exts)}')
 hw('extern const vkb_ext_desc vkb_exts[VKB_EXT_COUNT];')
 hw()
 hw('/* Client: name -> entry point (canonical names and aliases). */')
-hw('typedef struct vkb_proc_desc { const char *name; PFN_vkVoidFunction fn; uint8_t level; const char *ext; } vkb_proc_desc;')
+hw('typedef struct vkb_proc_desc { const char *name; PFN_vkVoidFunction fn; uint8_t level; const char *ext; uint32_t core; } vkb_proc_desc;')
 hw('#define VKB_LEVEL_GLOBAL 0')
 hw('#define VKB_LEVEL_INSTANCE 1')
 hw('#define VKB_LEVEL_PHYSDEV 2')
@@ -940,7 +944,9 @@ for c in dispatch_cmds:
     vw(f'PFN_{c} f_ = (PFN_{c})gdpa(device, "{c}");')
     for a in sorted(aliases_of.get(c, [])):
         vw(f'if (!f_) f_ = (PFN_{c})gdpa(device, "{a}");')
-    vw(f'if (f_) dt->{c} = f_;')
+    # Device-level entries come only from the device: an instance-level trampoline would dispatch
+    # through loader data the server's objects do not carry.
+    vw(f'dt->{c} = f_;')
     vw('}')
 vw('}')
 vw()
@@ -1325,7 +1331,10 @@ for name, c, origin in sorted(entries):
         else:
             o = 'core'
     ext = 'NULL' if o in (None, 'core') else f'"{o}"'
-    cw(f'{{"{name}", (PFN_vkVoidFunction)vkb_ep_{c}, {level_of(c)}, {ext}}},')
+    core = 0
+    if name == c and o == 'core' and c in cmd_version:
+        core = f'VK_MAKE_API_VERSION(0, {cmd_version[c][0]}, {cmd_version[c][1]}, 0)'
+    cw(f'{{"{name}", (PFN_vkVoidFunction)vkb_ep_{c}, {level_of(c)}, {ext}, {core}}},')
 cw('};')
 cw('const size_t vkb_client_proc_count = sizeof(vkb_client_procs) / sizeof(vkb_client_procs[0]);')
 

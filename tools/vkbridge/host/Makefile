@@ -19,7 +19,7 @@ all: $(OUT)/vkbridge-server $(OUT)/libvulkan_droidbridge.so $(OUT)/vkbridge_icd.
 
 $(OUT)/vkbridge-server: $(SERVER_SRC) $(wildcard $(SRV)/*.h $(VKB)/common/*.h $(VKB)/common/gen/*.h)
 	@mkdir -p $(OUT)
-	$(CC) $(CFLAGS) $(WARN) $(INC) -I$(SRV) -o $@ $(SERVER_SRC) -ldl -lpthread -lm
+	$(CC) $(CFLAGS) $(WARN) $(INC) -I$(SRV) -o $@ $(SERVER_SRC) -ldl -lpthread -lm -rdynamic
 
 $(OUT)/libvulkan_droidbridge.so: $(CLIENT_SRC) $(wildcard $(VKB)/client/*.h $(VKB)/common/*.h $(VKB)/common/gen/*.h)
 	@mkdir -p $(OUT)

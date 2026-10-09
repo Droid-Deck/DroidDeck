@@ -144,14 +144,6 @@ void vkb_sv_vkCreateInstance(vkb_srv_call *c)
         vkb_srv_bad_message(c);
         return;
     }
-    VkApplicationInfo app;
-    uint32_t loader_api = VK_API_VERSION_1_0;
-    if (vkb_global_dt.vkEnumerateInstanceVersion) vkb_global_dt.vkEnumerateInstanceVersion(&loader_api);
-    if (ci->pApplicationInfo) {
-        app = *ci->pApplicationInfo;
-        if (app.apiVersion > loader_api) app.apiVersion = loader_api;
-        ci->pApplicationInfo = &app;
-    }
     VkInstance inst = VK_NULL_HANDLE;
     VkResult r = vkb_global_dt.vkCreateInstance(ci, NULL, &inst);
     uint32_t id = 0;
