@@ -745,18 +745,12 @@ private fun SignInCard(store: Store, height: Dp) {
         ) {
             Rise(2) {
                 Text(
-                    stringResource(R.string.stores_signin_title, store.label), fontSize = if (narrow) 28.sp else 38.sp,
-                    lineHeight = if (narrow) 32.sp else 42.sp, fontWeight = FontWeight.Black, color = colors.onBackground,
+                    store.label, fontSize = if (narrow) 30.sp else 42.sp, lineHeight = if (narrow) 34.sp else 46.sp,
+                    fontWeight = FontWeight.Black, color = colors.onBackground,
                 )
             }
-            Rise(3) {
-                Text(
-                    stringResource(R.string.stores_signin_tagline, store.label), fontSize = 15.sp, lineHeight = 21.sp,
-                    color = colors.onSurfaceVariant, modifier = Modifier.widthIn(max = 460.dp),
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Rise(4) { SignInButton(store, large = true) }
+            Spacer(Modifier.height(6.dp))
+            Rise(3) { SignInButton(store, large = true) }
         }
     }
 }
