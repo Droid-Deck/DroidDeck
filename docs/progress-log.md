@@ -131,6 +131,18 @@ without it and Setup says "Stores engine not built").
   `nativeAssemble` both).
 - **Install-to dialog compacted** (440 dp, two tiles that are the action, one-line caption, Cancel
   in the title row); the cog popup is capped at 440 dp too.
+- **Store cards are art + one line** (maintainer feedback): no source chip (the tab says the
+  store), no "In library" chip, no action button. The title sits left; right-aligned is a check
+  when installed, Resume, the download percentage, the install size, or Free / price / discount.
+  A thin bar over the art while downloading. Install, Resume, Uninstall, Get and Buy live on the
+  game page; A on a card opens it.
+- **No flavor text** (standing rule from the maintainer): Setup › Stores and the cog popup keep
+  only control labels; the download-controls caption, the Downloads footnote, the sign-in blurbs
+  and footnote, the engine note and the Install-to caption are gone; empty states read "No games",
+  "Nothing installed", "No downloads", "No catalog". A Custom game's hero has no eyebrow (its chip
+  says it).
+- **Logos reverted** (user decision, no third-party marks): back to the text source chips and the
+  coloured dots.
 - **Device-proven on the AYANEO Pocket FIT, 2026-10-08 (GOG):** sign-in, the library (33 owned),
   DOOM I Enhanced installed through the GOG engine to the SD Games root, shown in Games with the
   GOG chip and real art, registered as a non-Steam game in the Steam client (grid art present), and

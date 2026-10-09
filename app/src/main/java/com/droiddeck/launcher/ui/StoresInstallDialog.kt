@@ -42,7 +42,7 @@ import com.droiddeck.launcher.stores.formatBytes
 
 /**
  * "Install to": a small card with one tile per place - internal storage, the card - each the
- * action itself, with its free space. Asked only when a card is there. The tile picked last time
+ * action itself: icon, name, free space. Asked only when a card is there. The tile picked last time
  * starts focused, so a pad confirms the usual place with one press; nothing is chosen for the user.
  */
 @Composable
@@ -60,8 +60,8 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
         Rise(0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
-                    Eyebrow(stringResource(R.string.stores_install_where))
-                    Text(item.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Eyebrow(item.title)
+                    Text(stringResource(R.string.stores_install_where), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Text(
                     stringResource(R.string.common_cancel), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
@@ -84,7 +84,6 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
                 }
             }
         }
-        Text(stringResource(R.string.stores_install_where_note), fontSize = 12.sp, color = colors.onSurfaceVariant)
     }
 }
 

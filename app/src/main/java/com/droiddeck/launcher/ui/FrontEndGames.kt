@@ -222,8 +222,10 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
 private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.compose.ui.unit.TextUnit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SourceChip(g.source)
-        Text(
-            (lastPlayedText(g.lastPlayed) ?: libraryLabel(g)).uppercase(),
+        // A Custom game's chip already says what its eyebrow would; the line then stays empty.
+        val eyebrow = lastPlayedText(g.lastPlayed) ?: libraryLabel(g)
+        if (eyebrow.isNotEmpty()) Text(
+            eyebrow.uppercase(),
             fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = LocalPalette.current.signal,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
@@ -344,7 +346,7 @@ private fun playedSpan(lastPlayed: Long): String? {
 private fun libraryLabel(g: Library.SteamGame): String = when {
     g.library != Library.ADDED -> if (g.library == "internal") stringResource(R.string.games_internal) else g.library
     g.source != Library.ADDED -> stringResource(R.string.games_store_storage)
-    else -> stringResource(R.string.games_custom)
+    else -> ""
 }
 
 /**

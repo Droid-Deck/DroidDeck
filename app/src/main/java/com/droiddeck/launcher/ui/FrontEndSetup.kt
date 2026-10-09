@@ -371,16 +371,16 @@ internal fun SetupPanel(
                         SettingsGroup(stringResource(R.string.setup_stores)) {
                             ToggleRow(
                                 host, "stores-enabled", stringResource(R.string.setup_stores_show),
-                                stringResource(R.string.setup_stores_show_hint), s.gameStoresEnabled,
+                                null, s.gameStoresEnabled,
                             ) { a.onGameStoresEnabled(it) }
                             // The same rows as the Stores page's own cog, for whoever looks here first.
-                            SettingsRow(stringResource(R.string.setup_stores_open_on), stringResource(R.string.setup_stores_open_on_hint)) {
+                            SettingsRow(stringResource(R.string.setup_stores_open_on), null) {
                                 SegmentedTabs(
                                     listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
                                     s.storesOpenTab,
                                 ) { a.onStoresOpenTab(it) }
                             }
-                            SettingsRow(stringResource(R.string.setup_stores_speed), stringResource(R.string.setup_stores_speed_hint)) {
+                            SettingsRow(stringResource(R.string.setup_stores_speed), null) {
                                 SegmentedTabs(StoreDownloadTier.ALL.map { it.id to stringResource(it.label) }, s.gameStoresSpeedTier) { a.onGameStoresSpeedTier(it) }
                             }
                             StoresEngineRow()

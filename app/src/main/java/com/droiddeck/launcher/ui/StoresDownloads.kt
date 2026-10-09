@@ -187,13 +187,11 @@ private fun DownloadSettings(s: FrontEndState, a: FrontEndActions) {
             fontSize = 11.sp, lineHeight = 16.sp, fontFamily = FontFamily.Monospace, color = Color(0xFF9BE27A),
         )
     }
-    Text(stringResource(R.string.stores_downloads_footnote), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
 }
 
 /**
  * The queue's two knobs on one line - the speed tier on the left, downloads at a time on the
- * right - with one caption under them; the same control sits in the cog's popup. A narrow page
- * puts the two controls on two tight lines.
+ * right; the same control sits in the cog's popup. A narrow page puts them on two tight lines.
  */
 @Composable
 internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
@@ -216,7 +214,6 @@ internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
         if (maxWidth >= 460.dp) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Bottom) { tier(); count() }
         else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { tier(); count() }
     }
-    Text(stringResource(R.string.stores_download_controls_note), fontSize = 12.sp, color = colors.onSurfaceVariant)
 }
 
 /**
@@ -232,7 +229,7 @@ internal fun StoresSettingsDialog(s: FrontEndState, a: FrontEndActions, onDismis
         DialogHeader(stringResource(R.string.stores_settings_eyebrow), stringResource(R.string.stores_title))
         Rise(1) {
             Column {
-                SettingsRow(stringResource(R.string.setup_stores_open_on), stringResource(R.string.setup_stores_open_on_hint)) {
+                SettingsRow(stringResource(R.string.setup_stores_open_on), null) {
                     SegmentedTabs(
                         listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
                         s.storesOpenTab,

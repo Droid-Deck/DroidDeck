@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Download
@@ -240,11 +241,6 @@ private fun SignInCard(store: Store) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
-    val hint = when (store) {
-        Store.GOG -> stringResource(R.string.stores_signin_hint_gog)
-        Store.EPIC -> stringResource(R.string.stores_signin_hint_epic)
-        Store.AMAZON -> stringResource(R.string.stores_signin_hint_amazon)
-    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -252,14 +248,11 @@ private fun SignInCard(store: Store) {
         ) {
             StoreLogo(store, 56.dp)
             Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.stores_signin_title, store.label), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-                Text(hint, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+                Text(store.label, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
             }
             if (!narrow) PrimaryButton(stringResource(R.string.stores_signin), main = true) { StoresState.signIn(ctx, store) }
         }
         if (narrow) Actions { PrimaryButton(stringResource(R.string.stores_signin), main = true) { StoresState.signIn(ctx, store) } }
-        Text(stringResource(R.string.stores_signin_footnote), fontSize = 12.sp, color = colors.onSurfaceVariant)
-        if (StoresState.engine == "") Note(stringResource(R.string.stores_engine_missing_note))
     }
 }
 
@@ -325,7 +318,7 @@ private fun Storefront(
         GameCard(item, store, s, a, installedKeys, onOpen, first)
     }
     when (tab) {
-        "installed" -> Grid(installedItems.filter(::matches), stringResource(R.string.stores_installed_empty, store.label), card)
+        "installed" -> Grid(installedItems.filter(::matches), stringResource(R.string.stores_installed_empty), card)
         "library" -> Grid(library.filter(::matches), if (library.isEmpty() && StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_nothing_matches), card)
         "all" -> Grid(everything.filter(::matches), stringResource(R.string.stores_nothing_matches), card)
         else -> {
@@ -451,22 +444,40 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
             .clip(RoundedCornerShape(10.dp)).background(colors.surface).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
-        CardArt(item, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 8.dp)) {
-            Text(item.title, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
-            PriceLine(item, installed)
-            when {
-                installed -> CardButton(stringResource(R.string.stores_play), primary = true, icon = Icons.Filled.PlayArrow) { launchStoreGame(ctx, store, item.id, s, a) }
-                download != null -> {
-                    ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
-                    CardButton(downloadLabel(download.state, download.stage, download.percent), primary = false) { }
-                }
-                item.owned && StoresState.isUnfinished(item) -> CardButton(stringResource(R.string.stores_resume_install), primary = true) { StoresState.requestInstall(ctx, item) }
-                item.owned -> CardButton(if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install), primary = true) { StoresState.requestInstall(ctx, item) }
-                item.isFree -> CardButton(stringResource(R.string.stores_get_free), primary = true) { openStoreUrl(ctx, item) }
-                else -> CardButton(stringResource(R.string.stores_view_on, store.shortLabel), primary = false) { openStoreUrl(ctx, item) }
+        Box {
+            CardArt(item, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+            if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(horizontal = 6.dp, vertical = 5.dp)) {
+                ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
             }
         }
+        // One line: the title, and on the right the one thing the tab does not already say.
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+        ) {
+            Text(item.title, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            CardMarker(item, installed, download)
+        }
+    }
+}
+
+/** The card's right-hand value: done, resume, progress, size, or the price. */
+@Composable
+private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droiddeck.launcher.stores.download.DownloadEntry?) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val small = 10.sp
+    when {
+        installed -> Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(14.dp))
+        download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+        item.owned && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+        item.owned -> if (item.sizeBytes > 0) Text(formatBytes(item.sizeBytes), fontSize = small, color = colors.onSurfaceVariant, maxLines = 1)
+        item.isFree -> Text(stringResource(R.string.stores_free), fontSize = small, fontWeight = FontWeight.Bold, color = pal.good, maxLines = 1)
+        item.isDiscounted -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            StateChip("-${item.discountPercent}%", ChipTone.DEAL, small = true)
+            Text(item.finalPrice, fontSize = small, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+        }
+        item.hasPrice -> Text(item.finalPrice, fontSize = small, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
     }
 }
 
@@ -480,48 +491,6 @@ internal fun CardArt(item: CatalogItem, modifier: Modifier) {
         if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         else Text(item.title, fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
         Spacer(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.surface.copy(alpha = 0.85f))))
-    }
-}
-
-/** "In library" / "Installed", a free label, or the deal with its old price struck through. */
-@Composable
-internal fun PriceLine(item: CatalogItem, installed: Boolean, small: Boolean = true) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        when {
-            installed -> StateChip(stringResource(R.string.stores_installed_chip), ChipTone.OK, small)
-            item.owned -> StateChip(stringResource(R.string.stores_in_library), ChipTone.OK, small)
-            item.isFree -> Text(stringResource(R.string.stores_free), fontSize = if (small) 11.sp else 13.sp, fontWeight = FontWeight.Bold, color = pal.good)
-            item.isDiscounted -> {
-                StateChip("-${item.discountPercent}%", ChipTone.DEAL, small)
-                Text(item.originalPrice, fontSize = if (small) 10.sp else 12.sp, color = colors.onSurfaceVariant, textDecoration = TextDecoration.LineThrough, maxLines = 1)
-                Text(item.finalPrice, fontSize = if (small) 11.sp else 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-            }
-            item.hasPrice -> Text(item.finalPrice, fontSize = if (small) 11.sp else 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-            else -> Spacer(Modifier.height(if (small) 14.dp else 18.dp))
-        }
-    }
-}
-
-/** The card's one button: full width, small type. A press does not also open the card. */
-@Composable
-private fun CardButton(text: String, primary: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val shape = RoundedCornerShape(6.dp)
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 30.dp).clip(shape)
-            .background(if (primary) pal.signal else colors.surfaceVariant)
-            .glideBorder(hot, shape, if (primary) colors.onBackground else pal.signal, if (primary) Color.Transparent else pal.line)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
-            .controllerConfirm(onClick = onClick).padding(horizontal = 6.dp, vertical = 5.dp),
-    ) {
-        if (icon != null) Icon(icon, null, tint = if (primary) pal.onSignal else colors.onBackground, modifier = Modifier.size(12.dp))
-        Text(text, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (primary) pal.onSignal else colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
