@@ -81,6 +81,8 @@ if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
   chmod +x "$desktop_dir"/*.desktop 2>/dev/null
   touch "$HOME/.config/droiddeck-desktop-icons"
 fi
+# A Return icon still there is kept current with the package's entry (what it runs has changed).
+[ -f "$desktop_dir/Return.desktop" ] && cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
 # Plasma's caches of the menu, the icons and the MIME types, which a package install never ran.
 update-mime-database /usr/share/mime >/dev/null 2>&1 &
 [ -f /usr/share/icons/hicolor/icon-theme.cache ] || gtk-update-icon-cache -q -t /usr/share/icons/hicolor 2>/dev/null &
@@ -111,7 +113,17 @@ fi
 # Plasma as its own login starts it: startplasma-wayland sets up the session's environment and runs
 # plasma_session, which starts KWin (through kwin_wayland_wrapper, ours first on PATH) as a client of
 # the app's compositor with its own Xwayland, then Plasma's daemons, shell and autostart entries on
-# it. The desktop ends with it - Log Out, or Return to Gaming Mode, which asks the app for a Steam
-# session first. The session bus is ours: Plasma, the file manager and the portal all expect one.
+# it. The session bus is ours: Plasma, the file manager and the portal all expect one.
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
-exec dbus-run-session -- startplasma-wayland
+dbus-run-session -- startplasma-wayland
+rc=$?
+echo "== droiddeck-desktop: Plasma ended ($rc)"
+# Plasma logged out - Log Out, or Return to Gaming Mode, which logs out the same way, so open windows
+# are asked to close (and to save) first. As on SteamOS, leaving the desktop goes to Gaming Mode: the
+# app is asked for a Steam session, and it ends this one to start it. A desktop the app stops never
+# gets here; a Plasma that failed does not count as a logout.
+if [ "$rc" -eq 0 ]; then
+  /usr/local/bin/droiddeck-steam-launch bigpicture
+  sleep 30
+fi
+exit $rc
