@@ -15,6 +15,7 @@ enum vkb_mem_strategy {
     VKB_MEM_HOSTPTR = 1,   /* client memfd, server imports it (VK_EXT_external_memory_host) */
     VKB_MEM_DMABUF = 2,    /* server exports a dma-buf (VK_EXT_external_memory_dma_buf), client mmaps */
     VKB_MEM_AHB = 3,       /* server allocates an AHardwareBuffer (BLOB), client mmaps its dma-buf */
+    VKB_MEM_DMAHEAP = 4,   /* server allocates from /dev/dma_heap and imports it as a dma-buf, client mmaps */
 };
 
 static inline const char *vkb_mem_strategy_name(uint32_t s)
@@ -23,6 +24,7 @@ static inline const char *vkb_mem_strategy_name(uint32_t s)
     case VKB_MEM_HOSTPTR: return "hostptr";
     case VKB_MEM_DMABUF: return "dmabuf";
     case VKB_MEM_AHB: return "ahb";
+    case VKB_MEM_DMAHEAP: return "dmaheap";
     default: return "none";
     }
 }

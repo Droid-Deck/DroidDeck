@@ -11,8 +11,11 @@
  *   dmabuf   the server allocates exportable memory and hands the client its dma-buf
  *            (VK_EXT_external_memory_dma_buf), which the client maps;
  *   ahb      the server allocates a BLOB AHardwareBuffer, imports it, and hands the client the
- *            dma-buf behind it (Android only).
- * VKBRIDGE_MEMORY=hostptr|dmabuf|ahb forces one.
+ *            dma-buf behind it (Android only);
+ *   dmaheap  the server allocates from /dev/dma_heap (system-uncached, else system), imports that
+ *            dma-buf into the driver and hands it to the client - what GameNative's wrapper does on
+ *            Mali when the driver will not export one (Android; root-only on desktops).
+ * VKBRIDGE_MEMORY=hostptr|dmabuf|dmaheap|ahb forces one.
  */
 #define _GNU_SOURCE
 #ifdef __ANDROID__
@@ -26,7 +29,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
 #include <sys/syscall.h>
+#include <linux/dma-heap.h>
 #include <unistd.h>
 
 #ifdef __ANDROID__
@@ -80,6 +85,7 @@ const char *const *vkb_mem_required_extensions(uint32_t strategy, uint32_t *coun
     switch (strategy) {
     case VKB_MEM_HOSTPTR: *count = 2; return ext_hostptr;
     case VKB_MEM_DMABUF: *count = 3; return ext_dmabuf;
+    case VKB_MEM_DMAHEAP: *count = 3; return ext_dmabuf;
 #ifdef __ANDROID__
     case VKB_MEM_AHB: *count = 6; return ext_ahb;
 #endif
@@ -92,6 +98,7 @@ static uint32_t strategy_handle_type(uint32_t s)
     switch (s) {
     case VKB_MEM_HOSTPTR: return VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
     case VKB_MEM_DMABUF: return VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+    case VKB_MEM_DMAHEAP: return VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 #ifdef __ANDROID__
     case VKB_MEM_AHB: return VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
 #endif
@@ -167,6 +174,37 @@ void vkb_mem_free_all(vkb_srv_table *dev)
             vkb_mem_release(dev, m);
             m = n;
         }
+    }
+}
+
+/* The dma-heap the dmaheap strategy allocates from, opened once: system-uncached first (the GPU
+ * and the client both write through it without cache maintenance), else the cached system heap. */
+static int dmaheap_fd(void)
+{
+    static int fd = -2;
+    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&lock);
+    if (fd == -2) {
+        const char *names[] = {"/dev/dma_heap/system-uncached", "/dev/dma_heap/system"};
+        fd = -1;
+        for (int i = 0; i < 2 && fd < 0; i++) {
+            fd = open(names[i], O_RDONLY | O_CLOEXEC);
+            if (fd >= 0) VKB_INFO("dmaheap: allocating from %s", names[i]);
+            else VKB_INFO("dmaheap: %s: %s", names[i], strerror(errno));
+        }
+    }
+    int r = fd;
+    pthread_mutex_unlock(&lock);
+    return r;
+}
+
+/* Unlinks every structure of type t from the chain starting at *head. */
+static void chain_drop(const void **head, VkStructureType t)
+{
+    const VkBaseInStructure **pp = (const VkBaseInStructure **)head;
+    while (*pp) {
+        if ((*pp)->sType == t) *pp = (*pp)->pNext;
+        else pp = (const VkBaseInStructure **)&((VkBaseInStructure *)*pp)->pNext;
     }
 }
 
@@ -246,6 +284,46 @@ static VkResult alloc_shared(const vkb_dispatch *dt, VkDevice dev, uint32_t s, c
             dt->vkFreeMemory(dev, m->mem, NULL);
             m->mem = VK_NULL_HANDLE;
             r = VK_ERROR_INVALID_EXTERNAL_HANDLE;
+            break;
+        }
+        *out_fd = fd;
+        break;
+    }
+    case VKB_MEM_DMAHEAP: {
+        int hfd = dmaheap_fd();
+        if (hfd < 0) break;
+        uint64_t len = (ai->allocationSize + 4095) & ~4095ull;
+        struct dma_heap_allocation_data hd = {len, 0, O_RDWR | O_CLOEXEC, 0};
+        if (ioctl(hfd, DMA_HEAP_IOCTL_ALLOC, &hd) < 0) {
+            VKB_INFO("dmaheap: allocating %llu bytes failed: %s", (unsigned long long)len, strerror(errno));
+            r = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            break;
+        }
+        int fd = (int)hd.fd;
+        VkMemoryFdPropertiesKHR fp = {VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR};
+        VkResult pr = dt->vkGetMemoryFdPropertiesKHR
+                          ? dt->vkGetMemoryFdPropertiesKHR(dev, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, fd, &fp)
+                          : VK_ERROR_EXTENSION_NOT_PRESENT;
+        if (pr != VK_SUCCESS || !(fp.memoryTypeBits & (1u << ai->memoryTypeIndex))) {
+            VKB_INFO("dmaheap: fd properties %d, memory types 0x%x (want type %u)", pr, fp.memoryTypeBits, ai->memoryTypeIndex);
+            close(fd);
+            r = VK_ERROR_INVALID_EXTERNAL_HANDLE;
+            break;
+        }
+        /* The import takes its own fd; ours goes to the client. A dedicated-allocation struct
+         * with an imported dma-buf crashes some Mali drivers (GameNative mesa PR #8): dropped. */
+        int imp_fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+        VkImportMemoryFdInfoKHR imp = {VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR, info.pNext,
+                                       VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, imp_fd};
+        chain_drop(&imp.pNext, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
+        chain_drop(&imp.pNext, VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO);
+        info.pNext = &imp;
+        info.allocationSize = len;
+        r = imp_fd >= 0 ? dt->vkAllocateMemory(dev, &info, NULL, &m->mem) : VK_ERROR_TOO_MANY_OBJECTS;
+        if (r != VK_SUCCESS) {
+            VKB_INFO("dmaheap: import of %llu bytes failed: %d", (unsigned long long)len, r);
+            if (imp_fd >= 0) close(imp_fd); /* a failed import leaves the fd with us */
+            close(fd);
             break;
         }
         *out_fd = fd;
@@ -648,11 +726,12 @@ void vkb_mem_selftest(vkb_pd_knowledge *k, VkInstance inst, const vkb_dispatch *
     VkExtensionProperties *ex = calloc(ne ? ne : 1, sizeof(*ex));
     idt->vkEnumerateDeviceExtensionProperties(pd, NULL, &ne, ex);
 
-    uint32_t candidates[3];
+    uint32_t candidates[4];
     int nc = 0;
     const char *force = getenv("VKBRIDGE_MEMORY");
-    uint32_t order[] = {VKB_MEM_HOSTPTR, VKB_MEM_DMABUF, VKB_MEM_AHB};
-    for (int i = 0; i < 3; i++) {
+    /* GameNative's order on Mali: the driver's own export, a dma-heap import, then an AHB. */
+    uint32_t order[] = {VKB_MEM_HOSTPTR, VKB_MEM_DMABUF, VKB_MEM_DMAHEAP, VKB_MEM_AHB};
+    for (int i = 0; i < 4; i++) {
         uint32_t s = order[i];
         if (force && strcmp(force, vkb_mem_strategy_name(s))) continue;
         uint32_t n;
