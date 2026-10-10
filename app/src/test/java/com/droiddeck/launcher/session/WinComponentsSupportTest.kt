@@ -97,5 +97,6 @@ class WinComponentsSupportTest {
         assertEquals(Support.UNSUPPORTED, support(component("VulkanRT", step("install_exe", "url" to "$base/VulkanRT.exe"))))
         assertEquals(Support.UNSUPPORTED, support(component("ie8_kb2936068", step("install_exe", "url" to "$base/ie8_kb2936068.exe"))))
         assertEquals(Support.UNSUPPORTED, support(component("oalinst", step("install_exe", "url" to "$base/oalinst.exe"))))
+        assertEquals(Support.UNSUPPORTED, support(component("webview2", step("install_exe", "url" to "$base/webview2.exe"))))
     }
 }

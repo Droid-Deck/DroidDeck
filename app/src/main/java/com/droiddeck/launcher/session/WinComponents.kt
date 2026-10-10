@@ -120,9 +120,11 @@ object WinComponents {
 
     /**
      * Catalog entries nothing here can use: the IE8 security update patches a browser no prefix
-     * has, and the OpenAL setup program is a twin of oalinst_dll, which copies the same DLLs.
+     * has; the OpenAL setup program is a twin of oalinst_dll, which copies the same DLLs; and
+     * WebView2 can only be installed by running Microsoft's installer in the prefix (its files
+     * sit in a container nothing opens and may not be hosted), which no runtime here does.
      */
-    private val POINTLESS = setOf("ie8_kb2936068", "oalinst")
+    private val POINTLESS = setOf("ie8_kb2936068", "oalinst", "webview2")
 
     private fun protonProvides(name: String): Boolean = name in PROTON_PROVIDES || name in POINTLESS || name.startsWith("mono-")
 
