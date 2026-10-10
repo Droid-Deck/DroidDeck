@@ -394,7 +394,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.padBridge = bridge
         // A paired Steam Controller is read over Bluetooth LE, out of lizard mode, as Steam Link reads it.
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); updateOnScreenControls() } }
-        steamController = SteamControllerBle(this, bridge).also { it.start() }
+        steamController = SteamControllerBle(this).also { it.start() }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0

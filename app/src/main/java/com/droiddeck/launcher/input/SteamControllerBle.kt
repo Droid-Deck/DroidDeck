@@ -15,26 +15,23 @@ import android.os.HandlerThread
 import android.util.Log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.ArrayDeque
 import java.util.UUID
 
 /**
- * The Steam Controller (2025, "Triton") over Bluetooth LE, read the way Steam Link reads it (SDL,
- * HIDDeviceBLESteamController.java and SDL_hidapi_steam_triton.c): the app connects to the
- * controller's own Valve GATT service, subscribes to its state report and keeps lizard mode off.
- * Android pairs it as a mouse and a keyboard (lizard mode), which is all a game would otherwise
- * get; read here, every control reaches the session's Steam Deck controller instead - sticks,
- * buttons and triggers through [PadBridge], the back grips and both trackpads through
- * [FakeInputWriter.writeDeckControls], gyro and accelerometer through [FakeInputWriter.writeMotion].
- * The Triton reports motion and trackpads in the Deck's own axes and units, so both pass through.
+ * Reads the Steam Controller (2025, Triton) through its Valve BLE service. State reports remain
+ * native Triton packets and are published to the session's separate 28DE:1303 HID device. Steam's
+ * output reports travel back to their matching BLE characteristics, preserving grip capacitance,
+ * trackpads, sensors, and controller haptics without folding the controller into the Deck target.
  *
- * The controller turns lizard mode back on by itself a few seconds after it last heard otherwise,
- * so the setting is sent again every [LIZARD_REFRESH_MS], and a session that ends (or an app that
- * dies) leaves it a mouse again with nothing to undo.
+ * Lizard mode is refreshed while connected; when a session ends, the controller restores it itself.
  */
 @SuppressLint("MissingPermission") // BLUETOOTH is granted at install below targetSdk 31
-class SteamControllerBle(private val context: Context, private val bridge: PadBridge) {
+class SteamControllerBle(private val context: Context) {
     private val thread = HandlerThread("steam-controller-ble").apply { start() }
     private val handler = Handler(thread.looper)
+    private val outputReports = mutableMapOf<Int, UUID>()
+    private val queuedWrites = ArrayDeque<Pair<UUID, ByteArray>>()
     private var gatt: BluetoothGatt? = null
     private var running = false
     private var input: UUID? = null
@@ -42,12 +39,8 @@ class SteamControllerBle(private val context: Context, private val bridge: PadBr
     private var lizardOffSent = false
     private var reportedNone = false
     private var discoveries = 0
-    private val pads = ShortArray(4)
-    private val pressure = ShortArray(2)
-    private val accel = ShortArray(3)
-    private val gyro = ShortArray(3)
-    private var lastButtons = 0
-    private val lastAxes = ShortArray(6)
+    private var outputSequence = 0L
+    private var outputWritePending = false
 
     /** Looks for a paired Steam Controller and keeps a connection to it until [stop]. */
     fun start() = handler.post {
@@ -73,7 +66,6 @@ class SteamControllerBle(private val context: Context, private val bridge: PadBr
             .getOrNull()
         val device = bonded?.firstOrNull(::isSteamController)
         if (device == null) {
-            // Once per session, so a controller that is never picked up says why.
             if (!reportedNone) {
                 reportedNone = true
                 Log.i(TAG, "no paired Steam Controller (Bluetooth ${if (adapter?.isEnabled == true) "on" else "off"}; paired: " +
@@ -92,6 +84,9 @@ class SteamControllerBle(private val context: Context, private val bridge: PadBr
         discoveries = 0
         input = null
         lizardOffSent = false
+        outputWritePending = false
+        queuedWrites.clear()
+        outputReports.clear()
         connected = false
         g.disconnect()
         g.close()
@@ -113,8 +108,12 @@ class SteamControllerBle(private val context: Context, private val bridge: PadBr
 
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             if (g !== gatt) return
-            // The Triton needs data length extensions, which Android only enables for a large MTU
-            // (517 is the value SDL found works); the subscription follows once it is set.
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                disconnect("service discovery failed (status $status)")
+                if (running) handler.postDelayed(::connect, RETRY_MS)
+                return
+            }
+            // The Triton needs data length extensions, which Android enables for a large MTU.
             if (!g.requestMtu(517)) subscribe(g)
         }
 
@@ -125,16 +124,24 @@ class SteamControllerBle(private val context: Context, private val bridge: PadBr
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             if (g !== gatt || descriptor.characteristic.uuid != input) return
             Log.i(TAG, "subscribed to report 0x%02x (status %d)".format(reportId, status))
-            connected = true
+            connected = status == BluetoothGatt.GATT_SUCCESS
             listener?.invoke()
-            refreshLizardMode()
+            if (connected) {
+                refreshLizardMode()
+                pollOutput()
+            }
         }
 
         override fun onCharacteristicWrite(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-            if (g === gatt && characteristic.uuid == REPORT && !lizardOffSent) {
+            if (g !== gatt) return
+            if (characteristic.uuid == REPORT && !lizardOffSent) {
                 lizardOffSent = true
                 Log.i(TAG, "lizard mode off (status $status)")
+            } else if (status != BluetoothGatt.GATT_SUCCESS) {
+                Log.w(TAG, "output report write failed for ${characteristic.uuid} (status $status)")
             }
+            outputWritePending = false
+            writeNextOutput()
         }
 
         // Android 13 hands the value over with the call; older ones only through the characteristic.
@@ -165,14 +172,22 @@ class SteamControllerBle(private val context: Context, private val bridge: PadBr
             }
             return
         }
-        // The timestamped report (0x47) where the firmware has it, else the plain BLE one (0x45);
-        // both lay out the same fields, the first with a trackpad timestamp ahead of the pads.
         val chr = service.getCharacteristic(INPUT_0X47)?.also { reportId = 0x47 }
             ?: service.getCharacteristic(INPUT_0X45)?.also { reportId = 0x45 }
         if (chr == null) {
             disconnect("no state report characteristic")
             return
         }
+        outputReports.clear()
+        service.characteristics.forEach { characteristic ->
+            val uuid = characteristic.uuid.toString().lowercase()
+            if (uuid.startsWith(OUTPUT_UUID_PREFIX)) {
+                val characteristicId = uuid.substring(6, 8).toIntOrNull(16) ?: return@forEach
+                val outputId = characteristicId - OUTPUT_UUID_OFFSET
+                if (outputId in 0x80..0x85) outputReports[outputId] = characteristic.uuid
+            }
+        }
+        Log.i(TAG, "found Triton haptic reports: ${outputReports.keys.sorted().joinToString { "0x%02x".format(it) }}")
         input = chr.uuid
         g.setCharacteristicNotification(chr, true)
         val cccd = chr.getDescriptor(CCCD) ?: return disconnect("state report cannot notify")
@@ -182,91 +197,97 @@ class SteamControllerBle(private val context: Context, private val bridge: PadBr
         g.writeDescriptor(cccd)
     }
 
-    /** BluetoothGatt.refresh(): hidden, but what every BLE app uses to drop a stale service cache. */
+    /** BluetoothGatt.refresh(): hidden, but used to drop stale service caches. */
     private fun refreshCache(g: BluetoothGatt) {
         runCatching { g.javaClass.getMethod("refresh").invoke(g) }
             .onFailure { Log.w(TAG, "could not refresh the service cache", it) }
     }
 
-    /** SDL's DisableSteamTritonLizardMode, on the BLE report characteristic: ID_SET_SETTINGS_VALUES
-     *  (0x87), one 3-byte setting, SETTING_LIZARD_MODE (9) = LIZARD_MODE_OFF (0). */
+    /** SDL's DisableSteamTritonLizardMode: ID_SET_SETTINGS_VALUES (0x87), setting 9 = off. */
     private fun refreshLizardMode() {
-        val g = gatt ?: return
         if (!connected) return
-        g.getService(SERVICE)?.getCharacteristic(REPORT)?.let { chr ->
-            val msg = ByteArray(FEATURE_BYTES)
-            msg[0] = 0x87.toByte(); msg[1] = 3; msg[2] = 9
-            @Suppress("DEPRECATION")
-            chr.value = msg
-            @Suppress("DEPRECATION")
-            g.writeCharacteristic(chr)
-        }
+        val msg = ByteArray(FEATURE_BYTES)
+        msg[0] = 0x87.toByte(); msg[1] = 3; msg[2] = 9
+        enqueueOutput(REPORT, msg)
         handler.postDelayed(::refreshLizardMode, LIZARD_REFRESH_MS)
     }
 
-    /** One TritonMTUNoQuat_t (0x45) or TritonMTUNoQuat32TS_t (0x47), without the report id byte. */
+    /** Preserve the full 0x45 or 0x47 packet so Triton-only bits reach Steam's native driver. */
     private fun onState(data: ByteArray) {
         if (data.size < STATE_BYTES) return
-        val b = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
-        val buttons = b.getInt(1)
-        val pad = if (reportId == 0x47) 19 else 17
-        // Triggers and sticks at 5..16. A held stick wanders by a few counts, which is not a player.
-        var changed = buttons != lastButtons
-        lastButtons = buttons
-        for (i in 0 until 6) {
-            val v = b.getShort(5 + i * 2)
-            if (Math.abs(v - lastAxes[i]) > AXIS_NOISE) { changed = true; lastAxes[i] = v }
-        }
-        bridge.applyExternal({ s ->
-            s.leftTrigger = b.getShort(5) / 32767f
-            s.rightTrigger = b.getShort(7) / 32767f
-            s.leftX = b.getShort(9) / 32767f
-            s.leftY = -b.getShort(11) / 32767f
-            s.rightX = b.getShort(13) / 32767f
-            s.rightY = -b.getShort(15) / 32767f
-            s.up = buttons and DPAD_UP != 0
-            s.down = buttons and DPAD_DOWN != 0
-            s.left = buttons and DPAD_LEFT != 0
-            s.right = buttons and DPAD_RIGHT != 0
-            for ((bit, button) in BUTTONS) s.press(button, buttons and bit != 0)
-        }, changed)
-        var controls = 0
-        for ((bit, control) in DECK_CONTROLS) if (buttons and bit != 0) controls = controls or control
-        for (i in 0 until 2) {
-            val at = pad + i * 6
-            pads[i * 2] = b.getShort(at)
-            pads[i * 2 + 1] = b.getShort(at + 2)
-            pressure[i] = minOf(b.getShort(at + 4).toInt() and 0xFFFF, Short.MAX_VALUE.toInt()).toShort()
-        }
-        FakeInputWriter.writeDeckControls(SLOT, controls, pads, pressure)
-        for (i in 0 until 3) {
-            accel[i] = b.getShort(33 + i * 2)
-            gyro[i] = b.getShort(39 + i * 2)
-        }
-        FakeInputWriter.writeMotion(SLOT, accel, gyro)
+        FakeInputWriter.writeTritonState(SLOT, reportId, data)
     }
 
-    /** Everything let go, so a link lost mid-press leaves nothing held in the game. */
+    /** A neutral report prevents a link lost mid-press from leaving controls held. */
     private fun release() {
-        bridge.applyExternal({ it.clear() }, false)
-        lastButtons = 0
-        lastAxes.fill(0)
-        pads.fill(0); pressure.fill(0); accel.fill(0); gyro.fill(0)
-        FakeInputWriter.writeDeckControls(SLOT, 0, pads, pressure)
-        FakeInputWriter.writeMotion(SLOT, accel, gyro)
+        FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
+    }
+
+    /** Drain Steam HID output reports and write each to Triton's matching BLE characteristic. */
+    private fun pollOutput() {
+        if (!running || !connected || gatt == null) return
+        FakeInputWriter.readTritonOutput(SLOT, outputSequence)?.let { output ->
+            outputSequence = ByteBuffer.wrap(output, 0, 8).order(ByteOrder.LITTLE_ENDIAN).long
+            sendOutputReport(output[8] != 0.toByte(), output.copyOfRange(9, output.size))
+        }
+        handler.postDelayed(::pollOutput, OUTPUT_POLL_MS)
+    }
+
+    private fun sendOutputReport(feature: Boolean, report: ByteArray) {
+        if (report.size < 2) return
+        val characteristic = if (feature) {
+            REPORT
+        } else {
+            val id = report[0].toInt() and 0xff
+            outputReports[id] ?: run {
+                Log.w(TAG, "no BLE output characteristic for report 0x%02x".format(id))
+                return
+            }
+        }
+        // SDL's BLE driver removes the HID report ID and trailing padding byte before transmission.
+        enqueueOutput(characteristic, report.copyOfRange(1, report.size - 1))
+    }
+
+    private fun enqueueOutput(characteristic: UUID, value: ByteArray) {
+        queuedWrites.addLast(characteristic to value)
+        writeNextOutput()
+    }
+
+    private fun writeNextOutput() {
+        if (outputWritePending) return
+        val g = gatt ?: return
+        val (uuid, value) = queuedWrites.pollFirst() ?: return
+        val characteristic = g.getService(SERVICE)?.getCharacteristic(uuid)
+        if (characteristic == null) {
+            Log.w(TAG, "BLE output characteristic $uuid disappeared")
+            return
+        }
+        @Suppress("DEPRECATION")
+        characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        @Suppress("DEPRECATION")
+        characteristic.value = value
+        @Suppress("DEPRECATION")
+        if (!g.writeCharacteristic(characteristic)) {
+            queuedWrites.addFirst(uuid to value)
+            handler.postDelayed(::writeNextOutput, OUTPUT_RETRY_MS)
+        } else {
+            outputWritePending = true
+        }
     }
 
     companion object {
         private const val TAG = "SteamControllerBle"
-        /** The Deck controller's ring slot (PadBridge, DeckControls, PadMotion). */
+        /** The paired controller's native Triton reports live in slot 0's extended ring. */
         private const val SLOT = 0
         private const val RETRY_MS = 5_000L
         private const val LIZARD_REFRESH_MS = 3_000L
-        /** SDL's 64-byte feature report less the report id and the last byte, as it goes over the air. */
+        private const val OUTPUT_POLL_MS = 4L
+        private const val OUTPUT_RETRY_MS = 10L
+        /** SDL's 64-byte feature report less the report ID and the trailing byte. */
         private const val FEATURE_BYTES = 62
-        /** Through the last gyro axis of either state report. */
         private const val STATE_BYTES = 45
-        private const val AXIS_NOISE = 1024
+        private const val OUTPUT_UUID_PREFIX = "100f6c"
+        private const val OUTPUT_UUID_OFFSET = 0x35
 
         private val SERVICE = UUID.fromString("100F6C32-1735-4313-B402-38567131E5F3")
         private val INPUT_0X45 = UUID.fromString("100F6C7A-1735-4313-B402-38567131E5F3")
@@ -274,43 +295,25 @@ class SteamControllerBle(private val context: Context, private val bridge: PadBr
         private val REPORT = UUID.fromString("100F6C34-1735-4313-B402-38567131E5F3")
         private val CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
-        // TritonButtons (SDL_hidapi_steam_triton.c).
-        private const val A = 0x00000001; private const val B = 0x00000002
-        private const val X = 0x00000004; private const val Y = 0x00000008
-        private const val QAM = 0x00000010; private const val R3 = 0x00000020
-        private const val VIEW = 0x00000040; private const val R4 = 0x00000080
-        private const val R5 = 0x00000100; private const val RB = 0x00000200
-        private const val DPAD_DOWN = 0x00000400; private const val DPAD_RIGHT = 0x00000800
-        private const val DPAD_LEFT = 0x00001000; private const val DPAD_UP = 0x00002000
-        private const val MENU = 0x00004000; private const val L3 = 0x00008000
-        private const val STEAM = 0x00010000; private const val L4 = 0x00020000
-        private const val L5 = 0x00040000; private const val LB = 0x00080000
-        private const val RIGHT_PAD_TOUCH = 0x00200000; private const val RIGHT_PAD_CLICK = 0x00400000
-        private const val LEFT_PAD_TOUCH = 0x02000000; private const val LEFT_PAD_CLICK = 0x04000000
-
-        /** As SDL maps them: the left of the two centre buttons (MENU) is Back, the right Start. */
-        private val BUTTONS = listOf(
-            A to PadState.A, B to PadState.B, X to PadState.X, Y to PadState.Y,
-            LB to PadState.LB, RB to PadState.RB, MENU to PadState.SELECT, VIEW to PadState.START,
-            L3 to PadState.L3, R3 to PadState.R3, STEAM to PadState.GUIDE, QAM to PadState.QAM,
-        )
-        /** Grips and trackpads, as DeckControls' bits (DECK_EXTRA_* in fakeinput_steam.cpp). */
-        private val DECK_CONTROLS = listOf(
-            L4 to DeckControls.L4, R4 to DeckControls.R4, L5 to DeckControls.L5, R5 to DeckControls.R5,
-            LEFT_PAD_TOUCH to 16, RIGHT_PAD_TOUCH to 32, LEFT_PAD_CLICK to 64, RIGHT_PAD_CLICK to 128,
-        )
-
-        /** SDL's test (HIDDeviceManager.isSteamController): an LE device the Triton names itself as. */
         private fun isSteamController(device: BluetoothDevice): Boolean =
             device.type and BluetoothDevice.DEVICE_TYPE_LE != 0 &&
                 (device.name ?: "").let { it.startsWith("Steam Ctrl") || it.startsWith("SteamController") }
 
-        /** A Steam Controller is connected and feeding the pad; the phone's own gyro then stays off. */
+        /** Whether a session should expose a Triton HID node for a paired controller. */
+        @JvmStatic
+        fun hasPairedController(context: Context): Boolean {
+            val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter ?: return false
+            return runCatching { adapter.isEnabled && adapter.bondedDevices.any(::isSteamController) }
+                .onFailure { Log.w(TAG, "paired devices unreadable", it) }
+                .getOrDefault(false)
+        }
+
+        /** A Steam Controller is connected and feeding its native HID reports. */
         @Volatile @JvmStatic
         var connected = false
             private set
 
-        /** Told (on the controller's thread) when [connected] changes. */
+        /** Notifies the activity when [connected] changes. */
         @Volatile @JvmStatic
         var listener: (() -> Unit)? = null
     }
