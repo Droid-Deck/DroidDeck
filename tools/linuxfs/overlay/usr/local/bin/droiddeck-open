@@ -1,8 +1,9 @@
 #!/usr/bin/python3
 """Runs a program from the desktop: a Windows program through the Proton Steam has chosen, a Linux
 program (x86 ones under FEX), an AppImage, or a script (under FEX beside x86 programs, as a game's
-start script is). Shared storage is noexec: a script or program there whose folder holds Linux programs
-is copied in by the app once (as Add an app does), then runs from there.
+start script is). Shared storage is noexec: FEX runs x86 programs there where they lie (libblsession's
+noexec.c), while a native one is copied - alone into the cache, or with its folder by the app once (as
+Add an app does) when that holds native programs or libraries. A Steam library's games are Steam's.
 
     droiddeck-open [--window | --terminal] FILE [ARGS...]   the file manager's Run entries
     droiddeck-open --exec FILE [ARGS...]                     an exec the kernel refused (libblsession)
@@ -43,6 +44,7 @@ WINDOWS = (".exe", ".bat", ".cmd", ".com", ".msi")
 NOT_PROGRAMS = (".dll", ".sys", ".drv", ".cpl", ".ocx", ".efi", ".scr", ".mui")
 SCRIPTS = (".sh", ".bash")
 MACHINES = {3: "i386", 62: "x86_64", 183: "arm64"}
+EMULATED = (3, 62)
 QUICK_FAILURE = 20
 IMPORT_WAIT = 1800
 WINDOWS_TYPES = ("application/x-ms-dos-executable", "application/x-msdownload",
@@ -120,8 +122,8 @@ def for_x86(script):
 
 
 def runnable(path):
-    """The program itself, or a copy in the cache when its storage is mounted noexec."""
-    if not noexec(path):
+    """The program itself, or a copy in the cache of a native one on noexec storage."""
+    if not noexec(path) or machine(head(path)) in EMULATED:
         return path
     st = os.stat(path)
     key = hashlib.sha1(os.path.realpath(path).encode("utf-8")).hexdigest()[:16]
@@ -204,7 +206,7 @@ def import_of(key, what):
 
 def imported(what, real, key, name):
     """[real] added by the app instead, as Add an app adds it (to the menu too): an AppImage whose hard
-    links (sharun's) only the app's own proot can make, or a folder of programs off noexec storage."""
+    links (sharun's) only the app's own proot can make, or a folder of native programs off noexec storage."""
     launch = os.environ.get("BL_LAUNCH_DIR")
     if not launch or not os.path.isdir(launch):
         raise RuntimeError("%s cannot run from here; add it in DroidDeck with Add an app." % name)
@@ -235,11 +237,12 @@ def imported(what, real, key, name):
 
 
 def game_folder(path):
-    """The folder of [path] when it runs only from a copy: on noexec storage, holding Linux programs
-    (besides [path]) that it starts or loads. Not the storage itself or one of Android's folders."""
+    """The folder of [path] when it runs only from a copy: on noexec storage, holding native programs or
+    libraries (besides [path]) that it starts or loads. Not the storage itself, one of Android's folders
+    or a Steam library."""
     real = os.path.realpath(path)
     folder = os.path.dirname(real)
-    if not noexec(folder):
+    if in_steam_library(real) or not noexec(folder):
         return None
     top = storage_root(folder)
     parts = os.path.relpath(folder, top).split(os.sep)
@@ -256,9 +259,14 @@ def game_folder(path):
             seen += 1
             if seen > SCAN_LIMIT:
                 return None
-            if head(child, 4) == b"\x7fELF":
+            if machine(head(child)) not in (None,) + EMULATED:
                 return folder
     return None
+
+
+def in_steam_library(path):
+    """Whether [path] is in a Steam library: its games are Steam's to start, never copied in."""
+    return "steamapps" in os.path.realpath(path).lower().split(os.sep)
 
 
 def storage_root(folder):
@@ -387,13 +395,14 @@ def main(argv):
         if mode != "exec":
             notify("Cannot run %s" % os.path.basename(path), "It is not a Windows or Linux program or a script.")
         return 126
-    if what in ("script", "elf") and game_folder(path):
-        what = "folder"
-    elif what == "script" and for_x86(path):
-        what = "x86 script"
-    appid = steam_title(path) if what == "windows" and mode != "window" else None
+    linux_game = what in ("script", "elf") and mode == "run" and in_steam_library(path)
+    appid = steam_title(path) if (what == "windows" and mode != "window") or linux_game else None
     if appid:
         what = "steam"
+    elif what == "script" and for_x86(path):
+        what = "x86 script"
+    elif what in ("script", "elf") and game_folder(path):
+        what = "folder"
     try:
         cmd, folder = command(path, argv[1:], what, mode == "window", appid)
     except (OSError, RuntimeError) as error:

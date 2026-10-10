@@ -1,3 +1,4 @@
+import contextlib
 import os
 from pathlib import Path
 import runpy
@@ -135,14 +136,16 @@ class CommandTest(Temp):
         self.assertEqual(OPEN["command"](script, [], "x86 script")[0],
                          [OPEN["FEX"], "run", "--mode", "on", "--for", str(self.tmp), "--", "/bin/sh", script])
 
-    def test_a_program_on_noexec_storage_runs_from_a_copy(self):
-        program = self.write("storage/tool", elf(62))
+    def test_a_native_program_on_noexec_storage_runs_from_a_copy(self):
+        program = self.write("storage/tool", elf(183))
+        x86 = self.write("storage/game.x86_64", elf(62))
         with mock.patch.dict(OPEN, {"CACHE": str(self.tmp / "cache"), "noexec": lambda path: True}):
             copy = OPEN["runnable"](str(program))
             self.assertNotEqual(copy, str(program))
-            self.assertEqual(Path(copy).read_bytes(), elf(62))
+            self.assertEqual(Path(copy).read_bytes(), elf(183))
             self.assertTrue(os.access(copy, os.X_OK))
             self.assertEqual(OPEN["runnable"](str(program)), copy)
+            self.assertEqual(OPEN["runnable"](str(x86)), str(x86))
         with mock.patch.dict(OPEN, {"noexec": lambda path: False}):
             self.assertEqual(OPEN["runnable"](str(program)), str(program))
 
@@ -249,29 +252,39 @@ class GameFolderTest(Temp):
     def folder(self, path):
         return OPEN["game_folder"](str(self.storage / path))
 
-    def test_a_games_folder_on_noexec_storage_is_copied_in(self):
+    def test_a_native_games_folder_on_noexec_storage_is_copied_in(self):
+        self.write("storage/Download/Game/start.sh", b"#!/bin/sh\n./bin/game.aarch64\n")
+        self.write("storage/Download/Game/bin/game.aarch64", elf(183))
+        self.write("storage/Download/Godot/Game.arm64", elf(183))
+        self.write("storage/Download/Godot/libgodot.so", elf(183))
+        self.write("storage/MyGame/start.sh", b"./game\n")
+        self.write("storage/MyGame/game", elf(183))
+        self.assertEqual(self.folder("Download/Game/start.sh"), str(self.storage / "Download/Game"))
+        self.assertEqual(self.folder("Download/Godot/Game.arm64"), str(self.storage / "Download/Godot"))
+        self.assertEqual(self.folder("MyGame/start.sh"), str(self.storage / "MyGame"))
+
+    def test_x86_games_run_where_they_lie(self):
         self.write("storage/Download/Game/start.sh", b"#!/bin/sh\n./bin/game.x86_64\n")
         self.write("storage/Download/Game/bin/game.x86_64", elf(62))
         self.write("storage/Download/Unity/Game.x86_64", elf(62))
         self.write("storage/Download/Unity/UnityPlayer.so", elf(62))
-        self.write("storage/MyGame/start.sh", b"./game\n")
-        self.write("storage/MyGame/game", elf(183))
-        self.assertEqual(self.folder("Download/Game/start.sh"), str(self.storage / "Download/Game"))
-        self.assertEqual(self.folder("Download/Unity/Game.x86_64"), str(self.storage / "Download/Unity"))
-        self.assertEqual(self.folder("MyGame/start.sh"), str(self.storage / "MyGame"))
+        self.write("storage/Download/Old/game", elf(3))
+        for path in ("Download/Game/start.sh", "Download/Unity/Game.x86_64", "Download/Old/game"):
+            with self.subTest(path):
+                self.assertIsNone(self.folder(path))
 
     def test_what_runs_where_it_lies_is_left_there(self):
         self.write("storage/Download/Scripts/hello.sh", b"echo hi\n")
-        self.write("storage/Download/Tool/tool", elf(62))
+        self.write("storage/Download/Tool/tool", elf(183))
         self.write("storage/Download/start.sh", b"./Tool/tool\n")
         self.write("storage/start.sh", b"./Download/Tool/tool\n")
-        self.write("storage/Download/Deep/a/b/c/d/lib.so", elf(62))
+        self.write("storage/Download/Deep/a/b/c/d/lib.so", elf(183))
         self.write("storage/Download/Deep/start.sh", b"echo\n")
         for path in ("Download/Scripts/hello.sh", "Download/Tool/tool", "Download/start.sh", "start.sh", "Download/Deep/start.sh"):
             with self.subTest(path):
                 self.assertIsNone(self.folder(path))
         self.write("internal/Game/start.sh", b"./game\n")
-        self.write("internal/Game/game", elf(62))
+        self.write("internal/Game/game", elf(183))
         with mock.patch.dict(OPEN, {"noexec": lambda path: False}):
             self.assertIsNone(OPEN["game_folder"](str(self.tmp / "internal/Game/start.sh")))
 
@@ -454,9 +467,11 @@ class ProtonRunTest(Temp):
 
     def test_a_games_own_program_is_left_to_steam(self):
         self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
-        self.assertEqual(RUN["compat"]()["launch_programs"](STARDEW["config"]), ["stardew valley.exe", "tools/setup.exe"])
+        self.assertEqual(RUN["compat"]()["launch_programs"](STARDEW["config"]),
+                         ["stardew valley.exe", "stardewvalley", "tools/setup.exe"])
         root = str(self.root)
-        for relative, expected in (("Stardew Valley.exe", True), ("Tools/Setup.exe", True), ("createdump.exe", False)):
+        for relative, expected in (("Stardew Valley.exe", True), ("StardewValley", True), ("Tools/Setup.exe", True),
+                                   ("createdump.exe", False)):
             with self.subTest(relative):
                 program = str(self.game("413150", "Stardew Valley", relative))
                 self.assertEqual(RUN["steam_launches"](RUN["locate"](program, root), program, root), expected)
@@ -473,6 +488,20 @@ class ProtonRunTest(Temp):
             self.assertEqual(OPEN["command"](program, [], "steam", appid=appid)[0], [OPEN["STEAM_LAUNCH"], "desktop", "413150"])
             self.assertEqual(OPEN["placed"](["launch"], "steam", "run", {"BL_DESKTOP": "1"}), ["launch"])
             self.assertIsNone(OPEN["steam_title"](str(self.write("Download/winemine.exe", b"MZ"))))
+
+    def test_a_linux_steam_games_program_goes_to_steam_too(self):
+        self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
+        program = self.game("413150", "Stardew Valley", "StardewValley")
+        program.write_bytes(elf(62))
+        self.write("Steam/steamapps/common/Stardew Valley/lib64/libSDL2.so", elf(62))
+        ran = []
+        with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
+                mock.patch.dict(OPEN, {"PROTON_RUN": str(BIN / "droiddeck-proton-run"), "noexec": lambda path: True,
+                                       "placed": lambda cmd, *a: cmd, "say": lambda *a: None}), \
+                mock.patch.object(OPEN["subprocess"], "call", lambda cmd: ran.append(cmd) or 0), contextlib.chdir(self.tmp):
+            self.assertEqual(OPEN["main"]([str(program)]), 0)
+            self.assertIsNone(OPEN["game_folder"](str(program)))
+        self.assertEqual(ran, [[OPEN["STEAM_LAUNCH"], "desktop", "413150"]])
 
     def test_the_tool_is_started_as_steam_starts_it(self):
         program = self.game("413150", "Stardew Valley", "Stardew Valley.exe")
