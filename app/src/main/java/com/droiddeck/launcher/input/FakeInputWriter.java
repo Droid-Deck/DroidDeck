@@ -117,8 +117,14 @@ public class FakeInputWriter {
     private static final int TRITON_OUTPUT_FEATURE_OFFSET = TRITON_OFFSET + 96;
     private static final int TRITON_OUTPUT_LENGTH_OFFSET = TRITON_OFFSET + 100;
     private static final int TRITON_OUTPUT_OFFSET = TRITON_OFFSET + 104;
+    // A feature read: libfakeinput bumps the request, the reply names the request it answers.
+    private static final int TRITON_GET_REQUEST_OFFSET = TRITON_OFFSET + 168;
+    private static final int TRITON_GET_REPLY_OFFSET = TRITON_OFFSET + 176;
+    private static final int TRITON_GET_REPORT_ID_OFFSET = TRITON_OFFSET + 184;
+    private static final int TRITON_GET_LENGTH_OFFSET = TRITON_OFFSET + 188;
+    private static final int TRITON_GET_OFFSET = TRITON_OFFSET + 192;
     private static final int TRITON_REPORT_MAX = 64;
-    private static final int TRITON_BLOCK_SIZE = 192;
+    private static final int TRITON_BLOCK_SIZE = 256;
     private static final int RING_FILE_SIZE = TRITON_OFFSET + TRITON_BLOCK_SIZE;
 
     private static final Object RING_LOCK = new Object();
@@ -242,6 +248,8 @@ public class FakeInputWriter {
         data.putLong(TRITON_OUTPUT_SEQ_OFFSET, 0L);
         data.putInt(TRITON_OUTPUT_FEATURE_OFFSET, 0);
         data.putInt(TRITON_OUTPUT_LENGTH_OFFSET, 0);
+        data.putLong(TRITON_GET_REQUEST_OFFSET, 0L);
+        data.putLong(TRITON_GET_REPLY_OFFSET, 0L);
     }
 
     // Lock order: RING_LOCK, then the slot. Every writer holds the slot while it touches data, and
@@ -587,6 +595,40 @@ public class FakeInputWriter {
             for (int i = 0; i < length; i++) output[9 + i] = ring.get(TRITON_OUTPUT_OFFSET + i);
             nativeStoreFence();
             return seq == ring.getLong(TRITON_OUTPUT_SEQ_OFFSET) ? output : null;
+        }
+    }
+
+    /** The Steam client's newest unanswered feature read, or 0: its request number. */
+    public static long readTritonFeatureRequest(int slot) {
+        RingSlot ringSlot = tritonSlot(slot);
+        if (ringSlot == null) return 0L;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return 0L;
+            nativeStoreFence();
+            long request = ring.getLong(TRITON_GET_REQUEST_OFFSET);
+            return request != ring.getLong(TRITON_GET_REPLY_OFFSET) ? request : 0L;
+        }
+    }
+
+    /** Answers feature read {@code request} with the controller's report, or a failure when null. */
+    public static void writeTritonFeatureReply(int slot, long request, byte[] report) {
+        RingSlot ringSlot = tritonSlot(slot);
+        if (ringSlot == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return;
+            int length = report == null ? 0 : Math.min(report.length, TRITON_REPORT_MAX);
+            for (int i = 0; i < TRITON_REPORT_MAX; i++) ring.put(TRITON_GET_OFFSET + i, i < length ? report[i] : 0);
+            ring.putInt(TRITON_GET_LENGTH_OFFSET, length);
+            nativeStoreFence();
+            ring.putLong(TRITON_GET_REPLY_OFFSET, request);
+        }
+    }
+
+    private static RingSlot tritonSlot(int slot) {
+        synchronized (RING_LOCK) {
+            return slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
         }
     }
 

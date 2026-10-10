@@ -1274,6 +1274,8 @@ static_assert(sizeof(DeckImu) <= DECK_IMU_BLOCK_SIZE, "the IMU block is 64 bytes
 
 // Shared native Steam Controller reports. Field offsets match FakeInputWriter.java. Android writes
 // the original BLE input packet; this process writes Steam's HID output report for Android to send.
+// A feature read is a round trip: this process bumps get_request, Android reads the controller's
+// report characteristic and answers with get_reply set to the same number.
 struct TritonSharedData {
   uint32_t magic;
   uint32_t reserved;
@@ -1285,9 +1287,14 @@ struct TritonSharedData {
   uint32_t output_feature;
   uint32_t output_length;
   uint8_t output[64];
+  uint64_t get_request;
+  uint64_t get_reply;
+  uint32_t get_report_id;
+  int32_t get_length;
+  uint8_t get[64];
 };
 static constexpr uint32_t TRITON_SHARED_MAGIC = 0x4e525454;
-static constexpr size_t TRITON_SHARED_BLOCK_SIZE = 192;
+static constexpr size_t TRITON_SHARED_BLOCK_SIZE = 256;
 static constexpr size_t TRITON_SHARED_OFFSET = FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE;
 static_assert(offsetof(TritonSharedData, input_seq) == 8, "Triton input sequence offset");
 static_assert(offsetof(TritonSharedData, report_id) == 16, "Triton report ID offset");
@@ -1295,6 +1302,11 @@ static_assert(offsetof(TritonSharedData, input) == 24, "Triton input offset");
 static_assert(offsetof(TritonSharedData, output_seq) == 88, "Triton output sequence offset");
 static_assert(offsetof(TritonSharedData, output_feature) == 96, "Triton output feature offset");
 static_assert(offsetof(TritonSharedData, output) == 104, "Triton output offset");
+static_assert(offsetof(TritonSharedData, get_request) == 168, "Triton feature request offset");
+static_assert(offsetof(TritonSharedData, get_reply) == 176, "Triton feature reply offset");
+static_assert(offsetof(TritonSharedData, get_report_id) == 184, "Triton feature report ID offset");
+static_assert(offsetof(TritonSharedData, get_length) == 188, "Triton feature length offset");
+static_assert(offsetof(TritonSharedData, get) == 192, "Triton feature data offset");
 static_assert(sizeof(TritonSharedData) <= TRITON_SHARED_BLOCK_SIZE, "Triton ring block size");
 
 static constexpr const char *TRITON_HIDRAW_PATH = "/dev/hidraw18";
@@ -1303,6 +1315,8 @@ static constexpr unsigned int TRITON_HIDRAW_MINOR = 18;
 static constexpr int TRITON_REPORT_ID_BYTES = 1;
 static constexpr int TRITON_STATE_BYTES = 45;
 static constexpr int TRITON_REPORT_INTERVAL_US = 4000;
+// A BLE read takes a few connection intervals; past this the controller is taken to be gone.
+static constexpr int TRITON_FEATURE_TIMEOUT_MS = 500;
 static constexpr const char *TRITON_NAME = "Steam Controller";
 static constexpr const char *TRITON_SERIAL = "DROIDDECKSC01";
 static const uint8_t kTritonReportDescriptor[] = {
@@ -2216,6 +2230,52 @@ __attribute__((visibility("hidden"))) static void triton_queue_output(DeckHidraw
     Logger::log("triton: %s report 0x%02x (x%u, %zu bytes)\n", feature ? "feature" : "output", report_id, n, size);
 }
 
+// HIDIOCGFEATURE: the client reads the controller's info (report 1) this way, and a device that
+// answers with nothing is dropped as a zombie. The read goes to the controller itself, as SDL's
+// BLE backend does it (hid.m, get_feature_report): its reply is the report, with the report ID
+// put in front when the controller left it out. Called without controller_mutex: it waits.
+__attribute__((visibility("hidden"))) static int triton_get_feature(DeckHidraw &triton, uint8_t *report, size_t size) {
+  if (!report || size < 2 || triton.mapping_size < TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE) {
+    errno = EINVAL;
+    return -1;
+  }
+  auto *shared = reinterpret_cast<TritonSharedData *>(reinterpret_cast<uint8_t *>(triton.ring) + TRITON_SHARED_OFFSET);
+  static std::mutex one_at_a_time;
+  std::lock_guard<std::mutex> guard(one_at_a_time);
+  uint8_t report_id = report[0];
+  __atomic_store_n(&shared->get_report_id, report_id, __ATOMIC_RELAXED);
+  uint64_t request = __atomic_add_fetch(&shared->get_request, 1, __ATOMIC_RELEASE);
+  for (int waited = 0; waited < TRITON_FEATURE_TIMEOUT_MS * 4; waited++) {
+    if (__atomic_load_n(&shared->get_reply, __ATOMIC_ACQUIRE) == request) {
+      int32_t length = __atomic_load_n(&shared->get_length, __ATOMIC_RELAXED);
+      if (length <= 0 || length > static_cast<int32_t>(sizeof(shared->get))) break;
+      size_t copied;
+      memset(report, 0, size);
+      if (shared->get[0] == report_id) {
+        copied = std::min(size, static_cast<size_t>(length));
+        memcpy(report, shared->get, copied);
+      } else {
+        report[0] = report_id;
+        copied = 1 + std::min(size - 1, static_cast<size_t>(length));
+        memcpy(report + 1, shared->get, copied - 1);
+      }
+      static std::atomic<unsigned> reads[256];
+      unsigned n = ++reads[report_id];
+      if ((n & (n - 1)) == 0)
+        Logger::log("triton: feature 0x%02x read, %d bytes from the controller [%02x %02x %02x %02x] (x%u)\n", report_id,
+                    length, shared->get[0], shared->get[1], shared->get[2], shared->get[3], n);
+      return static_cast<int>(copied);
+    }
+    struct timespec interval = {0, 250 * 1000L};
+    nanosleep(&interval, nullptr);
+  }
+  static std::atomic<unsigned> failures;
+  unsigned n = ++failures;
+  if ((n & (n - 1)) == 0) Logger::log("triton: feature 0x%02x read got no answer from the controller (x%u)\n", report_id, n);
+  errno = EIO;
+  return -1;
+}
+
 __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton, ioctl_request_t op, void *argp) {
   if (_IOC_TYPE(op) != 'H') {
     errno = ENOTTY;
@@ -2245,26 +2305,17 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
   case 0x05: return copy_ioctl_string(op, argp, "bluetooth-droiddeck-1");
   case 0x08: return copy_ioctl_string(op, argp, TRITON_SERIAL);
   case 0x06: {
+    // The client's feature reports are the report ID and 64 bytes; the last is padding the BLE
+    // characteristic does not take (SteamControllerBle.sendOutputReport drops it), so 64 are kept.
     size_t size = _IOC_SIZE(op);
-    if (!argp || size < 2 || size > 64) {
+    if (!argp || size < 2 || size > 65) {
       errno = EINVAL;
       return -1;
     }
-    triton_queue_output(triton, static_cast<const uint8_t *>(argp), size, true);
+    triton_queue_output(triton, static_cast<const uint8_t *>(argp), std::min<size_t>(size, 64), true);
     return static_cast<int>(size);
   }
-  case 0x07: {
-    size_t size = _IOC_SIZE(op);
-    auto *report = static_cast<uint8_t *>(argp);
-    if (!report || size < 1) {
-      errno = EINVAL;
-      return -1;
-    }
-    uint8_t report_id = report[0];
-    memset(report, 0, size);
-    report[0] = report_id;
-    return static_cast<int>(size);
-  }
+  case 0x07: return triton_get_feature(triton, static_cast<uint8_t *>(argp), _IOC_SIZE(op));
   default:
     errno = EINVAL;
     return -1;
@@ -2853,7 +2904,11 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   auto deck = deck_map().find(fd);
   if (deck != deck_map().end()) {
     if (deck->second->touch) return ioctl_touch(*deck->second, op, argp);
-    if (deck->second->triton) return ioctl_triton(*deck->second, op, argp);
+    if (deck->second->triton) {
+      std::shared_ptr<DeckHidraw> triton = deck->second;
+      guard.unlock();
+      return ioctl_triton(*triton, op, argp);
+    }
     return ioctl_deck(*deck->second, op, argp);
   }
   auto controller = controller_map().find(fd);

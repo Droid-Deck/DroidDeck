@@ -31,7 +31,8 @@ class SteamControllerBle(private val context: Context) {
     private val thread = HandlerThread("steam-controller-ble").apply { start() }
     private val handler = Handler(thread.looper)
     private val outputReports = mutableMapOf<Int, UUID>()
-    private val queuedWrites = ArrayDeque<Pair<UUID, ByteArray>>()
+    /** GATT allows one operation at a time: writes carry a value, a feature read none. */
+    private val queuedWrites = ArrayDeque<Pair<UUID, ByteArray?>>()
     private var gatt: BluetoothGatt? = null
     private var running = false
     private var input: UUID? = null
@@ -41,6 +42,8 @@ class SteamControllerBle(private val context: Context) {
     private var discoveries = 0
     private var outputSequence = 0L
     private var outputWritePending = false
+    /** The Steam client's feature read being answered, so the poll queues each one once. */
+    private var featureRead = 0L
 
     /** Looks for a paired Steam Controller and keeps a connection to it until [stop]. */
     fun start() = handler.post {
@@ -85,6 +88,7 @@ class SteamControllerBle(private val context: Context) {
         input = null
         lizardOffSent = false
         outputWritePending = false
+        featureRead = 0L
         queuedWrites.clear()
         outputReports.clear()
         connected = false
@@ -142,6 +146,16 @@ class SteamControllerBle(private val context: Context) {
             }
             outputWritePending = false
             writeNextOutput()
+        }
+
+        override fun onCharacteristicRead(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
+            if (g === gatt) onFeatureRead(value.takeIf { status == BluetoothGatt.GATT_SUCCESS })
+        }
+
+        @Deprecated("Below Android 13 only", ReplaceWith(""))
+        override fun onCharacteristicRead(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            @Suppress("DEPRECATION")
+            if (g === gatt) onFeatureRead(characteristic.value.takeIf { status == BluetoothGatt.GATT_SUCCESS })
         }
 
         // Android 13 hands the value over with the call; older ones only through the characteristic.
@@ -230,7 +244,24 @@ class SteamControllerBle(private val context: Context) {
             outputSequence = ByteBuffer.wrap(output, 0, 8).order(ByteOrder.LITTLE_ENDIAN).long
             sendOutputReport(output[8] != 0.toByte(), output.copyOfRange(9, output.size))
         }
+        val request = FakeInputWriter.readTritonFeatureRequest(SLOT)
+        if (request != 0L && request != featureRead) {
+            featureRead = request
+            // Behind any queued write, so a read answers the feature report written before it.
+            queuedWrites.addLast(REPORT to null)
+            writeNextOutput()
+        }
         handler.postDelayed(::pollOutput, OUTPUT_POLL_MS)
+    }
+
+    /** The controller's answer to a feature read (its info, for one), or null when the read failed. */
+    private fun onFeatureRead(value: ByteArray?) {
+        outputWritePending = false
+        if (featureRead != 0L) {
+            if (value == null) Log.w(TAG, "feature read failed")
+            FakeInputWriter.writeTritonFeatureReply(SLOT, featureRead, value)
+        }
+        writeNextOutput()
     }
 
     private fun sendOutputReport(feature: Boolean, report: ByteArray) {
@@ -248,7 +279,7 @@ class SteamControllerBle(private val context: Context) {
         enqueueOutput(characteristic, report.copyOfRange(1, report.size - 1))
     }
 
-    private fun enqueueOutput(characteristic: UUID, value: ByteArray) {
+    private fun enqueueOutput(characteristic: UUID, value: ByteArray?) {
         queuedWrites.addLast(characteristic to value)
         writeNextOutput()
     }
@@ -260,6 +291,15 @@ class SteamControllerBle(private val context: Context) {
         val characteristic = g.getService(SERVICE)?.getCharacteristic(uuid)
         if (characteristic == null) {
             Log.w(TAG, "BLE output characteristic $uuid disappeared")
+            return
+        }
+        if (value == null) {
+            if (g.readCharacteristic(characteristic)) {
+                outputWritePending = true
+            } else {
+                queuedWrites.addFirst(uuid to null)
+                handler.postDelayed(::writeNextOutput, OUTPUT_RETRY_MS)
+            }
             return
         }
         @Suppress("DEPRECATION")
