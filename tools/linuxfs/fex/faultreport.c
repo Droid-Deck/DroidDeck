@@ -1,15 +1,30 @@
-#if !defined(__x86_64__)
-#error faultreport is built for x86_64 guests only
-#endif
-
+#if defined(__x86_64__)
 #define SYS_read 0
 #define SYS_write 1
 #define SYS_close 3
 #define SYS_rt_sigaction 13
+#define SYS_rt_sigreturn "15"
 #define SYS_getpid 39
 #define SYS_gettid 186
 #define SYS_tgkill 234
 #define SYS_openat 257
+#define SI_ADDR 16
+#define TRAP "syscall"
+#elif defined(__i386__)
+#define SYS_read 3
+#define SYS_write 4
+#define SYS_close 6
+#define SYS_rt_sigaction 174
+#define SYS_rt_sigreturn "173"
+#define SYS_getpid 20
+#define SYS_gettid 224
+#define SYS_tgkill 270
+#define SYS_openat 295
+#define SI_ADDR 12
+#define TRAP "int $0x80"
+#else
+#error faultreport is built for x86 guests only
+#endif
 #define AT_FDCWD (-100)
 #define SIGILL 4
 #define SA_SIGINFO 0x4UL
@@ -21,14 +36,18 @@ struct kernel_sigaction {
     void (*handler)(int, void *, void *);
     unsigned long flags;
     void (*restorer)(void);
-    unsigned long mask;
+    unsigned long long mask;
 };
 
 static long sys(long n, long a, long b, long c, long d)
 {
     long r;
+#if defined(__x86_64__)
     register long r10 __asm__("r10") = d;
     __asm__ volatile("syscall" : "=a"(r) : "a"(n), "D"(a), "S"(b), "d"(c), "r"(r10) : "rcx", "r11", "memory");
+#else
+    __asm__ volatile("int $0x80" : "=a"(r) : "a"(n), "b"(a), "c"(b), "d"(c), "S"(d) : "memory");
+#endif
     return r;
 }
 
@@ -100,7 +119,7 @@ static int find_mapping(unsigned long addr, const char **line, unsigned long *le
 static void report(int sig, void *info, void *context)
 {
     (void)context;
-    unsigned long addr = *(unsigned long *)((char *)info + 16);
+    unsigned long addr = *(unsigned long *)((char *)info + SI_ADDR);
     int code = *(int *)((char *)info + 8);
     used = 0;
     put("droiddeck-fex: SIGILL at 0x");
@@ -135,7 +154,7 @@ static void report(int sig, void *info, void *context)
 }
 
 void faultreport_restore(void);
-__asm__(".text\n.type faultreport_restore,@function\nfaultreport_restore:\nmov $15, %eax\nsyscall\nhlt\n");
+__asm__(".text\n.type faultreport_restore,@function\nfaultreport_restore:\nmov $" SYS_rt_sigreturn ", %eax\n" TRAP "\nhlt\n");
 
 __attribute__((constructor)) static void install(void)
 {
