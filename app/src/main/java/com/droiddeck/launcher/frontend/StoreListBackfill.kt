@@ -71,22 +71,24 @@ object StoreListBackfill {
         return true
     }
 
-    private fun fromStore(context: Context, sidecar: StoreGameSidecar): Map<String, String>? = when (sidecar.store) {
-        Store.GOG -> {
-            val token = GogAuth.validToken(context) ?: return null
-            GogDownloadManager.fetchDependencies(sidecar.id, sidecar.installVersion, token)
-                ?.let { mapOf(WinCompSources.GOG_DEPENDENCIES to it.joinToString(",")) }
-        }
-        Store.EPIC -> {
-            val token = EpicCredentialStore.getValidAccessToken(context) ?: return null
-            val namespace = sidecar.extra["namespace"].orEmpty()
-            val catalogItemId = sidecar.extra["catalogItemId"].orEmpty()
-            if (namespace.isEmpty() || catalogItemId.isEmpty()) return null
-            val json = EpicApiClient.getManifestApiJson(token, namespace, catalogItemId, sidecar.extra["appName"] ?: sidecar.id) ?: return null
-            EpicDownloadManager.fetchPrereq(json)?.let { (name, path) ->
-                mapOf(WinCompSources.EPIC_PREREQ_NAME to name, WinCompSources.EPIC_PREREQ_PATH to path)
+    private fun fromStore(context: Context, sidecar: StoreGameSidecar): Map<String, String>? {
+        return when (sidecar.store) {
+            Store.GOG -> {
+                val token = GogAuth.validToken(context) ?: return null
+                GogDownloadManager.fetchDependencies(sidecar.id, sidecar.installVersion, token)
+                    ?.let { mapOf(WinCompSources.GOG_DEPENDENCIES to it.joinToString(",")) }
             }
+            Store.EPIC -> {
+                val token = EpicCredentialStore.getValidAccessToken(context) ?: return null
+                val namespace = sidecar.extra["namespace"].orEmpty()
+                val catalogItemId = sidecar.extra["catalogItemId"].orEmpty()
+                if (namespace.isEmpty() || catalogItemId.isEmpty()) return null
+                val json = EpicApiClient.getManifestApiJson(token, namespace, catalogItemId, sidecar.extra["appName"] ?: sidecar.id) ?: return null
+                EpicDownloadManager.fetchPrereq(json)?.let { (name, path) ->
+                    mapOf(WinCompSources.EPIC_PREREQ_NAME to name, WinCompSources.EPIC_PREREQ_PATH to path)
+                }
+            }
+            else -> null
         }
-        else -> null
     }
 }
