@@ -1,9 +1,6 @@
 name: Arabic localization checks
 
 on:
-  push:
-    branches:
-      - feat/arabic-localization-complete-rtl
   pull_request:
     paths:
       - 'app/src/main/res/**'
@@ -19,7 +16,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: arabic-i18n-${{ github.event.pull_request.head.ref || github.ref_name }}
+  group: arabic-i18n-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
