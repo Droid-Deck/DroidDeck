@@ -167,13 +167,14 @@ program_cores() {
 if [ -z "${BL_INSIDE:-}" ]; then
   # Install the shared default-family aliases before Steam, gamescope or the desktop queries fonts.
   /usr/local/bin/droiddeck-fonts 2>&1 | sed 's/^/[fonts] /'
-  # Android's directory binding and language-specific family matches handle CJK and Thai fonts.
+  # Android's directory binding and language-specific family matches handle CJK, Thai and Arabic fonts.
   device_fonts=/usr/local/share/fonts/android
   if [ -d "$device_fonts" ] && [ -d /etc/fonts/conf.d ] && command -v fc-cache >/dev/null 2>&1; then
     fonts_rules=$(
       echo '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd"><fontconfig>'
       for pair in "zh-cn=Noto Sans CJK SC" "zh-sg=Noto Sans CJK SC" "zh-tw=Noto Sans CJK TC" "zh-hk=Noto Sans CJK HK" \
-        "zh-mo=Noto Sans CJK HK" "ja=Noto Sans CJK JP" "ko=Noto Sans CJK KR" "th=Noto Sans Thai"; do
+        "zh-mo=Noto Sans CJK HK" "ja=Noto Sans CJK JP" "ko=Noto Sans CJK KR" "th=Noto Sans Thai" \
+        "ar=Noto Naskh Arabic"; do
         printf '<match target="pattern"><test name="lang" compare="contains"><string>%s</string></test><edit name="family" mode="prepend_first"><string>%s</string></edit></match>\n' \
           "${pair%%=*}" "${pair#*=}"
       done

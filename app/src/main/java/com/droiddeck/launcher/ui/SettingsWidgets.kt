@@ -97,6 +97,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.roundToInt
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.text.font.FontWeight
@@ -238,10 +239,10 @@ class MenuHost {
 @Composable
 fun rememberMenuHost(): MenuHost = remember { MenuHost() }
 
-/** Under the anchor with left edges aligned, kept on screen: a dropdown that belongs to a tab. */
+/** Under the anchor with logical start edges aligned, kept on screen: a dropdown that belongs to a tab. */
 private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        var x = anchorBounds.left
+        var x = if (layoutDirection == LayoutDirection.Rtl) anchorBounds.right - popupContentSize.width else anchorBounds.left
         if (x + popupContentSize.width > windowSize.width - 8) x = windowSize.width - 8 - popupContentSize.width
         if (x < 8) x = 8
         var y = anchorBounds.bottom + gap
@@ -253,7 +254,8 @@ private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
 
 private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        var x = anchorBounds.right - popupContentSize.width
+        var x = if (layoutDirection == LayoutDirection.Rtl) anchorBounds.left else anchorBounds.right - popupContentSize.width
+        if (x + popupContentSize.width > windowSize.width - 8) x = windowSize.width - 8 - popupContentSize.width
         if (x < 8) x = 8
         var y = anchorBounds.bottom + gap
         if (y + popupContentSize.height > windowSize.height - 8) y = anchorBounds.top - gap - popupContentSize.height
@@ -265,7 +267,7 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
 @Composable
 fun AnchoredMenu(
     open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
-    /** A tab's dropdown: under its anchor, left edges aligned, as wide as its entries (within [minWidth]..260 dp). */
+    /** A tab's dropdown: under its anchor, logical start edges aligned, as wide as its entries (within [minWidth]..260 dp). */
     compact: Boolean = false, minWidth: androidx.compose.ui.unit.Dp = 120.dp,
     content: @Composable ColumnScope.(FocusRequester) -> Unit,
 ) {
@@ -285,11 +287,13 @@ fun AnchoredMenu(
     val provider = remember(gap, compact) { if (compact) BelowStartProvider(gap) else BelowEndProvider(gap) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val originX = if (compact) (if (isRtl) 1f else 0f) else (if (isRtl) 0f else 1f)
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         AnimatedVisibility(
             visibleState = state,
-            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
-            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
+            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(originX, 0f)),
+            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(originX, 0f)),
             label = "menu",
         ) {
             // A long list (a driver menu with its downloads) must not run off the screen: the menu is
@@ -307,7 +311,7 @@ fun AnchoredMenu(
                     .padding(6.dp),
             ) {
                 if (title != null) Text(
-                    title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant,
+                    title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = if (isRtl) 0.sp else 1.5.sp, color = colors.onSurfaceVariant,
                     modifier = Modifier.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
                 )
                 // While entries remain below the fold the list fades out at the bottom over a down
@@ -513,11 +517,20 @@ fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked
         ToggleSwitch(checked, enabled, label, chipModifier.testTag("setting-$key")) { host.open = null; onChange(it) }
     }
 
+/**
+ * The thumb starts at the logical start edge (padding uses start/end), but graphicsLayer
+ * translationX is measured in physical screen coordinates. Moving toward the logical end
+ * must therefore go left in RTL, otherwise an enabled thumb is clipped past the right edge.
+ */
+internal fun toggleThumbTranslationPx(fraction: Float, direction: LayoutDirection, travelPx: Float): Float =
+    fraction.coerceIn(0f, 1f) * travelPx * if (direction == LayoutDirection.Rtl) -1f else 1f
+
 /** An on/off switch: one tap or one A press flips it, where a menu of On and Off took three. */
 @Composable
 fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = null, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val layoutDirection = LocalLayoutDirection.current
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val track by animateColorAsState(if (checked) pal.signal else colors.surfaceVariant, Motion.tw(180), label = "switchTrack")
@@ -543,7 +556,7 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
         ) {
             Box(
                 Modifier.padding(4.dp).size(22.dp)
-                    .graphicsLayer { translationX = knob * 22.dp.toPx() }
+                    .graphicsLayer { translationX = toggleThumbTranslationPx(knob, layoutDirection, 22.dp.toPx()) }
                     .clip(CircleShape)
                     .background(if (checked) pal.onSignal else colors.onSurfaceVariant),
             )

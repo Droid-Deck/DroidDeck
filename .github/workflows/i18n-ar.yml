@@ -1,0 +1,51 @@
+name: Arabic localization checks
+
+on:
+  pull_request:
+    paths:
+      - 'app/src/main/res/**'
+      - 'app/src/main/java/com/droiddeck/launcher/core/AppLanguage.kt'
+      - 'app/src/main/AndroidManifest.xml'
+      - 'tools/tests/test_arabic_localization.py'
+      - 'tools/tests/test_no_hardcoded_ui.py'
+      - 'tools/tests/test_droiddeck_fonts.py'
+      - 'tools/tests/test_steam_language.py'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-session'
+      - 'app/src/main/java/**'
+      - '.github/workflows/i18n-ar.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: arabic-i18n-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  arabic-resources:
+    name: Arabic resource integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Validate Arabic strings, plurals, arrays, locale and RTL
+        run: python3 -m unittest tools/tests/test_arabic_localization.py tools/tests/test_no_hardcoded_ui.py tools/tests/test_droiddeck_fonts.py tools/tests/test_steam_language.py -v
+
+  android-unit-tests:
+    name: Android resources and JVM unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Compile resources and run unit tests without native packaging
+        run: ./gradlew -PskipRust=true :app:testDebugUnitTest --stacktrace
