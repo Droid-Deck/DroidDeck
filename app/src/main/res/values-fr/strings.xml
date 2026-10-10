@@ -734,6 +734,8 @@
     <string name="ctrl_steam_button">Bouton Steam</string>
     <string name="ctrl_qam_button">Bouton QAM</string>
     <string name="ctrl_keyboard_button">Bouton clavier</string>
+    <string name="ctrl_select_steam">Appuyez sur Select pour ouvrir le menu Steam</string>
+    <string name="ctrl_select_steam_hint">À la place de View/Select.</string>
     <string name="setup_animations">Animations</string>
     <string name="ctrl_adaptive_hint">Le joystick apparaîtra là où vous touchez et se masquera une fois relâché</string>
     <string name="ctrl_layout">Disposition</string>

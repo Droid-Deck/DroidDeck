@@ -818,6 +818,8 @@
     <string name="ctrl_steam_button">Кнопка Steam</string>
     <string name="ctrl_qam_button">Кнопка QAM</string>
     <string name="ctrl_keyboard_button">Кнопка клавиатуры</string>
+    <string name="ctrl_select_steam">Нажмите Select, чтобы открыть меню Steam</string>
+    <string name="ctrl_select_steam_hint">Вместо View/Select.</string>
     <string name="setup_animations">Анимации</string>
     <string name="ctrl_adaptive_hint">Стики появляются в месте касания и исчезают после отпускания</string>
     <string name="ctrl_layout">Раскладка</string>

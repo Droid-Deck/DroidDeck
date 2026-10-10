@@ -835,6 +835,8 @@
     <string name="ctrl_steam_button">Steam 버튼</string>
     <string name="ctrl_qam_button">QAM 버튼</string>
     <string name="ctrl_keyboard_button">키보드 버튼</string>
+    <string name="ctrl_select_steam">Select를 눌러 Steam 메뉴 열기</string>
+    <string name="ctrl_select_steam_hint">View/Select 대신.</string>
     <string name="setup_animations">애니메이션</string>
     <string name="ctrl_adaptive_hint">스틱이 터치한 위치에 나타나며 손을 떼면 숨겨집니다</string>
     <string name="ctrl_layout">레이아웃</string>

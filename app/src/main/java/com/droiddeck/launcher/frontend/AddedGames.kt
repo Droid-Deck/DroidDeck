@@ -98,18 +98,26 @@ object AddedGames {
         return null
     }
 
-    /** The .exe files a game folder offers, best first ([GameExePicker]); also what its exe box lists, in that order. */
+    /** The .exe files a game folder offers, best first ([GameExePicker]); declared Store exes lead. */
     fun candidates(folder: File): List<File> = rank(folder).exes
 
-    /** [GameExePicker]'s ranking of [folder], without the names this list never offers. */
+    /** [GameExePicker]'s ranking, with a Store-declared executable taking precedence when present. */
     fun rank(folder: File): GameExePicker.Ranking {
         val key = "${folder.path}|${folder.lastModified()}"
         val now = System.currentTimeMillis()
         ranked[key]?.takeIf { now - it.first < RANK_FRESH_MS }?.let { return it.second }
-        return GameExePicker.rank(folder) { !SKIP.matches(it.name) }.also {
-            if (ranked.size > 256) ranked.clear()
-            ranked[key] = now to it
-        }
+        val guessed = GameExePicker.rank(folder) { !SKIP.matches(it.name) }
+        val declared = declaredExes(folder)
+        val preferred = declared.map { it.path }.toSet()
+        val result = if (declared.isEmpty()) guessed else GameExePicker.Ranking(
+            declared + guessed.exes.filter { it.path !in preferred },
+            List(declared.size) { Int.MAX_VALUE } + guessed.exes.zip(guessed.scores)
+                .filter { it.first.path !in preferred }.map { it.second },
+            uncertain = false,
+        )
+        if (ranked.size > 256) ranked.clear()
+        ranked[key] = now to result
+        return result
     }
 
     /** A folder's ranking for a minute, so one add (rank, then the game built from it) walks it once. */
@@ -160,6 +168,24 @@ object AddedGames {
             else -> peName
         }
     }
+    /** The executables MicrosoftGame.config or appxmanifest.xml declares that exist inside [folder]. */
+    internal fun declaredExes(folder: File): List<File> {
+        val names = DECLARED.flatMap { (file, pattern) ->
+            runCatching { pattern.findAll(File(folder, file).readText()).map { it.groupValues[1] }.toList() }.getOrDefault(emptyList())
+        }
+        val root = runCatching { folder.canonicalPath + File.separator }.getOrNull() ?: return emptyList()
+        return names.asSequence()
+            .map { File(folder, it.trim().replace('\\', '/').trimStart('/')) }
+            .filter { it.name.endsWith(".exe", ignoreCase = true) && !SKIP.matches(it.name) && it.isFile }
+            .filter { runCatching { it.canonicalPath.startsWith(root) }.getOrDefault(false) }
+            .distinctBy { it.path }
+            .toList()
+    }
+
+    private val DECLARED = listOf(
+        "MicrosoftGame.config" to Regex("<Executable\\b[^>]*?\\bName\\s*=\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE),
+        "appxmanifest.xml" to Regex("<Application\\b[^>]*?\\bExecutable\\s*=\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE),
+    )
 
     fun scan(context: Context): List<Game> {
         val out = ArrayList<Game>()

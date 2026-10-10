@@ -835,6 +835,8 @@
     <string name="ctrl_steam_button">Steam 按鈕</string>
     <string name="ctrl_qam_button">QAM 按鈕</string>
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>
+    <string name="ctrl_select_steam">按 Select 開啟 Steam 功能表</string>
+    <string name="ctrl_select_steam_hint">代替 View/Select。</string>
     <string name="setup_animations">動畫</string>
     <string name="ctrl_adaptive_hint">搖桿會出現在你觸控的位置，並在放開後隱藏</string>
     <string name="ctrl_layout">版面配置</string>

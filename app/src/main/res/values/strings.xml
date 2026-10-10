@@ -853,6 +853,8 @@
     <string name="ctrl_steam_button">Steam button</string>
     <string name="ctrl_qam_button">QAM button</string>
     <string name="ctrl_keyboard_button">Keyboard button</string>
+    <string name="ctrl_select_steam">Press Select to open the Steam menu</string>
+    <string name="ctrl_select_steam_hint">Instead of View/Select.</string>
     <string name="setup_animations">Animations</string>
     <string name="ctrl_adaptive_hint">Sticks appear where you touch and hide on release</string>
     <string name="ctrl_layout">Layout</string>
@@ -977,6 +979,12 @@
     <string name="deck_tab_left">Left pad</string>
     <string name="deck_tab_right">Right pad</string>
     <string name="deck_tab_both">Both</string>
+    <string name="deck_tab_gamepad">Gamepad</string>
+    <string name="deck_surface_stick">Stick</string>
+    <string name="deck_surface_trackpad">Trackpad</string>
+    <string name="deck_surface_switch">Switch between stick and trackpad</string>
+    <string name="deck_more_controls">More Deck controls</string>
+    <string name="deck_panels">PANELS</string>
     <string name="deck_close">Close second-screen controls</string>
     <string name="deck_open_steam_menu">Open Steam menu</string>
     <string name="deck_left_upper">Left · upper</string>
@@ -1040,6 +1048,8 @@
     <string name="game_env_eyebrow">Proton games</string>
     <string name="pip_title">Picture in picture</string>
     <string name="pip_auto">Automatically enter PiP</string>
+    <string name="unfolded_controls">Controls on the unfolded screen</string>
+    <string name="unfolded_controls_hint">Unfolded, the game sits above the Steam Deck trackpads and back grips. Folded, the game is full screen.</string>
     <string name="pip_suspended">Suspended</string>
     <string name="pip_not_ready">Picture in picture is available once the session is ready.</string>
     <string name="pip_permission">Allow picture in picture for DroidDeck in Android settings.</string>
