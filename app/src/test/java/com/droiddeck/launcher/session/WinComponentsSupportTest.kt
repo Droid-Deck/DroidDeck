@@ -65,6 +65,22 @@ class WinComponentsSupportTest {
             step("register_dll", "dlls" to ""))))
     }
 
+    @Test fun recordedInstallersInstallHere() {
+        val snapshot = "https://github.com/The412Banner/winlator-contents/releases/download/component-snapshots-v1/K-Lite.snapshot.json"
+        // A setup program with a recording of its result installs from the recording.
+        val klite = WinComponents.Component("K-Lite", "", "", "ready", emptyList(),
+            listOf(step("install_exe", "url" to "$base/K-Lite.exe", "file_name" to "K-Lite_1960.exe")), snapshot)
+        assertEquals(Support.READY, WinComponents.support(klite, mapOf(klite.name to klite)))
+        // Only a recording on the release counts.
+        val elsewhere = WinComponents.Component("K-Lite", "", "", "ready", emptyList(), klite.steps, "http://example.com/K-Lite.snapshot.json")
+        assertEquals(Support.NEEDS_INSTALLER, WinComponents.support(elsewhere, mapOf(elsewhere.name to elsewhere)))
+        // Its prerequisites still have to be installable.
+        val sp1 = WinComponents.Component("dotnet20sp1", "", "", "ready", listOf("dotnet20"), emptyList(), snapshot.replace("K-Lite", "dotnet20sp1"))
+        val base20 = WinComponents.Component("dotnet20", "", "", "ready", emptyList(),
+            listOf(step("install_exe", "url" to "$base/dotnet20__dotnetfx.exe", "file_name" to "dotnetfx.exe")))
+        assertEquals(Support.NEEDS_INSTALLER, WinComponents.support(sp1, mapOf("dotnet20sp1" to sp1, "dotnet20" to base20)))
+    }
+
     @Test fun setupProgramsStillWait() {
         // NSIS / InnoSetup installers hold no package to lay out.
         assertEquals(Support.NEEDS_INSTALLER, support(component("K-Lite",

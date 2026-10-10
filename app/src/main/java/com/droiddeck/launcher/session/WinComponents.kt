@@ -81,6 +81,14 @@ object WinComponents {
     class Component(
         val name: String, val description: String, val provider: String, val status: String,
         val dependencies: List<String>, val steps: List<Step>,
+        /**
+         * A recording of what the component's own installer leaves in a prefix (winlator-contents'
+         * component-snapshots release, made by tools/snapshot/record.py): the files it places and
+         * the registry values it writes. With one, the installer never runs: the files come from
+         * the archive beside the recording or out of the vendor's installer, the registry from the
+         * recording. Empty for a component without one.
+         */
+        val snapshot: String = "",
     )
 
     enum class Support { READY, NEEDS_INSTALLER, UNSUPPORTED }
@@ -107,6 +115,11 @@ object WinComponents {
 
     private fun protonProvides(name: String): Boolean = name in PROTON_PROVIDES || name.startsWith("mono-")
 
+    fun hasSnapshot(c: Component): Boolean = c.snapshot.startsWith("https://github.com/") && c.snapshot.endsWith(".snapshot.json")
+
+    /** The steps a recording makes redundant: everything that places files or edits the registry. */
+    private val SNAPSHOT_COVERS = INSTALLER_STEPS + setOf("download_archive", "archive_extract", "copy_dll", "copy_file") + OFFLINE_STEPS
+
     fun fetch(): List<Component>? {
         val body = Downloader.downloadString(CATALOG_URL) ?: return null
         return try {
@@ -121,6 +134,7 @@ object WinComponents {
                     name, o.optString("description"), o.optString("provider"), o.optString("status"),
                     (0 until deps.length()).map { deps.getString(it) }.filter { validId(it) },
                     (0 until steps.length()).map { steps.getJSONObject(it).let { s -> Step(s.optString("action"), s) } },
+                    o.optString("snapshot"),
                 )
             }
         } catch (e: Exception) {
@@ -132,6 +146,11 @@ object WinComponents {
     fun support(c: Component, all: Map<String, Component>, depth: Int = 0): Support {
         if (c.status != "ready" || depth > 8 || protonProvides(c.name)) return Support.UNSUPPORTED
         val installers = c.steps.filter { it.action in INSTALLER_STEPS }
+        // A recording of the installer's result stands in for running it, whatever the steps say.
+        if (hasSnapshot(c)) {
+            return c.dependencies.map { all[it]?.let { d -> support(d, all, depth + 1) } ?: Support.UNSUPPORTED }
+                .maxOrNull() ?: Support.READY
+        }
         fun offline(step: Step) = step.action == "delete_dlls" || step.action in OFFLINE_STEPS || step.action in FILE_STEPS && fileStepOk(step)
         val own = when {
             installers.isNotEmpty() && c.name !in RUNS_OWN_SETUP && installers.all { isPackage(it) } &&
@@ -212,7 +231,14 @@ object WinComponents {
         val cabs = HashMap<String, File>()
         val temp = File(root, "$MSI_CACHE/.t-${c.name}").apply { FileUtils.delete(this) }
         try {
-        for (step in c.steps) when (step.action) {
+        if (hasSnapshot(c)) {
+            val (result, problem) = installSnapshot(context, c, staging, work, onProgress)
+            if (result == null) return problem
+            msi = result
+        }
+        for (step in c.steps) when {
+            hasSnapshot(c) && step.action in SNAPSHOT_COVERS -> Unit
+            else -> when (step.action) {
             // A component may have several packages (PowerShell's 32- and 64-bit): each adds to the
             // same folder, the first one names the component.
             "install_msi", "install_exe" -> {
@@ -337,6 +363,7 @@ object WinComponents {
             }
             "register_dll" -> Unit
             else -> return "unsupported step ${step.action}"
+            }
         }
         } finally {
             runtimeDirs.forEach { FileUtils.delete(it) }
@@ -355,12 +382,100 @@ object WinComponents {
             .put("id", c.name).put("version", version)
             .put("overrides", JSONArray(overrides.distinct()))
             .put("requires", JSONArray(c.dependencies))
-        msi?.let { meta.put("kind", "msi").put("product", it.optString("product")).put("notes", it.optJSONArray("notes") ?: JSONArray()) }
+        msi?.let { meta.put("kind", it.optString("kind", "msi")).put("product", it.optString("product")).put("notes", it.optJSONArray("notes") ?: JSONArray()) }
         FileUtils.writeString(File(staging, "component.json"), meta.toString(1))
         val target = File(root, "$STORE/${c.name}")
         FileUtils.delete(target)
         if (!staging.renameTo(target)) return "could not place the files"
         return null
+    }
+
+    /**
+     * Lays the component out from its recording: downloads the snapshot, then its files (the
+     * archive beside it when the recording carries them, else out of the vendor's installer by
+     * the paths the recording maps, small generated ones inline) into [staging]/drive_c, and the
+     * recorded registry values into registry.json. Returns a result like the MSI engine's, or
+     * null and why.
+     */
+    private fun installSnapshot(context: Context, c: Component, staging: File, work: File, onProgress: (Progress) -> Unit): Pair<JSONObject?, String> {
+        val root = LinuxRuntime.rootDir(context)
+        val name = c.snapshot.substringAfterLast('/')
+        val json = File(work, "${c.name}.snapshot.json")
+        if (!Downloader.downloadFile(c.snapshot, json, false) { f -> onProgress(Progress(c.name, name, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
+            return null to "download failed: $name"
+        }
+        val snapshot = runCatching { JSONObject(json.readText()) }.getOrNull() ?: return null to "the recording could not be read"
+        if (snapshot.optInt("schema") != 1) return null to "the recording is of a newer kind than this app reads"
+        val files = snapshot.optJSONArray("files") ?: JSONArray()
+        val notes = ArrayList<String>()
+        snapshot.optJSONArray("notes")?.let { for (i in 0 until it.length()) notes += it.getString(i) }
+        val drive = File(staging, "drive_c")
+        var placed = 0
+        val archive = snapshot.optJSONObject("files_archive")
+        if (archive != null) {
+            val archiveName = archive.optString("name")
+            val url = c.snapshot.substringBeforeLast('/') + "/" + archiveName
+            val file = File(work, "${c.name}.files.tar.xz")
+            if (!Downloader.downloadFile(url, file, false) { f -> onProgress(Progress(c.name, archiveName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
+                return null to "download failed: $archiveName"
+            }
+            archive.optString("sha256").takeIf { it.length == 64 }?.let { sha ->
+                if (!digest(file, "SHA-256").equals(sha, ignoreCase = true)) return null to "checksum mismatch: $archiveName"
+            }
+            onProgress(Progress(c.name, "unpacking $archiveName", Phase.INSTALL, -1))
+            if (!extract(file, staging)) return null to "could not unpack $archiveName"
+            file.delete()
+            placed = drive.walkTopDown().count { it.isFile }
+        } else {
+            // The files come out of the installer the catalog names, by the paths the recording maps.
+            val step = c.steps.firstOrNull { it.action in INSTALLER_STEPS && it.str("url").startsWith("https://") }
+                ?: return null to "the recording needs the installer, which the catalog does not name"
+            val url = step.str("url")
+            val installerName = url.substringBefore('?').substringAfterLast('/')
+            val cache = File(root, MSI_CACHE).apply { mkdirs() }
+            val installer = File(cache, "${c.name}-snapshot-src.bin")
+            var unpacked: File? = null
+            try {
+                if (!Downloader.downloadFile(url, installer, false) { f -> onProgress(Progress(c.name, installerName, Phase.DOWNLOAD, if (f < 0) -1 else Math.round(f * 100f))) }) {
+                    return null to "download failed: $installerName"
+                }
+                unpacked = unpackInRuntime(context, c, installer, "snapshot", onProgress) ?: return null to "could not open $installerName"
+                var missing = 0
+                for (i in 0 until files.length()) {
+                    val entry = files.getJSONObject(i)
+                    val rel = entry.optString("path")
+                    val target = ArchivePaths.inside(drive, rel) ?: continue
+                    val source = entry.optString("source")
+                    when {
+                        source.isNotEmpty() -> ArchivePaths.inside(unpacked, source)?.takeIf { it.isFile }?.let { src ->
+                            target.parentFile?.mkdirs(); src.copyTo(target, overwrite = true); placed++
+                        } ?: run { missing++ }
+                        entry.has("data") -> {
+                            target.parentFile?.mkdirs()
+                            target.writeBytes(android.util.Base64.decode(entry.getString("data"), android.util.Base64.DEFAULT)); placed++
+                        }
+                        else -> missing++
+                    }
+                    if (i % 20 == 0) onProgress(Progress(c.name, "placing files ($placed of ${files.length()})", Phase.INSTALL, (i + 1) * 100 / maxOf(1, files.length())))
+                }
+                if (missing > 0) notes += "$missing file(s) the installer generates could not be reproduced here"
+            } finally {
+                installer.delete()
+                unpacked?.let { FileUtils.delete(it) }
+            }
+        }
+        onProgress(Progress(c.name, "writing the registry values", Phase.INSTALL, 95))
+        val values = snapshot.optJSONArray("registry") ?: JSONArray()
+        FileUtils.writeString(File(staging, "registry.json"), JSONObject().put("version", 1).put("values", values).toString(1))
+        if (placed == 0 && values.length() == 0) return null to "the recording holds nothing to install"
+        val recorded = snapshot.optString("recorded").take(10)
+        val installerVersion = snapshot.optJSONObject("installer")?.optString("name").orEmpty()
+        val version = Regex("""\b(\d+\.\d+(\.\d+)*)\b""").find(c.description)?.value ?: recorded.ifEmpty { "recorded" }
+        return JSONObject()
+            .put("kind", "snapshot").put("product", c.description.ifEmpty { c.name })
+            .put("version", version)
+            .put("counts", JSONObject().put("files", placed).put("registry", values.length()))
+            .put("notes", JSONArray(notes + listOfNotNull(installerVersion.takeIf { it.isNotEmpty() }?.let { "recorded from $it on ${snapshot.optString("wine")}" }))) to ""
     }
 
     /** The regex for a catalog file pattern: * matches anything, case does not matter. */
