@@ -754,6 +754,21 @@ APPINFO_CACHE = {}
 STEAM_PLAY_MANIFESTS = 891390
 
 
+def launch_programs(config):
+    """The Windows and Linux programs an app's launch options start, relative to its folder (lowercase, "/")."""
+    launch = config.get("launch") if isinstance(config, dict) else None
+    found = []
+    for option in launch.values() if isinstance(launch, dict) else ():
+        if not isinstance(option, dict) or not option.get("executable"):
+            continue
+        settings = option.get("config") if isinstance(option.get("config"), dict) else {}
+        oslist = str(settings.get("oslist", "")).lower()
+        if oslist and "windows" not in oslist and "linux" not in oslist:
+            continue
+        found.append(os.path.normpath(str(option["executable"]).replace("\\", "/")).lstrip("/").lower())
+    return found
+
+
 def appinfo_entries(path):
     import struct
     try:
@@ -844,6 +859,7 @@ def appinfo_entries(path):
             "osarch": str(common.get("osarch", "")).lower(),
             "type": str(common.get("type", "")).lower(),
             "recommended": str(recommended),
+            "launch": launch_programs(info.get("config")),
         }
         if app == STEAM_PLAY_MANIFESTS:
             extended = info.get("extended", {})

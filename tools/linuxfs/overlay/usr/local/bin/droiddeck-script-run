@@ -12,14 +12,15 @@ first=
 IFS= read -r first < "$entry"
 first=${first%$'\r'}
 interp=(/bin/bash)
-case $first in '#!'*) read -r -a interp <<< "${first#'#!'}" ;; esac
+# A program as the entry (the desktop's copy of a game's folder) runs itself.
+case $first in '#!'*) read -r -a interp <<< "${first#'#!'}" ;; $'\x7f'ELF*) interp=() ;; esac
 fex=$(cat "$dir/fex" 2>/dev/null)
 case $fex in on|off) ;; *) fex=auto ;; esac
 run=("${interp[@]}" "./$entry")
 if [ -x /usr/local/bin/droiddeck-fex ]; then
   run=(/usr/local/bin/droiddeck-fex run --mode "$fex" --for "$folder" -- "${interp[@]}" "./$entry")
 fi
-echo "== script $entry in $folder (${interp[*]}, FEX $fex)"
+echo "== script $entry in $folder (${interp[*]:-a program}, FEX $fex)"
 case ${DBUS_SESSION_BUS_ADDRESS:-} in
   unix:*) "${run[@]}" "$@" ;;
   *) unset DBUS_SESSION_BUS_ADDRESS

@@ -406,12 +406,22 @@ def split_paths(value):
     return [part for part in re.split(r"[:\s]+", value or "") if part]
 
 
+def data_dir(env):
+    # FEXServer's socket lives here. Under ~/.local its host path passes sun_path's 108 bytes, and
+    # proot then binds it to a temporary name only the server sees: no client ever reaches it.
+    runtime = env.get("XDG_RUNTIME_DIR")
+    if runtime and os.path.isdir(runtime) and os.access(runtime, os.W_OK):
+        return os.path.join(runtime, "fex")
+    return DATA_DIR
+
+
 def guest_environment(fex, env):
     result = dict(env)
-    for directory in (CONFIG_DIR, DATA_DIR, CACHE_DIR):
+    data = data_dir(env)
+    for directory in (CONFIG_DIR, data, CACHE_DIR):
         os.makedirs(directory, exist_ok=True)
     result["FEX_APP_CONFIG_LOCATION"] = CONFIG_DIR + "/"
-    result["FEX_APP_DATA_LOCATION"] = DATA_DIR + "/"
+    result["FEX_APP_DATA_LOCATION"] = data + "/"
     result["FEX_APP_CACHE_LOCATION"] = CACHE_DIR + "/"
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
