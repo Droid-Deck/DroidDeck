@@ -25,6 +25,7 @@ typedef struct bcn_state {
     VkPipelineLayout layout;
     VkPipeline pipes[FAM_COUNT];
     VkDeviceSize ssbo_align;
+    int push;                /* VK_KHR_push_descriptor; else per-command-buffer sets */
     pthread_mutex_t lock;
 } bcn_state;
 
@@ -84,11 +85,28 @@ int vkb_emu_bcn_supported(const vkb_dispatch *idt, VkPhysicalDevice pd)
     idt->vkEnumerateDeviceExtensionProperties(pd, NULL, &n, NULL);
     VkExtensionProperties *e = calloc(n ? n : 1, sizeof(*e));
     idt->vkEnumerateDeviceExtensionProperties(pd, NULL, &n, e);
+    free(e);
+    /* Without VK_KHR_push_descriptor (Mali-G720 on driver 44.1) the decoder binds ordinary sets. */
+    return 1;
+}
+
+/* Push descriptors for the decoder; without them, sets from the command buffer's scratch pools.
+ * VKBRIDGE_FAKE_MISSING=...,push takes the second way on a GPU that has them (host tests). */
+static int has_push(vkb_srv_table *dev)
+{
+    const char *fake = getenv("VKBRIDGE_FAKE_MISSING");
+    if (fake && strstr(fake, "push")) return 0;
+    VkPhysicalDeviceProperties p;
+    dev->real.vkGetPhysicalDeviceProperties(dev->physical, &p);
+    if (p.apiVersion >= VK_API_VERSION_1_4 && dev->api_version >= VK_API_VERSION_1_4) return dev->real.vkCmdPushDescriptorSet != NULL;
+    uint32_t n = 0;
+    dev->real.vkEnumerateDeviceExtensionProperties(dev->physical, NULL, &n, NULL);
+    VkExtensionProperties *e = calloc(n ? n : 1, sizeof(*e));
+    dev->real.vkEnumerateDeviceExtensionProperties(dev->physical, NULL, &n, e);
     int ok = 0;
     for (uint32_t i = 0; i < n; i++) ok |= !strcmp(e[i].extensionName, "VK_KHR_push_descriptor");
     free(e);
-    if (!ok) VKB_WARN("BC emulation: the GPU lacks VK_KHR_push_descriptor");
-    return ok;
+    return ok && dev->real.vkCmdPushDescriptorSet != NULL;
 }
 
 /* ------------------------------------------------------------------ images */
@@ -245,7 +263,18 @@ static void decode(vkb_emu_device *e, VkCommandBuffer cb, VkBuffer src, vkb_emu_
             {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, VK_NULL_HANDLE, 0, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &bi, NULL},
             {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, VK_NULL_HANDLE, 1, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &ii, NULL, NULL}};
         r->vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, pipe);
-        r->vkCmdPushDescriptorSet(cb, VK_PIPELINE_BIND_POINT_COMPUTE, s->layout, 0, 2, w);
+        if (s->push) {
+            r->vkCmdPushDescriptorSet(cb, VK_PIPELINE_BIND_POINT_COMPUTE, s->layout, 0, 2, w);
+        } else {
+            VkDescriptorSet set = vkb_emu_cb_scratch_set(e, cb, s->dsl);
+            if (!set) {
+                VKB_ONCE(VKB_LOG_ERROR, "BC emulation: no descriptor set for the decoder (logged once)");
+                continue;
+            }
+            w[0].dstSet = w[1].dstSet = set;
+            r->vkUpdateDescriptorSets(e->dev->device, 2, w, 0, NULL);
+            r->vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_COMPUTE, s->layout, 0, 1, &set, 0, NULL);
+        }
         uint32_t w_tex = g->row_length ? g->row_length : g->iext.width;
         uint32_t h_tex = g->image_height ? g->image_height : g->iext.height;
         pc_t pc;
@@ -372,8 +401,10 @@ void vkb_emu_bcn_install(vkb_srv_table *dev)
     s->ssbo_align = p.limits.minStorageBufferOffsetAlignment ? p.limits.minStorageBufferOffsetAlignment : 4;
     VkDescriptorSetLayoutBinding b[2] = {{0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, NULL},
                                          {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, NULL}};
+    s->push = has_push(dev);
+    VKB_INFO("BC emulation: decoder binds with %s", s->push ? "push descriptors" : "descriptor sets (no VK_KHR_push_descriptor)");
     VkDescriptorSetLayoutCreateInfo dci = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL,
-                                           VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT, 2, b};
+                                           s->push ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT : 0, 2, b};
     VkPushConstantRange pr = {VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc_t)};
     if (dev->real.vkCreateDescriptorSetLayout(dev->device, &dci, NULL, &s->dsl) != VK_SUCCESS) {
         VKB_ERR("BC emulation: cannot create the decoder's descriptor layout");

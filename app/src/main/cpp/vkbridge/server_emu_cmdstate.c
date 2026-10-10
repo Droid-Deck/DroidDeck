@@ -43,10 +43,14 @@ typedef struct cb_state {
     push_tmpl *pts;
     uint32_t npts, cappts;
     void *gfx;            /* graphics-side state (divisor emulation) */
+    /* Descriptor sets emulations record with (no push descriptors), alive until the next begin. */
+    VkDescriptorPool *scratch;
+    uint32_t nscratch, cur_scratch, used_scratch;
     struct cb_state *next;
 } cb_state;
 
 #define CB_BUCKETS 512
+#define SCRATCH_SETS 64
 typedef struct cmdstate {
     pthread_mutex_t lock;
     cb_state *b[CB_BUCKETS];
@@ -81,6 +85,37 @@ static cb_state *get(vkb_emu_device *e, VkCommandBuffer cb)
     return c;
 }
 
+/* A descriptor set of layout `dsl` (storage buffers and images only) for a command the emulation
+ * records into cb; it lives until cb is begun again, when the app has seen the work finish. */
+VkDescriptorSet vkb_emu_cb_scratch_set(vkb_emu_device *e, VkCommandBuffer cb, VkDescriptorSetLayout dsl)
+{
+    cb_state *c = get(e, cb);
+    const vkb_dispatch *r = &e->dev->real;
+    for (;;) {
+        if (c->cur_scratch >= c->nscratch) {
+            VkDescriptorPoolSize sizes[2] = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, SCRATCH_SETS * 2},
+                                             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, SCRATCH_SETS * 2}};
+            VkDescriptorPoolCreateInfo pci = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL, 0, SCRATCH_SETS, 2, sizes};
+            VkDescriptorPool pool;
+            VkDescriptorPool *np = realloc(c->scratch, (c->nscratch + 1) * sizeof(*np));
+            if (!np) return VK_NULL_HANDLE;
+            c->scratch = np;
+            if (r->vkCreateDescriptorPool(e->dev->device, &pci, NULL, &pool) != VK_SUCCESS) return VK_NULL_HANDLE;
+            c->scratch[c->nscratch++] = pool;
+        }
+        if (c->used_scratch < SCRATCH_SETS) {
+            VkDescriptorSetAllocateInfo ai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, NULL, c->scratch[c->cur_scratch], 1, &dsl};
+            VkDescriptorSet set;
+            if (r->vkAllocateDescriptorSets(e->dev->device, &ai, &set) == VK_SUCCESS) {
+                c->used_scratch++;
+                return set;
+            }
+        }
+        c->cur_scratch++;
+        c->used_scratch = 0;
+    }
+}
+
 void *vkb_emu_cb_gfx(vkb_emu_device *e, VkCommandBuffer cb, size_t size)
 {
     cb_state *c = get(e, cb);
@@ -88,8 +123,12 @@ void *vkb_emu_cb_gfx(vkb_emu_device *e, VkCommandBuffer cb, size_t size)
     return c->gfx;
 }
 
-static void reset(cb_state *c)
+static void reset(vkb_emu_device *e, cb_state *c)
 {
+    for (uint32_t i = 0; i < c->nscratch && i <= c->cur_scratch; i++)
+        e->dev->real.vkResetDescriptorPool(e->dev->device, c->scratch[i], 0);
+    c->cur_scratch = 0;
+    c->used_scratch = 0;
     c->compute_pipeline = VK_NULL_HANDLE;
     c->nsets = 0;
     c->npcs = 0;
@@ -102,7 +141,7 @@ static void reset(cb_state *c)
 
 static VKAPI_ATTR VkResult VKAPI_CALL emu_BeginCommandBuffer(VkCommandBuffer cb, const VkCommandBufferBeginInfo *info)
 {
-    reset(get(vkb_emu_cur(), cb));
+    reset(vkb_emu_cur(), get(vkb_emu_cur(), cb));
     return vkb_emu_real()->vkBeginCommandBuffer(cb, info);
 }
 
@@ -235,7 +274,9 @@ void vkb_emu_cmdstate_uninstall(vkb_srv_table *dev)
         while (s->b[i]) {
             cb_state *c = s->b[i];
             s->b[i] = c->next;
-            reset(c);
+            reset(dev->emu, c);
+            for (uint32_t j = 0; j < c->nscratch; j++) dev->real.vkDestroyDescriptorPool(dev->device, c->scratch[j], NULL);
+            free(c->scratch);
             free(c->sets);
             free(c->pcs);
             free(c->pts);

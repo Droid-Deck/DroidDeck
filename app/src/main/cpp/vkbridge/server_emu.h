@@ -44,6 +44,7 @@ void vkb_emu_cmdstate_install(vkb_srv_table *dev);
 void vkb_emu_cmdstate_uninstall(vkb_srv_table *dev);
 void vkb_emu_restore_compute(vkb_emu_device *e, VkCommandBuffer cb);
 void *vkb_emu_cb_gfx(vkb_emu_device *e, VkCommandBuffer cb, size_t size);
+VkDescriptorSet vkb_emu_cb_scratch_set(vkb_emu_device *e, VkCommandBuffer cb, VkDescriptorSetLayout dsl);
 /* vertex attribute divisor (server_emu_divisor.c) */
 typedef struct div_info div_info;
 size_t vkb_emu_divisor_info_size(void);
