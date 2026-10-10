@@ -133,8 +133,24 @@ object WinComponents {
     /** The steps a recording makes redundant: everything that places files or edits the registry. */
     private val SNAPSHOT_COVERS = INSTALLER_STEPS + setOf("download_archive", "archive_extract", "copy_dll", "copy_file") + OFFLINE_STEPS
 
-    fun fetch(): List<Component>? {
-        val body = Downloader.downloadString(CATALOG_URL) ?: return null
+    fun fetch(): List<Component>? = parse(Downloader.downloadString(CATALOG_URL) ?: return null)
+
+    private const val CATALOG_CACHE = "wincomponents-catalog.json"
+
+    /** The catalog from the network, kept for later; the copy kept last time when offline. */
+    fun fetch(context: Context): List<Component>? {
+        val cache = File(context.filesDir, CATALOG_CACHE)
+        Downloader.downloadString(CATALOG_URL)?.let { body ->
+            parse(body)?.let { runCatching { write(cache, body) }; return it }
+        }
+        return runCatching { parse(cache.readText()) }.getOrNull()
+    }
+
+    /** The copy of the catalog kept by [fetch], without asking the network; null before the first fetch. */
+    fun cached(context: Context): List<Component>? =
+        runCatching { parse(File(context.filesDir, CATALOG_CACHE).readText()) }.getOrNull()
+
+    private fun parse(body: String): List<Component>? {
         return try {
             val arr = JSONObject(body).getJSONArray("components")
             (0 until arr.length()).mapNotNull { i ->
@@ -153,6 +169,16 @@ object WinComponents {
         } catch (e: Exception) {
             Log.w(TAG, "catalog: $e"); null
         }
+    }
+
+    /**
+     * The catalog entry that installs [name] here: Bannerlator's detector names installers
+     * (vcredist2022, oalinst), and their DLL-copy twin (vcredist2022_dll, oalinst_dll) is the one
+     * that installs without running anything; [name] itself when there is no such twin.
+     */
+    fun installable(name: String, all: Map<String, Component>): String {
+        val twin = all[if (name == "oalinst") "oalinst_dll" else "${name}_dll"]
+        return if (twin != null && support(twin, all) == Support.READY) twin.name else name
     }
 
     /** Whether [c] can be installed here, its bundled components included. */
@@ -622,36 +648,101 @@ object WinComponents {
     fun uninstall(context: Context, id: String) {
         require(validId(id))
         FileUtils.delete(File(LinuxRuntime.rootDir(context), "$STORE/$id"))
-        save(context, read(context).mapValues { (_, ids) -> ids - id }.filterValues { it.isNotEmpty() })
+        save(context, selections(context).mapValues { (_, sel) -> Selection(sel.auto - id, sel.user - id) })
     }
 
-    /** Each game's picks, by the appid its prefix is named after. */
+    /**
+     * Why a component was turned on for a game by itself ([setAuto]): [kind] says whose list it came
+     * from (see AutoComponents), [args] what the reason line names. Kept beside the picks.
+     */
+    class AutoReason(val kind: String, val args: List<String>)
+
+    /**
+     * Everything kept per game, by the appid its prefix is named after: [auto] - turned on by
+     * itself, with its reason; [user] - a switch the user pressed (true on, false off), which wins
+     * over [auto] either way. What the launch reads is [effective].
+     */
+    class Selection(val auto: Map<String, AutoReason>, val user: Map<String, Boolean>) {
+        val effective: List<String>
+            get() = (auto.keys.filter { user[it] != false } + user.filterValues { it }.keys).distinct()
+    }
+
     @Synchronized
-    fun read(context: Context): Map<String, List<String>> = try {
+    fun selections(context: Context): Map<String, Selection> = try {
         val json = JSONObject(AtomicFile(File(context.filesDir, SELECTION)).readFully().toString(Charsets.UTF_8))
         val games = json.optJSONObject("games") ?: JSONObject()
-        games.keys().asSequence().associateWith { app ->
-            val ids = games.getJSONArray(app)
-            (0 until ids.length()).map { ids.getString(it) }.filter { validId(it) }
+        val autos = json.optJSONObject("auto") ?: JSONObject()
+        val users = json.optJSONObject("user")
+        val keys = games.keys().asSequence().toSet() + autos.keys().asSequence().toSet() + (users?.keys()?.asSequence()?.toSet() ?: emptySet())
+        keys.associateWith { app ->
+            val auto = autos.optJSONObject(app)?.let { o ->
+                o.keys().asSequence().filter { validId(it) }.associateWith { id ->
+                    val r = o.optJSONObject(id) ?: JSONObject()
+                    val a = r.optJSONArray("args") ?: JSONArray()
+                    AutoReason(r.optString("kind"), (0 until a.length()).map { a.optString(it) })
+                }
+            }.orEmpty()
+            // Before there were overrides, every pick was the user's own.
+            val user = if (users == null) games.optJSONArray(app)?.let { ids -> (0 until ids.length()).map { ids.getString(it) }.filter { validId(it) }.associateWith { true } }.orEmpty()
+            else users.optJSONObject(app)?.let { o -> o.keys().asSequence().filter { validId(it) }.associateWith { o.optBoolean(it) } }.orEmpty()
+            Selection(auto, user)
         }
     } catch (_: java.io.FileNotFoundException) {
         emptyMap()
     }
 
-    fun picks(context: Context, appKey: String): List<String> = read(context)[appKey].orEmpty()
+    /** Each game's picks as the launch takes them, by the appid its prefix is named after. */
+    fun read(context: Context): Map<String, List<String>> =
+        selections(context).mapValues { it.value.effective }.filterValues { it.isNotEmpty() }
 
+    fun picks(context: Context, appKey: String): List<String> = selections(context)[appKey]?.effective.orEmpty()
+
+    fun selection(context: Context, appKey: String): Selection = selections(context)[appKey] ?: Selection(emptyMap(), emptyMap())
+
+    /** The user's own switch for [id] in [appKey]: on or off, over whatever was picked by itself. */
     @Synchronized
-    fun setPicks(context: Context, appKey: String, ids: List<String>) {
-        require(ids.all { validId(it) })
-        val all = read(context).toMutableMap()
-        if (ids.isEmpty()) all.remove(appKey) else all[appKey] = ids.distinct()
+    fun setUser(context: Context, appKey: String, id: String, on: Boolean) {
+        require(validId(id))
+        val all = selections(context).toMutableMap()
+        val now = all[appKey] ?: Selection(emptyMap(), emptyMap())
+        all[appKey] = Selection(now.auto, now.user + (id to on))
         save(context, all)
     }
 
-    private fun save(context: Context, games: Map<String, List<String>>) {
-        val text = JSONObject().put("version", 1).put("games", JSONObject().apply {
-            games.forEach { (app, ids) -> put(app, JSONArray(ids)) }
-        }).toString()
+    /** The components picked by themselves for [appKey], replacing the earlier ones; the user's switches stay. */
+    @Synchronized
+    fun setAuto(context: Context, appKey: String, auto: Map<String, AutoReason>) {
+        require(auto.keys.all { validId(it) })
+        val all = selections(context).toMutableMap()
+        val now = all[appKey] ?: Selection(emptyMap(), emptyMap())
+        all[appKey] = Selection(auto, now.user)
+        save(context, all)
+    }
+
+    /** The user's picks for [appKey] set outright (each listed on, every other user switch dropped). */
+    @Synchronized
+    fun setPicks(context: Context, appKey: String, ids: List<String>) {
+        require(ids.all { validId(it) })
+        val all = selections(context).toMutableMap()
+        val now = all[appKey] ?: Selection(emptyMap(), emptyMap())
+        all[appKey] = Selection(now.auto, ids.distinct().associateWith { true } + now.auto.keys.filter { it !in ids }.associateWith { false })
+        save(context, all)
+    }
+
+    private fun save(context: Context, games: Map<String, Selection>) {
+        val kept = games.filterValues { it.auto.isNotEmpty() || it.user.isNotEmpty() }
+        // Version 1 still: droiddeck-wincomponents reads "games" and ignores the rest.
+        val text = JSONObject().put("version", 1)
+            .put("games", JSONObject().apply { kept.forEach { (app, sel) -> sel.effective.takeIf { it.isNotEmpty() }?.let { put(app, JSONArray(it)) } } })
+            .put("auto", JSONObject().apply {
+                kept.forEach { (app, sel) ->
+                    if (sel.auto.isNotEmpty()) put(app, JSONObject().apply {
+                        sel.auto.forEach { (id, r) -> put(id, JSONObject().put("kind", r.kind).put("args", JSONArray(r.args))) }
+                    })
+                }
+            })
+            .put("user", JSONObject().apply { kept.forEach { (app, sel) -> if (sel.user.isNotEmpty()) put(app, JSONObject(sel.user as Map<*, *>)) } })
+            .toString()
         write(File(context.filesDir, SELECTION), text)
         publish(context, text)
     }

@@ -111,6 +111,8 @@ object GogBackend : StoreBackend {
                 Store.GOG, game.gameId, game.title, exe = result.exeRelative.ifEmpty { "" },
                 installVersion = result.buildId, installedAt = System.currentTimeMillis(),
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
+                extra = if (result.dependencies.isEmpty()) emptyMap()
+                else mapOf(com.droiddeck.launcher.frontend.WinCompSources.GOG_DEPENDENCIES to result.dependencies.joinToString(",")),
             )
             if (sidecar.exe.isEmpty()) handle.log("gog: no exe found in ${folder.name}; pick one in Steam settings › Added games")
             StoreInstalls.complete(app, folder, onStep = { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }, sidecar = if (sidecar.exe.isEmpty()) sidecar.copy(exe = "game.exe") else sidecar)

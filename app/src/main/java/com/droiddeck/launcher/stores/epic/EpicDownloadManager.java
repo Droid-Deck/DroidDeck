@@ -107,6 +107,9 @@ public final class EpicDownloadManager {
         public String launchExe = "";
         public String launchCommand = "";
         public String buildVersion = "";
+        /** The prerequisite the launcher runs first (UE4PrereqSetup_x64.exe...): what it is called and its path in the install. */
+        public String prereqName = "";
+        public String prereqPath = "";
         public List<CdnUrl> cdnUrls = new ArrayList<>();
     }
 
@@ -115,7 +118,11 @@ public final class EpicDownloadManager {
         public final String launchExe;
         public final String buildVersion;
         public final long bytes;
+        /** The manifest's prerequisite, for Windows components; "" when it names none. */
+        public String prereqName = "";
+        public String prereqPath = "";
         Result(String launchExe, String buildVersion, long bytes) { this.launchExe = launchExe; this.buildVersion = buildVersion; this.bytes = bytes; }
+        Result withPrereq(Manifest m) { prereqName = m.prereqName; prereqPath = m.prereqPath; return this; }
     }
 
     public static final class InstallException extends Exception {
@@ -178,7 +185,7 @@ public final class EpicDownloadManager {
             if (pending.isEmpty()) {
                 deleteDir(chunkCacheDir);
                 cb.onProgress("Complete", 100);
-                return new Result(manifest.launchExe, manifest.buildVersion, planned);
+                return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
             }
             List<ChunkInfo> needed = uniqueChunksForFiles(manifest, pending);
             // The cache holds whole chunk windows (~1 MiB each), and a window is shared with files
@@ -265,7 +272,7 @@ public final class EpicDownloadManager {
                     if (r.cancelled) return null;
                     if (!r.success) throw new InstallException(r.error.isEmpty() ? "assembly failed" : r.error);
                     cb.onProgress("Complete", 100);
-                    return new Result(manifest.launchExe, manifest.buildVersion, planned);
+                    return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
                 }
                 cb.onLog("epic: assembler not started (" + r.error + "); writing the files here");
             }
@@ -293,7 +300,7 @@ public final class EpicDownloadManager {
             }
             deleteDir(chunkCacheDir);
             cb.onProgress("Complete", 100);
-            return new Result(manifest.launchExe, manifest.buildVersion, planned);
+            return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
         } catch (InstallException e) {
             throw e;
         } catch (Exception e) {
@@ -470,6 +477,11 @@ public final class EpicDownloadManager {
                 m.buildVersion = readFString(b);
                 m.launchExe = readFString(b).replace('\\', '/');
                 m.launchCommand = readFString(b);
+                // PrereqIds (an array), PrereqName, PrereqPath, PrereqArgs.
+                int prereqIds = b.getInt();
+                for (int i = 0; i < prereqIds && i < 64; i++) readFString(b);
+                m.prereqName = readFString(b);
+                m.prereqPath = readFString(b).replace('\\', '/');
             } catch (Exception e) {
                 Log.w(TAG, "manifest meta: " + e.getClass().getSimpleName());
             }
@@ -537,6 +549,8 @@ public final class EpicDownloadManager {
             m.launchExe = root.optString("LaunchExe", "").replace('\\', '/');
             m.launchCommand = root.optString("LaunchCommand", "");
             m.buildVersion = root.optString("BuildVersionString", "");
+            m.prereqName = root.optString("PrereqName", "");
+            m.prereqPath = root.optString("PrereqPath", "").replace('\\', '/');
             JSONObject chunkHashList = root.optJSONObject("ChunkHashList");
             JSONObject dataGroupList = root.optJSONObject("DataGroupList");
             JSONObject chunkFilesizeList = root.optJSONObject("ChunkFilesizeList");

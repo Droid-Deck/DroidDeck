@@ -7,6 +7,24 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-10 - `feat/wincomp-auto-sources`: Windows components picked by the game's source
+
+- **Per source** (`WinCompSources`): Steam - Steamworks Shared depots from the appmanifest or the
+  client's app info (`SteamAppInfo`, appinfo.vdf v27-29, cached per appid, weekly retry); GOG - the
+  build's `dependencies` (now kept in the sidecar); Epic - the manifest's prerequisite (now parsed
+  and kept); Amazon - fuel.json `PostInstall`; Custom - Steam's list when its files name the appid
+  (on by itself), when only the name matches (Recommended); else the folder scan. Unmapped entries
+  are listed with their own names; mapping tables in one place.
+- **One Steam match per game** (`SteamMatch`, `files/steam-matches.json`), used by the art fetch
+  and the components alike; the earlier art lookup is taken over.
+- **On by itself** (`AutoComponents`): at store install, add/edit, page open and before a launch
+  from DroidDeck; `wincomponents.json` keeps `auto` (with reasons) and `user` switches beside the
+  effective `games` list (still version 1). A user switch always wins. The page gets "On for this
+  game" with reasons and "Also listed".
+- Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
+  source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
+  `AddedGameArtLookupTest` updated. Not yet on a device.
+
 ## 2026-10-10 - `fix/games-folder-migration`: Games folders become entries, not Steam libraries
 
 - **Seen on a device:** Steam's Install dialog listed "Games (Internal shared storage)" and "Games

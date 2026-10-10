@@ -616,7 +616,16 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
                         },
                         // A store game may need something done first (an Epic game its sign-in code).
-                        onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) } },
+                        onSteamGame = { g ->
+                            if (shortcutPicker) chooseGameShortcut(g)
+                            else Thread({
+                                // Windows components re-checked first (what is installed already), the
+                                // downloads for the next launch after.
+                                com.droiddeck.launcher.frontend.AutoComponents.refresh(this, g, download = false)
+                                ui.post { com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) } }
+                                com.droiddeck.launcher.frontend.AutoComponents.refresh(this, g, download = true)
+                            }, "launch-components").start()
+                        },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
                         onExportGameFile = { g -> pickGameExport(g) },
                         onSyncGameFiles = { pickGameExport(null) },
@@ -1447,6 +1456,8 @@ class MainActivity : ComponentActivity() {
             val fresh = folders.mapNotNull { f ->
                 com.droiddeck.launcher.frontend.AddedGames.single(this, f)?.let { com.droiddeck.launcher.frontend.Library.addedGame(this, it) }
             }
+            // An added or edited game's Windows components, from its source's list.
+            fresh.forEach { com.droiddeck.launcher.frontend.AutoComponents.refreshLater(this, it) }
             ui.post {
                 val paths = folders.toSet()
                 steamGames = (steamGames.filterNot { it.library == Library.ADDED && it.gameFiles?.path in paths } + fresh).distinctBy { it.gameId }

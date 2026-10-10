@@ -156,7 +156,10 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                 Store.EPIC, item.id, item.title, exe = exe.ifEmpty { "game.exe" }, args = args,
                 installVersion = result.buildVersion, installedAt = System.currentTimeMillis(),
                 cover = item.tallImageUrl ?: item.imageUrl, hero = item.imageUrl,
-                extra = EpicLaunchData.extras(item.id, namespace, catalogItemId, deploymentId),
+                extra = EpicLaunchData.extras(item.id, namespace, catalogItemId, deploymentId) + listOfNotNull(
+                    result.prereqPath.takeIf { it.isNotEmpty() }?.let { com.droiddeck.launcher.frontend.WinCompSources.EPIC_PREREQ_PATH to it },
+                    result.prereqName.takeIf { it.isNotEmpty() }?.let { com.droiddeck.launcher.frontend.WinCompSources.EPIC_PREREQ_NAME to it },
+                ),
             )
             StoreInstalls.complete(app, folder, sidecar)
             return folder.path

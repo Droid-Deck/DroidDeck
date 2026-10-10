@@ -157,6 +157,19 @@ object DependencyDetector {
         }
     }
 
+    /**
+     * The catalog components one installer stands for, by its path ("_CommonRedist/vcredist/2015/
+     * vc_redist.x64.exe", "DXSETUP.exe"): what a store's install list names. A VC++ installer
+     * with no year is the latest; empty for one that is none of ours.
+     */
+    fun componentsFor(path: String): List<String> {
+        val p = path.replace('\\', '/').lowercase(Locale.US)
+        return classify(p, p.substringAfterLast('/'), isDir = false).map { if (it == VCREDIST_LOOSE) "vcredist2022" else it }
+    }
+
+    /** The name the catalog component [name] goes by, for a reason line. */
+    fun label(name: String): String = LABELS[name] ?: name
+
     /** A loose VC++ installer resolves to the latest 14.x only if no specific vcredistYYYY was found. */
     private fun resolveLooseVcredist(hits: LinkedHashMap<String, Recommendation>) {
         val loose = hits.remove(VCREDIST_LOOSE) ?: return

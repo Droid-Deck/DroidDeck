@@ -137,8 +137,7 @@ object AddedGameArt {
         val out = ArrayList<Option>()
         folderImages(game.folder).forEach { out.add(Option(FOLDER, it.path, it.path)) }
         val cache = cacheDir(context, game)
-        val steamId = runCatching { GameIdentifier.identify(game.exe).appId?.toString() }.getOrNull()
-            ?: File(cache, "steam-appid").takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() && it != "none" }
+        val steamId = SteamMatch.resolve(context, game.folder.path, game.exe, game.name, legacy = File(cache, "steam-appid")).appId?.toString()
         val remote = when (slot) { Slot.COVER -> "library_600x900.jpg"; Slot.BACKGROUND -> "library_hero.jpg"; Slot.LOGO -> "logo.png"; Slot.ICON -> null }
         if (steamId != null && remote != null) {
             val url = "$CDN$steamId/$remote".takeIf { exists(it) } ?: steamAssetUrl(steamId, remote)
@@ -222,10 +221,11 @@ object AddedGameArt {
             val cache = cacheDir(context, game)
             if (File(cache, "p.jpg").isFile) continue
             cache.mkdirs()
-            val appId = runCatching { GameIdentifier.identify(game.exe).appId }.getOrNull()
-            val id = steamAppId(game.name, appId, File(cache, "steam-appid")) { name ->
-                runCatching { search(name) }.onFailure { Log.w(TAG, "${game.name}: store search failed (${it.message})") }.getOrNull()
+            val match = steamMatch(context, game) { name ->
+                runCatching { search(name) }.onFailure { Log.w(TAG, "${game.name}: store search failed (${it.message})") }.getOrNull()?.toIntOrNull()
             }
+            val appId = match.appId?.takeIf { match.certainty == SteamMatch.Certainty.FILES }
+            val id = match.appId?.toString()
             if (id != null && download(id, cache)) changed = true
             if (File(cache, "p.jpg").isFile || sgdbKey.isEmpty()) continue
             val gridId = remembered(File(cache, "sgdb-id")) {
@@ -237,16 +237,13 @@ object AddedGameArt {
     }
 
     /**
-     * The game's Steam appid for its art: the one its files name ([appId]) as it is, else the
-     * remembered or freshly searched one ([search] on [name]); null for none.
+     * The game's Steam app, the one record its Windows components use too ([SteamMatch]): what its
+     * files name, else a store search on its title ([search]) whose result has the same name.
      */
-    internal fun steamAppId(name: String, appId: Int?, lookup: File, search: (String) -> String?): String? {
-        if (appId != null) {
-            lookup.writeText(appId.toString())
-            Log.i(TAG, "$name: Steam app $appId (from its files)")
-            return appId.toString()
-        }
-        return remembered(lookup) { search(name)?.also { Log.i(TAG, "$name: Steam app $it") } }
+    internal fun steamMatch(context: Context, game: AddedGames.Game, search: (String) -> Int?): SteamMatch.Match {
+        val match = SteamMatch.resolve(context, game.folder.path, game.exe, game.name, legacy = File(cacheDir(context, game), "steam-appid"), search = search)
+        match.appId?.let { Log.i(TAG, "${game.name}: Steam app $it (${match.certainty.name.lowercase()})") }
+        return match
     }
 
     /** What [marker] remembers (an id, or "none" for a week), else [find]'s answer written to it. */

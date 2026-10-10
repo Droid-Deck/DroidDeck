@@ -38,6 +38,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.DependencyDetector
 import com.droiddeck.launcher.frontend.PrefixInstalledDetector
 import com.droiddeck.launcher.frontend.SteamRedists
+import com.droiddeck.launcher.frontend.WinCompSources
 import com.droiddeck.launcher.session.WinComponentNames
 import com.droiddeck.launcher.session.WinComponents
 import com.droiddeck.launcher.session.WinComponents.Support
@@ -53,13 +54,38 @@ import java.io.File
 // picked ones into the game's prefix (droiddeck-wincomponents).
 
 /** Bannerlator's detector names installers; here the DLL-copy twin is the one that installs. */
-private fun installable(name: String, all: Map<String, WinComponents.Component>): String {
-    val dll = when (name) {
-        "oalinst" -> "oalinst_dll"
-        else -> "${name}_dll"
-    }
-    val twin = all[dll]
-    return if (twin != null && WinComponents.support(twin, all) == Support.READY) dll else name
+private fun installable(name: String, all: Map<String, WinComponents.Component>): String = WinComponents.installable(name, all)
+
+/** A store as a list's owner names it in a reason line. */
+@Composable
+private fun originName(origin: String): String = stringResource(
+    when (origin) {
+        WinCompSources.Origin.GOG.name -> R.string.wincomp_src_gog
+        WinCompSources.Origin.EPIC.name -> R.string.wincomp_src_epic
+        WinCompSources.Origin.AMAZON.name -> R.string.wincomp_src_amazon
+        else -> R.string.wincomp_src_steam
+    },
+)
+
+/** Why a component was turned on by itself, from [WinComponents.AutoReason] (args: what the list called it, then the origin's own). */
+@Composable
+private fun autoReason(r: WinComponents.AutoReason): String = when (r.kind) {
+    WinCompSources.Origin.STEAM.name -> stringResource(R.string.wincomp_auto_steam, r.args.getOrElse(1) { "" }, r.args.getOrElse(2) { "" }, r.args.getOrElse(3) { "" })
+    WinCompSources.Origin.GOG.name -> stringResource(R.string.wincomp_auto_gog)
+    WinCompSources.Origin.EPIC.name -> stringResource(R.string.wincomp_auto_epic)
+    WinCompSources.Origin.AMAZON.name -> stringResource(R.string.wincomp_auto_amazon)
+    else -> ""
+}
+
+/** The reason line of a finding that is only recommended. */
+@Composable
+private fun findingReason(f: WinCompSources.Finding): String = when (f.origin) {
+    WinCompSources.Origin.FOLDER -> stringResource(
+        if (f.args.getOrNull(1) == DependencyDetector.Kind.SHIPPED.name) R.string.wincomp_found_shipped else R.string.wincomp_found_bundled,
+        f.args.getOrElse(0) { f.original },
+    )
+    WinCompSources.Origin.STEAM_NAME -> stringResource(R.string.wincomp_steam_by_name, f.args.getOrElse(0) { f.original }, f.args.getOrElse(2) { "" })
+    else -> autoReason(WinComponents.AutoReason(f.origin.name, listOf(f.original) + f.args))
 }
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -68,6 +94,8 @@ internal fun WinComponentsDialog(
     appKey: String, gameName: String, gameDir: File?, byPad: Boolean,
     /** compatdata/<id>: what the prefix already has. [steamAppId]: a Steam title, whose appmanifest lists Steam's own redists. */
     compat: File? = null, steamAppId: Int? = null,
+    /** The game as the Games tab has it: its source decides whose list is trusted ([WinCompSources]). */
+    game: com.droiddeck.launcher.frontend.Library.SteamGame? = null,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -77,11 +105,12 @@ internal fun WinComponentsDialog(
     // null while the catalog loads; empty when it could not be had.
     var catalog by remember { mutableStateOf<Map<String, WinComponents.Component>?>(null) }
     var offline by remember { mutableStateOf(false) }
-    var recommended by remember { mutableStateOf(emptyList<DependencyDetector.Recommendation>()) }
+    var findings by remember { mutableStateOf(emptyList<WinCompSources.Finding>()) }
     var installed by remember { mutableStateOf(emptySet<String>()) }
     // Detector names (oalinst, physx...) already in the prefix from elsewhere.
     var present by remember { mutableStateOf(emptySet<String>()) }
-    var picks by remember { mutableStateOf(WinComponents.picks(context, appKey)) }
+    var selection by remember { mutableStateOf(WinComponents.selection(context, appKey)) }
+    val picks = selection.effective
     // The row being worked on: its id, the latest progress (a dependency's while that installs
     // first), and whether it is turning off rather than on. The row greys out and shows the bar
     // the moment the switch is pressed, and only that row; the rest of the page stays as it is.
@@ -96,6 +125,7 @@ internal fun WinComponentsDialog(
     // pad, so the d-pad always has somewhere to start; LB and RB jump between the sections, since
     // the full list runs past sixty switches.
     val recFocus = remember { FocusRequester() }
+    val recFocusAfterAuto = remember { FocusRequester() }
     val activeFocus = remember { FocusRequester() }
     val allFocus = remember { FocusRequester() }
     val waitFocus = remember { FocusRequester() }
@@ -105,20 +135,28 @@ internal fun WinComponentsDialog(
 
     LaunchedEffect(Unit) {
         val (entries, found) = withContext(Dispatchers.IO) {
-            // The folder's own installers first, then what Steam installs with the game.
-            val own = gameDir?.let { DependencyDetector.detect(it) } ?: emptyList()
-            val steam = steamAppId?.let { SteamRedists.detect(gameDir, it) } ?: emptyList()
-            WinComponents.fetch() to (own + steam)
+            val list = WinComponents.fetch(context)
+            // The source's list first (and what it turns on by itself, already installed), then the folder scan.
+            if (game != null) {
+                com.droiddeck.launcher.frontend.AutoComponents.refresh(context, game, download = false)
+                list to WinCompSources.forGame(context, game)
+            } else {
+                val own = gameDir?.let { DependencyDetector.detect(it) } ?: emptyList()
+                val steam = steamAppId?.let { SteamRedists.detect(gameDir, it) } ?: emptyList()
+                list to (own + steam).map { WinCompSources.Finding(it.componentName, it.reason, WinCompSources.Origin.FOLDER, false, listOf(it.reason, it.kind.name)) }
+            }
         }
         offline = entries == null
         catalog = entries.orEmpty().associateBy { it.name }
-        recommended = found
+        findings = found
+        selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
         present = withContext(Dispatchers.IO) { PrefixInstalledDetector.detect(compat) }
         installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }
-    fun setPicks(next: List<String>) {
-        picks = next
-        coroutine.launch(Dispatchers.IO) { WinComponents.setPicks(context, appKey, next) }
+    /** The user's own switch for [id]: kept apart from what was turned on by itself, and over it. */
+    fun setUser(id: String, on: Boolean) {
+        selection = WinComponents.Selection(selection.auto, selection.user + (id to on))
+        coroutine.launch(Dispatchers.IO) { WinComponents.setUser(context, appKey, id, on) }
     }
     fun toggle(id: String, on: Boolean) {
         // Switches stay enabled during a download - a disabled one drops the pad's focus - so a press
@@ -130,17 +168,16 @@ internal fun WinComponentsDialog(
             // Turning off is a saved pick, quick, but the row greys out until it is written so the
             // press is seen to land; the files leave the prefix at the game's next launch.
             busyId = id; reverting = true; progress = null
-            val next = picks - id
-            picks = next
+            selection = WinComponents.Selection(selection.auto, selection.user + (id to false))
             coroutine.launch {
-                withContext(Dispatchers.IO) { WinComponents.setPicks(context, appKey, next) }
+                withContext(Dispatchers.IO) { WinComponents.setUser(context, appKey, id, false) }
                 busyId = null; reverting = false
             }
             return
         }
         val all = catalog.orEmpty()
         val c = all[id]
-        if (id in installed || c == null) { setPicks(picks + id); return }
+        if (id in installed || c == null) { setUser(id, true); return }
         busyId = id; reverting = false
         progress = WinComponents.Progress(id, "", WinComponents.Phase.DOWNLOAD, -1)
         coroutine.launch {
@@ -149,7 +186,7 @@ internal fun WinComponentsDialog(
             }
             progress = null
             installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
-            if (problem != null) { error = problem; failed = id } else setPicks(picks + id)
+            if (problem != null) { error = problem; failed = id } else setUser(id, true)
             busyId = null
         }
     }
@@ -158,20 +195,27 @@ internal fun WinComponentsDialog(
     val here = if (all == null) emptySet() else present.map { installable(it, all) }.toSet()
     fun supportOf(id: String): Support =
         all?.get(id)?.let { WinComponents.support(it, all) } ?: if (id in installed) Support.READY else Support.UNSUPPORTED
-    val recIds = if (all == null) emptyList() else recommended.distinctBy { installable(it.componentName, all) }
+    // Turned on by itself for this game, each with its reason; then what is only recommended (the
+    // folder scan, a name match, an auto pick that cannot install here); then what the lists name
+    // that is no component here, by its own name.
+    val autoIds = selection.auto.keys.toList()
+    val recIds = if (all == null) emptyList() else findings.filter { it.component != null }
+        .filter { installable(it.component!!, all) !in selection.auto }
+        .distinctBy { installable(it.component!!, all) }
+    val suggestions = findings.filter { it.component == null }.distinctBy { it.origin to it.original }
     val ready = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.READY }.map { it.name }
     val extra = (installed + picks).filter { all?.containsKey(it) != true }
     // What is turned on for this game gets its own section under the recommendations, which stay
     // where they are; the rest of the list is everything else, so a component turned off goes back
     // to its place in the alphabet. A component is listed once: the recommendations are left out
     // of the full list too.
-    val recSet = recIds.map { installable(it.componentName, all.orEmpty()) }.toSet()
+    val recSet = recIds.map { installable(it.component!!, all.orEmpty()) }.toSet() + autoIds
     val active = picks.filter { it !in recSet && (all?.containsKey(it) == true || it in installed) }.distinct()
         .sortedBy { WinComponentNames.of(it).lowercase() }
     val list = (ready + extra).distinct().filter { it !in active && it !in recSet }.sortedBy { WinComponentNames.of(it).lowercase() }
     val waiting = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.NEEDS_INSTALLER }
         .map { it.name }.sortedBy { WinComponentNames.of(it).lowercase() }
-    val hasRec = all != null && recIds.any { supportOf(installable(it.componentName, all)) == Support.READY }
+    val hasRec = all != null && (autoIds.isNotEmpty() || recIds.any { supportOf(installable(it.component!!, all)) == Support.READY })
     val sections = listOfNotNull(recFocus.takeIf { hasRec }, activeFocus.takeIf { active.isNotEmpty() },
         allFocus.takeIf { list.isNotEmpty() }, waitFocus.takeIf { waiting.isNotEmpty() }, doneFocus)
     var section by remember { mutableStateOf(0) }
@@ -242,24 +286,39 @@ internal fun WinComponentsDialog(
             return { id -> focus.takeIf { id == first } }
         }
 
+        if (all != null && autoIds.isNotEmpty()) {
+            Section(stringResource(R.string.wincomp_auto_section))
+            val focusOf = firstUsable(autoIds, recFocus)
+            Panel {
+                autoIds.forEachIndexed { i, id ->
+                    if (i > 0) Divider()
+                    Item(id, autoReason(selection.auto.getValue(id)), focusOf(id))
+                }
+            }
+        }
         if (all != null && recIds.isNotEmpty()) {
             Section(stringResource(R.string.wincomp_recommended))
-            val focusOf = firstUsable(recIds.map { installable(it.componentName, all) }, recFocus)
+            val focusOf = firstUsable(recIds.map { installable(it.component!!, all) }, if (autoIds.isEmpty()) recFocus else recFocusAfterAuto)
             Panel {
                 recIds.forEachIndexed { i, rec ->
                     if (i > 0) Divider()
-                    val reason = stringResource(
-                        when (rec.kind) {
-                            DependencyDetector.Kind.BUNDLED -> R.string.wincomp_found_bundled
-                            DependencyDetector.Kind.SHIPPED -> R.string.wincomp_found_shipped
-                            DependencyDetector.Kind.STEAM -> R.string.wincomp_found_steam
-                        }, rec.reason,
-                    )
-                    val id = installable(rec.componentName, all)
-                    Item(id, reason, focusOf(id))
+                    val id = installable(rec.component!!, all)
+                    Item(id, findingReason(rec), focusOf(id))
                 }
             }
-        } else if (all != null && gameDir != null) Small(stringResource(R.string.wincomp_no_recommendation))
+        } else if (all != null && gameDir != null && autoIds.isEmpty()) Small(stringResource(R.string.wincomp_no_recommendation))
+        if (suggestions.isNotEmpty()) {
+            Section(stringResource(R.string.wincomp_suggestions))
+            Panel {
+                suggestions.forEachIndexed { i, f ->
+                    if (i > 0) Divider()
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        Text(f.original, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+                        Text(stringResource(R.string.wincomp_suggestion_reason, originName(f.origin.name)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
 
         if (active.isNotEmpty()) {
             Section(stringResource(R.string.wincomp_active, active.size))

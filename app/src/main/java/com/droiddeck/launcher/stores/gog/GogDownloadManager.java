@@ -79,6 +79,8 @@ public final class GogDownloadManager {
         public final String exeRelative;
         public final String buildId;
         public final long bytes;
+        /** The build manifest's "dependencies" (GOG's redistributable ids: MSVC2017_x64, DirectX...), for Windows components. */
+        public List<String> dependencies = new ArrayList<>();
         Result(String exeRelative, String buildId, long bytes) { this.exeRelative = exeRelative; this.buildId = buildId; this.bytes = bytes; }
     }
 
@@ -150,10 +152,12 @@ public final class GogDownloadManager {
             if ((baseProductId == null || baseProductId.isEmpty()) && products != null && products.length() > 0)
                 baseProductId = products.getJSONObject(0).optString("productId", null);
             if (baseProductId == null || baseProductId.isEmpty()) baseProductId = game.gameId;
-            // The build's required redistributables (MSVC, DirectX, ...) are recorded for the engine
-            // log; Steam's shared redistributables run in the prefix on first launch as for any shortcut.
+            // The build's required redistributables (MSVC, DirectX, ...): logged, and kept in the
+            // sidecar, where Windows components take them as this game's list (WinCompSources).
             JSONArray deps = manifest.optJSONArray("dependencies");
-            if (deps != null && deps.length() > 0) cb.onLog("gog: build lists dependencies " + deps);
+            List<String> dependencies = new ArrayList<>();
+            if (deps != null) for (int i = 0; i < deps.length(); i++) { String d = deps.optString(i, ""); if (!d.isEmpty()) dependencies.add(d); }
+            if (!dependencies.isEmpty()) cb.onLog("gog: build lists dependencies " + deps);
 
             cb.onProgress("Reading depot manifests…", 10);
             List<DepotFile> files = new ArrayList<>();
@@ -262,6 +266,7 @@ public final class GogDownloadManager {
             String clientSecret = manifest.optString("clientSecret", null);
             if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
             out.result = new Result(pickExe(installPath, tempExe, game.title), gm.buildId, planned);
+            out.result.dependencies = dependencies;
             return out;
         } catch (Exception e) {
             out.error = "exception: " + e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : "");
