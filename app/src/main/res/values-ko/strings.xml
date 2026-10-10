@@ -254,6 +254,7 @@
     <string name="mode_controller">컨트롤러</string>
     <string name="mode_controller_hint">Steam이 컨트롤러를 인식하는 방식입니다. 다음 세션에 적용됩니다.</string>
     <string name="mode_controller_deck">Steam Deck 컨트롤러</string>
+    <string name="mode_controller_steam">Steam Controller</string>
     <string name="mode_controller_x360">Xbox 360 컨트롤러</string>
     <string name="mode_controller_note">Deck: 빠른 액세스 버튼과 자이로스코프를 제공합니다. Xbox 360: Guide+A로 빠른 액세스를 엽니다.</string>
     <string name="mode_back">뒤로</string>

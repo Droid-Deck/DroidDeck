@@ -254,6 +254,7 @@
     <string name="mode_controller">手柄</string>
     <string name="mode_controller_hint">决定 Steam 把你的手柄识别为哪种类型，将在下次会话生效。</string>
     <string name="mode_controller_deck">Steam Deck 手柄</string>
+    <string name="mode_controller_steam">Steam Controller</string>
     <string name="mode_controller_x360">Xbox 360 手柄</string>
     <string name="mode_controller_note">Deck：快捷访问按钮与陀螺仪。Xbox 360：用 Guide+A 打开快捷访问。</string>
     <string name="mode_back">返回</string>

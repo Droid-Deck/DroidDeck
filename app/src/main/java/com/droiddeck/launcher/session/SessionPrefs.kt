@@ -19,6 +19,7 @@ object SessionPrefs {
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
+    const val CONTROLLER_STEAM = "steamcontroller"
     const val OSC_AUTO = "auto"
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
@@ -449,7 +450,8 @@ object SessionPrefs {
 
     /**
      * What the pad is to the Steam client: [CONTROLLER_DECK], a Steam Deck controller (Quick Access
-     * button, gyro, Steam Input's full treatment - SteamDeckPad), or [CONTROLLER_XBOX360], the plain
+     * button, gyro, Steam Input's full treatment - SteamDeckPad), [CONTROLLER_STEAM], a 2025 Steam
+     * Controller (the same, plus grip sense and its own haptics), or [CONTROLLER_XBOX360], the plain
      * Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
      */
     fun steamController(context: Context): String =

@@ -254,6 +254,7 @@
     <string name="mode_controller">Контроллер</string>
     <string name="mode_controller_hint">Как Steam распознает ваш контроллер. Вступит в силу в следующей сессии.</string>
     <string name="mode_controller_deck">Контроллер Steam Deck</string>
+    <string name="mode_controller_steam">Steam Controller</string>
     <string name="mode_controller_x360">Контроллер Xbox 360</string>
     <string name="mode_controller_note">Deck: кнопка быстрого доступа и гироскоп. Xbox 360: используйте Guide+A для быстрого доступа.</string>
     <string name="mode_back">Назад</string>

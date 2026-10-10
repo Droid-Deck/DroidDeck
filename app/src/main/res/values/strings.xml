@@ -262,8 +262,9 @@
     <string name="mode_controller">Controller</string>
     <string name="mode_controller_hint">How Steam sees your controller. Applies next session.</string>
     <string name="mode_controller_deck">Steam Deck controller</string>
+    <string name="mode_controller_steam">Steam Controller</string>
     <string name="mode_controller_x360">Xbox 360 controller</string>
-    <string name="mode_controller_note">Deck: Quick Access button and gyro. Xbox 360: open Quick Access with Guide+A.</string>
+    <string name="mode_controller_note">Deck: Quick Access button and gyro. Steam Controller: the same, with grip sense on the back buttons. Xbox 360: open Quick Access with Guide+A.</string>
     <string name="mode_back">Back</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>

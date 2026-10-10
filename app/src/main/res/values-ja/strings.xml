@@ -254,6 +254,7 @@
     <string name="mode_controller">コントローラー</string>
     <string name="mode_controller_hint">Steamがコントローラーを認識する方法。次回のセッションで有効になります。</string>
     <string name="mode_controller_deck">Steam Deckコントローラー</string>
+    <string name="mode_controller_steam">Steam Controller</string>
     <string name="mode_controller_x360">Xbox 360コントローラー</string>
     <string name="mode_controller_note">Deck：クイックアクセスボタンとジャイロを提供します。Xbox 360：Guide+Aでクイックアクセスを開きます。</string>
     <string name="mode_back">戻る</string>
