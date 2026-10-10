@@ -133,7 +133,7 @@ object WinComponents {
     /** The steps a recording makes redundant: everything that places files or edits the registry. */
     private val SNAPSHOT_COVERS = INSTALLER_STEPS + setOf("download_archive", "archive_extract", "copy_dll", "copy_file") + OFFLINE_STEPS
 
-    fun fetch(): List<Component>? = parse(Downloader.downloadString(CATALOG_URL) ?: return null)
+    fun fetch(): List<Component>? = Downloader.downloadString(CATALOG_URL)?.let { parse(it) }
 
     private const val CATALOG_CACHE = "wincomponents-catalog.json"
 
