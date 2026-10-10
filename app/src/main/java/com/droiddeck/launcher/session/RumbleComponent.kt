@@ -4,6 +4,7 @@ import android.net.LocalServerSocket
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.CombinedVibration
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -33,6 +34,8 @@ class RumbleComponent : SessionPart() {
     private var phone: Motors? = null
     /** Per slot, where its last effect went, so the next one (or a stop) can end it there. */
     private val playing = HashMap<Int, Motors>()
+    /** Per slot, the last effect handed to the motors and when, to drop the repeats games stream. */
+    private val sent = HashMap<Int, Sent>()
     /** Each controller's motors, looked up once; null when it has none. */
     private val controllers = HashMap<Int, Motors?>()
     private var preferences: SharedPreferences? = null
@@ -95,13 +98,21 @@ class RumbleComponent : SessionPart() {
         val previous = playing[slot]
         if (target !== previous) {
             previous?.cancel()
+            sent.remove(slot)
             if (target == null) playing.remove(slot) else playing[slot] = target
             target?.let { Log.i(TAG, "rumble: slot $slot playing on ${it.name}") }
         }
         if (target == null) return
-        if ((strong == 0 && weak == 0) || ms == 0) { target.cancel(); return }
+        if ((strong == 0 && weak == 0) || ms == 0) { target.cancel(); sent.remove(slot); return }
+        // Games re-send their effect every frame; restarting the motor that often floods the haptics
+        // driver. ponytail: a change inside MIN_GAP_MS is dropped, the game's next packet brings it.
+        val now = SystemClock.uptimeMillis()
+        val last = sent[slot]
+        if (last != null && (now - last.at < MIN_GAP_MS || (last.strong == strong && last.weak == weak && now < last.until))) return
+        val duration = ms.toLong().coerceIn(1L, 5000L)
         try {
-            target.play(strong, weak, ms.toLong().coerceIn(1L, 5000L))
+            target.play(strong, weak, duration)
+            sent[slot] = Sent(strong, weak, now, now + duration)
         } catch (e: Exception) {
             Log.w(TAG, "rumble: ${target.name}: $e")
         }
@@ -118,7 +129,10 @@ class RumbleComponent : SessionPart() {
     private fun cancelAll() {
         playing.values.toSet().forEach { it.cancel() }
         playing.clear()
+        sent.clear()
     }
+
+    private data class Sent(val strong: Int, val weak: Int, val at: Long, val until: Long)
 
     /** One place an effect can play. Strengths are the evdev 0..65535 magnitudes. */
     internal interface Motors {
@@ -160,6 +174,8 @@ class RumbleComponent : SessionPart() {
         private const val TAG = "SessionService"
         /** Must match the fake evdev layer (fakeinput_steam.cpp). */
         const val NAME = "droiddeck-rumble"
+        /** The shortest time between two effects started on one slot's motors. */
+        const val MIN_GAP_MS = 50L
 
         private fun oneShot(vibrator: Vibrator, strength: Int, ms: Long): VibrationEffect {
             val amplitude = if (vibrator.hasAmplitudeControl()) (strength * 255L / 65535L).toInt().coerceIn(1, 255)

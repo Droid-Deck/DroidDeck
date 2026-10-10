@@ -20,6 +20,19 @@ object SessionFiles {
     /** The driver sets staged under it: classic Wine 11 (Valve, GE) and the system-thread interface (Proton-CachyOS). */
     val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
 
+    // Staged only with a complete desktop; removal matches these against the APK as well.
+    internal val DESKTOP_FILES = arrayOf(
+        "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
+        // Games and emulators from the menu, full screen in a gamescope of their own.
+        "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
+        "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
+        "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
+        // KWin at the app's surface size, for Plasma's session (it starts KWin through this name).
+        "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
+        "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
+        "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
+    )
+
     /**
      * The libraries and scripts the session runs, refreshed from the apk at every launch.
      *
@@ -30,6 +43,8 @@ object SessionFiles {
      * rename, so a session that still has one mapped keeps the file it opened.
      */
     fun stage(context: Context, root: File) {
+        if (DesktopCatalog.desktopInstalled(root)) try { DesktopCatalog.cleanLegacy(context) }
+        catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
         val files = arrayOf(
@@ -95,19 +110,6 @@ object SessionFiles {
             "usr/bin/steamos-polkit-helpers/jupiter-biosupdate" to "usr/bin/steamos-polkit-helpers/jupiter-biosupdate",
             "usr/bin/steamos-polkit-helpers/jupiter-dock-updater" to "usr/bin/steamos-polkit-helpers/jupiter-dock-updater",
         )
-        // The desktop's launchers, only where the desktop package is installed:
-        // staging them into a runtime without it would make the desktop look present when it is not.
-        val desktop = arrayOf(
-            "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
-            // Games and emulators from the menu, full screen in a gamescope of their own.
-            "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
-            "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
-            "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
-            // KWin at the app's surface size, for Plasma's session (it starts KWin through this name).
-            "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
-            "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
-            "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
-        )
         // The patched gamescope (tools/gamescope): the runtime's own version rebuilt with the ARM64
         // client fixes, over /usr/local/bin so it comes first in the session's PATH. Only when the
         // apk carries it - a build without the asset leaves the runtime's copy alone.
@@ -137,7 +139,7 @@ object SessionFiles {
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
-        val all = (if (DesktopCatalog.desktopInstalled(root)) files + desktop else files) + optional
+        val all = (if (DesktopCatalog.desktopInstalled(root)) files + DESKTOP_FILES else files) + optional
         for ((asset, relative) in all) {
             val target = File(root, relative)
             val staged = File(target.parentFile, target.name + ".staged")

@@ -33,13 +33,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
@@ -86,6 +89,7 @@ class FrontEndState(
     val stage: String,
     val percent: Int,
     val desktopInstalled: Boolean,
+    val desktopPresent: Boolean = desktopInstalled,
     val offlineAccount: String?,
     val offline: Boolean,
     val frameGenLabel: String,
@@ -175,6 +179,7 @@ class FrontEndActions(
     val onResume: () -> Unit,
     val onSteamSettings: () -> Unit,
     val onDesktopSettings: () -> Unit,
+    val onRemoveDesktop: () -> Unit = {},
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
     val onRuntime: () -> Unit,
@@ -466,7 +471,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     var anyFocused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
-            .then(if (s.launcherFullscreen) Modifier else Modifier.systemBarsPadding())
+            .windowInsetsPadding(if (s.launcherFullscreen) WindowInsets.displayCutout else WindowInsets.systemBars)
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
         // Start controllers on the current page's main action, else on the rail.

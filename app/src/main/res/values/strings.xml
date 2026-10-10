@@ -896,6 +896,12 @@
     <string name="content_page_gone">That page is gone. Pick a section on the left.</string>
     <string name="content_open_desktop">Open desktop</string>
     <string name="content_install_open_desktop">Install &amp; open desktop</string>
+    <string name="desktop_remove_title">Uninstall desktop</string>
+    <string name="desktop_remove_text">Remove the desktop and its bundled apps. Keep games, added apps, settings and shared libraries.</string>
+    <string name="desktop_removing">Removing desktop</string>
+    <string name="desktop_removed">Desktop removed</string>
+    <string name="desktop_cleaning_legacy">Removing old LXQt files</string>
+    <string name="desktop_removal_unknown">Update DroidDeck before removing this desktop version.</string>
     <string name="content_linux_desktop">Linux desktop</string>
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox and your emulators</string>
     <string name="games_empty">Games you install in Steam show up here after the session.</string>
@@ -967,6 +973,12 @@
     <string name="deck_tab_left">Left pad</string>
     <string name="deck_tab_right">Right pad</string>
     <string name="deck_tab_both">Both</string>
+    <string name="deck_tab_gamepad">Gamepad</string>
+    <string name="deck_surface_stick">Stick</string>
+    <string name="deck_surface_trackpad">Trackpad</string>
+    <string name="deck_surface_switch">Switch between stick and trackpad</string>
+    <string name="deck_more_controls">More Deck controls</string>
+    <string name="deck_panels">PANELS</string>
     <string name="deck_close">Close second-screen controls</string>
     <string name="deck_open_steam_menu">Open Steam menu</string>
     <string name="deck_left_upper">Left · upper</string>
@@ -1030,6 +1042,8 @@
     <string name="game_env_eyebrow">Proton games</string>
     <string name="pip_title">Picture in picture</string>
     <string name="pip_auto">Automatically enter PiP</string>
+    <string name="unfolded_controls">Controls on the unfolded screen</string>
+    <string name="unfolded_controls_hint">Unfolded, the game sits above the Steam Deck trackpads and back grips. Folded, the game is full screen.</string>
     <string name="pip_suspended">Suspended</string>
     <string name="pip_not_ready">Picture in picture is available once the session is ready.</string>
     <string name="pip_permission">Allow picture in picture for DroidDeck in Android settings.</string>
@@ -1527,6 +1541,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">Hidden</string>
     <string name="ctrl_editor_drag">Drag to move</string>
+    <string name="ctrl_editor_snap">Snap</string>
     <string name="ctrl_editor_save">Save</string>
     <!-- What the second screen shows during a session -->
     <string name="second_mode_none">None</string>

@@ -424,11 +424,18 @@ private fun Content(
 private fun DesktopCard(s: FrontEndState, a: FrontEndActions) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    var confirmRemove by rememberSaveable { mutableStateOf(false) }
+    if (confirmRemove) ConfirmDialog(
+        stringResource(R.string.desktop_remove_title), stringResource(R.string.desktop_remove_text),
+        stringResource(R.string.common_uninstall), a.onRemoveDesktop, { confirmRemove = false },
+    )
     val actions: @Composable () -> Unit = {
         Actions {
             // Enabled without a runtime or the desktop: the session's loading screen installs them first.
             PrimaryButton(if (s.desktopInstalled) stringResource(R.string.content_open_desktop) else stringResource(R.string.content_install_open_desktop), enabled = !s.busy, main = true, onClick = a.onDesktop)
             Cog(onClick = a.onDesktopSettings)
+            if (s.desktopPresent) SecondaryButton(stringResource(R.string.common_uninstall),
+                enabled = !s.runtimeActionsBlocked) { confirmRemove = true }
             BusyChip(s)
         }
     }
