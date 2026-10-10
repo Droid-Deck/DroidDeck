@@ -66,6 +66,7 @@ import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.droiddeck.launcher.session.GameProfileFollowState
+import com.droiddeck.launcher.session.GameProfileInventoryCache
 import com.droiddeck.launcher.session.GameProfileRefreshState
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionEvents
@@ -255,8 +256,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** The drawer's Components tab: the Protons as last read (ComponentsManager). */
     private var drawerComponents by mutableStateOf<ComponentsManager.Snapshot?>(null)
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
+    private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
+    private var drawerGameInventoryRevision = 0L
     private val drawerGameProfileFollowState = GameProfileFollowState()
-    private data class DrawerGameProfileRefresh(val followsSteam: Boolean, val requestedAppId: Long?)
+    private data class DrawerGameProfileRefresh(
+        val followsSteam: Boolean,
+        val requestedAppId: Long?,
+        val inventoryRevision: Long,
+    )
     private data class DrawerGameProfileResult(
         val profiles: List<Pair<Long, String>>,
         val selectedAppId: Long?,
@@ -711,7 +718,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     gameProfilesLoaded = drawerGameProfileRefresh.loaded,
                     gameProfileRefreshFailed = drawerGameProfileRefresh.failed,
                     onSelectedGameProfile = ::selectDrawerGameProfile,
-                    onSelectedGameProfileFollowSteam = drawerGameProfileFollowState::resumeFollowingSteam,
+                    onGameProfilesPageOpened = {
+                        drawerGameProfileFollowState.resumeFollowingSteam()
+                        drawerGameInventoryRevision++
+                    },
                     onSelectedGameProfileRefresh = ::refreshDrawerGameProfile,
                     onComponentSwap = { pid, comp, value -> swapDrawerComponent(pid, comp, value) },
                     onGameComponent = ::setDrawerGameComponent,
@@ -826,7 +836,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun refreshDrawerGameProfile() {
-        val refresh = DrawerGameProfileRefresh(drawerGameProfileFollowState.followsSteam, drawerGameProfileId)
+        val refresh = DrawerGameProfileRefresh(
+            drawerGameProfileFollowState.followsSteam,
+            drawerGameProfileId,
+            drawerGameInventoryRevision,
+        )
         if (!drawerGameProfileRefreshes.submit(refresh)) return
         Thread({
             var request = drawerGameProfileRefreshes.takeLatest()
@@ -846,7 +860,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         refresh: DrawerGameProfileRefresh,
     ): DrawerGameProfileResult {
         return try {
-            val games = Library.launchableGames(this)
+            val games = drawerGameInventory.get(refresh.inventoryRevision) { Library.launchableGames(this) }
             val options = games.mapNotNull { game ->
                 game.profileKey.toLongOrNull()?.let { it to game.name }
             }.sortedBy { it.second.lowercase() }
