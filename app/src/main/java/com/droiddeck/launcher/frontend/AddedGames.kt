@@ -43,22 +43,17 @@ object AddedGames {
         fun folderName(): String = folder.name
     }
 
-    /** One Games folder and where the session sees it. */
+    /** A Games folder an earlier build had, and where the session sees it. */
     class Root(val host: File, val guest: String)
 
     /**
-     * The chosen folders with their guest paths: /root/Games/<folder name>, or with a short hash of
-     * the host path when two chosen folders share a name (so a folder's guest path, and with it
-     * every shortcut's appid, does not change when another folder is added or removed).
+     * The Games folders earlier builds had, bound into the session at the guest paths they had
+     * then (/root/Games/<name>), so the games in them (entries now, [GamesFolderMigration]) keep
+     * their paths and shortcuts. Nothing adds one any more.
      */
     fun roots(context: Context): List<Root> {
-        val hosts = SessionPrefs.addedGamesDirs(context).map { File(it) }
-        val names = hosts.groupingBy { it.name.lowercase() }.eachCount()
-        return hosts.map { host ->
-            val name = host.name.ifEmpty { "games" }
-            val guestName = if ((names[name.lowercase()] ?: 0) > 1) name + "-" + "%08x".format(CRC32().apply { update(host.path.toByteArray()) }.value).take(4) else name
-            Root(host, "$GUEST_DIR/$guestName")
-        }
+        GamesFolderMigration.run(context)
+        return SessionPrefs.gameFolderBinds(context).map { (host, guest) -> Root(File(host), guest) }
     }
 
     private val SKIP = Regex(
@@ -189,7 +184,8 @@ object AddedGames {
 
     fun scan(context: Context): List<Game> {
         val out = ArrayList<Game>()
-        val folders = roots(context).map { it.host } + listOfNotNull(
+        GamesFolderMigration.run(context)
+        val folders = listOfNotNull(
             GameStorage.effective(context)?.let { File(it.path) },
             GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
         )
@@ -263,17 +259,19 @@ object AddedGames {
     private fun inside(path: String, folder: String) = path.startsWith(folder.trimEnd('/') + "/")
 
     /**
-     * The game folder [exe] belongs to, without a scan: an entry from the Games tab, a removed
-     * game, a store install, or the first-level folder under a Games folder (or the Steam library)
-     * that holds it. Null when it is in none.
+     * The game folder [exe] belongs to, without a scan: an entry from the Games tab (Games folders
+     * of earlier builds included), a removed game, a store install, or the first-level folder under
+     * the Steam library that holds it. Null when it is in none.
      */
     private fun ownerFolder(context: Context, exe: File): File? {
+        GamesFolderMigration.run(context)
         val path = canonical(exe)
         fun holds(f: File) = inside(path, canonical(f))
         AddedExes.list(context).map { File(it.folder) }.firstOrNull(::holds)?.let { return it }
         SessionPrefs.removedAddedGames(context).map { File(it) }.firstOrNull(::holds)?.let { return it }
         StoreInstallRoot.gameFolders(context).firstOrNull(::holds)?.let { return it }
-        val dirs = roots(context).map { it.host } + listOfNotNull(
+        // Games folders of earlier builds are entries now, found above.
+        val dirs = listOfNotNull(
             GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
             GameStorage.effective(context)?.let { File(it.path) },
         )
@@ -347,12 +345,13 @@ object AddedGames {
 
     /**
      * The game folders already listed, without building any game: the first-level folders of the
-     * Games folders and the Steam library (as [scan] walks them), the Games tab's entries and the
-     * store installs. Canonical paths; removed games are left out.
+     * Steam library (as [scan] walks them), the Games tab's entries (Games folders of earlier builds
+     * included) and the store installs. Canonical paths; removed games are left out.
      */
     private fun listedFolders(context: Context, removed: Set<String>): List<String> {
         val out = ArrayList<String>()
-        val dirs = roots(context).map { it.host } + listOfNotNull(
+        GamesFolderMigration.run(context)
+        val dirs = listOfNotNull(
             GameStorage.effective(context)?.let { File(it.path) },
             GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
         )
