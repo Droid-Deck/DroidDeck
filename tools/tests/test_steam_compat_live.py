@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 LIVE = runpy.run_path(str(BIN / "droiddeck-steam-compat"))
@@ -212,6 +213,93 @@ class ReconcileTest(unittest.TestCase):
         self.assertTrue(COMPAT["live_helper_running"]())
         LIVE["detach"]()
         self.assertFalse(COMPAT["live_helper_running"]())
+
+
+SWITCH_HARNESS = r"""
+const sent = [], asked = [];
+class FakeSocket { send(data) { sent.push(data); } }
+globalThis.window = globalThis;
+globalThis.WebSocket = FakeSocket;
+window.droiddeckSwitchToDesktop = (x) => asked.push(x);
+const install = require("fs").readFileSync(process.argv[2], "utf8");
+const frame = (method) => {
+  const name = new TextEncoder().encode(method), h = [0x51, 1, 0, 0, 0, 0, 0, 0, 0, 0x62, name.length, ...name];
+  const out = new Uint8Array(8 + h.length), dv = new DataView(out.buffer);
+  dv.setUint32(0, (0x80000000 | 146) >>> 0, true); dv.setUint32(4, h.length, true); out.set(h, 8);
+  return out;
+};
+if (eval(install) !== "installed" || eval(install) !== "present") throw new Error("install is not idempotent");
+const ws = new FakeSocket();
+ws.send(frame("CompatManager.GetCompatTools#1"));
+ws.send(frame("SteamOSManager.SwitchToDesktop#1").buffer);
+ws.send(frame("SteamOSManager.SwitchToDesktop#1"));
+ws.send("SteamOSManager.SwitchToDesktop#1");
+console.log(JSON.stringify({ sent: sent.length, asked: asked.length }));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node is not installed")
+class SwitchScriptTest(unittest.TestCase):
+    def test_the_request_is_reported_and_still_sent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "switch.js"
+            script.write_text(LIVE["SWITCH_JS"])
+            harness = Path(tmp) / "harness.js"
+            harness.write_text(SWITCH_HARNESS)
+            result = subprocess.run(["node", str(harness), str(script)], capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout), {"sent": 4, "asked": 2})
+
+
+class AttachPage:
+    def __init__(self, port, path):
+        self.calls, self.scripts = [], []
+        self.ws = mock.Mock()
+
+    def evaluate(self, expression, timeout=30):
+        self.scripts.append(expression)
+        return True
+
+    def call(self, method, params=None, timeout=30):
+        self.calls.append((method, (params or {}).get("name")))
+        return {}
+
+    def compat(self, call):
+        return {"selected": "", "fallback": "", "tools": []}
+
+
+class SwitchToDesktopTest(unittest.TestCase):
+    def setUp(self):
+        self.globals = LIVE["Helper"].attach.__globals__
+        patcher = mock.patch.dict(self.globals, {"shared_context": lambda port: "/devtools/page/1", "Page": AttachPage})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_only_a_client_without_its_steamos_manager_is_watched(self):
+        helper = LIVE["Helper"]("/steam", 1, steamos=False)
+        helper.attach()
+        self.assertIn(("Runtime.addBinding", LIVE["SWITCH_BINDING"]), helper.page.calls)
+        self.assertIn(LIVE["SWITCH_JS"], helper.page.scripts)
+        helper = LIVE["Helper"]("/steam", 1, steamos=True)
+        helper.attach()
+        self.assertNotIn(("Runtime.addBinding", LIVE["SWITCH_BINDING"]), helper.page.calls)
+        self.assertNotIn(LIVE["SWITCH_JS"], helper.page.scripts)
+
+    def test_the_request_goes_to_steamos_session_select(self):
+        helper = LIVE["Helper"]("/steam", 1)
+        helper.page = mock.Mock()
+        helper.page.drain.return_value = [
+            {"method": "Runtime.bindingCalled", "params": {"name": LIVE["BINDING"], "payload": "1"}},
+            {"method": "Runtime.bindingCalled", "params": {"name": LIVE["SWITCH_BINDING"], "payload": ""}},
+        ]
+        with mock.patch.object(self.globals["subprocess"], "call", return_value=0) as call:
+            events = helper.drain()
+        call.assert_called_once_with(["/usr/bin/steamos-session-select", "plasma"])
+        self.assertTrue(any(LIVE["called"](e, LIVE["BINDING"]) for e in events))
+        helper.page.drain.return_value = [{"method": "Runtime.bindingCalled", "params": {"name": LIVE["BINDING"]}}]
+        with mock.patch.object(self.globals["subprocess"], "call") as call:
+            helper.drain()
+        call.assert_not_called()
 
 
 if __name__ == "__main__":
