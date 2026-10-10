@@ -242,7 +242,7 @@ object AppImageManager {
 
     private fun menuEntry(context: Context, id: String) =
         // A system directory, not ~/.local/share/applications: the desktop copies game entries from
-        // here into the user's with a GPU launcher (droiddeck-desktop-gpu) while it runs on pixman.
+        // here into the user's with a GPU launcher (droiddeck-desktop-gpu), since it composites in software.
         File(LinuxRuntime.rootDir(context), "usr/local/share/applications/droiddeck-appimage-$id.desktop")
 
     /** The Linux desktop's menu entry: the desktop's own Exec rules (and droiddeck-gpu) apply to it. */

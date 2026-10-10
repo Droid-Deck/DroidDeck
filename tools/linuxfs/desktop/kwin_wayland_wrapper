@@ -1,0 +1,11 @@
+#!/bin/bash
+# KWin for the desktop. Plasma's session (plasma_session) starts KWin through kwin_wayland_wrapper as
+# found on PATH; this one, first on it, has KWin draw into the app's compositor (wayland-0) and serve
+# its own clients on wayland-1 - by default it takes wayland-0 and finds the app's lock on it - with
+# its nested output at the app's surface size (left alone, a 1024x768 window the desktop is scaled
+# from), and without the lock screen, which the app's own suspend stands in for. Anything else (a KWin
+# started outside DroidDeck's desktop) gets the real wrapper as it is.
+if [ "${BL_DESKTOP:-}" = 1 ]; then
+  set -- --wayland-display wayland-0 --socket wayland-1 --width "${BL_WIDTH:-1280}" --height "${BL_HEIGHT:-720}" --no-lockscreen "$@"
+fi
+exec /usr/bin/kwin_wayland_wrapper "$@"
