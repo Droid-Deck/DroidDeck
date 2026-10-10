@@ -1254,6 +1254,8 @@ class MainActivity : ComponentActivity() {
                 steamDownloadsInBackground = steamDownloadsInBackground,
                 pipSupported = com.droiddeck.launcher.session.SessionPipController.supported(this),
                 pipAutoEnter = pipAutoEnter,
+                unfoldedControls = if (mode == SessionService.MODE_STEAM &&
+                    com.droiddeck.launcher.session.SessionDisplay.foldable(this)) unfoldedControls else null,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
                 backActionsInverted = backActionsInverted,
                 directAudio = if (mode == SessionService.MODE_STEAM) directAudio else null,
@@ -1311,6 +1313,7 @@ class MainActivity : ComponentActivity() {
                     steamDownloadsInBackground = enabled
                 },
                 onPipAutoEnter = { on -> SessionPrefs.setPipAutoEnter(this, on); pipAutoEnter = on },
+                onUnfoldedControls = { on -> SessionPrefs.setUnfoldedControls(this, on); unfoldedControls = on },
                 onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },
                 onBackActionsInverted = { inverted ->
                     SessionPrefs.setBackActionsInverted(this, inverted)
@@ -1465,9 +1468,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private var pipAutoEnter by mutableStateOf(false)
+    private var unfoldedControls by mutableStateOf(false)
 
     private fun openModeSettings(mode: String) {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
+        unfoldedControls = SessionPrefs.unfoldedControls(this)
         showPerformance = false
         showProtons = false
         showComponents = false

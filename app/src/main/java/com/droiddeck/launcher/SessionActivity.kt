@@ -19,6 +19,7 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.Display
 import android.view.SurfaceHolder
+import android.view.Gravity
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
@@ -109,6 +110,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var pip: com.droiddeck.launcher.session.SessionPipController
     private var pipUi by mutableStateOf(false)
     private var pipAutoEnter by mutableStateOf(false)
+    /** Unfolded controls: the setting, and the Deck controls under the game while they show. */
+    private var unfoldedControls by mutableStateOf(false)
+    private var unfoldedPanel: com.droiddeck.launcher.ui.DeckControlsPanel? = null
+    private lateinit var sessionRoot: FrameLayout
     private val guestKeysDown = mutableSetOf<Int>()
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
@@ -119,7 +124,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
     /** Between onResume and onPause. */
     private var resumed = false
-    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion(); openDeckRing("deck pad changed") } }
+    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion(); openDeckRing("deck pad changed"); applyUnfoldedControls() } }
 
     /**
      * A Deck's controller is there from the moment it boots, and the client looks for it once, as
@@ -370,9 +375,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
             }
         }
+        sessionRoot = root
         surfaceView = SurfaceView(this)
         surfaceView.holder.addCallback(this)
         root.addView(surfaceView)
+        // The window's size is only known once laid out, and changes as the phone folds or turns.
+        root.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
+            if (r - l != or - ol || b - t != ob - ot) uiHandler.post { applyUnfoldedControls() }
+        }
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
         padBridge = bridge
@@ -620,6 +630,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         pipAutoEnter = on
                         pip.refresh(true)
                     },
+                    unfoldedControls = if (com.droiddeck.launcher.session.SessionDisplay.foldable(this@SessionActivity)) unfoldedControls else null,
+                    onUnfoldedControls = ::chooseUnfoldedControls,
                     onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
                     onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
                     onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
@@ -800,6 +812,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
+        unfoldedControls = SessionPrefs.unfoldedControls(this)
         hudOn = SessionPrefs.hudEnabled(this)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
@@ -1125,6 +1138,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         applyFollowOrientation(newConfig)
+        applyUnfoldedControls()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -1682,17 +1696,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     WaylandCompositor.nativeSendSceneInput(3, button, if (pressed) 1 else 0)
                 },
                 sendWheel = { steps -> WaylandCompositor.nativeSendSceneInput(4, steps, 0) },
-                onSteamMenu = {
-                    if (SessionState.mode == SessionService.MODE_STEAM) {
-                        padBridge?.applyTouch { st -> st.press(com.droiddeck.launcher.input.PadState.GUIDE, true) }
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            padBridge?.applyTouch { st -> st.press(com.droiddeck.launcher.input.PadState.GUIDE, false) }
-                        }, 90)
-                    }
-                },
-                onQam = {
-                    if (SessionState.mode == SessionService.MODE_STEAM) padBridge?.triggerQam()
-                },
+                onSteamMenu = ::tapSteamButton,
+                onQam = ::tapQam,
                 onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
             )
             secondScreenPresentation = presentation
@@ -1707,6 +1712,64 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.w(TAG, "could not show second-screen controls on ${target.name}", e)
             closeSecondScreen(reset = true)
         }
+    }
+
+    private fun tapSteamButton() {
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            padBridge?.applyTouch { st -> st.press(com.droiddeck.launcher.input.PadState.GUIDE, true) }
+            Handler(Looper.getMainLooper()).postDelayed({
+                padBridge?.applyTouch { st -> st.press(com.droiddeck.launcher.input.PadState.GUIDE, false) }
+            }, 90)
+        }
+    }
+
+    private fun tapQam() {
+        if (SessionState.mode == SessionService.MODE_STEAM) padBridge?.triggerQam()
+    }
+
+    private fun chooseUnfoldedControls(on: Boolean) {
+        SessionPrefs.setUnfoldedControls(this, on)
+        unfoldedControls = on
+        applyUnfoldedControls()
+    }
+
+    /**
+     * Unfolded controls: on a foldable's inner screen, the game above and the Steam Deck controller's
+     * trackpads and back grips below ([com.droiddeck.launcher.ui.DeckControlsPanel], as a second
+     * screen shows them, plus a whole gamepad). The on-screen pad is hidden meanwhile. The surface shrinks to the top part, so a Follow screen session resizes
+     * to it and any other is fitted into it. Folded onto the cover screen - a phone-sized panel -
+     * or in picture-in-picture, the game is full screen again.
+     */
+    private fun applyUnfoldedControls() {
+        if (!::sessionRoot.isInitialized) return
+        val width = sessionRoot.width
+        val height = sessionRoot.height
+        val wanted = unfoldedControls && com.droiddeck.launcher.session.SessionDisplay.foldable(this) &&
+            SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad &&
+            !pipUi && !isInPictureInPictureMode && width > 0 && height > 0 &&
+            resources.configuration.smallestScreenWidthDp >= com.droiddeck.launcher.session.SessionDisplay.UNFOLDED_MIN_DP
+        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height)
+            else FrameLayout.LayoutParams.MATCH_PARENT
+        val params = surfaceView.layoutParams as FrameLayout.LayoutParams
+        if (params.height != gameHeight) {
+            surfaceView.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, gameHeight, Gravity.TOP)
+            Log.i(TAG, if (wanted) "unfolded controls: game ${width}x$gameHeight, controls ${width}x${height - gameHeight}"
+                else "unfolded controls: game full screen")
+        }
+        var panel = unfoldedPanel
+        if (!wanted) {
+            if (panel != null) { sessionRoot.removeView(panel); unfoldedPanel = null; updateOnScreenControls() }
+            return
+        }
+        if (panel == null) {
+            panel = com.droiddeck.launcher.ui.DeckControlsPanel(this, onClose = { chooseUnfoldedControls(false) },
+                onSteamMenu = ::tapSteamButton, onQam = ::tapQam, pad = padBridge)
+            // Just above the surface: the on-screen pad, keyboard and drawer still draw over it.
+            sessionRoot.addView(panel, sessionRoot.indexOfChild(surfaceView) + 1)
+            unfoldedPanel = panel
+            updateOnScreenControls()
+        }
+        panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, height - gameHeight, Gravity.BOTTOM)
     }
 
     private fun moveSecondScreenPointer(x: Float, y: Float, width: Float, height: Float) {
@@ -1936,7 +1999,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this)
         val controls = onScreenControls ?: return
-        if (pipUi) {
+        // In picture-in-picture, or with the unfolded screen's gamepad below the game, the on-screen
+        // pad would only cover the picture or that panel.
+        if (pipUi || unfoldedPanel != null) {
             onScreenButtonsVisible = false
             controls.releaseAll()
             controls.visibility = View.GONE
@@ -2056,6 +2121,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::pip.isInitialized) pip.changed(inPip)
         // The panel may have changed while the session was a thumbnail (folded or unfolded in PiP).
         if (!inPip && surfaceW > 0) followWindow(surfaceW, surfaceH)
+        applyUnfoldedControls()
     }
 
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
