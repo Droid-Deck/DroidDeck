@@ -132,6 +132,16 @@ object AgentGuest {
     ): Long? = selectedAppId?.takeIf { it in installedAppIds }
         ?: activeAppId?.takeIf { it in installedAppIds }
 
+    internal fun selectedOrActiveInstalledSteamAppId(
+        selectedAppId: Result<Long?>,
+        activeAppId: Long?,
+        installedAppIds: Set<Long>,
+    ): Long? {
+        preferredInstalledSteamAppId(selectedAppId.getOrNull(), activeAppId, installedAppIds)?.let { return it }
+        selectedAppId.exceptionOrNull()?.let { throw it }
+        return null
+    }
+
     /** Send one request and wait for its answer. Throws [AgentException] with a stable code. */
     fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
         if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)

@@ -25,6 +25,30 @@ class AgentGuestSelectionTest {
         )
     }
 
+    @Test fun validGamescopeGameFallsBackWhenSteamSelectionFails() {
+        assertEquals(
+            3180310L,
+            AgentGuest.selectedOrActiveInstalledSteamAppId(
+                Result.failure(IllegalStateException("agent unavailable")),
+                3180310L,
+                installedAppIds,
+            ),
+        )
+    }
+
+    @Test fun absentSelectionAndActiveGameRemainAValidNoSelection() {
+        assertNull(AgentGuest.selectedOrActiveInstalledSteamAppId(Result.success(null), null, installedAppIds))
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun selectionFailureWithoutGamescopeFallbackRemainsAnError() {
+        AgentGuest.selectedOrActiveInstalledSteamAppId(
+            Result.failure(IllegalStateException("agent unavailable")),
+            null,
+            installedAppIds,
+        )
+    }
+
     @Test fun soleFocusableInstalledGameRemainsActiveUnderSteamOverlay() {
         assertEquals(
             3180310L,

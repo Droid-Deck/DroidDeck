@@ -44,6 +44,17 @@ class LatestRequestCoordinatorTest {
         assertEquals("second", coordinator.takeLatest()!!.value)
     }
 
+    @Test fun profileSwitchInvalidatesAnOlderFailedRefresh() {
+        val coordinator = LatestRequestCoordinator<Long?>()
+
+        assertTrue(coordinator.submit(42L))
+        val failedRefresh = coordinator.takeLatest()!!
+        assertFalse(coordinator.submit(43L))
+
+        assertFalse(coordinator.isLatest(failedRefresh))
+        assertEquals(43L, coordinator.takeLatest()!!.value)
+    }
+
     @Test fun repeatedPollDoesNotInvalidateEquivalentInFlightResult() {
         val coordinator = LatestRequestCoordinator<String>()
 
