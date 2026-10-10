@@ -22,7 +22,13 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
@@ -67,7 +73,13 @@ internal const val PAGE_RETURN_MS = 900
  * The focus ring stays out of it until it is done.
  */
 @Composable
-internal fun PageFlood(from: Origin, leaving: Boolean, content: @Composable () -> Unit) {
+internal fun PageFlood(
+    from: Origin,
+    leaving: Boolean,
+    /** What the tile shows instead of the control's fill: a game card's art, cropped to the tile as it grows. */
+    art: Painter? = null,
+    content: @Composable () -> Unit,
+) {
     val pal = LocalPalette.current
     val glide = LocalFocusGlide.current
     // Left, top, right, bottom: 0 on the control, 1 on the pane's edge.
@@ -113,7 +125,7 @@ internal fun PageFlood(from: Origin, leaving: Boolean, content: @Composable () -
     Box(Modifier.fillMaxSize().clipToBounds().onSizeChanged { size = Size(it.width.toFloat(), it.height.toFloat()) }) {
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = shown.value; translationY = (1f - shown.value) * 14.dp.toPx() }) { content() }
         Canvas(Modifier.fillMaxSize()) {
-            if (tile.value > 0.01f) drawTile(from, edges.map { it.value }, pal.surface, pal.line2, tile.value)
+            if (tile.value > 0.01f) drawTile(from, edges.map { it.value }, pal.surface, pal.line2, tile.value, art)
         }
     }
 }
@@ -122,7 +134,7 @@ internal fun PageFlood(from: Origin, leaving: Boolean, content: @Composable () -
  * The control's tile with its edges [v] of the way to the pane's (left, top, right, bottom):
  * sinking with the page behind, blobby in flight, square once it fills the pane.
  */
-private fun DrawScope.drawTile(from: Origin, v: List<Float>, fill: Color, line: Color, alpha: Float) {
+private fun DrawScope.drawTile(from: Origin, v: List<Float>, fill: Color, line: Color, alpha: Float, art: Painter? = null) {
     val (l, t, r, b) = v
     val mean = v.sumOf { it.coerceIn(0f, 1f).toDouble() }.toFloat() / 4f
     // The control sinks with the page behind it (scaled to 0.95 about the pane's centre).
@@ -139,6 +151,17 @@ private fun DrawScope.drawTile(from: Origin, v: List<Float>, fill: Color, line: 
     val blob = sin(PI * mean).toFloat().coerceAtLeast(0f)
     val corner = lerp(from.corner * (1f - mean), minOf(w, h) * 0.42f, blob)
     drawRoundRect(fill, Offset(left, top), Size(w, h), CornerRadius(corner), alpha = alpha)
+    val pic = art?.intrinsicSize?.takeIf { it.isSpecified && it.width > 0f && it.height > 0f }
+    if (art != null && pic != null && w > 0f && h > 0f) {
+        // The art covers the tile at every size (a centre crop), so a portrait card opens into the
+        // wide pane without stretching.
+        val k = maxOf(w / pic.width, h / pic.height)
+        val dw = pic.width * k
+        val dh = pic.height * k
+        clipPath(Path().apply { addRoundRect(RoundRect(left, top, left + w, top + h, CornerRadius(corner))) }) {
+            translate(left + (w - dw) / 2f, top + (h - dh) / 2f) { with(art) { draw(Size(dw, dh), alpha = alpha) } }
+        }
+    }
     // The control's outline, kept while it is still the size of one.
     val edge = (1f - mean * 3f).coerceIn(0f, 1f)
     if (edge > 0f) drawRoundRect(line, Offset(left, top), Size(w, h), CornerRadius(corner), alpha = alpha * edge, style = Stroke(1.dp.toPx()))

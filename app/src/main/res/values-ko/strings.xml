@@ -41,9 +41,7 @@
     <string name="hud_fg_failed">%1$s: 엔진 실패</string>
     <string name="hud_fg_needs_lossless">%1$s: Lossless Scaling 필요</string>
     <string name="hud_fg_starting">%1$s  %2$s · 시작 중</string>
-    <string name="added_games_import_hint">여러 하위 폴더가 포함된 폴더이며, 각 하위 폴더는 Windows 게임에 해당합니다. Steam에서 소유한 게임은 Steam 재시작 후 해당 Steam 항목을 사용하고, 나머지 게임은 비 Steam 바로 가기가 됩니다. 보조 라이브러리가 자동이면 Steam이 이 폴더에도 게임을 설치할 수 있습니다.</string>
     <string name="second_library_import_hint">Steam 라이브러리를 추가하고 그 안의 Windows 게임을 검사합니다. 소유한 게임은 해당 Steam 항목을 사용하고, 나머지 게임은 비 Steam 바로 가기가 됩니다.</string>
-    <string name="added_games_forget_hint">\"잊기\"를 누르면 다음 세션에서 이 바로 가기가 제거됩니다. 하지만 파일은 디스크에 그대로 남습니다.</string>
     <string name="game_env_title">게임 환경</string>
     <string name="game_env_hint">Proton 게임의 환경 변수입니다.</string>
     <string name="game_env_edit">편집</string>
@@ -299,16 +297,18 @@
     <string name="mode_steam_repair_hint">다음에 Steam을 시작할 때 Steam 클라이언트를 다시 다운로드합니다. Steam이 로딩 화면에서 넘어가지 않을 때 사용하세요. 게임, 로그인 정보 및 설정은 유지됩니다.</string>
     <string name="mode_steam_repair_queued">다음에 Steam을 시작할 때 Steam 클라이언트를 다시 다운로드합니다.</string>
     <string name="mode_steam_repair_button">복구</string>
-    <string name="mode_added_games">추가된 게임</string>
-    <string name="mode_added_none">.exe가 포함된 게임 폴더를 찾을 수 없습니다</string>
-    <string name="mode_games_folder">게임 폴더</string>
-    <string name="mode_games_folder_another">다른 게임 폴더</string>
-    <string name="mode_added_art">Steam에서 가져온 이미지</string>
+    <string name="mode_added_art">아트워크</string>
+    <string name="mode_sgdb_key">SteamGridDB API 키</string>
+    <string name="mode_sgdb_key_yours">내 키</string>
+    <string name="mode_sgdb_edit">편집…</string>
     <string name="mode_added_art_hint">폴더 이름을 기준으로 누락된 이미지를 채웁니다. 게임 폴더의 cover.jpg, hero.jpg, logo.png 또는 icon.png가 우선적으로 사용됩니다.</string>
-    <string name="mode_added_launches">%1$s 실행</string>
-    <string name="mode_added_launches_in">%1$s 실행 · %2$s에 위치</string>
-    <string name="mode_added_choose">다른 파일 선택…</string>
-    <string name="mode_added_exe_note">기본적으로 폴더와 이름이 같은 .exe를 사용하고, 없으면 가장 큰 .exe를 사용합니다.</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">제거?</string>
+    <string name="games_add">게임 추가</string>
+    <string name="games_add_title">게임 추가:</string>
+    <string name="games_pick_exe_title">exe 선택:</string>
+    <string name="games_add_unreachable">이 위치는 세션에서 사용할 수 없습니다</string>
+    <string name="mode_added_exe_check">이 exe 확인</string>
     <string name="wincomp_title">Windows 구성 요소</string>
     <string name="wincomp_pad_hint">LB / RB로 섹션 사이를 이동합니다.</string>
     <string name="wincomp_card_none">없음</string>
@@ -358,13 +358,6 @@
     <string name="mode_storage_diagnostics">저장 공간 진단</string>
     <string name="mode_storage_diagnostics_hint">할당 결과와 샘플링한 저장 공간 응답 시간을 \"로그 공유\"에 기록합니다. 켜져 있는 동안 설치가 느려질 수 있습니다. 다음 세션에 적용됩니다.</string>
     <string name="mode_choose_folder">폴더 선택…</string>
-    <string name="mode_renderer">렌더러</string>
-    <string name="mode_desktop_renderer">데스크톱 렌더러</string>
-    <string name="mode_renderer_hint">데스크톱을 그리는 역할을 합니다.</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU(실험적)</string>
-    <string name="mode_renderer_pixman">pixman - 소프트웨어</string>
-    <string name="mode_renderer_note">Vulkan은 GPU를 사용하여 데스크톱 프로그램을 실행하고, 실패하면 pixman으로 대체합니다. pixman을 사용할 때도 게임은 GPU에서 전체 화면으로 실행됩니다.</string>
     <string name="mode_custom_res_title">사용자 정의 해상도</string>
     <string name="mode_custom_res_text">해상도 상한과 화면 비율을 대체합니다. 화면과 일치하지 않는 크기는 검은색 여백으로 표시됩니다.</string>
     <string name="mode_width">너비</string>
@@ -886,7 +879,7 @@
     <string name="content_open_desktop">데스크톱 열기</string>
     <string name="content_install_open_desktop">설치 및 데스크톱 열기</string>
     <string name="content_linux_desktop">Linux 데스크톱</string>
-    <string name="content_linux_desktop_hint">LXQt, Firefox 및 에뮬레이터</string>
+    <string name="content_linux_desktop_hint">KDE Plasma, Firefox 및 에뮬레이터</string>
     <string name="games_empty">Steam에서 설치한 게임은 세션 종료 후 여기에 표시됩니다.</string>
     <string name="games_play_steam">Steam 실행</string>
     <string name="games_launch_settings">실행 설정</string>
@@ -901,11 +894,8 @@
     <string name="games_manage_saves">저장 데이터 관리</string>
     <string name="games_saves">게임 저장 데이터</string>
     <string name="games_import_saves">저장 데이터 가져오기…</string>
-    <string name="games_import_saves_hint">GameHub 또는 Winlator 아카이브. 가져오기 전에 현재 저장 데이터를 백업합니다.</string>
     <string name="games_export_gamehub">GameHub 아카이브로 내보내기…</string>
-    <string name="games_export_gamehub_hint">GameHub 및 BannerHub에 적합</string>
     <string name="games_export_winlator">Winlator 아카이브로 내보내기…</string>
-    <string name="games_export_winlator_hint">Winlator, WinNative 및 Bannerlator에 적합</string>
     <string name="games_open_save_folder">저장 폴더 열기</string>
     <string name="games_never_played">플레이한 적 없음</string>
     <string name="games_runtime_busy_percent">런타임 사용 중 · %1$d%%</string>
@@ -1133,8 +1123,6 @@
     <string name="main_removing_named">%1$s 제거 중…</string>
     <string name="main_forgetting_named">%1$s 잊는 중…</string>
     <string name="main_pick_game_storage">게임 저장 폴더 선택</string>
-    <string name="main_pick_added_games">내 게임이 있는 폴더 선택</string>
-    <string name="main_pick_game_exe">게임의 .exe 선택</string>
     <string name="main_pick_decky_zip">Decky 플러그인 ZIP 선택</string>
     <string name="main_storage_not_usable">사용할 수 없음: %1$s</string>
 
@@ -1237,7 +1225,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s 일시 중지됨</string>
     <string name="session_program_paused">프로그램이 일시 중지됨</string>
-    <string name="session_starting_steam_desktop">데스크톱에서 Steam 시작 중</string>
     <string name="session_starting_desktop">데스크톱 시작 중</string>
 
     <!-- %1$s is the program's name -->
@@ -1263,7 +1250,6 @@
     <string name="session_proton_unpacking">Proton Experimental(ARM64) 압축 해제 중</string>
     <string name="session_runtime_catalog_unreachable">런타임 카탈로그에 연결할 수 없습니다. 연결을 확인한 후 \"Steam 실행\"을 다시 누르세요.</string>
     <string name="session_runtime_install_failed">Linux 런타임이 설치되지 않았습니다. \"설정\"에서 런타임을 확인한 후 \"Steam 실행\"을 다시 누르세요.</string>
-    <string name="session_desktop_catalog_unreachable">데스크톱 카탈로그에 연결할 수 없습니다. 연결을 확인한 후 \"데스크톱\"을 다시 누르세요.</string>
 
     <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">데스크톱이 설치되지 않았습니다(%1$s). 연결을 확인한 후 \"데스크톱\"을 다시 누르세요.</string>
@@ -1570,6 +1556,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">숨김</string>
     <string name="ctrl_editor_drag">드래그하여 이동</string>
+    <string name="ctrl_editor_snap">맞춤</string>
     <string name="ctrl_editor_save">저장</string>
 
     <!-- What the second screen shows during a session -->
@@ -2060,4 +2047,35 @@
     <string name="device_info_copied">복사했습니다.</string>
     <string name="force_ssbs_title">SSBS 강제</string>
     <string name="force_ssbs_hint">Wine이 계속 끄는 CPU 속도 설정을 켜 둡니다. Snapdragon 8 Elite에서 Windows 게임이 빨라질 수 있으며, 이전 칩에서는 변화가 거의 없습니다. 다음 게임 실행 시 적용됩니다.</string>
+    <string name="common_close">닫기</string>
+    <string name="common_back">뒤로</string>
+    <string name="common_edit">편집</string>
+    <string name="games_add_all">이 폴더의 모든 게임 추가</string>
+    <string name="games_added_none">이 폴더에 새 게임이 없습니다</string>
+    <string name="edit_name">이름</string>
+    <string name="edit_target">대상</string>
+    <string name="edit_start_in">시작 위치</string>
+    <string name="edit_launch_options">실행 옵션</string>
+    <string name="edit_artwork">아트워크</string>
+    <string name="edit_other_exe">다른 exe…</string>
+    <string name="edit_remove">제거</string>
+    <string name="art_cover">커버</string>
+    <string name="art_background">배경</string>
+    <string name="art_logo">로고</string>
+    <string name="art_icon">아이콘</string>
+    <string name="art_src_folder">게임 폴더</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">내 파일</string>
+    <string name="art_src_exe">exe에서</string>
+    <string name="art_src_auto">자동</string>
+    <string name="art_pick_image">이미지 선택…</string>
+    <string name="art_pick_title">이미지 선택: %1$s</string>
+    <string name="art_reset">자동으로 재설정</string>
+    <plurals name="games_added_n">
+        <item quantity="other">게임 %1$d개 추가됨</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="other">%1$d개는 이미 게임에 있음</item>
+    </plurals>
 </resources>

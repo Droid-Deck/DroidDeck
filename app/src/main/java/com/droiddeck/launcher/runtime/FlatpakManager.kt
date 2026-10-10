@@ -87,7 +87,7 @@ object FlatpakManager {
             ?.maxByOrNull { it.first }?.second
     }
 
-    /** Runs [argv] in the runtime, its output also in Download/DroidDeck/flatpak-<verb>.log. */
+    /** Runs [argv] in the runtime, its output also in files/logs/tools/flatpak-<verb>.log. */
     private fun runGuest(context: Context, argv: List<String>, fakeRoot: Boolean, onLine: (String) -> Unit): Int {
         val name = "flatpak-" + (argv.getOrNull(2)?.takeIf { argv.getOrNull(1) == HELPER } ?: "setup")
         return GuestCommand.run(context, argv, fakeRoot, name, onLine = onLine)

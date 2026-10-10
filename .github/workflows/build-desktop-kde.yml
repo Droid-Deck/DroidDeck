@@ -1,0 +1,101 @@
+name: Build desktop package (KDE Plasma)
+
+# The desktop the app installs into its Linux runtime on first use: KDE Plasma as SteamOS's desktop
+# mode has it, the closure of tools/desktop-kde/seeds.txt over Arch Linux ARM minus what the runtime
+# already carries, plus tools/desktop-kde/overlay (tools/desktop-kde/build.sh), every package
+# signature-checked. Published as a release in Droid-Deck/DroidDeck-Components with DroidDeck's
+# other components; the apk pins it in tools/desktop-kde/release.env (tag, sha256, size). A
+# published tag is never rebuilt: the packages are Arch Linux ARM's current ones, so a rebuild
+# would not match the pinned sha256. A changed package gets a new tag (desktop-kde-r2, ...) and a
+# release.env update.
+on:
+  push:
+    paths:
+      - 'tools/desktop-kde/**'
+      - '.github/workflows/build-desktop-kde.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish as (e.g. desktop-kde-r1); empty = artifact only'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  kwin:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build KWin with nested desktop scaling
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils gpgv patch binutils >/dev/null
+          bash tools/desktop-kde/build-kwin.sh out/kwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-kde-kwin
+          retention-days: 7
+          path: out/kwin/
+  build:
+    needs: kwin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-kde-kwin
+          path: out/kwin
+      - uses: actions/create-github-app-token@v2
+        id: components-token
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-Components
+      - name: Refuse a published tag
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ steps.components-token.outputs.token }}
+        run: |
+          if gh release view '${{ inputs.tag }}' -R Droid-Deck/DroidDeck-Components >/dev/null 2>&1; then
+            echo "::error::${{ inputs.tag }} is already published, and published tags are never replaced: use a new tag"
+            exit 1
+          fi
+      - name: Build
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq zstd xz-utils gpgv >/dev/null
+          KDE_KWIN_OVERRIDE="$PWD/out/kwin" tools/desktop-kde/build.sh out
+          cp out/kwin/desktop-kde.kwin.txt out/
+          echo "size $(stat -c %s out/desktop-kde.tar.zst) sha256 $(cat out/desktop-kde.sha256)"
+      # The package itself too, briefly: enough to try a build on a device before publishing it.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-kde
+          retention-days: 7
+          compression-level: 0
+          path: |
+            out/desktop-kde.tar.zst
+            out/desktop-kde.packages.txt
+            out/desktop-kde.kwin.txt
+            out/desktop-kde.sha256
+      - name: Publish
+        if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ steps.components-token.outputs.token }}
+          GH_REPO: Droid-Deck/DroidDeck-Components
+        run: |
+          set -euo pipefail
+          TAG='${{ inputs.tag }}'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG is already published in DroidDeck-Components, and published tags are never replaced: use a new tag"
+            exit 1
+          fi
+          gh release create "$TAG" --latest=false --prerelease=false --title "$TAG" \
+            --notes "KDE Plasma desktop package for DroidDeck's Linux runtime ($GITHUB_REPOSITORY tools/desktop-kde, $GITHUB_SHA). size $(stat -c %s out/desktop-kde.tar.zst), sha256 $(cat out/desktop-kde.sha256). desktop-kde.packages.txt lists the signature-checked Arch Linux ARM packages it was built from." \
+            out/desktop-kde.tar.zst out/desktop-kde.sha256 out/desktop-kde.packages.txt out/desktop-kde.kwin.txt
+          gh release edit "$TAG" --latest=false --prerelease=false
