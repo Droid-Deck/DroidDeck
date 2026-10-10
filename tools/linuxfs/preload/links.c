@@ -12,15 +12,26 @@
  * the lock excludes as before, and the holder removes both names when it is done. Every other
  * link keeps the real answer: a program that links a file into place and then deletes the
  * original would be left with a dangling symlink.
+ *
+ * That pattern itself is answered for one caller that asks: with DROIDDECK_LINK_RENAME=1 (the
+ * session sets it for localedef, which names a finished locale archive that way) a refused link
+ * becomes a rename that will not replace an existing name, which is all the link promised there.
  */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 static int refused(int error) { return error == EPERM || error == EACCES; }
+
+static int moves_instead(void) {
+  const char *v = getenv("DROIDDECK_LINK_RENAME");
+  return v != NULL && strcmp(v, "1") == 0;
+}
 
 static int lock_name(const char *path) {
   size_t n = path ? strlen(path) : 0;
@@ -31,7 +42,9 @@ static int lock_name(const char *path) {
 __attribute__((visibility("hidden"))) int bl_link_lock(const char *oldpath, const char *newpath, int result) {
   /* libc's own symlink: dircache.c's wrapper may be holding its lock around this call. */
   static int (*real_symlink)(const char *, const char *);
-  if (result == 0 || !refused(errno) || !lock_name(newpath)) return result;
+  if (result == 0 || !refused(errno)) return result;
+  if (moves_instead()) return renameat2(AT_FDCWD, oldpath, AT_FDCWD, newpath, RENAME_NOREPLACE);
+  if (!lock_name(newpath)) return result;
   if (real_symlink == NULL) real_symlink = dlsym(RTLD_NEXT, "symlink");
   return real_symlink(oldpath, newpath);
 }
@@ -49,6 +62,8 @@ int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
   static int (*real_linkat)(int, const char *, int, const char *, int);
   if (real_linkat == NULL) real_linkat = dlsym(RTLD_NEXT, "linkat");
   int result = real_linkat(olddirfd, oldpath, newdirfd, newpath, flags);
+  if (result != 0 && refused(errno) && flags == 0 && moves_instead())
+    return renameat2(olddirfd, oldpath, newdirfd, newpath, RENAME_NOREPLACE);
   /* A relative old name would resolve against the new name's directory as a symlink's target. */
   if (result != 0 && refused(errno) && lock_name(newpath) && oldpath[0] == '/' && flags == 0)
     return symlinkat(oldpath, newdirfd, newpath);

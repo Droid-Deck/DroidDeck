@@ -302,23 +302,43 @@ namespace Logger {
 int log_enabled;
 // FAKE_EVDEV_LOG_FILE: the session's pad.log, shared by every process the library is loaded in
 // (the client, each game), so a pad report has the guest side in one file of the session folder.
-// Opened with the raw syscall: open() is this library's own hook.
-static int log_fd = -1;
+// Opened with the raw syscalls (open() and close() are this library's own hooks), and only once
+// there is a line to write: most processes never log one, and each open is a stop in proot on
+// shared storage.
+static std::atomic<int> log_fd{-1};
+static std::atomic<bool> log_unusable{false};
+static char log_path[PATH_MAX];
 static char log_name[17];
 
 void init() {
   log_enabled = getenv("FAKE_EVDEV_LOG") && atoi(getenv("FAKE_EVDEV_LOG"));
   const char *path = getenv("FAKE_EVDEV_LOG_FILE");
-  if (log_enabled && path && *path)
-    log_fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644));
+  if (log_enabled && path && *path && strlen(path) < sizeof(log_path)) strcpy(log_path, path);
   if (prctl(PR_GET_NAME, log_name) != 0) strcpy(log_name, "?");
+}
+
+static int log_file() {
+  int fd = log_fd.load(std::memory_order_acquire);
+  if (fd >= 0 || !log_path[0] || log_unusable.load(std::memory_order_relaxed)) return fd;
+  fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, log_path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644));
+  if (fd < 0) {
+    log_unusable.store(true, std::memory_order_relaxed);
+    return -1;
+  }
+  int expected = -1;
+  if (!log_fd.compare_exchange_strong(expected, fd, std::memory_order_acq_rel)) {
+    syscall(SYS_close, fd);
+    fd = expected;
+  }
+  return fd;
 }
 
 void log(const char *message, ...) {
   if (!log_enabled)
     return;
 
-  if (log_fd < 0) {
+  int fd = log_file();
+  if (fd < 0) {
     va_list args;
     va_start(args, message);
     vfprintf(stderr, message, args);
@@ -344,7 +364,7 @@ void log(const char *message, ...) {
     n = sizeof(line) - 1;
     line[n - 1] = '\n';
   }
-  ssize_t ignored = write(log_fd, line, n);
+  ssize_t ignored = write(fd, line, n);
   (void)ignored;
 }
 } // namespace Logger
