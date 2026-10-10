@@ -4,15 +4,10 @@
 #   droiddeck-steam-launch desktop [appid|steam-url]     Steam's desktop UI, optionally a game
 #   droiddeck-steam-launch bigpicture [appid|steam-url]  Big Picture
 #
-# On a desktop that draws with the GPU (labwc on vulkan or gles2 - the default since the GPU
-# desktop) the client runs right there: a window on the desktop, through the desktop's Xwayland,
-# with the same set-up a Steam session gives it (droiddeck-session steam, minus gamescope), and
-# its games open in windows of their own. A client already running there gets the request instead
-# of a second one being started.
-#
-# On a software desktop (pixman: the GPU renderers failed on this device) there is no dma-buf, so a
-# game - or the client's own Vulkan window - would die at its first frame. There the request goes
-# to the app, which ends the desktop and starts a Steam session under gamescope in its place.
+# The desktop (KDE Plasma) composites in software and has no dma-buf, so the client's own Vulkan
+# window - and any game it starts - would die at its first frame there. The request goes to the app
+# instead, which ends the desktop and starts a Steam session under gamescope in its place, as
+# SteamOS's desktop hands Steam back to Gaming Mode.
 set -u
 ui=${1:-desktop}
 target=${2:-}
@@ -25,29 +20,7 @@ case $target in
   *) url=steam://rungameid/$target ;;
 esac
 
-steam_root=${XDG_DATA_HOME:-${HOME:-/root}/.local/share}/Steam
-client=$steam_root/steamrtarm64/steam
-
-if [ "${BL_DESKTOP:-}" = 1 ] && [ -n "${WLR_RENDERER:-}" ] && [ "$WLR_RENDERER" != pixman ]; then
-  log=${BL_DEBUG_DIR:-$HOME/.cache/droiddeck}/steam-desktop.log
-  mkdir -p "$(dirname "$log")" 2>/dev/null
-  if pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1 && [ -x "$client" ]; then
-    # One client at a time: the running one takes the request (a second start hands its command
-    # line over and exits). No game asked for = switch it to the UI that was clicked.
-    [ -n "$url" ] || { [ "$ui" = bigpicture ] && url=steam://open/bigpicture || url=steam://open/main; }
-    echo "droiddeck-steam-launch: the client is running on the desktop; handing it $url" | tee -a "$log"
-    exec "$client" "$url"
-  fi
-  echo "droiddeck-steam-launch: starting the Steam client on the desktop ($ui${url:+, $url}); log: $log"
-  # BL_INSIDE: the session script's Steam start-up without gamescope in front of it. The desktop UI
-  # unless Big Picture was asked for; never Deck mode (its Quick Access Menu needs gamescope).
-  export BL_INSIDE=1 BL_STEAMDECK=0
-  if [ "$ui" = desktop ]; then export BL_STEAM_UI=desktop; else unset BL_STEAM_UI; fi
-  setsid /usr/local/bin/droiddeck-session steam ${url:+"$url"} >>"$log" 2>&1 < /dev/null &
-  exit 0
-fi
-
-# The software desktop, or outside the desktop: ask the app for a Steam session.
+# Ask the app for a Steam session.
 dir=${BL_LAUNCH_DIR:-}
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
   echo "droiddeck-steam-launch: not inside a DroidDeck session (BL_LAUNCH_DIR unset)" >&2

@@ -56,6 +56,8 @@ data class RailItem(
     val selected: Boolean,
     /** >0 shows a small accent count badge on the item's icon (expanded and collapsed). */
     val badge: Int = 0,
+    /** The under-icon label when the rail is collapsed, for names too long to fit; null derives one. */
+    val shortLabel: String? = null,
     // onClick stays LAST so existing call sites can pass it as a trailing lambda; badge is an
     // optional named param before it (default 0).
     val onClick: () -> Unit,
@@ -73,7 +75,6 @@ private fun collapsedLabel(label: String): String {
     when (label) {
         "ENVIROMENT" -> return "ENVIRON"        // the app's existing (mis)spelling, kept uppercase
         "WIN COMPONENTS" -> return "WIN COMP"
-        "Downloads" -> return "Downlds"
     }
     if (label.contains(' ')) return label       // multi-word → wraps to 2 lines
     return if (label.length > 9) label.take(8) + "…" else label
@@ -317,7 +318,7 @@ fun CollapsibleRail(
                         RailItemIcon(item, iconTint)
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            collapsedLabel(item.label),
+                            item.shortLabel ?: collapsedLabel(item.label),
                             color = labelColor,
                             fontSize = 7.5.sp,
                             lineHeight = 8.5.sp,

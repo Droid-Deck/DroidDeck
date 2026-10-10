@@ -13,11 +13,11 @@
         <item>コントローラーはXbox 360コントローラーとして認識されます。それ以外の場合は、画面コントローラーを使用してください。</item>
     </string-array>
     <string name="session_channel">セッション</string>
-    <string name="session_channel_description">Steamまたはデスクトップセッションの開始時に表示</string>
+    <string name="session_channel_description">Steamまたはデスクトップのセッション中に表示</string>
     <string name="session_notification">Steamが実行中です</string>
     <string name="session_notification_paused">セッションが一時停止中 - 準備ができたらタップして再開</string>
     <string name="resume_session">再開</string>
-    <string name="stop_session">このセッションを終了</string>
+    <string name="stop_session">セッションを終了</string>
     <string name="frame_gen_title">フレーム生成</string>
     <string name="frame_gen_hint">使用するフレーム生成モードを選択してください</string>
     <string name="frame_gen_off">オフ</string>
@@ -41,9 +41,7 @@
     <string name="hud_fg_failed">%1$s：エンジンエラー</string>
     <string name="hud_fg_needs_lossless">%1$s：Lossless Scalingが必要です</string>
     <string name="hud_fg_starting">%1$s  %2$s · 起動中</string>
-    <string name="added_games_import_hint">複数のサブフォルダを含むフォルダ。各サブフォルダはWindowsゲームに対応します。Steamで所有しているゲームはSteamの再起動後にSteamの項目を使用し、それ以外のゲームは非Steamショートカットになります。</string>
     <string name="second_library_import_hint">Steamライブラリを追加し、その中のWindowsゲームをスキャンします。所有しているゲームはSteamの項目を使用し、それ以外のゲームは非Steamショートカットになります。</string>
-    <string name="added_games_forget_hint">「忘れる」を選択すると、次回のセッションでこれらのショートカットが削除されます。ただし、ファイルはディスク上に残ります。</string>
     <string name="game_env_title">ゲーム環境</string>
     <string name="game_env_hint">Protonゲームの環境変数です。</string>
     <string name="game_env_edit">編集</string>
@@ -69,16 +67,26 @@
     <string name="game_env_loading">読み込み中…</string>
     <string name="game_env_feature">D3D12機能レベルのオーバーライド。12_2はDirectX 12 Ultimateの機能を報告します。サポートされていない機能は失敗する可能性があります。自動検出するには空にします。</string>
     <string name="game_env_shader">D3D12シェーダーモデルのオーバーライド。6_9には十分に新しいVKD3Dと対応するGPU機能が必要です。自動検出するには空にします。</string>
-    <string name="game_env_cache">Mesaシェーダーキャッシュを有効にして再コンパイルを減らします。無効にするにはfalseに設定します。</string>
+    <string name="game_env_cache">Mesaシェーダーキャッシュを有効にしたままにして、再コンパイルを減らします。falseでキャッシュが有効になります。</string>
     <string name="game_env_cache_size">Mesaシェーダーキャッシュの最大サイズ（例：1G）。キャッシュが大きいほど、ストレージを多く消費します。</string>
     <string name="game_env_vkd3d_config">D3D12のVKD3Dオプション。nodxrはレイトレーシングを無効にします。ゲームが必要とする場合のみ使用してください。</string>
     <string name="game_env_proton_log">1に設定するとProtonの診断ログを生成します。ログ記録はパフォーマンスを低下させ、ストレージを消費する可能性があります。</string>
     <string name="game_env_wined3d">1に設定すると、D3D9～11の互換性テストのためにDXVKの代わりにOpenGLベースのWineD3Dを使用します。</string>
+    <string name="game_env_no_ntsync">1に設定すると、このゲームでntsync（droiddeck-ntsyncまたはカーネルドライバー）を使用しません。パックがある場合はdroiddeck-esync、ない場合はdroiddeck-fsyncを使用します。</string>
+    <string name="game_env_no_esync">1に設定すると、このゲームでdroiddeck-esyncをオフにします。代わりにdroiddeck-fsyncを使用し、fsyncもオフの場合はdroiddeck-ntsyncを使用します。</string>
+    <string name="game_env_no_fsync">1に設定すると、このゲームでdroiddeck-fsyncを使用しません。パックがある場合はdroiddeck-esync、ない場合はdroiddeck-ntsyncを使用します。</string>
+    <string name="game_env_fsync_first">1に設定するとこのゲームをdroiddeck-fsyncで実行します。0に設定すると、Protonに合うパックがある場合はdroiddeck-esyncを優先します。</string>
     <string name="game_env_xalia">0に設定すると、このゲームのProtonコントローラーナビゲーション補助を無効にします。</string>
     <string name="game_env_hud">D3D9～11のDXVKオーバーレイ。fpsはフレームレートを表示します。設定を解除するとオーバーレイが非表示になります。</string>
     <string name="game_env_dxvk_config">セミコロンで区切られたDXVK設定。最近のバージョンではdxvk.maxFrameRateでフレームレートを制限します。通常のプレイにはセッションフレームレートリミッターを推奨します。</string>
     <string name="game_env_vkd3d_limit">D3D12のフレームレート制限。0で制限を無効にします。</string>
     <string name="game_env_glthread">Mesa OpenGLマルチスレッド。CPUに制限のあるOpenGLゲームではtrueが有効な場合があります。ゲームごとにテストしてください。</string>
+    <string name="sync_backend_title">Wine同期</string>
+    <string name="sync_backend_hint">ゲームのスレッド同期の方法。次回のセッションで有効になります。</string>
+    <string name="sync_backend_esync">esync</string>
+    <string name="sync_backend_ntsync">ntsync</string>
+    <string name="sync_backend_fsync">fsync</string>
+    <string name="sync_backend_wineserver">wineserver</string>
     <string name="fex_preset_title">FEXプリセット</string>
     <string name="fex_next_launch">次回のゲーム起動時に有効になります。</string>
     <string name="game_settings_title">ゲーム</string>
@@ -130,7 +138,7 @@
     <string name="user_apps_failed">アプリの追加に失敗しました</string>
     <string name="user_apps_github_checking">%1$sのリリースを検索中</string>
     <string name="user_apps_github_unreachable">%1$sのリリースを読み取れません</string>
-    <string name="user_apps_github_no_appimage">%1$sにはARM64 AppImageのリリースがありません</string>
+    <string name="user_apps_github_no_appimage">%1$sのリリースにARM64またはx86_64のAppImageがありません</string>
     <string name="user_apps_downloading">%1$sをダウンロード中</string>
     <string name="user_apps_download_failed">ダウンロードに失敗しました</string>
     <string name="user_apps_update_failed">アプリの更新に失敗しました</string>
@@ -149,8 +157,17 @@
     <string name="add_app_tab_github">GitHub</string>
     <string name="add_app_tab_flatpak">Flatpak</string>
     <string name="add_app_script_hint">.shファイル。自身のフォルダから実行され、gamescopeを介して全画面表示されます。</string>
-    <string name="add_app_appimage_hint">ARM64（aarch64）AppImage。初回使用時にLinux実行環境に解凍されます。</string>
-    <string name="add_app_github_hint">リポジトリの最新リリースからARM64 AppImageをインストールします。</string>
+    <string name="add_app_appimage_hint">ARM64（aarch64）のAppImage、またはFEX経由で実行されるx86_64のAppImage。初回にLinux実行環境へ展開されます。</string>
+    <string name="add_app_github_hint">リポジトリの最新リリースからARM64のAppImage、またはFEX経由で実行されるx86_64のAppImageをインストールします。</string>
+    <string name="app_fex_title">FEXを使用</string>
+    <string name="app_fex_auto">自動</string>
+    <string name="app_fex_on">オン</string>
+    <string name="app_fex_off">オフ</string>
+    <string name="app_fex_hint">FEXはx86 LinuxプログラムをこのARM64デバイスで実行します。自動では、x86向けにビルドされたプログラムでFEXを使用します。</string>
+    <string name="app_fex_x86">%1$s（FEX経由）</string>
+    <string name="app_fex_not_ready">このプログラムは%1$s PC向けにビルドされており、FEX経由で実行されますが、FEXはまだセットアップされていません。ログインした状態で一度Steamを開いてください。DroidDeckがFEXと必要なSteam Linux Runtimeをダウンロードした後、このプログラムが開きます。</string>
+    <string name="session_end_program">このプログラム</string>
+    <string name="session_end_fex_missing">%1$sはx86 PC向けにビルドされており、FEX経由で実行されますが、FEXはまだインストールされていません。ログインした状態で一度Steamを起動し、FEXとSteam Linux Runtimeをダウンロードしてから、もう一度起動してください。</string>
     <string name="add_app_flatpak_hint">FlathubアプリIDまたはそのFlathubページ。Flatpakがまだセットアップされていない場合は、先にセットアップします。</string>
     <string name="add_app_file">ファイル</string>
     <string name="add_app_no_file">ファイルが選択されていません</string>
@@ -181,11 +198,14 @@
     <string name="edit_app_save">保存</string>
     <string name="add_app_checking_folder">フォルダを確認中…</string>
     <string name="add_app_folder_linked">フォルダがセッションにリンクされました：%1$s</string>
-    <string name="add_app_folder_copied">このフォルダにはLinuxプログラムが含まれており、共有ストレージでは実行できないため、DroidDeck（%1$s）にコピーされます。</string>
+    <string name="add_app_folder_copied">このフォルダにはLinuxプログラムが含まれており、共有ストレージでは実行できないため、DroidDeckにコピーされます（%1$s）。</string>
     <string name="add_app_confirm">追加</string>
     <string name="add_app_cancel">キャンセル</string>
     <string name="add_app_runtime_required">先に「設定」からLinux実行環境をインストールしてください。</string>
     <string name="add_app_busy">%1$sが完了するまでお待ちください。</string>
+    <string name="steam_compat_label">互換</string>
+    <string name="proton_compatible_note">Steamの互換性メニューで「%1$s」と表示されたビルドには、DroidDeckのプレフィックス修正が含まれており、ここでゲームを起動できます。デフォルトはProton Experimental ARM64（%1$s）で、より新しいProton 11.0 ARM64（%1$s）がインストールされている場合はそちらになります。この表示のないValve純正のProtonでは、このデバイスでゲームを起動できません。</string>
+    <string name="proton_installed_compatible">%1$s インストール済み · %2$s</string>
     <string name="common_cancel">キャンセル</string>
     <string name="common_auto">自動</string>
     <string name="common_never">しない</string>
@@ -230,18 +250,22 @@
     <string name="mode_touch_note">自動：デスクトップではトラックパッド、Steamではダイレクトタッチを使用します。</string>
     <string name="mode_osc">画面コントローラー</string>
     <string name="mode_osc_qam">Steam + QAM</string>
-    <string name="mode_osc_note">自動モードでは、コントローラーが接続されていないときに画面コントローラーを表示します。</string>
+    <string name="mode_osc_note">自動では、コントローラーが接続されていないときに画面コントローラーを表示します。</string>
     <string name="mode_controller">コントローラー</string>
     <string name="mode_controller_hint">Steamがコントローラーを認識する方法。次回のセッションで有効になります。</string>
     <string name="mode_controller_deck">Steam Deckコントローラー</string>
     <string name="mode_controller_x360">Xbox 360コントローラー</string>
     <string name="mode_controller_note">Deck：クイックアクセスボタンとジャイロを提供します。Xbox 360：Guide+Aでクイックアクセスを開きます。</string>
     <string name="mode_back">戻る</string>
+    <string name="back_menu_then_qam">メニュー → QAM</string>
+    <string name="back_qam_then_menu">QAM → メニュー</string>
     <string name="mode_session">セッション</string>
     <string name="mode_suspend">バックグラウンド動作</string>
     <string name="mode_suspend_hint">アプリが非表示または画面オフ時の動作。</string>
     <string name="mode_suspend_manual">手動</string>
-    <string name="mode_suspend_note">自動モードではバックグラウンドで一時停止し、表示時に再開します。手動モードでは「再開」をタップする必要があります。実行したままにはしません。</string>
+    <string name="mode_suspend_native">ネイティブ</string>
+    <string name="mode_suspend_steam_note">自動では一時停止し、表示すると再開します。ネイティブでは先にSteamをスリープに備えさせます。手動では「再開」をタップするまで待機します。「しない」では実行し続けます。</string>
+    <string name="mode_suspend_note">自動ではバックグラウンドで一時停止し、表示すると再開します。手動では「再開」をタップするまで待機します。「しない」では実行し続けます。</string>
     <string name="mode_startup">起動</string>
     <string name="mode_steam_startup">DroidDeck起動時にSteamを起動</string>
     <string name="mode_steam_startup_hint">DroidDeckの起動時にSteamセッションを開きます。</string>
@@ -252,12 +276,12 @@
     <string name="mode_decky_installed">インストール済み · %1$s</string>
     <string name="mode_decky_update">アップデートあり · %1$s</string>
     <string name="mode_decky_current">最新です · %1$s</string>
-    <string name="mode_decky_loader">ローダー</string>
+    <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">最新バージョンをインストール</string>
     <string name="mode_decky_on">Steamと共に起動します。有効にすると、このデバイス上の他のアプリがSteamを制御できる場合があります。</string>
     <string name="mode_decky_off">オフ。Steamのリモートデバッグポートは閉じたままになります。</string>
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
-    <string name="mode_decky_remove_text">ローダーを削除します。プラグインと設定は保持されます。</string>
+    <string name="mode_decky_remove_text">Loaderを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>
     <string name="mode_deck_mode">Steam Deckモード</string>
     <string name="mode_deck_mode_hint">Steam DeckのUIとクイックアクセスパフォーマンスコントロール。次回のセッションで有効になります。</string>
@@ -269,25 +293,50 @@
     <string name="mode_branch_public">ベータ版</string>
     <string name="mode_branch_deck_beta">Steam Deckベータ版</string>
     <string name="mode_branch_note">Deckモードは常にSteam Deckベータ版を使用します。</string>
-    <string name="mode_added_games">追加されたゲーム</string>
-    <string name="mode_added_none">.exeを含むゲームフォルダが見つかりません</string>
-    <string name="mode_games_folder">ゲームフォルダ</string>
-    <string name="mode_games_folder_another">別のゲームフォルダ</string>
-    <string name="mode_added_art">Steamからの画像</string>
+    <string name="mode_steam_repair">Steamクライアントを修復</string>
+    <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
+    <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>
+    <string name="mode_steam_repair_button">修復</string>
+    <string name="mode_added_art">アートワーク</string>
+    <string name="mode_sgdb_key">SteamGridDB API キー</string>
+    <string name="mode_sgdb_key_yours">自分のキー</string>
+    <string name="mode_sgdb_edit">編集…</string>
     <string name="mode_added_art_hint">フォルダ名に基づいて不足している画像を補完します。ゲームフォルダ内のcover.jpg、hero.jpg、logo.png、またはicon.pngが優先的に使用されます。</string>
-    <string name="mode_added_launches">%1$sを起動</string>
-    <string name="mode_added_launches_in">%1$sを起動 · %2$s内</string>
-    <string name="mode_added_choose">別のファイルを選択…</string>
-    <string name="mode_added_exe_note">デフォルトではフォルダと同じ名前の.exeを使用し、ない場合は最大の.exeを使用します。</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">削除？</string>
+    <string name="games_add">ゲームを追加</string>
+    <string name="games_add_title">ゲームを追加:</string>
+    <string name="games_pick_exe_title">exe を選択:</string>
+    <string name="games_add_unreachable">この場所はセッションから使えません</string>
+    <string name="mode_added_exe_check">この exe を確認</string>
+    <string name="wincomp_title">Windowsコンポーネント</string>
+    <string name="wincomp_pad_hint">LB / RBでセクション間を移動します。</string>
+    <string name="wincomp_card_none">なし</string>
+    <string name="wincomp_applies">Protonに含まれないWindows DLLです（Bannerlatorのコンポーネント一覧から）。このゲームに必要なものをオンにしてください。ゲーム専用のWindowsフォルダーに入り、ゲームのファイルには触れず、どのProtonで実行しても維持されます。</string>
+    <string name="wincomp_offline">コンポーネント一覧に接続できませんでした。ダウンロード済みのコンポーネントは引き続き切り替えられます。</string>
+    <string name="wincomp_recommended">このゲームにおすすめ</string>
+    <string name="wincomp_found_bundled">ゲームに%1$sが同梱されています</string>
+    <string name="wincomp_found_shipped">ゲームに%1$sがあります（そのままで動くことが多いです）</string>
+    <string name="wincomp_found_steam">Steamがこのゲームと一緒に%1$sをインストールします</string>
+    <string name="wincomp_already_here">このゲームに導入済み</string>
+    <string name="wincomp_no_recommendation">ゲームのフォルダーには、必要なコンポーネントを示すものがありません。</string>
+    <string name="wincomp_all">すべてのコンポーネント（%1$d）</string>
+    <string name="wincomp_installers">Windowsインストーラーが必要（%1$d）</string>
+    <string name="wincomp_installers_note">これらはプレフィックス内で実際のインストーラーを実行します（.NET、PhysX、XNA、Visual C++のフルインストーラーなど）。DroidDeckはまだ対応していませんが、次に対応予定です。</string>
+    <string name="wincomp_show">表示</string>
+    <string name="wincomp_hide">非表示</string>
+    <string name="wincomp_needs_installer">Windowsインストーラーが必要（対応予定）</string>
+    <string name="wincomp_unsupported">ここではまだ未対応</string>
+    <string name="wincomp_loading">コンポーネントを読み込み中…</string>
+    <string name="wincomp_failed">インストールできませんでした: %1$s</string>
+    <string name="wincomp_downloaded">ダウンロード済み</string>
+    <string name="wincomp_download_size">ダウンロード %1$s</string>
+    <string name="wincomp_next_launch">次にゲームを起動したときに反映されます。</string>
     <string name="mode_stretch169">16:9ゲームを引き伸ばす</string>
     <string name="mode_stretch169_hint">アスペクト比が16:9未満の画面で、黒帯を表示する代わりにゲームを引き伸ばして画面を埋めます。次回のセッションで有効になります。</string>
     <string name="mode_audio">オーディオ</string>
     <string name="mode_directaudio">ゲームでDirectAudioを使用</string>
     <string name="mode_directaudio_hint">PulseAudioをバイパスして遅延を減らします。</string>
-    <string name="mode_client_audio">Steamクライアントオーディオ</string>
-    <string name="mode_client_audio_hint">次回のセッションで有効になります。</string>
-    <string name="mode_client_audio_classic">クラシック</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">マイク</string>
     <string name="mode_mic_hint">ボイスチャットに使用します。</string>
     <string name="mode_network">ネットワーク</string>
@@ -300,28 +349,22 @@
     <string name="mode_wifi_explain_title">Wi-Fi検出を有効にしますか？</string>
     <string name="mode_wifi_explain_text">AndroidがWi-Fi名を読み取り、付近のネットワークを検出するには位置情報の権限が必要です。DroidDeckはこの権限を使用してSteamにこれらのネットワークを表示します。位置情報を追跡することはありません。この権限がなくてもインターネットにアクセスできます。</string>
     <string name="mode_storage">ゲームストレージ</string>
-    <string name="mode_storage_auto">自動 - SDカードがある場合はSDカードを使用</string>
-    <string name="mode_storage_auto_none">自動 - SDカードがある場合はSDカードを使用（現在SDカードなし）</string>
+    <string name="mode_storage_auto">自動 - SDカードがあればSDカード、およびゲームフォルダ</string>
+    <string name="mode_storage_auto_none">自動 - ゲームフォルダ、およびSDカードがあればSDカード（現在なし）</string>
     <string name="mode_storage_internal">内部ストレージのみ</string>
     <string name="mode_storage_folder">フォルダ：%1$s</string>
     <string name="mode_second_library">第2ライブラリ</string>
     <string name="mode_storage_note">SDカードまたは共有ストレージからリソースを読み取るゲームはカクつく場合があります。</string>
+    <string name="mode_storage_diagnostics">ストレージ診断</string>
+    <string name="mode_storage_diagnostics_hint">割り当て結果とサンプリングしたストレージの処理時間を「ログを共有」に記録します。有効中はインストールが遅くなる場合があります。次回のセッションで有効になります。</string>
     <string name="mode_choose_folder">フォルダを選択…</string>
-    <string name="mode_renderer">レンダラー</string>
-    <string name="mode_desktop_renderer">デスクトップレンダラー</string>
-    <string name="mode_renderer_hint">デスクトップの描画を担当します。</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU（実験的）</string>
-    <string name="mode_renderer_pixman">pixman - ソフトウェア</string>
-    <string name="mode_renderer_note">VulkanはGPUを使用してデスクトッププログラムを実行し、失敗した場合はpixmanにフォールバックします。pixmanを使用する場合でも、ゲームはGPU上で全画面実行されます。</string>
     <string name="mode_custom_res_title">カスタム解像度</string>
     <string name="mode_custom_res_text">解像度の上限と画面比率を置き換えます。画面に合わないサイズは黒帯で表示されます。</string>
     <string name="mode_width">幅</string>
     <string name="mode_height">高さ</string>
     <string name="mode_custom_res_range">範囲：320×240 ～ 3840×2160。</string>
     <plurals name="mode_added_count">
-        <item quantity="one">%1$d 個のゲーム</item>
-        <item quantity="other">%1$d 個のゲーム</item>
+        <item quantity="other">%1$d個のゲーム</item>
     </plurals>
     <string name="common_ok">OK</string>
     <string name="common_delete">削除</string>
@@ -342,10 +385,17 @@
     <string name="comp_check_drivers">新しいドライバーを確認</string>
     <string name="comp_check_nightlies">Nightliesの新しいパッケージを確認</string>
     <string name="comp_proton">Proton</string>
-    <string name="comp_proton_note">Steamのアップデート時にValveのProtonが置き換わります。各ビルドの元のファイルは保持されます。</string>
+    <string name="comp_proton_note">ここで選択したProtonは、Steamで個別のProtonが選択されていないすべてのゲームを実行します。Steamで変更した場合もここに反映されます。Steamのアップデート時にValveのProtonは置き換えられますが、元のファイルはビルドごとに保持されます。</string>
+    <string name="comp_default_live">Steamで個別のProtonが選択されていないすべてのゲームを、現在%1$sで実行します。</string>
+    <string name="comp_default_next">次回Steamの起動時から、個別のProtonが選択されていないすべてのゲームを%1$sで実行します。</string>
+    <string name="comp_default_not_runnable">%1$sはここでゲームを起動できないため、デフォルトにできません。</string>
+    <string name="comp_default_failed">デフォルトのProtonを保存できませんでした：%1$s</string>
     <string name="comp_swapped">%1$s · %2$d個を置き換え</string>
     <string name="comp_all_original">%1$s · すべて元のファイル</string>
     <string name="comp_game_running_suffix">%1$s · ゲーム実行中</string>
+    <string name="comp_esync_pack">%1$s · droiddeck-esyncパック</string>
+    <string name="comp_esync_wanted">%1$s · droiddeck-esyncパックはまだありません</string>
+    <string name="comp_esync_builtin">%1$s · esync内蔵、パック不要</string>
     <string name="comp_gpu_drivers">GPUドライバー</string>
     <string name="comp_reapplied">%1$s · %2$sの起動時に再適用</string>
     <string name="comp_next_queued">次：%1$s · ゲーム終了後</string>
@@ -408,9 +458,15 @@
     <string name="perf_sysmem">Turnip：sysmemレンダリング</string>
     <string name="perf_sysmem_hint">Steamとほとんどのゲームが高速になります。Adreno 710/720/722では必須です。</string>
     <string name="perf_xalia">Steamのxalia補助をスキップ</string>
+    <string name="perf_fastsync">droiddeck-ntsync（実験的）</string>
+    <string name="perf_fastsync_hint">Linuxのntsyncドライバーをユーザー空間で代替するテスト用機能です。オンの間、Protonはdroiddeck-esyncとdroiddeck-fsyncの代わりにこれを使用します。Proton Experimental ARM64、GE-Proton、proton-cachyosで動作します。次回のセッションで有効になります。</string>
+    <string name="perf_esync">droiddeck-esync</string>
+    <string name="perf_fsync">droiddeck-fsyncを優先</string>
+    <string name="perf_fsync_hint">futex_waitvをユーザー空間で提供し、標準のProtonファイルのままProton自身のfsyncを実行します。パックが不要なため、SteamがProtonを更新してもすぐに動作し続けます。オンの間、Protonがfsyncを使わない一部のゲームを除き、ゲームはdroiddeck-esyncよりこちらを優先します。次回のセッションで有効になります。</string>
+    <string name="perf_esync_hint">ゲームのWindowsスレッドが、wineserverとの往復通信の代わりにeventfdと共有メモリで互いを待機します。そのProtonビルド専用のdroiddeck-esyncパックを使用し、パックは自動的に取得されます。新しいProtonビルド用のパックが用意されるまでは、droiddeck-fsyncが代わりに使用されます。次回のセッションで有効になります。</string>
     <string name="perf_xalia_hint">Protonのコントローラーナビゲーション補助を無効にします。これはすべてのゲームでCPUを消費します。</string>
     <string name="perf_seccomp">seccompなしでprootを実行</string>
-    <string name="perf_seccomp_hint">一部のカーネルでのシステムコール不足エラーを修正する場合がありますが、パフォーマンスが低下する可能性があります。</string>
+    <string name="perf_seccomp_hint">一部のカーネルで「システムコールが見つからない」エラーが解消される場合があります。パフォーマンスが低下する可能性があります。</string>
     <string name="perf_fastpath">prootファストパス</string>
     <string name="perf_fastpath_needs_seccomp">prootのseccompフィルターが必要です。</string>
     <string name="perf_fastpath_hint">ファイル検索が速くなり、スタッターが減ります。プログラムがファイルを見つけられない場合は、これをオフにしてください。</string>
@@ -428,8 +484,10 @@
     <string name="driver_delete_plain">ファイルがアプリから削除されます。</string>
     <string name="driver_delete_in_use">ファイルが削除されます。使用中のため、デフォルトのドライバーに切り替わります。</string>
     <string name="drawer_page_display">表示</string>
+    <string name="drawer_page_effects">エフェクト</string>
     <string name="drawer_page_controls">コントロール</string>
     <string name="drawer_page_components">コンポーネント</string>
+    <string name="drawer_page_controller">コントローラー</string>
     <string name="drawer_page_settings">設定</string>
     <string name="drawer_page_desc">%1$sページ</string>
     <string name="drawer_steam">Steam</string>
@@ -440,11 +498,39 @@
     <string name="drawer_prev_page">前のページ</string>
     <string name="drawer_next_page">次のページ</string>
     <string name="drawer_hud">パフォーマンスHUD</string>
+    <string name="drawer_scaling">スケーリングモード</string>
+    <string name="drawer_scaling_sharpness">スケーリングのシャープネス</string>
+    <string name="drawer_effects">画面エフェクト</string>
+    <string name="drawer_effects_hint">即時反映。エフェクトがオンの間はGPUを少し消費します。</string>
+    <string name="drawer_look">プリセット</string>
+    <string name="drawer_look_custom">カスタム</string>
+    <string name="drawer_effects_advanced">詳細設定</string>
+    <string name="widgets_expanded">展開</string>
+    <string name="widgets_collapsed">折りたたみ</string>
+    <string name="drawer_cas">シャープ化（CAS）</string>
+    <string name="drawer_cas_level">シャープ化レベル</string>
+    <string name="drawer_fake_hdr">疑似HDR</string>
+    <string name="drawer_deband">バンディング除去</string>
+    <string name="drawer_deband_strength">バンディング除去の強度</string>
+    <string name="drawer_brightness">明るさ</string>
+    <string name="drawer_contrast">コントラスト</string>
+    <string name="drawer_gamma">ガンマ</string>
+    <string name="drawer_saturation">彩度</string>
+    <string name="drawer_fxaa">FXAA（エッジ平滑化）</string>
+    <string name="drawer_toon">トゥーン輪郭線</string>
+    <string name="drawer_crt">CRT</string>
+    <string name="drawer_ntsc">NTSC</string>
+    <string name="drawer_texture">テクスチャフィルタリング</string>
+    <string name="drawer_texture_hint">DirectX 9～11のゲーム、次回の起動から有効。</string>
+    <string name="drawer_anisotropy">異方性フィルタリング</string>
+    <string name="drawer_texture_sharpness">テクスチャのシャープネス</string>
+    <string name="drawer_texture_sharpness_note">マイナスのミップマップバイアス：テクスチャがシャープになりますが、ちらつきが出ることがあります。自動では、セッションが画面に合わせて拡大される倍率に合わせます。</string>
     <string name="drawer_touch_auto">自動（%1$s）</string>
     <string name="drawer_keyboard">キーボード</string>
     <string name="drawer_pc_keyboard">PCキーボード</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">セカンドスクリーン</string>
+    <string name="drawer_second_screen_mode">モード</string>
     <string name="drawer_second_screen_shows">表示</string>
     <string name="drawer_android_apps">Androidアプリ</string>
     <string name="drawer_launch_app">アプリを起動</string>
@@ -507,13 +593,14 @@
     <string name="setup_account">Steamアカウント</string>
     <string name="setup_signed_in_offline">%1$sとしてログイン中 · オフラインモード</string>
     <string name="setup_signed_in">%1$sとしてログイン中</string>
-    <string name="setup_sign_in">PlayをタップしてSteamにログイン</string>
+    <string name="setup_sign_in">「Steamを実行」をタップして、Steamにログインしてください</string>
     <string name="setup_tools">ツール</string>
     <string name="setup_controller">コントローラー</string>
     <string name="setup_controller_unavailable">コントローラー設定は利用できません。</string>
     <string name="setup_session">セッション</string>
     <string name="setup_logs">セッションログ</string>
     <string name="setup_logs_hint">各セッション終了後に保存</string>
+    <string name="setup_agent_commands">デバッグツール</string>
     <string name="setup_latest_logs">最新のセッションログ</string>
     <string name="setup_saved_logs">保存されたセッションログ</string>
     <string name="setup_saved_logs_hint">最新の%1$d件を保持</string>
@@ -521,6 +608,13 @@
     <string name="setup_offline">オフラインモード</string>
     <string name="setup_sign_in_first">先にSteamにログインしてください</string>
     <string name="setup_launcher">ランチャー</string>
+    <string name="setup_language">言語</string>
+    <string name="setup_language_hint">次回の起動からSteamにも適用されます。</string>
+    <string name="setup_language_system">システムのデフォルト（%1$s）</string>
+    <string name="setup_language_system_short">システムのデフォルト</string>
+    <string name="setup_app_scale">アプリの表示サイズ</string>
+    <string name="setup_app_scale_hint">DroidDeckの文字とボタン</string>
+    <string name="setup_app_scale_default">%1$d%%（デフォルト）</string>
     <string name="setup_theme">テーマ</string>
     <string name="setup_theme_hint">ランチャーの外観</string>
     <string name="setup_home">ホーム画面として使用</string>
@@ -599,7 +693,7 @@
     <string name="store_license">ライセンス</string>
     <string name="store_runtime">実行環境</string>
     <string name="store_installed_size">インストールサイズ</string>
-    <string name="store_installed_size_value">%1$s（共有実行環境を除く）</string>
+    <string name="store_installed_size_value">%1$s（別途、共有実行環境が必要）</string>
     <string name="store_website">ウェブサイト</string>
     <string name="store_verified">認証済み</string>
     <string name="upd_title">アップデート</string>
@@ -611,39 +705,39 @@
     <string name="upd_open_settings">設定を開く</string>
     <string name="upd_not_now">後で</string>
     <string name="upd_signed_status">署名が異なります</string>
-    <string name="upd_signed_headline">インプレース更新できません</string>
+    <string name="upd_signed_headline">上書き更新できません</string>
     <string name="upd_signed_detail">このコピーはDroidDeckのリリースキーで署名されていないため、直接上書き更新できません。アンインストールしてから切り替えてください。</string>
     <string name="upd_available">アップデートあり</string>
     <string name="upd_blocked_status">インストールできません</string>
     <string name="upd_switch">切り替え可能</string>
-    <string name="upd_ahead_status">Stableより先行</string>
-    <string name="upd_ahead_headline">Stableより先行しています</string>
-    <string name="upd_ahead_detail">このビルドは最新のStableより新しいです。次のStableリリース後、Stableに切り替わります。</string>
+    <string name="upd_ahead_status">安定版より先行</string>
+    <string name="upd_ahead_headline">安定版より先行しています</string>
+    <string name="upd_ahead_detail">このビルドは最新の安定版より新しいバージョンです。次の安定版リリースで安定版に移行します。</string>
     <string name="upd_gone_status">テスト終了</string>
     <string name="upd_gone_headline">このテストは終了しました</string>
-    <string name="upd_gone_detail">この修正はマージされたか、破棄されました。最新の修正についてはPreviewをフォローしてください。</string>
+    <string name="upd_gone_detail">この修正はマージされたか、破棄されました。最新の修正はプレビュー版で入手できます。</string>
     <string name="upd_current_status">最新です</string>
     <string name="upd_current_headline">最新の%1$sを使用しています</string>
     <string name="upd_dot_ago">· %1$s</string>
     <string name="upd_stage_percent">%1$s… %2$d%%</string>
     <string name="upd_stage">%1$s…</string>
-    <string name="upd_update_button">%1$sを更新</string>
-    <string name="upd_install_button">%1$sをインストール</string>
-    <string name="upd_install_anyway">Stable %1$sをインストールする</string>
-    <string name="upd_follow_preview">Previewをフォロー</string>
+    <string name="upd_update_button">更新%1$s</string>
+    <string name="upd_install_button">インストール%1$s</string>
+    <string name="upd_install_anyway">それでも安定版 %1$sをインストール</string>
+    <string name="upd_follow_preview">プレビュー版に切り替え</string>
     <string name="upd_stop_session">実行中のセッションを停止してから更新してください。</string>
     <string name="upd_less">折りたたむ</string>
     <string name="upd_more">もっと見る</string>
     <string name="upd_new_stable">DroidDeck %1$s</string>
-    <string name="upd_new_preview">新しいPreviewビルド</string>
+    <string name="upd_new_preview">新しいプレビュー版ビルド</string>
     <string name="upd_new_test">PR #%1$d テストビルド</string>
     <string name="upd_mb">%1$d MB</string>
     <string name="upd_channel">アップデートチャンネル</string>
-    <string name="upd_stable">Stable</string>
+    <string name="upd_stable">安定版</string>
     <string name="upd_stable_hint">テスト済みのバージョン、ほとんどの人に推奨</string>
     <string name="upd_version_ago">%1$s · %2$s</string>
-    <string name="upd_preview">Preview</string>
-    <string name="upd_preview_hint">Stable前の最新の修正</string>
+    <string name="upd_preview">プレビュー版</string>
+    <string name="upd_preview_hint">安定版より先に最新の修正</string>
     <string name="upd_preview_current">最新です</string>
     <string name="upd_tests">テストビルド</string>
     <string name="upd_tests_hint">正式リリース前に特定の修正を試す</string>
@@ -652,19 +746,16 @@
     <string name="upd_not_built">このDroidDeckコピー用にはビルドされていません</string>
     <string name="upd_updated">%1$sを更新しました</string>
     <string name="upd_test_name">PR #%1$d テスト版</string>
-    <string name="upd_while_ago">さっき</string>
+    <string name="upd_while_ago">少し前</string>
     <string name="upd_just_now">たった今</string>
     <plurals name="upd_tests_count">
-        <item quantity="one">%1$d 個試せます</item>
-        <item quantity="other">%1$d 個試せます</item>
+        <item quantity="other">%1$d個試せます</item>
     </plurals>
     <plurals name="upd_preview_behind">
-        <item quantity="one">あなたのビルド以降の変更 · %1$d ビルド遅れています</item>
-        <item quantity="other">あなたのビルド以降の変更 · %1$d ビルド遅れています</item>
+        <item quantity="other">お使いのビルド以降の変更 · %1$dビルド遅れています</item>
     </plurals>
     <plurals name="upd_preview_recent">
-        <item quantity="one">最近の変更 · %1$d ビルド</item>
-        <item quantity="other">最近の変更 · %1$d ビルド</item>
+        <item quantity="other">最近の変更 · %1$dビルド</item>
     </plurals>
     <string name="gate_title">変更が必要なAndroid設定が1つあります</string>
     <string name="gate_eyebrow">Steam</string>
@@ -715,7 +806,7 @@
     <string name="wadb_pin_placeholder">6桁の数字</string>
     <string name="wadb_pair">ペアリング</string>
     <string name="wadb_apply_group">2 · ワイヤレスデバッグで適用</string>
-    <string name="wadb_connect_address">IPアドレスとポートを接続</string>
+    <string name="wadb_connect_address">接続先のIPアドレスとポート</string>
     <string name="wadb_pair_again">再ペアリング</string>
     <string name="wadb_turn_off">制限をオフにする</string>
     <string name="wadb_other_ways">その他の変更方法</string>
@@ -769,7 +860,7 @@
     <string name="content_games">ゲーム</string>
     <string name="content_choose_roms">ROMフォルダを選択してください。</string>
     <string name="content_retroarch_roms">RetroArchで /root/ROMs に移動します。</string>
-    <string name="content_add_roms">%1$s 個のゲームを ROMs/%2$s に追加しました。</string>
+    <string name="content_add_roms">%1$sのゲームを ROMs/%2$s に追加してください。</string>
     <string name="content_install_named">%1$sをインストール</string>
     <string name="content_stop_to_install">セッションを停止してインストール</string>
     <string name="content_runtime_required">実行環境が必要です</string>
@@ -784,11 +875,11 @@
     <string name="content_desktop_system">デスクトップ · %1$s</string>
     <string name="content_launch_in">%1$sで起動</string>
     <string name="content_also_in">%1$sにもあります</string>
-    <string name="content_page_gone">このページは存在しません。左側から列を選択してください。</string>
+    <string name="content_page_gone">このページは存在しません。左側からセクションを選択してください。</string>
     <string name="content_open_desktop">デスクトップを開く</string>
     <string name="content_install_open_desktop">インストールしてデスクトップを開く</string>
     <string name="content_linux_desktop">Linuxデスクトップ</string>
-    <string name="content_linux_desktop_hint">LXQt、Firefox、エミュレーター</string>
+    <string name="content_linux_desktop_hint">KDE Plasma、Firefox、エミュレーター</string>
     <string name="games_empty">Steamでインストールされたゲームは、セッション終了後にここに表示されます。</string>
     <string name="games_play_steam">Steamを実行</string>
     <string name="games_launch_settings">起動設定</string>
@@ -803,16 +894,13 @@
     <string name="games_manage_saves">セーブデータの管理</string>
     <string name="games_saves">ゲームセーブデータ</string>
     <string name="games_import_saves">セーブデータをインポート…</string>
-    <string name="games_import_saves_hint">GameHubまたはWinlatorのアーカイブ。インポート前に現在のセーブデータをバックアップします。</string>
     <string name="games_export_gamehub">GameHubアーカイブとしてエクスポート…</string>
-    <string name="games_export_gamehub_hint">GameHubおよびBannerHubに適しています</string>
     <string name="games_export_winlator">Winlatorアーカイブとしてエクスポート…</string>
-    <string name="games_export_winlator_hint">Winlator、WinNative、Bannerlatorに適しています</string>
     <string name="games_open_save_folder">セーブフォルダを開く</string>
     <string name="games_never_played">未プレイ</string>
     <string name="games_runtime_busy_percent">実行環境がビジー · %1$d%%</string>
     <string name="games_runtime_busy">実行環境がビジー</string>
-    <string name="games_runtime_first_play">初回ゲーム起動時に実行環境をインストール</string>
+    <string name="games_runtime_first_play">初回実行時に実行環境を導入</string>
     <string name="games_runtime_update">実行環境にアップデートがあります</string>
     <string name="games_runtime_ready">● 実行環境の準備完了</string>
     <string name="games_last_played">最終プレイ %1$s</string>
@@ -946,4 +1034,1048 @@
     <string name="game_file_folder">フロントエンドゲームファイル用のフォルダを選択</string>
     <string name="game_file_exported">ゲームファイルを %1$s に保存しました</string>
     <string name="game_frontend_files">フロントエンドファイル</string>
+
+    <!-- Launcher, session and menus -->
+
+    <!-- Launcher (MainActivity) -->
+    <string name="main_wait_runtime">実行環境の処理が完了するまでお待ちください</string>
+    <string name="main_wait_proton_install">互換性ツールのインストールが完了するまでお待ちください</string>
+    <string name="main_wait_desktop_install">デスクトップアプリのインストールが完了するまでお待ちください</string>
+    <string name="main_wait_install_game">インストールが完了してからゲームを起動してください</string>
+    <string name="main_saves_close_session">インポートしたデータがゲームに上書き保存されないよう、先にSteamセッションを終了してください</string>
+
+    <!-- Busy line while saves are imported; %1$s is the game's name -->
+    <string name="main_saves_importing">%1$sにインポート中</string>
+
+    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the game's name -->
+    <plurals name="main_saves_imported">
+        <item quantity="other">%2$sから%1$d個のファイルを%3$sにインポートしました</item>
+    </plurals>
+    <plurals name="main_saves_imported_backup">
+        <item quantity="other">%2$sから%1$d個のファイルを%3$sにインポートしました。以前のセーブデータはDownload/DroidDeck/Saves/backupsにバックアップされました</item>
+    </plurals>
+    <string name="main_saves_pick_zip">%1$sのセーブデータzipを選択</string>
+
+    <!-- Busy line while saves are exported; %1$s is the game's name -->
+    <string name="main_saves_exporting">%1$sをエクスポート中</string>
+
+    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the zip's path -->
+    <plurals name="main_saves_exported">
+        <item quantity="other">%1$d個のファイルを%2$sとしてエクスポートしました：%3$s</item>
+    </plurals>
+
+    <!-- %1$s is the game's name, %2$s the save layout -->
+    <string name="main_saves_pick_folder">%1$sの保存先を選択（%2$s）</string>
+
+    <!-- %1$s is what was being done (e.g. Importing into Portal 2, Swapping), %2$s the error -->
+    <string name="main_action_failed">%1$sに失敗しました：%2$s</string>
+    <string name="main_no_logs_yet">セッションログはまだありません。先にセッションを実行してください。</string>
+    <string name="main_no_logs_to_clear">消去するセッションログはありません。</string>
+    <plurals name="main_logs_cleared">
+        <item quantity="other">%1$d個のセッションログフォルダを消去しました。</item>
+    </plurals>
+    <string name="main_wadb_pair_failed">ワイヤレスデバッグのペアリングに失敗しました</string>
+    <string name="main_wadb_command_failed">ワイヤレスデバッグのコマンドに失敗しました</string>
+    <string name="main_wadb_unavailable">ワイヤレスデバッグは利用できません</string>
+    <string name="main_adb_copied">ADBコマンドをコピーしました</string>
+    <string name="main_pick_roms">ROMフォルダを選択</string>
+    <string name="main_non_adreno_title">Adreno GPUではありません</string>
+
+    <!-- %1$s is the GPU's name, %2$.0f the download size in MB -->
+    <string name="main_non_adreno_text">TurnipはAdreno GPUをサポートしています。%1$sでは、Steamの画面が真っ暗になる可能性があります。ダウンロード：%2$.0f MB。</string>
+    <string name="main_install_anyway">インストールする</string>
+    <string name="main_remove_runtime_title">Linux実行環境を削除</string>
+    <string name="main_remove_runtime_text">実行環境、その中のSteamクライアント、そこにインストールされたすべてのゲームが削除されます。</string>
+
+    <!-- Toast; %1$s is a list of components, separated by commas -->
+    <string name="main_applied">適用しました：%1$s</string>
+    <string name="android_app_open_failed_primary">メイン画面で%1$sを開けませんでした</string>
+
+    <!-- %1$s is the app, %2$s the name of the display -->
+    <string name="android_app_open_failed_on">%2$sで%1$sを開けませんでした</string>
+
+    <!-- %1$s is the app, %2$d the display's number -->
+    <string name="android_app_open_failed_display">ディスプレイ%2$dで%1$sを開けませんでした</string>
+
+    <!-- Components page busy lines, shown with … after them -->
+    <string name="comp_busy_importing">インポート中</string>
+    <string name="comp_busy_swapping">置き換え中</string>
+    <string name="comp_busy_restoring">復元中</string>
+    <string name="comp_busy_cancelling">キャンセル中</string>
+    <string name="comp_busy_deleting">削除中</string>
+    <string name="comp_cannot_read">ファイルを読み取れません</string>
+
+    <!-- %1$s is a version or a name -->
+    <string name="comp_imported">%1$sをインポートしました</string>
+    <string name="comp_swap_cancelled">待機中の置き換えをキャンセルしました。</string>
+    <string name="comp_pick_wcp">コンポーネントパッケージ（-linux .wcp）を選択</string>
+    <string name="comp_nightlies_unreachable">Nightliesに接続できませんでした</string>
+
+    <!-- %1$s is the package version -->
+    <string name="comp_stored">%1$sを保存しました</string>
+    <string name="comp_download_failed">ダウンロードに失敗しました：%1$s</string>
+    <string name="drivers_pick_linux">Linuxランタイムドライバー（-Linux zipまたはAndroid + Linuxバンドル）を選択</string>
+    <string name="drivers_pick_android">ディスプレイドライバー（AdrenoTools zipまたはAndroid + Linuxバンドル）を選択</string>
+    <string name="drivers_pick_any">ドライバーzipまたはAndroid + Linuxバンドルを選択</string>
+
+    <!-- %1$s is a desktop app's name, %2$s what went wrong -->
+    <string name="main_pkg_problem">%1$s：%2$s</string>
+    <string name="main_removing_named">%1$sを削除中…</string>
+    <string name="main_forgetting_named">%1$sを登録解除中…</string>
+    <string name="main_pick_game_storage">ゲームの保存先フォルダを選択</string>
+    <string name="main_pick_decky_zip">Deckyプラグインのzipを選択</string>
+    <string name="main_storage_not_usable">使用できません：%1$s</string>
+
+    <!-- What is running, when it is a program without a known name -->
+    <string name="main_running_program">プログラム</string>
+    <string name="main_removing_runtime">Linux実行環境を削除中</string>
+    <string name="main_settings_main_screen">下部画面で設定を開けなかったため、メイン画面で開きました。</string>
+    <string name="main_open_dev_options">設定で開発者向けオプションを開いてください</string>
+
+    <!-- Updates -->
+    <string name="upd_unknown_apps_failed">Androidの「不明なアプリのインストール」設定を開けませんでした</string>
+    <string name="upd_couldnt_check">確認できませんでした：%1$s</string>
+    <string name="upd_no_download">このビルドには、このDroidDeckコピー用のダウンロードがありません</string>
+    <string name="upd_stop_first">実行中のセッションを停止してから更新してください</string>
+
+    <!-- Update stages, shown with … after them -->
+    <string name="upd_stage_downloading">ダウンロード中</string>
+    <string name="upd_stage_installing">インストール中</string>
+    <string name="upd_stage_confirm">確認を待機中</string>
+    <string name="upd_failed">アップデートに失敗しました</string>
+    <string name="upd_not_offered">Androidがアップデートのインストールを表示しませんでした</string>
+
+    <!-- Decky -->
+    <string name="decky_install_failed">Deckyのインストールに失敗しました：%1$s</string>
+    <string name="decky_plugin_starting">プラグインのインポートを開始中…</string>
+    <string name="decky_plugin_failed">プラグインのインポートに失敗しました：%1$s</string>
+    <string name="decky_plugin_installed">プラグインをインストールしました。読み込むにはSteamを再起動してください。</string>
+
+    <!-- GPU drivers -->
+    <string name="drivers_not_checked">未確認 - 更新をタップして新しいドライバーを検索</string>
+    <string name="drivers_bundle_sets_display">Android + Linux：ディスプレイドライバーも一緒に設定されます</string>
+    <string name="drivers_bundle_sets_runtime">Android + Linux：ランタイムドライバーも一緒に設定されます</string>
+    <string name="drivers_runtime_builtin">実行環境に内蔵のTurnip</string>
+    <string name="drivers_system_vulkan">システムのVulkan：このGPU用の同梱ビルドはありません</string>
+    <string name="drivers_bundled">%1$s（同梱）</string>
+    <string name="drivers_manual">手動</string>
+
+    <!-- Driver mode, then the driver pair in use -->
+    <string name="drivers_summary">%1$s · %2$s</string>
+    <string name="drivers_half_published">現在、片方のみが公開されています</string>
+    <string name="drivers_pair_size">両方で%1$.0f MB</string>
+
+    <!-- %1$s says why (the GPU's support status) -->
+    <string name="drivers_none_to_set">設定できるドライバーがありません：%1$s</string>
+    <string name="drivers_checking_latest">最新のドライバーを確認中…</string>
+    <string name="drivers_up_to_date_check_failed">最新です（確認できませんでした：%1$s）</string>
+    <string name="drivers_recommended_unpublished">推奨ドライバーは現在公開されていません</string>
+
+    <!-- %1$s is the driver pair's name, %2$s its version -->
+    <string name="drivers_downloading_pair">%1$s %2$sをダウンロード中…</string>
+    <string name="drivers_updated_to">%1$s %2$sに更新しました。</string>
+    <string name="drivers_updated_to_restart">%1$s %2$sに更新しました。ディスプレイドライバーはDroidDeckの再起動後に有効になります。</string>
+    <string name="drivers_switched_to">%1$s %2$sに切り替えました。</string>
+    <string name="drivers_switched_to_restart">%1$s %2$sに切り替えました。ディスプレイドライバーはDroidDeckの再起動後に有効になります。</string>
+    <string name="drivers_using">%1$s %2$sを使用中。</string>
+    <string name="drivers_using_restart">%1$s %2$sを使用中。ディスプレイドライバーはDroidDeckの再起動後に有効になります。</string>
+    <string name="drivers_not_a_driver">ドライバーzipではありません：AdrenoToolsドライバー、-Linux Turnip、Android + Linuxバンドルのいずれでもありません</string>
+    <string name="drivers_import_failed">インポートに失敗しました：%1$s</string>
+    <string name="drivers_imported_unnamed">インポートしたドライバー</string>
+    <string name="drivers_using_bundle">%1$sをランタイムドライバーとディスプレイドライバーの両方として使用中。</string>
+    <string name="drivers_using_bundle_restart">%1$sをランタイムドライバーとディスプレイドライバーの両方として使用中。ディスプレイドライバーはDroidDeckの再起動後に有効になります。</string>
+    <string name="drivers_deleted_bundle">%1$sを削除しました（両方のドライバー）</string>
+    <string name="drivers_deleted">%1$sを削除しました</string>
+
+    <!-- %1$s lists the latest releases, %2$s when they were checked (e.g. 5 min ago) -->
+    <string name="drivers_release_status">最新：%1$s · 確認 %2$s</string>
+
+    <!-- %1$s lists the latest releases, %2$s the sources that could not be reached, %3$s when they were checked -->
+    <string name="drivers_release_status_failed">最新：%1$s · %2$sに接続できません · 確認 %3$s</string>
+    <plurals name="drivers_ago_minutes">
+        <item quantity="other">%1$d分前</item>
+    </plurals>
+    <plurals name="drivers_ago_hours">
+        <item quantity="other">%1$d時間前</item>
+    </plurals>
+    <plurals name="drivers_ago_days">
+        <item quantity="other">%1$d日前</item>
+    </plurals>
+    <string name="drivers_checking_sources">Banners-Turnip、WinNative、DroidDeckを確認中…</string>
+    <string name="drivers_check_failed">確認に失敗</string>
+
+    <!-- %1$s is the driver's name -->
+    <string name="drivers_installed_pick_either">%1$sをインストールしました - どちらかの一覧で選択すると両方のドライバーが設定されます</string>
+    <string name="drivers_installed_pick">%1$sをインストールしました - メニューで選択してください</string>
+
+    <!-- Session (SessionActivity) -->
+    <string name="session_wait_removal">実行環境の削除が完了するまでお待ちください</string>
+
+    <!-- Drawer title when the running program has no known name -->
+    <string name="session_title_game">ゲーム</string>
+
+    <!-- Shown as "Auto (touchpad)" in the drawer's touch setting -->
+    <string name="session_touch_auto_touchpad">トラックパッド</string>
+
+    <!-- Shown as "Auto (direct)" in the drawer's touch setting -->
+    <string name="session_touch_auto_direct">ダイレクト</string>
+    <string name="session_swap_failed">置き換えに失敗しました：%1$s</string>
+    <string name="session_desktop_paused">デスクトップは一時停止中です</string>
+
+    <!-- %1$s is the program's name -->
+    <string name="session_named_paused">%1$sは一時停止中です</string>
+    <string name="session_program_paused">プログラムは一時停止中です</string>
+    <string name="session_starting_desktop">デスクトップを起動中</string>
+
+    <!-- %1$s is the program's name -->
+    <string name="session_starting_named">%1$sを起動中</string>
+    <string name="session_starting_program">プログラムを起動中</string>
+    <string name="session_no_logs">このセッションのログはありません。</string>
+    <string name="session_logs_archive_failed">セッションログのアーカイブを作成できませんでした。</string>
+    <string name="session_logs_share_failed">セッションログを共有できませんでした。</string>
+    <string name="session_starting_session">セッションを開始中…</string>
+
+    <!-- Loading screen lines while packages download; %1$d and %2$d are megabytes -->
+    <string name="session_runtime_downloading">Linux実行環境をダウンロード中</string>
+    <string name="session_runtime_downloading_mb">Linux実行環境をダウンロード中 · %1$d / %2$d MB</string>
+    <string name="session_runtime_checking">Linux実行環境を確認中</string>
+    <string name="session_runtime_unpacking">Linux実行環境を展開中</string>
+    <string name="session_desktop_downloading">デスクトップをダウンロード中</string>
+    <string name="session_desktop_downloading_mb">デスクトップをダウンロード中 · %1$d / %2$d MB</string>
+    <string name="session_desktop_checking">デスクトップを確認中</string>
+    <string name="session_desktop_unpacking">デスクトップを展開中</string>
+    <string name="session_proton_downloading">Proton Experimental（ARM64）をダウンロード中</string>
+    <string name="session_proton_downloading_mb">Proton Experimental（ARM64）をダウンロード中 · %1$d / %2$d MB</string>
+    <string name="session_proton_checking">Proton Experimental（ARM64）を確認中</string>
+    <string name="session_proton_unpacking">Proton Experimental（ARM64）を展開中</string>
+    <string name="session_runtime_catalog_unreachable">実行環境のカタログに接続できませんでした。接続を確認して、もう一度Playをタップしてください。</string>
+    <string name="session_runtime_install_failed">Linux実行環境をインストールできませんでした。「設定」で実行環境を確認して、もう一度Playをタップしてください。</string>
+
+    <!-- %1$s says what went wrong -->
+    <string name="session_desktop_install_failed">デスクトップをインストールできませんでした（%1$s）。接続を確認して、もう一度「デスクトップ」をタップしてください。</string>
+
+    <!-- %1$s is the program's name, or Steam -->
+    <string name="session_ended_named">%1$sが予期せず停止しました。バグレポートにログを添付して共有するか、もう一度お試しください。</string>
+    <string name="session_ended_program">プログラムが予期せず停止しました。バグレポートにログを添付して共有するか、もう一度お試しください。</string>
+    <string name="session_ended_desktop">デスクトップが予期せず停止しました。バグレポートにログを添付して共有するか、もう一度お試しください。</string>
+
+    <!-- %1$d is the exit status, %2$s the log file's path -->
+    <string name="session_ended_detail">終了ステータス %1$d · %2$s</string>
+    <string name="session_ended_no_log">ログなし</string>
+
+    <!-- %1$d errors; %2$s, %3$s and %4$s are the Performance page and its two settings -->
+    <plurals name="session_hint_enosys">
+        <item quantity="other">ログに「Function not implemented」エラーが%1$d件あります。このデバイスでは、prootのseccomp高速化が補助プロセスの処理に失敗しています。%2$s →「%3$s」（または「%4$s」）を試してから、もう一度起動してください。</item>
+    </plurals>
+
+    <!-- Screens, files, controller and store -->
+
+    <!-- Mode settings -->
+    <string name="mode_decky_plugins">プラグイン</string>
+    <string name="mode_decky_plugins_hint">次回のSteamセッション用にプラグインのzipをインストールします。</string>
+    <string name="mode_decky_plugin_downloading">ダウンロード中…</string>
+    <string name="mode_decky_plugin_install_zip">zipからインストール</string>
+
+    <!-- Store -->
+    <string name="store_cat_games">ゲーム</string>
+    <string name="store_cat_audio_video">オーディオ・ビデオ</string>
+    <string name="store_cat_graphics">グラフィック</string>
+    <string name="store_cat_internet">インターネット</string>
+    <string name="store_cat_office">オフィス</string>
+    <string name="store_cat_developer">開発</string>
+    <string name="store_cat_education">教育</string>
+    <string name="store_cat_science">科学</string>
+    <string name="store_cat_system">システム</string>
+    <string name="store_cat_utilities">ユーティリティ</string>
+    <string name="store_section_popular">人気</string>
+    <string name="store_section_trending">トレンド</string>
+
+    <!-- Store front-page section of recently added apps -->
+    <string name="store_section_new">新着</string>
+
+    <!-- Store front-page section of recently updated apps -->
+    <string name="store_section_updated">最近の更新</string>
+    <string name="store_section_loading">読み込み中…</string>
+    <string name="store_flatpak_setup">Flatpakのセットアップ</string>
+
+    <!-- %1$s is what failed (an app name or "Flatpak setup"), %2$s the error -->
+    <string name="store_problem">%1$s：%2$s</string>
+    <string name="store_updates_check_failed">Flathubでアップデートを確認できませんでした</string>
+
+    <!-- Library tiles -->
+
+    <!-- Subtitle of a game tile whose cover art was found -->
+    <string name="content_rom_installed">インストール済み</string>
+
+    <!-- Subtitle of a game that is a folder rather than a single file -->
+    <string name="content_rom_folder">フォルダ</string>
+
+    <!-- Launcher themes -->
+    <string name="theme_graphite">グラファイト</string>
+    <string name="theme_graphite_detail">グラファイト調の画面に、選択・フォーカス・押下時にはロゴのオーブと同じ青を使用します。</string>
+    <string name="theme_paper">ペーパー・オン・ブラック</string>
+    <string name="theme_paper_detail">白を基調とし、アイコンの青を罫線、リング、ドットのアクセントに使用します。</string>
+    <string name="theme_icon_blue">アイコンブルー</string>
+    <string name="theme_icon_blue_detail">黒の背景に白の文字、選択・フォーカス・押下時には青を使用します。</string>
+    <string name="theme_electric">エレクトリックネイビー</string>
+    <string name="theme_electric_detail">より明るい青を、グレーではなくネイビー寄りの画面に使用します。</string>
+
+    <!-- PC keyboard key caps (keep them short; they label physical PC keys) -->
+    <string name="pckb_key_esc">Esc</string>
+    <string name="pckb_key_ins">Ins</string>
+    <string name="pckb_key_del">Del</string>
+    <string name="pckb_key_home">Home</string>
+    <string name="pckb_key_end">End</string>
+    <string name="pckb_key_pgup">PgUp</string>
+    <string name="pckb_key_pgdn">PgDn</string>
+    <string name="pckb_key_backspace">⌫ Backspace</string>
+    <string name="pckb_key_tab">Tab ⇥</string>
+    <string name="pckb_key_caps">Caps</string>
+    <string name="pckb_key_enter">Enter ⏎</string>
+    <string name="pckb_key_shift">⇧ Shift</string>
+    <string name="pckb_key_ctrl">Ctrl</string>
+    <string name="pckb_key_super">Super</string>
+    <string name="pckb_key_alt">Alt</string>
+    <string name="pckb_key_space">スペース</string>
+    <string name="pckb_key_altgr">AltGr</string>
+
+    <!-- Terminal key strip on the second screen -->
+    <string name="second_key_tab">Tab</string>
+
+    <!-- A modifier key (%1$s, e.g. Ctrl) that is currently held -->
+    <string name="second_key_on">%1$s ✓</string>
+    <string name="second_key_ctrl_c">Ctrl+C</string>
+    <string name="second_key_ctrl_d">Ctrl+D</string>
+
+    <!-- Game file sync errors -->
+    <string name="game_sync_err_runtime">先に実行環境をインストールしてください</string>
+    <string name="game_sync_err_steam_library">Steamライブラリを利用できません</string>
+    <string name="game_sync_err_previous_sd">以前のSDライブラリを利用できません</string>
+    <string name="game_sync_err_game_storage">ゲームストレージを利用できません</string>
+    <string name="game_sync_err_added_games">追加したゲームのフォルダを利用できません</string>
+    <string name="game_sync_err_manifests">Steamのマニフェストを利用できません</string>
+
+    <!-- The systems RetroArch emulates, shown under its name -->
+    <string name="content_system_many">多数のシステム</string>
+
+    <!-- File manager -->
+    <string name="fm_drive_internal">内部</string>
+    <string name="fm_drive_linux">Linux システム</string>
+    <string name="fm_drive_sd">SDカード</string>
+    <string name="fm_drive_storage">ストレージ</string>
+    <string name="fm_select">選択</string>
+    <string name="fm_properties">プロパティ</string>
+    <string name="fm_favorite_add">お気に入りに追加</string>
+    <string name="fm_favorite_remove">お気に入りから削除</string>
+    <string name="fm_rename">名前を変更</string>
+    <string name="fm_copy">コピー</string>
+    <string name="fm_cut">切り取り</string>
+    <string name="fm_actions">操作</string>
+    <string name="fm_favorites">お気に入り</string>
+    <string name="fm_pin_current">現在のフォルダをピン留め</string>
+    <string name="fm_no_favorites">お気に入りはまだありません。フォルダの⋮メニューからピン留めすると、すぐにここへ戻れます。</string>
+    <string name="fm_unpin_favorite">お気に入りから削除</string>
+    <string name="fm_size_zero">0バイト</string>
+
+    <!-- Size unit for sizes under 1 KB, shown after a number -->
+    <string name="fm_unit_bytes">バイト</string>
+    <string name="fm_prop_location">場所</string>
+    <string name="fm_prop_type">種類</string>
+    <string name="fm_prop_size">サイズ</string>
+    <string name="fm_prop_modified">更新日時</string>
+    <string name="fm_type_folder">フォルダ</string>
+    <string name="fm_type_file">ファイル</string>
+
+    <!-- File type in Properties; %1$s is the file extension in capitals, e.g. TXT -->
+    <string name="fm_type_ext_file">%1$sファイル</string>
+    <string name="fm_read_only">読み取り専用</string>
+    <string name="fm_read_only_hint">ゲーム（およびWine）がこのファイルを上書き・削除できないようにします。</string>
+    <string name="fm_read_only_failed">読み取り専用を変更できませんでした</string>
+    <string name="fm_hidden">隠しファイル</string>
+    <string name="fm_hidden_unsupported">このストレージは隠し属性を保存できません。</string>
+    <string name="fm_hidden_hint">Windows上でファイルを隠しファイルにします（Wineの隠し属性）。</string>
+    <string name="fm_hidden_failed">このストレージでは隠し属性を変更できませんでした</string>
+    <string name="fm_done">完了</string>
+    <string name="fm_op_deleting">削除中...</string>
+    <string name="fm_delete_failed">削除に失敗しました</string>
+    <string name="fm_op_moving">移動中...</string>
+    <string name="fm_op_copying">コピー中...</string>
+
+    <!-- %1$s is the file name -->
+    <string name="fm_op_moving_item">移動中 - %1$s</string>
+    <string name="fm_op_copying_item">コピー中 - %1$s</string>
+
+    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
+    <string name="fm_op_moving_batch">移動中 %1$d/%2$d - %3$s</string>
+    <string name="fm_op_copying_batch">コピー中 %1$d/%2$d - %3$s</string>
+
+    <!-- Paste result; %1$d items done, %2$d items failed -->
+    <string name="fm_paste_failed">%1$d件完了、%2$d件失敗</string>
+
+    <!-- Paste result; %1$d items done, %2$d items skipped -->
+    <string name="fm_paste_skipped">%1$d件完了、%2$d件スキップ</string>
+    <plurals name="fm_paste_moved">
+        <item quantity="other">%1$d個の項目を移動しました</item>
+    </plurals>
+    <plurals name="fm_paste_copied">
+        <item quantity="other">%1$d個の項目をコピーしました</item>
+    </plurals>
+
+    <!-- %1$s is a file or folder name -->
+    <string name="fm_already_exists">「%1$s」はすでに存在します</string>
+    <string name="fm_op_renaming">名前を変更中...</string>
+    <string name="fm_rename_failed">名前を変更できませんでした</string>
+    <string name="fm_op_creating_folder">フォルダを作成中...</string>
+    <string name="fm_create_folder_failed">フォルダを作成できませんでした</string>
+    <string name="fm_new_folder">新しいフォルダ</string>
+    <string name="fm_folder_name">フォルダ名</string>
+    <string name="fm_create">作成</string>
+    <string name="fm_new_name">新しい名前</string>
+    <string name="fm_delete_title">削除しますか？</string>
+
+    <!-- %1$s is a file or folder name -->
+    <string name="fm_delete_text">「%1$s」を完全に削除しますか？</string>
+    <plurals name="fm_delete_items_title">
+        <item quantity="other">%1$d個の項目を削除しますか？</item>
+    </plurals>
+    <string name="fm_cannot_undo">この操作は元に戻せません。</string>
+
+    <!-- After a list of the first five names in a delete confirmation -->
+    <plurals name="fm_and_more">
+        <item quantity="other">…ほか%1$d件</item>
+    </plurals>
+
+    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
+    <string name="fm_op_deleting_batch">削除中 %1$d/%2$d - %3$s</string>
+    <plurals name="fm_delete_some_failed">
+        <item quantity="other">%1$d件を削除できませんでした</item>
+    </plurals>
+    <string name="fm_conflict_merge_hint">統合すると、既存のフォルダ内にファイルが追加・置き換えされます。</string>
+    <string name="fm_conflict_overwrite_hint">上書きすると、既存のファイルが置き換えられます。</string>
+    <string name="fm_conflict_apply_all">すべての競合に適用</string>
+    <string name="fm_conflict_merge">統合</string>
+    <string name="fm_conflict_overwrite">上書き</string>
+    <string name="fm_conflict_keep_both">両方残す</string>
+    <string name="fm_conflict_skip">スキップ</string>
+    <string name="fm_select_this_folder">このフォルダを選択</string>
+    <string name="fm_back">戻る</string>
+
+    <!-- %1$s is a storage name, e.g. SD card -->
+    <string name="fm_drive_not_readable">%1$sはマウントされていますが、現在読み取れません</string>
+    <string name="fm_list_view">リスト表示</string>
+    <string name="fm_grid_view">グリッド表示</string>
+    <string name="fm_search">検索</string>
+    <string name="fm_sort">並べ替え</string>
+    <string name="fm_sort_name">名前</string>
+    <string name="fm_sort_date">更新日時</string>
+    <string name="fm_rows_comfortable">標準の行間</string>
+    <string name="fm_rows_compact">狭い行間</string>
+    <string name="fm_hide_hidden">隠しファイルを非表示</string>
+    <string name="fm_show_hidden">隠しファイルを表示</string>
+    <string name="fm_hide_favorites">お気に入りを非表示</string>
+    <string name="fm_show_favorites">お気に入りを表示</string>
+    <string name="fm_filter_folder">このフォルダを絞り込み</string>
+
+    <!-- Free space on the storage being browsed; %1$s is a size, e.g. 12.50 GB -->
+    <string name="fm_free_space">空き %1$s</string>
+    <string name="fm_selected_count">%1$d個選択中</string>
+
+    <!-- Selection bar: clear the selection -->
+    <string name="fm_select_none">解除</string>
+
+    <!-- Selection bar: select every item -->
+    <string name="fm_select_all">すべて</string>
+    <string name="fm_paste">貼り付け</string>
+    <plurals name="fm_items">
+        <item quantity="other">%1$d個の項目</item>
+    </plurals>
+
+    <!-- %1$s is a file name or a number of items -->
+    <string name="fm_paste_here">%1$sをここに貼り付け</string>
+
+    <!-- %1$s is a file name or a number of items -->
+    <string name="fm_paste_move_here">%1$sをここに貼り付け（移動）</string>
+    <string name="fm_rail_title">ファイル</string>
+    <string name="fm_rail_storage">ストレージ</string>
+
+    <!-- Rail section of shortcut folders (Downloads, ROMs, …) -->
+    <string name="fm_rail_quick">クイック</string>
+    <string name="fm_rail_favorites">お気に入り</string>
+    <string name="fm_rail_downloads">ダウンロード</string>
+
+    <!-- Downloads shortened to fit under an icon (about 8 characters) -->
+    <string name="fm_rail_downloads_short">DL</string>
+    <string name="fm_rail_roms">ROM</string>
+    <string name="fm_rail_session_logs">セッションログ</string>
+    <string name="fm_rail_pictures">画像</string>
+
+    <!-- %1$s is a folder name -->
+    <string name="fm_favorite_added">「%1$s」をお気に入りに追加しました</string>
+
+    <!-- %1$s is a folder name -->
+    <string name="fm_favorite_removed">「%1$s」をお気に入りから削除しました</string>
+    <string name="fm_empty_directory">空のフォルダ</string>
+    <string name="fm_up_one_level">1つ上の階層へ</string>
+    <string name="fm_choose_folder">フォルダを選択</string>
+    <string name="fm_choose_file">ファイルを選択</string>
+
+    <!-- On-screen controller tint colors -->
+    <string name="ctrl_tint_steam_blue">Steamブルー</string>
+    <string name="ctrl_tint_sky">スカイ</string>
+    <string name="ctrl_tint_white">ホワイト</string>
+    <string name="ctrl_tint_violet">バイオレット</string>
+    <string name="ctrl_tint_green">グリーン</string>
+    <string name="ctrl_tint_amber">アンバー</string>
+    <string name="ctrl_tint_red">レッド</string>
+    <string name="ctrl_tint_pink">ピンク</string>
+
+    <!-- On-screen buttons that can be remapped -->
+    <string name="ctrl_button_a">Aボタン</string>
+    <string name="ctrl_button_b">Bボタン</string>
+    <string name="ctrl_button_x">Xボタン</string>
+    <string name="ctrl_button_y">Yボタン</string>
+    <string name="ctrl_button_lb">左バンパー</string>
+    <string name="ctrl_button_rb">右バンパー</string>
+    <string name="ctrl_button_lt">左トリガー</string>
+    <string name="ctrl_button_rt">右トリガー</string>
+    <string name="ctrl_button_view">ビューボタン</string>
+    <string name="ctrl_button_menu">メニューボタン</string>
+
+    <!-- What a remapped on-screen button sends; letters and Steam are controller button names -->
+
+    <!-- Controller View button -->
+    <string name="ctrl_target_view">ビュー</string>
+
+    <!-- Controller Menu button -->
+    <string name="ctrl_target_menu">メニュー</string>
+    <string name="ctrl_target_up">十字キー上</string>
+    <string name="ctrl_target_down">十字キー下</string>
+    <string name="ctrl_target_left">十字キー左</string>
+    <string name="ctrl_target_right">十字キー右</string>
+
+    <!-- The on-screen button is not shown -->
+    <string name="ctrl_target_hidden">非表示</string>
+    <string name="ctrl_editor_drag">ドラッグして移動</string>
+    <string name="ctrl_editor_snap">スナップ</string>
+    <string name="ctrl_editor_save">保存</string>
+
+    <!-- What the second screen shows during a session -->
+    <string name="second_mode_none">なし</string>
+    <string name="second_mode_keyboard_trackpad">キーボード + トラックパッド</string>
+    <string name="second_mode_terminal">ターミナル</string>
+    <string name="second_mode_deck_controls">Deckグリップ + トラックパッド</string>
+
+    <!-- Runtime, updates and setup helpers -->
+
+    <!-- Linux runtime install / removal (LinuxRuntimeInstaller, RuntimeInstallService) -->
+    <string name="rtinst_removing">Linux実行環境を削除中</string>
+    <plurals name="rtinst_removing_entries">
+        <item quantity="other">Linux実行環境を削除中 · %1$d項目</item>
+    </plurals>
+    <string name="rtinst_removed">Linux実行環境を削除しました</string>
+    <string name="rtinst_removal_failed">Linux実行環境の削除を完了できませんでした。「設定」で削除を再試行してください。</string>
+    <string name="rtinst_removing_leftovers">実行環境の残りのファイルを削除中</string>
+    <string name="rtinst_downloading">ダウンロード中</string>
+    <string name="rtinst_verifying">検証中</string>
+    <string name="rtinst_extracting">展開中</string>
+    <string name="rtinst_channel_description">Linux実行環境のインストール中または削除中に表示</string>
+    <string name="rtinst_title_installing">Linux実行環境をインストール中</string>
+    <string name="rtinst_title_removing">Linux実行環境を削除中</string>
+
+    <!-- Hosted desktop and emulator packages (DesktopCatalog) -->
+    <string name="deskpkg_runtime_missing">Linux実行環境がインストールされていません</string>
+
+    <!-- %1$s: package name -->
+    <string name="deskpkg_no_checksum">カタログに%1$sのチェックサムがありません</string>
+    <string name="deskpkg_checksum_mismatch">チェックサムが一致しません - 何も変更されていません</string>
+
+    <!-- %1$s: package name -->
+    <string name="deskpkg_installing">%1$sをインストール中</string>
+    <string name="deskpkg_place_failed">AppImageを配置できませんでした</string>
+    <string name="deskpkg_extract_failed">展開に失敗しました</string>
+    <string name="deskpkg_install_failed">インストールに失敗しました</string>
+
+    <!-- Flatpak store operations (FlatpakManager) -->
+    <string name="flatpakmgr_setup_failed">Flatpakのセットアップに失敗しました（終了コード %1$d）</string>
+    <string name="flatpakmgr_setup_unfinished">Flatpakのセットアップが完了しませんでした</string>
+    <string name="flatpakmgr_busy">別のストアのタスクを実行中です</string>
+    <string name="flatpakmgr_not_ready">先にFlatpakをセットアップしてください</string>
+    <string name="flatpakmgr_starting">開始中</string>
+    <string name="flatpakmgr_exit_status">Flatpakがステータス%1$dで終了しました</string>
+
+    <!-- %1$s: an app or runtime name, e.g. "SuperTux" or "GNOME runtime 50" -->
+    <string name="flatpakmgr_installing">%1$sをインストール中</string>
+    <string name="flatpakmgr_updating">%1$sを更新中</string>
+    <string name="flatpakmgr_removing">%1$sを削除中</string>
+
+    <!-- %1$s: an app or runtime name; %2$d of %3$d: this step and the number of steps -->
+    <string name="flatpakmgr_installing_step">%1$sをインストール中（%2$d/%3$d）</string>
+    <string name="flatpakmgr_updating_step">%1$sを更新中（%2$d/%3$d）</string>
+    <string name="flatpakmgr_removing_step">%1$sを削除中（%2$d/%3$d）</string>
+
+    <!-- Names for Flatpak runtime parts, shown inside "Installing %1$s" -->
+    <string name="flatpakmgr_ref_translations">翻訳</string>
+    <string name="flatpakmgr_ref_graphics_drivers">グラフィックドライバー</string>
+    <string name="flatpakmgr_ref_media_codecs">メディアコーデック</string>
+
+    <!-- %1$s: runtime vendor, e.g. GNOME, KDE, Freedesktop -->
+    <string name="flatpakmgr_ref_runtime">%1$sランタイム</string>
+
+    <!-- %1$s: runtime vendor, e.g. GNOME; %2$s: its version, e.g. 50 -->
+    <string name="flatpakmgr_ref_runtime_branch">%1$sランタイム %2$s</string>
+
+    <!-- Imported AppImages (AppImageManager) -->
+    <string name="appimg_too_small">ファイルが小さすぎるため、AppImageではありません</string>
+
+    <!-- %1$s: the system's reason -->
+    <string name="appimg_unreadable">ファイルを読み取れません：%1$s</string>
+    <string name="appimg_not_linux">AppImageではありません（Linuxプログラムではありません）</string>
+    <string name="appimg_wrong_arch">このAppImageはARM64（aarch64）向けでもx86 PC向けでもありません</string>
+    <string name="appimg_not_appimage">Linuxプログラムですが、AppImageではありません</string>
+    <string name="appimg_wrong_type">インポートできるのはタイプ2のAppImageのみです（このファイルはタイプ%1$d）</string>
+
+    <!-- %1$s: a size such as "3.2 GB" -->
+    <string name="appimg_no_space_import">空き容量不足：インポートには約%1$sが必要です</string>
+
+    <!-- %1$s: a size such as "3.2 GB" -->
+    <string name="appimg_no_space_update">空き容量不足：更新には約%1$sが必要です</string>
+    <string name="appimg_import_failed">インポートに失敗しました</string>
+    <string name="appimg_gone">このAppImageは存在しません</string>
+    <string name="appimg_update_failed">更新に失敗しました</string>
+
+    <!-- %1$s: file name -->
+    <string name="appimg_extracting">%1$sを展開中</string>
+    <string name="appimg_extract_failed">AppImageを展開できませんでした</string>
+
+    <!-- %1$s: the last line the extractor printed -->
+    <string name="appimg_extract_failed_detail">AppImageを展開できませんでした：%1$s</string>
+
+    <!-- Decky Loader and plugin installs (DeckyManager) -->
+    <string name="deckymgr_stop_session_loader">Decky Loaderをインストールする前に、実行中のセッションを停止してください</string>
+    <string name="deckymgr_download_failed">Decky Loaderのダウンロードに失敗しました</string>
+    <string name="deckymgr_size_mismatch">Decky Loaderのサイズがリリース情報と一致しません</string>
+    <string name="deckymgr_checksum_download_failed">リリースのチェックサムをダウンロードできませんでした</string>
+    <string name="deckymgr_checksum_missing">リリースのチェックサムがありません</string>
+    <string name="deckymgr_checksum_invalid">リリースのチェックサムが無効です</string>
+    <string name="deckymgr_checksum_mismatch">Decky Loaderのチェックサムが一致しません</string>
+    <string name="deckymgr_not_elf">リリースファイルは互換性のある64ビットLinux実行ファイルではありません</string>
+    <string name="deckymgr_session_started_loader">ダウンロード中にセッションが開始されました。停止してからDecky Loaderをインストールしてください</string>
+    <string name="deckymgr_loader_not_executable">PluginLoaderを実行可能にできませんでした</string>
+    <string name="deckymgr_cef_failed">SteamのCEFリモートデバッグを有効にできませんでした</string>
+    <string name="deckymgr_stage_failed">PluginLoaderを準備できませんでした</string>
+    <string name="deckymgr_loader_preserve_failed">既存のPluginLoaderを保持できませんでした</string>
+    <string name="deckymgr_loader_activate_failed">新しいPluginLoaderを有効にできませんでした</string>
+    <string name="deckymgr_stop_session_plugin">プラグインをインストールする前に、実行中のセッションを停止してください</string>
+    <string name="deckymgr_loader_required">プラグインをインポートする前にDecky Loaderをインストールしてください</string>
+    <string name="deckymgr_zip_unreadable">選択したzipファイルを読み取れませんでした</string>
+    <string name="deckymgr_plugins_dir_failed">Deckyのプラグインフォルダを作成できませんでした</string>
+    <string name="deckymgr_extracting_zip">プラグインのzipを展開中</string>
+    <string name="deckymgr_zip_one_folder">プラグインのzipには、最上位にプラグインフォルダが1つだけ含まれている必要があります</string>
+    <string name="deckymgr_zip_missing_files">プラグインのzipにplugin.json、package.json、またはdist/index.jsがありません</string>
+    <string name="deckymgr_plugin_name_missing">プラグイン名がありません</string>
+    <string name="deckymgr_session_started_plugin">インストール中にセッションが開始されました。停止してからプラグインをインストールしてください</string>
+    <string name="deckymgr_plugin_installed">プラグインをインストールしました · 読み込むにはSteamを再起動してください</string>
+    <string name="deckymgr_plugin_install_failed">プラグインのzipのインストールに失敗しました</string>
+    <string name="deckymgr_zip_too_many">プラグインのzipに含まれる項目が多すぎます</string>
+    <string name="deckymgr_zip_invalid_path">プラグインのzipに無効なパスが含まれています</string>
+    <string name="deckymgr_zip_duplicate_paths">プラグインのzipに重複したパスが含まれています</string>
+    <string name="deckymgr_zip_unsafe_path">プラグインのzipに安全でないパスが含まれています</string>
+    <string name="deckymgr_folder_failed">プラグインフォルダを作成できませんでした</string>
+    <string name="deckymgr_zip_too_large">プラグインのzipの展開後のサイズが上限の1 GiBを超えています</string>
+    <string name="deckymgr_bundled_not_executable">同梱のプラグインバイナリを実行可能にできませんでした</string>
+    <string name="deckymgr_remote_entry_invalid">remote_binaryの項目が無効です</string>
+    <string name="deckymgr_remote_name_invalid">リモートバイナリ名が無効です</string>
+    <string name="deckymgr_remote_url_https">リモートバイナリのURLにはHTTPSを使用する必要があります</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_remote_hash_invalid">リモートバイナリ%1$sのSHA-256ハッシュが無効です</string>
+    <string name="deckymgr_bin_dir_failed">プラグインのbinフォルダを作成できませんでした</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_downloading_binary">プラグインバイナリをダウンロード中 · %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_download_failed">プラグインバイナリ%1$sをダウンロードできませんでした</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_checksum_mismatch">プラグインバイナリのチェックサムが一致しません · %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_not_executable">プラグインバイナリを実行可能にできませんでした · %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_replace_failed">プラグインバイナリを置き換えられませんでした · %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_install_failed">プラグインバイナリをインストールできませんでした · %1$s</string>
+    <string name="deckymgr_folder_taken">このプラグインフォルダは別のプラグインが使用しています</string>
+    <string name="deckymgr_preserve_failed">既存のプラグインを保持できませんでした</string>
+    <string name="deckymgr_activate_failed">インポートしたプラグインを有効にできませんでした</string>
+    <string name="deckymgr_settings_failed">Deckyのプラグイン設定を更新できませんでした</string>
+    <string name="deckymgr_restore_failed">既存のプラグインを復元できませんでした</string>
+
+    <!-- Child-process limit change over Wireless debugging (WirelessAdbFix) -->
+    <string name="adbfix_save_failed">ワイヤレスデバッグの識別情報を保存できませんでした</string>
+
+    <!-- %1$d: the command's exit status -->
+    <string name="adbfix_command_failed">ADBコマンドに失敗しました（%1$d）</string>
+
+    <!-- %1$s: what Android answered -->
+    <string name="adbfix_not_confirmed">Androidは子プロセス制限の変更を確認しませんでした：%1$s</string>
+    <string name="adbfix_no_pairing">ワイヤレスデバッグのペアリング情報が保存されていません</string>
+    <string name="adbfix_enter_address">現在のワイヤレスデバッグのIPアドレスとポートを入力してください</string>
+
+    <!-- Wireless debugging pairing notification (WirelessAdbPairingService) -->
+    <string name="adbpair_timed_out">ペアリングのポップアップを待機中にタイムアウトしました。DroidDeckからもう一度お試しください。</string>
+
+    <!-- %1$d: Android's error code -->
+    <string name="adbpair_discovery_failed_code">ペアリングのポップアップを検索できませんでした（%1$d）。Wi-Fiがオンになっているか確認してください。</string>
+
+    <!-- %1$s: the system's reason -->
+    <string name="adbpair_discovery_failed">ペアリングのポップアップを検索できませんでした：%1$s</string>
+    <string name="adbpair_six_digits">6桁のコードをすべて入力してください</string>
+    <string name="adbpair_pairing">ペアリング中…</string>
+    <string name="adbpair_code_rejected">コードが正しくありません。ペアリングのポップアップをもう一度開き、新しいコードを入力してください。</string>
+    <string name="adbpair_connecting">ペアリング済み。接続中…</string>
+    <string name="adbpair_port_not_found">ペアリングしましたが、ワイヤレスデバッグのポートが見つかりませんでした。ワイヤレスデバッグをオンのままにして、もう一度お試しください。</string>
+    <string name="adbpair_applying">設定を適用中…</string>
+    <string name="adbpair_command_failed">ワイヤレスデバッグのコマンドに失敗しました</string>
+    <string name="adbpair_channel_name">ワイヤレスデバッグのセットアップ</string>
+    <string name="adbpair_channel_description">設定を開いている間、ワイヤレスデバッグのペアリングコードを入力するよう求めます</string>
+    <string name="adbpair_title_pair">ワイヤレスデバッグのペアリング</string>
+    <string name="adbpair_waiting_text">ワイヤレスデバッグをオンにして、「ペアリングコードでデバイスをペア設定」をタップしてください。</string>
+    <string name="adbpair_waiting_long">ワイヤレスデバッグをオンにして、「ペアリングコードでデバイスをペア設定」をタップしてください。設定画面のままにしてください：コードはこの通知に入力します。</string>
+
+    <!-- Label of the notification's reply field -->
+    <string name="adbpair_code_label">6桁のペアリングコード</string>
+    <string name="adbpair_code_hint">「コードを入力」をタップし、設定に表示された6桁の数字を入力してください。</string>
+    <string name="adbpair_title_code">Wi-Fiペアリングコードを入力</string>
+    <string name="adbpair_title_retry">コードをもう一度入力</string>
+
+    <!-- Notification action button -->
+    <string name="adbpair_enter_code">コードを入力</string>
+    <string name="adbpair_title_working">Steamをセットアップ中</string>
+    <string name="adbpair_title_done">Steamの準備ができました</string>
+    <string name="adbpair_done_text">タップしてDroidDeckに戻ります。ワイヤレスデバッグはオフにしてかまいません。</string>
+    <string name="adbpair_title_failed">ワイヤレスデバッグのセットアップが中断しました</string>
+
+    <!-- DroidDeck's own updates (SelfInstaller, AppUpdates) -->
+    <string name="selfinst_http">ダウンロード先がHTTP %1$dを返しました</string>
+    <string name="selfinst_size_mismatch">ダウンロードしたファイルのサイズが公開されているAPKと一致しないため、破棄しました。もう一度お試しください</string>
+    <string name="selfinst_checksum_mismatch">ダウンロードしたファイルがチェックサムと一致しないため、破棄しました。もう一度お試しください</string>
+
+    <!-- %1$s: the update's Android package name; %2$s: this app's -->
+    <string name="selfinst_wrong_package">このアップデートはAndroidパッケージ%1$s用で、%2$s用ではありません</string>
+    <string name="selfinst_metadata_signer">アップデート情報にDroidDeckのリリース署名キーが記載されていません</string>
+    <string name="selfinst_unreadable">AndroidがダウンロードしたAPKを読み取れませんでした</string>
+
+    <!-- %1$s: the APK's Android package name; %2$s: this app's -->
+    <string name="selfinst_apk_wrong_package">ダウンロードしたAPKは%1$s用で、%2$s用ではありません</string>
+    <string name="selfinst_version_mismatch">ダウンロードしたAPKのversionCodeは%1$dで、公開されている%2$dと一致しません</string>
+    <string name="selfinst_downgrade">AndroidはインストールされているversionCode %2$dの上に%1$dをインストールしません</string>
+    <string name="selfinst_no_signing">ダウンロードしたAPKに署名情報がありません</string>
+    <string name="selfinst_wrong_signer">ダウンロードしたAPKはDroidDeckのリリースキーで署名されていません</string>
+    <string name="appupd_http">アップデートカタログがHTTP %1$dを返しました</string>
+
+    <!-- Session, GPU and display -->
+
+    <!-- Session loading screen -->
+    <string name="loadstate_starting">セッションを開始中…</string>
+
+    <!-- %1$d minutes, %2$02d seconds since the session started -->
+    <string name="loadstate_elapsed">%1$d:%2$02d 経過 · 処理中</string>
+    <string name="loadstate_steam_update">Steamクライアントのアップデートをダウンロード中 · %1$d%%</string>
+
+    <!-- %1$s is the client's own download progress, as it prints it -->
+    <string name="loadstate_steam_client">Steamクライアントをダウンロード中 · %1$s</string>
+
+    <!-- Installing GE-Proton / proton-cachyos (%1$s is the tool's name, %2$s its release tag) -->
+    <string name="pextra_busy">互換性ツールのインストールはすでに実行中です</string>
+    <string name="pextra_stop_session">互換性ツールをインストールする前に、実行中のセッションを停止してください</string>
+    <string name="pextra_no_release">%1$sのARM64リリースが見つかりませんでした</string>
+    <string name="pextra_no_space">%1$sのインストールには、ダウンロードサイズに加えて4GB以上の空き容量が必要です</string>
+    <string name="pextra_downloading">%1$s %2$sをダウンロード中</string>
+    <string name="pextra_retrying">ダウンロードを再試行中 · %1$d / %2$d回目</string>
+    <string name="pextra_interrupted">ダウンロードが中断されました</string>
+    <string name="pextra_download_failed">ダウンロードに失敗しました。再試行時に再開できるよう、途中までのファイルは保持されます</string>
+    <string name="pextra_too_big">ダウンロードがリリースのサイズを超えたため、削除しました</string>
+    <string name="pextra_incomplete">ダウンロードが完了しませんでした。再試行時に再開できるよう、途中までのファイルは保持されます</string>
+    <string name="pextra_verifying">ダウンロードを検証中</string>
+    <string name="pextra_checksum_unreadable">リリースのチェックサムを読み取れませんでした。もう一度お試しください</string>
+    <string name="pextra_no_checksum">%1$s %2$sはチェックサムを公開していないため、何もインストールされませんでした</string>
+    <string name="pextra_checksum_mismatch">チェックサムが一致しないため、ダウンロードを削除しました</string>
+    <string name="pextra_session_started">ダウンロード中にセッションが開始されました。停止してから互換性ツールをインストールしてください</string>
+    <string name="pextra_installing">%1$sをインストール中</string>
+
+    <!-- %2$d is the installer's exit status -->
+    <string name="pextra_install_failed">%1$sのインストールに失敗しました（終了コード %2$d）</string>
+    <string name="pextra_could_not_install">%1$sをインストールできませんでした</string>
+    <string name="esync_fetching">droiddeck-esyncパックを取得中</string>
+
+    <!-- Components (FEX / DXVK / VKD3D-Proton swapped into a Proton). %1$s component, %2$s version, %3$s Proton -->
+    <string name="cmgr_fex_linux_helpers">Linux補助プログラム付き</string>
+    <string name="cmgr_fex_dlls_only">DLLのみ</string>
+    <string name="cmgr_original_proton_updated">元（前回の置き換え以降にProtonが更新されました）</string>
+    <string name="cmgr_changed_outside">「コンポーネント」以外で変更されました</string>
+
+    <!-- A component version that could not be found in a Proton -->
+    <string name="cmgr_not_present">なし</string>
+
+    <!-- %1$s is the Proton build the original files were saved from -->
+    <string name="cmgr_original_version">元 %1$s</string>
+    <string name="cmgr_original_from">%1$sの元のファイル</string>
+    <string name="cmgr_swap_queued">%3$sで実行中のゲームが終了すると、%1$s %2$sがそこに入ります。</string>
+    <string name="cmgr_swap_done">%1$s %2$sが%3$sに入りました。次回のゲーム起動時に有効になります。</string>
+    <string name="cmgr_original_missing">その元のバンドルは保存されていません</string>
+
+    <!-- %1$s component, %2$s Proton -->
+    <string name="cmgr_restore_queued">%2$sで実行中のゲームが終了すると、その%1$sが元に戻ります。</string>
+
+    <!-- %1$s component, %2$s Proton, %3$s the Proton build the original came from -->
+    <string name="cmgr_restore_done">%2$sの%1$sを%3$sの元のファイルから復元しました。</string>
+
+    <!-- %1$s package file, %2$s Proton id -->
+    <string name="cmgr_package_in_use">%1$sは%2$sで使用中です。先にそのProtonを別のものに置き換えてください。</string>
+    <string name="cmgr_package_not_stored">%1$sは保存されていません</string>
+    <string name="cmgr_deleted">%1$sを削除しました。</string>
+    <string name="cmgr_original_kept">インストール済みビルドの元のファイルは、元に戻すために保持されます。</string>
+    <string name="cmgr_not_stored">保存されていません</string>
+
+    <!-- %1$s Proton build, %2$s component -->
+    <string name="cmgr_deleted_original">%2$sの%1$s版の元のファイルを削除しました。</string>
+    <string name="cmgr_nightlies_only">ダウンロードはNightliesのリリースからのみ行われます</string>
+    <string name="cmgr_list_predates_checksums">このパッケージ一覧はチェックサム導入前のものです。更新してからもう一度お試しください</string>
+    <string name="cmgr_checksum_mismatch">チェックサムが一致しません</string>
+
+    <!-- Display choices -->
+    <string name="sprefs_upscaler_linear">リニア</string>
+    <string name="sprefs_upscaler_nearest">ニアレスト</string>
+    <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR（品質）</string>
+    <string name="sprefs_upscaler_sharpen">シャープのみ</string>
+    <string name="sprefs_lod_bias_auto">自動（スケーリングに合わせる）</string>
+
+    <!-- Screen effect Looks: preset names and the line under the row -->
+    <string name="look_off_desc">何も適用されません。</string>
+    <string name="look_game_clarity">ゲームクラリティ</string>
+    <string name="look_game_clarity_desc">シャープ化に少しコントラストを加えた、普段使い向け。</string>
+    <string name="look_vivid">ビビッド</string>
+    <string name="look_vivid_desc">色を大きく強調。空に縞が出ないようバンディング除去をオン。</string>
+    <string name="look_cinematic">シネマティック</string>
+    <string name="look_cinematic_desc">深いコントラスト、寒色寄りの色、なめらかなエッジ。</string>
+    <string name="look_competitive">競技向け</string>
+    <string name="look_competitive_desc">暗部を持ち上げ、強めのシャープ化で敵をいち早く発見。</string>
+    <string name="look_adaptive_sharpen">アダプティブシャープ</string>
+    <string name="look_adaptive_sharpen_desc">シャープ化のみ、色はそのまま。</string>
+    <string name="look_filmic">フィルム調</string>
+    <string name="look_filmic_desc">フィルムのようなトーンカーブ、やや控えめな色。</string>
+    <string name="look_arcade">アーケード</string>
+    <string name="look_arcade_desc">派手でメリハリのある画。</string>
+    <string name="look_retro_crt">レトロCRT</string>
+    <string name="look_retro_crt_desc">ブラウン管とアナログ信号のエフェクトを組み合わせます。</string>
+    <string name="look_upscale_sharp">アップスケールシャープ</string>
+    <string name="look_upscale_sharp_desc">パネル解像度より低い解像度で実行する場合に。</string>
+    <string name="look_pixel_clean">ピクセルクリーン</string>
+    <string name="look_pixel_clean_desc">2Dや古いタイトル向けのくっきりしたピクセル。</string>
+    <string name="look_anime_edge">アニメエッジ</string>
+    <string name="look_anime_edge_desc">トゥーン輪郭線とシャープ化。</string>
+
+    <!-- GPU support line -->
+    <string name="gpuinfo_not_adreno">Adreno GPUではありません</string>
+    <string name="gpuinfo_supported">サポート対象</string>
+    <string name="gpuinfo_experimental">実験的：ドライバーはテストビルドです</string>
+    <string name="gpuinfo_below_tested">テスト済みハードウェア（Adreno 725以降）未満：動作しない可能性があります</string>
+    <string name="gpuinfo_unsupported">サポート対象外：DroidDeckにはAdreno（Snapdragon）GPUが必要です</string>
+
+    <!-- Driver downloads and imports -->
+    <string name="turnip_rate_limited">GitHubのレート制限に達しました。後でもう一度お試しください</string>
+    <string name="turnip_github_http">GitHubがHTTP %1$dを返しました</string>
+    <string name="turnip_download_http">ダウンロード先がHTTP %1$dを返しました</string>
+    <string name="turnip_list_predates_checksums">このドライバー一覧はチェックサム導入前のものです。更新してからもう一度お試しください</string>
+    <string name="turnip_checksum_mismatch">チェックサムが一致しないため、ダウンロードを破棄しました</string>
+
+    <!-- %1$s is one of the turnip_reject_* reasons -->
+    <string name="turnip_not_adrenotools">AdrenoToolsドライバーではありません：%1$s</string>
+    <string name="turnip_reject_no_meta">meta.jsonがありません</string>
+    <string name="turnip_reject_meta_unreadable">meta.jsonを読み取れません（%1$s）</string>
+    <string name="turnip_reject_linux_driver">これはLinuxランタイムドライバーです（「ランタイムドライバー」でインポートしてください）</string>
+    <string name="turnip_reject_wayland">これはWaylandゲーム用ドライバーで、このアプリでは使用しません</string>
+    <string name="turnip_reject_no_library_name">meta.jsonにlibraryNameが指定されていないため、AdrenoToolsに渡せるものがありません</string>
+
+    <!-- %1$s is a library file name -->
+    <string name="turnip_reject_library_missing">meta.jsonで指定された%1$sがzipに含まれていません</string>
+    <string name="turnip_reject_not_aarch64">%1$sは64ビットAArch64 ELF共有ライブラリではありません</string>
+    <string name="turnip_reject_glibc">%1$sはglibcにリンクしています。これは「-Linux」Turnipなので、「ランタイムドライバー」でインポートしてください</string>
+    <string name="lvd_no_library">このzipにはlibvulkan_freedreno*.soがありません。Android（AdrenoTools）用や-WaylandのTurnip zipはLinuxランタイムドライバーではありません。</string>
+    <string name="lvd_not_aarch64">%1$sは64ビットAArch64 ELF共有ライブラリではありません。</string>
+    <string name="lvd_not_glibc">%1$sはglibcドライバーではなく、Androidのlibcにリンクしています。Linux実行環境には「-Linux」zipが必要です。通常版や「-Wayland」のTurnipはSteamクライアントでは一切読み込めません。</string>
+    <string name="bundle_no_manifest">ドライバーバンドルではありません：androidドライバーとlinuxドライバーを指定するmanifest.jsonがありません</string>
+    <string name="bundle_entry_outside">ドライバーバンドルではありません：%1$sがバンドルの外を指しています</string>
+    <string name="bundle_too_large">ドライバーバンドルではありません：展開後のサイズが%1$d MBを超えます</string>
+
+    <!-- Game storage -->
+    <string name="gstore_sd_card">SDカード</string>
+
+    <!-- %1$s is a size, like 12.3 GB -->
+    <string name="gstore_folder">フォルダ</string>
+    <string name="logshare_chooser">セッションログを共有</string>
+
+    <!-- Stands in for the Steam account name when the client did not record one -->
+
+    <!-- Why the HDR switch is greyed out -->
+    <string name="hdr_needs_android_10">Android 10以降が必要です（色空間付きのディスプレイレイヤー）</string>
+    <string name="hdr_none">このディスプレイはHDRに対応していません</string>
+
+    <!-- %1$s lists HDR formats, like Dolby Vision, HDR10+ -->
+    <string name="hdr_not_hdr10">このディスプレイは%1$sに対応していますが、HDR10には対応していません</string>
+
+    <!-- Follow-up -->
+
+    <!-- Stands in for the GPU name when the device does not report one -->
+    <string name="gpu_this_gpu">このGPU</string>
+    <string name="phantom_title_on">子プロセス制限がオンです</string>
+    <string name="phantom_title_unset">子プロセス制限が未設定です</string>
+    <string name="phantom_title_unreadable">子プロセス制限を確認できませんでした</string>
+    <string name="phantom_title_off">子プロセス制限はオフです</string>
+    <string name="phantom_title_not_required">子プロセス制限の変更は不要です</string>
+
+    <!-- %1$s is the sentence saying how to turn the limit off on this device -->
+    <string name="phantom_instructions_fix">%1$s それができない場合は、このデバイスをADBが使えるPCに接続し、以下のコマンドを実行してください。その後ここに戻って再確認してください。</string>
+    <string name="phantom_instructions_off">Steamセッションを開始できます。</string>
+    <string name="phantom_instructions_not_applicable">このAndroidバージョンではこの制限は使用されません。</string>
+    <string name="phantom_fix_toggle">開発者向けオプションで「子プロセス制限を無効にする」をオンにし、その後も開発者向けオプションをオンのままにしてください。</string>
+    <string name="phantom_fix_no_toggle">このAndroidバージョンにはこのスイッチがありません。ワイヤレスデバッグを使って、このデバイスから変更してください。</string>
+    <string name="upd_block_no_apk">このビルドには、このDroidDeckコピー用のダウンロードがありません。</string>
+
+    <!-- %1$d is the offered build's versionCode, %2$d the installed one's -->
+    <string name="upd_block_version_code">このビルドのversionCode %1$dはインストール済みの%2$dより小さいため、Androidは上書きインストールしません。</string>
+    <string name="upd_fail_downgrade">Androidは新しいバージョンの上に古いバージョンをインストールしません。チャンネルが追いつくまで、このビルドを使い続けてください。</string>
+    <string name="upd_fail_signature">このDroidDeckコピーは署名が異なる（ローカルビルド？）ため、Androidは上書き更新しません。</string>
+    <string name="upd_fail_storage">アップデートに必要な空き容量が不足しています。</string>
+    <string name="upd_fail_aborted">アップデートはキャンセルされました。</string>
+
+    <!-- %1$s is Android's own (English) installer message -->
+    <string name="upd_fail_with_message">アップデートをインストールできませんでした：%1$s</string>
+    <string name="upd_fail_generic">アップデートをインストールできませんでした。</string>
+
+    <!-- A save zip's layout; %1$s is the app it comes from (GameHub, Winlator) -->
+    <string name="saves_layout_zip">%1$s zip</string>
+
+    <!-- A save zip whose layout is not known -->
+    <string name="saves_zip">zip</string>
+
+    <!-- %1$s is the game's name -->
+    <string name="saves_not_launched">%1$sはまだ起動されていません</string>
+    <string name="saves_none_found">%1$sのセーブファイルが見つかりません</string>
+
+    <!-- %1$s is the zip's file name -->
+    <string name="saves_not_save_zip">%1$sにはdrive_cフォルダがないため、GameHubまたはWinlatorのセーブデータzipではありません</string>
+
+    <!-- %1$s is a folder path -->
+    <string name="gstore_cannot_create">%1$sにフォルダを作成できません</string>
+    <string name="gstore_cannot_write">%1$sに書き込めません</string>
+
+    <!-- %1$s is a folder path, %2$s the system's error -->
+    <string name="gstore_cannot_write_detail">%1$sに書き込めません（%2$s）</string>
+    <string name="gfiles_folder_unavailable">フォルダを利用できません</string>
+
+    <!-- %1$s is a file name -->
+    <string name="gfiles_name_taken">%1$sは別のファイルがすでに使用しています</string>
+    <string name="gfiles_art_unavailable">画像フォルダを利用できません</string>
+    <string name="gfiles_unrelated_inventory">フォルダに無関係な同期情報があります</string>
+
+    <!-- %1$s is a file name -->
+    <string name="gfiles_remove_failed">%1$sを削除できませんでした</string>
+    <string name="gfiles_outside_folder">ファイルがエクスポートフォルダの外を指しています</string>
+
+    <!-- A FEX build whose DLL carries no version name -->
+    <string name="cmgr_fex_unnamed">FEX（バージョン名のないビルド）</string>
+
+    <!-- %1$s is a package file name -->
+    <string name="cmgr_no_profile">%1$sにprofile.jsonがありません</string>
+
+    <!-- %1$s is a package file name, %2$s the type its profile.json gives -->
+    <string name="cmgr_not_component_package">%1$sはLinuxコンポーネントパッケージではありません（タイプ %2$s）</string>
+
+    <!-- A storage volume in the second-library menu; %1$s is its name, %2$s its free space, like 12.3 GB -->
+    <string name="gstore_volume_free">%1$s · 空き %2$s</string>
+
+    <!-- The second-library setting's value when it is automatic (short form of mode_storage_auto) -->
+    <string name="mode_storage_auto_short">自動</string>
+
+    <!-- %1$s is the technical reason, kept in English -->
+    <string name="appupd_catalog_rejected">アップデートカタログの検証に失敗しました（%1$s）</string>
+
+    <!-- Label of the copied ADB command on the clipboard -->
+    <string name="main_adb_clip_label">DroidDeckの子プロセス設定</string>
+
+    <!-- Signed in, but the Steam client recorded no account name -->
+    <string name="setup_signed_in_offline_unnamed">ログイン中 · オフラインモード</string>
+    <string name="setup_signed_in_unnamed">ログイン中</string>
+
+    <!-- Small uppercase tags beside a driver's name: where it came from -->
+    <string name="driver_tag_bundled">同梱</string>
+    <string name="driver_tag_downloaded">ダウンロード</string>
+    <string name="driver_tag_imported">インポート</string>
+
+    <!-- The driver is one half of a bundle that sets both drivers -->
+    <string name="driver_tag_bundle">ANDROID + LINUX</string>
+
+    <!-- %1$s is the limit's state (e.g. Child-process limit is on), %2$s what to do, %3$s the ADB command -->
+    <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
+    <string name="display_session">セッションの表示</string>
+    <string name="display_resolution">解像度</string>
+    <string name="display_game_fit">16:9ゲームの表示</string>
+    <string name="display_game_fit_hint">16:9のゲームをこのディスプレイにどう合わせるか。次回のセッションから。</string>
+    <string name="display_game_fit_unavailable">「画面に合わせる」か、16:9より縦長のカスタムサイズを選んでください。</string>
+    <string name="display_preserve">縦横比を保持</string>
+    <string name="display_stretch">画面いっぱいに引き伸ばす</string>
+    <string name="display_image_scaling">画像のスケーリング</string>
+    <string name="display_filter">スケーリングフィルター</string>
+    <string name="display_filter_hint">Steamとデスクトップで共有されます。</string>
+    <string name="display_filter_live">すぐに反映されます。Steamとデスクトップで共有されます。</string>
+    <string name="display_filter_note">FSR、GSR、NISはセッションの映像を拡大するときに機能します。「シャープのみ」は拡大しなくても機能します。</string>
+    <string name="display_sharpness">フィルターのシャープネス</string>
+    <string name="display_frame_rate">フレームレート</string>
+    <string name="display_look_filter">%1$s スケーリングを%2$sに設定します。</string>
+    <string name="display_match_screen">画面に合わせる（%1$d×%2$d）</string>
+    <string name="mode_tab_steam">Steam</string>
+    <string name="device_info_show">デバイスの詳細を表示</string>
+    <string name="device_info_hide">デバイスの詳細を非表示</string>
+    <string name="device_info_loading">デバイス情報を読み取り中…</string>
+    <string name="device_info_copy">コピー</string>
+    <string name="device_info_copy_hint">この詳細をバグ報告にコピーします。</string>
+    <string name="device_info_copied">コピーしました。</string>
+    <string name="force_ssbs_title">SSBSを強制</string>
+    <string name="force_ssbs_hint">Wineがオフにし続けるCPUの速度設定をオンに保ちます。Snapdragon 8 EliteではWindowsゲームが速くなることがあります。古いチップではほとんど変化がありません。次のゲーム起動時に反映されます。</string>
+    <string name="common_close">閉じる</string>
+    <string name="common_back">戻る</string>
+    <string name="common_edit">編集</string>
+    <string name="games_add_all">このフォルダーのゲームをすべて追加</string>
+    <string name="games_added_none">このフォルダーに新しいゲームはありません</string>
+    <string name="edit_name">名前</string>
+    <string name="edit_target">ターゲット</string>
+    <string name="edit_start_in">開始フォルダー</string>
+    <string name="edit_launch_options">起動オプション</string>
+    <string name="edit_artwork">アートワーク</string>
+    <string name="edit_other_exe">別の exe…</string>
+    <string name="edit_remove">削除</string>
+    <string name="art_cover">カバー</string>
+    <string name="art_background">背景</string>
+    <string name="art_logo">ロゴ</string>
+    <string name="art_icon">アイコン</string>
+    <string name="art_src_folder">ゲームフォルダー</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">自分のファイル</string>
+    <string name="art_src_exe">exe から</string>
+    <string name="art_src_auto">自動</string>
+    <string name="art_pick_image">画像を選択…</string>
+    <string name="art_pick_title">画像を選択: %1$s</string>
+    <string name="art_reset">自動に戻す</string>
+    <plurals name="games_added_n">
+        <item quantity="other">%1$d 本のゲームを追加しました</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="other">%1$d 本はすでにゲームにあります</item>
+    </plurals>
 </resources>

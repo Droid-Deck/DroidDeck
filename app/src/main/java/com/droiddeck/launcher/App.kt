@@ -11,6 +11,14 @@ import com.droiddeck.launcher.session.GpuClockPin
  * sandboxes are started through (BwrapSpawner).
  */
 class App : Application() {
+    override fun attachBaseContext(base: android.content.Context) =
+        super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(base))
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        com.droiddeck.launcher.core.AppLanguage.systemChanged(newConfig)
+    }
+
     override fun onCreate() {
         super.onCreate()
         CrashHandler.install(this)
@@ -21,5 +29,10 @@ class App : Application() {
         GpuClockPin.clearLeftover(this)
         BwrapSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
+        // The game stores the Stores section can talk to; the native engine loads only when one needs it.
+        com.droiddeck.launcher.stores.StoresState.init(this)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gog.GogBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.epic.EpicBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
     }
 }

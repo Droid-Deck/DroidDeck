@@ -41,9 +41,7 @@
     <string name="hud_fg_failed">%1$s：引擎失败</string>
     <string name="hud_fg_needs_lossless">%1$s：需要 Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · 启动中</string>
-    <string name="added_games_import_hint">一个文件夹，其中每个 Windows 游戏各占一个子文件夹。你在 Steam 拥有的游戏会在 Steam 重启后使用其 Steam 条目；其余会变成非 Steam 快捷方式。</string>
     <string name="second_library_import_hint">添加一个 Steam 库并扫描其中的 Windows 游戏。已拥有的游戏使用其 Steam 条目；其余变成非 Steam 快捷方式。</string>
-    <string name="added_games_forget_hint">“移除”会在下次会话删除这些快捷方式。文件仍保留在磁盘上。</string>
     <string name="game_env_title">游戏环境</string>
     <string name="game_env_hint">Proton 游戏的环境变量。</string>
     <string name="game_env_edit">编辑</string>
@@ -59,9 +57,9 @@
     <string name="game_env_remove">移除</string>
     <string name="game_env_restore">重新继承</string>
     <string name="game_env_reset">重置此配置档案</string>
-    <string name="game_env_unset">对此档案取消设置</string>
+    <string name="game_env_unset">在此配置档案中取消设置</string>
     <string name="game_env_empty">未设置任何变量。</string>
-    <string name="game_env_inherited">继承</string>
+    <string name="game_env_inherited">已继承</string>
     <string name="game_env_custom">自定义变量</string>
     <string name="game_env_error">加载或保存失败。请检查可用存储空间后重试。</string>
     <string name="game_env_invalid">请使用有效名称和不超过 8192 个字符的值。</string>
@@ -140,7 +138,7 @@
     <string name="user_apps_failed">添加应用失败</string>
     <string name="user_apps_github_checking">正在查找 %1$s 的发布版本</string>
     <string name="user_apps_github_unreachable">无法读取 %1$s 的发布版本</string>
-    <string name="user_apps_github_no_appimage">%1$s 的发布版本中没有 ARM64 AppImage</string>
+    <string name="user_apps_github_no_appimage">%1$s 的发布版本中没有 ARM64 或 x86_64 AppImage</string>
     <string name="user_apps_downloading">正在下载 %1$s</string>
     <string name="user_apps_download_failed">下载失败</string>
     <string name="user_apps_update_failed">更新应用失败</string>
@@ -159,8 +157,8 @@
     <string name="add_app_tab_github">GitHub</string>
     <string name="add_app_tab_flatpak">Flatpak</string>
     <string name="add_app_script_hint">一个 .sh 文件。它在自己的文件夹中运行，全屏显示在 gamescope 下。</string>
-    <string name="add_app_appimage_hint">ARM64（aarch64）AppImage。只会解包一次到 Linux 运行时中。</string>
-    <string name="add_app_github_hint">从仓库的最新发布版本安装 ARM64 AppImage。</string>
+    <string name="add_app_appimage_hint">ARM64（aarch64）AppImage，或通过 FEX 运行的 x86_64 AppImage。只会解包一次到 Linux 运行时中。</string>
+    <string name="add_app_github_hint">从仓库的最新发布版本安装 ARM64 AppImage，或通过 FEX 运行其 x86_64 版本。</string>
     <string name="app_fex_title">使用 FEX</string>
     <string name="app_fex_auto">自动</string>
     <string name="app_fex_on">开启</string>
@@ -170,7 +168,7 @@
     <string name="app_fex_not_ready">此程序面向 %1$s PC 构建，需经由 FEX 运行，而 FEX 尚未配置。请在登录状态下打开一次 Steam：DroidDeck 会让其下载 FEX 及所需的 Steam Linux Runtime，之后即可打开。</string>
     <string name="session_end_program">此程序</string>
     <string name="session_end_fex_missing">%1$s 面向 x86 PC 构建，需经由 FEX 运行，而 FEX 尚未安装。请在登录状态下启动一次 Steam，让其下载 FEX 与 Steam Linux Runtime，然后重新启动。</string>
-    <string name="add_app_flatpak_hint">一个 Flathub 应用 ID 或其 Flathub 页面。若尚未设置 Flatpak 会先进行设置。</string>
+    <string name="add_app_flatpak_hint">一个 Flathub 应用 ID 或其 Flathub 页面。若尚未配置 Flatpak 会先进行配置。</string>
     <string name="add_app_file">文件</string>
     <string name="add_app_no_file">未选择文件</string>
     <string name="add_app_choose_file">选择文件</string>
@@ -259,10 +257,14 @@
     <string name="mode_controller_x360">Xbox 360 手柄</string>
     <string name="mode_controller_note">Deck：快捷访问按钮与陀螺仪。Xbox 360：用 Guide+A 打开快捷访问。</string>
     <string name="mode_back">返回</string>
+    <string name="back_menu_then_qam">菜单 → QAM</string>
+    <string name="back_qam_then_menu">QAM → 菜单</string>
     <string name="mode_session">会话</string>
     <string name="mode_suspend">后台行为</string>
     <string name="mode_suspend_hint">应用被隐藏或屏幕关闭时。</string>
     <string name="mode_suspend_manual">手动</string>
+    <string name="mode_suspend_native">原生</string>
+    <string name="mode_suspend_steam_note">自动会暂停并在显示时恢复。原生会先让 Steam 做好睡眠准备。手动会等待点按恢复。“从不”则保持运行。</string>
     <string name="mode_suspend_note">自动会在后台暂停并在显示时恢复。手动会等待点按恢复。“从不”则保持运行。</string>
     <string name="mode_startup">启动</string>
     <string name="mode_steam_startup">随 DroidDeck 启动 Steam</string>
@@ -291,25 +293,50 @@
     <string name="mode_branch_public">公开测试版</string>
     <string name="mode_branch_deck_beta">Steam Deck 公开测试版</string>
     <string name="mode_branch_note">Deck 模式始终使用 Steam Deck 公开测试版。</string>
-    <string name="mode_added_games">已添加的游戏</string>
-    <string name="mode_added_none">未找到含 .exe 的游戏文件夹</string>
-    <string name="mode_games_folder">游戏文件夹</string>
-    <string name="mode_games_folder_another">另一个游戏文件夹</string>
-    <string name="mode_added_art">来自 Steam 的美术图</string>
+    <string name="mode_steam_repair">修复 Steam 客户端</string>
+    <string name="mode_steam_repair_hint">下次启动 Steam 时重新下载 Steam 客户端。如果 Steam 一直停在加载画面，请使用此项。游戏、登录信息和设置都会保留。</string>
+    <string name="mode_steam_repair_queued">下次启动 Steam 时将重新下载 Steam 客户端。</string>
+    <string name="mode_steam_repair_button">修复</string>
+    <string name="mode_added_art">美术图</string>
+    <string name="mode_sgdb_key">SteamGridDB API 密钥</string>
+    <string name="mode_sgdb_key_yours">你的密钥</string>
+    <string name="mode_sgdb_edit">编辑…</string>
     <string name="mode_added_art_hint">按文件夹名补齐缺失的美术图。游戏文件夹中你自己的 cover.jpg、hero.jpg、logo.png 或 icon.png 优先。</string>
-    <string name="mode_added_launches">启动 %1$s</string>
-    <string name="mode_added_launches_in">启动 %1$s · 位于 %2$s</string>
-    <string name="mode_added_choose">选择其他文件…</string>
-    <string name="mode_added_exe_note">默认为与文件夹同名的 .exe，否则为最大的那个。</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">移除？</string>
+    <string name="games_add">添加游戏</string>
+    <string name="games_add_title">添加游戏：</string>
+    <string name="games_pick_exe_title">选择 exe：</string>
+    <string name="games_add_unreachable">会话中无法访问此位置</string>
+    <string name="mode_added_exe_check">请检查此 exe</string>
+    <string name="wincomp_title">Windows 组件</string>
+    <string name="wincomp_pad_hint">按 LB / RB 在各部分之间跳转。</string>
+    <string name="wincomp_card_none">无</string>
+    <string name="wincomp_applies">Proton 未包含的 Windows DLL，来自 Bannerlator 的组件列表。开启此游戏需要的组件：它们会放入游戏自己的 Windows 文件夹，绝不改动游戏文件，并且无论游戏使用哪个 Proton 都会保留。</string>
+    <string name="wincomp_offline">无法访问组件列表。已下载的组件仍可开启或关闭。</string>
+    <string name="wincomp_recommended">此游戏推荐</string>
+    <string name="wincomp_found_bundled">游戏自带 %1$s</string>
+    <string name="wincomp_found_shipped">游戏含有 %1$s（通常可直接使用）</string>
+    <string name="wincomp_found_steam">Steam 会随此游戏安装 %1$s</string>
+    <string name="wincomp_already_here">此游戏中已有</string>
+    <string name="wincomp_no_recommendation">游戏文件夹中没有指向任何组件的内容。</string>
+    <string name="wincomp_all">全部组件（%1$d）</string>
+    <string name="wincomp_installers">需要 Windows 安装程序（%1$d）</string>
+    <string name="wincomp_installers_note">这些组件需要在前缀中运行真正的安装程序（.NET、PhysX、XNA、完整的 Visual C++ 安装程序等）。DroidDeck 暂时无法做到，接下来会支持。</string>
+    <string name="wincomp_show">显示</string>
+    <string name="wincomp_hide">隐藏</string>
+    <string name="wincomp_needs_installer">需要 Windows 安装程序（即将支持）</string>
+    <string name="wincomp_unsupported">此处暂不支持</string>
+    <string name="wincomp_loading">正在加载组件…</string>
+    <string name="wincomp_failed">无法安装：%1$s</string>
+    <string name="wincomp_downloaded">已下载</string>
+    <string name="wincomp_download_size">下载 %1$s</string>
+    <string name="wincomp_next_launch">将在下次启动游戏时生效。</string>
     <string name="mode_stretch169">拉伸 16:9 比例的游戏</string>
     <string name="mode_stretch169_hint">在比 16:9 更方的屏幕上，拉伸游戏填满屏幕而不是显示黑边。将在下次会话生效。</string>
     <string name="mode_audio">音频</string>
     <string name="mode_directaudio">游戏使用 DirectAudio</string>
     <string name="mode_directaudio_hint">绕过 PulseAudio 以降低延迟。</string>
-    <string name="mode_client_audio">Steam 客户端音频</string>
-    <string name="mode_client_audio_hint">将在下次会话生效。</string>
-    <string name="mode_client_audio_classic">经典</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">麦克风</string>
     <string name="mode_mic_hint">用于语音聊天。</string>
     <string name="mode_network">网络</string>
@@ -322,22 +349,15 @@
     <string name="mode_wifi_explain_title">启用 Wi-Fi 网络发现？</string>
     <string name="mode_wifi_explain_text">Android 需要位置权限才能读取 Wi-Fi 名称并发现附近网络。DroidDeck 用此权限在 Steam 中显示这些网络。我们不会跟踪你的位置。没有此权限互联网访问也能正常工作。</string>
     <string name="mode_storage">游戏存储</string>
-    <string name="mode_storage_auto">自动 — 有 SD 卡时使用 SD 卡</string>
-    <string name="mode_storage_auto_none">自动 — 有 SD 卡时使用 SD 卡（当前没有）</string>
+    <string name="mode_storage_auto">自动 — 有 SD 卡时使用 SD 卡，以及你的游戏文件夹</string>
+    <string name="mode_storage_auto_none">自动 — 使用你的游戏文件夹，有 SD 卡时也使用 SD 卡（当前没有）</string>
     <string name="mode_storage_internal">仅内部存储</string>
     <string name="mode_storage_folder">文件夹：%1$s</string>
-    <string name="mode_second_library">第二库</string>
+    <string name="mode_second_library">第二个库</string>
     <string name="mode_storage_note">从 SD 卡或共享存储流式读取资源的游戏可能出现卡顿。</string>
     <string name="mode_storage_diagnostics">存储诊断</string>
     <string name="mode_storage_diagnostics_hint">在分享日志中记录分配结果和存储采样耗时。启用期间可能减慢安装。将在下次会话生效。</string>
     <string name="mode_choose_folder">选择文件夹…</string>
-    <string name="mode_renderer">渲染器</string>
-    <string name="mode_desktop_renderer">桌面渲染器</string>
-    <string name="mode_renderer_hint">绘制桌面。</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU（实验性）</string>
-    <string name="mode_renderer_pixman">pixman - 软件</string>
-    <string name="mode_renderer_note">Vulkan 让桌面程序运行在 GPU 上，失败时回退到 pixman。桌面改用 pixman 时，游戏仍会全屏运行在 GPU 上。</string>
     <string name="mode_custom_res_title">自定义分辨率</string>
     <string name="mode_custom_res_text">取代上限与比例。与屏幕不匹配的尺寸会出现黑边。</string>
     <string name="mode_width">宽度</string>
@@ -359,13 +379,13 @@
     <string name="comp_display_driver_hint">在两种模式下都将帧绘制到屏幕。重启应用以生效。</string>
     <string name="comp_import_adrenotools">导入 AdrenoTools zip 包…</string>
     <string name="comp_never">从未</string>
-    <string name="comp_nightlies_checked">已于 %1$s 检查 Nightlies</string>
+    <string name="comp_nightlies_checked">Nightlies 检查时间：%1$s</string>
     <string name="comp_title">组件</string>
     <string name="comp_about">关于组件</string>
     <string name="comp_check_drivers">检查新驱动</string>
     <string name="comp_check_nightlies">检查 Nightlies 上的新软件包</string>
     <string name="comp_proton">Proton</string>
-    <string name="comp_proton_note">Steam 更新时会替换 Valve 的 Proton；每个构建的原件都会保留。</string>
+    <string name="comp_proton_note">此处选择的 Proton 会运行所有未在 Steam 中单独选择 Proton 的游戏，在 Steam 中所做的更改也会显示在这里。Steam 更新时会替换 Valve 的 Proton；每个构建的原件都会保留。</string>
     <string name="comp_default_live">%1$s 现在将运行所有未在 Steam 中单独选择 Proton 的游戏。</string>
     <string name="comp_default_next">从下次 Steam 启动起，%1$s 将运行所有未单独选择 Proton 的游戏。</string>
     <string name="comp_default_not_runnable">%1$s 无法在此设备启动游戏，因此不能设为默认。</string>
@@ -467,6 +487,7 @@
     <string name="drawer_page_effects">画面效果</string>
     <string name="drawer_page_controls">控制</string>
     <string name="drawer_page_components">组件</string>
+    <string name="drawer_page_controller">手柄</string>
     <string name="drawer_page_settings">设置</string>
     <string name="drawer_page_desc">%1$s 页面</string>
     <string name="drawer_steam">Steam</string>
@@ -481,8 +502,11 @@
     <string name="drawer_scaling_sharpness">缩放锐度</string>
     <string name="drawer_effects">屏幕效果</string>
     <string name="drawer_effects_hint">实时生效。任何效果开启期间会占用少量 GPU 时间。</string>
-    <string name="drawer_look">观感</string>
+    <string name="drawer_look">预设</string>
     <string name="drawer_look_custom">自定义</string>
+    <string name="drawer_effects_advanced">高级</string>
+    <string name="widgets_expanded">已展开</string>
+    <string name="widgets_collapsed">已折叠</string>
     <string name="drawer_cas">锐化（CAS）</string>
     <string name="drawer_cas_level">锐化级别</string>
     <string name="drawer_fake_hdr">伪 HDR</string>
@@ -506,6 +530,7 @@
     <string name="drawer_pc_keyboard">PC 键盘</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">副屏</string>
+    <string name="drawer_second_screen_mode">模式</string>
     <string name="drawer_second_screen_shows">显示</string>
     <string name="drawer_android_apps">Android 应用</string>
     <string name="drawer_launch_app">启动应用</string>
@@ -575,6 +600,7 @@
     <string name="setup_session">会话</string>
     <string name="setup_logs">会话日志</string>
     <string name="setup_logs_hint">每次会话后保存</string>
+    <string name="setup_agent_commands">调试工具</string>
     <string name="setup_latest_logs">最新会话日志</string>
     <string name="setup_saved_logs">已保存的会话日志</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 个</string>
@@ -582,6 +608,13 @@
     <string name="setup_offline">离线模式</string>
     <string name="setup_sign_in_first">请先登录 Steam</string>
     <string name="setup_launcher">启动器</string>
+    <string name="setup_language">语言</string>
+    <string name="setup_language_hint">Steam 也会在下次启动时使用此语言。</string>
+    <string name="setup_language_system">系统默认（%1$s）</string>
+    <string name="setup_language_system_short">系统默认</string>
+    <string name="setup_app_scale">应用缩放</string>
+    <string name="setup_app_scale_hint">DroidDeck 的文字和控件</string>
+    <string name="setup_app_scale_default">%1$d%%（默认）</string>
     <string name="setup_theme">主题</string>
     <string name="setup_theme_hint">启动器外观</string>
     <string name="setup_home">用作主屏幕</string>
@@ -617,9 +650,9 @@
     <string name="store_chip_flathub">Flathub · ARM64</string>
     <string name="store_chip_ready">● Flatpak 就绪</string>
     <string name="store_needs_runtime">请先在“配置”中安装 Linux 运行时。</string>
-    <string name="store_setup_title">设置 Flatpak</string>
+    <string name="store_setup_title">配置 Flatpak</string>
     <string name="store_setup_text">添加 Flatpak 并连接到 Flathub（约 20 MB）。安装第一个应用时还会额外下载它的运行时。</string>
-    <string name="store_setting_up">正在设置…</string>
+    <string name="store_setting_up">正在配置…</string>
     <string name="store_flatpak">Flatpak</string>
     <string name="store_updates">更新</string>
     <string name="store_busy">%1$s · %2$s</string>
@@ -640,7 +673,7 @@
     <string name="store_update_all">全部更新（%1$d）</string>
     <string name="store_all_current">● 一切已是最新</string>
     <string name="store_no_apps">还没有应用。去“发现”或“搜索”里找找吧。</string>
-    <string name="store_setup_first_note">请先设置 Flatpak 再安装应用。</string>
+    <string name="store_setup_first_note">请先配置 Flatpak 再安装应用。</string>
     <string name="store_update_available_prefix">有可用更新 · %1$s</string>
     <string name="store_open">打开</string>
     <string name="store_details">详情</string>
@@ -648,7 +681,7 @@
     <string name="store_press_again">再次点按以移除</string>
     <string name="store_installing">安装中…</string>
     <string name="store_install">安装</string>
-    <string name="store_setup_first">请先设置 Flatpak</string>
+    <string name="store_setup_first">请先配置 Flatpak</string>
     <string name="store_download_size">需下载 %1$s</string>
     <string name="store_installed_chip">● 已安装</string>
     <string name="store_details_failed">无法加载该应用的 Flathub 页面。</string>
@@ -684,7 +717,7 @@
     <string name="upd_gone_headline">此测试已结束</string>
     <string name="upd_gone_detail">它的修复已被合并或放弃。关注预览版以获取最新修复。</string>
     <string name="upd_current_status">已是最新</string>
-    <string name="upd_current_headline">你拥有最新的 %1$s</string>
+    <string name="upd_current_headline">你已在使用最新的 %1$s</string>
     <string name="upd_dot_ago">· %1$s</string>
     <string name="upd_stage_percent">%1$s… %2$d%%</string>
     <string name="upd_stage">%1$s…</string>
@@ -734,7 +767,7 @@
     <string name="gate_needs_wifi">无线调试需要 Wi-Fi。任何网络都可以，不需要互联网。</string>
     <string name="gate_needs_notifications">配对码会出现在通知中。请允许 DroidDeck 的通知，或使用“其他方式”。</string>
     <string name="gate_allow_notifications">允许通知</string>
-    <string name="gate_step1">打开设置 → 开发者选项 → 无线调试并开启它</string>
+    <string name="gate_step1">打开“设置”→“开发者选项”→“无线调试”，并将其开启</string>
     <string name="gate_step2">点按“使用配对码配对设备”</string>
     <string name="gate_step3">在 DroidDeck 通知中输入配对码</string>
     <string name="gate_waiting">正在等待配对弹窗…</string>
@@ -827,7 +860,7 @@
     <string name="content_games">游戏</string>
     <string name="content_choose_roms">选择 ROM 文件夹。</string>
     <string name="content_retroarch_roms">在 RetroArch 中浏览到 /root/ROMs。</string>
-    <string name="content_add_roms">把 %1$s 个游戏添加到 ROMs/%2$s。</string>
+    <string name="content_add_roms">把 %1$s 游戏添加到 ROMs/%2$s。</string>
     <string name="content_install_named">安装 %1$s</string>
     <string name="content_stop_to_install">停止会话后才能安装</string>
     <string name="content_runtime_required">需要运行时</string>
@@ -846,7 +879,7 @@
     <string name="content_open_desktop">打开桌面</string>
     <string name="content_install_open_desktop">安装并打开桌面</string>
     <string name="content_linux_desktop">Linux 桌面</string>
-    <string name="content_linux_desktop_hint">LXQt、Firefox 和你的模拟器</string>
+    <string name="content_linux_desktop_hint">KDE Plasma、Firefox 和你的模拟器</string>
     <string name="games_empty">你在 Steam 安装的游戏会在会话结束后显示在这里。</string>
     <string name="games_play_steam">游玩 Steam</string>
     <string name="games_launch_settings">启动设置</string>
@@ -861,11 +894,8 @@
     <string name="games_manage_saves">管理存档</string>
     <string name="games_saves">游戏存档</string>
     <string name="games_import_saves">导入存档…</string>
-    <string name="games_import_saves_hint">GameHub 或 Winlator 的 zip 包。会先备份当前存档。</string>
     <string name="games_export_gamehub">导出为 GameHub zip 包…</string>
-    <string name="games_export_gamehub_hint">用于 GameHub 和 BannerHub</string>
     <string name="games_export_winlator">导出为 Winlator zip 包…</string>
-    <string name="games_export_winlator_hint">用于 Winlator、WinNative 和 Bannerlator</string>
     <string name="games_open_save_folder">打开存档文件夹</string>
     <string name="games_never_played">从未游玩</string>
     <string name="games_runtime_busy_percent">运行时繁忙 · %1$d%%</string>
@@ -1004,4 +1034,1048 @@
     <string name="game_file_folder">选择前端游戏文件的文件夹</string>
     <string name="game_file_exported">游戏文件已保存到 %1$s</string>
     <string name="game_frontend_files">前端文件</string>
+
+    <!-- Launcher, session and menus -->
+
+    <!-- Launcher (MainActivity) -->
+    <string name="main_wait_runtime">请等待运行时操作完成</string>
+    <string name="main_wait_proton_install">请等待兼容性工具安装完成</string>
+    <string name="main_wait_desktop_install">请等待桌面应用安装完成</string>
+    <string name="main_wait_install_game">请等待安装完成后再启动游戏</string>
+    <string name="main_saves_close_session">请先关闭 Steam 会话，以免游戏存档覆盖导入的内容</string>
+
+    <!-- Busy line while saves are imported; %1$s is the game's name -->
+    <string name="main_saves_importing">正在导入到 %1$s</string>
+
+    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the game's name -->
+    <plurals name="main_saves_imported">
+        <item quantity="other">已从 %2$s 导入 %1$d 个文件到 %3$s</item>
+    </plurals>
+    <plurals name="main_saves_imported_backup">
+        <item quantity="other">已从 %2$s 导入 %1$d 个文件到 %3$s。旧存档已备份到 Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <string name="main_saves_pick_zip">为 %1$s 选择存档 zip 包</string>
+
+    <!-- Busy line while saves are exported; %1$s is the game's name -->
+    <string name="main_saves_exporting">正在导出 %1$s</string>
+
+    <!-- %1$d files, %2$s the save layout (e.g. GameHub zip), %3$s the zip's path -->
+    <plurals name="main_saves_exported">
+        <item quantity="other">已将 %1$d 个文件导出为 %2$s：%3$s</item>
+    </plurals>
+
+    <!-- %1$s is the game's name, %2$s the save layout -->
+    <string name="main_saves_pick_folder">选择 %1$s 的保存位置（%2$s）</string>
+
+    <!-- %1$s is what was being done (e.g. Importing into Portal 2, Swapping), %2$s the error -->
+    <string name="main_action_failed">%1$s失败：%2$s</string>
+    <string name="main_no_logs_yet">还没有会话日志：请先运行一次会话。</string>
+    <string name="main_no_logs_to_clear">没有可清除的会话日志。</string>
+    <plurals name="main_logs_cleared">
+        <item quantity="other">已清除 %1$d 个会话日志文件夹。</item>
+    </plurals>
+    <string name="main_wadb_pair_failed">无线调试配对失败</string>
+    <string name="main_wadb_command_failed">无线调试命令执行失败</string>
+    <string name="main_wadb_unavailable">无线调试不可用</string>
+    <string name="main_adb_copied">已复制 ADB 命令</string>
+    <string name="main_pick_roms">选择 ROM 文件夹</string>
+    <string name="main_non_adreno_title">不是 Adreno GPU</string>
+
+    <!-- %1$s is the GPU's name, %2$.0f the download size in MB -->
+    <string name="main_non_adreno_text">Turnip 支持 Adreno GPU。在 %1$s 上，Steam 可能显示黑屏。需下载：%2$.0f MB。</string>
+    <string name="main_install_anyway">仍要安装</string>
+    <string name="main_remove_runtime_title">移除 Linux 运行时</string>
+    <string name="main_remove_runtime_text">这会删除运行时、其中的 Steam 客户端，以及安装在其中的所有游戏。</string>
+
+    <!-- Toast; %1$s is a list of components, separated by commas -->
+    <string name="main_applied">已应用：%1$s</string>
+    <string name="android_app_open_failed_primary">无法在主屏幕上打开 %1$s</string>
+
+    <!-- %1$s is the app, %2$s the name of the display -->
+    <string name="android_app_open_failed_on">无法在 %2$s 上打开 %1$s</string>
+
+    <!-- %1$s is the app, %2$d the display's number -->
+    <string name="android_app_open_failed_display">无法在显示器 %2$d 上打开 %1$s</string>
+
+    <!-- Components page busy lines, shown with … after them -->
+    <string name="comp_busy_importing">正在导入</string>
+    <string name="comp_busy_swapping">正在替换</string>
+    <string name="comp_busy_restoring">正在还原</string>
+    <string name="comp_busy_cancelling">正在取消</string>
+    <string name="comp_busy_deleting">正在删除</string>
+    <string name="comp_cannot_read">无法读取该文件</string>
+
+    <!-- %1$s is a version or a name -->
+    <string name="comp_imported">已导入 %1$s</string>
+    <string name="comp_swap_cancelled">等待中的替换已取消。</string>
+    <string name="comp_pick_wcp">选择组件包（-linux .wcp）</string>
+    <string name="comp_nightlies_unreachable">无法连接 Nightlies</string>
+
+    <!-- %1$s is the package version -->
+    <string name="comp_stored">已存储 %1$s</string>
+    <string name="comp_download_failed">下载失败：%1$s</string>
+    <string name="drivers_pick_linux">选择 Linux 运行时驱动（-Linux zip 包或 Android + Linux 组合包）</string>
+    <string name="drivers_pick_android">选择显示驱动（AdrenoTools zip 包或 Android + Linux 组合包）</string>
+    <string name="drivers_pick_any">选择驱动 zip 包或 Android + Linux 组合包</string>
+
+    <!-- %1$s is a desktop app's name, %2$s what went wrong -->
+    <string name="main_pkg_problem">%1$s：%2$s</string>
+    <string name="main_removing_named">正在移除 %1$s…</string>
+    <string name="main_forgetting_named">正在移除 %1$s…</string>
+    <string name="main_pick_game_storage">选择游戏存储文件夹</string>
+    <string name="main_pick_decky_zip">选择 Decky 插件 ZIP 包</string>
+    <string name="main_storage_not_usable">无法使用：%1$s</string>
+
+    <!-- What is running, when it is a program without a known name -->
+    <string name="main_running_program">程序</string>
+    <string name="main_removing_runtime">正在移除 Linux 运行时</string>
+    <string name="main_settings_main_screen">无法在底部屏幕上打开设置，已改为在主屏幕上打开。</string>
+    <string name="main_open_dev_options">在设置中打开开发者选项</string>
+
+    <!-- Updates -->
+    <string name="upd_unknown_apps_failed">无法打开 Android 的“安装未知应用”设置</string>
+    <string name="upd_couldnt_check">无法检查：%1$s</string>
+    <string name="upd_no_download">此构建没有适用于此 DroidDeck 副本的下载</string>
+    <string name="upd_stop_first">请先停止正在运行的会话，再进行更新</string>
+
+    <!-- Update stages, shown with … after them -->
+    <string name="upd_stage_downloading">正在下载</string>
+    <string name="upd_stage_installing">正在安装</string>
+    <string name="upd_stage_confirm">等待你确认</string>
+    <string name="upd_failed">更新失败</string>
+    <string name="upd_not_offered">Android 未提供安装此更新的选项</string>
+
+    <!-- Decky -->
+    <string name="decky_install_failed">Decky 安装失败：%1$s</string>
+    <string name="decky_plugin_starting">正在开始导入插件…</string>
+    <string name="decky_plugin_failed">插件导入失败：%1$s</string>
+    <string name="decky_plugin_installed">插件已安装。重启 Steam 即可加载。</string>
+
+    <!-- GPU drivers -->
+    <string name="drivers_not_checked">尚未检查 — 点按刷新以查找新驱动</string>
+    <string name="drivers_bundle_sets_display">Android + Linux：同时设置显示驱动</string>
+    <string name="drivers_bundle_sets_runtime">Android + Linux：同时设置运行时驱动</string>
+    <string name="drivers_runtime_builtin">运行时内置的 Turnip</string>
+    <string name="drivers_system_vulkan">系统 Vulkan：没有适用于此 GPU 的内置构建</string>
+    <string name="drivers_bundled">%1$s（内置）</string>
+    <string name="drivers_manual">手动</string>
+
+    <!-- Driver mode, then the driver pair in use -->
+    <string name="drivers_summary">%1$s · %2$s</string>
+    <string name="drivers_half_published">目前只发布了其中一半</string>
+    <string name="drivers_pair_size">两者共 %1$.0f MB</string>
+
+    <!-- %1$s says why (the GPU's support status) -->
+    <string name="drivers_none_to_set">没有可设置的驱动：%1$s</string>
+    <string name="drivers_checking_latest">正在检查最新驱动…</string>
+    <string name="drivers_up_to_date_check_failed">已是最新（无法检查：%1$s）</string>
+    <string name="drivers_recommended_unpublished">推荐的驱动目前尚未发布</string>
+
+    <!-- %1$s is the driver pair's name, %2$s its version -->
+    <string name="drivers_downloading_pair">正在下载 %1$s %2$s…</string>
+    <string name="drivers_updated_to">已更新到 %1$s %2$s。</string>
+    <string name="drivers_updated_to_restart">已更新到 %1$s %2$s。显示驱动将在 DroidDeck 重启后生效。</string>
+    <string name="drivers_switched_to">已切换到 %1$s %2$s。</string>
+    <string name="drivers_switched_to_restart">已切换到 %1$s %2$s。显示驱动将在 DroidDeck 重启后生效。</string>
+    <string name="drivers_using">正在使用 %1$s %2$s。</string>
+    <string name="drivers_using_restart">正在使用 %1$s %2$s。显示驱动将在 DroidDeck 重启后生效。</string>
+    <string name="drivers_not_a_driver">不是驱动 zip 包：既不是 AdrenoTools 驱动，也不是 -Linux Turnip 或 Android + Linux 组合包</string>
+    <string name="drivers_import_failed">导入失败：%1$s</string>
+    <string name="drivers_imported_unnamed">已导入的驱动</string>
+    <string name="drivers_using_bundle">正在将 %1$s 同时用作运行时驱动和显示驱动。</string>
+    <string name="drivers_using_bundle_restart">正在将 %1$s 同时用作运行时驱动和显示驱动。显示驱动将在 DroidDeck 重启后生效。</string>
+    <string name="drivers_deleted_bundle">已删除 %1$s（两个驱动）</string>
+    <string name="drivers_deleted">已删除 %1$s</string>
+
+    <!-- %1$s lists the latest releases, %2$s when they were checked (e.g. 5 min ago) -->
+    <string name="drivers_release_status">最新：%1$s · %2$s检查</string>
+
+    <!-- %1$s lists the latest releases, %2$s the sources that could not be reached, %3$s when they were checked -->
+    <string name="drivers_release_status_failed">最新：%1$s · 无法连接 %2$s · %3$s检查</string>
+    <plurals name="drivers_ago_minutes">
+        <item quantity="other">%1$d 分钟前</item>
+    </plurals>
+    <plurals name="drivers_ago_hours">
+        <item quantity="other">%1$d 小时前</item>
+    </plurals>
+    <plurals name="drivers_ago_days">
+        <item quantity="other">%1$d 天前</item>
+    </plurals>
+    <string name="drivers_checking_sources">正在检查 Banners-Turnip、WinNative 和 DroidDeck…</string>
+    <string name="drivers_check_failed">检查失败</string>
+
+    <!-- %1$s is the driver's name -->
+    <string name="drivers_installed_pick_either">已安装 %1$s — 在任一列表中选择它即可同时设置两个驱动</string>
+    <string name="drivers_installed_pick">已安装 %1$s — 请在菜单中选择它</string>
+
+    <!-- Session (SessionActivity) -->
+    <string name="session_wait_removal">请等待运行时移除完成</string>
+
+    <!-- Drawer title when the running program has no known name -->
+    <string name="session_title_game">游戏</string>
+
+    <!-- Shown as "Auto (touchpad)" in the drawer's touch setting -->
+    <string name="session_touch_auto_touchpad">触控板</string>
+
+    <!-- Shown as "Auto (direct)" in the drawer's touch setting -->
+    <string name="session_touch_auto_direct">直接</string>
+    <string name="session_swap_failed">替换失败：%1$s</string>
+    <string name="session_desktop_paused">桌面已暂停</string>
+
+    <!-- %1$s is the program's name -->
+    <string name="session_named_paused">%1$s 已暂停</string>
+    <string name="session_program_paused">程序已暂停</string>
+    <string name="session_starting_desktop">正在启动桌面</string>
+
+    <!-- %1$s is the program's name -->
+    <string name="session_starting_named">正在启动 %1$s</string>
+    <string name="session_starting_program">正在启动程序</string>
+    <string name="session_no_logs">此会话没有日志。</string>
+    <string name="session_logs_archive_failed">无法创建会话日志压缩包。</string>
+    <string name="session_logs_share_failed">无法分享会话日志。</string>
+    <string name="session_starting_session">正在启动会话…</string>
+
+    <!-- Loading screen lines while packages download; %1$d and %2$d are megabytes -->
+    <string name="session_runtime_downloading">正在下载 Linux 运行时</string>
+    <string name="session_runtime_downloading_mb">正在下载 Linux 运行时 · %1$d / %2$d MB</string>
+    <string name="session_runtime_checking">正在检查 Linux 运行时</string>
+    <string name="session_runtime_unpacking">正在解包 Linux 运行时</string>
+    <string name="session_desktop_downloading">正在下载桌面</string>
+    <string name="session_desktop_downloading_mb">正在下载桌面 · %1$d / %2$d MB</string>
+    <string name="session_desktop_checking">正在检查桌面</string>
+    <string name="session_desktop_unpacking">正在解包桌面</string>
+    <string name="session_proton_downloading">正在下载 Proton Experimental（ARM64）</string>
+    <string name="session_proton_downloading_mb">正在下载 Proton Experimental（ARM64）· %1$d / %2$d MB</string>
+    <string name="session_proton_checking">正在检查 Proton Experimental（ARM64）</string>
+    <string name="session_proton_unpacking">正在解包 Proton Experimental（ARM64）</string>
+    <string name="session_runtime_catalog_unreachable">无法连接运行时目录。请检查网络连接，然后再次点“游玩”。</string>
+    <string name="session_runtime_install_failed">Linux 运行时未能安装。请在“配置”中检查运行时，然后再次点“游玩”。</string>
+
+    <!-- %1$s says what went wrong -->
+    <string name="session_desktop_install_failed">桌面未能安装（%1$s）。请检查网络连接，然后再次点“桌面”。</string>
+
+    <!-- %1$s is the program's name, or Steam -->
+    <string name="session_ended_named">%1$s 意外停止。请将日志随错误报告一起分享，或重试。</string>
+    <string name="session_ended_program">程序意外停止。请将日志随错误报告一起分享，或重试。</string>
+    <string name="session_ended_desktop">桌面意外停止。请将日志随错误报告一起分享，或重试。</string>
+
+    <!-- %1$d is the exit status, %2$s the log file's path -->
+    <string name="session_ended_detail">退出状态 %1$d · %2$s</string>
+    <string name="session_ended_no_log">无日志</string>
+
+    <!-- %1$d errors; %2$s, %3$s and %4$s are the Performance page and its two settings -->
+    <plurals name="session_hint_enosys">
+        <item quantity="other">日志中有 %1$d 个“Function not implemented”错误：proot 的 seccomp 加速在此设备上导致某个辅助进程失败。请尝试 %2$s → “%3$s”（或“%4$s”），然后重新启动。</item>
+    </plurals>
+
+    <!-- Screens, files, controller and store -->
+
+    <!-- Mode settings -->
+    <string name="mode_decky_plugins">插件</string>
+    <string name="mode_decky_plugins_hint">安装插件 ZIP 包，将在下次 Steam 会话中生效。</string>
+    <string name="mode_decky_plugin_downloading">正在下载…</string>
+    <string name="mode_decky_plugin_install_zip">从 ZIP 安装</string>
+
+    <!-- Store -->
+    <string name="store_cat_games">游戏</string>
+    <string name="store_cat_audio_video">影音</string>
+    <string name="store_cat_graphics">图形</string>
+    <string name="store_cat_internet">网络</string>
+    <string name="store_cat_office">办公</string>
+    <string name="store_cat_developer">开发</string>
+    <string name="store_cat_education">教育</string>
+    <string name="store_cat_science">科学</string>
+    <string name="store_cat_system">系统</string>
+    <string name="store_cat_utilities">实用工具</string>
+    <string name="store_section_popular">热门</string>
+    <string name="store_section_trending">趋势</string>
+
+    <!-- Store front-page section of recently added apps -->
+    <string name="store_section_new">新上架</string>
+
+    <!-- Store front-page section of recently updated apps -->
+    <string name="store_section_updated">最近更新</string>
+    <string name="store_section_loading">加载中…</string>
+    <string name="store_flatpak_setup">Flatpak 配置</string>
+
+    <!-- %1$s is what failed (an app name or "Flatpak setup"), %2$s the error -->
+    <string name="store_problem">%1$s：%2$s</string>
+    <string name="store_updates_check_failed">无法从 Flathub 检查更新</string>
+
+    <!-- Library tiles -->
+
+    <!-- Subtitle of a game tile whose cover art was found -->
+    <string name="content_rom_installed">已安装</string>
+
+    <!-- Subtitle of a game that is a folder rather than a single file -->
+    <string name="content_rom_folder">文件夹</string>
+
+    <!-- Launcher themes -->
+    <string name="theme_graphite">石墨</string>
+    <string name="theme_graphite_detail">石墨色界面，选中、聚焦或按下的元素均使用标志自带的球形蓝色。</string>
+    <string name="theme_paper">黑底白纸</string>
+    <string name="theme_paper_detail">以白色为主色，图标的蓝色用于分隔线、圆环和圆点等提示。</string>
+    <string name="theme_icon_blue">图标蓝</string>
+    <string name="theme_icon_blue_detail">黑色背景、白色文字，选中、聚焦或按下的元素使用蓝色。</string>
+    <string name="theme_electric">电光藏青</string>
+    <string name="theme_electric_detail">更明亮的蓝色，配以偏藏青而非灰色的界面。</string>
+
+    <!-- PC keyboard key caps (keep them short; they label physical PC keys) -->
+    <string name="pckb_key_esc">Esc</string>
+    <string name="pckb_key_ins">Ins</string>
+    <string name="pckb_key_del">Del</string>
+    <string name="pckb_key_home">Home</string>
+    <string name="pckb_key_end">End</string>
+    <string name="pckb_key_pgup">PgUp</string>
+    <string name="pckb_key_pgdn">PgDn</string>
+    <string name="pckb_key_backspace">⌫ Backspace</string>
+    <string name="pckb_key_tab">Tab ⇥</string>
+    <string name="pckb_key_caps">Caps</string>
+    <string name="pckb_key_enter">Enter ⏎</string>
+    <string name="pckb_key_shift">⇧ Shift</string>
+    <string name="pckb_key_ctrl">Ctrl</string>
+    <string name="pckb_key_super">Super</string>
+    <string name="pckb_key_alt">Alt</string>
+    <string name="pckb_key_space">空格</string>
+    <string name="pckb_key_altgr">AltGr</string>
+
+    <!-- Terminal key strip on the second screen -->
+    <string name="second_key_tab">Tab</string>
+
+    <!-- A modifier key (%1$s, e.g. Ctrl) that is currently held -->
+    <string name="second_key_on">%1$s ✓</string>
+    <string name="second_key_ctrl_c">Ctrl+C</string>
+    <string name="second_key_ctrl_d">Ctrl+D</string>
+
+    <!-- Game file sync errors -->
+    <string name="game_sync_err_runtime">请先安装运行时</string>
+    <string name="game_sync_err_steam_library">Steam 库不可用</string>
+    <string name="game_sync_err_previous_sd">之前的 SD 卡库不可用</string>
+    <string name="game_sync_err_game_storage">游戏存储不可用</string>
+    <string name="game_sync_err_added_games">已添加游戏的文件夹不可用</string>
+    <string name="game_sync_err_manifests">Steam 清单文件不可用</string>
+
+    <!-- The systems RetroArch emulates, shown under its name -->
+    <string name="content_system_many">多种平台</string>
+
+    <!-- File manager -->
+    <string name="fm_drive_internal">内部存储</string>
+    <string name="fm_drive_linux">Linux 系统</string>
+    <string name="fm_drive_sd">SD 卡</string>
+    <string name="fm_drive_storage">存储</string>
+    <string name="fm_select">选择</string>
+    <string name="fm_properties">属性</string>
+    <string name="fm_favorite_add">添加到收藏夹</string>
+    <string name="fm_favorite_remove">从收藏夹移除</string>
+    <string name="fm_rename">重命名</string>
+    <string name="fm_copy">复制</string>
+    <string name="fm_cut">剪切</string>
+    <string name="fm_actions">操作</string>
+    <string name="fm_favorites">收藏夹</string>
+    <string name="fm_pin_current">固定当前文件夹</string>
+    <string name="fm_no_favorites">还没有收藏 — 用文件夹的 ⋮ 菜单固定它，之后即可快速跳回。</string>
+    <string name="fm_unpin_favorite">从收藏夹移除</string>
+    <string name="fm_size_zero">0 字节</string>
+
+    <!-- Size unit for sizes under 1 KB, shown after a number -->
+    <string name="fm_unit_bytes">字节</string>
+    <string name="fm_prop_location">位置</string>
+    <string name="fm_prop_type">类型</string>
+    <string name="fm_prop_size">大小</string>
+    <string name="fm_prop_modified">修改时间</string>
+    <string name="fm_type_folder">文件夹</string>
+    <string name="fm_type_file">文件</string>
+
+    <!-- File type in Properties; %1$s is the file extension in capitals, e.g. TXT -->
+    <string name="fm_type_ext_file">%1$s 文件</string>
+    <string name="fm_read_only">只读</string>
+    <string name="fm_read_only_hint">防止游戏（及 Wine）覆盖或删除此文件。</string>
+    <string name="fm_read_only_failed">无法更改只读属性</string>
+    <string name="fm_hidden">隐藏</string>
+    <string name="fm_hidden_unsupported">此存储无法保存隐藏标记。</string>
+    <string name="fm_hidden_hint">在 Windows 中将文件标记为隐藏（Wine 的隐藏属性）。</string>
+    <string name="fm_hidden_failed">无法在此存储上更改隐藏属性</string>
+    <string name="fm_done">完成</string>
+    <string name="fm_op_deleting">正在删除…</string>
+    <string name="fm_delete_failed">删除失败</string>
+    <string name="fm_op_moving">正在移动…</string>
+    <string name="fm_op_copying">正在复制…</string>
+
+    <!-- %1$s is the file name -->
+    <string name="fm_op_moving_item">正在移动 - %1$s</string>
+    <string name="fm_op_copying_item">正在复制 - %1$s</string>
+
+    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
+    <string name="fm_op_moving_batch">正在移动 %1$d/%2$d - %3$s</string>
+    <string name="fm_op_copying_batch">正在复制 %1$d/%2$d - %3$s</string>
+
+    <!-- Paste result; %1$d items done, %2$d items failed -->
+    <string name="fm_paste_failed">%1$d 项完成，%2$d 项失败</string>
+
+    <!-- Paste result; %1$d items done, %2$d items skipped -->
+    <string name="fm_paste_skipped">%1$d 项完成，%2$d 项已跳过</string>
+    <plurals name="fm_paste_moved">
+        <item quantity="other">已移动 %1$d 项</item>
+    </plurals>
+    <plurals name="fm_paste_copied">
+        <item quantity="other">已复制 %1$d 项</item>
+    </plurals>
+
+    <!-- %1$s is a file or folder name -->
+    <string name="fm_already_exists">“%1$s”已存在</string>
+    <string name="fm_op_renaming">正在重命名…</string>
+    <string name="fm_rename_failed">重命名失败</string>
+    <string name="fm_op_creating_folder">正在创建文件夹…</string>
+    <string name="fm_create_folder_failed">无法创建文件夹</string>
+    <string name="fm_new_folder">新建文件夹</string>
+    <string name="fm_folder_name">文件夹名称</string>
+    <string name="fm_create">创建</string>
+    <string name="fm_new_name">新名称</string>
+    <string name="fm_delete_title">删除？</string>
+
+    <!-- %1$s is a file or folder name -->
+    <string name="fm_delete_text">要永久删除“%1$s”吗？</string>
+    <plurals name="fm_delete_items_title">
+        <item quantity="other">删除 %1$d 项？</item>
+    </plurals>
+    <string name="fm_cannot_undo">此操作无法撤销。</string>
+
+    <!-- After a list of the first five names in a delete confirmation -->
+    <plurals name="fm_and_more">
+        <item quantity="other">…以及其他 %1$d 项</item>
+    </plurals>
+
+    <!-- %1$d is the item number, %2$d the number of items, %3$s the file name -->
+    <string name="fm_op_deleting_batch">正在删除 %1$d/%2$d - %3$s</string>
+    <plurals name="fm_delete_some_failed">
+        <item quantity="other">%1$d 项无法删除</item>
+    </plurals>
+    <string name="fm_conflict_merge_hint">“合并”会在现有文件夹中添加并替换文件。</string>
+    <string name="fm_conflict_overwrite_hint">“覆盖”会替换现有文件。</string>
+    <string name="fm_conflict_apply_all">应用于所有冲突</string>
+    <string name="fm_conflict_merge">合并</string>
+    <string name="fm_conflict_overwrite">覆盖</string>
+    <string name="fm_conflict_keep_both">保留两者</string>
+    <string name="fm_conflict_skip">跳过</string>
+    <string name="fm_select_this_folder">选择此文件夹</string>
+    <string name="fm_back">返回</string>
+
+    <!-- %1$s is a storage name, e.g. SD card -->
+    <string name="fm_drive_not_readable">%1$s 已挂载，但当前无法读取</string>
+    <string name="fm_list_view">列表视图</string>
+    <string name="fm_grid_view">网格视图</string>
+    <string name="fm_search">搜索</string>
+    <string name="fm_sort">排序</string>
+    <string name="fm_sort_name">名称</string>
+    <string name="fm_sort_date">修改日期</string>
+    <string name="fm_rows_comfortable">宽松行距</string>
+    <string name="fm_rows_compact">紧凑行距</string>
+    <string name="fm_hide_hidden">不显示隐藏文件</string>
+    <string name="fm_show_hidden">显示隐藏文件</string>
+    <string name="fm_hide_favorites">隐藏收藏夹</string>
+    <string name="fm_show_favorites">显示收藏夹</string>
+    <string name="fm_filter_folder">筛选此文件夹</string>
+
+    <!-- Free space on the storage being browsed; %1$s is a size, e.g. 12.50 GB -->
+    <string name="fm_free_space">可用 %1$s</string>
+    <string name="fm_selected_count">已选择 %1$d 项</string>
+
+    <!-- Selection bar: clear the selection -->
+    <string name="fm_select_none">不选</string>
+
+    <!-- Selection bar: select every item -->
+    <string name="fm_select_all">全选</string>
+    <string name="fm_paste">粘贴</string>
+    <plurals name="fm_items">
+        <item quantity="other">%1$d 项</item>
+    </plurals>
+
+    <!-- %1$s is a file name or a number of items -->
+    <string name="fm_paste_here">将 %1$s 粘贴到此处</string>
+
+    <!-- %1$s is a file name or a number of items -->
+    <string name="fm_paste_move_here">将 %1$s 移动到此处</string>
+    <string name="fm_rail_title">文件</string>
+    <string name="fm_rail_storage">存储</string>
+
+    <!-- Rail section of shortcut folders (Downloads, ROMs, …) -->
+    <string name="fm_rail_quick">快速访问</string>
+    <string name="fm_rail_favorites">收藏夹</string>
+    <string name="fm_rail_downloads">下载</string>
+
+    <!-- Downloads shortened to fit under an icon (about 8 characters) -->
+    <string name="fm_rail_downloads_short">下载</string>
+    <string name="fm_rail_roms">ROM</string>
+    <string name="fm_rail_session_logs">会话日志</string>
+    <string name="fm_rail_pictures">图片</string>
+
+    <!-- %1$s is a folder name -->
+    <string name="fm_favorite_added">已将“%1$s”添加到收藏夹</string>
+
+    <!-- %1$s is a folder name -->
+    <string name="fm_favorite_removed">已将“%1$s”从收藏夹移除</string>
+    <string name="fm_empty_directory">空文件夹</string>
+    <string name="fm_up_one_level">返回上一级</string>
+    <string name="fm_choose_folder">选择文件夹</string>
+    <string name="fm_choose_file">选择文件</string>
+
+    <!-- On-screen controller tint colors -->
+    <string name="ctrl_tint_steam_blue">Steam 蓝</string>
+    <string name="ctrl_tint_sky">天蓝</string>
+    <string name="ctrl_tint_white">白色</string>
+    <string name="ctrl_tint_violet">紫罗兰</string>
+    <string name="ctrl_tint_green">绿色</string>
+    <string name="ctrl_tint_amber">琥珀</string>
+    <string name="ctrl_tint_red">红色</string>
+    <string name="ctrl_tint_pink">粉色</string>
+
+    <!-- On-screen buttons that can be remapped -->
+    <string name="ctrl_button_a">A 键</string>
+    <string name="ctrl_button_b">B 键</string>
+    <string name="ctrl_button_x">X 键</string>
+    <string name="ctrl_button_y">Y 键</string>
+    <string name="ctrl_button_lb">左肩键</string>
+    <string name="ctrl_button_rb">右肩键</string>
+    <string name="ctrl_button_lt">左扳机</string>
+    <string name="ctrl_button_rt">右扳机</string>
+    <string name="ctrl_button_view">视图键</string>
+    <string name="ctrl_button_menu">菜单键</string>
+
+    <!-- What a remapped on-screen button sends; letters and Steam are controller button names -->
+
+    <!-- Controller View button -->
+    <string name="ctrl_target_view">视图</string>
+
+    <!-- Controller Menu button -->
+    <string name="ctrl_target_menu">菜单</string>
+    <string name="ctrl_target_up">方向键上</string>
+    <string name="ctrl_target_down">方向键下</string>
+    <string name="ctrl_target_left">方向键左</string>
+    <string name="ctrl_target_right">方向键右</string>
+
+    <!-- The on-screen button is not shown -->
+    <string name="ctrl_target_hidden">隐藏</string>
+    <string name="ctrl_editor_drag">拖动以移动</string>
+    <string name="ctrl_editor_snap">对齐</string>
+    <string name="ctrl_editor_save">保存</string>
+
+    <!-- What the second screen shows during a session -->
+    <string name="second_mode_none">无</string>
+    <string name="second_mode_keyboard_trackpad">键盘 + 触控板</string>
+    <string name="second_mode_terminal">终端</string>
+    <string name="second_mode_deck_controls">Deck 背键 + 触控板</string>
+
+    <!-- Runtime, updates and setup helpers -->
+
+    <!-- Linux runtime install / removal (LinuxRuntimeInstaller, RuntimeInstallService) -->
+    <string name="rtinst_removing">正在移除 Linux 运行时</string>
+    <plurals name="rtinst_removing_entries">
+        <item quantity="other">正在移除 Linux 运行时 · %1$d 项</item>
+    </plurals>
+    <string name="rtinst_removed">Linux 运行时已移除</string>
+    <string name="rtinst_removal_failed">未能完成 Linux 运行时的移除。请在“配置”中重试移除。</string>
+    <string name="rtinst_removing_leftovers">正在移除运行时残留文件</string>
+    <string name="rtinst_downloading">正在下载</string>
+    <string name="rtinst_verifying">正在校验</string>
+    <string name="rtinst_extracting">正在解压</string>
+    <string name="rtinst_channel_description">在安装或移除 Linux 运行时期间显示</string>
+    <string name="rtinst_title_installing">正在安装 Linux 运行时</string>
+    <string name="rtinst_title_removing">正在移除 Linux 运行时</string>
+
+    <!-- Hosted desktop and emulator packages (DesktopCatalog) -->
+    <string name="deskpkg_runtime_missing">未安装 Linux 运行时</string>
+
+    <!-- %1$s: package name -->
+    <string name="deskpkg_no_checksum">目录中没有 %1$s 的校验和</string>
+    <string name="deskpkg_checksum_mismatch">校验和不匹配 — 未做任何更改</string>
+
+    <!-- %1$s: package name -->
+    <string name="deskpkg_installing">正在安装 %1$s</string>
+    <string name="deskpkg_place_failed">无法放置 AppImage</string>
+    <string name="deskpkg_extract_failed">解压失败</string>
+    <string name="deskpkg_install_failed">安装失败</string>
+
+    <!-- Flatpak store operations (FlatpakManager) -->
+    <string name="flatpakmgr_setup_failed">Flatpak 配置失败（退出代码 %1$d）</string>
+    <string name="flatpakmgr_setup_unfinished">Flatpak 配置未完成</string>
+    <string name="flatpakmgr_busy">另一个商店任务正在运行</string>
+    <string name="flatpakmgr_not_ready">请先配置 Flatpak</string>
+    <string name="flatpakmgr_starting">启动中</string>
+    <string name="flatpakmgr_exit_status">Flatpak 已退出，状态码 %1$d</string>
+
+    <!-- %1$s: an app or runtime name, e.g. "SuperTux" or "GNOME runtime 50" -->
+    <string name="flatpakmgr_installing">正在安装 %1$s</string>
+    <string name="flatpakmgr_updating">正在更新 %1$s</string>
+    <string name="flatpakmgr_removing">正在移除 %1$s</string>
+
+    <!-- %1$s: an app or runtime name; %2$d of %3$d: this step and the number of steps -->
+    <string name="flatpakmgr_installing_step">正在安装 %1$s（%2$d/%3$d）</string>
+    <string name="flatpakmgr_updating_step">正在更新 %1$s（%2$d/%3$d）</string>
+    <string name="flatpakmgr_removing_step">正在移除 %1$s（%2$d/%3$d）</string>
+
+    <!-- Names for Flatpak runtime parts, shown inside "Installing %1$s" -->
+    <string name="flatpakmgr_ref_translations">翻译</string>
+    <string name="flatpakmgr_ref_graphics_drivers">图形驱动</string>
+    <string name="flatpakmgr_ref_media_codecs">媒体编解码器</string>
+
+    <!-- %1$s: runtime vendor, e.g. GNOME, KDE, Freedesktop -->
+    <string name="flatpakmgr_ref_runtime">%1$s 运行时</string>
+
+    <!-- %1$s: runtime vendor, e.g. GNOME; %2$s: its version, e.g. 50 -->
+    <string name="flatpakmgr_ref_runtime_branch">%1$s 运行时 %2$s</string>
+
+    <!-- Imported AppImages (AppImageManager) -->
+    <string name="appimg_too_small">文件太小，不可能是 AppImage</string>
+
+    <!-- %1$s: the system's reason -->
+    <string name="appimg_unreadable">无法读取文件：%1$s</string>
+    <string name="appimg_not_linux">这不是 AppImage（不是 Linux 程序）</string>
+    <string name="appimg_wrong_arch">此 AppImage 既不是为 ARM64（aarch64）构建，也不是为 x86 PC 构建</string>
+    <string name="appimg_not_appimage">这是 Linux 程序，但不是 AppImage</string>
+    <string name="appimg_wrong_type">只能导入类型 2 的 AppImage（此文件为类型 %1$d）</string>
+
+    <!-- %1$s: a size such as "3.2 GB" -->
+    <string name="appimg_no_space_import">可用空间不足：导入约需 %1$s</string>
+
+    <!-- %1$s: a size such as "3.2 GB" -->
+    <string name="appimg_no_space_update">可用空间不足：更新约需 %1$s</string>
+    <string name="appimg_import_failed">导入失败</string>
+    <string name="appimg_gone">该 AppImage 已不存在</string>
+    <string name="appimg_update_failed">更新失败</string>
+
+    <!-- %1$s: file name -->
+    <string name="appimg_extracting">正在解压 %1$s</string>
+    <string name="appimg_extract_failed">无法解压该 AppImage</string>
+
+    <!-- %1$s: the last line the extractor printed -->
+    <string name="appimg_extract_failed_detail">无法解压该 AppImage：%1$s</string>
+
+    <!-- Decky Loader and plugin installs (DeckyManager) -->
+    <string name="deckymgr_stop_session_loader">安装 Decky Loader 前请先停止当前会话</string>
+    <string name="deckymgr_download_failed">Decky Loader 下载失败</string>
+    <string name="deckymgr_size_mismatch">Decky Loader 的大小与发布元数据不符</string>
+    <string name="deckymgr_checksum_download_failed">无法下载发布版本的校验和</string>
+    <string name="deckymgr_checksum_missing">缺少发布版本的校验和</string>
+    <string name="deckymgr_checksum_invalid">发布版本的校验和无效</string>
+    <string name="deckymgr_checksum_mismatch">Decky Loader 校验和不匹配</string>
+    <string name="deckymgr_not_elf">发布文件不是兼容的 64 位 Linux 可执行文件</string>
+    <string name="deckymgr_session_started_loader">下载期间有会话启动；请先停止它，再安装 Decky Loader</string>
+    <string name="deckymgr_loader_not_executable">无法将 PluginLoader 设为可执行</string>
+    <string name="deckymgr_cef_failed">无法启用 Steam CEF 远程调试</string>
+    <string name="deckymgr_stage_failed">无法暂存 PluginLoader</string>
+    <string name="deckymgr_loader_preserve_failed">无法保留现有的 PluginLoader</string>
+    <string name="deckymgr_loader_activate_failed">无法启用新的 PluginLoader</string>
+    <string name="deckymgr_stop_session_plugin">安装插件前请先停止当前会话</string>
+    <string name="deckymgr_loader_required">导入插件前请先安装 Decky Loader</string>
+    <string name="deckymgr_zip_unreadable">无法读取所选的 ZIP 文件</string>
+    <string name="deckymgr_plugins_dir_failed">无法创建 Decky 插件目录</string>
+    <string name="deckymgr_extracting_zip">正在解压插件 ZIP 包</string>
+    <string name="deckymgr_zip_one_folder">插件 ZIP 包的顶层必须只有一个插件文件夹</string>
+    <string name="deckymgr_zip_missing_files">插件 ZIP 包缺少 plugin.json、package.json 或 dist/index.js</string>
+    <string name="deckymgr_plugin_name_missing">缺少插件名称</string>
+    <string name="deckymgr_session_started_plugin">安装期间有会话启动；请先停止它，再安装插件</string>
+    <string name="deckymgr_plugin_installed">插件已安装 · 重启 Steam 即可加载</string>
+    <string name="deckymgr_plugin_install_failed">插件 ZIP 包安装失败</string>
+    <string name="deckymgr_zip_too_many">插件 ZIP 包中的条目过多</string>
+    <string name="deckymgr_zip_invalid_path">插件 ZIP 包中含有无效路径</string>
+    <string name="deckymgr_zip_duplicate_paths">插件 ZIP 包中含有重复路径</string>
+    <string name="deckymgr_zip_unsafe_path">插件 ZIP 包中含有不安全的路径</string>
+    <string name="deckymgr_folder_failed">无法创建插件文件夹</string>
+    <string name="deckymgr_zip_too_large">插件 ZIP 包解压后超过 1 GiB 上限</string>
+    <string name="deckymgr_bundled_not_executable">无法将插件自带的二进制文件设为可执行</string>
+    <string name="deckymgr_remote_entry_invalid">无效的 remote_binary 条目</string>
+    <string name="deckymgr_remote_name_invalid">无效的远程二进制文件名</string>
+    <string name="deckymgr_remote_url_https">远程二进制文件的 URL 必须使用 HTTPS</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_remote_hash_invalid">远程二进制文件 %1$s 的 SHA-256 哈希无效</string>
+    <string name="deckymgr_bin_dir_failed">无法创建插件 bin 目录</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_downloading_binary">正在下载插件二进制文件 · %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_download_failed">无法下载插件二进制文件 %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_checksum_mismatch">插件二进制文件校验和不匹配 · %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_not_executable">无法将插件二进制文件设为可执行 · %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_replace_failed">无法替换插件二进制文件 · %1$s</string>
+
+    <!-- %1$s: binary file name -->
+    <string name="deckymgr_binary_install_failed">无法安装插件二进制文件 · %1$s</string>
+    <string name="deckymgr_folder_taken">该插件文件夹属于另一个插件</string>
+    <string name="deckymgr_preserve_failed">无法保留现有插件</string>
+    <string name="deckymgr_activate_failed">无法启用导入的插件</string>
+    <string name="deckymgr_settings_failed">无法更新 Decky 插件设置</string>
+    <string name="deckymgr_restore_failed">无法恢复现有插件</string>
+
+    <!-- Child-process limit change over Wireless debugging (WirelessAdbFix) -->
+    <string name="adbfix_save_failed">无法保存无线调试身份信息</string>
+
+    <!-- %1$d: the command's exit status -->
+    <string name="adbfix_command_failed">ADB 命令执行失败（%1$d）</string>
+
+    <!-- %1$s: what Android answered -->
+    <string name="adbfix_not_confirmed">Android 未确认子进程限制已更改：%1$s</string>
+    <string name="adbfix_no_pairing">未保存任何无线调试配对</string>
+    <string name="adbfix_enter_address">请输入当前的无线调试 IP 地址与端口</string>
+
+    <!-- Wireless debugging pairing notification (WirelessAdbPairingService) -->
+    <string name="adbpair_timed_out">等待配对弹窗超时。请从 DroidDeck 重试。</string>
+
+    <!-- %1$d: Android's error code -->
+    <string name="adbpair_discovery_failed_code">无法查找配对弹窗（%1$d）。请检查 Wi-Fi 是否已开启。</string>
+
+    <!-- %1$s: the system's reason -->
+    <string name="adbpair_discovery_failed">无法查找配对弹窗：%1$s</string>
+    <string name="adbpair_six_digits">请输入完整的 6 位配对码</string>
+    <string name="adbpair_pairing">正在配对…</string>
+    <string name="adbpair_code_rejected">配对码无效。请重新打开配对弹窗，输入新的配对码。</string>
+    <string name="adbpair_connecting">已配对。正在连接…</string>
+    <string name="adbpair_port_not_found">已配对，但未找到无线调试端口。请保持无线调试开启，然后重试。</string>
+    <string name="adbpair_applying">正在应用设置…</string>
+    <string name="adbpair_command_failed">无线调试命令执行失败</string>
+    <string name="adbpair_channel_name">无线调试配置</string>
+    <string name="adbpair_channel_description">在“设置”打开时请求输入无线调试配对码</string>
+    <string name="adbpair_title_pair">配对无线调试</string>
+    <string name="adbpair_waiting_text">开启无线调试，然后点按“使用配对码配对设备”。</string>
+    <string name="adbpair_waiting_long">开启无线调试，然后点按“使用配对码配对设备”。请停留在“设置”中：配对码在此通知中输入。</string>
+
+    <!-- Label of the notification's reply field -->
+    <string name="adbpair_code_label">6 位配对码</string>
+    <string name="adbpair_code_hint">点按“输入配对码”，然后输入“设置”中显示的 6 位数字。</string>
+    <string name="adbpair_title_code">输入 Wi-Fi 配对码</string>
+    <string name="adbpair_title_retry">请重新输入配对码</string>
+
+    <!-- Notification action button -->
+    <string name="adbpair_enter_code">输入配对码</string>
+    <string name="adbpair_title_working">正在配置 Steam</string>
+    <string name="adbpair_title_done">Steam 已就绪</string>
+    <string name="adbpair_done_text">点按即可返回 DroidDeck。现在可以关闭无线调试了。</string>
+    <string name="adbpair_title_failed">无线调试配置已中止</string>
+
+    <!-- DroidDeck's own updates (SelfInstaller, AppUpdates) -->
+    <string name="selfinst_http">下载服务器返回 HTTP %1$d</string>
+    <string name="selfinst_size_mismatch">下载的文件大小与发布的 APK 不符，已丢弃 — 请重试</string>
+    <string name="selfinst_checksum_mismatch">下载的文件与校验和不符，已丢弃 — 请重试</string>
+
+    <!-- %1$s: the update's Android package name; %2$s: this app's -->
+    <string name="selfinst_wrong_package">此更新适用于 Android 软件包 %1$s，而不是 %2$s</string>
+    <string name="selfinst_metadata_signer">更新元数据中未指明 DroidDeck 的发布签名密钥</string>
+    <string name="selfinst_unreadable">Android 无法读取下载的 APK</string>
+
+    <!-- %1$s: the APK's Android package name; %2$s: this app's -->
+    <string name="selfinst_apk_wrong_package">下载的 APK 适用于 %1$s，而不是 %2$s</string>
+    <string name="selfinst_version_mismatch">下载的 APK 的 versionCode 为 %1$d，而不是已发布的 %2$d</string>
+    <string name="selfinst_downgrade">Android 不会用 versionCode %1$d 覆盖已安装的 %2$d</string>
+    <string name="selfinst_no_signing">下载的 APK 没有签名信息</string>
+    <string name="selfinst_wrong_signer">下载的 APK 未使用 DroidDeck 的发布密钥签名</string>
+    <string name="appupd_http">更新目录返回 HTTP %1$d</string>
+
+    <!-- Session, GPU and display -->
+
+    <!-- Session loading screen -->
+    <string name="loadstate_starting">正在启动会话…</string>
+
+    <!-- %1$d minutes, %2$02d seconds since the session started -->
+    <string name="loadstate_elapsed">已用时 %1$d:%2$02d · 仍在处理</string>
+    <string name="loadstate_steam_update">正在下载 Steam 客户端更新 · %1$d%%</string>
+
+    <!-- %1$s is the client's own download progress, as it prints it -->
+    <string name="loadstate_steam_client">正在下载 Steam 客户端 · %1$s</string>
+
+    <!-- Installing GE-Proton / proton-cachyos (%1$s is the tool's name, %2$s its release tag) -->
+    <string name="pextra_busy">已有兼容性工具正在安装</string>
+    <string name="pextra_stop_session">安装兼容性工具前请先停止当前会话</string>
+    <string name="pextra_no_release">找不到 %1$s 的 ARM64 发布版本</string>
+    <string name="pextra_no_space">安装 %1$s 需要至少 4 GB 可用空间外加下载大小</string>
+    <string name="pextra_downloading">正在下载 %1$s %2$s</string>
+    <string name="pextra_retrying">正在重试下载 · 第 %1$d 次，共 %2$d 次</string>
+    <string name="pextra_interrupted">下载已中断</string>
+    <string name="pextra_download_failed">下载失败；已保留部分下载的文件，重试时可继续下载</string>
+    <string name="pextra_too_big">下载内容超出发布版本的大小，已删除</string>
+    <string name="pextra_incomplete">下载不完整；已保留部分下载的文件，重试时可继续下载</string>
+    <string name="pextra_verifying">正在校验下载</string>
+    <string name="pextra_checksum_unreadable">无法读取发布版本的校验和；请重试</string>
+    <string name="pextra_no_checksum">%1$s %2$s 未发布校验和；未安装任何内容</string>
+    <string name="pextra_checksum_mismatch">校验和不匹配；已删除下载的文件</string>
+    <string name="pextra_session_started">下载期间有会话启动；请先停止它，再安装兼容性工具</string>
+    <string name="pextra_installing">正在安装 %1$s</string>
+
+    <!-- %2$d is the installer's exit status -->
+    <string name="pextra_install_failed">%1$s 安装失败（退出代码 %2$d）</string>
+    <string name="pextra_could_not_install">无法安装 %1$s</string>
+    <string name="esync_fetching">正在获取 droiddeck-esync 包</string>
+
+    <!-- Components (FEX / DXVK / VKD3D-Proton swapped into a Proton). %1$s component, %2$s version, %3$s Proton -->
+    <string name="cmgr_fex_linux_helpers">含 Linux 辅助组件</string>
+    <string name="cmgr_fex_dlls_only">仅 DLL</string>
+    <string name="cmgr_original_proton_updated">原件（上次替换后 Proton 已更新）</string>
+    <string name="cmgr_changed_outside">已在“组件”之外被更改</string>
+
+    <!-- A component version that could not be found in a Proton -->
+    <string name="cmgr_not_present">不存在</string>
+
+    <!-- %1$s is the Proton build the original files were saved from -->
+    <string name="cmgr_original_version">原件 %1$s</string>
+    <string name="cmgr_original_from">原件来自 %1$s</string>
+    <string name="cmgr_swap_queued">%1$s %2$s 将在 %3$s 上运行的游戏关闭后放入其中。</string>
+    <string name="cmgr_swap_done">%1$s %2$s 已放入 %3$s，将在下次启动游戏时生效。</string>
+    <string name="cmgr_original_missing">未存储该原件包</string>
+
+    <!-- %1$s component, %2$s Proton -->
+    <string name="cmgr_restore_queued">%2$s 的 %1$s 将在其上运行的游戏关闭后恢复为原件。</string>
+
+    <!-- %1$s component, %2$s Proton, %3$s the Proton build the original came from -->
+    <string name="cmgr_restore_done">已从 %3$s 原件还原 %2$s 的 %1$s。</string>
+
+    <!-- %1$s package file, %2$s Proton id -->
+    <string name="cmgr_package_in_use">%1$s 正在 %2$s 中使用。请先将该 Proton 替换为其他版本。</string>
+    <string name="cmgr_package_not_stored">%1$s 未存储</string>
+    <string name="cmgr_deleted">已删除 %1$s。</string>
+    <string name="cmgr_original_kept">已安装构建的原件会保留：它是还原的途径。</string>
+    <string name="cmgr_not_stored">未存储</string>
+
+    <!-- %1$s Proton build, %2$s component -->
+    <string name="cmgr_deleted_original">已删除 %2$s 的 %1$s 原件。</string>
+    <string name="cmgr_nightlies_only">只能从 Nightlies 发布版本下载</string>
+    <string name="cmgr_list_predates_checksums">此软件包列表早于校验和功能 — 请刷新后重试</string>
+    <string name="cmgr_checksum_mismatch">校验和不匹配</string>
+
+    <!-- Display choices -->
+    <string name="sprefs_upscaler_linear">线性</string>
+    <string name="sprefs_upscaler_nearest">最近邻</string>
+    <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR（质量）</string>
+    <string name="sprefs_upscaler_sharpen">仅锐化</string>
+    <string name="sprefs_lod_bias_auto">自动（匹配缩放）</string>
+
+    <!-- Screen effect Looks: preset names and the line under the row -->
+    <string name="look_off_desc">不应用任何效果。</string>
+    <string name="look_game_clarity">游戏清晰</string>
+    <string name="look_game_clarity_desc">锐化并略增对比度 — 适合日常使用。</string>
+    <string name="look_vivid">鲜艳</string>
+    <string name="look_vivid_desc">大幅增强色彩。开启去色带，避免天空出现条纹。</string>
+    <string name="look_cinematic">电影感</string>
+    <string name="look_cinematic_desc">对比度更深、色调更冷，边缘平滑。</string>
+    <string name="look_competitive">竞技</string>
+    <string name="look_competitive_desc">提亮暗部并强力锐化 — 抢先发现敌人。</string>
+    <string name="look_adaptive_sharpen">自适应锐化</string>
+    <string name="look_adaptive_sharpen_desc">仅锐化，不改变色彩。</string>
+    <string name="look_filmic">胶片</string>
+    <string name="look_filmic_desc">类似胶片的色调曲线，略微柔和。</string>
+    <string name="look_arcade">街机</string>
+    <string name="look_arcade_desc">浓烈有冲击力。</string>
+    <string name="look_retro_crt">复古 CRT</string>
+    <string name="look_retro_crt_desc">同时应用 CRT 显像管与模拟信号效果。</string>
+    <string name="look_upscale_sharp">放大锐化</string>
+    <string name="look_upscale_sharp_desc">适用于低于屏幕原生分辨率运行时。</string>
+    <string name="look_pixel_clean">像素清晰</string>
+    <string name="look_pixel_clean_desc">为 2D 和老游戏提供清晰锐利的像素。</string>
+    <string name="look_anime_edge">动漫描边</string>
+    <string name="look_anime_edge_desc">卡通描边加锐化。</string>
+
+    <!-- GPU support line -->
+    <string name="gpuinfo_not_adreno">不是 Adreno GPU</string>
+    <string name="gpuinfo_supported">受支持</string>
+    <string name="gpuinfo_experimental">实验性：其驱动为测试构建</string>
+    <string name="gpuinfo_below_tested">低于已测试的硬件（Adreno 725 及更新）：可能无法运行</string>
+    <string name="gpuinfo_unsupported">不受支持：DroidDeck 需要 Adreno（骁龙）GPU</string>
+
+    <!-- Driver downloads and imports -->
+    <string name="turnip_rate_limited">已达到 GitHub 的请求频率限制 — 请稍后重试</string>
+    <string name="turnip_github_http">GitHub 返回 HTTP %1$d</string>
+    <string name="turnip_download_http">下载返回 HTTP %1$d</string>
+    <string name="turnip_list_predates_checksums">此驱动列表早于校验和功能 — 请刷新后重试</string>
+    <string name="turnip_checksum_mismatch">校验和不匹配 — 已丢弃下载的文件</string>
+
+    <!-- %1$s is one of the turnip_reject_* reasons -->
+    <string name="turnip_not_adrenotools">不是 AdrenoTools 驱动：%1$s</string>
+    <string name="turnip_reject_no_meta">缺少 meta.json</string>
+    <string name="turnip_reject_meta_unreadable">无法读取 meta.json（%1$s）</string>
+    <string name="turnip_reject_linux_driver">这是 Linux 运行时驱动（请在“运行时驱动”下导入）</string>
+    <string name="turnip_reject_wayland">这是 Wayland 游戏驱动，本应用用不到它</string>
+    <string name="turnip_reject_no_library_name">meta.json 未指定 libraryName，因此无法交给 AdrenoTools</string>
+
+    <!-- %1$s is a library file name -->
+    <string name="turnip_reject_library_missing">meta.json 指定了 %1$s，但它不在 zip 包中</string>
+    <string name="turnip_reject_not_aarch64">%1$s 不是 64 位 AArch64 ELF 共享库</string>
+    <string name="turnip_reject_glibc">%1$s 链接了 glibc — 这是“-Linux”Turnip，应在“运行时驱动”下导入</string>
+    <string name="lvd_no_library">此 zip 包中没有 libvulkan_freedreno*.so。Android（AdrenoTools）或 -Wayland Turnip zip 包不是 Linux 运行时驱动。</string>
+    <string name="lvd_not_aarch64">%1$s 不是 64 位 AArch64 ELF 共享库。</string>
+    <string name="lvd_not_glibc">%1$s 不是 glibc 驱动 — 它链接的是 Android 的 libc。Linux 运行时需要“-Linux”zip 包；普通或“-Wayland”Turnip 完全无法被 Steam 客户端加载。</string>
+    <string name="bundle_no_manifest">不是驱动组合包：没有指定 Android 和 Linux 驱动的 manifest.json</string>
+    <string name="bundle_entry_outside">不是驱动组合包：%1$s 指向包外</string>
+    <string name="bundle_too_large">不是驱动组合包：解包后超过 %1$d MB</string>
+
+    <!-- Game storage -->
+    <string name="gstore_sd_card">SD 卡</string>
+
+    <!-- %1$s is a size, like 12.3 GB -->
+    <string name="gstore_folder">文件夹</string>
+    <string name="logshare_chooser">分享会话日志</string>
+
+    <!-- Stands in for the Steam account name when the client did not record one -->
+
+    <!-- Why the HDR switch is greyed out -->
+    <string name="hdr_needs_android_10">需要 Android 10 或更高版本（支持色彩空间的显示图层）</string>
+    <string name="hdr_none">此显示器未报告支持 HDR</string>
+
+    <!-- %1$s lists HDR formats, like Dolby Vision, HDR10+ -->
+    <string name="hdr_not_hdr10">此显示器支持 %1$s，但不支持 HDR10</string>
+
+    <!-- Follow-up -->
+
+    <!-- Stands in for the GPU name when the device does not report one -->
+    <string name="gpu_this_gpu">此 GPU</string>
+    <string name="phantom_title_on">子进程限制已开启</string>
+    <string name="phantom_title_unset">子进程限制未设置</string>
+    <string name="phantom_title_unreadable">无法检查子进程限制</string>
+    <string name="phantom_title_off">子进程限制已关闭</string>
+    <string name="phantom_title_not_required">无需更改子进程限制</string>
+
+    <!-- %1$s is the sentence saying how to turn the limit off on this device -->
+    <string name="phantom_instructions_fix">%1$s 如果无法做到，请将此设备连接到装有 ADB 的电脑并运行下方命令，然后返回此处重新检查。</string>
+    <string name="phantom_instructions_off">可以启动 Steam 会话了。</string>
+    <string name="phantom_instructions_not_applicable">此 Android 版本不使用该限制。</string>
+    <string name="phantom_fix_toggle">在开发者选项中打开“禁用子进程限制”，之后请保持开发者选项开启。</string>
+    <string name="phantom_fix_no_toggle">此 Android 版本没有该开关。请使用无线调试在此设备上更改。</string>
+    <string name="upd_block_no_apk">此构建没有适用于此 DroidDeck 副本的下载。</string>
+
+    <!-- %1$d is the offered build's versionCode, %2$d the installed one's -->
+    <string name="upd_block_version_code">Android 不会用它覆盖此构建，因为它的 versionCode %1$d 低于已安装的 %2$d。</string>
+    <string name="upd_fail_downgrade">Android 不会用旧版本覆盖新版本。请继续使用此构建，直到该通道的版本跟上。</string>
+    <string name="upd_fail_signature">此 DroidDeck 副本的签名不同（可能是本地构建？），因此 Android 无法就地更新。</string>
+    <string name="upd_fail_storage">可用空间不足，无法更新。</string>
+    <string name="upd_fail_aborted">更新已取消。</string>
+
+    <!-- %1$s is Android's own (English) installer message -->
+    <string name="upd_fail_with_message">更新未能安装：%1$s</string>
+    <string name="upd_fail_generic">更新未能安装。</string>
+
+    <!-- A save zip's layout; %1$s is the app it comes from (GameHub, Winlator) -->
+    <string name="saves_layout_zip">%1$s zip 包</string>
+
+    <!-- A save zip whose layout is not known -->
+    <string name="saves_zip">zip 包</string>
+
+    <!-- %1$s is the game's name -->
+    <string name="saves_not_launched">%1$s 尚未启动过</string>
+    <string name="saves_none_found">未找到 %1$s 的存档文件</string>
+
+    <!-- %1$s is the zip's file name -->
+    <string name="saves_not_save_zip">%1$s 中没有 drive_c 文件夹，因此不是 GameHub 或 Winlator 存档 zip 包</string>
+
+    <!-- %1$s is a folder path -->
+    <string name="gstore_cannot_create">无法在 %1$s 中创建文件夹</string>
+    <string name="gstore_cannot_write">无法写入 %1$s</string>
+
+    <!-- %1$s is a folder path, %2$s the system's error -->
+    <string name="gstore_cannot_write_detail">无法写入 %1$s（%2$s）</string>
+    <string name="gfiles_folder_unavailable">文件夹不可用</string>
+
+    <!-- %1$s is a file name -->
+    <string name="gfiles_name_taken">已有另一个文件使用 %1$s</string>
+    <string name="gfiles_art_unavailable">美术图文件夹不可用</string>
+    <string name="gfiles_unrelated_inventory">文件夹中有无关的同步清单</string>
+
+    <!-- %1$s is a file name -->
+    <string name="gfiles_remove_failed">无法移除 %1$s</string>
+    <string name="gfiles_outside_folder">文件超出了导出文件夹</string>
+
+    <!-- A FEX build whose DLL carries no version name -->
+    <string name="cmgr_fex_unnamed">FEX（无版本名称的构建）</string>
+
+    <!-- %1$s is a package file name -->
+    <string name="cmgr_no_profile">%1$s 中没有 profile.json</string>
+
+    <!-- %1$s is a package file name, %2$s the type its profile.json gives -->
+    <string name="cmgr_not_component_package">%1$s 不是 Linux 组件包（类型为 %2$s）</string>
+
+    <!-- A storage volume in the second-library menu; %1$s is its name, %2$s its free space, like 12.3 GB -->
+    <string name="gstore_volume_free">%1$s · 可用 %2$s</string>
+
+    <!-- The second-library setting's value when it is automatic (short form of mode_storage_auto) -->
+    <string name="mode_storage_auto_short">自动</string>
+
+    <!-- %1$s is the technical reason, kept in English -->
+    <string name="appupd_catalog_rejected">更新目录未通过校验（%1$s）</string>
+
+    <!-- Label of the copied ADB command on the clipboard -->
+    <string name="main_adb_clip_label">DroidDeck 子进程设置</string>
+
+    <!-- Signed in, but the Steam client recorded no account name -->
+    <string name="setup_signed_in_offline_unnamed">已登录 · 离线模式</string>
+    <string name="setup_signed_in_unnamed">已登录</string>
+
+    <!-- Small uppercase tags beside a driver's name: where it came from -->
+    <string name="driver_tag_bundled">内置</string>
+    <string name="driver_tag_downloaded">已下载</string>
+    <string name="driver_tag_imported">已导入</string>
+
+    <!-- The driver is one half of a bundle that sets both drivers -->
+    <string name="driver_tag_bundle">Android + Linux</string>
+
+    <!-- %1$s is the limit's state (e.g. Child-process limit is on), %2$s what to do, %3$s the ADB command -->
+    <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
+    <string name="display_session">会话显示</string>
+    <string name="display_resolution">分辨率</string>
+    <string name="display_game_fit">16:9 游戏适配</string>
+    <string name="display_game_fit_hint">16:9 游戏如何适配此屏幕。下次会话生效。</string>
+    <string name="display_game_fit_unavailable">请选择“匹配屏幕”或比 16:9 更窄的自定义尺寸。</string>
+    <string name="display_preserve">保持比例</string>
+    <string name="display_stretch">拉伸至屏幕</string>
+    <string name="display_image_scaling">画面缩放</string>
+    <string name="display_filter">缩放滤镜</string>
+    <string name="display_filter_hint">由 Steam 和桌面共享。</string>
+    <string name="display_filter_live">即时生效。由 Steam 和桌面共享。</string>
+    <string name="display_filter_note">FSR、GSR 和 NIS 在放大会话画面时生效。“仅锐化”在不放大时也可用。</string>
+    <string name="display_sharpness">滤镜锐度</string>
+    <string name="display_frame_rate">帧率</string>
+    <string name="display_look_filter">%1$s 将缩放设为 %2$s。</string>
+    <string name="display_match_screen">匹配屏幕（%1$d×%2$d）</string>
+    <string name="mode_tab_steam">Steam</string>
+    <string name="device_info_show">显示设备详情</string>
+    <string name="device_info_hide">隐藏设备详情</string>
+    <string name="device_info_loading">正在读取设备信息…</string>
+    <string name="device_info_copy">复制</string>
+    <string name="device_info_copy_hint">将这些详情复制到错误报告中。</string>
+    <string name="device_info_copied">已复制。</string>
+    <string name="force_ssbs_title">强制 SSBS</string>
+    <string name="force_ssbs_hint">保持开启一项 Wine 会不断关闭的 CPU 速度设置。在骁龙 8 至尊版上可能让 Windows 游戏更快；在较旧芯片上变化不大。下次启动游戏时生效。</string>
+    <string name="common_close">关闭</string>
+    <string name="common_back">返回</string>
+    <string name="common_edit">编辑</string>
+    <string name="games_add_all">添加此文件夹中的所有游戏</string>
+    <string name="games_added_none">此文件夹中没有新游戏</string>
+    <string name="edit_name">名称</string>
+    <string name="edit_target">目标</string>
+    <string name="edit_start_in">起始位置</string>
+    <string name="edit_launch_options">启动选项</string>
+    <string name="edit_artwork">美术图</string>
+    <string name="edit_other_exe">其他 exe…</string>
+    <string name="edit_remove">移除</string>
+    <string name="art_cover">封面</string>
+    <string name="art_background">背景</string>
+    <string name="art_logo">标志</string>
+    <string name="art_icon">图标</string>
+    <string name="art_src_folder">游戏文件夹</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">你的文件</string>
+    <string name="art_src_exe">来自 exe</string>
+    <string name="art_src_auto">自动</string>
+    <string name="art_pick_image">选择图片…</string>
+    <string name="art_pick_title">选择图片：%1$s</string>
+    <string name="art_reset">重置为自动</string>
+    <plurals name="games_added_n">
+        <item quantity="other">已添加 %1$d 个游戏</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="other">%1$d 个已在游戏中</item>
+    </plurals>
 </resources>

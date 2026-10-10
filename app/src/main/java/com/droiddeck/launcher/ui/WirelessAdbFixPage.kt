@@ -358,8 +358,11 @@ internal fun AdbTextField(
     onFocusChange: (Boolean) -> Unit = {},
     onNext: (() -> Unit)? = null,
     onDone: (() -> Unit)? = null,
+    /** Takes focus (and the keyboard) once, as soon as it is shown: a field that opened on request. */
+    focusOnShow: Boolean = false,
 ) {
     val context = LocalContext.current
+    val focusAsked = remember { booleanArrayOf(false) }
     val palette = LocalPalette.current
     val onValueChangeLatest = rememberUpdatedState(onValueChange)
     val onNextLatest = rememberUpdatedState(onNext)
@@ -434,6 +437,14 @@ internal fun AdbTextField(
                     }
                 },
                 update = { editText ->
+                    if (focusOnShow && !focusAsked[0]) {
+                        focusAsked[0] = true
+                        editText.post {
+                            editText.requestFocus()
+                            (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                                ?.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                        }
+                    }
                     editText.setTextColor(colors.onBackground.toArgb())
                     editText.setHintTextColor(colors.onSurfaceVariant.toArgb())
                     editText.hint = placeholder

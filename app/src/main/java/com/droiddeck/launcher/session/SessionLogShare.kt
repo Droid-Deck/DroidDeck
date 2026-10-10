@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.LogRedactor
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
@@ -17,9 +18,11 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Zips the most recent session's log folder and hands it to Android's share sheet. Works where
- * the folder could not be written to Downloads (no storage permission, or a device that refuses
- * it) and landed in the app's private files instead, which a user cannot otherwise reach.
+ * Share logs: one zip, made when asked, of a session folder (the newest by default) with the last
+ * seven days of the stores' log and the one-off command logs beside it, handed to Android's share
+ * sheet. Logs live in app-private `files/logs`; this is how they leave the device. Every text file
+ * goes through [LogRedactor.redactForShare] on the way in, so even a file written before a rule
+ * existed is clean in the zip. The zip sits in `cache/share/` until the next share or app start.
  */
 object SessionLogShare {
     private val main = Handler(Looper.getMainLooper())
@@ -61,7 +64,7 @@ object SessionLogShare {
         val files = folder.walkTopDown().filter { it.isFile }
             .filterNot { it.parentFile?.name == "steam" && it.length() > STEAM_LOG_MAX_BYTES }.toList()
         if (files.isEmpty()) return null
-        val out = File(context.cacheDir, "shared-logs").apply { deleteRecursively(); mkdirs() }
+        val out = shareDir(context).apply { deleteRecursively(); mkdirs() }
         val zip = File(out, "DroidDeck-${folder.name}.zip")
         // Scrubbed on the way into the zip: a session shared while it runs has not had its end-of-
         // session pass yet, and the redactor changes nothing in a line that is already clean.
@@ -70,9 +73,11 @@ object SessionLogShare {
         // since, goes in as it is; anything else (added or changed since, hidden, or any file of a
         // session still running) is scrubbed again. Scrubbing tens of MB of the client's logs on
         // every share kept the share sheet from appearing for ten seconds or more.
-        val scrubbed = SessionArtifacts.scrubbedFiles(folder)
         val live = liveSteamLogs(context, folder)
-        val total = (files + live).sumOf { it.length() }.coerceAtLeast(1L)
+        val logs = LinuxRuntime.logDir(context)
+        val stores = recent(File(logs, STORES_DIR))
+        val tools = recent(File(logs, SessionPaths.TOOLS_DIR))
+        val total = (files + live + stores + tools).sumOf { it.length() }.coerceAtLeast(1L)
         var done = 0L
         var shown = -1
         fun advance(f: File) {
@@ -81,17 +86,20 @@ object SessionLogShare {
             if (percent != shown) { shown = percent; onProgress?.invoke(percent / 100f) }
         }
         ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f, f.relativeTo(folder).path in scrubbed); advance(f) }
-            live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f, false); advance(f) }
+            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f); advance(f) }
+            live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f); advance(f) }
+            stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
+            tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }
         }
         return zip
     }
 
-    private fun addEntry(z: ZipOutputStream, name: String, f: File, scrubbed: Boolean) {
+    private fun addEntry(z: ZipOutputStream, name: String, f: File) {
         z.putNextEntry(ZipEntry(name))
-        if (!scrubbed && LogRedactor.isText(f)) {
+        // Every text file, every time: the folder's own scrub may predate a rule.
+        if (LogRedactor.isText(f)) {
             val w = z.bufferedWriter()
-            LogRedactor.scrubTo(f, w)
+            LogRedactor.scrubForShare(f, w)
             w.flush()
         } else {
             f.inputStream().use { it.copyTo(z) }
@@ -115,6 +123,25 @@ object SessionLogShare {
     /** The client's content and bootstrap logs grow large over months and say nothing about a session. */
     private const val STEAM_LOG_MAX_BYTES = 8L * 1024 * 1024
 
+    /** The stores' engine log, one file a day, under files/logs. */
+    const val STORES_DIR = "stores"
+    private const val RECENT_DAYS = 7
+
+    private fun shareDir(context: Context): File = File(context.cacheDir, "share")
+
+    /** The files in [dir] changed in the last [RECENT_DAYS] days. */
+    private fun recent(dir: File): List<File> {
+        val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L
+        return dir.listFiles { f -> f.isFile && f.lastModified() >= since }?.sortedBy { it.name }.orEmpty()
+    }
+
+    /** Deletes the last share's zip; at app start, so a zip never outlives the share it was made for. */
+    fun clear(context: Context) {
+        shareDir(context).deleteRecursively()
+        // Where builds before this one put it.
+        File(context.cacheDir, "shared-logs").deleteRecursively()
+    }
+
     fun shareIntent(context: Context, zip: File): Intent {
         val uri = FileProvider.getUriForFile(context, context.packageName + ".logs", zip)
         val send = Intent(Intent.ACTION_SEND)
@@ -123,6 +150,6 @@ object SessionLogShare {
             .putExtra(Intent.EXTRA_SUBJECT, zip.nameWithoutExtension)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         send.clipData = ClipData.newRawUri(zip.name, uri)
-        return Intent.createChooser(send, "Share session logs").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return Intent.createChooser(send, context.getString(R.string.logshare_chooser)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 }

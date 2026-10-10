@@ -13,13 +13,28 @@ permissions:
   contents: read
   pull-requests: read
 
+concurrency:
+  group: pr-release-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   cleanup:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Check the current PR state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
+          echo "closed=$([ "$state" = closed ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       # A token of the org's "DroidDeck CI Publisher" app, as build.yml's announce job uses.
       - uses: actions/create-github-app-token@v2
+        if: ${{ steps.state.outputs.closed == 'true' }}
         id: ci-token
         with:
           app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
@@ -27,6 +42,7 @@ jobs:
           owner: Droid-Deck
           repositories: DroidDeck-CI
       - name: Delete the test build
+        if: ${{ steps.state.outputs.closed == 'true' }}
         env:
           GH_TOKEN: ${{ steps.ci-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -41,6 +57,19 @@ jobs:
             fi
           done
           [ "$found" = 1 ] || echo "No test build for PR #$PR_NUMBER"
+
+      - uses: actions/checkout@v4
+        if: ${{ steps.state.outputs.closed == 'true' }}
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Retire the Discord PR announcement
+        if: ${{ steps.state.outputs.closed == 'true' }}
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_PR_BUILDS_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 tools/release/pr_discord.py retire
 
   catalog:
     needs: cleanup

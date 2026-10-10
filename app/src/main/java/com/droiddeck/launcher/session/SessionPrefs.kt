@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.ScreenEffects
 import org.json.JSONObject
@@ -11,6 +13,8 @@ object SessionPrefs {
     const val SUSPEND_NATIVE = "native"
     const val SUSPEND_MANUAL = "manual"
     const val SUSPEND_NEVER = "never"
+    private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
+    private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
@@ -18,11 +22,15 @@ object SessionPrefs {
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
     const val OSC_NEVER = "never"
+    /** Steam's touch controller (SteamTouchControls) in place of the app's pad; Steam sessions only. */
+    const val OSC_STEAM_TOUCH = "steam-touch"
 
-    const val BACK_MENU_THEN_QAM = "1: menu 2: QAM"
-    const val BACK_QAM_THEN_MENU = "1: QAM 2: menu"
+    /** What Back does in a Steam session, first press then second: the labels of the two orders. */
+    val BACK_MENU_THEN_QAM = R.string.back_menu_then_qam
+    val BACK_QAM_THEN_MENU = R.string.back_qam_then_menu
 
-    fun backActionsOrder(inverted: Boolean): String =
+    @StringRes
+    fun backActionsOrder(inverted: Boolean): Int =
         if (inverted) BACK_QAM_THEN_MENU else BACK_MENU_THEN_QAM
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
@@ -45,6 +53,52 @@ object SessionPrefs {
 
     fun setStoreEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("storeEnabled", on).apply()
+    }
+
+    /** The Stores section (GOG, Epic Games, Amazon Games): its rail item. Off by default. */
+    fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", false)
+
+    fun setGameStoresEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
+    }
+
+    /** The store download engine's speed tier (stores/download/StoreDownloadTier ids); Fast unless chosen otherwise. */
+    fun gameStoresSpeedTier(context: Context): String = prefs(context).getString("gameStoresSpeedTier", "fast") ?: "fast"
+
+    fun setGameStoresSpeedTier(context: Context, tier: String) {
+        prefs(context).edit().putString("gameStoresSpeedTier", tier).apply()
+    }
+
+    /** Which tab a signed-in store opens on when its chip is picked: [STORES_OPEN_LIBRARY] or [STORES_OPEN_STORE]. */
+    fun storesOpenTab(context: Context): String =
+        prefs(context).getString("storesOpenTab", STORES_OPEN_LIBRARY)?.takeIf { it == STORES_OPEN_STORE } ?: STORES_OPEN_LIBRARY
+
+    fun setStoresOpenTab(context: Context, tab: String) {
+        prefs(context).edit().putString("storesOpenTab", if (tab == STORES_OPEN_STORE) STORES_OPEN_STORE else STORES_OPEN_LIBRARY).apply()
+    }
+
+    /** Mature titles (the stores' own 17+/18 ratings or adult tags) in the storefront's shelves and search; off by default. Owned games always show. */
+    fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
+
+    fun setStoresShowMature(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("storesShowMature", show).apply()
+    }
+
+    const val STORES_OPEN_LIBRARY = "library"
+    const val STORES_OPEN_STORE = "store"
+
+    /** The install root picked last time the Stores asked where (a StoreInstallRoot target's path); only the dialog's default, never a silent choice. */
+    fun storesInstallTarget(context: Context): String = prefs(context).getString("storesInstallTarget", "") ?: ""
+
+    fun setStoresInstallTarget(context: Context, path: String) {
+        prefs(context).edit().putString("storesInstallTarget", path).apply()
+    }
+
+    /** How many store downloads run at once, 1..3; one by default (a single download already fills the link). */
+    fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
+
+    fun setGameStoresParallel(context: Context, count: Int) {
+        prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
     }
 
     /**
@@ -154,16 +208,9 @@ object SessionPrefs {
         prefs(context).edit().putStringSet("gpuAutoInstalled", ids.toSet()).apply()
     }
 
-    /**
-     * The Steam client's own sound through the DirectAudio relay instead of the classic AAudio
-     * sink. Off by default: on an AYN Thor (Android 13, 20 ms bursts) the relay path stayed choppy
-     * where the classic sink - the one 0.1.5 shipped - was fine.
-     */
-    fun clientDirectAudio(context: Context): Boolean = prefs(context).getBoolean("clientDirectAudio", false)
-
-    fun setClientDirectAudio(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("clientDirectAudio", on).apply()
-    }
+    // The Steam client's own sound has one route now: DirectAudio's engine inside the PulseAudio
+    // daemon (PulseAudioComponent), one step from Android. The old "clientDirectAudio" boolean
+    // (which meant the relay route, one hop more) is no longer read.
 
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
 
@@ -448,7 +495,7 @@ object SessionPrefs {
     }
 
     /**
-     * Whether a session writes its folder under Download/DroidDeck. Off, the same logs are kept in
+     * Whether a session keeps its folder under files/logs. Off, the same logs are kept in
      * the app's cache for the session's lifetime (the scripts need somewhere to write) and thrown
      * away at the end, so nothing accumulates in Downloads.
      */
@@ -496,7 +543,8 @@ object SessionPrefs {
     fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
         saved.getString("displayResolution.$mode", null)?.let { value ->
-            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(value) != null) return value
+            if (value == SessionDisplay.MATCH_SCREEN || value == SessionDisplay.FOLLOW_SCREEN ||
+                SessionDisplay.presetHeight(value) != null) return value
             parseResolution(value)?.let { return "${it.first}x${it.second}" }
         }
         if (!resolutionChosen(context, mode) && !saved.contains("shape")) return SessionDisplay.DEFAULT_RESOLUTION
@@ -506,7 +554,8 @@ object SessionPrefs {
     }
 
     fun setResolutionChoice(context: Context, mode: String, choice: String) {
-        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(choice) != null) choice else {
+        val value = if (choice == SessionDisplay.MATCH_SCREEN || choice == SessionDisplay.FOLLOW_SCREEN ||
+                SessionDisplay.presetHeight(choice) != null) choice else {
             val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
         }
@@ -586,6 +635,60 @@ object SessionPrefs {
         prefs(context).edit().putString("addedGamesDirs", dirs.distinct().joinToString("\n")).remove("addedGamesDir").apply()
     }
 
+    /**
+     * Game folders (by path) the user removed from the added games: a scan skips them, so they
+     * stay off the Games tab and out of Steam until restored. Nothing on disk is touched.
+     */
+    fun removedAddedGames(context: Context): List<String> =
+        (prefs(context).getString("removedAddedGames", "") ?: "").split('\n').filter { it.isNotEmpty() }
+
+    fun setAddedGameRemoved(context: Context, folderPath: String, removed: Boolean) {
+        synchronized(addedGameLock) {
+            val now = removedAddedGames(context).filter { it != folderPath } + listOfNotNull(folderPath.takeIf { removed })
+            prefs(context).edit().putString("removedAddedGames", now.joinToString("\n")).apply()
+        }
+    }
+
+    /** An added game's name as the user set it (in the app, or in Steam's Properties); "" = automatic. */
+    fun addedGameName(context: Context, folderPath: String): String = prefs(context).getString("addedName:$folderPath", "") ?: ""
+
+    fun setAddedGameName(context: Context, folderPath: String, name: String) {
+        prefs(context).edit().putString("addedName:$folderPath", name.trim()).apply()
+    }
+
+    /** An added game's Start in, as the session sees it; "" = the exe's own folder. */
+    fun addedGameStartIn(context: Context, folderPath: String): String = prefs(context).getString("addedStartIn:$folderPath", "") ?: ""
+
+    fun setAddedGameStartIn(context: Context, folderPath: String, guestDir: String) {
+        prefs(context).edit().putString("addedStartIn:$folderPath", guestDir.trim()).apply()
+    }
+
+    /** An added game's launch options, as Steam takes them ("-dx11", "VAR=1 %command%"). */
+    fun addedGameLaunch(context: Context, folderPath: String): String = prefs(context).getString("addedLaunch:$folderPath", "") ?: ""
+
+    fun setAddedGameLaunch(context: Context, folderPath: String, options: String) {
+        prefs(context).edit().putString("addedLaunch:$folderPath", options.trim()).apply()
+    }
+
+    /**
+     * The last value of [field] (AppName, StartDir, LaunchOptions) taken over from Steam's own
+     * Properties for this game, so the same Steam edit is not taken again over a later app edit.
+     */
+    fun addedGameAdopted(context: Context, folderPath: String, field: String): String? =
+        prefs(context).getString("addedAdopted:$field:$folderPath", null)
+
+    fun setAddedGameAdopted(context: Context, folderPath: String, field: String, value: String) {
+        prefs(context).edit().putString("addedAdopted:$field:$folderPath", value).apply()
+    }
+
+    /** Where an added game's art for [slot] comes from when the user chose it ("folder", "steam", "sgdb", "file"); "" = automatic. */
+    fun addedGameArtSource(context: Context, folderPath: String, slot: String): String =
+        prefs(context).getString("addedArt:$slot:$folderPath", "") ?: ""
+
+    fun setAddedGameArtSource(context: Context, folderPath: String, slot: String, source: String) {
+        prefs(context).edit().putString("addedArt:$slot:$folderPath", source).apply()
+    }
+
     /** Whether added games without art of their own get Steam's store art fetched for them. */
     fun addedGamesArt(context: Context): Boolean = prefs(context).getBoolean("addedGamesArt", true)
 
@@ -596,8 +699,29 @@ object SessionPrefs {
     /** The .exe the user chose for one game folder (by its path), "" = the scanner's pick. */
     fun addedGameExe(context: Context, folderPath: String): String = prefs(context).getString("addedExe:$folderPath", "") ?: ""
 
+    private val addedGameLock = Any()
+
     fun setAddedGameExe(context: Context, folderPath: String, path: String) {
-        prefs(context).edit().putString("addedExe:$folderPath", path).apply()
+        synchronized(addedGameLock) { prefs(context).edit().putString("addedExe:$folderPath", path).apply() }
+    }
+
+    fun addedGameExeSeen(context: Context, folderPath: String): Int = prefs(context).getInt("addedExeSeen:$folderPath", 0)
+
+    fun adoptAddedGameExe(context: Context, folderPath: String, expected: String, path: String, seen: Int): Boolean =
+        synchronized(addedGameLock) {
+            val unchanged = addedGameExe(context, folderPath) == expected
+            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
+            unchanged
+        }
+
+    /** The shortcut appid stored for the folder, or null before its first scan. */
+    fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
+        prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
+
+    fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
+        val p = prefs(context)
+        p.getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
+            ?: first.also { p.edit().putLong("addedAppId:$folderPath", it).apply() }
     }
 
     /** The app's colour theme (ui/Themes ids); Graphite unless chosen otherwise. */
@@ -622,21 +746,6 @@ object SessionPrefs {
         val h = parts[1].toIntOrNull() ?: return null
         if (w !in 320..3840 || h !in 240..2160) return null
         return Pair(w and 1.inv(), h and 1.inv())
-    }
-
-    /**
-     * What the desktop shell composites with: vulkan (the default) or gles2 on the GPU, through the
-     * app's patched wlroots (tools/wlroots) - the Adreno stand-in is not a DRM device and stock
-     * wlroots cannot allocate on it - or pixman in software. A GPU renderer a device cannot start
-     * falls back to pixman by itself (droiddeck-desktop). `Download/droiddeck-wlr-renderer` still
-     * overrides it.
-     */
-    fun desktopRenderer(context: Context): String = prefs(context).getString("desktopRenderer", "vulkan") ?: "vulkan"
-
-    fun setDesktopRenderer(context: Context, renderer: String) {
-        prefs(context).edit().putString("desktopRenderer", renderer).apply()
-        // A choice made again is a retry: forget that a renderer failed to start here before.
-        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.droiddeck-renderer-failed").delete()
     }
 
     /**
@@ -666,6 +775,10 @@ object SessionPrefs {
 
     val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
 
+    /** [fpsLimitChoices] labelled in the app's language. */
+    fun fpsLimitChoices(context: Context): List<Pair<Int, String>> =
+        fpsLimitChoices.map { (fps, label) -> fps to if (fps == 0) context.getString(R.string.frame_gen_off) else label }
+
     /**
      * How the compositor resizes the session onto the panel (WaylandCompositor.nativeSetUpscaler's
      * modes). Linear is the default; Nearest preserves hard pixel edges. Spatial filters work
@@ -676,6 +789,16 @@ object SessionPrefs {
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
+
+    /** The [upscalerChoices] labels that are words rather than product names. */
+    private val upscalerLabels = mapOf(
+        0 to R.string.sprefs_upscaler_linear, 2 to R.string.sprefs_upscaler_nearest,
+        8 to R.string.sprefs_upscaler_gsr_quality, 6 to R.string.sprefs_upscaler_sharpen,
+    )
+
+    /** [upscalerChoices] labelled in the app's language; the English list stays for the device report. */
+    fun upscalerChoices(context: Context): List<Pair<Int, String>> =
+        upscalerChoices.map { (mode, label) -> mode to (upscalerLabels[mode]?.let(context::getString) ?: label) }
 
     fun canonicalUpscaler(mode: Int): Int = when (mode) {
         1 -> 0
@@ -711,11 +834,24 @@ object SessionPrefs {
 
     val textureAnisotropyChoices = TextureFiltering.ANISOTROPY.map { it to if (it == 0) "Off" else "${it}x" }
 
+    /** [textureAnisotropyChoices] labelled in the app's language. */
+    fun textureAnisotropyChoices(context: Context): List<Pair<Int, String>> =
+        textureAnisotropyChoices.map { (value, label) -> value to if (value == 0) context.getString(R.string.frame_gen_off) else label }
+
     val textureLodBiasChoices = TextureFiltering.LOD_BIAS.map {
         it to when (it) {
             TextureFiltering.LOD_BIAS_OFF -> "Off"
             TextureFiltering.LOD_BIAS_AUTO -> "Auto (match scaling)"
             else -> it
+        }
+    }
+
+    /** [textureLodBiasChoices] labelled in the app's language. */
+    fun textureLodBiasChoices(context: Context): List<Pair<String, String>> = textureLodBiasChoices.map { (value, label) ->
+        value to when (value) {
+            TextureFiltering.LOD_BIAS_OFF -> context.getString(R.string.frame_gen_off)
+            TextureFiltering.LOD_BIAS_AUTO -> context.getString(R.string.sprefs_lod_bias_auto)
+            else -> label
         }
     }
 
@@ -757,16 +893,41 @@ object SessionPrefs {
 
     fun suspendPolicy(context: Context, mode: String): String =
         prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
+            ?.let { if (it == LEGACY_SUSPEND_DOWNLOADS) SUSPEND_AUTO else it }
             ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
             // Direct games share Steam's settings but have no Steam client to prepare.
-            ?.let { if (it == SUSPEND_NATIVE && mode != SessionService.MODE_STEAM) SUSPEND_AUTO else it }
+            ?.let { if (mode != SessionService.MODE_STEAM && it == SUSPEND_NATIVE) SUSPEND_AUTO else it }
             ?: SUSPEND_MANUAL
 
     fun setSuspendPolicy(context: Context, mode: String, policy: String) {
         val normalized = policy.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_MANUAL, SUSPEND_NEVER) ||
             (it == SUSPEND_NATIVE && mode == SessionService.MODE_STEAM) }
             ?: SUSPEND_MANUAL
-        prefs(context).edit().putString("suspendPolicy.${prefMode(mode)}", normalized).apply()
+        val prefs = prefs(context)
+        val key = "suspendPolicy.${prefMode(mode)}"
+        prefs.edit().apply {
+            if (mode == SessionService.MODE_STEAM && prefs.getString(key, null) == LEGACY_SUSPEND_DOWNLOADS) {
+                putBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, true)
+            }
+            putString(key, normalized)
+        }.apply()
+    }
+
+    fun steamDownloadsInBackground(context: Context): Boolean {
+        val prefs = prefs(context)
+        return prefs.getBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, false) ||
+            prefs.getString("suspendPolicy.${SessionService.MODE_STEAM}", null) == LEGACY_SUSPEND_DOWNLOADS
+    }
+
+    fun setSteamDownloadsInBackground(context: Context, enabled: Boolean) {
+        val prefs = prefs(context)
+        val policyKey = "suspendPolicy.${SessionService.MODE_STEAM}"
+        prefs.edit().apply {
+            putBoolean(STEAM_DOWNLOADS_IN_BACKGROUND, enabled)
+            if (prefs.getString(policyKey, null) == LEGACY_SUSPEND_DOWNLOADS) {
+                putString(policyKey, SUSPEND_AUTO)
+            }
+        }.apply()
     }
 
     // ── Game storage ────────────────────────────────────────────────────────────────────────

@@ -202,7 +202,7 @@ private fun PairingProgress(stage: Stage, onCancel: () -> Unit) {
 private fun StatusGroup(status: PhantomProcessStatus, compact: Boolean) {
     SettingsGroup(stringResource(R.string.gate_status), compact = compact) {
         Column(Modifier.fillMaxWidth().padding(if (compact) 10.dp else 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(PhantomProcessLimit.title(status), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
+            Text(PhantomProcessLimit.title(LocalContext.current, status), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
             Body(stringResource(R.string.gate_polling))
         }
     }

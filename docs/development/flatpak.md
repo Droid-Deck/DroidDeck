@@ -22,7 +22,7 @@ The script then unpacks them without hooks and checks what the binaries link. Li
 the Desktop package normally brings (PyGObject, json-glib, fuse3 and others) are fetched too,
 but only when their files are missing. Flathub is added as a per-user remote from a copy of
 its `.flatpakrepo` carried in the script, so that step needs no network. Every store command
-writes its output to `Download/DroidDeck/flatpak-<verb>.log`, next to the session logs. The
+writes its output to `files/logs/tools/flatpak-<verb>.log`, next to the session logs. The
 setup script also puts Flatpak's own error text in the failure message the app shows.
 
 ## bubblewrap without namespaces
@@ -51,8 +51,8 @@ The spawner also adds what the rootfs gives its own programs:
 - **GPU.** Flathub's Mesa has Turnip only for DRM, and Adreno on Android is KGSL. The runtime's
   own `libvulkan_freedreno.so` is bound in with the three libraries the Freedesktop runtime
   lacks (`libdisplay-info`, SPIRV-Tools). Vulkan uses it, and Mesa's GL runs on it through Zink
-  (`MESA_LOADER_DRIVER_OVERRIDE=zink`). This is skipped for an app drawing into a desktop
-  composited by pixman, where Zink cannot present.
+  (`MESA_LOADER_DRIVER_OVERRIDE=zink`). This is skipped for an app drawing into a window on the
+  desktop, which KWin composites in software and where Zink cannot present.
 - **Controllers.** The libraries in the rootfs's `/etc/ld.so.preload` (the session shim and the
   fake evdev reader) go in through `LD_PRELOAD`, with the session's `dev` directory.
 - **Browsers.** Firefox's child sandboxes are switched off (`MOZ_DISABLE_*_SANDBOX`), and
@@ -70,8 +70,8 @@ screen under gamescope. Under gamescope it passes `--nosocket=wayland --socket=x
 opens behind gamescope. gamescope's own Wayland socket is no alternative: Chromium on Wayland
 asks the render node it names for a DRM version, which KGSL cannot give, and aborts. The
 launcher also starts a session bus when there is none. On the Linux desktop, the apps' exported
-menu entries appear in the LXQt menu. While the desktop is composited by pixman, games are
-wrapped through `droiddeck-gpu` like the rootfs's own.
+menu entries appear in Plasma's launcher. Games are wrapped through `droiddeck-gpu` like the
+rootfs's own, since the desktop composites in software.
 
 ## The store
 

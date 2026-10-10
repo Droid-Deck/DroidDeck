@@ -2,6 +2,7 @@ package com.droiddeck.launcher.runtime
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONObject
 import java.io.File
@@ -86,15 +87,16 @@ object FlatpakManager {
             ?.maxByOrNull { it.first }?.second
     }
 
-    /** Runs [argv] in the runtime, its output also in Download/DroidDeck/flatpak-<verb>.log. */
+    /** Runs [argv] in the runtime, its output also in files/logs/tools/flatpak-<verb>.log. */
     private fun runGuest(context: Context, argv: List<String>, fakeRoot: Boolean, onLine: (String) -> Unit): Int {
         val name = "flatpak-" + (argv.getOrNull(2)?.takeIf { argv.getOrNull(1) == HELPER } ?: "setup")
         return GuestCommand.run(context, argv, fakeRoot, name, onLine = onLine)
     }
 
-    private inline fun <T> exclusive(what: String, block: () -> T): T? {
+    /** [block]'s result, or [ifBusy]'s while another operation has the installation. */
+    private inline fun <T> exclusive(what: String, ifBusy: () -> T, block: () -> T): T {
         synchronized(this) {
-            if (busy != null) return null
+            if (busy != null) return ifBusy()
             busy = what
         }
         try { return block() } finally { busy = null }
@@ -102,8 +104,8 @@ object FlatpakManager {
 
     /** Puts Flatpak into the runtime and adds Flathub. Null on success, else what went wrong. */
     fun setup(context: Context, onProgress: (String, Int) -> Unit): String? {
-        if (!LinuxRuntime.isInstalled(context)) return "Install the Linux runtime first"
-        return exclusive("setup") {
+        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
+        return exclusive("setup", { context.getString(R.string.flatpakmgr_busy) }) {
             var failure: String? = null
             val status = runGuest(context, listOf("/bin/bash", SETUP), fakeRoot = true) { line ->
                 Log.i(TAG, "setup: $line")
@@ -114,63 +116,76 @@ object FlatpakManager {
             }
             when {
                 failure != null -> failure
-                status != 0 -> "Flatpak setup failed (exit $status)"
-                !ready(context) -> "Flatpak setup did not finish"
+                status != 0 -> context.getString(R.string.flatpakmgr_setup_failed, status)
+                !ready(context) -> context.getString(R.string.flatpakmgr_setup_unfinished)
                 else -> null
             }
-        } ?: "Another store task is running"
+        }
     }
 
     /**
      * One store operation - install, uninstall or update - with its progress as a stage line and
      * an overall percentage across the steps Flatpak plans (a runtime, its extensions, the app).
      */
-    private fun transaction(context: Context, verb: String, id: String?, onProgress: (String, Int) -> Unit): String? {
-        if (!ready(context)) return "Set up Flatpak first"
-        return exclusive("$verb:${id ?: "all"}") {
+    private fun transaction(
+        context: Context, verb: String, id: String?, onProgress: (String, Int) -> Unit, onDone: (JSONObject) -> Unit = {},
+    ): String? {
+        if (!ready(context)) return context.getString(R.string.flatpakmgr_not_ready)
+        return exclusive("$verb:${id ?: "all"}", { context.getString(R.string.flatpakmgr_busy) }) {
             var error: String? = null
             // Progress lines carry no ref; they belong to the step the last "op" line started.
-            var step = "Starting"
+            var step = context.getString(R.string.flatpakmgr_starting)
             val argv = listOfNotNull("/usr/bin/python3", HELPER, verb, id)
             val status = runGuest(context, argv, fakeRoot = false) { line ->
                 val o = runCatching { JSONObject(line) }.getOrNull()
                 if (o == null) { Log.i(TAG, "$verb: $line"); return@runGuest }
                 when (o.optString("e")) {
-                    "op" -> { step = stage(o); onProgress(step, overall(o, 0)) }
+                    "op" -> { step = stage(context, o); onProgress(step, overall(o, 0)) }
                     "progress" -> onProgress(step, overall(o, o.optInt("percent")))
                     "error" -> { error = o.optString("message"); Log.w(TAG, "$verb $id: $error") }
                     "warning" -> Log.w(TAG, "$verb $id: ${o.optString("message")}")
+                    "done" -> onDone(o)
                 }
             }
-            error ?: if (status != 0) "Flatpak exited with status $status" else null
-        } ?: "Another store task is running"
+            error ?: if (status != 0) context.getString(R.string.flatpakmgr_exit_status, status) else null
+        }
     }
 
-    private fun stage(o: JSONObject): String {
+    private fun stage(context: Context, o: JSONObject): String {
         val ref = o.optString("ref")
-        val name = refLabel(ref)
-        val step = if (o.optInt("n") > 1) " (${o.optInt("i")}/${o.optInt("n")})" else ""
-        return when (o.optString("kind")) {
-            "uninstall" -> "Removing $name$step"
-            "update" -> "Updating $name$step"
-            else -> "Installing $name$step"
-        }.let { if (ref.isEmpty()) o.optString("status").ifEmpty { "Working" } else it }
+        if (ref.isEmpty()) return o.optString("status").ifEmpty { context.getString(R.string.setup_check_busy) }
+        val name = refLabel(ref) { id, args -> context.getString(id, *args) }
+        val n = o.optInt("n")
+        val kind = o.optString("kind")
+        return if (n > 1) context.getString(when (kind) {
+            "uninstall" -> R.string.flatpakmgr_removing_step
+            "update" -> R.string.flatpakmgr_updating_step
+            else -> R.string.flatpakmgr_installing_step
+        }, name, o.optInt("i"), n)
+        else context.getString(when (kind) {
+            "uninstall" -> R.string.flatpakmgr_removing
+            "update" -> R.string.flatpakmgr_updating
+            else -> R.string.flatpakmgr_installing
+        }, name)
     }
 
-    /** A ref in words: "app/org.supertuxproject.SuperTux/aarch64/stable" is "SuperTux". */
-    internal fun refLabel(ref: String): String {
+    /**
+     * A ref in words: "app/org.supertuxproject.SuperTux/aarch64/stable" is "SuperTux". [text]
+     * resolves a string resource with its arguments.
+     */
+    internal fun refLabel(ref: String, text: (Int, Array<out Any>) -> String): String {
         val parts = ref.split('/')
         val id = parts.getOrNull(1) ?: return ref
         if (parts.firstOrNull() == "app") return id.substringAfterLast('.')
-        val branch = parts.getOrNull(3)?.let { " $it" } ?: ""
+        val branch = parts.getOrNull(3)
         return when {
-            id.endsWith(".Locale") -> "translations"
-            ".GL." in id || ".GL32." in id -> "graphics drivers"
-            "codecs" in id.lowercase() || id.endsWith(".ffmpeg-full") -> "media codecs"
+            id.endsWith(".Locale") -> text(R.string.flatpakmgr_ref_translations, emptyArray())
+            ".GL." in id || ".GL32." in id -> text(R.string.flatpakmgr_ref_graphics_drivers, emptyArray())
+            "codecs" in id.lowercase() || id.endsWith(".ffmpeg-full") -> text(R.string.flatpakmgr_ref_media_codecs, emptyArray())
             id.endsWith(".Platform") -> when (val vendor = id.removeSuffix(".Platform").substringAfterLast('.')) {
                 "gnome", "kde" -> vendor.uppercase()
                 else -> vendor.replaceFirstChar { it.uppercase() }
-            } + " runtime$branch"
+            }.let { if (branch != null) text(R.string.flatpakmgr_ref_runtime_branch, arrayOf(it, branch)) else text(R.string.flatpakmgr_ref_runtime, arrayOf(it)) }
             else -> id.substringAfterLast('.')
         }
     }
@@ -184,13 +199,20 @@ object FlatpakManager {
 
     fun install(context: Context, id: String, onProgress: (String, Int) -> Unit) = transaction(context, "install", id, onProgress)
     fun uninstall(context: Context, id: String, onProgress: (String, Int) -> Unit) = transaction(context, "uninstall", id, onProgress)
+
+    /** Installs the .flatpak bundle at [guestPath], its runtimes from Flathub: the app's ID, and what went wrong if anything. */
+    fun installBundle(context: Context, guestPath: String, onProgress: (String, Int) -> Unit): Pair<String?, String?> {
+        var id: String? = null
+        val problem = transaction(context, "install-bundle", guestPath, onProgress) { id = it.optString("id").ifEmpty { null } }
+        return id to problem
+    }
     fun update(context: Context, id: String?, onProgress: (String, Int) -> Unit) = transaction(context, "update", id, onProgress)
 
     /** Installed apps with an update on Flathub, or null when that could not be checked. */
     fun updates(context: Context): Set<String>? {
         if (!ready(context)) return emptySet()
         var apps: Set<String>? = null
-        exclusive("updates") {
+        exclusive("updates", {}) {
             runGuest(context, listOf("/usr/bin/python3", HELPER, "updates"), fakeRoot = false) { line ->
                 val o = runCatching { JSONObject(line) }.getOrNull() ?: return@runGuest
                 if (o.optString("e") == "updates") {

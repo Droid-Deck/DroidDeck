@@ -954,8 +954,19 @@ def choose(root, command, env, tool, stock):
     return command, env
 
 
+def libraries(steam_root):
+    found = [steam_root]
+    try:
+        with open(os.path.join(steam_root, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
+            found += [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', f.read())]
+    except OSError:
+        pass
+    found.append(SD_LIBRARY)
+    return list(dict.fromkeys(found))
+
+
 def find_tools(steam_root):
-    candidates = [os.path.join(library, "steamapps", "common", name) for library in (steam_root, SD_LIBRARY) for name in SOURCES]
+    candidates = [os.path.join(library, "steamapps", "common", name) for library in libraries(steam_root) for name in SOURCES]
     folder = os.path.join(steam_root, "compatibilitytools.d")
     try:
         names = sorted(os.listdir(folder))

@@ -33,12 +33,13 @@ class SessionLogShareTest {
             "rules $rules\n" + files.joinToString("") { val f = File(folder, it); "${f.length()}\t${f.lastModified()}\t$it\n" })
     }
 
-    @Test fun aRecordedUnchangedFileGoesInAsItIs() {
+    @Test fun aRecordedUnchangedFileIsScrubbedAgainOnTheWayIntoTheZip() {
         val folder = tmp.newFolder("2026-10-06-01-steam")
-        // Stands in for a file the ending scrubbed; the share must not pass it through again.
+        // A file the ending recorded as scrubbed still gets the share's final pass: the record
+        // may predate a rule, and a zip is the one way a log leaves the device.
         File(folder, "session.log").writeText("$secret\n")
         record(folder, "session.log")
-        assertTrue(zip(folder).getValue("session.log").contains(leaked))
+        assertFalse(zip(folder).getValue("session.log").contains(leaked))
     }
 
     @Test fun anythingTheRecordDoesNotVouchForIsScrubbed() {
@@ -64,6 +65,18 @@ class SessionLogShareTest {
         File(folder, "session.log").writeText("$secret\n")
         record(folder, "session.log", rules = LogRedactor.RULES_VERSION - 1)
         assertFalse(zip(folder).getValue("session.log").contains(leaked))
+    }
+
+    @Test fun olderRuleRecordReScrubsDeviceIdentifiers() {
+        val folder = tmp.newFolder("2026-10-07-01-steam")
+        File(folder, "network.txt").writeText("mac 02:ab:cd:ef:12:34\n")
+        File(folder, "steam").mkdirs()
+        File(folder, "steam/controller_support.txt").writeText("Serial number: controller-123456\n")
+        record(folder, "network.txt", "steam/controller_support.txt", rules = 1)
+
+        val out = zip(folder)
+        assertEquals("mac <redacted:mac>\n", out.getValue("network.txt"))
+        assertEquals("Serial number: <redacted:serial>\n", out.getValue("steam/controller_support.txt"))
     }
 
     @Test fun withoutARecordEveryFileIsScrubbed() {

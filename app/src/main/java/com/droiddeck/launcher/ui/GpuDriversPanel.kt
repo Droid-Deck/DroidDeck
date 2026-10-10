@@ -178,7 +178,7 @@ private fun DriverDropdown(rows: List<DriverRow>, selected: String, fallback: St
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(row.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (row.id == selected) pal.signal else colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (row.tag == DriverRow.BUNDLE) Text(row.tag, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = colors.onSurfaceVariant)
+                            if (row.tag == DriverRow.BUNDLE) Text(driverTagLabel(row.tag), fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = colors.onSurfaceVariant)
                         }
                         if (row.detail.isNotEmpty()) Text(row.detail, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -235,9 +235,11 @@ private fun DeviceCard(s: GpuDriversState) {
                 Text(s.gpuName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Text(listOf(s.soc, s.gpuFamily).filter { it.isNotEmpty() }.joinToString(" · "), fontSize = 13.sp, color = colors.onSurfaceVariant)
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // The verdict shares the width with the GPU's name and wraps, rather than taking all it
+            // needs: a long one (in some languages) would squeeze the name to a letter a line.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f, fill = false)) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(tint))
-                Text(s.supportText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = tint, maxLines = 2)
+                Text(s.supportText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = tint, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             Icon(
                 if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,

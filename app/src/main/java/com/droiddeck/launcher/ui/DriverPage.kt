@@ -197,7 +197,7 @@ private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit
                         color = if (selected) pal.signal else colors.onBackground, modifier = Modifier.weight(1f, fill = false),
                     )
                     if (row.tag.isNotEmpty()) Text(
-                        row.tag, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = colors.onSurfaceVariant,
+                        driverTagLabel(row.tag), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = colors.onSurfaceVariant,
                         modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = 0.07f))
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     )

@@ -16,6 +16,7 @@ class RuntimeRemovalTest {
     private lateinit var dir: File
     @Before fun setUp() { dir = Files.createTempDirectory("runtime-removal").toFile() }
     @After fun tearDown() {
+        RuntimeFileTree.refuseForTest = null
         dir.setWritable(true)
         RuntimeFileTree.delete(dir, null)
     }
@@ -77,12 +78,12 @@ class RuntimeRemovalTest {
 
     @Test fun reservationBlocksPlayAndInstallBeforeTheWorkerStartsAndFollowersSeeProgress() {
         val root = runtime()
-        val removal = LinuxRuntimeInstaller.beginUninstall(root)!!
+        val removal = LinuxRuntimeInstaller.beginUninstall(null, root)!!
         assertTrue(LinuxRuntimeInstaller.isBusy())
         assertTrue(LinuxRuntimeInstaller.isRemoving())
         assertFalse(LinuxRuntimeInstaller.isInstalling())
         assertFalse(LinuxRuntime.isInstalled(null))
-        assertNull(LinuxRuntimeInstaller.beginUninstall(root))
+        assertNull(LinuxRuntimeInstaller.beginUninstall(null, root))
         assertFalse(LinuxRuntimeInstaller.install(null, null, null))
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -94,10 +95,10 @@ class RuntimeRemovalTest {
         try {
             assertTrue(entered.await(5, TimeUnit.SECONDS))
             val following = CountDownLatch(1)
-            val stages = mutableListOf<String>()
+            val percents = mutableListOf<Int>()
             val followerResult = AtomicReference<Boolean>()
             val follower = Thread {
-                followerResult.set(LinuxRuntimeInstaller.attach { stage, _ -> stages.add(stage); following.countDown() })
+                followerResult.set(LinuxRuntimeInstaller.attach { _, percent -> percents.add(percent); following.countDown() })
             }
             follower.start()
             assertTrue(following.await(5, TimeUnit.SECONDS))
@@ -106,7 +107,8 @@ class RuntimeRemovalTest {
             follower.join(5000)
             assertEquals(true, result.get())
             assertEquals(true, followerResult.get())
-            assertEquals("Linux runtime removed", stages.last())
+            // The last stage is "Linux runtime removed", the only one reported at 100.
+            assertEquals(100, percents.last())
             assertFalse(root.exists())
             assertFalse(File(dir, "linuxfs.removing").exists())
             assertFalse(LinuxRuntimeInstaller.isBusy())
@@ -120,7 +122,7 @@ class RuntimeRemovalTest {
             val tree = File(dir, name).apply { mkdirs() }
             File(tree, "game").writeText("staged")
         }
-        val removal = LinuxRuntimeInstaller.beginUninstall(File(dir, "linuxfs"))!!
+        val removal = LinuxRuntimeInstaller.beginUninstall(null, File(dir, "linuxfs"))!!
         assertTrue(removal.run(null))
         assertTrue(dir.listFiles()!!.isEmpty())
     }
@@ -128,9 +130,11 @@ class RuntimeRemovalTest {
     @Test fun aPartialRemovalStaysQuarantinedAndRetryable() {
         val root = runtime()
         try {
-            val removal = LinuxRuntimeInstaller.beginUninstall(root)!!
-            assertFalse(removal.run { stage, _ ->
-                if (stage.contains("entries"))
+            val removal = LinuxRuntimeInstaller.beginUninstall(null, root)!!
+            // The first stage names the removal, the second counts its first entry.
+            var stages = 0
+            assertFalse(removal.run { _, _ ->
+                if (++stages == 2)
                     Files.setPosixFilePermissions(dir.toPath(), PosixFilePermissions.fromString("r-xr-xr-x"))
             })
             assertFalse(root.exists())
@@ -138,7 +142,7 @@ class RuntimeRemovalTest {
             assertFalse(LinuxRuntimeInstaller.isBusy())
             assertNotNull(LinuxRuntimeInstaller.removalError())
         } finally { dir.setWritable(true) }
-        assertTrue(LinuxRuntimeInstaller.beginUninstall(root)!!.run(null))
+        assertTrue(LinuxRuntimeInstaller.beginUninstall(null, root)!!.run(null))
         assertFalse(File(dir, "linuxfs.removing").exists())
     }
 
@@ -146,15 +150,51 @@ class RuntimeRemovalTest {
         val root = runtime()
         Files.setPosixFilePermissions(dir.toPath(), PosixFilePermissions.fromString("r-xr-xr-x"))
         try {
-            val removal = LinuxRuntimeInstaller.beginUninstall(root)!!
-            val stages = mutableListOf<String>()
-            assertFalse(removal.run { stage, _ -> stages.add(stage) })
+            val removal = LinuxRuntimeInstaller.beginUninstall(null, root)!!
+            val percents = mutableListOf<Int>()
+            assertFalse(removal.run { _, percent -> percents.add(percent) })
             assertTrue(root.exists())
             assertFalse(LinuxRuntimeInstaller.isBusy())
-            assertTrue(LinuxRuntimeInstaller.removalError()!!.contains("Retry removal"))
-            assertFalse(stages.contains("Linux runtime removed"))
+            assertNotNull(LinuxRuntimeInstaller.removalError())
+            assertFalse(percents.contains(100))
         } finally { dir.setWritable(true) }
-        assertTrue(LinuxRuntimeInstaller.beginUninstall(root)!!.run(null))
+        assertTrue(LinuxRuntimeInstaller.beginUninstall(null, root)!!.run(null))
         assertNull(LinuxRuntimeInstaller.removalError())
+    }
+
+    @Test fun anEntryTheAppCannotDeleteIsSetAsideInsteadOfStrandingTheRemoval() {
+        val root = runtime()
+        File(root, "root/.steampath").writeText("made by su")
+        RuntimeFileTree.refuseForTest = java.util.function.Predicate { it.fileName.toString() == ".steampath" }
+        assertTrue(LinuxRuntimeInstaller.beginUninstall(null, root)!!.run(null))
+        assertNull(LinuxRuntimeInstaller.removalError())
+        assertFalse(root.exists())
+        assertFalse(File(dir, "linuxfs.removing").exists())
+        // Only the undeletable entry and its parents remain, out of the way.
+        val trash = File(dir, LinuxRuntimeInstaller.TRASH)
+        assertEquals(listOf(".steampath"), trash.walk().filter { it.isFile }.map { it.name }.toList())
+        assertEquals(setOf(LinuxRuntimeInstaller.TRASH), dir.list()!!.toSet())
+
+        // Once it can be deleted, the next removal clears the trash too.
+        RuntimeFileTree.refuseForTest = null
+        assertTrue(LinuxRuntimeInstaller.beginUninstall(null, root)!!.run(null))
+        assertFalse(trash.exists())
+    }
+
+    @Test fun aStuckQuarantineFromAnEarlierBuildClearsOnTheNextRemoval() {
+        val pending = File(dir, "linuxfs.removing").apply { File(this, "root").mkdirs() }
+        File(pending, "root/.steampid").writeText("1")
+        File(pending, "root/game").writeText("game")
+        RuntimeFileTree.refuseForTest = java.util.function.Predicate { it.fileName.toString() == ".steampid" }
+        assertTrue(LinuxRuntimeInstaller.beginUninstall(null, File(dir, "linuxfs"))!!.run(null))
+        assertFalse(pending.exists())
+    }
+
+    @Test fun deleteWhatCanKeepsGoingPastAnEntryItCannotDelete() {
+        val root = runtime()
+        RuntimeFileTree.refuseForTest = java.util.function.Predicate { it.fileName.toString() == "gamescope" }
+        assertFalse(RuntimeFileTree.deleteWhatCan(root, null))
+        assertEquals(listOf("gamescope"), root.walk().filter { it.isFile }.map { it.name }.toList())
+        assertFalse(File(root, "root").exists())
     }
 }

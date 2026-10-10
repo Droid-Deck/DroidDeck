@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.gpu
 
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.json.JSONObject
 import kotlin.math.abs
@@ -82,11 +84,15 @@ data class ScreenEffects(
  * SessionPrefs.upscalerChoices mode the Look switches to.
  */
 data class Look(
+    /** The Look's id: what the row picks by and the compositor logs. */
     val name: String,
     val effects: ScreenEffects,
     val scalingMode: Int? = null,
     /** One line under the row while this Look is picked. */
     val desc: String,
+    /** [name] and [desc] in the app's language, for the menu. */
+    @StringRes val label: Int,
+    @StringRes val descRes: Int,
 )
 
 object ScreenEffectLooks {
@@ -96,29 +102,29 @@ object ScreenEffectLooks {
 
     /** Index 0 is the neutral state a fresh session matches, so the row always names something. */
     val LOOKS: List<Look> = listOf(
-        Look("Off", ScreenEffects.OFF, desc = "Nothing applied."),
+        Look("Off", ScreenEffects.OFF, desc = "Nothing applied.", label = R.string.frame_gen_off, descRes = R.string.look_off_desc),
         Look("Game Clarity", ScreenEffects(brightness = 2, contrast = 12, saturation = 108, cas = true, casLevel = 55),
-            desc = "Sharpening with a touch of contrast - the everyday one."),
+            desc = "Sharpening with a touch of contrast - the everyday one.", label = R.string.look_game_clarity, descRes = R.string.look_game_clarity_desc),
         Look("Vivid", ScreenEffects(brightness = 3, contrast = 10, gamma = 0.98f, saturation = 145, cas = true, casLevel = 30, deband = true),
-            desc = "Colour pushed hard. Deband on so skies don't stripe."),
+            desc = "Colour pushed hard. Deband on so skies don't stripe.", label = R.string.look_vivid, descRes = R.string.look_vivid_desc),
         Look("Cinematic", ScreenEffects(brightness = -4, contrast = 22, gamma = 1.10f, saturation = 88, cas = true, casLevel = 20, fxaa = true, deband = true),
-            desc = "Deeper contrast, cooler colour, edges smoothed."),
+            desc = "Deeper contrast, cooler colour, edges smoothed.", label = R.string.look_cinematic, descRes = R.string.look_cinematic_desc),
         Look("Competitive", ScreenEffects(brightness = 16, contrast = 18, gamma = 0.92f, saturation = 82, cas = true, casLevel = 75),
-            desc = "Shadows lifted and heavy sharpening - spot people first."),
+            desc = "Shadows lifted and heavy sharpening - spot people first.", label = R.string.look_competitive, descRes = R.string.look_competitive_desc),
         Look("Adaptive Sharpen", ScreenEffects(cas = true, casLevel = 85),
-            desc = "Sharpening only, colour untouched."),
+            desc = "Sharpening only, colour untouched.", label = R.string.look_adaptive_sharpen, descRes = R.string.look_adaptive_sharpen_desc),
         Look("Filmic", ScreenEffects(brightness = -2, contrast = 16, gamma = 1.14f, saturation = 92, cas = true, casLevel = 15, fxaa = true, deband = true),
-            desc = "Film-like curve, slightly muted."),
+            desc = "Film-like curve, slightly muted.", label = R.string.look_filmic, descRes = R.string.look_filmic_desc),
         Look("Arcade", ScreenEffects(brightness = 6, contrast = 20, gamma = 0.95f, saturation = 170, cas = true, casLevel = 45, deband = true),
-            desc = "Loud and punchy."),
+            desc = "Loud and punchy.", label = R.string.look_arcade, descRes = R.string.look_arcade_desc),
         Look("Retro CRT", ScreenEffects(brightness = 6, contrast = 14, gamma = 1.05f, saturation = 115, crt = true, ntsc = true),
-            desc = "The CRT tube and analogue signal passes together."),
+            desc = "The CRT tube and analogue signal passes together.", label = R.string.look_retro_crt, descRes = R.string.look_retro_crt_desc),
         Look("Upscale Sharp", ScreenEffects(contrast = 6, saturation = 104, cas = true, casLevel = 70), scalingMode = SCALING_FSR,
-            desc = "For running below panel resolution."),
+            desc = "For running below panel resolution.", label = R.string.look_upscale_sharp, descRes = R.string.look_upscale_sharp_desc),
         Look("Pixel Clean", ScreenEffects(contrast = 8, deband = true), scalingMode = SCALING_NEAREST,
-            desc = "Crisp pixels for 2D and old titles."),
+            desc = "Crisp pixels for 2D and old titles.", label = R.string.look_pixel_clean, descRes = R.string.look_pixel_clean_desc),
         Look("Anime Edge", ScreenEffects(brightness = 2, contrast = 10, saturation = 125, cas = true, casLevel = 50, toon = true, deband = true),
-            desc = "Toon outlines plus sharpening."),
+            desc = "Toon outlines plus sharpening.", label = R.string.look_anime_edge, descRes = R.string.look_anime_edge_desc),
     )
 
     /**

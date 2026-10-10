@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +39,16 @@ class DriverRow(val id: String, val name: String, val detail: String, val remova
     }
 }
 
+/** A [DriverRow.tag] as shown, in the app's language. */
+@Composable
+internal fun driverTagLabel(tag: String): String = when (tag) {
+    DriverRow.BUNDLED -> stringResource(R.string.driver_tag_bundled)
+    DriverRow.DOWNLOADED -> stringResource(R.string.driver_tag_downloaded)
+    DriverRow.IMPORTED -> stringResource(R.string.driver_tag_imported)
+    DriverRow.BUNDLE -> stringResource(R.string.driver_tag_bundle)
+    else -> tag
+}
+
 /** A release driver (Banners-Turnip, WinNative) that is not installed yet; [key] is its asset name. */
 class DownloadRow(val key: String, val label: String, val detail: String, val progress: Int? = null)
 
@@ -48,13 +59,15 @@ class ModeSettings(
     val hdr: Boolean,
     val hdrReason: String?,
     /** The GPU drivers in use, as the row that opens them on the Components page says it. */
-    val gpuDrivers: String = "Auto",
+    /** The drivers line; null shows Auto. */
+    val gpuDrivers: String? = null,
     /** Frames per second the session is capped at; 0 = none. */
     val fpsLimit: Int = 0,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val touchMode: String,
     val suspendPolicy: String,
+    val steamDownloadsInBackground: Boolean = false,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
     /** Steam only. */
@@ -62,11 +75,9 @@ class ModeSettings(
     /** Steam only: whether single and double Back actions are swapped. */
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
-    val clientDirectAudio: Boolean = false,
     val mic: Boolean?,
-    val renderer: String?,
     val gameStorage: String? = null,
-    val storageOptions: List<Pair<String, String>> = emptyList(),
+    val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
     /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
     val storageDiagnostics: Boolean = false,
     /** Steam only: report Steam's space reservation on the second library as done (experimental). */
@@ -94,10 +105,6 @@ class ModeSettings(
     val wifiDiscoveryLocation: Boolean = false,
     val wifiDiscoveryAsked: Boolean = false,
     val wifiDiscoveryBlocked: Boolean = false,
-    /** Steam only: the user's chosen Games folders; null outside Steam. */
-    val addedGamesDirs: List<String>? = null,
-    val addedGames: List<AddedGameRow> = emptyList(),
-    val addedGamesArt: Boolean = true,
     /** Latest Banners-Turnip release: what each driver menu offers to download, and the refresh line. */
     /** Steam only: Decky Loader is managed from the Steam session settings. */
     val deckyInstalled: String? = null,
@@ -105,12 +112,11 @@ class ModeSettings(
     val deckyChecking: Boolean = false,
     val deckyStage: String? = null,
     val deckyPercent: Int = -1,
+    /** The stage is the Decky plugin's binary download. */
+    val deckyDownloadingBinary: Boolean = false,
     val deckyEnabled: Boolean = false,
     val deckySessionRunning: Boolean = false,
 )
-
-/** One added game as the settings page shows it: its folder, the chosen .exe, the other .exe files it could be. */
-class AddedGameRow(val folderPath: String, val folderName: String, val exePath: String, val exeName: String, val candidates: List<Pair<String, String>>)
 
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
@@ -122,13 +128,12 @@ class ModeSettingsActions(
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
+    val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
-    val onClientDirectAudio: (Boolean) -> Unit = {},
     val onMic: (Boolean) -> Unit,
-    val onRenderer: (String) -> Unit,
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
@@ -145,11 +150,6 @@ class ModeSettingsActions(
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onWifiDiscovery: (Boolean) -> Unit = {},
     val onWifiDiscoverySettings: () -> Unit = {},
-    val onPickAddedGamesDir: () -> Unit = {},
-    val onForgetAddedGamesDir: (path: String) -> Unit = {},
-    val onAddedGamesArt: (Boolean) -> Unit = {},
-    val onAddedGameExe: (folderPath: String, path: String) -> Unit = { _, _ -> },
-    val onPickAddedGameExe: (folderPath: String) -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
     val onDeckyCheck: () -> Unit = {},
     val onDeckyEnabled: (Boolean) -> Unit = {},
@@ -220,7 +220,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                 ChoiceRow(
                     host, "upscaler", stringResource(R.string.display_filter), null,
-                    SessionPrefs.upscalerChoices, s.upscaler,
+                    SessionPrefs.upscalerChoices(LocalContext.current), s.upscaler,
                     note = stringResource(R.string.display_filter_note), onPick = a.onUpscaler,
                 )
                 if (SessionPrefs.upscalerHasSharpness(s.upscaler)) SliderRow(
@@ -230,7 +230,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             }
             SettingsGroup(stringResource(R.string.display_frame_rate)) {
                 ChoiceRow(host, "fps", stringResource(R.string.mode_fps), stringResource(R.string.common_applies_next_session),
-                    SessionPrefs.fpsLimitChoices, s.fpsLimit, note = stringResource(R.string.mode_fps_note), onPick = a.onFpsLimit)
+                    SessionPrefs.fpsLimitChoices(LocalContext.current), s.fpsLimit, note = stringResource(R.string.mode_fps_note), onPick = a.onFpsLimit)
             }
             SettingsGroup(stringResource(R.string.mode_hdr)) {
                 ToggleRow(
@@ -242,7 +242,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             }
             SettingsGroup(stringResource(R.string.mode_drivers)) {
                 SettingsRow(stringResource(R.string.mode_gpu_drivers), stringResource(R.string.mode_gpu_drivers_hint)) {
-                    ValueChip(s.gpuDrivers, open = false) { a.onGpuDrivers() }
+                    ValueChip(s.gpuDrivers ?: stringResource(R.string.common_auto), open = false) { a.onGpuDrivers() }
                 }
             }
         }
@@ -259,6 +259,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     listOf(
                         SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto),
                         SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
+                        SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch),
                         SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam),
                         SessionPrefs.OSC_NEVER to stringResource(R.string.common_never),
                     ), s.oscMode,
@@ -274,10 +275,10 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     onPick = a.onSteamController,
                 )
                 if (steam) ChoiceRow(
-                    host, "back-actions", stringResource(R.string.mode_back), SessionPrefs.backActionsOrder(s.backActionsInverted),
+                    host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),
                     listOf(
-                        false to SessionPrefs.BACK_MENU_THEN_QAM,
-                        true to SessionPrefs.BACK_QAM_THEN_MENU,
+                        false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM),
+                        true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU),
                     ), s.backActionsInverted, onPick = a.onBackActionsInverted,
                 )
             }
@@ -291,10 +292,17 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                         SessionPrefs.SUSPEND_AUTO to stringResource(R.string.common_auto),
                         SessionPrefs.SUSPEND_MANUAL to stringResource(R.string.mode_suspend_manual),
                         SessionPrefs.SUSPEND_NEVER to stringResource(R.string.common_never),
-                    ) + if (steam) listOf(SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native)) else emptyList(),
+                    ) + if (steam) listOf(
+                        SessionPrefs.SUSPEND_NATIVE to stringResource(R.string.mode_suspend_native),
+                    ) else emptyList(),
                     s.suspendPolicy,
                     note = stringResource(if (steam) R.string.mode_suspend_steam_note else R.string.mode_suspend_note),
                     onPick = a.onSuspendPolicy,
+                )
+                if (steam && s.suspendPolicy != SessionPrefs.SUSPEND_NEVER) ToggleRow(
+                    host, "background-downloads", stringResource(R.string.mode_background_downloads),
+                    stringResource(R.string.mode_background_downloads_hint),
+                    s.steamDownloadsInBackground, onChange = a.onSteamDownloadsInBackground,
                 )
             }
             if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
@@ -352,11 +360,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 onChange = a.onDeckyEnabled,
             )
             SettingsRow(
-                "Plugins",
-                "Install a plugin ZIP for the next Steam session.",
+                stringResource(R.string.mode_decky_plugins),
+                stringResource(R.string.mode_decky_plugins_hint),
             ) {
                 SecondaryButton(
-                    if (s.deckyStage?.startsWith("Downloading plugin binary") == true) "Downloading…" else "Install from ZIP",
+                    if (s.deckyStage != null && s.deckyDownloadingBinary) stringResource(R.string.mode_decky_plugin_downloading) else stringResource(R.string.mode_decky_plugin_install_zip),
                     enabled = s.deckyInstalled != null && s.deckyStage == null && !s.deckySessionRunning,
                     onClick = a.onPickDeckyPluginZip,
                 )
@@ -413,33 +421,6 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 }
             }
         }
-        if (steam && tab == ModeSettingsTab.GAMES && s.addedGamesDirs != null) SettingsGroup(stringResource(R.string.mode_added_games)) {
-            for (dir in s.addedGamesDirs) {
-                val n = s.addedGames.count { it.folderPath.startsWith("$dir/") }
-                ActionRow(
-                    dir.substringAfterLast('/').ifEmpty { dir }, dir + " · " + (if (n == 0) stringResource(R.string.mode_added_none) else pluralStringResource(R.plurals.mode_added_count, n, n)) + ". " + stringResource(R.string.added_games_forget_hint),
-                    stringResource(R.string.common_forget), onClick = { a.onForgetAddedGamesDir(dir) },
-                )
-            }
-            ActionRow(
-                if (s.addedGamesDirs.isEmpty()) stringResource(R.string.mode_games_folder) else stringResource(R.string.mode_games_folder_another),
-                stringResource(R.string.added_games_import_hint),
-                stringResource(R.string.common_add_ellipsis), onClick = a.onPickAddedGamesDir,
-            )
-            ToggleRow(
-                host, "addedArt", stringResource(R.string.mode_added_art),
-                stringResource(R.string.mode_added_art_hint),
-                s.addedGamesArt, onChange = a.onAddedGamesArt,
-            )
-            for (g in s.addedGames) {
-                ChoiceRow(
-                    host, "added:" + g.folderPath, g.folderName, if (s.addedGamesDirs.size > 1) stringResource(R.string.mode_added_launches_in, g.exeName, g.folderPath.substringBeforeLast('/').substringAfterLast('/')) else stringResource(R.string.mode_added_launches, g.exeName),
-                    g.candidates + ("__pick__" to stringResource(R.string.mode_added_choose)), g.exePath,
-                    note = stringResource(R.string.mode_added_exe_note),
-                    onPick = { path -> if (path == "__pick__") a.onPickAddedGameExe(g.folderPath) else a.onAddedGameExe(g.folderPath, path) },
-                )
-            }
-        }
         if (steam && tab == ModeSettingsTab.GAMES && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
             if (s.syncBackend != null) SettingsRow(
                 stringResource(R.string.sync_backend_title),
@@ -466,20 +447,21 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
         }
         if (steam && tab == ModeSettingsTab.AUDIO && s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {
             ToggleRow(host, "da", stringResource(R.string.mode_directaudio), stringResource(R.string.mode_directaudio_hint), s.directAudio, onChange = a.onDirectAudio)
-            ChoiceRow(
-                host, "clientAudio", stringResource(R.string.mode_client_audio), stringResource(R.string.mode_client_audio_hint),
-                listOf("classic" to stringResource(R.string.mode_client_audio_classic), "directaudio" to stringResource(R.string.mode_client_audio_direct)), if (s.clientDirectAudio) "directaudio" else "classic",
-                onPick = { id -> a.onClientDirectAudio(id == "directaudio") },
-            )
             ToggleRow(host, "mic", stringResource(R.string.mode_mic), stringResource(R.string.mode_mic_hint), s.mic, onChange = a.onMic)
         }
         if (steam && tab == ModeSettingsTab.GAMES && s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
-            val custom = s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.second == s.gameStorage }
+            val custom = s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
+            // Each choice: its path, its menu line, the chip's shorter line, and the label it is saved with.
+            class StorageChoice(val path: String, val label: String, val chip: String, val saved: String)
+            val internal = stringResource(R.string.mode_storage_internal)
             val options = buildList {
-                add("" to (if (s.storageOptions.isEmpty()) stringResource(R.string.mode_storage_auto_none) else stringResource(R.string.mode_storage_auto)))
-                add("off" to stringResource(R.string.mode_storage_internal))
-                for ((label, path) in s.storageOptions) add(path to label)
-                if (custom) add(s.gameStorage to stringResource(R.string.mode_storage_folder, s.gameStorage))
+                add(StorageChoice(
+                    "", if (s.storageOptions.isEmpty()) stringResource(R.string.mode_storage_auto_none) else stringResource(R.string.mode_storage_auto),
+                    stringResource(R.string.mode_storage_auto_short), "",
+                ))
+                add(StorageChoice("off", internal, internal, ""))
+                for (o in s.storageOptions) add(StorageChoice(o.path, o.label, o.label, o.name))
+                if (custom) stringResource(R.string.mode_storage_folder, s.gameStorage).let { add(StorageChoice(s.gameStorage, it, it, it)) }
             }
             val open = host.open == "storage"
             SettingsRow(
@@ -488,14 +470,14 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 highlighted = open,
             ) {
                 androidx.compose.foundation.layout.Box {
-                    ValueChip(options.firstOrNull { it.first == s.gameStorage }?.second?.substringBefore(" -") ?: "-", open) { host.open = if (open) null else "storage" }
+                    ValueChip(options.firstOrNull { it.path == s.gameStorage }?.chip ?: "-", open) { host.open = if (open) null else "storage" }
                     AnchoredMenu(
                         open, onDismiss = { if (host.open == "storage") host.open = null }, title = stringResource(R.string.mode_second_library),
                         note = stringResource(R.string.mode_storage_note),
                     ) { firstItemFocus ->
-                        options.forEachIndexed { index, (path, label) ->
-                            MenuItem(label, checked = path == s.gameStorage, focusRequester = if (index == 0) firstItemFocus else null) {
-                                a.onGameStorage(path, if (path.isEmpty() || path == "off") "" else label.substringBefore(" ·"))
+                        options.forEachIndexed { index, choice ->
+                            MenuItem(choice.label, checked = choice.path == s.gameStorage, focusRequester = if (index == 0) firstItemFocus else null) {
+                                a.onGameStorage(choice.path, choice.saved)
                                 host.open = null
                             }
                         }
@@ -512,14 +494,6 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 host, "skipPreallocation", stringResource(R.string.mode_skip_preallocation),
                 stringResource(R.string.mode_skip_preallocation_hint), s.skipPreallocation,
                 onChange = a.onSkipPreallocation,
-            )
-        }
-        if (!steam && tab == ModeSettingsTab.DISPLAY && s.renderer != null) SettingsGroup(stringResource(R.string.mode_renderer)) {
-            ChoiceRow(
-                host, "renderer", stringResource(R.string.mode_desktop_renderer), stringResource(R.string.mode_renderer_hint),
-                listOf("vulkan" to stringResource(R.string.mode_renderer_vulkan), "gles2" to stringResource(R.string.mode_renderer_gles2), "pixman" to stringResource(R.string.mode_renderer_pixman)), s.renderer,
-                note = stringResource(R.string.mode_renderer_note),
-                onPick = a.onRenderer,
             )
         }
     }
@@ -548,6 +522,31 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
 }
 
 /** Width × height for the session, with the common handheld shapes one tap away. */
+/** Entry for the user's SteamGridDB API key; the saved key is never shown back. */
+@Composable
+internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var key by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.mode_sgdb_key)) },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                key, { v -> key = v.trim() }, label = { Text(stringResource(R.string.mode_sgdb_key)) },
+                singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onSave(key) }, enabled = key.isNotEmpty()) { Text(stringResource(R.string.common_ok)) } },
+        dismissButton = {
+            androidx.compose.foundation.layout.Row {
+                if (hasKey) androidx.compose.material3.TextButton(onClick = { onSave("") }) { Text(stringResource(R.string.common_delete)) }
+                androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            }
+        },
+    )
+}
+
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit) {

@@ -28,7 +28,9 @@ public class PulseAudioComponent extends SessionPart {
     /** Where the guest reaches the daemon; the session exports PULSE_SERVER=unix:<this>. */
     public static final String SOCKET_NAME = "PS0";
     /** Identifies the bundled pulseaudio.tzst; a change here re-unpacks it over what a device has. */
-    private static final String BUNDLE_STAMP = "2026-09-23-pa13-suspend-r5";
+    private static final String BUNDLE_STAMP = "2026-10-08-pa13-directaudio-native";
+
+
 
     private final File workingDir;
     /** Where the daemon's own output is kept for this session, or null for logcat only. */
@@ -40,8 +42,6 @@ public class PulseAudioComponent extends SessionPart {
      * turns that one stream into a source the client can see, named DirectAudioMic.
      */
     private final String micFifoPath;
-    /** The DirectAudio relay's socket when the client's output should go through it, else null. */
-    private String relaySocketPath;
     private volatile int pid = -1;
 
     public PulseAudioComponent(Context context) {
@@ -52,15 +52,6 @@ public class PulseAudioComponent extends SessionPart {
     public PulseAudioComponent(Context context, String micFifoPath) {
         this.workingDir = new File(context.getFilesDir(), "pulseaudio");
         this.micFifoPath = micFifoPath;
-    }
-
-    /**
-     * Route the daemon's output through the DirectAudio relay at this socket instead of an AAudio
-     * stream of its own. The relay owns the stream outside proot, with its adaptive buffer; the
-     * daemon only fills a shared ring. Set before {@link #start()}; the relay may start later.
-     */
-    public void setRelaySocket(String path) {
-        this.relaySocketPath = path;
     }
 
     /** CRC-32 of the bundled pulseaudio.tzst, or "?" if it cannot be read. About 600 KB; cheap. */
@@ -106,6 +97,7 @@ public class PulseAudioComponent extends SessionPart {
         String have = FileUtils.readString(stamp);
         String want = BUNDLE_STAMP + "-" + bundleChecksum();
         if (!new File(modulesDir, "arm64/module-aaudio-sink.so").isFile()
+                || !new File(modulesDir, "arm64/module-directaudio-native-sink.so").isFile()
                 || !new File(workingDir, "pactl").isFile()
                 || have == null || !want.equals(have.trim())) {
             Log.i(TAG, "unpacking pulseaudio.tzst (" + want + "; had " + have + ")");
@@ -139,14 +131,15 @@ public class PulseAudioComponent extends SessionPart {
         // the sink to 0% and the session plays silence.
         // The sink's name is what the client's Audio settings show as the output device, so it
         // says which road the sound takes.
-        if (relaySocketPath != null && !relaySocketPath.isEmpty()) {
-            config.add("load-module module-directaudio-sink sink_name=DirectAudio socket=\"" + relaySocketPath + "\" performance_mode=1 adaptive=1 volume=1.0");
-            config.add("set-default-sink DirectAudio");
-        } else {
-            // The classic sink: the adaptive AAudio module 0.1.5 shipped, unchanged.
-            config.add("load-module module-aaudio-classic-sink sink_name=AAudioSink performance_mode=1 adaptive=1 volume=1.0");
-            config.add("set-default-sink AAudioSink");
-        }
+        // The client's sound: DirectAudio's own engine, in this process, one step from Android.
+        // decay=0: shrinking the device buffer after a quiet spell probes below what works and that
+        // probe is a click; the client plays menus. Between .nofail and .fail a module that cannot
+        // open its stream does not take the daemon down; ensureClientSink() then loads the plain
+        // AAudio sink in its place.
+        config.add(".nofail");
+        config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0");
+        config.add("set-default-sink DirectAudio");
+        config.add(".fail");
         if (micFifoPath != null && !micFifoPath.isEmpty()) {
             // The format is the helper's, fixed at s16le/48000/mono: it resamples when the device
             // grants another input rate, so the daemon is never told a rate the bytes are not.
@@ -178,6 +171,74 @@ public class PulseAudioComponent extends SessionPart {
                     Log.i(TAG, line);
                     if (out != null) synchronized (out) { out.println(line); out.flush(); }
                 });
+        Thread guard = new Thread(() -> ensureClientSink(out), "pulse-sink-guard");
+        guard.setDaemon(true);
+        guard.start();
+    }
+
+    /**
+     * The fallback: once the daemon answers, if the DirectAudio sink is not
+     * there (the module failed to load or to open its stream), load the plain AAudio sink so the
+     * client is never left without an output. Says so in the audio log either way.
+     */
+    private void ensureClientSink(java.io.PrintWriter out) {
+        long deadline = System.currentTimeMillis() + 15000L;
+        String sinks = null;
+        while (System.currentTimeMillis() < deadline && pid > 1) {
+            if (socket().exists() && (sinks = pactl("list", "short", "sinks")) != null) break;
+            try { Thread.sleep(250L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+        String line;
+        if (sinks == null) {
+            line = "== client sink: the daemon did not answer in 15 s; no fallback attempted";
+        } else if (sinks.contains("\tDirectAudio\t") || sinks.startsWith("DirectAudio\t") || sinks.contains("\tDirectAudio\n") || sinks.matches("(?s).*\\bDirectAudio\\b.*")) {
+            line = "== client sink: DirectAudio (module-directaudio-native-sink)";
+        } else {
+            boolean loaded = pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink", "performance_mode=1", "adaptive=1", "volume=1.0") != null
+                    && pactl("set-default-sink", "AAudioSink") != null;
+            line = loaded ? "== client sink: DirectAudio did not come up; FALLBACK to the plain AAudio sink (AAudioSink)"
+                          : "== client sink: DirectAudio did not come up and the AAudio fallback failed too - no client sound";
+            Log.w(TAG, line);
+        }
+        Log.i(TAG, line);
+        if (out != null) synchronized (out) { out.println(line); out.flush(); }
+    }
+
+    /** Runs pactl against this daemon; its stdout, or null when it failed or timed out. */
+    private String pactl(String... args) {
+        File pactl = new File(workingDir, "pactl");
+        if (!pactl.isFile() || pid <= 1) return null;
+        java.lang.Process process = null;
+        try {
+            File modules = new File(workingDir, "modules/arm64");
+            ArrayList<String> cmd = new ArrayList<>();
+            cmd.add(pactl.getAbsolutePath());
+            java.util.Collections.addAll(cmd, args);
+            ProcessBuilder builder = new ProcessBuilder(cmd);
+            builder.directory(workingDir);
+            builder.redirectErrorStream(true);
+            builder.environment().put("LD_LIBRARY_PATH", "/system/lib64:" + modules + ":" + workingDir);
+            builder.environment().put("HOME", workingDir.getAbsolutePath());
+            builder.environment().put("TMPDIR", workingDir.getAbsolutePath());
+            builder.environment().put("PULSE_SERVER", "unix:" + socket().getAbsolutePath());
+            process = builder.start();
+            String output;
+            try (InputStream in = process.getInputStream()) {
+                output = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return null;
+            }
+            return process.exitValue() == 0 ? output : null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (process != null && process.isAlive()) process.destroyForcibly();
+        }
     }
 
     @Override

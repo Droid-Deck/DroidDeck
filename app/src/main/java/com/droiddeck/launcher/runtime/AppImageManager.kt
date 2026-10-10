@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory
 import android.os.StatFs
 import android.system.Os
 import android.util.Log
+import androidx.annotation.StringRes
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import java.io.File
 import java.io.RandomAccessFile
@@ -27,6 +29,11 @@ object AppImageManager {
         val guestDir: String get() = "$GUEST_DIR/$id"
     }
 
+    /** Why a file cannot be imported: [text] with its [args]. */
+    internal class Problem(@StringRes val text: Int, vararg val args: Any) {
+        fun describe(context: Context): String = context.getString(text, *args)
+    }
+
     private fun root(context: Context) = File(LinuxRuntime.rootDir(context), GUEST_DIR.substring(1))
 
     fun list(context: Context): List<Item> =
@@ -44,22 +51,22 @@ object AppImageManager {
      * What is wrong with [file] as an AppImage for this device, or null when it can be imported.
      * An AppImage is an ELF program (its runtime) with "AI" and the format version at byte 8.
      */
-    internal fun problem(file: File): String? {
-        if (!file.isFile) return "The file is gone"
+    internal fun problem(file: File): Problem? {
+        if (!file.isFile) return Problem(R.string.user_apps_file_gone)
         val head = ByteArray(20)
         try {
-            RandomAccessFile(file, "r").use { if (it.read(head) < head.size) return "The file is too small to be an AppImage" }
+            RandomAccessFile(file, "r").use { if (it.read(head) < head.size) return Problem(R.string.appimg_too_small) }
         } catch (e: Exception) {
-            return "The file cannot be read: ${e.message}"
+            return Problem(R.string.appimg_unreadable, e.message.toString())
         }
         if (head[0] != 0x7f.toByte() || head[1] != 'E'.code.toByte() || head[2] != 'L'.code.toByte() || head[3] != 'F'.code.toByte()) {
-            return "This is not an AppImage (it is not a Linux program)"
+            return Problem(R.string.appimg_not_linux)
         }
         val machine = (head[18].toInt() and 0xff) or ((head[19].toInt() and 0xff) shl 8)
         return when {
-            machine != LinuxFex.ELF_AARCH64 && !LinuxFex.isX86(machine) -> "This AppImage is built for neither ARM64 (aarch64) nor x86 PCs"
-            head[8] != 'A'.code.toByte() || head[9] != 'I'.code.toByte() -> "This is a Linux program but not an AppImage"
-            head[10].toInt() != 2 -> "Only type 2 AppImages can be imported (this one is type ${head[10].toInt()})"
+            machine != LinuxFex.ELF_AARCH64 && !LinuxFex.isX86(machine) -> Problem(R.string.appimg_wrong_arch)
+            head[8] != 'A'.code.toByte() || head[9] != 'I'.code.toByte() -> Problem(R.string.appimg_not_appimage)
+            head[10].toInt() != 2 -> Problem(R.string.appimg_wrong_type, head[10].toInt())
             else -> null
         }
     }
@@ -83,12 +90,12 @@ object AppImageManager {
     fun import(
         context: Context, file: File, name: String?, icon: File?, meta: Map<String, String> = emptyMap(), onProgress: (String) -> Unit,
     ): String? {
-        if (!LinuxRuntime.isInstalled(context)) return "Install the Linux runtime first"
-        problem(file)?.let { return it }
+        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
+        problem(file)?.let { return it.describe(context) }
         val base = root(context).apply { mkdirs() }
         // Room for the image while it is extracted, and the extracted tree (about the same again).
         if (StatFs(base.path).availableBytes < file.length() * 3) {
-            return "Not enough free space: importing needs about ${FileUtils.sizeToString(file.length() * 3)}"
+            return context.getString(R.string.appimg_no_space_import, FileUtils.sizeToString(file.length() * 3))
         }
         val dir = File(base, idFor(name ?: file.name, base.list()?.toSet() ?: emptySet()))
         try {
@@ -103,17 +110,17 @@ object AppImageManager {
         } catch (e: Exception) {
             Log.e(TAG, "import ${file.name}", e)
             FileUtils.delete(dir)
-            return e.message ?: "Import failed"
+            return e.message ?: context.getString(R.string.appimg_import_failed)
         }
     }
 
     /** Swaps the program of imported [id] for [file], keeping its name and icon; the old one stays if this fails. */
     fun replace(context: Context, id: String, file: File, meta: Map<String, String>, onProgress: (String) -> Unit): String? {
-        problem(file)?.let { return it }
+        problem(file)?.let { return it.describe(context) }
         val dir = dir(context, id)
-        if (!File(dir, "app").isDirectory) return "That AppImage is gone"
+        if (!File(dir, "app").isDirectory) return context.getString(R.string.appimg_gone)
         if (StatFs(dir.path).availableBytes < file.length() * 3) {
-            return "Not enough free space: updating needs about ${FileUtils.sizeToString(file.length() * 3)}"
+            return context.getString(R.string.appimg_no_space_update, FileUtils.sizeToString(file.length() * 3))
         }
         return try {
             extract(context, dir, file, onProgress) ?: run {
@@ -123,7 +130,7 @@ object AppImageManager {
             }
         } catch (e: Exception) {
             Log.e(TAG, "replace $id", e)
-            e.message ?: "Update failed"
+            e.message ?: context.getString(R.string.appimg_update_failed)
         }
     }
 
@@ -135,10 +142,10 @@ object AppImageManager {
             dir.mkdirs()
             // Copied in, not run where it lies: shared storage is mounted noexec, and proot's loader
             // maps a program executable.
-            onProgress("Copying ${file.name}")
+            onProgress(context.getString(R.string.user_apps_copying, file.name))
             file.inputStream().use { input -> image.outputStream().use { FileUtils.copy(input, it) } }
             image.setExecutable(true, false)
-            onProgress("Extracting ${file.name}")
+            onProgress(context.getString(R.string.appimg_extracting, file.name))
             val unpack = if (LinuxFex.isX86(LinuxFex.elfMachine(image))) "${LinuxFex.TOOL} extract ./image.AppImage"
                 else "./image.AppImage --appimage-extract || { rm -rf squashfs-root AppDir; ${LinuxFex.TOOL} extract ./image.AppImage; }"
             val out = StringBuilder()
@@ -152,7 +159,8 @@ object AppImageManager {
             ), logName = "appimage-import", linkDir = links) { line -> if (out.length < 2000) out.appendLine(line) }
             if (status != 0 || !File(dir, "app").isDirectory) {
                 listOf("squashfs-root", "AppDir").forEach { FileUtils.delete(File(dir, it)) }
-                return "The AppImage could not be extracted" + (out.lines().lastOrNull { it.isNotBlank() }?.let { ": $it" } ?: "")
+                return out.lines().lastOrNull { it.isNotBlank() }?.let { context.getString(R.string.appimg_extract_failed_detail, it) }
+                    ?: context.getString(R.string.appimg_extract_failed)
             }
             copyLinkedFiles(File(dir, "app"), links)
             return null
@@ -234,7 +242,7 @@ object AppImageManager {
 
     private fun menuEntry(context: Context, id: String) =
         // A system directory, not ~/.local/share/applications: the desktop copies game entries from
-        // here into the user's with a GPU launcher (droiddeck-desktop-gpu) while it runs on pixman.
+        // here into the user's with a GPU launcher (droiddeck-desktop-gpu), since it composites in software.
         File(LinuxRuntime.rootDir(context), "usr/local/share/applications/droiddeck-appimage-$id.desktop")
 
     /** The Linux desktop's menu entry: the desktop's own Exec rules (and droiddeck-gpu) apply to it. */

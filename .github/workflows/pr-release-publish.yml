@@ -26,6 +26,7 @@ permissions:
 concurrency:
   group: pr-release-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || inputs.pr_number }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   authorize:
@@ -178,6 +179,10 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           pattern: droiddeck-pr-signed-*
@@ -307,39 +312,27 @@ jobs:
           $NEXT
           EOF
           )
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
-            --jq ".[] | select(.body | startswith(\"$mark\")) | .id" | head -1 || true)
+          comment=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate --slurp | \
+            jq "[.[][] | select(.user.login == \"github-actions[bot]\") | select(.body | startswith(\"$mark\"))] | first // {}")
+          id=$(jq -r '.id // empty' <<<"$comment")
           if [ -n "$id" ]; then
+            state=$(jq -r '.body | split("\n")[] | select(startswith("<!-- droiddeck-discord: ") and endswith(" -->"))' <<<"$comment")
+            if [ -n "$state" ]; then body=$(printf '%s\n%s' "$body" "$state"); fi
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null
           else
             gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
           fi
 
-      # Asked for (the label, a manual run): always announced. Signed on its own after a push:
-      # only a PR's first test build is, and later ones update its release quietly.
-      - name: Post to Discord
-        if: ${{ always() && steps.publish.outcome == 'success' && (needs.authorize.outputs.automatic != 'true' || steps.publish.outputs.first == 'true') }}
+      - name: Update the Discord PR announcement
+        if: ${{ always() && steps.publish.outcome == 'success' }}
         env:
-          WEBHOOK: ${{ secrets.DISCORD_BUILDS_WEBHOOK }}
+          WEBHOOK: ${{ secrets.DISCORD_PR_BUILDS_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           RELEASE: ${{ steps.publish.outputs.release }}
           APK: ${{ steps.publish.outputs.apk }}
-        run: |
-          set -euo pipefail
-          if [ -z "$WEBHOOK" ]; then
-            echo "::notice::No DISCORD_BUILDS_WEBHOOK secret; nothing posted"
-            exit 0
-          fi
-          short=${HEAD_SHA:0:7}
-          title=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .title)
-          what="[#$PR_NUMBER]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PR_NUMBER): $title"
-          get=$(printf 'Download: [standard APK](<%s>) · [all variants](<%s>)' "$APK" "$RELEASE")
-          content=$(printf '**New signed PR test build** \`pr-%s\` · \`%s\`\n%s\n_Not merged — for testing._\n%s' "$PR_NUMBER" "$short" "$what" "$get")
-          jq -n --arg content "$content" '{content: $content, allowed_mentions: {parse: []}}' |
-            curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK" -o /dev/null
-          echo "Posted: $content"
+        run: python3 tools/release/pr_discord.py publish
 
   catalog:
     needs: publish
