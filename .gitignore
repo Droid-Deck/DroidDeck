@@ -13,8 +13,12 @@ captures/
 app/src/main/assets/linuxfs/
 app/src/main/jniLibs/arm64-v8a/libproot.so
 app/src/main/jniLibs/arm64-v8a/.proot-inputs
+app/src/main/jniLibs/arm64-v8a/.proot-outputs
 app/src/main/jniLibs/arm64-v8a/libproot-loader.so
 app/src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so
+# The store download engines (app/src/main/rust/stores) are cross-compiled by Gradle into
+# app/build/rustJniLibs; cargo's own build tree stays next to the crate. Neither is source.
+app/src/main/rust/stores/target/
 app/src/main/assets/droiddeck-esync/
 
 # Kotlin compiler session files (build-tool state, never source).

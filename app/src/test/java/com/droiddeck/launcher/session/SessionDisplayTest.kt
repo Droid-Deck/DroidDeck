@@ -46,6 +46,7 @@ class SessionDisplayTest {
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
     }
 
+
     @Test fun followScreenKeepsTheWindowShapeAndSkipsTinyWindows() {
         assertEquals(2520 to 1080, SessionDisplay.resolveChoice(1080 to 2520, SessionDisplay.FOLLOW_SCREEN))
         assertEquals(1968 to 2184, SessionDisplay.followSize(1968, 2184))

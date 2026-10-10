@@ -71,6 +71,7 @@ object SessionDisplay {
     fun unfoldedGameHeight(width: Int, height: Int): Int =
         minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt()) and 1.inv()
 
+
     fun panelSize(context: Context): Pair<Int, Int> {
         val manager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         @Suppress("DEPRECATION")

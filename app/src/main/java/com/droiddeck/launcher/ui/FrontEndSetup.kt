@@ -76,6 +76,7 @@ import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.download.StoreDownloadTier
 import com.droiddeck.launcher.R
 
 // The Setup page: runtime and device checks, tools, frame generation and launch settings.
@@ -163,6 +164,8 @@ internal fun SetupPanel(
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
     var showLimitDetails by rememberSaveable { mutableStateOf(false) }
+    var editSgdbKey by remember { mutableStateOf(false) }
+    if (editSgdbKey) SgdbKeyDialog(s.sgdbUserKey, onSave = { a.onSgdbKey(it); editSgdbKey = false }, onDismiss = { editSgdbKey = false })
     // Four tabs instead of one long scroll; LB and RB turn them from anywhere on the page. Build
     // and credits are on the Updates page.
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_session), stringResource(R.string.setup_tab_launcher))
@@ -367,6 +370,31 @@ internal fun SetupPanel(
                                 s.storeEnabled,
                             ) { a.onStoreEnabled(it) }
                         }
+                        SettingsGroup(stringResource(R.string.content_games)) {
+                            ToggleRow(host, "added-art", stringResource(R.string.mode_added_art), stringResource(R.string.mode_added_art_hint), s.addedGamesArt) { a.onAddedGamesArt(it) }
+                            ActionRow(
+                                stringResource(R.string.mode_sgdb_key), if (s.sgdbUserKey) stringResource(R.string.mode_sgdb_key_yours) else null,
+                                stringResource(R.string.mode_sgdb_edit), onClick = { editSgdbKey = true },
+                            )
+                        }
+                        SettingsGroup(stringResource(R.string.setup_stores)) {
+                            ToggleRow(
+                                host, "stores-enabled", stringResource(R.string.setup_stores_show),
+                                null, s.gameStoresEnabled,
+                            ) { a.onGameStoresEnabled(it) }
+                            // The same rows as the Stores page's own cog, for whoever looks here first.
+                            SettingsRow(stringResource(R.string.setup_stores_open_on), null) {
+                                SegmentedTabs(
+                                    listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
+                                    s.storesOpenTab,
+                                ) { a.onStoresOpenTab(it) }
+                            }
+                            ToggleRow(host, "stores-show-mature", stringResource(R.string.stores_show_mature), null, s.storesShowMature) { a.onStoresShowMature(it) }
+                            SettingsRow(stringResource(R.string.setup_stores_speed), null) {
+                                SegmentedTabs(StoreDownloadTier.ALL.map { it.id to stringResource(it.label) }, s.gameStoresSpeedTier) { a.onGameStoresSpeedTier(it) }
+                            }
+                            StoresEngineRow()
+                        }
                     }
                 }
             }
@@ -456,6 +484,15 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
             }
         }
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
+        // An Epic game's own launch choices, kept in its sidecar so a launch from the Steam client
+        // honours them too (droiddeck-store-launch reads the same file).
+        // Epic's launch choices; cloud saves live in the game's Cloud saves view, so a GOG game has no card.
+        val cardStore = com.droiddeck.launcher.stores.Store.byId(game?.source.orEmpty())?.takeIf { it == com.droiddeck.launcher.stores.Store.EPIC }
+        if (cardStore != null && game?.gameFiles != null) add { m ->
+            Box(m) {
+                StoreLaunchCard(host, game.gameFiles!!, cardStore)
+            }
+        }
         if (wincompKey != null) add { m ->
             SettingCard(
                 stringResource(R.string.wincomp_title),
@@ -475,6 +512,53 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
                 for (card in row) card(Modifier.weight(1f).fillMaxHeight())
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
+        }
+    }
+}
+
+/** Epic's account page behind its sign-in: signing in there presents any step the account still owes. */
+private const val EPIC_RESOLVE_URL = "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Faccount%2Fpersonal"
+
+/** The Epic card: the sign-in and offline switches, read from and written to the game's sidecar, and Resolve Epic sign-in. */
+@Composable
+private fun StoreLaunchCard(host: MenuHost, folder: java.io.File, store: com.droiddeck.launcher.stores.Store) {
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    var sidecar by remember(folder) { mutableStateOf(com.droiddeck.launcher.stores.StoreGameSidecar.read(folder)) }
+    val options = sidecar?.epic ?: com.droiddeck.launcher.stores.EpicOptions()
+    val epic = store == com.droiddeck.launcher.stores.Store.EPIC
+    val key = "store-" + store.id
+    val value = buildList {
+        if (epic && options.offline) add(stringResource(R.string.epic_card_offline))
+        else if (epic && options.eos) add(stringResource(R.string.epic_card_eos))
+    }.ifEmpty { listOf(stringResource(R.string.epic_card_none)) }.joinToString(" · ")
+    // Each switch goes straight to the sidecar on disk - both launch paths read it there - and the
+    // card shows what was read back, so a write that did not take is never shown as done.
+    fun set(change: (com.droiddeck.launcher.stores.EpicOptions) -> com.droiddeck.launcher.stores.EpicOptions) {
+        Thread({
+            val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateEpic(folder, change) }
+                .onFailure { android.util.Log.w("EpicLaunchCard", "could not write ${folder.name}: ${it.message}") }.getOrNull()
+            if (written != null) android.util.Log.i("EpicLaunchCard", "epic options ${written.id} eos=${written.epic.eos} offline=${written.epic.offline}")
+            else android.util.Log.w("EpicLaunchCard", "epic options not saved for ${folder.name}")
+            com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: com.droiddeck.launcher.stores.StoreGameSidecar.read(folder) }
+        }, "epic-options").start()
+    }
+    SettingCard(store.shortLabel, value, "card:$key", Modifier.fillMaxSize()) {
+        host.open = if (host.open == key) null else key
+    }
+    AnchoredMenu(host.open == key, onDismiss = { if (host.open == key) host.open = null }, title = store.shortLabel) { first ->
+        if (epic) {
+            MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
+            MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }
+        }
+        if (epic) {
+        // Epic asks some accounts to accept something once (privacy policy, EULA) before a game may
+        // sign in - EOS's "corrective action". Signing in on Epic's site shows it.
+        MenuItem(stringResource(R.string.epic_resolve), checked = false) {
+            host.open = null
+            runCatching {
+                appContext.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(EPIC_RESOLVE_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
         }
     }
 }
