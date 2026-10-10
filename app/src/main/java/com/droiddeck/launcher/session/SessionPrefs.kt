@@ -131,9 +131,9 @@ object SessionPrefs {
 
     private fun hudKey(context: Context) = if (mangoappSession(context)) "hudDeck" else "hud"
 
-    /** A Steam session that runs Deck mode with its performance overlay (mangoapp). */
+    /** A Steam session with Deck mode's performance overlay (mangoapp). */
     private fun mangoappSession(context: Context) =
-        SessionState.mode == SessionService.MODE_STEAM && steamDeckMode(context) && mangoapp(context)
+        SessionState.mode == SessionService.MODE_STEAM && mangoapp(context)
 
     /** When enabled, a single Back opens Steam QAM and a double Back opens the session menu. */
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
@@ -456,22 +456,6 @@ object SessionPrefs {
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
 
-    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On by default (settleDeckModeDefault). */
-    fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", true)
-    fun setSteamDeckMode(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamDeckMode", on).apply() }
-
-    /**
-     * Deck mode is the default: every install, new or from before, is moved to it once. An install
-     * from before 0.3.0 had off written down for it whether or not anyone chose it, so the move
-     * can't tell a choice from that default and moves everyone; turning it off afterwards sticks.
-     * Run once at process start, before anything reads or writes these prefs.
-     */
-    fun settleDeckModeDefault(context: Context) {
-        val p = prefs(context)
-        if (p.getBoolean("deckModeMoved", false)) return
-        p.edit().putBoolean("steamDeckMode", true).putBoolean("deckModeMoved", true).apply()
-    }
-
     /**
      * Deck mode's performance overlay (mangoapp, beside gamescope): the QAM's Overlay Level draws
      * through it. Off is the way out where Valve's mangoapp crashes (one Turnip build did).
@@ -601,24 +585,6 @@ object SessionPrefs {
         prefs(context).edit().putString("fexPreset", id).apply()
         runCatching { GameEnvironmentStore.publish(context) }
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
-    }
-
-    /**
-     * The Steam client branch used for the first download and forced on the command line:
-     * "steamdeck_publicbeta" by default, or "publicbeta" when chosen with Deck mode off.
-     * Deck mode always takes the Deck branch, whatever was chosen:
-     * with -steamos3 the client picks its own branch as SteamOS does, and on publicbeta it settled
-     * on steamdeck_stable - an older client it then offered as a "Software Update" in every session,
-     * which applying turns into the exit-42 restart loop (seen on device 2026-09-30). Earlier, Deck
-     * mode on publicbeta also reinstalled the same client at every start (2026-09-23). On
-     * steamdeck_publicbeta the client finds no update. The choice applies with Deck mode off.
-     */
-    fun steamChannel(context: Context): String =
-        if (steamDeckMode(context)) "steamdeck_publicbeta"
-        else prefs(context).getString("steamChannel", null) ?: "steamdeck_publicbeta"
-
-    fun setSteamChannel(context: Context, id: String) {
-        prefs(context).edit().putString("steamChannel", id).apply()
     }
 
     /** Whether opening DroidDeck starts a Steam session instead of showing the front end. */

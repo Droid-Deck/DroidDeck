@@ -283,16 +283,8 @@
     <string name="mode_decky_remove_title">¿Desinstalar Decky Loader?</string>
     <string name="mode_decky_remove_text">Elimina el loader. Tus plugins y ajustes se conservan.</string>
     <string name="mode_client">Cliente</string>
-    <string name="mode_deck_mode">Modo Steam Deck</string>
-    <string name="mode_deck_mode_hint">La interfaz Deck de Steam y los controles de rendimiento de Quick Access. Se aplica en la próxima sesión.</string>
     <string name="mode_mangoapp">Superposición de rendimiento</string>
     <string name="mode_mangoapp_hint">Desactívalo si los juegos fallan o se quedan en negro en modo Deck. Se aplica en la próxima sesión.</string>
-    <string name="mode_branch">Rama del cliente</string>
-    <string name="mode_branch_deck">Beta pública de Steam Deck (requerida por el modo Deck).</string>
-    <string name="mode_branch_hint">Se aplica en la próxima sesión. Steam puede actualizarse una vez.</string>
-    <string name="mode_branch_public">Beta pública</string>
-    <string name="mode_branch_deck_beta">Beta pública de Steam Deck</string>
-    <string name="mode_branch_note">El modo Deck siempre usa la beta pública de Steam Deck.</string>
     <string name="mode_steam_repair">Reparar el cliente de Steam</string>
     <string name="mode_steam_repair_hint">Vuelve a descargar el cliente de Steam la próxima vez que se inicie Steam. Úsalo si Steam se queda en la pantalla de carga. Se conservan los juegos, la sesión iniciada y los ajustes.</string>
     <string name="mode_steam_repair_queued">El cliente de Steam se volverá a descargar la próxima vez que se inicie Steam.</string>

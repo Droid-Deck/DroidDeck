@@ -257,16 +257,8 @@
     <string name="mode_decky_remove_title">Désinstaller Decky Loader ?</string>
     <string name="mode_decky_remove_text">Supprime le chargeur. Vos plugins et paramètres seront conservés.</string>
     <string name="mode_client">Client</string>
-    <string name="mode_deck_mode">Mode Steam Deck</string>
-    <string name="mode_deck_mode_hint">Interface Steam Deck et contrôles de performance à accès rapide. Prendra effet à la prochaine session.</string>
     <string name="mode_mangoapp">Superposition de performance</string>
     <string name="mode_mangoapp_hint">Désactivez cette option si les jeux plantent ou affichent un écran noir en mode Deck. Prendra effet à la prochaine session.</string>
-    <string name="mode_branch">Branche du client</string>
-    <string name="mode_branch_deck">Bêta Steam Deck (requis pour le mode Deck).</string>
-    <string name="mode_branch_hint">Prendra effet à la prochaine session. Steam peut se mettre à jour une fois de lui-même.</string>
-    <string name="mode_branch_public">Bêta</string>
-    <string name="mode_branch_deck_beta">Bêta Steam Deck</string>
-    <string name="mode_branch_note">Le mode Deck utilise toujours la version bêta de Steam Deck.</string>
     <string name="mode_added_art">Illustrations</string>
     <string name="mode_sgdb_key">Clé API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Votre clé</string>
