@@ -266,6 +266,31 @@ static std::unordered_map<int, struct ff_effect> &ff_effects() {
   return *map;
 }
 
+// Every fd the maps hold, readable without controller_mutex(): the hooks see each read, write,
+// ioctl and poll a process makes, and almost none are on these. Set before an fd is handed out,
+// cleared once no map holds it; an fd past the bitmap takes the lock once any such fd exists.
+static constexpr int kWatchedFds = 1 << 16;
+static constexpr int kWatchedBits = sizeof(unsigned long) * 8;
+static std::atomic<unsigned long> watched_fds[kWatchedFds / kWatchedBits];
+static std::atomic<bool> watched_beyond{false};
+
+static void watch_fd(int fd) {
+  if (fd < 0) return;
+  if (fd >= kWatchedFds) watched_beyond.store(true, std::memory_order_release);
+  else watched_fds[fd / kWatchedBits].fetch_or(1UL << (fd % kWatchedBits), std::memory_order_release);
+}
+
+static void unwatch_fd(int fd) {
+  if (fd >= 0 && fd < kWatchedFds)
+    watched_fds[fd / kWatchedBits].fetch_and(~(1UL << (fd % kWatchedBits)), std::memory_order_release);
+}
+
+static bool watched(int fd) {
+  if (fd < 0) return false;
+  if (fd >= kWatchedFds) return watched_beyond.load(std::memory_order_acquire);
+  return (watched_fds[fd / kWatchedBits].load(std::memory_order_acquire) >> (fd % kWatchedBits)) & 1;
+}
+
 static const char *fake_hook_dir() { return config().hook_dir; }
 static const char *fake_udev_data_dir() { return config().udev_data_dir; }
 static bool fake_vibration_enabled() { return config().vibration_enabled; }
@@ -692,6 +717,7 @@ open_fake_input_ring(const char *event, int flags) {
   {
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     controller_map()[fd] = controller;
+    watch_fd(fd);
   }
 
   Logger::log("Adding ring-backed controller, fd %d event %s slot %d\n", fd,
@@ -774,11 +800,13 @@ copy_slot_ioctl_string(int op, void *argp, const char *format, int event_number)
 }
 
 __attribute__((visibility("hidden"))) static bool is_fake_input_fd(int fd) {
+  if (!watched(fd)) return false;
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   return controller_map().find(fd) != controller_map().end();
 }
 
 __attribute__((visibility("hidden"))) static bool fake_fd_is_stale(int fd) {
+  if (!watched(fd)) return false;
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   auto controller = controller_map().find(fd);
   return controller != controller_map().end() &&
@@ -892,6 +920,7 @@ __attribute__((visibility("hidden"))) static int open_uinput(int flags) {
   writer->owner = getpid();
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   uinput_map()[fd] = writer;
+  watch_fd(fd);
   Logger::log("uinput: opened as fd %d\n", fd);
   return fd;
 }
@@ -1489,6 +1518,7 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   {
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map()[pair[0]] = deck;
+    watch_fd(pair[0]);
   }
   pthread_t thread;
   auto *arg = new std::shared_ptr<DeckHidraw>(deck);
@@ -1496,6 +1526,7 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
     delete arg;
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map().erase(pair[0]);
+    unwatch_fd(pair[0]);
     syscall(SYS_close, pair[0]);
     syscall(SYS_close, pair[1]);
     munmap(mapping, mapping_size);
@@ -1721,6 +1752,7 @@ __attribute__((visibility("hidden"))) static int open_touch_hidraw(int flags) {
   {
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map()[pair[0]] = touch;
+    watch_fd(pair[0]);
   }
   touch_state([](TouchRingFile &r) { r.opened++; });
   pthread_t thread;
@@ -1729,6 +1761,7 @@ __attribute__((visibility("hidden"))) static int open_touch_hidraw(int flags) {
     delete arg;
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map().erase(pair[0]);
+    unwatch_fd(pair[0]);
     syscall(SYS_close, pair[0]);
     syscall(SYS_close, pair[1]);
     touch_state([](TouchRingFile &r) { if (r.opened) r.opened--; });
@@ -2351,6 +2384,7 @@ static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
 template <typename S, typename Real>
 static int fake_stat_fd(int fd, S *buf, Real real) {
   int ret = real(fd, buf);
+  if (ret != 0 || !watched(fd)) return ret;
 
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   if (ret == 0 && deck_map().count(fd)) {
@@ -2556,6 +2590,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   // The lock must not be held across the passthrough: binder's transport is a
   // blocking ioctl(BINDER_WRITE_READ), so a parked binder pool thread would own
   // controller_mutex() for as long as it waits and deadlock every other ioctl.
+  if (!watched(fd)) return syscall(SYS_ioctl, fd, op, argp);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto maker = uinput_map().find(fd);
   if (maker != uinput_map().end()) return ioctl_uinput(*maker->second, op, argp);
@@ -2768,6 +2803,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
 EXPORT int close(int fd) {
   static auto my_close = reinterpret_cast<decltype(&::close)>(dlsym(RTLD_NEXT, "close"));
 
+  if (!watched(fd)) return my_close(fd);
   close_uinput(fd);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   deck_map().erase(fd);
@@ -2778,6 +2814,7 @@ EXPORT int close(int fd) {
     controller->second->closed = true;
     controller_map().erase(fd);
   }
+  unwatch_fd(fd);
   guard.unlock();
 
   return my_close(fd);
@@ -2786,6 +2823,7 @@ EXPORT int close(int fd) {
 static constexpr int kMaxRingWaitMs = 2;
 
 EXPORT ssize_t read(int fd, void *buf, size_t count) {
+  if (!watched(fd)) return syscall(SYS_read, fd, buf, count);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto controller = controller_map().find(fd);
   if (controller == controller_map().end()) {
@@ -2884,6 +2922,7 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
 EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   static auto my_write = reinterpret_cast<decltype(&::write)>(dlsym(RTLD_NEXT, "write"));
 
+  if (!watched(fd)) return my_write(fd, buf, count);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto made = uinput_map().find(fd);
   if (made != uinput_map().end()) return write_uinput(*made->second, buf, count);
@@ -2912,6 +2951,7 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
 }
 
 EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
+  if (!watched(fd)) return syscall(SYS_writev, fd, iov, iovcnt);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   if (deck_map().count(fd)) {
     ssize_t total = 0;
@@ -2961,11 +3001,14 @@ static int poll_fake(struct pollfd *fds, nfds_t nfds, int timeout,
   static auto my_poll = reinterpret_cast<decltype(&::poll)>(dlsym(RTLD_NEXT, "poll"));
   static auto my_ppoll = reinterpret_cast<decltype(&::ppoll)>(dlsym(RTLD_NEXT, "ppoll"));
 
+  nfds_t first = 0;
+  while (first < nfds && !watched(fds[first].fd)) first++;
   bool has_fake_fds = false;
   std::vector<struct pollfd> real_fds;
-  real_fds.reserve(nfds);
-  std::vector<std::shared_ptr<FakeController>> fake_fds(nfds);
-  {
+  std::vector<std::shared_ptr<FakeController>> fake_fds;
+  if (first < nfds) {
+    real_fds.reserve(nfds);
+    fake_fds.resize(nfds);
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     for (nfds_t i = 0; i < nfds; i++) {
       real_fds.push_back(fds[i]);
