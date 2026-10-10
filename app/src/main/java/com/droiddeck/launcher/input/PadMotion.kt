@@ -32,6 +32,9 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
     // Touched only on the worker thread.
     private val accel = ShortArray(3)
     private val gyro = ShortArray(3)
+    // Asking the display costs more than the rest of a reading, which arrives every 2 ms.
+    private var turn = Surface.ROTATION_0
+    private var turnAt = 0L
 
     fun start() {
         if (thread != null || sensors == null) return
@@ -45,6 +48,7 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         thread = worker
         val handler = Handler(worker.looper)
         active = true
+        turnAt = 0L
         gyroscope?.let { sensors.registerListener(this, it, SAMPLING_US, handler) }
         accelerometer?.let { sensors.registerListener(this, it, SAMPLING_US, handler) }
         Log.i(TAG, "pad motion: gyro ${gyroscope?.name ?: "none"}, accelerometer ${accelerometer?.name ?: "none"}")
@@ -68,17 +72,25 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
     override fun onSensorChanged(event: SensorEvent) {
         if (!active) return
         val values = event.values
+        if (event.timestamp - turnAt > ROTATION_REFRESH_NS) {
+            turn = rotation()
+            turnAt = event.timestamp
+        }
         // Natural orientation to the screen's: Android's display-rotation transform.
-        val (x, y) = when (rotation()) {
-            Surface.ROTATION_90 -> -values[1] to values[0]
-            Surface.ROTATION_180 -> -values[0] to -values[1]
-            Surface.ROTATION_270 -> values[1] to -values[0]
-            else -> values[0] to values[1]
+        val x: Float
+        val y: Float
+        when (turn) {
+            Surface.ROTATION_90 -> { x = -values[1]; y = values[0] }
+            Surface.ROTATION_180 -> { x = -values[0]; y = -values[1] }
+            Surface.ROTATION_270 -> { x = values[1]; y = -values[0] }
+            else -> { x = values[0]; y = values[1] }
         }
         val z = values[2]
-        val (target, scale) = when (event.sensor.type) {
-            Sensor.TYPE_GYROSCOPE -> gyro to GYRO_COUNTS_PER_RAD_S
-            Sensor.TYPE_ACCELEROMETER -> accel to ACCEL_COUNTS_PER_M_S2
+        val target: ShortArray
+        val scale: Float
+        when (event.sensor.type) {
+            Sensor.TYPE_GYROSCOPE -> { target = gyro; scale = GYRO_COUNTS_PER_RAD_S }
+            Sensor.TYPE_ACCELEROMETER -> { target = accel; scale = ACCEL_COUNTS_PER_M_S2 }
             else -> return
         }
         // Screen frame (right, up, towards the player) to the Deck's (right, away, up).
@@ -99,6 +111,7 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         private const val SLOT = 0
         /** The Deck controller's report interval (libfakeinput: DECK_REPORT_INTERVAL_US). */
         private const val SAMPLING_US = 4000
+        private const val ROTATION_REFRESH_NS = 250_000_000L
         private const val ACCEL_COUNTS_PER_M_S2 = 16384f / SensorManager.GRAVITY_EARTH
         private const val GYRO_COUNTS_PER_RAD_S = (32768f / 2000f) * (180f / Math.PI.toFloat())
     }
