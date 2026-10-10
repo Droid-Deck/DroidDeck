@@ -1162,6 +1162,9 @@ class MainActivity : ComponentActivity() {
             onRefresh = { components.refreshComponentCatalog() },
             onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, getString(R.string.comp_pick_wcp))) },
             onBack = { showComponents = false },
+            games = steamGames,
+            generalFexPreset = fexPreset,
+            onGeneralFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
             gpu = drivers.state(),
             gpuActions = com.droiddeck.launcher.ui.GpuDriversActions(
                 onAuto = { on -> drivers.setMode(on) },

@@ -30,4 +30,11 @@ object FexPreset {
 
     /** Game-launch variables in KEY=VALUE form. */
     fun env(id: String): List<String> = byId(id).env
+
+    val environmentKeys: Set<String> by lazy {
+        all.flatMap { it.env }.mapTo(linkedSetOf()) { it.substringBefore('=') }
+    }
+
+    fun environment(id: String): Map<String, String> =
+        env(id).associate { it.substringBefore('=') to it.substringAfter('=') }
 }

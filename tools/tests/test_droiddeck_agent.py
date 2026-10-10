@@ -208,6 +208,22 @@ class AgentTest(unittest.TestCase):
         missing = self.ask({"kind": "cdp", "expression": "1", "target": "Nope"})
         self.assertEqual("NO_TARGET", missing["error"]["code"])
 
+    def test_steam_selection(self):
+        with patch.object(agent, "cdp_eval", return_value={"value": "3180310"}) as evaluate:
+            answer = self.ask({"kind": "steam-selection"})
+        self.assertEqual(3180310, answer["appId"])
+        self.assertIn("document.activeElement", evaluate.call_args.args[1])
+        self.assertEqual("Steam Big Picture Mode", evaluate.call_args.kwargs["target"])
+
+    def test_steam_selection_allows_no_highlight(self):
+        with patch.object(agent, "cdp_eval", return_value={"value": None}):
+            self.assertIsNone(self.ask({"kind": "steam-selection"})["appId"])
+
+    def test_steam_selection_rejects_invalid_app_id(self):
+        with patch.object(agent, "cdp_eval", return_value={"value": "4294967296"}):
+            answer = self.ask({"kind": "steam-selection"})
+        self.assertEqual("INVALID_SELECTION", answer["error"]["code"])
+
     def test_cdp_exception(self):
         server = FakeDevTools({"result": {"result": {"type": "object"}, "exceptionDetails": {
             "text": "Uncaught", "exception": {"description": "ReferenceError: SteamClient is not defined"}}}})

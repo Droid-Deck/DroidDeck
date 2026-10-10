@@ -450,6 +450,34 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15)
         ws.close()
 
 
+def steam_selection(agent_dir, timeout=5):
+    result = cdp_eval(
+        agent_dir,
+        """(() => {
+            let node = document.activeElement;
+            while (node) {
+                for (const name of ["data-id", "data-appid"]) {
+                    const value = node.getAttribute?.(name);
+                    if (/^[1-9][0-9]{0,9}$/.test(value || "")) {
+                        const appId = Number(value);
+                        if (Number.isSafeInteger(appId) && appId <= 4294967295) return value;
+                    }
+                }
+                node = node.parentElement;
+            }
+            return null;
+        })()""",
+        target="Steam Big Picture Mode",
+        timeout=timeout,
+    )
+    value = result.get("value")
+    if value is None:
+        return {"appId": None}
+    if not isinstance(value, str) or not value.isdigit() or not 0 < int(value) <= 4294967295:
+        raise AgentError("INVALID_SELECTION", "Steam returned an invalid selected app id")
+    return {"appId": int(value)}
+
+
 # --- Game processes ------------------------------------------------------------------------------
 
 def game_pids(app_id):
@@ -621,6 +649,8 @@ def handle(agent_dir, req):
             raise AgentError("INVALID_REQUEST", "cdp eval needs an expression")
         return cdp_eval(agent_dir, expression, req.get("target"), bool(req.get("awaitPromise", True)),
                         request_timeout(req, 15))
+    if kind == "steam-selection":
+        return steam_selection(agent_dir, request_timeout(req, 5))
     if kind == "quit":
         return quit_game(agent_dir, req.get("appId"), request_timeout(req, 15))
     raise AgentError("UNKNOWN_REQUEST", "Unknown agent request '%s'" % kind)

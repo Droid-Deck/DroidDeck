@@ -43,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +61,17 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ComponentsManager.CatalogItem
 import com.droiddeck.launcher.session.ComponentsManager.Snapshot
+import com.droiddeck.launcher.core.FexPreset
+import com.droiddeck.launcher.core.GameEnvironment
+import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.session.GameProfileManager
+import com.droiddeck.launcher.session.ProtonDefault
+import com.droiddeck.launcher.session.WinComponents
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
@@ -71,6 +83,13 @@ private class InstalledItem(
     val file: String?,
     /** The Proton build an original belongs to. */
     val protonVersion: String?,
+)
+
+private data class ProfileEditorState(
+    val environment: GameEnvironment.Config,
+    val protonChoice: ProtonDefault.GameChoice?,
+    val protonId: String?,
+    val components: Map<String, String>,
 )
 
 private val GOLD = Color(0xFFF2C66D)
@@ -104,6 +123,9 @@ fun ComponentsPage(
     onRefresh: () -> Unit,
     onImport: () -> Unit,
     onBack: () -> Unit,
+    games: List<Library.SteamGame> = emptyList(),
+    generalFexPreset: String = "",
+    onGeneralFexPreset: (String) -> Unit = {},
     requestInitialFocus: Boolean = true,
     /** The GPU drivers tab ([GPU_TAB]): what it shows and does. */
     gpu: GpuDriversState = GpuDriversState(),
@@ -117,8 +139,203 @@ fun ComponentsPage(
     var confirmTitle by remember { mutableStateOf("") }
     var about by remember { mutableStateOf(false) }
     var protonMenu by remember { mutableStateOf(false) }
+    var scopeMenu by remember { mutableStateOf(false) }
+    var selectedGameKey by remember { mutableStateOf<String?>(null) }
+    var fexMenu by remember { mutableStateOf(false) }
+    var gameProtonMenu by remember { mutableStateOf(false) }
+    var gameProtonId by remember { mutableStateOf<String?>(null) }
+    var gameProtonChoice by remember { mutableStateOf<ProtonDefault.GameChoice?>(null) }
+    var gameComponents by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var gameComponentMenu by remember { mutableStateOf<String?>(null) }
+    var environmentEditor by remember { mutableStateOf(false) }
+    var winComponentsOpen by remember { mutableStateOf<Boolean?>(null) }
+    var winComponentsRevision by remember { mutableStateOf(0) }
+    var environment by remember { mutableStateOf<GameEnvironment.Config?>(null) }
+    var profileLoading by remember { mutableStateOf(false) }
+    var profileLoadGeneration by remember { mutableStateOf(0L) }
+    var environmentBusy by remember { mutableStateOf(false) }
+    var environmentError by remember { mutableStateOf(false) }
+    var profileNotice by remember { mutableStateOf<String?>(null) }
     var confirmVerb by remember { mutableStateOf(R.string.comp_swap) }
     val ctx = LocalContext.current
+    val coroutine = rememberCoroutineScope()
+    val selectedGame = games.firstOrNull { it.profileKey == selectedGameKey }
+    LaunchedEffect(Unit) {
+        runCatching { withContext(Dispatchers.IO) { GameEnvironmentStore.read(ctx) } }
+            .onSuccess { environment = it }
+            .onFailure { environmentError = true }
+    }
+    LaunchedEffect(games, selectedGameKey) {
+        if (selectedGameKey != null && games.none { it.profileKey == selectedGameKey }) selectedGameKey = null
+    }
+    LaunchedEffect(selectedGame?.profileKey, snapshot) {
+        profileLoadGeneration++
+        val generation = profileLoadGeneration
+        val game = selectedGame
+        profileNotice = null
+        environmentError = false
+        gameProtonChoice = null
+        gameProtonId = null
+        gameComponents = emptyMap()
+        gameProtonMenu = false
+        gameComponentMenu = null
+        fexMenu = false
+        if (game == null) {
+            profileLoading = false
+            return@LaunchedEffect
+        }
+        profileLoading = true
+        try {
+            val (choice, id, components) = withContext(Dispatchers.IO) {
+                val choice = ProtonDefault.gameChoice(ctx, game.profileKey)
+                Triple(
+                    choice,
+                    ProtonDefault.gameSelectedId(ctx, game.profileKey, snapshot?.protons.orEmpty().map { it.proton }),
+                    ComponentsManager.gameComponents(ctx, game.profileKey),
+                )
+            }
+            if (profileLoadGeneration == generation && selectedGameKey == game.profileKey) {
+                gameProtonChoice = choice
+                gameProtonId = id
+                gameComponents = components
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (profileLoadGeneration == generation && selectedGameKey == game.profileKey) {
+                environmentError = true
+                profileNotice = ctx.getString(
+                    R.string.comp_game_load_failed,
+                    game.name,
+                    error.message ?: error.javaClass.simpleName,
+                )
+            }
+        } finally {
+            if (profileLoadGeneration == generation) profileLoading = false
+        }
+    }
+    fun setGameFexPreset(preset: String?) {
+        val game = selectedGame ?: return
+        val current = environment ?: return
+        val next = GameEnvironment.withGameFexPreset(current, game.profileKey, preset)
+        environmentBusy = true
+        profileNotice = null
+        coroutine.launch {
+            runCatching { withContext(Dispatchers.IO) { GameEnvironmentStore.save(ctx, next) } }
+                .onSuccess {
+                    environment = next
+                    if (selectedGameKey == game.profileKey) {
+                        environmentError = false
+                        profileNotice = ctx.getString(R.string.comp_game_saved_next, game.name)
+                    }
+                }
+                .onFailure {
+                    if (selectedGameKey == game.profileKey) {
+                        environmentError = true
+                        profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
+                    }
+                }
+            environmentBusy = false
+        }
+    }
+    fun setGameProton(id: String?) {
+        val game = selectedGame ?: return
+        val proton = id?.let { wanted -> snapshot?.protons?.firstOrNull { it.proton.id == wanted }?.proton }
+        environmentBusy = true
+        profileNotice = null
+        coroutine.launch {
+            runCatching { withContext(Dispatchers.IO) { ProtonDefault.requestGame(ctx, game.profileKey, proton) } }
+                .onSuccess { outcome ->
+                    if (selectedGameKey == game.profileKey) {
+                        gameProtonChoice = proton?.let { ProtonDefault.GameChoice(it.valve, it.dir.name) }
+                        gameProtonId = id
+                        environmentError = false
+                        profileNotice = ctx.getString(
+                            when (outcome) {
+                                ProtonDefault.Outcome.LIVE -> R.string.comp_game_proton_live
+                                ProtonDefault.Outcome.NEXT_START -> R.string.comp_game_proton_next
+                                ProtonDefault.Outcome.NOT_RUNNABLE -> R.string.comp_game_proton_not_runnable
+                            },
+                            game.name,
+                        )
+                    }
+                }
+                .onFailure {
+                    if (selectedGameKey == game.profileKey) {
+                        environmentError = true
+                        profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
+                    }
+                }
+            environmentBusy = false
+        }
+    }
+    fun setGameComponent(comp: String, file: String?) {
+        val game = selectedGame ?: return
+        environmentBusy = true
+        profileNotice = null
+        coroutine.launch {
+            runCatching { withContext(Dispatchers.IO) { ComponentsManager.setGameComponent(ctx, game.profileKey, comp, file) } }
+                .onSuccess {
+                    val components = ComponentsManager.gameComponents(ctx, game.profileKey)
+                    if (selectedGameKey == game.profileKey) {
+                        gameComponents = components
+                        environmentError = false
+                        profileNotice = ctx.getString(R.string.comp_game_saved_next, game.name)
+                    }
+                }
+                .onFailure {
+                    if (selectedGameKey == game.profileKey) {
+                        environmentError = true
+                        profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
+                    }
+                }
+            environmentBusy = false
+        }
+    }
+    fun resetGameProfile() {
+        val game = selectedGame ?: return
+        environmentBusy = true
+        profileNotice = null
+        coroutine.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val resetFailure = runCatching { GameProfileManager.reset(ctx, game.profileKey) }.exceptionOrNull()
+                    val config = GameEnvironmentStore.read(ctx)
+                    val choice = ProtonDefault.gameChoice(ctx, game.profileKey)
+                    val id = ProtonDefault.gameSelectedId(
+                        ctx,
+                        game.profileKey,
+                        snapshot?.protons.orEmpty().map { it.proton },
+                    )
+                    val components = ComponentsManager.gameComponents(ctx, game.profileKey)
+                    ProfileEditorState(config, choice, id, components) to resetFailure
+                }
+            }.onSuccess { (state, resetFailure) ->
+                if (selectedGameKey == game.profileKey) {
+                    environment = state.environment
+                    gameProtonChoice = state.protonChoice
+                    gameProtonId = state.protonId
+                    gameComponents = state.components
+                    winComponentsRevision++
+                    environmentError = resetFailure != null
+                    profileNotice = if (resetFailure == null) {
+                        ctx.getString(R.string.comp_game_reset_done, game.name)
+                    } else {
+                        ctx.getString(
+                            R.string.comp_game_reset_failed,
+                            resetFailure.message ?: resetFailure.javaClass.simpleName,
+                        )
+                    }
+                }
+            }.onFailure {
+                if (selectedGameKey == game.profileKey) {
+                    environmentError = true
+                    profileNotice = ctx.getString(R.string.comp_game_reset_failed, it.message ?: it.javaClass.simpleName)
+                }
+            }
+            environmentBusy = false
+        }
+    }
     fun ask(title: String, body: String, verb: Int, action: () -> Unit) { confirmTitle = title; confirmVerb = verb; confirm = body to action }
     // The GPU drivers tab's Advanced pages: one driver list on its own, full page.
     var driverPage by remember { mutableStateOf<String?>(null) }
@@ -166,11 +383,53 @@ fun ComponentsPage(
                 nightlies, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(1f),
             ) else Spacer(Modifier.weight(1f))
-            if (!gpuTab) ToolIcon(Icons.Outlined.Info, stringResource(R.string.comp_about)) { about = true }
-            if (gpuTab) ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_drivers), busy = gpu.checking, enabled = !gpu.checking && gpu.busy == null, onClick = gpuActions.onRefresh)
-            else ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_nightlies), busy = checking, enabled = !checking, onClick = onRefresh)
+            if (selectedGame == null && !gpuTab) ToolIcon(Icons.Outlined.Info, stringResource(R.string.comp_about)) { about = true }
+            if (selectedGame == null && gpuTab) ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_drivers), busy = gpu.checking, enabled = !gpu.checking && gpu.busy == null, onClick = gpuActions.onRefresh)
+            else if (selectedGame == null) ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_nightlies), busy = checking, enabled = !checking, onClick = onRefresh)
         }
         if (narrow) Text(nightlies, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+
+        if (games.isNotEmpty()) {
+            SettingsGroup(stringResource(R.string.comp_profile_configure)) {
+                SettingsRow(
+                    stringResource(R.string.comp_profile),
+                    if (selectedGame == null) {
+                        stringResource(R.string.comp_scope_general_detail)
+                    } else {
+                        stringResource(R.string.comp_profile_game_detail, selectedGame.name)
+                    },
+                ) {
+                    Box {
+                        ValueChip(
+                            selectedGame?.name ?: stringResource(R.string.comp_scope_general),
+                            scopeMenu,
+                            modifier = Modifier.widthIn(max = 320.dp).heightIn(min = 44.dp),
+                        ) { scopeMenu = !scopeMenu }
+                        AnchoredMenu(
+                            scopeMenu,
+                            onDismiss = { scopeMenu = false },
+                            title = stringResource(R.string.comp_profile_configure),
+                        ) { first ->
+                            MenuItem(
+                                stringResource(R.string.comp_scope_general),
+                                checked = selectedGame == null,
+                                detail = stringResource(R.string.comp_scope_general_detail),
+                                focusRequester = first,
+                            ) {
+                                selectedGameKey = null
+                                scopeMenu = false
+                            }
+                            games.sortedBy { it.name.lowercase() }.forEach { game ->
+                                MenuItem(game.name, checked = selectedGameKey == game.profileKey) {
+                                    selectedGameKey = game.profileKey
+                                    scopeMenu = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // ---- which Proton, which component ------------------------------------------------------
         val comps = ComponentsManager.COMPONENTS
@@ -178,7 +437,7 @@ fun ComponentsPage(
             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         ) {
-            if (view != null && !gpuTab) Box {
+            if (selectedGame == null && view != null && !gpuTab) Box {
                 ValueChip(view.proton.name, protonMenu, modifier = Modifier.widthIn(max = 300.dp).heightIn(min = 44.dp)) { protonMenu = !protonMenu }
                 AnchoredMenu(protonMenu, onDismiss = { protonMenu = false }, title = stringResource(R.string.comp_proton),
                     note = stringResource(R.string.comp_proton_note)) { first ->
@@ -201,10 +460,58 @@ fun ComponentsPage(
                     }
                 }
             }
-            val tabs = listOf(GPU_TAB) + comps
-            TabStrip(tabs.map { ComponentsManager.LABEL[it] ?: stringResource(R.string.comp_gpu_drivers) }, tabs.indexOf(comp).coerceAtLeast(0), { onComp(tabs[it]) })
+            if (selectedGame == null) {
+                val tabs = listOf(GPU_TAB) + comps
+                TabStrip(tabs.map { ComponentsManager.LABEL[it] ?: stringResource(R.string.comp_gpu_drivers) }, tabs.indexOf(comp).coerceAtLeast(0), { onComp(tabs[it]) })
+                if (comp == "fex" && !gpuTab) FexPresetChip(
+                    preset = generalFexPreset,
+                    inherited = false,
+                    open = fexMenu,
+                    enabled = true,
+                    onToggle = { fexMenu = !fexMenu },
+                    onDismiss = { fexMenu = false },
+                    onPick = { it?.let(onGeneralFexPreset); fexMenu = false },
+                )
+            }
         }
 
+        if (selectedGame != null) {
+            GameComponentOverrides(
+                game = selectedGame,
+                config = environment,
+                generalFexPreset = generalFexPreset,
+                generalProton = view?.proton,
+                protons = views.map { it.proton },
+                protonId = gameProtonId,
+                protonChoice = gameProtonChoice,
+                packages = snapshot?.packages.orEmpty(),
+                componentChoices = gameComponents,
+                componentMenu = gameComponentMenu,
+                protonMenu = gameProtonMenu,
+                fexMenu = fexMenu,
+                busy = environmentBusy || profileLoading,
+                error = environmentError,
+                notice = profileNotice,
+                winComponentsRevision = winComponentsRevision,
+                onFexMenu = { fexMenu = it },
+                onFexPreset = ::setGameFexPreset,
+                onProtonMenu = { gameProtonMenu = it },
+                onProton = ::setGameProton,
+                onComponentMenu = { gameComponentMenu = it },
+                onComponent = ::setGameComponent,
+                onEnvironment = { environmentEditor = true },
+                onWinComponents = { winComponentsOpen = false },
+                onReset = {
+                    ask(
+                        ctx.getString(R.string.comp_game_reset_title, selectedGame.name),
+                        ctx.getString(R.string.comp_game_reset_body),
+                        R.string.comp_game_reset,
+                        ::resetGameProfile,
+                    )
+                },
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
+        } else {
         // ---- what is in use -----------------------------------------------------------------------
         if (view != null && !gpuTab) {
             val st = view.components.getValue(comp)
@@ -314,6 +621,7 @@ fun ComponentsPage(
                         }
                     }
                 }
+                }
             }
         }
     }
@@ -336,7 +644,7 @@ fun ComponentsPage(
             text = { Text(body, fontSize = 14.sp) },
             // Opens on Cancel, so a stray A press on a controller never swaps or deletes anything.
             confirmButton = {
-                val del = confirmVerb == R.string.common_delete
+                val del = confirmVerb == R.string.common_delete || confirmVerb == R.string.comp_game_reset
                 FocusText(stringResource(confirmVerb), if (del) colors.error else pal.signal) { confirm = null; action() }
             },
             dismissButton = {
@@ -345,6 +653,277 @@ fun ComponentsPage(
                 FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancelFocus)) { confirm = null }
             },
         )
+    }
+    if (environmentEditor && selectedGame != null) {
+        GameEnvironmentEditor(
+            byPad = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard,
+            initialScope = selectedGame.profileKey,
+        ) {
+            environmentEditor = false
+            coroutine.launch {
+                runCatching { withContext(Dispatchers.IO) { GameEnvironmentStore.read(ctx) } }
+                    .onSuccess { environment = it; environmentError = false }
+                    .onFailure { environmentError = true }
+            }
+        }
+    }
+    val winOpen = winComponentsOpen
+    if (winOpen != null && selectedGame != null) {
+        WinComponentsDialog(
+            selectedGame.profileKey,
+            selectedGame.name,
+            selectedGame.gameFiles,
+            winOpen,
+            compat = selectedGame.protonPrefix,
+            steamAppId = selectedGame.appId.takeIf { selectedGame.library != Library.ADDED },
+        ) {
+            winComponentsOpen = null
+            winComponentsRevision++
+        }
+    }
+}
+
+@Composable
+private fun GameComponentOverrides(
+    game: Library.SteamGame,
+    config: GameEnvironment.Config?,
+    generalFexPreset: String,
+    generalProton: ComponentsManager.Proton?,
+    protons: List<ComponentsManager.Proton>,
+    protonId: String?,
+    protonChoice: ProtonDefault.GameChoice?,
+    packages: List<ComponentsManager.Package>,
+    componentChoices: Map<String, String>,
+    componentMenu: String?,
+    protonMenu: Boolean,
+    fexMenu: Boolean,
+    busy: Boolean,
+    error: Boolean,
+    notice: String?,
+    winComponentsRevision: Int,
+    onFexMenu: (Boolean) -> Unit,
+    onFexPreset: (String?) -> Unit,
+    onProtonMenu: (Boolean) -> Unit,
+    onProton: (String?) -> Unit,
+    onComponentMenu: (String?) -> Unit,
+    onComponent: (String, String?) -> Unit,
+    onEnvironment: () -> Unit,
+    onWinComponents: () -> Unit,
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val override = config?.let { GameEnvironment.gameFexPreset(it, game.profileKey) }
+    val proton = protons.firstOrNull { it.id == protonId }
+    val effectiveProton = if (protonChoice == null) generalProton else proton
+    val picks = remember(game.profileKey, winComponentsRevision) { WinComponents.picks(context, game.profileKey) }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = modifier.verticalScroll(rememberScrollState()).padding(top = 14.dp, bottom = 16.dp),
+    ) {
+        Text(
+            stringResource(R.string.comp_game_hint),
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SettingsGroup(stringResource(R.string.fex_preset_title)) {
+            SettingsRow(
+                stringResource(R.string.comp_game_fex),
+                stringResource(if (override == null) R.string.comp_game_fex_inherited else R.string.comp_game_fex_override),
+            ) {
+                FexPresetChip(
+                    preset = override ?: generalFexPreset,
+                    inherited = override == null,
+                    open = fexMenu,
+                    enabled = config != null && !busy,
+                    onToggle = { onFexMenu(!fexMenu) },
+                    onDismiss = { onFexMenu(false) },
+                    onPick = onFexPreset,
+                )
+            }
+            GamePackageRow(
+                comp = "fex",
+                packages = packages,
+                selectedFile = componentChoices["fex"],
+                open = componentMenu == "fex",
+                busy = busy,
+                onMenu = onComponentMenu,
+                onPick = onComponent,
+            )
+        }
+        SettingsGroup(stringResource(R.string.comp_game_compatibility)) {
+            SettingsRow(
+                stringResource(R.string.comp_proton),
+                stringResource(if (protonChoice == null) R.string.comp_game_proton_inherited else R.string.comp_game_proton_override),
+            ) {
+                Box {
+                    ValueChip(
+                        proton?.name ?: protonChoice?.dir ?: stringResource(R.string.comp_game_use_general),
+                        protonMenu,
+                        enabled = protons.isNotEmpty() && !busy,
+                        modifier = Modifier.widthIn(max = 280.dp),
+                    ) { onProtonMenu(!protonMenu) }
+                    AnchoredMenu(
+                        protonMenu,
+                        onDismiss = { onProtonMenu(false) },
+                        title = stringResource(R.string.comp_proton),
+                    ) { first ->
+                        MenuItem(
+                            stringResource(R.string.comp_game_use_general),
+                            checked = protonChoice == null,
+                            focusRequester = first,
+                        ) { onProton(null); onProtonMenu(false) }
+                        protons.forEach { option ->
+                            MenuItem(option.name, checked = proton?.id == option.id) {
+                                onProton(option.id)
+                                onProtonMenu(false)
+                            }
+                        }
+                    }
+                }
+            }
+            GamePackageRow(
+                comp = "dxvk",
+                packages = packages,
+                selectedFile = componentChoices["dxvk"],
+                open = componentMenu == "dxvk",
+                busy = busy,
+                proton = effectiveProton,
+                onMenu = onComponentMenu,
+                onPick = onComponent,
+                onRuntimeOptions = onEnvironment,
+            )
+            GamePackageRow(
+                comp = "vkd3d",
+                packages = packages,
+                selectedFile = componentChoices["vkd3d"],
+                open = componentMenu == "vkd3d",
+                busy = busy,
+                proton = effectiveProton,
+                onMenu = onComponentMenu,
+                onPick = onComponent,
+                onRuntimeOptions = onEnvironment,
+            )
+            SettingsRow(
+                stringResource(R.string.game_env_title),
+                stringResource(R.string.comp_game_environment_other_hint),
+            ) {
+                SecondaryButton(stringResource(R.string.game_env_edit), enabled = !busy, onClick = onEnvironment)
+            }
+            SettingsRow(
+                stringResource(R.string.wincomp_title),
+                if (picks.isEmpty()) stringResource(R.string.wincomp_card_none)
+                else picks.joinToString(", ") { com.droiddeck.launcher.session.WinComponentNames.of(it) },
+            ) {
+                SecondaryButton(stringResource(R.string.game_env_edit), onClick = onWinComponents)
+            }
+        }
+        notice?.let {
+            Text(
+                it,
+                fontSize = 13.sp,
+                color = if (error) MaterialTheme.colorScheme.error else LocalPalette.current.good,
+            )
+        }
+        if (error && notice == null) Text(stringResource(R.string.game_env_error), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+        if (!busy) {
+            FocusText(
+                stringResource(R.string.comp_game_reset),
+                MaterialTheme.colorScheme.error,
+                onClick = onReset,
+            )
+        }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun GamePackageRow(
+    comp: String,
+    packages: List<ComponentsManager.Package>,
+    selectedFile: String?,
+    open: Boolean,
+    busy: Boolean,
+    proton: ComponentsManager.Proton? = null,
+    onMenu: (String?) -> Unit,
+    onPick: (String, String?) -> Unit,
+    onRuntimeOptions: (() -> Unit)? = null,
+) {
+    val choices = packages.filter { it.comp == comp }
+    val selected = choices.firstOrNull { it.file == selectedFile }
+    val title = ComponentsManager.LABEL[comp] ?: comp
+    SettingsRow(
+        title,
+        if (selected == null) {
+            if (proton == null) stringResource(R.string.comp_game_component_general)
+            else stringResource(R.string.comp_game_component_runtime, proton.name)
+        } else stringResource(R.string.comp_game_component_override, selected.version),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                ValueChip(
+                    selected?.version ?: stringResource(R.string.comp_game_use_general),
+                    open,
+                    enabled = !busy,
+                    modifier = Modifier.widthIn(max = 240.dp),
+                ) { onMenu(if (open) null else comp) }
+                AnchoredMenu(open, onDismiss = { onMenu(null) }, title = title) { first ->
+                    MenuItem(
+                        stringResource(R.string.comp_game_use_general),
+                        checked = selected == null,
+                        focusRequester = first,
+                    ) { onPick(comp, null); onMenu(null) }
+                    choices.forEach { option ->
+                        MenuItem(option.version, checked = option.file == selectedFile, detail = option.description) {
+                            onPick(comp, option.file)
+                            onMenu(null)
+                        }
+                    }
+                }
+            }
+            if (onRuntimeOptions != null) {
+                SecondaryButton(stringResource(R.string.comp_game_runtime_options), enabled = !busy, onClick = onRuntimeOptions)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FexPresetChip(
+    preset: String,
+    inherited: Boolean,
+    open: Boolean,
+    enabled: Boolean,
+    onToggle: () -> Unit,
+    onDismiss: () -> Unit,
+    onPick: (String?) -> Unit,
+) {
+    val chosen = FexPreset.all.firstOrNull { it.id == preset }
+    val label = when {
+        preset == GameEnvironment.CUSTOM_FEX_PRESET -> stringResource(R.string.comp_game_fex_custom)
+        chosen == null -> stringResource(FexPreset.byId("").label)
+        inherited -> stringResource(R.string.comp_game_use_general)
+        else -> stringResource(chosen.label)
+    }
+    Box {
+        ValueChip(label, open, enabled = enabled, modifier = Modifier.widthIn(max = 260.dp), onClick = onToggle)
+        AnchoredMenu(open, onDismiss = onDismiss, title = stringResource(R.string.fex_preset_title)) { first ->
+            if (inherited || preset == GameEnvironment.CUSTOM_FEX_PRESET) {
+                MenuItem(
+                    stringResource(R.string.comp_game_use_general),
+                    checked = inherited,
+                    focusRequester = first,
+                ) { onPick(null); onDismiss() }
+            }
+            FexPreset.all.forEachIndexed { index, option ->
+                MenuItem(
+                    stringResource(option.label),
+                    checked = !inherited && option.id == preset,
+                    detail = stringResource(option.detail),
+                    focusRequester = if (index == 0 && !inherited && preset != GameEnvironment.CUSTOM_FEX_PRESET) first else null,
+                ) { onPick(option.id); onDismiss() }
+            }
+        }
     }
 }
 

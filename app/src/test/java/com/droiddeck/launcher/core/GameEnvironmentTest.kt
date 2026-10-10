@@ -86,4 +86,24 @@ class GameEnvironmentTest {
         assertTrue(GameEnvironment.validScope("4294967295"))
         for (scope in listOf("0", "-1", "01", "+1", "4294967296", "../42")) assertFalse(GameEnvironment.validScope(scope))
     }
+
+    @Test fun gameFexPresetOverridesGeneralAndCanInheritAgain() {
+        val performance = GameEnvironment.withGameFexPreset(GameEnvironment.Config(), "42", "PERFORMANCE")
+        assertEquals("PERFORMANCE", GameEnvironment.gameFexPreset(performance, "42"))
+        assertEquals("0", GameEnvironment.effective(performance, "STABILITY", "42")["FEX_TSOENABLED"])
+        assertEquals("1", GameEnvironment.effective(performance, "STABILITY", "43")["FEX_TSOENABLED"])
+
+        val inherited = GameEnvironment.withGameFexPreset(performance, "42", null)
+        assertNull(GameEnvironment.gameFexPreset(inherited, "42"))
+        assertFalse(inherited.games.containsKey("42"))
+    }
+
+    @Test fun gameFexPresetPreservesOtherOverridesAndRecognizesCustomValues() {
+        val original = GameEnvironment.Config(games = mapOf("42" to mapOf("CUSTOM" to "value", "FEX_MULTIBLOCK" to "7")))
+        assertEquals(GameEnvironment.CUSTOM_FEX_PRESET, GameEnvironment.gameFexPreset(original, "42"))
+
+        val compatibility = GameEnvironment.withGameFexPreset(original, "42", "COMPATIBILITY")
+        assertEquals("value", compatibility.games.getValue("42")["CUSTOM"])
+        assertEquals("COMPATIBILITY", GameEnvironment.gameFexPreset(compatibility, "42"))
+    }
 }

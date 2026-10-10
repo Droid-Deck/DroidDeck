@@ -399,10 +399,15 @@ class Helper:
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
             apps = sorted(set(installed) | set(picks) | set(state.get("auto", {})), key=COMPAT["app_order"])
+            overrides = COMPAT["requested_games"](
+                COMPAT["game_requests"](), catalog, [t["name"] for t in live])
+            apps = sorted(set(apps) | set(overrides), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
             current["0"] = top["selected"]
             native = COMPAT["native_targets"](self.steam_root, installed)
-            changes, auto = COMPAT["plan_mapping"](current, installed, [t["name"] for t in live], default, COMPAT["followers"](state, current), native, picks)
+            changes, auto = COMPAT["plan_mapping"](
+                current, installed, [t["name"] for t in live], default,
+                COMPAT["followers"](state, current), native, picks, overrides)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool)))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app, tool))
@@ -435,7 +440,7 @@ class Helper:
                 due = any(e.get("method") == "Runtime.bindingCalled" and e.get("params", {}).get("name") == BINDING
                           for e in self.page.drain())
             if (watcher in ready or watcher.fileno() < 0) and watcher.changed():
-                due = self.installed != COMPAT["installed_apps"](self.steam_root) or self.request_waiting()
+                due = True
             if due:
                 time.sleep(0.3)
                 if watcher.fileno() >= 0 and select.select([watcher], [], [], 0)[0]:
@@ -465,7 +470,8 @@ def main():
         say("no devtools port for this session; the client's mapping is kept through config.vdf")
         return 0
     os.makedirs(COMPAT["COMPAT_DIR"], exist_ok=True)
-    watcher = Watcher([COMPAT["state_path"]("request.json")] + [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
+    watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json")] +
+                      [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
     helper = Helper(steam_root, port)
     failures = 0
     last = None
