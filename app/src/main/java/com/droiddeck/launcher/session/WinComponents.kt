@@ -59,7 +59,7 @@ object WinComponents {
      */
     private val RUNS_OWN_SETUP = setOf(
         "K-Lite", "ffdshow", "lavfilters702", "lavfilters741", "quicktime72", "dirac", "webview2", "aairruntime",
-        "gfw", "ie8_kb2936068", "art2kmin", "art2k7min", "vcredist6sp6", "VulkanRT", "jet40", "mdac28", "oalinst",
+        "gfw", "ie8_kb2936068", "art2k7min", "vcredist6sp6", "VulkanRT", "jet40", "mdac28", "oalinst",
         "dotnet20", "dotnet20sp1", "dotnet35", "dotnet35sp1",
     )
     private const val MSI_INSTALL = "/usr/local/bin/droiddeck-msi-install"
