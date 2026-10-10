@@ -108,12 +108,18 @@ vcrt() {
   done
 }
 
-# The stamp is the set of names, taken before the block below dates its keys: stamped from the
-# dated block it never matched, and every prefix had the whole block appended again on every beat.
-stamp=$(printf '%s vcrt %s.%s.%s' "$pairs" "$VCRT_MAJOR" "$VCRT_MINOR" "$VCRT_BUILD" | cksum)
+# Each prefix's marker lists the names it was given, so it is handed only what it lacks. One stamp
+# for the whole set flipped between the session's set and the evaluator's (which adds the game's
+# own names) on every launch, and every prefix was appended to again, inside the launch.
+want=()
+declare -A wanted=()
+while IFS= read -r line; do
+  [[ $line == *$'\t'* ]] && [ -z "${wanted[$line]:-}" ] && wanted[$line]=1 && want+=("$line")
+done <<<"$pairs"
+want+=("vcrt"$'\t'"$VCRT_MAJOR.$VCRT_MINOR.$VCRT_BUILD")
 
 printf -v now '%(%s)T' -1
-block=$(printf '%s\n' "$pairs" | awk -F'\t' -v now="$now" '
+block_for() { printf '%s\n' "$@" | awk -F'\t' -v now="$now" '
   {
     path = $1
     sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
@@ -127,9 +133,10 @@ block=$(printf '%s\n' "$pairs" | awk -F'\t' -v now="$now" '
       next
     printf "\n[%s] %d\n\"%s\"=dword:00000001\n", "Software\\\\Wow6432Node\\\\" substr(path, 11), now, $2
   }
-')
-block="$block
-$(vcrt "$now")"
+'
+  local line
+  for line; do [[ $line == vcrt$'\t'* ]] && vcrt "$now"; done
+}
 
 # Proton builds a new prefix from its template, and the client runs the install scripts in that
 # prefix moments later, so the template carries the markers too. Its date is kept: Proton reads a
@@ -147,13 +154,17 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
   if [ -f "$legacy" ] && [ ! -f "$seeded" ]; then
     mv -f "$legacy" "$seeded"
   fi
-  have=
-  [ -f "$seeded" ] && read -r have < "$seeded"
-  [ "$have" = "$stamp" ] && continue
+  declare -A had=()
+  if [ -f "$seeded" ]; then
+    while IFS= read -r line; do [[ $line == *$'\t'* ]] && had[$line]=1; done <"$seeded"
+  fi
+  missing=()
+  for line in "${want[@]}"; do [ -n "${had[$line]:-}" ] || missing+=("$line"); done
+  [ ${#missing[@]} -eq 0 ] && continue
   dated=$(mktemp) || continue
   touch -r "$reg" "$dated"
-  if printf '%s\n' "$block" >>"$reg"; then
-    printf '%s\n' "$stamp" >"$seeded"
+  if printf '%s\n' "$(block_for "${missing[@]}")" >>"$reg"; then
+    printf '%s\n' "${!had[@]}" "${missing[@]}" >"$seeded"
     echo "== seeded redist markers into $reg"
   fi
   touch -r "$dated" "$reg"

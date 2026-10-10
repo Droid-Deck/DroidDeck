@@ -36,6 +36,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -774,14 +775,12 @@ private fun SignInCard(store: Store, height: Dp) {
             .takeIf { it.size >= 8 }.orEmpty()
     }
     val shape = RoundedCornerShape(20.dp)
-    val capsule = RoundedCornerShape(10.dp)
+    val blank = WallCapsule(Brush.linearGradient(listOf(c.fill, colors.background)), edge = c.dot.copy(alpha = 0.22f))
+    val ground = SolidColor(c.fill)
     Box(Modifier.fillMaxWidth().height(height.coerceAtLeast(320.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
         // The storefront arrives a moment after the page: its wall fades in over the blank one.
         androidx.compose.animation.Crossfade(art, animationSpec = Motion.tw(600), label = "signInWall") { tiles ->
-            TiltedWall(tiles.size, if (tiles.isEmpty()) 75_000 else 50_000) { i, m ->
-                if (tiles.isEmpty()) Box(m.clip(capsule).background(Brush.linearGradient(listOf(c.fill, colors.background))).border(1.dp, c.dot.copy(alpha = 0.22f), capsule))
-                else Box(m.clip(capsule).background(c.fill)) { AsyncImage(model = tiles[i], contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize()) }
-            }
+            TiltedWall(tiles.size, if (tiles.isEmpty()) 75_000 else 50_000) { i -> if (tiles.isEmpty()) blank else WallCapsule(ground, tiles[i]) }
         }
         // The wall gives way to the words: dark at the left and the foot, and the store's glow under them.
         Box(
