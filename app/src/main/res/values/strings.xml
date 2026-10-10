@@ -333,7 +333,7 @@
     <string name="wincomp_active">Installed for this game (%1$d)</string>
     <string name="wincomp_all">All components (%1$d)</string>
     <string name="wincomp_installers">Need a Windows installer (%1$d)</string>
-    <string name="wincomp_installers_note">These are their own setup programs with no package inside to take apart, and no recording of what they install yet. Most are old runtimes Proton's Mono already stands in for; recordings are being added as they are made.</string>
+    <string name="wincomp_installers_note">These are their own setup programs with no package inside to take apart, and no recording of what they install yet. Most are old runtimes the Mono inside Proton already stands in for; recordings are added as they are made.</string>
     <string name="wincomp_show">Show</string>
     <string name="wincomp_hide">Hide</string>
     <string name="wincomp_needs_installer">Runs its own setup program (no recording yet)</string>
