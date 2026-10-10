@@ -87,6 +87,7 @@ typedef struct vkb_srv_table {
     struct vkb_emu_device *emu;
     struct vkb_pcache *pcache;               /* server_pcache.c */
     struct vkb_dsmap *dsmap;                 /* server_dsmap.c */
+    struct vkb_spvfix *spvfix;               /* server_spvfix.c */
 } vkb_srv_table;
 
 /* server_main.c */
@@ -95,6 +96,10 @@ extern vkb_dispatch vkb_global_dt;
 extern int vkb_verbose;
 
 void vkb_log_summary(void);
+
+/* server_spvfix.c */
+void vkb_spvfix_device_init(vkb_srv_table *t);
+void vkb_spvfix_device_destroy(vkb_srv_table *t);
 
 /* server_dsmap.c */
 void vkb_dsmap_device_init(vkb_srv_table *t);

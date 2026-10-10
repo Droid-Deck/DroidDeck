@@ -105,6 +105,7 @@ void vkb_proc_cleanup(vkb_srv_proc *p)
             if (t->is_device) {
                 VKB_INFO("process %d exited without destroying device %u; cleaning up", p->pid, t->id);
                 if (t->real.vkDeviceWaitIdle) t->real.vkDeviceWaitIdle(t->device);
+                vkb_spvfix_device_destroy(t);
                 vkb_dsmap_device_destroy(t);
                 vkb_pcache_device_destroy(t);
                 vkb_emu_device_destroy(t);

@@ -318,6 +318,7 @@ void vkb_sv_vkCreateDevice(vkb_srv_call *c)
             vkb_emu_device_init(t, emu);
             vkb_pcache_device_init(t);
             vkb_dsmap_device_init(t);
+            vkb_spvfix_device_init(t);
             VKB_INFO("device %u created on %s (%u extensions, memory sharing %s)", id, k ? k->name : "?", n,
                      vkb_mem_strategy_name(strategy));
             for (uint32_t i = 0; i < n; i++) VKB_DBG("  device extension %s", exts[i]);
@@ -340,6 +341,7 @@ void vkb_sv_vkDestroyDevice(vkb_srv_call *c)
         return;
     }
     vkb_table_unregister(t);
+    vkb_spvfix_device_destroy(t);
     vkb_dsmap_device_destroy(t);
     vkb_pcache_device_destroy(t);
     vkb_emu_device_destroy(t);
