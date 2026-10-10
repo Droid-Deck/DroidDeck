@@ -94,18 +94,38 @@ public class FakeInputWriter {
     private static final int RING_SNAPSHOT_SEQ_OFFSET = 32;
     private static final int RING_SNAPSHOT_BUTTONS_OFFSET = 40;
     private static final int RING_SNAPSHOT_AXES_OFFSET = 44; // short[8]
-    // After the events - MUST match the block in fakeinput_steam.cpp (DeckImu): what a Deck has and
-    // an Xbox pad does not - motion, back grips, trackpads - in the Steam Deck controller's axes and
-    // units, under a seqlock like the snapshot's. Only libfakeinput's Deck controller reads it.
+    // After the events - MUST match the blocks in fakeinput_steam.cpp. DeckImu carries the
+    // Deck-only motion, grips and trackpads. TritonShared carries the paired Steam Controller's
+    // native BLE reports and output reports, so the Steam client can see it as its own device.
     private static final int IMU_OFFSET = RING_SIZE;
     private static final int IMU_MAGIC = 0x31554D49; // IMU1
+    // Written by libfakeinput, not here: the client's SETTING_IMU_MODE | 0x80000000 (readImuMode).
+    private static final int IMU_MODE_OFFSET = IMU_OFFSET + 4;
     private static final int IMU_SEQ_OFFSET = IMU_OFFSET + 8;
     private static final int IMU_ACCEL_OFFSET = IMU_OFFSET + 16; // short[3]
     private static final int IMU_GYRO_OFFSET = IMU_OFFSET + 22; // short[3]
     private static final int DECK_PADS_OFFSET = IMU_OFFSET + 28; // short[4]: left X, Y, right X, Y
     private static final int DECK_PRESSURE_OFFSET = IMU_OFFSET + 36; // short[2]: left, right
     private static final int DECK_CONTROLS_OFFSET = IMU_OFFSET + 40; // int: DeckControls bits
-    private static final int RING_FILE_SIZE = RING_SIZE + 64;
+    private static final int TRITON_OFFSET = RING_SIZE + 64;
+    private static final int TRITON_MAGIC = 0x4e525454; // TTRN
+    private static final int TRITON_INPUT_SEQ_OFFSET = TRITON_OFFSET + 8;
+    private static final int TRITON_REPORT_ID_OFFSET = TRITON_OFFSET + 16;
+    private static final int TRITON_REPORT_LENGTH_OFFSET = TRITON_OFFSET + 20;
+    private static final int TRITON_REPORT_OFFSET = TRITON_OFFSET + 24;
+    private static final int TRITON_OUTPUT_SEQ_OFFSET = TRITON_OFFSET + 88;
+    private static final int TRITON_OUTPUT_FEATURE_OFFSET = TRITON_OFFSET + 96;
+    private static final int TRITON_OUTPUT_LENGTH_OFFSET = TRITON_OFFSET + 100;
+    private static final int TRITON_OUTPUT_OFFSET = TRITON_OFFSET + 104;
+    // A feature read: libfakeinput bumps the request, the reply names the request it answers.
+    private static final int TRITON_GET_REQUEST_OFFSET = TRITON_OFFSET + 168;
+    private static final int TRITON_GET_REPLY_OFFSET = TRITON_OFFSET + 176;
+    private static final int TRITON_GET_REPORT_ID_OFFSET = TRITON_OFFSET + 184;
+    private static final int TRITON_GET_LENGTH_OFFSET = TRITON_OFFSET + 188;
+    private static final int TRITON_GET_OFFSET = TRITON_OFFSET + 192;
+    private static final int TRITON_REPORT_MAX = 64;
+    private static final int TRITON_BLOCK_SIZE = 256;
+    private static final int RING_FILE_SIZE = TRITON_OFFSET + TRITON_BLOCK_SIZE;
 
     private static final Object RING_LOCK = new Object();
     private static final RingSlot[] RING_SLOTS = new RingSlot[MAX_FAKE_INPUT_SLOTS];
@@ -215,11 +235,21 @@ public class FakeInputWriter {
             data.putShort(RING_SNAPSHOT_AXES_OFFSET + (i * 2), (short) 0);
         }
         data.putInt(IMU_OFFSET, 0);
+        data.putInt(IMU_MODE_OFFSET, 0);
         data.putLong(IMU_SEQ_OFFSET, 0L);
         for (int i = 0; i < 12; i++) {
             data.putShort(IMU_ACCEL_OFFSET + (i * 2), (short) 0);
         }
         data.putInt(DECK_CONTROLS_OFFSET, 0);
+        data.putInt(TRITON_OFFSET, TRITON_MAGIC);
+        data.putLong(TRITON_INPUT_SEQ_OFFSET, 0L);
+        data.putInt(TRITON_REPORT_ID_OFFSET, 0);
+        data.putInt(TRITON_REPORT_LENGTH_OFFSET, 0);
+        data.putLong(TRITON_OUTPUT_SEQ_OFFSET, 0L);
+        data.putInt(TRITON_OUTPUT_FEATURE_OFFSET, 0);
+        data.putInt(TRITON_OUTPUT_LENGTH_OFFSET, 0);
+        data.putLong(TRITON_GET_REQUEST_OFFSET, 0L);
+        data.putLong(TRITON_GET_REPLY_OFFSET, 0L);
     }
 
     // Lock order: RING_LOCK, then the slot. Every writer holds the slot while it touches data, and
@@ -477,6 +507,23 @@ public class FakeInputWriter {
     }
 
     /**
+     * The motion the Steam client asked the Deck controller of slot {@code slot} for: its
+     * SETTING_IMU_MODE (0 = off), or -1 until it has said. Safe from any thread.
+     */
+    public static int readImuMode(int slot) {
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
+        }
+        if (ringSlot == null) return -1;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            int value = ring == null ? 0 : ring.getInt(IMU_MODE_OFFSET);
+            return value < 0 ? value & 0xffff : -1;
+        }
+    }
+
+    /**
      * Publishes the Deck's back grips and trackpads for slot {@code slot} (see DeckControls):
      * {@code controls} is the DeckControls bit set, {@code pads} left X, Y, right X, Y and
      * {@code pressure} left, right, already in the Deck's units. Safe from any thread.
@@ -499,6 +546,89 @@ public class FakeInputWriter {
             ring.putInt(IMU_OFFSET, IMU_MAGIC);
             nativeStoreFence();
             ring.putLong(IMU_SEQ_OFFSET, seq + 2);
+        }
+    }
+
+    /** Publishes a native Triton input report (without the HID report ID byte). */
+    public static void writeTritonState(int slot, int reportId, byte[] report) {
+        if (report == null || report.length == 0 || report.length > TRITON_REPORT_MAX) return;
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
+        }
+        if (ringSlot == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return;
+            long seq = ring.getLong(TRITON_INPUT_SEQ_OFFSET);
+            if ((seq & 1) != 0) seq++;
+            ring.putLong(TRITON_INPUT_SEQ_OFFSET, seq + 1);
+            nativeStoreFence();
+            ring.putInt(TRITON_REPORT_ID_OFFSET, reportId);
+            ring.putInt(TRITON_REPORT_LENGTH_OFFSET, report.length);
+            for (int i = 0; i < TRITON_REPORT_MAX; i++) {
+                ring.put(TRITON_REPORT_OFFSET + i, i < report.length ? report[i] : 0);
+            }
+            nativeStoreFence();
+            ring.putLong(TRITON_INPUT_SEQ_OFFSET, seq + 2);
+        }
+    }
+
+    /** Returns the newest Steam-client output report after {@code lastSequence}, or null. */
+    public static byte[] readTritonOutput(int slot, long lastSequence) {
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
+        }
+        if (ringSlot == null) return null;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return null;
+            nativeStoreFence();
+            long seq = ring.getLong(TRITON_OUTPUT_SEQ_OFFSET);
+            if ((seq & 1) != 0 || seq <= lastSequence) return null;
+            int length = ring.getInt(TRITON_OUTPUT_LENGTH_OFFSET);
+            if (length <= 0 || length > TRITON_REPORT_MAX) return null;
+            byte[] output = new byte[9 + length];
+            ByteBuffer.wrap(output).order(ByteOrder.LITTLE_ENDIAN).putLong(seq);
+            output[8] = (byte) (ring.getInt(TRITON_OUTPUT_FEATURE_OFFSET) != 0 ? 1 : 0);
+            for (int i = 0; i < length; i++) output[9 + i] = ring.get(TRITON_OUTPUT_OFFSET + i);
+            nativeStoreFence();
+            return seq == ring.getLong(TRITON_OUTPUT_SEQ_OFFSET) ? output : null;
+        }
+    }
+
+    /** The Steam client's newest unanswered feature read, or 0: its request number. */
+    public static long readTritonFeatureRequest(int slot) {
+        RingSlot ringSlot = tritonSlot(slot);
+        if (ringSlot == null) return 0L;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return 0L;
+            nativeStoreFence();
+            long request = ring.getLong(TRITON_GET_REQUEST_OFFSET);
+            return request != ring.getLong(TRITON_GET_REPLY_OFFSET) ? request : 0L;
+        }
+    }
+
+    /** Answers feature read {@code request} with the controller's report, or a failure when null. */
+    public static void writeTritonFeatureReply(int slot, long request, byte[] report) {
+        RingSlot ringSlot = tritonSlot(slot);
+        if (ringSlot == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return;
+            int length = report == null ? 0 : Math.min(report.length, TRITON_REPORT_MAX);
+            for (int i = 0; i < TRITON_REPORT_MAX; i++) ring.put(TRITON_GET_OFFSET + i, i < length ? report[i] : 0);
+            ring.putInt(TRITON_GET_LENGTH_OFFSET, length);
+            nativeStoreFence();
+            ring.putLong(TRITON_GET_REPLY_OFFSET, request);
+        }
+    }
+
+    private static RingSlot tritonSlot(int slot) {
+        synchronized (RING_LOCK) {
+            return slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
         }
     }
 

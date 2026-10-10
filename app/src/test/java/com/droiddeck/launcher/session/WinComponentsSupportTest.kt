@@ -11,7 +11,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class WinComponentsSupportTest {
-    private val base = "https://github.com/The412Banner/winlator-contents/releases/download/system-libraries-v1"
+    private val base = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/system-libraries-v1"
 
     private fun step(action: String, vararg pairs: Pair<String, String>) =
         WinComponents.Step(action, JSONObject().apply { pairs.forEach { (k, v) -> put(k, v) } })
@@ -66,7 +66,7 @@ class WinComponentsSupportTest {
     }
 
     @Test fun recordedInstallersInstallHere() {
-        val snapshot = "https://github.com/The412Banner/winlator-contents/releases/download/component-snapshots-v1/K-Lite.snapshot.json"
+        val snapshot = "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/component-snapshots-v1/K-Lite.snapshot.json"
         // A setup program with a recording of its result installs from the recording.
         val klite = WinComponents.Component("K-Lite", "", "", "ready", emptyList(),
             listOf(step("install_exe", "url" to "$base/K-Lite.exe", "file_name" to "K-Lite_1960.exe")), snapshot)
@@ -97,5 +97,6 @@ class WinComponentsSupportTest {
         assertEquals(Support.UNSUPPORTED, support(component("VulkanRT", step("install_exe", "url" to "$base/VulkanRT.exe"))))
         assertEquals(Support.UNSUPPORTED, support(component("ie8_kb2936068", step("install_exe", "url" to "$base/ie8_kb2936068.exe"))))
         assertEquals(Support.UNSUPPORTED, support(component("oalinst", step("install_exe", "url" to "$base/oalinst.exe"))))
+        assertEquals(Support.UNSUPPORTED, support(component("webview2", step("install_exe", "url" to "$base/webview2.exe"))))
     }
 }

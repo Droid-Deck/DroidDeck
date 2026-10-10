@@ -163,11 +163,12 @@ internal fun WinComponentsDialog(
     val extra = (installed + picks).filter { all?.containsKey(it) != true }
     // What is turned on for this game gets its own section under the recommendations, which stay
     // where they are; the rest of the list is everything else, so a component turned off goes back
-    // to its place in the alphabet.
+    // to its place in the alphabet. A component is listed once: the recommendations are left out
+    // of the full list too.
     val recSet = recIds.map { installable(it.componentName, all.orEmpty()) }.toSet()
     val active = picks.filter { it !in recSet && (all?.containsKey(it) == true || it in installed) }.distinct()
         .sortedBy { WinComponentNames.of(it).lowercase() }
-    val list = (ready + extra).distinct().filter { it !in active }.sortedBy { WinComponentNames.of(it).lowercase() }
+    val list = (ready + extra).distinct().filter { it !in active && it !in recSet }.sortedBy { WinComponentNames.of(it).lowercase() }
     val waiting = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.NEEDS_INSTALLER }
         .map { it.name }.sortedBy { WinComponentNames.of(it).lowercase() }
     val hasRec = all != null && recIds.any { supportOf(installable(it.componentName, all)) == Support.READY }

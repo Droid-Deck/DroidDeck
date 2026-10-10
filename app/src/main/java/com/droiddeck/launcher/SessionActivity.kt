@@ -52,6 +52,7 @@ import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
@@ -147,8 +148,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** Motion is read while the session shows and only if the pad is a Deck controller - which
      *  the service can decide after this activity has resumed (SessionState.deckPadListener). */
     private fun updatePadMotion() {
-        if (resumed && !pipUi && SessionState.deckPad) padMotion?.start() else padMotion?.stop()
+        // A Steam Controller brings its own gyro (SteamControllerBle); the phone's would fight it.
+        if (resumed && !pipUi && SessionState.deckPad && !SteamControllerBle.connected) padMotion?.start()
+        else padMotion?.stop()
     }
+    private var steamController: SteamControllerBle? = null
     private var onScreenControls: OnScreenControls? = null
     /** Steam's touch controls (SteamTouchControls), made once the session offers the device. */
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
@@ -320,6 +324,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = SessionPrefs.orientation(this)
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
@@ -385,8 +390,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
+        bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
         padBridge = bridge
         SessionState.padBridge = bridge
+        // A paired Steam Controller is read over Bluetooth LE, out of lizard mode, as Steam Link reads it.
+        SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); updateOnScreenControls() } }
+        steamController = SteamControllerBle(this).also { it.start() }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -828,7 +837,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     WaylandCompositor.nativeSendSceneInput(3, it, 0)
                 }
             }
-            if (nextTouchMode == SessionPrefs.TOUCH_OFF) cursorVisible = false
+            if (nextTouchMode == SessionPrefs.TOUCH_OFF || !usingTouchpad()) cursorVisible = false
         }
         touchMode = nextTouchMode
         routedTouchMode = effectiveTouchMode()
@@ -1366,7 +1375,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return super.dispatchKeyEvent(event)
         }
         if (pipUi) return true
-        val fromController = PadBridge.isControllerKey(event)
+        val fromController = PadBridge.isControllerKeyEvent(event)
         if (fromController && event.action == KeyEvent.ACTION_DOWN) {
             if (drawerOpen && !drawerControllerActive) sessionOverlay.requestFocus()
             drawerControllerActive = true
@@ -1422,8 +1431,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
         // A hardware keyboard, forwarded to the compositor's wl_keyboard. Back is left to the
         // activity, which opens the drawer.
-        val fromPad = fromController
-        if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromPad) {
+        if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
             if (down || event.action == KeyEvent.ACTION_UP) {
                 var evdev = EvdevKeys.fromKeyCode(event.keyCode)
@@ -1461,7 +1469,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
-        if (drawerOpen && event.device != null && PadBridge.isFromController(event.device)) {
+        if (drawerOpen && PadBridge.isControllerMotionEvent(event)) {
             if (!drawerControllerActive) sessionOverlay.requestFocus()
             drawerControllerActive = true
             if (event.actionMasked == MotionEvent.ACTION_MOVE &&
@@ -1472,7 +1480,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if (drawerDirectionKey != KeyEvent.KEYCODE_UNKNOWN) releaseDrawerDirection()
-        if (pcKeyboardOpen && event.device != null && PadBridge.isFromController(event.device)) return super.dispatchGenericMotionEvent(event)
+        if (pcKeyboardOpen && PadBridge.isControllerMotionEvent(event)) return super.dispatchGenericMotionEvent(event)
         if (padBridge?.onMotionEvent(event) == true) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen && onMouse(event)) return true
         return super.dispatchGenericMotionEvent(event)
@@ -2036,7 +2044,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             // Auto: the touch pad when there is no controller - except on the desktop, where the
             // screen is a touchpad for the pointer and a pad over it would be in the way. A game
             // started from the rail, or Steam, gets it; the drawer turns it on anywhere.
-            else -> !PadBridge.anyControllerConnected() && SessionState.mode != SessionService.MODE_DESKTOP
+            else -> !PadBridge.anyControllerConnected() && !SteamControllerBle.connected &&
+                SessionState.mode != SessionService.MODE_DESKTOP
         }
         onScreenButtonsVisible = show
         if (steam != null) {
@@ -2178,6 +2187,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        requestedOrientation = SessionPrefs.orientation(this)
         if (runtimeRemovalBlocked) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()
@@ -2284,6 +2294,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         closeSecondScreen(reset = false)
         if (::hud.isInitialized) hud.stop()
         padBridge?.stop()
+        steamController?.stop()
         if (SessionState.padBridge === padBridge) SessionState.padBridge = null
         padMotion?.stop()
         if (SessionState.deckPadListener === deckPadListener) SessionState.deckPadListener = null

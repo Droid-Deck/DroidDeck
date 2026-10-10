@@ -23,8 +23,15 @@ Steam client that runs under `droiddeck-proton-arm64`. They show with the Custom
   already listed are counted, not added. A summary follows: games added, how many were
   there already, one row per game (cover, name, exe, "?" when unsure); a row opens that
   game's editor, straight on Target when unsure, with back to the summary.
-- Games folders added before this (Steam settings had a Games section) keep listing their
-  games; there is no place to add a new one.
+- Games folders added before this (Steam settings had a Games section) are migrated once
+  (`GamesFolderMigration`, at app start and before any scan): each game in one becomes an entry
+  as "Add all games in this folder" would make it, keeping everything keyed by its folder (the
+  chosen exe, the shortcut appid, name, Start in, launch options, art, a removal). The folders
+  stay bound into the session at the guest paths they had (`/root/Games/<name>`,
+  `SessionPrefs.gameFolderBinds`), so no exe path or shortcut changes. They are no longer Steam
+  libraries - the session's library list leaves them out and `droiddeck-steam-library` forgets
+  them - unless Steam installed a game into one (a manifest in its `steamapps/`), which then
+  stays a library. Log: `games: migrated <root> → N games`.
 
 ## Exe and name
 

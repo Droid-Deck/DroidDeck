@@ -164,6 +164,7 @@ class MainActivity : ComponentActivity() {
     private var showPhantomGate by mutableStateOf(false)
     private var directAudio by mutableStateOf(false)
     private var stretch16x9 by mutableStateOf(false)
+    private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherFullscreen by mutableStateOf(true)
     private var animationsEnabled by mutableStateOf(true)
     private var storeEnabled by mutableStateOf(false)
@@ -534,6 +535,8 @@ class MainActivity : ComponentActivity() {
         // Last start's game list, so the Steam wall is up on the first frame; refresh() replaces it.
         steamGames = if (shortcutPicker) emptyList() else com.droiddeck.launcher.frontend.LibraryCache.load(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
+        orientation = SessionPrefs.orientation(this)
+        requestedOrientation = orientation
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         storeEnabled = SessionPrefs.storeEnabled(this)
@@ -591,6 +594,7 @@ class MainActivity : ComponentActivity() {
                         updates = updates.state(),
                         phantomProcessStatus = phantomProcessStatus,
                         showPhantomGate = showPhantomGate,
+                        orientation = orientation,
                         launcherFullscreen = launcherFullscreen,
                         animationsEnabled = animationsEnabled,
                         storeEnabled = storeEnabled,
@@ -737,6 +741,11 @@ class MainActivity : ComponentActivity() {
                             com.droiddeck.launcher.core.AppUiPrefs.setScale(this, percent)
                             appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
                         },
+                        onOrientation = { value ->
+                            SessionPrefs.setOrientation(this, value)
+                            orientation = value
+                            requestedOrientation = value
+                        },
                         onLauncherFullscreen = { on ->
                             SessionPrefs.setLauncherFullscreen(this, on)
                             launcherFullscreen = on
@@ -826,6 +835,7 @@ class MainActivity : ComponentActivity() {
                             onSteamButton = { on -> ControllerPrefs.setSteamButton(this, on); refreshController() },
                             onQamButton = { on -> ControllerPrefs.setQamButton(this, on); refreshController() },
                             onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
+                            onSelectSteam = { on -> ControllerPrefs.setSelectSteam(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = true },
@@ -895,6 +905,7 @@ class MainActivity : ComponentActivity() {
         // A session folder left without its ending - the process was killed - gets it now.
         if (!SessionState.running) Thread({
             com.droiddeck.launcher.session.LogMigration.run(this)
+            com.droiddeck.launcher.frontend.GamesFolderMigration.run(this)
             SessionLogShare.clear(this)
             SessionArtifacts.finishAbandoned(this)
             SessionArtifacts.scrubOlder(this)
@@ -971,6 +982,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        orientation = SessionPrefs.orientation(this)
+        requestedOrientation = orientation
         refreshWifiDiscovery()
         // Back from a store's sign-in page: the Stores chips show the account at once. A store
         // install finishing while this screen is up rebuilds the Games list through the listener.
