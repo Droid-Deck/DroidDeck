@@ -42,6 +42,9 @@ class SteamTouchControls(
     private val onKeyboard: () -> Unit,
 ) : View(context) {
 
+    // Cached per view; the activity recreates the view when the app language changes.
+    private val trackpadLabel = context.getString(R.string.deck_surface_trackpad)
+
     /** The game's input and mouse modes changed (from its config or the menu): the session routes
      *  touches outside the controls by them. */
     var onOptions: (SteamTouchConfig.Options) -> Unit = {}
