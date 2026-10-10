@@ -312,7 +312,7 @@
     <string name="wincomp_title">Windowsコンポーネント</string>
     <string name="wincomp_pad_hint">LB / RBでセクション間を移動します。</string>
     <string name="wincomp_card_none">なし</string>
-    <string name="wincomp_applies">Protonに含まれないWindows DLLです（Bannerlatorのコンポーネント一覧から）。このゲームに必要なものをオンにしてください。ゲーム専用のWindowsフォルダーに入り、ゲームのファイルには触れず、どのProtonで実行しても維持されます。</string>
+    <string name="wincomp_applies">Protonに含まれないWindows DLLです（コンポーネント一覧から）。このゲームに必要なものをオンにしてください。ゲーム専用のWindowsフォルダーに入り、ゲームのファイルには触れず、どのProtonで実行しても維持されます。</string>
     <string name="wincomp_offline">コンポーネント一覧に接続できませんでした。ダウンロード済みのコンポーネントは引き続き切り替えられます。</string>
     <string name="wincomp_recommended">このゲームにおすすめ</string>
     <string name="wincomp_auto_section">このゲームで有効</string>

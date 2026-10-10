@@ -322,7 +322,7 @@
     <string name="wincomp_title">Windows components</string>
     <string name="wincomp_pad_hint">LB / RB jump between the sections.</string>
     <string name="wincomp_card_none">None</string>
-    <string name="wincomp_applies">Windows DLLs Proton does not include, from Bannerlator\'s component list. Turn on the ones this game needs: they go into the game\'s own Windows folder, never its files, and stay whichever Proton it runs on.</string>
+    <string name="wincomp_applies">Windows DLLs Proton does not include, from the component list. Turn on the ones this game needs: they go into the game\'s own Windows folder, never its files, and stay whichever Proton it runs on.</string>
     <string name="wincomp_offline">Could not reach the component list. Components already downloaded can still be switched.</string>
     <string name="wincomp_recommended">Recommended for this game</string>
     <string name="wincomp_auto_section">On for this game</string>

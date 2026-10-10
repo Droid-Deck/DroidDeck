@@ -312,7 +312,7 @@
     <string name="wincomp_title">Windows 元件</string>
     <string name="wincomp_pad_hint">按 LB / RB 在各區段之間切換。</string>
     <string name="wincomp_card_none">無</string>
-    <string name="wincomp_applies">Proton 未內含的 Windows DLL，取自 Bannerlator 的元件清單。開啟這款遊戲需要的元件：它們會放進遊戲自己的 Windows 資料夾，絕不更動遊戲檔案，且不論遊戲使用哪個 Proton 都會保留。</string>
+    <string name="wincomp_applies">Proton 未內含的 Windows DLL，取自元件清單。開啟這款遊戲需要的元件：它們會放進遊戲自己的 Windows 資料夾，絕不更動遊戲檔案，且不論遊戲使用哪個 Proton 都會保留。</string>
     <string name="wincomp_offline">無法連上元件清單。已下載的元件仍可開啟或關閉。</string>
     <string name="wincomp_recommended">建議用於這款遊戲</string>
     <string name="wincomp_auto_section">這款遊戲已開啟</string>

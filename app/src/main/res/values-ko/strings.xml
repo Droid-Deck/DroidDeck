@@ -312,7 +312,7 @@
     <string name="wincomp_title">Windows 구성 요소</string>
     <string name="wincomp_pad_hint">LB / RB로 섹션 사이를 이동합니다.</string>
     <string name="wincomp_card_none">없음</string>
-    <string name="wincomp_applies">Proton에 포함되지 않은 Windows DLL로, Bannerlator의 구성 요소 목록에서 가져옵니다. 이 게임에 필요한 것을 켜세요. 게임 전용 Windows 폴더에 들어가며 게임 파일은 건드리지 않고, 어떤 Proton으로 실행해도 유지됩니다.</string>
+    <string name="wincomp_applies">Proton에 포함되지 않은 Windows DLL로, 구성 요소 목록에서 가져옵니다. 이 게임에 필요한 것을 켜세요. 게임 전용 Windows 폴더에 들어가며 게임 파일은 건드리지 않고, 어떤 Proton으로 실행해도 유지됩니다.</string>
     <string name="wincomp_offline">구성 요소 목록에 연결할 수 없습니다. 이미 다운로드한 구성 요소는 계속 켜고 끌 수 있습니다.</string>
     <string name="wincomp_recommended">이 게임에 권장</string>
     <string name="wincomp_auto_section">이 게임에 켜짐</string>

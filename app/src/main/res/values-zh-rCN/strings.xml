@@ -312,7 +312,7 @@
     <string name="wincomp_title">Windows 组件</string>
     <string name="wincomp_pad_hint">按 LB / RB 在各部分之间跳转。</string>
     <string name="wincomp_card_none">无</string>
-    <string name="wincomp_applies">Proton 未包含的 Windows DLL，来自 Bannerlator 的组件列表。开启此游戏需要的组件：它们会放入游戏自己的 Windows 文件夹，绝不改动游戏文件，并且无论游戏使用哪个 Proton 都会保留。</string>
+    <string name="wincomp_applies">Proton 未包含的 Windows DLL，来自组件列表。开启此游戏需要的组件：它们会放入游戏自己的 Windows 文件夹，绝不改动游戏文件，并且无论游戏使用哪个 Proton 都会保留。</string>
     <string name="wincomp_offline">无法访问组件列表。已下载的组件仍可开启或关闭。</string>
     <string name="wincomp_recommended">此游戏推荐</string>
     <string name="wincomp_auto_section">此游戏已开启</string>
