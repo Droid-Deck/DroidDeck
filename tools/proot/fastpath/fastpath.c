@@ -1638,6 +1638,19 @@ int isatty(int fd) {
   return r == 0;
 }
 
+/* proot reads a memfd's name only to refuse the few that are then executed or locked; the rest are
+ * made here. The session's /proc/net and status copies, wineserver and Xwayland make them often.
+ * Without memfd in the kernel, proot's ashmem stands in. */
+int memfd_create(const char *name, unsigned flags) {
+  REAL(memfd_create, int (*)(const char *, unsigned));
+  if (!name || !strncmp(name, "JITCode:", 8) || !strcmp(name, "opcache_lock") || !strncmp(name, "lib/apk/exec/", 13)
+      || !fp_ready()) return real_memfd_create(name, flags);
+  long r = sc(SYS_memfd_create, (long)name, flags, 0, 0, 0);
+  if (r == -ENOSYS) return real_memfd_create(name, flags);
+  hits++;
+  return ret(r);
+}
+
 /* ---------------------------------------------------------------- passwd */
 
 /*
