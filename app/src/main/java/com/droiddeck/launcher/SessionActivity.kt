@@ -145,6 +145,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (resumed && !pipUi && SessionState.deckPad) padMotion?.start() else padMotion?.stop()
     }
     private var onScreenControls: OnScreenControls? = null
+    /** Steam's touch controls (SteamTouchControls), made once the session offers the device. */
+    private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
+    private var steamTouchAvailable by mutableStateOf(false)
+    private val steamTouchRetry = Runnable { updateOnScreenControls() }
+    /** While Steam's touch controls are up: how the game's touch config says touches outside them
+     *  act (Steam Link's input and mouse modes), in place of the drawer's touch mode. */
+    private var steamTouchOptions: com.droiddeck.launcher.input.SteamTouchConfig.Options? = null
+    /** The touch mode touches are routed by: the drawer's, or the game's while Steam's controls are up. */
+    private var routedTouchMode = SessionPrefs.TOUCH_AUTO
     private var keyboard: KeyboardHost? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
@@ -295,6 +304,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
             Log.i(TAG, "input device $deviceId disconnected")
+            padBridge?.onDeviceRemoved(deviceId)
             updateOnScreenControls()
             updatePointerCapture()
         }
@@ -563,7 +573,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
                         backActionsInverted = inverted
                     },
-                    onOsc = { v -> SessionPrefs.setOscMode(this@SessionActivity, v); readPrefs(); updateOnScreenControls() },
+                    onOsc = { v ->
+                        SessionPrefs.setOscMode(this@SessionActivity, v)
+                        readPrefs()
+                        updateOnScreenControls()
+                        if (v == SessionPrefs.OSC_STEAM_TOUCH && com.droiddeck.launcher.input.SteamTouchDevice.current == null)
+                            Toast.makeText(this@SessionActivity, R.string.osc_style_next_session, Toast.LENGTH_LONG).show()
+                    },
+                    onEditSteamTouch = if (steamTouchAvailable && oscMode == SessionPrefs.OSC_STEAM_TOUCH && onScreenButtonsVisible) ({
+                        drawerOpen = false
+                        steamTouchControls?.startEditing()
+                    }) else null,
                     onSuspendPolicy = { policy ->
                         SessionPrefs.setSuspendPolicy(this@SessionActivity, SessionState.mode, policy)
                         suspendPolicy = policy
@@ -798,6 +818,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (nextTouchMode == SessionPrefs.TOUCH_OFF) cursorVisible = false
         }
         touchMode = nextTouchMode
+        routedTouchMode = effectiveTouchMode()
         frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -1708,8 +1729,32 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    /** The touch mode in force: the game's own while Steam's touch controls are shown. */
+    private fun effectiveTouchMode(): String {
+        val options = steamTouchOptions
+        if (options == null || steamTouchControls?.visibility != View.VISIBLE) return SessionPrefs.touchMode(this)
+        return when {
+            options.inputMode == com.droiddeck.launcher.input.SteamTouchConfig.INPUT_CONTROLLER -> SessionPrefs.TOUCH_OFF
+            options.mouseMode == com.droiddeck.launcher.input.SteamTouchConfig.MOUSE_RELATIVE -> SessionPrefs.TOUCH_PAD
+            else -> SessionPrefs.TOUCH_DIRECT
+        }
+    }
+
+    private fun applyTouchRouting() {
+        val next = effectiveTouchMode()
+        if (::touchpad.isInitialized) {
+            val speed = steamTouchOptions?.trackpadSensitivity?.takeIf { steamTouchControls?.visibility == View.VISIBLE } ?: 1f
+            touchpad.sensitivity = 1.15f * speed
+        }
+        if (next == routedTouchMode) return
+        if (::touchpad.isInitialized) touchpad.cancel()
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+        if (next == SessionPrefs.TOUCH_OFF) cursorVisible = false
+        routedTouchMode = next
+    }
+
     /** Touchpad on the desktop, direct in Steam, unless the drawer says otherwise. */
-    private fun usingTouchpad(): Boolean = when (SessionPrefs.touchMode(this)) {
+    private fun usingTouchpad(): Boolean = when (routedTouchMode) {
         SessionPrefs.TOUCH_PAD -> true
         SessionPrefs.TOUCH_DIRECT -> false
         else -> SessionState.mode != SessionService.MODE_STEAM || SessionState.steamUi == "desktop"
@@ -1731,7 +1776,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         // Child views get the event first, so menus, keyboards and the on-screen pad still work.
-        if (touchMode == SessionPrefs.TOUCH_OFF) return true
+        if (routedTouchMode == SessionPrefs.TOUCH_OFF) return true
         if (usingTouchpad()) {
             val rect = drawnRect() ?: return false
             if (touchpad.bounds != rect) {
@@ -1850,6 +1895,41 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             what, d.name, d.vendorId, d.productId, d.id, d.sources))
     }
 
+    /** Steam's touch controls, once the session has made the device (SessionService). */
+    private fun steamTouch(): com.droiddeck.launcher.input.SteamTouchControls? {
+        val device = com.droiddeck.launcher.input.SteamTouchDevice.current ?: return null
+        steamTouchControls?.let { view ->
+            if (view.device === device) return view
+            // A new session made a new device: the view of the old one goes.
+            view.releaseAll()
+            (view.parent as? android.view.ViewGroup)?.removeView(view)
+            steamTouchControls = null
+        }
+        val root = onScreenControls?.parent as? android.view.ViewGroup ?: return null
+        val view = com.droiddeck.launcher.input.SteamTouchControls(this, device,
+            onMenu = { drawerOpen = true }, onKeyboard = ::togglePcKeyboard)
+        view.visibility = View.GONE
+        view.onOptions = { options ->
+            steamTouchOptions = options
+            applyTouchRouting()
+        }
+        // Paste: the clipboard is shared with the session's X servers; Ctrl+V types it.
+        view.onPaste = {
+            sendGuestKey(29, true); sendGuestKey(47, true) // KEY_LEFTCTRL, KEY_V
+            sendGuestKey(47, false); sendGuestKey(29, false)
+        }
+        // The client reads a controller's config when it connects: after a save, plug the device
+        // out and back in so it takes the new one.
+        view.onSaved = {
+            device.plugged = false
+            uiHandler.postDelayed({ updateOnScreenControls() }, 700)
+        }
+        root.addView(view, root.indexOfChild(onScreenControls) + 1)
+        steamTouchControls = view
+        steamTouchAvailable = true
+        return view
+    }
+
     private fun updateOnScreenControls() {
         val forced = File(Environment.getExternalStorageDirectory(), "Download/droiddeck-osc")
             .takeIf { it.isFile }
@@ -1860,20 +1940,49 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onScreenButtonsVisible = false
             controls.releaseAll()
             controls.visibility = View.GONE
+            steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
+            com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
             return
         }
         val buttonsOnly = forced == SessionPrefs.OSC_STEAM_QAM
+        // Steam's touch controller stands in for the app's pad, and is plugged into the client only
+        // while it is shown - as Steam Link withdraws its controls when a physical pad is in use.
+        val wantsSteam = forced == SessionPrefs.OSC_STEAM_TOUCH && SessionState.mode == SessionService.MODE_STEAM
+        val steam = if (wantsSteam) steamTouch() else null
+        // The service makes the device while the session starts, after this activity: the app's
+        // own pad until then, and another look in a moment.
+        if (wantsSteam && steam == null && !isFinishing && !isDestroyed) {
+            uiHandler.removeCallbacks(steamTouchRetry)
+            uiHandler.postDelayed(steamTouchRetry, 1000)
+        }
+        if (steam == null) {
+            steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
+            com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
+        }
         controls.setButtonsOnly(buttonsOnly)
         val show = when (forced) {
             SessionPrefs.OSC_ALWAYS -> true
             SessionPrefs.OSC_STEAM_QAM -> true
             SessionPrefs.OSC_NEVER -> false
+            // Shown throughout a Steam session: a handheld's built-in pad would keep Auto off for good.
+            // Outside Steam it is Auto.
+            SessionPrefs.OSC_STEAM_TOUCH -> SessionState.mode == SessionService.MODE_STEAM ||
+                (!PadBridge.anyControllerConnected() && SessionState.mode != SessionService.MODE_DESKTOP)
             // Auto: the touch pad when there is no controller - except on the desktop, where the
             // screen is a touchpad for the pointer and a pad over it would be in the way. A game
             // started from the rail, or Steam, gets it; the drawer turns it on anywhere.
             else -> !PadBridge.anyControllerConnected() && SessionState.mode != SessionService.MODE_DESKTOP
         }
         onScreenButtonsVisible = show
+        if (steam != null) {
+            if (controls.visibility == View.VISIBLE) { controls.releaseAll(); controls.visibility = View.GONE }
+            if (!show) steam.releaseAll()
+            steam.visibility = if (show) View.VISIBLE else View.GONE
+            com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = show
+            applyTouchRouting()
+            Log.i(TAG, "on-screen controls: Steam's touch controller " + if (show) "shown" else "hidden")
+            return
+        }
         if (show == (controls.visibility == View.VISIBLE)) return
         if (!show) controls.releaseAll()
         controls.visibility = if (show) View.VISIBLE else View.GONE
@@ -2097,6 +2206,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        uiHandler.removeCallbacks(steamTouchRetry)
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
         // Deliberately does NOT end the session: this activity can be destroyed while the user is
         // in another app, and the whole point of the service is that Steam survives that.

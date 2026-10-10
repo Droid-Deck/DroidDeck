@@ -101,6 +101,7 @@ android {
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
+        buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
         buildConfigField "String", "DESKTOP_KDE_TAG", "\"${desktopKde.DESKTOP_KDE_TAG}\""
         buildConfigField "String", "DESKTOP_KDE_URL", "\"https://github.com/${desktopKde.DESKTOP_KDE_REPO}/releases/download/${desktopKde.DESKTOP_KDE_TAG}/desktop-kde.tar.zst\""
         buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
@@ -220,6 +221,10 @@ tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 // Unit tests and previews remain usable without Docker. Packaging an APK requires the complete
 // runtime payload prepared by the local helper or CI, with matching sources and output hashes.
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
+    // The session scripts are re-copied into the asset tree by stageSessionScripts; with parallel
+    // task execution this check once hashed a file mid-copy and failed a main build. Hash only
+    // once the staging has finished.
+    mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
     commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
 }

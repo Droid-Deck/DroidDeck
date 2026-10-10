@@ -57,6 +57,7 @@ object SessionFiles {
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libblaudit.so" to "usr/local/lib/libblaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
             "usr/local/bin/droiddeck-fonts" to "usr/local/bin/droiddeck-fonts",

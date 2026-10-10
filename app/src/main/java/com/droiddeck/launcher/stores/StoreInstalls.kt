@@ -64,7 +64,7 @@ object StoreInstalls {
         try {
             val games = AddedGames.scan(app)
             AddedGames.writeListing(app, games)
-            LibraryCache.save(app, Library.launchableGames(app))
+            LibraryCache.save(app, Library.launchableGames(app, added = games))
             SteamLiveShortcuts.sync(app, games)
         } catch (e: Exception) {
             Log.w(TAG, "registration: ${e.message}")
