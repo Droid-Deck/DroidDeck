@@ -839,6 +839,8 @@
     <string name="ctrl_steam_button">Botón Steam</string>
     <string name="ctrl_qam_button">Botón QAM</string>
     <string name="ctrl_keyboard_button">Botón de teclado</string>
+    <string name="ctrl_select_steam">Pulsa Select para abrir el menú de Steam</string>
+    <string name="ctrl_select_steam_hint">En lugar de View/Select.</string>
     <string name="setup_animations">Animaciones</string>
     <string name="ctrl_adaptive_hint">Los sticks aparecen donde tocas y se ocultan al soltar</string>
     <string name="ctrl_layout">Disposición</string>

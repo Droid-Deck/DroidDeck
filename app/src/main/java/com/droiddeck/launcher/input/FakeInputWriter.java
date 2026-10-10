@@ -99,6 +99,8 @@ public class FakeInputWriter {
     // units, under a seqlock like the snapshot's. Only libfakeinput's Deck controller reads it.
     private static final int IMU_OFFSET = RING_SIZE;
     private static final int IMU_MAGIC = 0x31554D49; // IMU1
+    // Written by libfakeinput, not here: the client's SETTING_IMU_MODE | 0x80000000 (readImuMode).
+    private static final int IMU_MODE_OFFSET = IMU_OFFSET + 4;
     private static final int IMU_SEQ_OFFSET = IMU_OFFSET + 8;
     private static final int IMU_ACCEL_OFFSET = IMU_OFFSET + 16; // short[3]
     private static final int IMU_GYRO_OFFSET = IMU_OFFSET + 22; // short[3]
@@ -215,6 +217,7 @@ public class FakeInputWriter {
             data.putShort(RING_SNAPSHOT_AXES_OFFSET + (i * 2), (short) 0);
         }
         data.putInt(IMU_OFFSET, 0);
+        data.putInt(IMU_MODE_OFFSET, 0);
         data.putLong(IMU_SEQ_OFFSET, 0L);
         for (int i = 0; i < 12; i++) {
             data.putShort(IMU_ACCEL_OFFSET + (i * 2), (short) 0);
@@ -473,6 +476,23 @@ public class FakeInputWriter {
             ring.putInt(IMU_OFFSET, IMU_MAGIC);
             nativeStoreFence();
             ring.putLong(IMU_SEQ_OFFSET, seq + 2);
+        }
+    }
+
+    /**
+     * The motion the Steam client asked the Deck controller of slot {@code slot} for: its
+     * SETTING_IMU_MODE (0 = off), or -1 until it has said. Safe from any thread.
+     */
+    public static int readImuMode(int slot) {
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = slot >= 0 && slot < RING_SLOTS.length ? RING_SLOTS[slot] : null;
+        }
+        if (ringSlot == null) return -1;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            int value = ring == null ? 0 : ring.getInt(IMU_MODE_OFFSET);
+            return value < 0 ? value & 0xffff : -1;
         }
     }
 

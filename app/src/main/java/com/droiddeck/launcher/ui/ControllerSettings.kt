@@ -28,6 +28,7 @@ class ControllerActions(
     val onSteamButton: (Boolean) -> Unit,
     val onQamButton: (Boolean) -> Unit,
     val onKeyboardButton: (Boolean) -> Unit,
+    val onSelectSteam: (Boolean) -> Unit,
     val onEditLayout: () -> Unit,
     val onResetLayout: () -> Unit,
     val onMapping: () -> Unit,
@@ -70,6 +71,7 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
     ToggleRow(host, "controller-steam", stringResource(R.string.ctrl_steam_button), null, c.steamButton, onChange = a.onSteamButton)
     ToggleRow(host, "controller-qam", stringResource(R.string.ctrl_qam_button), null, c.qamButton, onChange = a.onQamButton)
     ToggleRow(host, "controller-keyboard", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton, onChange = a.onKeyboardButton)
+    ToggleRow(host, "controller-select-steam", stringResource(R.string.ctrl_select_steam), stringResource(R.string.ctrl_select_steam_hint), c.selectSteam, onChange = a.onSelectSteam)
     SettingsRow(stringResource(R.string.ctrl_layout), if (c.customLayout) stringResource(R.string.ctrl_layout_custom) else stringResource(R.string.ctrl_layout_default)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SecondaryButton(stringResource(R.string.ctrl_edit)) { a.onEditLayout() }
