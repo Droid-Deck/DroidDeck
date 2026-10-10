@@ -186,7 +186,7 @@ object SessionArtifacts {
             val lines = StringBuilder("rules ${LogRedactor.RULES_VERSION}\n")
             record.files.forEach { (f, s) ->
                 lines.append(s.length).append('\t').append(s.modified).append('\t')
-                    .append(f.relativeTo(dir).path).append('\n')
+                    .append(f.relativeTo(dir).invariantSeparatorsPath).append('\n')
             }
             tree.writeText(lines.toString())
             true
