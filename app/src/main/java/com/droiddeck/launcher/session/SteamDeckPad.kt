@@ -97,7 +97,7 @@ object SteamDeckPad {
     fun listingDir(sessionRoot: File) = File(sessionRoot, "sys/deck/listing")
 
     /** Writes the tree and returns the `host:guest` binds for it, or none if it could not be made. */
-    fun prepare(context: Context, sessionRoot: File, touch: Boolean = false, triton: Boolean = false): List<String> {
+    fun prepare(context: Context, sessionRoot: File, touch: Boolean = false, triton: Boolean = false, deck: Boolean = true): List<String> {
         val base = File(sessionRoot, "sys/deck")
         val devices = File(base, "devices")
         val hidrawClass = File(base, "class-hidraw")
@@ -137,7 +137,8 @@ object SteamDeckPad {
             link(File(dir(HIDRAW), "device"), HID)
 
             hidrawClass.mkdirs()
-            link(File(hidrawClass, NODE), HIDRAW)
+            // Without the Deck (the pad is the Steam Controller), its device is never listed.
+            if (deck) link(File(hidrawClass, NODE), HIDRAW)
 
             // Only the names matter: libudev reads a listing for the subsystems to descend into and
             // then opens /sys/class/hidraw itself, which is the bind above.
@@ -147,7 +148,9 @@ object SteamDeckPad {
             link(File(context.cacheDir, "drm/sys/$MAJOR:$MINOR"), HIDRAW)
 
             val udevData = File(LinuxRuntime.rootDir(context), "run/udev/data").apply { mkdirs() }
-            File(udevData, "c$MAJOR:$MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
+            File(udevData, "c$MAJOR:$MINOR").apply {
+                if (deck) writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n") else delete()
+            }
 
             if (touch) {
                 write(TOUCH_USB, "uevent", "DEVTYPE=usb_device\nPRODUCT=0/11fb/0\nTYPE=0/0/0\nBUSNUM=002\nDEVNUM=002\n")

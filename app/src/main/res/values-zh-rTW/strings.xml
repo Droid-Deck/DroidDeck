@@ -254,6 +254,7 @@
     <string name="mode_controller">控制器</string>
     <string name="mode_controller_hint">Steam 辨識你的控制器的方式。下次工作階段生效。</string>
     <string name="mode_controller_deck">Steam Deck 控制器</string>
+    <string name="mode_controller_steam">Steam Controller</string>
     <string name="mode_controller_x360">Xbox 360 控制器</string>
     <string name="mode_controller_note">Deck：提供快速存取按鈕和陀螺儀。Xbox 360：使用 Guide+A 開啟快速存取。</string>
     <string name="mode_back">返回</string>

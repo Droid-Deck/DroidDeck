@@ -254,6 +254,7 @@
     <string name="mode_controller">Mando</string>
     <string name="mode_controller_hint">Cómo ve Steam tu mando. Se aplica en la próxima sesión.</string>
     <string name="mode_controller_deck">Mando de Steam Deck</string>
+    <string name="mode_controller_steam">Steam Controller</string>
     <string name="mode_controller_x360">Mando Xbox 360</string>
     <string name="mode_controller_note">Deck: botón de Quick Access y giroscopio. Xbox 360: abre Quick Access con Guide+A.</string>
     <string name="mode_back">Atrás</string>

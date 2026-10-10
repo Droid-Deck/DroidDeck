@@ -269,6 +269,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     host, "controller", stringResource(R.string.mode_controller), stringResource(R.string.mode_controller_hint),
                     listOf(
                         SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
+                        SessionPrefs.CONTROLLER_STEAM to stringResource(R.string.mode_controller_steam),
                         SessionPrefs.CONTROLLER_XBOX360 to stringResource(R.string.mode_controller_x360),
                     ), s.steamController,
                     note = stringResource(R.string.mode_controller_note),

@@ -232,6 +232,7 @@
     <string name="mode_controller">Manette</string>
     <string name="mode_controller_hint">Comment Steam reconnaît votre manette. Prendra effet à la prochaine session.</string>
     <string name="mode_controller_deck">Manette Steam Deck</string>
+    <string name="mode_controller_steam">Steam Controller</string>
     <string name="mode_controller_x360">Manette Xbox 360</string>
     <string name="mode_controller_note">Deck : fournit un bouton d\'accès rapide et un gyroscope. Xbox 360 : utilisez Guide+A pour ouvrir l\'accès rapide.</string>
     <string name="mode_back">Retour</string>
