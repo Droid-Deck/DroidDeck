@@ -186,6 +186,7 @@ static int dmaheap_fd(void)
     pthread_mutex_lock(&lock);
     if (fd == -2) {
         const char *names[] = {"/dev/dma_heap/system-uncached", "/dev/dma_heap/system"};
+        if (getenv("VKBRIDGE_DMAHEAP_CACHED")) names[0] = "/dev/dma_heap/system";
         fd = -1;
         for (int i = 0; i < 2 && fd < 0; i++) {
             fd = open(names[i], O_RDONLY | O_CLOEXEC);
@@ -346,8 +347,9 @@ static VkResult alloc_shared(const vkb_dispatch *dt, VkDevice dev, uint32_t s, c
             r = VK_ERROR_OUT_OF_DEVICE_MEMORY;
             break;
         }
-        vkb_ahb_desc d = {(uint32_t)sz, 1, 1, AHB_FORMAT_BLOB,
-                          AHB_USAGE_CPU_READ_OFTEN | AHB_USAGE_CPU_WRITE_OFTEN | AHB_USAGE_GPU_DATA_BUFFER, 0, 0, 0};
+        /* CPU usage decides how gralloc caches the pages; VKBRIDGE_AHB_RARELY=1 asks for uncached. */
+        uint64_t cpu = getenv("VKBRIDGE_AHB_RARELY") ? (2ull | (2ull << 4)) : (AHB_USAGE_CPU_READ_OFTEN | AHB_USAGE_CPU_WRITE_OFTEN);
+        vkb_ahb_desc d = {(uint32_t)sz, 1, 1, AHB_FORMAT_BLOB, cpu | AHB_USAGE_GPU_DATA_BUFFER, 0, 0, 0};
         struct AHardwareBuffer *ahb = NULL;
         int ar = p_AHardwareBuffer_allocate(&d, &ahb);
         if (ar != 0 || !ahb) {
@@ -549,7 +551,25 @@ static int submit_and_wait(selftest *st, VkCommandBuffer cb)
 
 /* One allocation of `type` with strategy `s`, checked from both sides. 1 = shared and coherent
  * (no flush needed), 2 = shared when flushed, 0 = not shared. */
+static int test_type_mode(selftest *st, uint32_t s, uint32_t type, int no_flush);
+
+/* Without flushes first: imported pages from an uncached heap are coherent in practice even where
+ * the driver's type does not say HOST_COHERENT (Mali-G720: dma-heap imports land in type 1,
+ * HOST_CACHED without COHERENT, and pass with no flush). Only if that fails, with flushes. */
 static int test_type(selftest *st, uint32_t s, uint32_t type)
+{
+    int coherent_flag = (st->mp.memoryTypes[type].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0;
+    if (!coherent_flag && !getenv("VKBRIDGE_SELFTEST_NOFLUSH")) {
+        int r = test_type_mode(st, s, type, 1);
+        if (r) {
+            VKB_INFO("  %s, type %u: coherent in practice (no flushes needed)", vkb_mem_strategy_name(s), type);
+            return 1;
+        }
+    }
+    return test_type_mode(st, s, type, 0);
+}
+
+static int test_type_mode(selftest *st, uint32_t s, uint32_t type, int no_flush)
 {
     const vkb_dispatch *dt = &st->dt;
     int result = 0;
@@ -603,6 +623,8 @@ static int test_type(selftest *st, uint32_t s, uint32_t type)
         goto out;
     }
     int coherent = (st->mp.memoryTypes[type].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0;
+    /* VKBRIDGE_SELFTEST_NOFLUSH=1 forces it for every type. */
+    if (no_flush || getenv("VKBRIDGE_SELFTEST_NOFLUSH")) coherent = 1;
     VkMappedMemoryRange whole = {VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, NULL, m->mem, 0, VK_WHOLE_SIZE};
 
     /* 1: the two CPU mappings are the same pages. */

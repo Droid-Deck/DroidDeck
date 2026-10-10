@@ -34,7 +34,7 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
         socket.parentFile?.mkdirs()
         // Pipeline cache kept across sessions (Mali recompiles everything in a new process otherwise).
         val cacheDir = File(app().cacheDir, "vkbridge-pipelines").apply { mkdirs() }
-        if (VkBridgeNative.start(socket, logFile, cacheDir)) {
+        if (VkBridgeNative.start(app(), socket, logFile, cacheDir)) {
             Log.i(TAG, "server ready in the app's process at $socket")
             return
         }

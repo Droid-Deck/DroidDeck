@@ -142,6 +142,9 @@ android {
         release {
             minifyEnabled false
             signingConfig signingConfigs.testkey
+            // Mali bridge development fork: debuggable so `adb shell run-as` reaches the session
+            // logs and VkBridgeNative's development override (-Pdroiddeck.notDebuggable to drop).
+            debuggable !project.hasProperty('droiddeck.notDebuggable')
         }
     }
 

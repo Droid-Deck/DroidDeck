@@ -71,6 +71,9 @@ static void build_memory_model(vkb_physdev *pd)
         if (!(share & (1u << t))) continue; /* host-visible but not shareable: not offered */
         VkMemoryPropertyFlags cf = f;
         if (!(pd->info.coherent_types & (1u << t))) cf &= ~VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        else cf |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT; /* coherent in practice (the self-test says so) */
+        /* dma-heap pages come from the uncached heap: not what an app asking for cached reads wants. */
+        if (pd->info.strategy == VKB_MEM_DMAHEAP) cf &= ~VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
         if (uma) {
             cf &= ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
             if (host_heap == UINT32_MAX && c->memoryHeapCount < VK_MAX_MEMORY_HEAPS) {
