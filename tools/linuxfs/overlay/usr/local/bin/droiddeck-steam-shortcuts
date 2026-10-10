@@ -102,7 +102,7 @@ def shortcut(game, launch_options=None):
     return {
         "appid": struct.unpack("<i", struct.pack("<I", appid))[0],
         "AppName": game["name"],
-        "Exe": '"%s"' % game["exe"],
+        "Exe": /usr/local/bin/umu '"%s"' % game["exe"],
         "StartDir": '"%s"' % game["dir"],
         "icon": (game.get("art") or {}).get("icon", "") or "",
         "ShortcutPath": "",
