@@ -85,6 +85,7 @@ public final class LinuxRuntimeInstaller {
         volatile int percent = -1;
         volatile boolean ok;
         final boolean removal;
+        boolean maintenance;
         Job(boolean removal, String stage) { this.removal = removal; this.stage = stage; }
     }
 
@@ -139,7 +140,7 @@ public final class LinuxRuntimeInstaller {
         Job job;
         boolean owner;
         synchronized (JOB_LOCK) {
-            if (running != null && running.removal) return false;
+            if (running != null && (running.removal || running.maintenance)) return false;
             owner = running == null;
             if (owner) { running = new Job(false, context.getString(R.string.user_apps_starting)); removalError = null; }
             job = running;
@@ -171,7 +172,7 @@ public final class LinuxRuntimeInstaller {
     /** True while an install is running in this process, whoever started it. */
     public static boolean isInstalling() {
         synchronized (JOB_LOCK) {
-            return running != null && !running.removal;
+            return running != null && !running.removal && !running.maintenance;
         }
     }
 
@@ -181,6 +182,53 @@ public final class LinuxRuntimeInstaller {
 
     public static boolean isRemoving() {
         synchronized (JOB_LOCK) { return running != null && running.removal; }
+    }
+
+    public static boolean isMaintaining() {
+        synchronized (JOB_LOCK) { return running != null && running.maintenance; }
+    }
+
+    /** Reserve an in-place package operation with the same exclusion/progress as runtime installs. */
+    public static Maintenance beginMaintenance(Context context, String stage) {
+        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning()) return null;
+        com.droiddeck.launcher.session.SessionPhase phase = com.droiddeck.launcher.session.SessionState.INSTANCE.getPhase();
+        if (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED) return null;
+        synchronized (JOB_LOCK) {
+            if (running != null) return null;
+            removalError = null;
+            running = new Job(false, stage);
+            running.maintenance = true;
+            return new Maintenance(running);
+        }
+    }
+
+    public interface MaintenanceWork { String run(ProgressListener listener); }
+
+    public static final class Maintenance {
+        private final Job job;
+        private final java.util.concurrent.atomic.AtomicBoolean started = new java.util.concurrent.atomic.AtomicBoolean();
+        private Maintenance(Job job) { this.job = job; }
+        public boolean run(ProgressListener listener, MaintenanceWork work) {
+            if (!started.compareAndSet(false, true)) return join(job, listener);
+            if (listener != null) job.listeners.add(listener);
+            try {
+                removalError = work.run((stage, percent) -> {
+                    job.stage = stage;
+                    job.percent = percent;
+                    for (ProgressListener l : job.listeners) l.onProgress(stage, percent);
+                });
+                job.ok = removalError == null;
+                return job.ok;
+            } catch (Exception e) {
+                removalError = e.getMessage();
+                Log.e(TAG, "maintenance", e);
+                return false;
+            } finally {
+                synchronized (JOB_LOCK) { running = null; }
+                job.done.countDown();
+                if (listener != null) job.listeners.remove(listener);
+            }
+        }
     }
 
     public static String removalError() { return removalError; }

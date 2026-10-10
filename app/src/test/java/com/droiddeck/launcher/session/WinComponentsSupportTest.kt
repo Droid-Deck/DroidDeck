@@ -65,6 +65,22 @@ class WinComponentsSupportTest {
             step("register_dll", "dlls" to ""))))
     }
 
+    @Test fun recordedInstallersInstallHere() {
+        val snapshot = "https://github.com/The412Banner/winlator-contents/releases/download/component-snapshots-v1/K-Lite.snapshot.json"
+        // A setup program with a recording of its result installs from the recording.
+        val klite = WinComponents.Component("K-Lite", "", "", "ready", emptyList(),
+            listOf(step("install_exe", "url" to "$base/K-Lite.exe", "file_name" to "K-Lite_1960.exe")), snapshot)
+        assertEquals(Support.READY, WinComponents.support(klite, mapOf(klite.name to klite)))
+        // Only a recording on the release counts.
+        val elsewhere = WinComponents.Component("K-Lite", "", "", "ready", emptyList(), klite.steps, "http://example.com/K-Lite.snapshot.json")
+        assertEquals(Support.NEEDS_INSTALLER, WinComponents.support(elsewhere, mapOf(elsewhere.name to elsewhere)))
+        // Its prerequisites still have to be installable.
+        val sp1 = WinComponents.Component("dotnet20sp1", "", "", "ready", listOf("dotnet20"), emptyList(), snapshot.replace("K-Lite", "dotnet20sp1"))
+        val base20 = WinComponents.Component("dotnet20", "", "", "ready", emptyList(),
+            listOf(step("install_exe", "url" to "$base/dotnet20__dotnetfx.exe", "file_name" to "dotnetfx.exe")))
+        assertEquals(Support.NEEDS_INSTALLER, WinComponents.support(sp1, mapOf("dotnet20sp1" to sp1, "dotnet20" to base20)))
+    }
+
     @Test fun setupProgramsStillWait() {
         // NSIS / InnoSetup installers hold no package to lay out.
         assertEquals(Support.NEEDS_INSTALLER, support(component("K-Lite",
@@ -76,5 +92,9 @@ class WinComponentsSupportTest {
         assertEquals(Support.UNSUPPORTED, support(component("gecko", step("install_msi", "url" to "$base/gecko.msi"))))
         assertEquals(Support.UNSUPPORTED, support(component("mono", step("uninstall"), step("install_msi", "url" to "$base/mono.msi"))))
         assertEquals(Support.UNSUPPORTED, support(component("mono-10.4.1", step("install_msi", "url" to "$base/mono.msi"))))
+        assertEquals(Support.UNSUPPORTED, support(component("cjkfonts", step("install_fonts", "url" to "temp/SourceHanSans.ttc"))))
+        assertEquals(Support.UNSUPPORTED, support(component("powershell", step("copy_file", "file_name" to "profile.ps1", "dest" to "win64"))))
+        assertEquals(Support.UNSUPPORTED, support(component("VulkanRT", step("install_exe", "url" to "$base/VulkanRT.exe"))))
+        assertEquals(Support.UNSUPPORTED, support(component("ie8_kb2936068", step("install_exe", "url" to "$base/ie8_kb2936068.exe"))))
     }
 }

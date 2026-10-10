@@ -44,6 +44,24 @@ object SteamDeckPad {
     private const val HIDRAW = "$HID/hidraw/$NODE"
     private const val SERIAL = "DROIDDECK0001"
 
+    // Steam's touch controller (SteamTouchDevice), a second device beside the Deck's: 0000:11fb,
+    // "Mobile Touch Control", on a USB device of its own. Must match libfakeinput (TOUCH_*).
+    private const val TOUCH_MINOR = 17
+    private const val TOUCH_NODE = "hidraw$TOUCH_MINOR"
+    private const val TOUCH_USB = "$GUEST_DEVICES/usb2"
+    private const val TOUCH_INTERFACE = "$TOUCH_USB/2-1:1.0"
+    private const val TOUCH_HID = "$TOUCH_INTERFACE/0003:0000:11FB.0002"
+    private const val TOUCH_HIDRAW = "$TOUCH_HID/hidraw/$TOUCH_NODE"
+    private const val TOUCH_SERIAL = "DROIDDECK0001"
+
+    /** libfakeinput's kTouchReportDescriptor: Generic Desktop / Game Pad, 40-byte input report. */
+    private val TOUCH_REPORT_DESCRIPTOR = intArrayOf(
+        0x05, 0x01, 0x09, 0x05, 0xa1, 0x01,
+        0x09, 0x02, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x28, 0x81, 0x02,
+        0x09, 0x03, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x91, 0x02,
+        0x09, 0x04, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0,
+    ).map { it.toByte() }.toByteArray()
+
     /** InputPlumber's CONTROLLER_DESCRIPTOR, as libfakeinput answers HIDIOCGRDESC. */
     private val REPORT_DESCRIPTOR = intArrayOf(
         0x06, 0xff, 0xff, 0x09, 0x01, 0xa1, 0x01, 0x09, 0x02, 0x09, 0x03, 0x15, 0x00,
@@ -55,7 +73,7 @@ object SteamDeckPad {
     fun listingDir(sessionRoot: File) = File(sessionRoot, "sys/deck/listing")
 
     /** Writes the tree and returns the `host:guest` binds for it, or none if it could not be made. */
-    fun prepare(context: Context, sessionRoot: File): List<String> {
+    fun prepare(context: Context, sessionRoot: File, touch: Boolean = false): List<String> {
         val base = File(sessionRoot, "sys/deck")
         val devices = File(base, "devices")
         val hidrawClass = File(base, "class-hidraw")
@@ -106,6 +124,34 @@ object SteamDeckPad {
 
             val udevData = File(LinuxRuntime.rootDir(context), "run/udev/data").apply { mkdirs() }
             File(udevData, "c$MAJOR:$MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
+
+            if (touch) {
+                write(TOUCH_USB, "uevent", "DEVTYPE=usb_device\nPRODUCT=0/11fb/0\nTYPE=0/0/0\nBUSNUM=002\nDEVNUM=002\n")
+                write(TOUCH_USB, "idVendor", "0000\n")
+                write(TOUCH_USB, "idProduct", "11fb\n")
+                write(TOUCH_USB, "bcdDevice", "0000\n")
+                write(TOUCH_USB, "manufacturer", "Valve Software\n")
+                write(TOUCH_USB, "product", "Mobile Touch Control\n")
+                write(TOUCH_USB, "serial", "$TOUCH_SERIAL\n")
+                link(File(dir(TOUCH_USB), "subsystem"), "/sys/bus/usb")
+                write(TOUCH_INTERFACE, "uevent", "DEVTYPE=usb_interface\nPRODUCT=0/11fb/0\nINTERFACE=3/0/0\n")
+                write(TOUCH_INTERFACE, "bInterfaceNumber", "00\n")
+                write(TOUCH_INTERFACE, "bInterfaceClass", "03\n")
+                link(File(dir(TOUCH_INTERFACE), "subsystem"), "/sys/bus/usb")
+                write(TOUCH_HID, "uevent", "DRIVER=hid-generic\nHID_ID=0003:00000000:000011FB\n" +
+                    "HID_NAME=Mobile Touch Control\nHID_PHYS=usb-droiddeck-2/input0\n" +
+                    "HID_UNIQ=$TOUCH_SERIAL\nMODALIAS=hid:b0003g0001v00000000p000011FB\n")
+                File(dir(TOUCH_HID), "report_descriptor").writeBytes(TOUCH_REPORT_DESCRIPTOR)
+                link(File(dir(TOUCH_HID), "subsystem"), "/sys/bus/hid")
+                write(TOUCH_HIDRAW, "uevent", "MAJOR=$MAJOR\nMINOR=$TOUCH_MINOR\nDEVNAME=$TOUCH_NODE\n")
+                write(TOUCH_HIDRAW, "dev", "$MAJOR:$TOUCH_MINOR\n")
+                link(File(dir(TOUCH_HIDRAW), "subsystem"), "/sys/class/hidraw")
+                link(File(dir(TOUCH_HIDRAW), "device"), TOUCH_HID)
+                link(File(hidrawClass, TOUCH_NODE), TOUCH_HIDRAW)
+                link(File(context.cacheDir, "drm/sys/$MAJOR:$TOUCH_MINOR"), TOUCH_HIDRAW)
+                File(udevData, "c$MAJOR:$TOUCH_MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
+                Log.i(TAG, "deck pad: /dev/$TOUCH_NODE described as Steam's touch controller (0000:11fb)")
+            }
 
             Log.i(TAG, "deck pad: /dev/$NODE described as a Steam Deck controller (28de:1205)")
             listOf(devices.path + ":" + GUEST_DEVICES, hidrawClass.path + ":/sys/class/hidraw")

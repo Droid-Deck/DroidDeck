@@ -29,6 +29,7 @@ import com.droiddeck.launcher.audio.PulseAudioComponent
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.DeviceReport
 import com.droiddeck.launcher.core.HostEnvironment
+import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.SessionLogCapture
 import com.droiddeck.launcher.core.NetworkReport
 import com.droiddeck.launcher.core.SessionPart
@@ -204,6 +205,10 @@ class SessionService : Service() {
                 resumeSession()
                 return START_NOT_STICKY
             }
+        }
+        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
+            stopSelf(startId)
+            return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, buildNotification())
         if (SessionState.running) return START_NOT_STICKY
@@ -737,7 +742,9 @@ class SessionService : Service() {
             SessionState.steamUi != "desktop" &&
             SessionPrefs.steamController(this) == SessionPrefs.CONTROLLER_DECK &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
-        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!) else emptyList()
+        // Steam's touch controller rides on the Deck's sysfs and is offered only beside it.
+        val wantsTouch = wantsDeck && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()
+        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch) else emptyList()
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
@@ -747,6 +754,10 @@ class SessionService : Service() {
             guest.add("FAKE_EVDEV_UINPUT=1")
             if (SessionState.deckPad) {
                 guest.add("FAKE_EVDEV_DECK=1")
+                // Steam's touch controller (SteamTouchDevice): the file the app and libfakeinput share.
+                if (wantsTouch) com.droiddeck.launcher.input.SteamTouchDevice.prepare(fakeInputDir)?.let {
+                    guest.add("FAKE_TOUCHCTL_RING=" + it.path)
+                }
                 guest.add("FAKE_DECK_SYSFS_LISTING=" + SteamDeckPad.listingDir(fakeInputDir.parentFile!!.parentFile!!).path)
             }
         } else if (SessionState.mode == MODE_STEAM) {
@@ -1502,6 +1513,7 @@ class SessionService : Service() {
         }
         components.clear()
         FakeInputWriter.releaseAllRingSlots()
+        com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
         val finishAfterTeardown: () -> Unit = {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
@@ -1564,8 +1576,10 @@ class SessionService : Service() {
         }
         try {
             val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            val allowed = DeviceSupport.lowLatencyWifiSafe()
+            if (!allowed) Log.i(TAG, "wifi lock skipped: its low-latency mode resets this device")
             @Suppress("DEPRECATION") // deprecated from API 29, still honoured; targetSdk is 28
-            if (wifiLock?.isHeld != true) {
+            if (allowed && wifiLock?.isHeld != true) {
                 wifiLock = wifi?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "DroidDeck:session-wifi")
                     ?.apply {
                         setReferenceCounted(false)
@@ -1762,6 +1776,7 @@ class SessionService : Service() {
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"
         private const val NO_DECK_PAD_SWITCH = "Download/droiddeck-no-deck-pad"
+        private const val NO_STEAM_TOUCH_SWITCH = "Download/droiddeck-no-steam-touch"
         /** libfakeinput numbers the pads made through its /dev/uinput stand-in from here. */
         private const val FIRST_VIRTUAL_PAD = 16
 

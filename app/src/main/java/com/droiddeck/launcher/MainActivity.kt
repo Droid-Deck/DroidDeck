@@ -139,6 +139,7 @@ class MainActivity : ComponentActivity() {
     private var pkgStage by mutableStateOf<String?>(null)
     private var pkgPercent by mutableIntStateOf(-1)
     private var desktopInstalled by mutableStateOf(false)
+    private var desktopPresent by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
     private var offline by mutableStateOf(false)
     private var showPerformance by mutableStateOf(false)
@@ -560,7 +561,7 @@ class MainActivity : ComponentActivity() {
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
                         busy = busy, stage = stage, percent = percent,
-                        desktopInstalled = desktopInstalled,
+                        desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, agentCommands = agentCommands,
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
@@ -669,6 +670,7 @@ class MainActivity : ComponentActivity() {
                         // The activity re-attaches to the session that is running; nothing restarts.
                         onResume = { startActivity(Intent(this, SessionActivity::class.java)) },
                         onSteamSettings = { openModeSettings(SessionService.MODE_STEAM) },
+                        onRemoveDesktop = { removeDesktop() },
                         onDesktopSettings = { openModeSettings(SessionService.MODE_DESKTOP) },
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
@@ -1204,6 +1206,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshPackages() {
         packageRows = catalog?.map { PackageRow(it.id, it.kind, it.notes) }
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
+        desktopPresent = DesktopCatalog.desktopPresent(this)
     }
 
     private fun launchProgram(path: String) {
@@ -1562,6 +1565,7 @@ class MainActivity : ComponentActivity() {
         if (!busy && LinuxRuntimeInstaller.isBusy()) followRuntimeOperation { LinuxRuntimeInstaller.attach(it) }
         addedGamesArt = SessionPrefs.addedGamesArt(this)
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
+        desktopPresent = DesktopCatalog.desktopPresent(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
@@ -1674,6 +1678,15 @@ class MainActivity : ComponentActivity() {
             protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null ||
             components.compBusy != null || saveBusy != null || com.droiddeck.launcher.store.UserAppsState.working != null
 
+    private fun removeDesktop() {
+        if (runtimeChangesBlocked()) return
+        val operation = LinuxRuntimeInstaller.beginMaintenance(this, getString(R.string.desktop_removing)) ?: return
+        com.droiddeck.launcher.runtime.RuntimeInstallService.keepRemovalAlive(this)
+        followRuntimeOperation { listener ->
+            operation.run(listener) { progress -> DesktopCatalog.removeDesktop(this, progress) }
+        }
+    }
+
     private fun removeRuntime() {
         if (runtimeChangesBlocked()) return
         val removal = LinuxRuntimeInstaller.beginUninstall(this) ?: return
@@ -1696,7 +1709,7 @@ class MainActivity : ComponentActivity() {
     private fun followRuntimeOperation(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
         busy = true
         failed = false
-        stage = getString(if (LinuxRuntimeInstaller.isRemoving()) R.string.main_removing_runtime else R.string.store_starting)
+        stage = getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (LinuxRuntimeInstaller.isRemoving()) R.string.main_removing_runtime else R.string.store_starting)
         percent = -1
         Thread({
             val ok = run(LinuxRuntimeInstaller.ProgressListener { s, p ->

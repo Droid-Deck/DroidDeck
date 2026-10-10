@@ -992,11 +992,39 @@ def install_wrapper(path, out):
     return total
 
 
+NESTED_SUFFIXES = (".7z", ".zip", ".cab", ".exe", ".msi", ".rar", ".xz", ".gz", ".tar")
+
+
+def open_nested(dest, depth=0):
+    """Archives inside an unpacked installer (QuickTime's cabinets, an NSIS pack's payloads) are
+    opened in place, one "<name>.nested" folder per archive, two levels deep: the same layout the
+    component recordings (winlator-contents tools/snapshot/record.py) map their file sources to."""
+    if depth > 1:
+        return 0
+    opened = 0
+    for path in sorted(p for p in dest.rglob("*") if p.is_file() and p.suffix.lower() in NESTED_SUFFIXES):
+        if path.name.endswith(".nested") or path.stat().st_size < 1024 or ".nested/" in path.relative_to(dest).as_posix() and depth == 0 and False:
+            continue
+        probe = run_tool([SEVENZIP, "l", "-ba", str(path)], timeout=300)
+        if probe.returncode != 0 or not probe.stdout.strip():
+            continue
+        folder = path.with_name(path.name + ".nested")
+        folder.mkdir(exist_ok=True)
+        run_tool([SEVENZIP, "x", "-y", "-bd", "-bso0", "-bsp0", "-o" + str(folder), str(path)])
+        if any(folder.rglob("*")):
+            opened += 1 + open_nested(folder, depth + 1)
+        else:
+            shutil.rmtree(folder, ignore_errors=True)
+    return opened
+
+
 def unpack_only(path, dest):
     dest.mkdir(parents=True, exist_ok=True)
     how = unpack_installer(path, dest)
+    progress("opening archives inside %s" % path.name)
+    nested = open_nested(dest)
     files = sorted(str(entry.relative_to(dest)) for entry in dest.rglob("*") if entry.is_file())
-    return {"how": how, "files": len(files), "names": files[:2000]}
+    return {"how": how, "files": len(files), "nested": nested, "names": files[:2000]}
 
 
 def main():

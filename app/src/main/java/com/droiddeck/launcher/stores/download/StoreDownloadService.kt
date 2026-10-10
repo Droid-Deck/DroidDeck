@@ -17,6 +17,7 @@ import android.os.PowerManager
 import android.util.Log
 import com.droiddeck.launcher.MainActivity
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.formatSpeed
@@ -134,7 +135,7 @@ class StoreDownloadService : Service() {
     private fun locks() {
         val running = StoresState.latestDownloads.any { it.state == DownloadState.RUNNING }
         if (!running) { releaseLocks(); return }
-        if (wifi == null) {
+        if (wifi == null && DeviceSupport.lowLatencyWifiSafe()) {
             runCatching {
                 val wm = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
                 @Suppress("DEPRECATION")

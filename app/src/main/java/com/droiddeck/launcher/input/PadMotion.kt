@@ -60,6 +60,7 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         Handler(worker.looper).post {
             gyro.fill(0)
             FakeInputWriter.writeMotion(SLOT, accel, gyro)
+            SteamTouchDevice.current?.setMotion(accel, gyro)
         }
         worker.quitSafely()
     }
@@ -85,6 +86,7 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         target[1] = counts(-z * scale)
         target[2] = counts(y * scale)
         FakeInputWriter.writeMotion(SLOT, accel, gyro)
+        SteamTouchDevice.current?.setMotion(accel, gyro)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

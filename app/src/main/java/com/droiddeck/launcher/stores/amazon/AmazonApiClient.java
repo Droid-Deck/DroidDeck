@@ -25,13 +25,15 @@ public final class AmazonApiClient {
     private static final String TAG = "AmazonApi";
     private static final String ENTITLEMENTS_URL = "https://gaming.amazon.com/api/distribution/entitlements";
     private static final String DISTRIBUTION_URL = "https://gaming.amazon.com/api/distribution/v2/public";
-    private static final String GAMING_USER_AGENT = "com.amazon.agslauncher.win/3.0.9202.1";
+    // As nile sends them: the session's User-Agent, and the launcher's own string under "UserAgent".
+    private static final String GAMING_USER_AGENT = "AGSLauncher/1.0.0";
+    private static final String LAUNCHER_USER_AGENT = "com.amazon.agslauncher.win/3.0.9202.1";
     private static final String DOWNLOAD_USER_AGENT = "nile/0.1 Amazon";
     private static final String KEY_ID = "d5dc8b8b-86c8-4fc4-ae93-18c0def5314d";
 
     private AmazonApiClient() {}
 
-    /** The owned games, every page, one per productId. */
+    /** The owned games, every page, one per productId; null when Amazon refused or could not be reached. */
     public static List<AmazonGame> getEntitlements(String accessToken, String deviceSerial) {
         Map<String, AmazonGame> seen = new HashMap<>();
         String nextToken = null;
@@ -40,8 +42,9 @@ public final class AmazonApiClient {
             hardwareHash = AmazonPkce.sha256Upper(deviceSerial);
         } catch (Exception e) {
             Log.e(TAG, "hardware hash failed", e);
-            return new ArrayList<>();
+            return null;
         }
+        boolean answered = false;
         do {
             try {
                 JSONObject body = new JSONObject();
@@ -56,19 +59,22 @@ public final class AmazonApiClient {
                 String resp = postGaming(ENTITLEMENTS_URL, "com.amazon.animusdistributionservice.entitlement.AnimusEntitlementsService.GetEntitlements", accessToken, body.toString());
                 if (resp == null) break;
                 JSONObject json = new JSONObject(resp);
+                answered = true;
                 JSONArray entitlements = json.optJSONArray("entitlements");
-                if (entitlements == null) break;
-                for (int i = 0; i < entitlements.length(); i++) {
+                if (entitlements != null) for (int i = 0; i < entitlements.length(); i++) {
                     AmazonGame game = parseEntitlement(entitlements.getJSONObject(i));
                     if (game != null && !game.productId.isEmpty()) seen.put(game.productId, game);
                 }
-                nextToken = json.optString("nextToken", null);
+                // A JSON null reads as "null" through optString; the last page carries none.
+                nextToken = json.isNull("nextToken") ? null : json.optString("nextToken", "");
                 if (nextToken != null && nextToken.isEmpty()) nextToken = null;
             } catch (Exception e) {
                 Log.e(TAG, "entitlements page failed: " + e.getClass().getSimpleName());
                 break;
             }
         } while (nextToken != null);
+        if (!answered) return null;
+        Log.i(TAG, "entitlements: " + seen.size());
         return new ArrayList<>(seen.values());
     }
 
@@ -140,7 +146,9 @@ public final class AmazonApiClient {
             JSONObject body = new JSONObject().put("adgProductIds", new JSONArray().put(productId)).put("Operation", "GetLiveVersionIds");
             String resp = postGaming(DISTRIBUTION_URL, "com.amazon.animusdistributionservice.external.AnimusDistributionService.GetLiveVersionIds", accessToken, body.toString());
             if (resp == null) return null;
-            JSONObject versions = new JSONObject(resp).optJSONObject("versionIds");
+            JSONObject json = new JSONObject(resp);
+            JSONObject versions = json.optJSONObject("adgProductIdToVersionIdMap");
+            if (versions == null) versions = json.optJSONObject("versionIds");
             return versions == null ? null : versions.optString(productId, null);
         } catch (Exception e) {
             Log.e(TAG, "GetLiveVersionIds failed: " + e.getClass().getSimpleName());
@@ -165,13 +173,17 @@ public final class AmazonApiClient {
             conn.setRequestProperty("X-Amz-Target", target);
             conn.setRequestProperty("x-amzn-token", accessToken);
             conn.setRequestProperty("User-Agent", GAMING_USER_AGENT);
+            conn.setRequestProperty("UserAgent", LAUNCHER_USER_AGENT);
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setRequestProperty("Content-Encoding", "amz-1.0");
             try (OutputStream os = conn.getOutputStream()) { os.write(body.getBytes(StandardCharsets.UTF_8)); }
             int code = conn.getResponseCode();
             String resp = AmazonAuthClient.readStream(code < 400 ? conn.getInputStream() : conn.getErrorStream());
             conn.disconnect();
-            if (code < 200 || code >= 300) { Log.e(TAG, "HTTP " + code + " from " + StoreLog.redactUrl(urlStr)); return null; }
+            if (code < 200 || code >= 300) {
+                Log.e(TAG, "HTTP " + code + " from " + StoreLog.redactUrl(urlStr) + ": " + (resp.length() > 200 ? resp.substring(0, 200) : resp));
+                return null;
+            }
             return resp;
         } catch (Exception e) {
             Log.e(TAG, "POST failed: " + StoreLog.redactUrl(urlStr) + " (" + e.getClass().getSimpleName() + ")");

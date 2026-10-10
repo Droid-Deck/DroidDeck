@@ -1,0 +1,55 @@
+name: Publish the CI Debian image
+
+# Pulls the Debian 11 image the x86 preloads build in, once, and publishes it as a release asset
+# on this repo so build.yml never depends on a registry mirror's rate limit. Run it again (with a
+# new tag) only to refresh the image; tools/linuxfs/debian-image.env names the one builds use.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish to (a new -rN tag for a refresh; builds pin the one in tools/linuxfs/debian-image.env)'
+        required: true
+        default: 'ci-debian-bullseye-r2'
+      replace:
+        description: 'Overwrite the asset if the release already has one (changes its checksum: re-pin it in debian-image.env)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Pull, save and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          REPLACE: ${{ inputs.replace }}
+        run: |
+          set -euo pipefail
+          image=public.ecr.aws/docker/library/debian:bullseye
+          # A published image is pinned by checksum in the build; never replace one by accident.
+          if [ "$REPLACE" != true ] && gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null | grep -qx debian-bullseye.tar.zst; then
+            echo "::error::$TAG already carries debian-bullseye.tar.zst; publish to a new tag, or set replace and re-pin tools/linuxfs/debian-image.env"
+            exit 1
+          fi
+          for attempt in 1 2 3 4 5 6; do
+            docker pull "$image" && break
+            [ "$attempt" -lt 6 ] || { echo "::error::could not pull $image"; exit 1; }
+            echo "pull attempt $attempt failed (registry busy?); retrying in $((attempt * 30)) s"
+            sleep $((attempt * 30))
+          done
+          docker image inspect "$image" --format 'image id {{.Id}} created {{.Created}}'
+          docker save "$image" | zstd -19 -T0 -o debian-bullseye.tar.zst
+          sha256sum debian-bullseye.tar.zst | tee SHA256SUMS
+          ls -l debian-bullseye.tar.zst
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "CI Debian 11 image ($TAG)" --latest=false \
+              --notes "The debian:bullseye image build.yml compiles the x86 preloads in (glibc 2.31), saved with docker save and compressed with zstd. Pulled from public.ecr.aws/docker/library/debian:bullseye on $(date -u +%Y-%m-%d); image id $(docker image inspect "$image" --format '{{.Id}}'). Pinned in tools/linuxfs/debian-image.env."
+          fi
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" debian-bullseye.tar.zst SHA256SUMS --clobber
+          { echo "Published \`$TAG\`:"; echo; echo '```'; cat SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

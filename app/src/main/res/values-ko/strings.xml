@@ -1556,6 +1556,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">숨김</string>
     <string name="ctrl_editor_drag">드래그하여 이동</string>
+    <string name="ctrl_editor_snap">맞춤</string>
     <string name="ctrl_editor_save">저장</string>
 
     <!-- What the second screen shows during a session -->

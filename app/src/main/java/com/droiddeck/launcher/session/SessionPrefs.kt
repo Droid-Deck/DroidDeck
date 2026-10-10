@@ -22,6 +22,8 @@ object SessionPrefs {
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
     const val OSC_NEVER = "never"
+    /** Steam's touch controller (SteamTouchControls) in place of the app's pad; Steam sessions only. */
+    const val OSC_STEAM_TOUCH = "steam-touch"
 
     /** What Back does in a Steam session, first press then second: the labels of the two orders. */
     val BACK_MENU_THEN_QAM = R.string.back_menu_then_qam
