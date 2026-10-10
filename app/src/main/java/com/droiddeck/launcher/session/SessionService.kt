@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 
@@ -300,11 +301,17 @@ class SessionService : Service() {
     private fun tuDebug(linuxDriverId: String): String? {
         val override = File(Environment.getExternalStorageDirectory(), TU_DEBUG_SWITCH)
             .takeIf { it.isFile }?.let { FileUtils.readString(it)?.trim() }
-        if (!override.isNullOrEmpty()) return override
-        if (SessionPrefs.tuSysmem(this)) return "sysmem"
-        if (linuxDriverId.isEmpty()) return null
-        val name = LinuxVulkanDriverManager(this).getDriverName(linuxDriverId).lowercase()
-        return if (name.contains("710-720") || name.contains("710_720")) "sysmem" else null
+        val driverName = if (linuxDriverId.isNotEmpty()) {
+            LinuxVulkanDriverManager(this).getDriverName(linuxDriverId).lowercase()
+        } else {
+            ""
+        }
+        return tuDebugFor(
+            override = override,
+            tuSysmem = SessionPrefs.tuSysmem(this),
+            driverName = driverName,
+            gpuModel = GpuInfo.detect().model
+        )
     }
 
     // ── The session ─────────────────────────────────────────────────────────────────────────
@@ -1708,6 +1715,24 @@ class SessionService : Service() {
         private const val TRACER_NICE = -6
         /** Downloads file whose contents become TU_DEBUG inside the session, e.g. "sysmem". */
         private const val TU_DEBUG_SWITCH = "Download/droiddeck-tu-debug"
+
+        internal fun tuDebugFor(
+            override: String?,
+            tuSysmem: Boolean,
+            driverName: String,
+            gpuModel: Int = GpuInfo.detect().model
+        ): String? {
+            if (!override.isNullOrEmpty()) return override
+            val flags = mutableListOf<String>()
+            if (tuSysmem || driverName.contains("710-720") || driverName.contains("710_720")) {
+                flags.add("sysmem")
+            }
+            if (gpuModel == 741) {
+                flags.add("nolrz")
+                flags.add("nolrzfc")
+            }
+            return if (flags.isNotEmpty()) flags.joinToString(",") else null
+        }
         /**
          * Where droiddeck-env (KEY=VALUE lines added to the session environment verbatim) used to
          * be. Ignored now: a line there reaches the Steam client's environment as written

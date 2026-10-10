@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.core
 
+import com.droiddeck.launcher.gpu.GpuInfo
+
 object GameEnvironment {
     data class Config(
         val shared: Map<String, String?> = emptyMap(),
@@ -25,7 +27,7 @@ object GameEnvironment {
     fun validValue(value: String) = '\u0000' !in value && value.length <= 8192
     fun validScope(scope: String) = scope.isEmpty() || (Regex("[1-9][0-9]*").matches(scope) && scope.toLongOrNull()?.let { it in 1..4294967295L } == true)
 
-    fun defaults(preset: String, forceSsbs: Boolean = false): Map<String, String?> = linkedMapOf<String, String?>(
+    fun defaults(preset: String, forceSsbs: Boolean = false, gpuModel: Int = GpuInfo.detect().model): Map<String, String?> = linkedMapOf<String, String?>(
         "MESA_SHADER_CACHE_DISABLE" to "false",
         "VKD3D_FEATURE_LEVEL" to "12_2",
         "VKD3D_SHADER_MODEL" to "6_9",
@@ -39,10 +41,17 @@ object GameEnvironment {
         FexPreset.env(preset).forEach { put(it.substringBefore('='), it.substringAfter('=')) }
         // Steam settings' Force SSBS: droiddeck-game-env preloads libssbs.so into the game's Wine.
         if (forceSsbs) put(FORCE_SSBS, "1")
+        if (gpuModel == 741) put("TU_DEBUG", "nolrz,nolrzfc")
     }
 
     const val FORCE_SSBS = "DROIDDECK_FORCE_SSBS"
 
-    fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
-        defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
+    fun effective(
+        config: Config,
+        preset: String,
+        scope: String,
+        forceSsbs: Boolean = false,
+        gpuModel: Int = GpuInfo.detect().model,
+    ): Map<String, String?> =
+        defaults(preset, forceSsbs, gpuModel) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
 }
