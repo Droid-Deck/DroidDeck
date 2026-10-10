@@ -488,7 +488,6 @@
     <string name="setup_limit_unset">Non définie · Android peut fermer Steam. La désactivation de cette limite prend environ une minute.</string>
     <string name="setup_limit_unknown">Impossible de vérifier · La désactivation de cette limite prend environ une minute.</string>
     <string name="setup_limit_overridden">Ignorée · contournée manuellement par l\'utilisateur.</string>
-    <string name="setup_limit_manual_override">Ignorer manuellement</string>
     <string name="setup_limit_clear_override">Réinitialiser l\'exception</string>
     <string name="setup_fix_it">Corriger</string>
     <string name="setup_details">Détails</string>

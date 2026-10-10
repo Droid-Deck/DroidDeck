@@ -585,7 +585,6 @@
     <string name="setup_limit_unset">未設定 · AndroidがSteamを閉じる可能性があります。制限を解除するには約1分かかります。</string>
     <string name="setup_limit_unknown">確認できません · 制限を解除するには約1分かかります。</string>
     <string name="setup_limit_overridden">スキップ済み · ユーザーにより手動で上書きされました。</string>
-    <string name="setup_limit_manual_override">手動で上書き</string>
     <string name="setup_limit_clear_override">上書きを解除</string>
     <string name="setup_fix_it">修正</string>
     <string name="setup_details">詳細</string>

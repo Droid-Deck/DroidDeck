@@ -600,7 +600,6 @@
     <string name="setup_limit_unset">Not set · Android may close Steam. Turning it off takes a minute.</string>
     <string name="setup_limit_unknown">Couldn\'t be checked · turning it off takes a minute.</string>
     <string name="setup_limit_overridden">Bypassed · manually overridden by user.</string>
-    <string name="setup_limit_manual_override">Manual override</string>
     <string name="setup_limit_clear_override">Clear override</string>
     <string name="setup_fix_it">Fix it</string>
     <string name="setup_details">Details</string>

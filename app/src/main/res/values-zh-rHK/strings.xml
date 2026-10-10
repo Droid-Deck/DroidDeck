@@ -585,7 +585,6 @@
     <string name="setup_limit_unset">未設定 · Android 可能會關閉 Steam。關閉此限制約需一分鐘。</string>
     <string name="setup_limit_unknown">無法檢查 · 關閉此限制約需一分鐘。</string>
     <string name="setup_limit_overridden">已略過 · 已由使用者手動覆蓋。</string>
-    <string name="setup_limit_manual_override">手動覆蓋</string>
     <string name="setup_limit_clear_override">清除覆蓋</string>
     <string name="setup_fix_it">修復</string>
     <string name="setup_details">詳細資料</string>

@@ -585,7 +585,6 @@
     <string name="setup_limit_unset">설정되지 않음 · Android가 Steam을 종료할 수 있습니다. 제한을 해제하는 데 약 1분이 걸립니다.</string>
     <string name="setup_limit_unknown">확인할 수 없음 · 제한을 해제하는 데 약 1분이 걸립니다.</string>
     <string name="setup_limit_overridden">우회됨 · 사용자가 수동으로 재정의함.</string>
-    <string name="setup_limit_manual_override">수동 재정의</string>
     <string name="setup_limit_clear_override">재정의 초기화</string>
     <string name="setup_fix_it">수정</string>
     <string name="setup_details">상세 정보</string>

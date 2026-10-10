@@ -587,7 +587,6 @@
     <string name="setup_limit_unset">Sin definir · Android puede cerrar Steam. Desactivarlo tarda un minuto.</string>
     <string name="setup_limit_unknown">No se pudo comprobar · desactivarlo tarda un minuto.</string>
     <string name="setup_limit_overridden">Omitido · anulado manualmente por el usuario.</string>
-    <string name="setup_limit_manual_override">Anular manualmente</string>
     <string name="setup_limit_clear_override">Restablecer anulación</string>
     <string name="setup_fix_it">Solucionar</string>
     <string name="setup_details">Detalles</string>

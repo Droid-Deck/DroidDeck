@@ -264,7 +264,6 @@ internal fun SetupPanel(
                                             PrimaryButton(stringResource(R.string.setup_dev_options), compact = true, onClick = onOpenDeveloperOptions)
                                             SecondaryButton(stringResource(R.string.setup_use_wireless), compact = true, enabled = !processLimitBusy) { setProcessLimit(false) }
                                             SecondaryButton(stringResource(R.string.setup_check_again), compact = true, onClick = a.onRefreshPhantomStatus)
-                                            SecondaryButton(stringResource(R.string.setup_limit_manual_override), compact = true, onClick = { a.onOverridePhantomLimit(true) })
                                         } else if (s.phantomProcessStatus == PhantomProcessStatus.OVERRIDDEN) {
                                             SecondaryButton(stringResource(R.string.setup_limit_clear_override), compact = true, onClick = { a.onOverridePhantomLimit(false) })
                                         } else if (s.phantomProcessStatus == PhantomProcessStatus.DISABLED) {

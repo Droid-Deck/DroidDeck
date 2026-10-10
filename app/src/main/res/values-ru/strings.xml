@@ -563,7 +563,6 @@
     <string name="setup_limit_unset">Не задано · Android может закрыть Steam. Отключение занимает около минуты.</string>
     <string name="setup_limit_unknown">Невозможно проверить · отключение занимает около минуты.</string>
     <string name="setup_limit_overridden">Пропущено · переопределено вручную пользователем.</string>
-    <string name="setup_limit_manual_override">Переопределить вручную</string>
     <string name="setup_limit_clear_override">Сбросить переопределение</string>
     <string name="setup_fix_it">Исправить</string>
     <string name="setup_details">Подробности</string>
