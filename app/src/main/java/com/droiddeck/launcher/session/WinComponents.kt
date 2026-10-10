@@ -118,8 +118,11 @@ object WinComponents {
         (step.action == "install_msi" || listOf(step.str("file_name"), step.str("url").substringBefore('?'))
             .any { it.endsWith(".msi", ignoreCase = true) || it.endsWith(".exe", ignoreCase = true) })
 
-    /** Catalog entries nothing here can use: the IE8 security update patches a browser no prefix has. */
-    private val POINTLESS = setOf("ie8_kb2936068")
+    /**
+     * Catalog entries nothing here can use: the IE8 security update patches a browser no prefix
+     * has, and the OpenAL setup program is a twin of oalinst_dll, which copies the same DLLs.
+     */
+    private val POINTLESS = setOf("ie8_kb2936068", "oalinst")
 
     private fun protonProvides(name: String): Boolean = name in PROTON_PROVIDES || name in POINTLESS || name.startsWith("mono-")
 
