@@ -741,14 +741,18 @@ class SessionService : Service() {
         // with the Deck asked for the pad's own nodes are withdrawn - no controller at all.
         val wantsDeck = uinput && SessionState.mode == MODE_STEAM &&
             SessionState.steamUi != "desktop" &&
-            SessionPrefs.steamController(this) == SessionPrefs.CONTROLLER_DECK &&
+            SessionPrefs.steamController(this) != SessionPrefs.CONTROLLER_XBOX360 &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
+        // The pad itself as a Steam Controller: the same machinery as the Deck (sysfs, withdrawn
+        // evdev nodes, Steam Input's virtual pad for games), with the Triton node in the Deck's place.
+        val padAsTriton = wantsDeck && SessionPrefs.steamController(this) == SessionPrefs.CONTROLLER_STEAM
         // Steam's touch controller rides on the Deck's sysfs and is offered only beside it.
         val wantsTouch = wantsDeck && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()
         // A paired Triton is exposed as a second native Steam Controller HID, with its original
         // report IDs and output path. The handheld's own pad remains the Deck target.
-        val wantsTriton = wantsDeck && SteamControllerBle.hasPairedController(this)
-        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch, wantsTriton) else emptyList()
+        // With the pad as the Steam Controller, that node is the pad's and a paired one is not bridged.
+        val wantsTriton = padAsTriton || (wantsDeck && SteamControllerBle.hasPairedController(this))
+        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch, wantsTriton, deck = !padAsTriton) else emptyList()
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
@@ -759,6 +763,7 @@ class SessionService : Service() {
             if (SessionState.deckPad) {
                 guest.add("FAKE_EVDEV_DECK=1")
                 if (wantsTriton) guest.add("FAKE_EVDEV_TRITON=1")
+                if (padAsTriton) guest.add("FAKE_EVDEV_TRITON_PAD=1")
                 // Steam's touch controller (SteamTouchDevice): the file the app and libfakeinput share.
                 if (wantsTouch) com.droiddeck.launcher.input.SteamTouchDevice.prepare(fakeInputDir)?.let {
                     guest.add("FAKE_TOUCHCTL_RING=" + it.path)

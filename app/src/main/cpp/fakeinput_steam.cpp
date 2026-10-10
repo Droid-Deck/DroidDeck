@@ -1239,6 +1239,7 @@ struct DeckHidraw {
   uint8_t pending_feature = 0;
   bool touch = false;  // Steam's touch controller (below), not the Deck
   bool triton = false; // The paired 2025 Steam Controller, with native BLE report IDs
+  bool emulated = false; // That Steam Controller made from the app's own pad (FAKE_EVDEV_TRITON_PAD)
 };
 
 // What the Deck has and an Xbox pad does not, after the ring's events: motion (PadMotion) and the
@@ -1363,6 +1364,14 @@ static bool fake_deck_enabled() {
   return enabled == 1;
 }
 
+// The app's own pad as the Steam Controller, in the Deck's place: hidraw18 then streams reports
+// built from ring slot 0 as the Deck's are, and answers its feature reports itself.
+static bool fake_triton_pad() {
+  static int enabled = -1;
+  if (enabled < 0) enabled = getenv("FAKE_EVDEV_TRITON_PAD") && atoi(getenv("FAKE_EVDEV_TRITON_PAD")) ? 1 : 0;
+  return enabled == 1;
+}
+
 static bool fake_triton_enabled() {
   static int enabled = -1;
   if (enabled < 0)
@@ -1397,7 +1406,7 @@ __attribute__((constructor)) static void log_client_start() {
 }
 
 __attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char *pathname) {
-  return pathname && fake_deck_enabled() && !strcmp(pathname, DECK_HIDRAW_PATH);
+  return pathname && fake_deck_enabled() && !fake_triton_pad() && !strcmp(pathname, DECK_HIDRAW_PATH);
 }
 
 __attribute__((visibility("hidden"))) static bool is_triton_hidraw_path(const char *pathname) {
@@ -1620,6 +1629,108 @@ __attribute__((visibility("hidden"))) static void *triton_report_thread(void *ar
   return nullptr;
 }
 
+// Button bits of the Triton state report (SDL, SDL_hidapi_steam_triton.c). SDL reads MENU as Back
+// and VIEW as Start, the reverse of the Deck's names.
+static constexpr uint32_t TRITON_A = 0x00000001, TRITON_B = 0x00000002, TRITON_X = 0x00000004,
+                          TRITON_Y = 0x00000008, TRITON_QAM = 0x00000010, TRITON_R3 = 0x00000020,
+                          TRITON_VIEW = 0x00000040, TRITON_R4 = 0x00000080, TRITON_R5 = 0x00000100,
+                          TRITON_R = 0x00000200, TRITON_DOWN = 0x00000400, TRITON_RIGHT = 0x00000800,
+                          TRITON_LEFT = 0x00001000, TRITON_UP = 0x00002000, TRITON_MENU = 0x00004000,
+                          TRITON_L3 = 0x00008000, TRITON_STEAM = 0x00010000, TRITON_L4 = 0x00020000,
+                          TRITON_L5 = 0x00040000, TRITON_L = 0x00080000,
+                          TRITON_RSTICK_TOUCH = 0x00100000, TRITON_RPAD_TOUCH = 0x00200000,
+                          TRITON_RPAD_CLICK = 0x00400000, TRITON_RTRIGGER_CLICK = 0x00800000,
+                          TRITON_LSTICK_TOUCH = 0x01000000, TRITON_LPAD_TOUCH = 0x02000000,
+                          TRITON_LPAD_CLICK = 0x04000000, TRITON_LTRIGGER_CLICK = 0x08000000,
+                          TRITON_RGRIP_TOUCH = 0x10000000, TRITON_LGRIP_TOUCH = 0x20000000;
+static constexpr uint8_t TRITON_STATE_BLE = 0x45;
+// A stick counts as touched once it leaves its centre: the pad has no capacitive caps to ask.
+static constexpr int32_t TRITON_STICK_TOUCH = 2000;
+
+// The Triton BLE state report (SDL, controller_structs.h: TritonMTUNoQuat_t) from the ring's
+// snapshot and the Deck block, which already hold the trackpads, back buttons and motion in the
+// units both controllers share. A handheld is held whenever it is played, so both grips read as
+// touched: Steam's grip-sense activators (gyro while held, say) then simply stay on.
+__attribute__((visibility("hidden"))) static void
+build_triton_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int32_t *axes,
+                    const DeckExtras &extras) {
+  memset(report, 0, TRITON_STATE_BYTES);
+  report[0] = static_cast<uint8_t>(packet);
+  static const uint32_t kButtonBits[11] = {TRITON_A, TRITON_B,    TRITON_X,    TRITON_Y,
+                                           TRITON_L, TRITON_R,    TRITON_MENU, TRITON_VIEW,
+                                           TRITON_L3, TRITON_R3,  TRITON_STEAM};
+  uint32_t bits = TRITON_LGRIP_TOUCH | TRITON_RGRIP_TOUCH;
+  for (int i = 0; i < 11; i++)
+    if (buttons & (1u << i)) bits |= kButtonBits[i];
+  if (buttons & SNAPSHOT_QAM_BIT) bits |= TRITON_QAM;
+  if (axes[7] < 0) bits |= TRITON_UP;
+  if (axes[7] > 0) bits |= TRITON_DOWN;
+  if (axes[6] < 0) bits |= TRITON_LEFT;
+  if (axes[6] > 0) bits |= TRITON_RIGHT;
+  int32_t left_trigger = axes[5], right_trigger = axes[4];  // ABS_BRAKE, ABS_GAS: 0..255
+  if (left_trigger >= 250) bits |= TRITON_LTRIGGER_CLICK;
+  if (right_trigger >= 250) bits |= TRITON_RTRIGGER_CLICK;
+  if (abs(axes[0]) > TRITON_STICK_TOUCH || abs(axes[1]) > TRITON_STICK_TOUCH) bits |= TRITON_LSTICK_TOUCH;
+  if (abs(axes[2]) > TRITON_STICK_TOUCH || abs(axes[3]) > TRITON_STICK_TOUCH) bits |= TRITON_RSTICK_TOUCH;
+  uint32_t controls = extras.controls;
+  if (controls & DECK_EXTRA_L4) bits |= TRITON_L4;
+  if (controls & DECK_EXTRA_R4) bits |= TRITON_R4;
+  if (controls & DECK_EXTRA_L5) bits |= TRITON_L5;
+  if (controls & DECK_EXTRA_R5) bits |= TRITON_R5;
+  if (controls & DECK_EXTRA_LPAD_TOUCH) bits |= TRITON_LPAD_TOUCH;
+  if (controls & DECK_EXTRA_RPAD_TOUCH) bits |= TRITON_RPAD_TOUCH;
+  if (controls & DECK_EXTRA_LPAD_CLICK) bits |= TRITON_LPAD_CLICK;
+  if (controls & DECK_EXTRA_RPAD_CLICK) bits |= TRITON_RPAD_CLICK;
+  put32(report + 1, bits);
+  put16(report + 5, std::min(32767, left_trigger * 32767 / 255));
+  put16(report + 7, std::min(32767, right_trigger * 32767 / 255));
+  auto stick = [](int32_t value) { return std::max(-32767, std::min(32767, value)); };
+  put16(report + 9, stick(axes[0]));
+  put16(report + 11, stick(-axes[1]));
+  put16(report + 13, stick(axes[2]));
+  put16(report + 15, stick(-axes[3]));
+  put16(report + 17, extras.pads[0]);
+  put16(report + 19, extras.pads[1]);
+  put16(report + 21, extras.pressure[0]);
+  put16(report + 23, extras.pads[2]);
+  put16(report + 25, extras.pads[3]);
+  put16(report + 27, extras.pressure[1]);
+  put32(report + 29, packet * TRITON_REPORT_INTERVAL_US);  // IMU timestamp, microseconds
+  for (int i = 0; i < 3; i++) {
+    put16(report + 33 + i * 2, extras.accel[i]);
+    put16(report + 39 + i * 2, extras.gyro[i]);
+  }
+}
+
+__attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) {
+  auto *holder = static_cast<std::shared_ptr<DeckHidraw> *>(arg);
+  std::shared_ptr<DeckHidraw> self = *holder;
+  delete holder;
+  uint32_t packet = 0;
+  SnapshotState snap;
+  uint32_t buttons = 0;
+  int32_t axes[8] = {};
+  DeckExtras extras;
+  for (;;) {
+    if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
+      buttons = snap.buttons;
+      memcpy(axes, snap.axes, sizeof(axes));
+    }
+    read_deck_extras(*self, extras);
+    uint8_t report[TRITON_REPORT_ID_BYTES + TRITON_STATE_BYTES];
+    report[0] = TRITON_STATE_BLE;
+    build_triton_report(report + 1, ++packet, buttons, axes, extras);
+    if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
+        errno != EAGAIN && errno != EWOULDBLOCK)
+      break;
+    struct timespec interval = {0, TRITON_REPORT_INTERVAL_US * 1000L};
+    nanosleep(&interval, nullptr);
+  }
+  syscall(SYS_close, self->peer);
+  munmap(self->ring, self->mapping_size);
+  return nullptr;
+}
+
 __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
   if (!process_is_steam_client()) {
@@ -1663,13 +1774,14 @@ __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
   triton->ring = static_cast<FakeInputRingHeader *>(mapping);
   triton->mapping_size = mapping_size;
   triton->triton = true;
+  triton->emulated = fake_triton_pad();
   {
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map()[pair[0]] = triton;
   }
   pthread_t thread;
   auto *thread_arg = new std::shared_ptr<DeckHidraw>(triton);
-  if (pthread_create(&thread, nullptr, triton_report_thread, thread_arg) != 0) {
+  if (pthread_create(&thread, nullptr, triton->emulated ? triton_pad_thread : triton_report_thread, thread_arg) != 0) {
     delete thread_arg;
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map().erase(pair[0]);
@@ -1680,7 +1792,8 @@ __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
     return -1;
   }
   pthread_detach(thread);
-  Logger::log("triton: %s opened as fd %d (28de:1303)\n", TRITON_HIDRAW_PATH, pair[0]);
+  Logger::log("triton: %s opened as fd %d (28de:1303%s)\n", TRITON_HIDRAW_PATH, pair[0],
+              triton->emulated ? ", the app's pad" : "");
   return pair[0];
 }
 
@@ -2276,6 +2389,85 @@ __attribute__((visibility("hidden"))) static int triton_get_feature(DeckHidraw &
   return -1;
 }
 
+// The emulated controller's feature reports: report ID 1, then the Valve message (type, length,
+// payload), answered here as the Deck's are. The identity is the one a 2025 Steam Controller gave
+// on device (HWID 72, its firmware timestamp), with this library's serial.
+static constexpr uint32_t TRITON_HWID = 72;
+static constexpr uint32_t TRITON_FW_TIMESTAMP = 0x6AC686B3;
+
+__attribute__((visibility("hidden"))) static int triton_pad_feature(DeckHidraw &triton, uint8_t *buf, size_t size, bool set) {
+  if (!buf || size < 2) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (set) {
+    triton.pending_feature = buf[1];
+    if (buf[1] == DECK_SET_SETTINGS_VALUES && size >= 3) {
+      int imu_mode = deck_imu_mode_change(buf, size);
+      if (imu_mode >= 0) publish_imu_mode(triton, imu_mode);
+    }
+    log_deck_feature("set", buf[1]);
+    return static_cast<int>(size);
+  }
+  uint8_t reply[65] = {};
+  reply[0] = buf[0];
+  reply[1] = triton.pending_feature;
+  switch (triton.pending_feature) {
+  case DECK_GET_ATTRIBUTES_VALUES: {
+    // (attribute, 32-bit value) pairs: product id, capabilities, firmware timestamp, hardware id.
+    static const uint8_t kIds[] = {0x01, 0x02, 0x04, 0x09, 0x0a, 0x0b};
+    const uint32_t values[] = {0x1303, 0, TRITON_FW_TIMESTAMP, TRITON_HWID, 0, 4000};
+    reply[2] = sizeof(kIds) * 5;
+    for (size_t i = 0; i < sizeof(kIds); i++) {
+      reply[3 + i * 5] = kIds[i];
+      put32(reply + 4 + i * 5, values[i]);
+    }
+    break;
+  }
+  case DECK_GET_STRING_ATTRIBUTE:
+    reply[2] = 0x14;
+    reply[3] = 0x01;  // the unit serial
+    memcpy(reply + 4, TRITON_SERIAL, strlen(TRITON_SERIAL));
+    break;
+  case DECK_GET_CHIP_ID:
+    reply[2] = 0x11;
+    memcpy(reply + 4, "DROIDDECKCHIP02", 15);
+    break;
+  default:
+    break;
+  }
+  log_deck_feature("read", triton.pending_feature);
+  size_t length = std::min(size, sizeof(reply));
+  memcpy(buf, reply, length);
+  return static_cast<int>(length);
+}
+
+// The emulated controller's haptic output reports (SDL, controller_structs.h) on the handheld's
+// own motor: rumble as asked, the trackpad pulses and effects as short ticks.
+__attribute__((visibility("hidden"))) static void triton_pad_output(const uint8_t *data, size_t size) {
+  if (!data || size < 2) return;
+  switch (data[0]) {
+  case 0x80:  // ID_OUT_REPORT_HAPTIC_RUMBLE: type, intensity, left {speed, gain}, right {speed, gain}
+    if (size >= 10) {
+      int left = data[4] | data[5] << 8, right = data[7] | data[8] << 8;
+      // SDL repeats a held rumble every 40 ms, so each report lasts a little longer than that.
+      send_vibration(left, right, left || right ? 100 : 0, 0);
+    }
+    break;
+  case 0x81:  // ID_OUT_REPORT_HAPTIC_PULSE: side, on_us, off_us, repeat count
+    if (size >= 8) {
+      int on_ms = (data[2] | data[3] << 8) / 1000, repeat = data[6] | data[7] << 8;
+      send_vibration(0, 40000, std::max(8, std::min(200, on_ms * std::max(1, repeat))), 0);
+    }
+    break;
+  case 0x82: case 0x83: case 0x84: case 0x85:  // command, tone, sweep, script
+    send_vibration(0, 30000, 15, 0);
+    break;
+  default:
+    break;
+  }
+}
+
 __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton, ioctl_request_t op, void *argp) {
   if (_IOC_TYPE(op) != 'H') {
     errno = ENOTTY;
@@ -2312,10 +2504,13 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
       errno = EINVAL;
       return -1;
     }
+    if (triton.emulated) return triton_pad_feature(triton, static_cast<uint8_t *>(argp), size, true);
     triton_queue_output(triton, static_cast<const uint8_t *>(argp), std::min<size_t>(size, 64), true);
     return static_cast<int>(size);
   }
-  case 0x07: return triton_get_feature(triton, static_cast<uint8_t *>(argp), _IOC_SIZE(op));
+  case 0x07:
+    if (triton.emulated) return triton_pad_feature(triton, static_cast<uint8_t *>(argp), _IOC_SIZE(op), false);
+    return triton_get_feature(triton, static_cast<uint8_t *>(argp), _IOC_SIZE(op));
   default:
     errno = EINVAL;
     return -1;
@@ -3238,6 +3433,7 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   if (made != uinput_map().end()) return write_uinput(*made->second, buf, count);
   if (deck_map().count(fd)) {
     if (deck_map()[fd]->touch) touch_output(static_cast<const uint8_t *>(buf), count);
+    else if (deck_map()[fd]->emulated) triton_pad_output(static_cast<const uint8_t *>(buf), count);
     else if (deck_map()[fd]->triton) triton_queue_output(*deck_map()[fd], static_cast<const uint8_t *>(buf), count, false);
     return static_cast<ssize_t>(count);
   }
@@ -3268,6 +3464,7 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
     auto device = deck_map()[fd];
     for (int i = 0; i < iovcnt; i++) {
       if (device->touch) touch_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      else if (device->emulated) triton_pad_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       else if (device->triton) triton_queue_output(*device, static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len, false);
       total += static_cast<ssize_t>(iov[i].iov_len);
     }
