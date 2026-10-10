@@ -30,6 +30,17 @@ const vkb_pd_knowledge *vkb_pd_lookup(const vkb_dispatch *dt, VkPhysicalDevice p
     return NULL;
 }
 
+/* What the self-test found, for a later session's log (the in-app server tests once). */
+void vkb_log_summary(void)
+{
+    for (int i = 0; i < vkb_npds; i++) {
+        const vkb_pd_knowledge *k = &vkb_pds[i];
+        if (k->valid)
+            VKB_INFO("%s: memory sharing = %s, missing 0x%x, emulating 0x%x (from the first session's self-test)", k->name,
+                     vkb_mem_strategy_name(k->info.strategy), k->info.missing, k->info.emu);
+    }
+}
+
 /* ------------------------------------------------------------------ startup self-test */
 
 static void log_device(const vkb_dispatch *dt, VkPhysicalDevice pd, const VkPhysicalDeviceProperties *p)

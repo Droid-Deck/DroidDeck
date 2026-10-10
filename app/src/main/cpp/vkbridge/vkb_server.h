@@ -94,6 +94,8 @@ extern PFN_vkGetInstanceProcAddr vkb_gipa;
 extern vkb_dispatch vkb_global_dt;
 extern int vkb_verbose;
 
+void vkb_log_summary(void);
+
 /* server_dsmap.c */
 void vkb_dsmap_device_init(vkb_srv_table *t);
 void vkb_dsmap_device_destroy(vkb_srv_table *t);

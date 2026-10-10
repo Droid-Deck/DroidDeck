@@ -18,4 +18,13 @@ mkdir -p "$out"
     "$srv"/*.c "$here/common/vkb_wire.c" "$here/common/gen/vkb_gen_structs.c" "$here/common/gen/vkb_gen_server.c" \
     -ldl -llog -lm
 "$(dirname "$cc")/llvm-strip" --strip-unneeded "$out/libvkbridge_server.so"
-echo "built $out/libvkbridge_server.so"
+# The same server as a JNI library the app loads into its own process (the default): only there
+# does Android hand it the driver the app gets (VkBridgeNative, server_main.c).
+"$cc" -O2 -g0 -fPIC -shared -DVKB_JNI -Wall -Wno-unused-parameter -Wno-missing-field-initializers \
+    -I"$here/third_party/Vulkan-Headers-1.4.341/include" -I"$here/common" -I"$here/common/gen" -I"$srv" \
+    -Wl,-z,max-page-size=16384 -Wl,--build-id=none -Wl,--no-undefined -Wl,-soname,libvkbridge_jni.so \
+    -o "$out/libvkbridge_jni.so" \
+    "$srv"/*.c "$here/common/vkb_wire.c" "$here/common/gen/vkb_gen_structs.c" "$here/common/gen/vkb_gen_server.c" \
+    -ldl -llog -lm
+"$(dirname "$cc")/llvm-strip" --strip-unneeded "$out/libvkbridge_jni.so"
+echo "built $out/libvkbridge_server.so and libvkbridge_jni.so"

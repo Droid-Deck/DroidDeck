@@ -32,10 +32,14 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
             return
         }
         socket.parentFile?.mkdirs()
-        socket.delete()
-        exited = false
         // Pipeline cache kept across sessions (Mali recompiles everything in a new process otherwise).
         val cacheDir = File(app().cacheDir, "vkbridge-pipelines").apply { mkdirs() }
+        if (VkBridgeNative.start(socket, logFile, cacheDir)) {
+            Log.i(TAG, "server ready in the app's process at $socket")
+            return
+        }
+        socket.delete()
+        exited = false
         val cmd = listOf(binary.absolutePath, "--socket", socket.absolutePath, "--log", logFile.absolutePath,
             "--cache-dir", cacheDir.absolutePath)
             .joinToString(" ") { it.replace("\\", "\\\\").replace(" ", "\\ ") }
@@ -54,11 +58,12 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
     }
 
     override fun stop() {
+        // The in-app server outlives sessions: its socket stays.
         if (pid > 0) {
             Process.killProcess(pid)
             pid = -1
         }
-        socket.delete()
+        if (!VkBridgeNative.serving) socket.delete()
     }
 
     override fun suspendPid(): Int = pid
