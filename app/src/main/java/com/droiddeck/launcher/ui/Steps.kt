@@ -43,6 +43,8 @@ internal object Steps {
 @Composable
 internal fun StepsLayer(origin: Offset) {
     val ask = Steps.step ?: return
+    // Back (B, or the system's) folds what is stepped out, before it reaches the page under it.
+    androidx.activity.compose.BackHandler(enabled = Steps.open) { Steps.fold() }
     key(ask) {
         StepOut(
             open = Steps.open, pill = ask.anchor.translate(-origin), side = ask.side, accent = ask.accent,

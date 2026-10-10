@@ -361,29 +361,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 onChange = a.onStorageDiagnostics,
             )
         }
-        if (s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
-            if (s.syncBackend != null) SettingsRow(
-                stringResource(R.string.sync_backend_title),
-                stringResource(R.string.sync_backend_hint),
-            ) {
-                SegmentedTabs(
-                    listOf(
-                        SessionPrefs.SYNC_NTSYNC to stringResource(R.string.sync_backend_ntsync),
-                        SessionPrefs.SYNC_FSYNC to stringResource(R.string.sync_backend_fsync),
-                        SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
-                        SessionPrefs.SYNC_WINESERVER to stringResource(R.string.sync_backend_wineserver),
-                    ),
-                    s.syncBackend,
-                ) { id -> host.open = null; a.onSyncBackend(id) }
-            }
-            ChoiceRow(
-                host, "fex", stringResource(R.string.fex_preset_title), stringResource(R.string.fex_next_launch),
-                FexPreset.all.map { it.id to stringResource(it.label) }, s.fexPreset,
-                note = stringResource(FexPreset.byId(s.fexPreset).detail), onPick = a.onFexPreset,
-            )
-            ToggleRow(host, "ssbs", stringResource(R.string.force_ssbs_title), stringResource(R.string.force_ssbs_hint), s.forceSsbs, onChange = a.onForceSsbs)
-            GameEnvironmentRow()
-        }
     }
     if (tab == SheetTab.STEAM && steam) {
         SettingsGroup(stringResource(R.string.mode_decky)) {
@@ -501,6 +478,36 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             TextButton(onClick = { explainWifiDiscovery = false }) { Text(stringResource(R.string.common_cancel)) }
         },
     )
+}
+
+/**
+ * The options that apply to every Proton - how Wine syncs, FEX's preset, Force SSBS and the games'
+ * environment - for the Components page's Proton layer.
+ */
+@Composable
+internal fun ProtonOptions(
+    syncBackend: String, fexPreset: String, forceSsbs: Boolean,
+    onSyncBackend: (String) -> Unit, onFexPreset: (String) -> Unit, onForceSsbs: (Boolean) -> Unit,
+) {
+    val host = rememberMenuHost()
+    SettingsRow(stringResource(R.string.sync_backend_title), stringResource(R.string.sync_backend_hint)) {
+        SegmentedTabs(
+            listOf(
+                SessionPrefs.SYNC_NTSYNC to stringResource(R.string.sync_backend_ntsync),
+                SessionPrefs.SYNC_FSYNC to stringResource(R.string.sync_backend_fsync),
+                SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
+                SessionPrefs.SYNC_WINESERVER to stringResource(R.string.sync_backend_wineserver),
+            ),
+            syncBackend,
+        ) { id -> host.open = null; onSyncBackend(id) }
+    }
+    ChoiceRow(
+        host, "fex", stringResource(R.string.fex_preset_title), stringResource(R.string.fex_next_launch),
+        FexPreset.all.map { it.id to stringResource(it.label) }, fexPreset,
+        note = stringResource(FexPreset.byId(fexPreset).detail), onPick = onFexPreset,
+    )
+    ToggleRow(host, "ssbs", stringResource(R.string.force_ssbs_title), stringResource(R.string.force_ssbs_hint), forceSsbs, onChange = onForceSsbs)
+    GameEnvironmentRow()
 }
 
 /**

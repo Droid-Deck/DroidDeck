@@ -461,7 +461,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
         // Performance opens from Play's sheet, and is Steam's.
         s.pageKey == "performance" -> "steam"
-        s.pageKey == "protons" || s.pageKey == "controller-mapping" -> "setup"
+        s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") -> "desktop"
         else -> s.pageKey ?: selected

@@ -46,7 +46,6 @@ import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamRepair
-import com.droiddeck.launcher.ui.ProtonPage
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
@@ -124,7 +123,6 @@ class MainActivity : ComponentActivity() {
     private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
-    private var showProtons by mutableStateOf(false)
     // Components page: FEX / DXVK / VKD3D-Proton per Proton (ComponentsManager).
     private var showComponents by mutableStateOf(false)
     private var focusComponentsContent by mutableStateOf(true)
@@ -550,7 +548,6 @@ class MainActivity : ComponentActivity() {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
                 val page: (@Composable () -> Unit)? = when {
                     showPerformance -> { { PerformanceHost() } }
-                    showProtons -> { { ProtonHost() } }
                     showComponents -> { { ComponentsHost() } }
                     showMapping -> { { MappingHost() } }
                     else -> null
@@ -569,7 +566,7 @@ class MainActivity : ComponentActivity() {
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
-                        pageKey = if (showPerformance) "performance" else if (showProtons) "protons" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
+                        pageKey = if (showPerformance) "performance" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
                         theme = theme,
                         language = com.droiddeck.launcher.core.AppLanguage.chosen(this),
                         appScale = appScale,
@@ -692,7 +689,7 @@ class MainActivity : ComponentActivity() {
                         // A game page's Manage saves: the game's Proton and saves are read when the work runs, off the main thread.
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
-                        onPerformance = { refreshCores(); showProtons = false; showComponents = false; showMapping = false; showPerformance = true },
+                        onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
                         onRoms = { showRoms = true },
                         onFiles = { startActivity(Intent(this, com.droiddeck.launcher.files.FileManagerActivity::class.java)) },
                         onBrowseFiles = { dir ->
@@ -727,7 +724,7 @@ class MainActivity : ComponentActivity() {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
                             offline = OfflineMode.enabled(this)
                         },
-                        onPageBack = { showPerformance = false; showProtons = false; showComponents = false; showMapping = false },
+                        onPageBack = { showPerformance = false; showComponents = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
                         onLanguage = { tag ->
                             if (tag != com.droiddeck.launcher.core.AppLanguage.chosen(this)) {
@@ -837,7 +834,7 @@ class MainActivity : ComponentActivity() {
                             onSelectSteam = { on -> ControllerPrefs.setSelectSteam(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
-                            onMapping = { showPerformance = false; showProtons = false; showComponents = false; showMapping = true },
+                            onMapping = { showPerformance = false; showComponents = false; showMapping = true },
                             onResetAll = { ControllerPrefs.resetAll(this); refreshController() },
                         ),
                     ),
@@ -957,14 +954,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** On the Components page the pad's LB / RB step through GPU drivers, FEX, DXVK and VKD3D-Proton, wrapping around. */
+    /** On the Components page the pad's LB / RB step through the stack's layers, wrapping around. */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                val all = listOf(com.droiddeck.launcher.ui.GPU_TAB) + ComponentsManager.COMPONENTS
-                val step = if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else all.size - 1
-                components.compComp = all[(all.indexOf(components.compComp).coerceAtLeast(0) + step) % all.size]
+                components.compComp = com.droiddeck.launcher.ui.layerStep(components.compComp, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
             }
             return true
         }
@@ -1117,13 +1112,8 @@ class MainActivity : ComponentActivity() {
         }, "game-saves-action").start()
     }
 
-    private fun openProtons() {
-        showPerformance = false
-        showComponents = false
-        showMapping = false
-        showProtons = true
-        protons.refreshProtons()
-    }
+    /** The Protons DroidDeck installs are the Components page's Proton layer. */
+    private fun openProtons() = openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.PROTON_TAB)
 
     private fun refreshController() {
         controllerSettings = ControllerPrefs.read(this)
@@ -1144,11 +1134,17 @@ class MainActivity : ComponentActivity() {
         focusComponentsContent = focusContent
         if (tab != null) components.compComp = tab
         showPerformance = false
-        showProtons = false
         showMapping = false
         showComponents = true
+        // The Proton layer's options for every Proton, as they are now.
+        fexPreset = SessionPrefs.fexPreset(this)
+        forceSsbs = SessionPrefs.forceSsbs(this)
+        fastSync = SessionPrefs.fastSync(this)
+        fsyncFirst = SessionPrefs.fsyncFirst(this)
+        syncFallback = SessionPrefs.syncFallback(this)
         components.refreshComponents(snapshotFirst = true)
         drivers.refreshDrivers()
+        protons.refreshProtons()
     }
 
     private fun importComponent(uri: Uri) {
@@ -1200,23 +1196,31 @@ class MainActivity : ComponentActivity() {
                 onImportZip = { pickAnyDriver.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.drivers_pick_any))) },
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
             ),
+            protons = com.droiddeck.launcher.ui.ProtonsState(
+                rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
+                runtimeReady = ready && !busy, sessionRunning = SessionState.running,
+            ),
+            protonActions = com.droiddeck.launcher.ui.ProtonsActions(
+                onInstall = { id -> protons.installProton(id) },
+                onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
+                onRemove = { id -> protons.removeProton(id) },
+            ),
+            protonOptions = {
+                com.droiddeck.launcher.ui.ProtonOptions(
+                    syncBackend = SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback), fexPreset = fexPreset, forceSsbs = forceSsbs,
+                    onSyncBackend = { id ->
+                        SessionPrefs.setSyncBackend(this, id)
+                        fastSync = SessionPrefs.fastSync(this)
+                        fsyncFirst = SessionPrefs.fsyncFirst(this)
+                        syncFallback = SessionPrefs.syncFallback(this)
+                    },
+                    onFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
+                    onForceSsbs = { on -> SessionPrefs.setForceSsbs(this, on); forceSsbs = on },
+                )
+            },
         )
-    }
-
-    @Composable
-    private fun ProtonHost() {
-        ProtonPage(
-            rows = protons.protonRows,
-            busyId = protons.protonBusyId,
-            stage = protons.protonStage,
-            percent = protons.protonPercent,
-            runtimeReady = ready && !busy,
-            sessionRunning = SessionState.running,
-            onInstall = { id -> protons.installProton(id) },
-            onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
-            onRemove = { id -> protons.removeProton(id) },
-            onBack = { showProtons = false },
-        )
+        // A Proton installed or removed changes the stack's list of Protons.
+        androidx.compose.runtime.LaunchedEffect(protons.protonBusyId) { if (protons.protonBusyId == null) components.refreshComponents() }
     }
 
     private fun refreshPackages() {
