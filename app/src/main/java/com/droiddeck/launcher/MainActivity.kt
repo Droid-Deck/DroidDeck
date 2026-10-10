@@ -826,6 +826,7 @@ class MainActivity : ComponentActivity() {
                             onSteamButton = { on -> ControllerPrefs.setSteamButton(this, on); refreshController() },
                             onQamButton = { on -> ControllerPrefs.setQamButton(this, on); refreshController() },
                             onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
+                            onSelectSteam = { on -> ControllerPrefs.setSelectSteam(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = true },

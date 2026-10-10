@@ -385,6 +385,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
+        bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
         padBridge = bridge
         SessionState.padBridge = bridge
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {

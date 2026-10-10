@@ -65,6 +65,7 @@ public final class PadBridge {
     private final PadState effectiveState = new PadState();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean open;
+    private volatile boolean selectSteam;
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
     private boolean qamChordActive;
@@ -111,6 +112,11 @@ public final class PadBridge {
         writer = new FakeInputWriter(fakeInputDir.getAbsolutePath(), 0);
         Arrays.fill(owners, NO_CONTROLLER);
         for (int slot = 1; slot < SLOTS; slot++) playerStates[slot] = new PadState();
+    }
+
+    /** The physical Select button opens the Steam menu instead of View/Select (Setup → Controller). */
+    public void setSelectSteam(boolean on) {
+        selectSteam = on;
     }
 
     /** Opens the ring; safe to call more than once. */
@@ -222,6 +228,11 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_L1: pad.press(4, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_R1: pad.press(5, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_SELECT:
+                // Optionally (Setup → Controller) the physical Select button opens the Steam menu
+                // instead of View/Select: on some handhelds it sits next to the Steam button.
+                if (selectSteam) pad.press(PadState.GUIDE, pressed);
+                else pad.press(6, pressed);
+                break;
             case KeyEvent.KEYCODE_BACK: pad.press(6, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_START:
             case KeyEvent.KEYCODE_MENU: pad.press(7, pressed); break;
