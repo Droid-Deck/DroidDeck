@@ -38,7 +38,7 @@ import java.util.zip.ZipInputStream
  */
 object WinComponents {
     private const val TAG = "WinComponents"
-    const val CATALOG_URL = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/components.json"
+    const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/components.json"
     private const val SELECTION = "wincomponents.json"
     private const val GUEST_SELECTION = "root/.config/droiddeck/wincomponents.json"
     private const val STORE = "opt/droiddeck/wincomponents"
