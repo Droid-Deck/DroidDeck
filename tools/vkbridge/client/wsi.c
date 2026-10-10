@@ -714,7 +714,10 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAcquireNextImage2KHR(VkDevice device, co
 /* VKBRIDGE_WSI_DUMP=/path/prefix: writes presented frame 60 as a PPM (debugging aid). */
 static void dump_frame(vkb_swapchain *sc, uint32_t index)
 {
-    if (sc->presents != 60) return;
+    /* The 60th present, or every VKBRIDGE_WSI_DUMP_EVERY-th (watching a game get somewhere). */
+    static long every = -1;
+    if (every < 0) every = getenv("VKBRIDGE_WSI_DUMP_EVERY") ? atol(getenv("VKBRIDGE_WSI_DUMP_EVERY")) : 0;
+    if (every > 0 ? sc->presents % every != 0 : sc->presents != 60) return;
     uint32_t w = sc->info.imageExtent.width, h = sc->info.imageExtent.height, stride = w * 4;
     const uint8_t *px = NULL;
     void *map = NULL;
@@ -730,7 +733,10 @@ static void dump_frame(vkb_swapchain *sc, uint32_t index)
     }
     if (!px) return;
     char path[512];
-    snprintf(path, sizeof(path), "%s-%d.ppm", getenv("VKBRIDGE_WSI_DUMP"), (int)getpid());
+    if (every > 0)
+        snprintf(path, sizeof(path), "%s-%d-%06u.ppm", getenv("VKBRIDGE_WSI_DUMP"), (int)getpid(), (unsigned)sc->presents);
+    else
+        snprintf(path, sizeof(path), "%s-%d.ppm", getenv("VKBRIDGE_WSI_DUMP"), (int)getpid());
     FILE *f = fopen(path, "wb");
     if (f) {
         int bgr = sc->info.imageFormat == VK_FORMAT_B8G8R8A8_UNORM || sc->info.imageFormat == VK_FORMAT_B8G8R8A8_SRGB;
