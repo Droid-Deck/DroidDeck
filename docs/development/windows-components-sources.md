@@ -50,9 +50,12 @@ that needs a Windows installer here, or is not in the catalog, stays Recommended
 
 ## On by itself, and the user's switches
 
-`AutoComponents.refresh` runs when a game is installed from a store, added or edited (with
-downloads), when its Windows components page opens, and before a launch from DroidDeck (what is
-installed already; the downloads follow for the next launch). `wincomponents.json` keeps, per game,
+`AutoComponents.refresh` runs when a game is installed from a store, added or edited, when its
+Windows components page opens, before a launch from DroidDeck, and once at app start for every
+Steam game (Steam installs them without a word to DroidDeck). What is downloaded already turns on
+at once; every other automatic pick is queued (`queueDownloads`, one game at a time, never a
+component the user switched off), downloaded in the background with its progress on the page's
+row, and turned on when it lands - for the next launch; an open page reads the picks again. `wincomponents.json` keeps, per game,
 `auto` (each with its reason) and `user` (each switch the user pressed, on or off) beside `games`,
 the effective list the launch reads (still version 1). A user switch always wins over an automatic
 pick, either way, and a new automatic list never touches it. Picks saved before this build count

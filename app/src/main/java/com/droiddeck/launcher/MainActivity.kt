@@ -366,6 +366,7 @@ class MainActivity : ComponentActivity() {
     }
     private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
+    @Volatile private var componentSweepDone = false
     private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
@@ -619,11 +620,10 @@ class MainActivity : ComponentActivity() {
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
                             else Thread({
-                                // Windows components re-checked first (what is installed already), the
-                                // downloads for the next launch after.
+                                // Windows components re-checked first (what is installed already); the
+                                // ones still to download are queued and on for the next launch.
                                 com.droiddeck.launcher.frontend.AutoComponents.refresh(this, g, download = false)
                                 ui.post { com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) } }
-                                com.droiddeck.launcher.frontend.AutoComponents.refresh(this, g, download = true)
                             }, "launch-components").start()
                         },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
@@ -1626,6 +1626,8 @@ class MainActivity : ComponentActivity() {
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             val all = games.distinctBy { it.gameId }
             if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all)
+            // Once per app start: the Steam games' Windows components from Steam's lists.
+            if (ready && !componentSweepDone) { componentSweepDone = true; com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all) }
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
                     steamGames = all

@@ -223,4 +223,36 @@ class WinCompSourcesTest {
         assertEquals(SteamMatch.Certainty.NAME, SteamMatch.get(app, folder.path)!!.certainty)
         assertFalse(WinCompSources.forGame(app, game(folder, Library.ADDED)).any { it.auto })
     }
+
+    @Test fun aSteamListedComponentNotYetDownloadedTurnsOnWhenItLands() {
+        val steamapps = tmp.newFolder("steamapps")
+        val folder = File(steamapps, "common/Payback").apply { mkdirs() }
+        File(steamapps, "appmanifest_1262580.acf").writeText(
+            "\"AppState\"\n{\n\t\"SharedDepots\"\n\t{\n\t\t\"228985\"\t\t\"228980\"\n\t\t\"228988\"\t\t\"228980\"\n\t\t\"228990\"\t\t\"228980\"\n\t}\n}\n",
+        )
+        val payback = game(folder, Library.SOURCE_STEAM, 1262580, library = "steam", name = "Need for Speed Payback")
+        val catalog = listOf(ready("d3dx9"), ready("vcredist2013_dll"), ready("vcredist2019_dll"))
+        val installed = mutableSetOf("d3dx9")
+        val downloaded = ArrayList<String>()
+        AutoComponents.catalogOf = { _, _ -> catalog }
+        AutoComponents.installedOf = { installed.toSet() }
+        AutoComponents.installer = { _, c, _, _ -> downloaded.add(c.name); installed.add(c.name); null }
+        AutoComponents.runNow = true
+        try {
+            // The user had switched one off: it is never downloaded for an automatic pick.
+            WinComponents.setUser(app, "1262580", "vcredist2019_dll", false)
+            // The page opens (no downloads on the caller's path): what is there is on now, the rest queued.
+            AutoComponents.refresh(app, payback, download = false)
+            assertEquals(listOf("vcredist2013_dll"), downloaded)
+            val sel = WinComponents.selection(app, "1262580")
+            assertEquals(setOf("d3dx9", "vcredist2013_dll", "vcredist2019_dll"), sel.auto.keys)
+            assertEquals(setOf("d3dx9", "vcredist2013_dll"), WinComponents.picks(app, "1262580").toSet())
+            assertEquals("STEAM", sel.auto.getValue("vcredist2013_dll").kind)
+        } finally {
+            AutoComponents.runNow = false
+            AutoComponents.catalogOf = { c, network -> if (network) WinComponents.fetch(c) else WinComponents.cached(c) }
+            AutoComponents.installedOf = { WinComponents.installedIds(it).toSet() }
+            AutoComponents.installer = { c, comp, all, progress -> WinComponents.install(c, comp, all, progress) }
+        }
+    }
 }

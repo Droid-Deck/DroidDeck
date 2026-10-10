@@ -21,6 +21,11 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   from DroidDeck; `wincomponents.json` keeps `auto` (with reasons) and `user` switches beside the
   effective `games` list (still version 1). A user switch always wins. The page gets "On for this
   game" with reasons and "Also listed".
+- **Device fix:** on a Steam game (Need for Speed Payback) only the already-downloaded d3dx9 went
+  on; vcredist2013/2019 stayed Recommended, never downloaded (Steam games have no install event
+  here). Every refresh (page open, launch, an app-start sweep over Steam games, install/add/edit)
+  now queues the missing automatic picks for a background download and turns each on when it
+  lands; the open page shows the progress and reloads.
 - Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
   source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
   `AddedGameArtLookupTest` updated. Not yet on a device.

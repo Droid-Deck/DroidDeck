@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -154,6 +155,13 @@ internal fun WinComponentsDialog(
         installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }
     /** The user's own switch for [id]: kept apart from what was turned on by itself, and over it. */
+    // Automatic picks still downloading show on their rows; when one lands the page reads the picks again.
+    val autoDownloading by com.droiddeck.launcher.frontend.AutoComponents.downloading.collectAsState()
+    val autoChanges by com.droiddeck.launcher.frontend.AutoComponents.changes.collectAsState()
+    LaunchedEffect(autoChanges) {
+        selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
+        installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
+    }
     fun setUser(id: String, on: Boolean) {
         selection = WinComponents.Selection(selection.auto, selection.user + (id to on))
         coroutine.launch(Dispatchers.IO) { WinComponents.setUser(context, appKey, id, on) }
@@ -259,11 +267,13 @@ internal fun WinComponentsDialog(
             // The catalog key stays in the detail: it is what a log or a bug report names.
             val detail = listOfNotNull(reason, c?.description?.takeIf { it.isNotEmpty() }, status, id).joinToString(" · ")
             val usable = support == Support.READY
-            val busy = id == busyId
+            val autoProgress = autoDownloading[id]
+            val busy = id == busyId || autoProgress != null
+            val shownProgress = if (id == busyId) progress else autoProgress
             val caption = when {
                 !busy -> null
-                reverting -> stringResource(R.string.wincomp_reverting)
-                else -> progress?.let { p ->
+                id == busyId && reverting -> stringResource(R.string.wincomp_reverting)
+                else -> shownProgress?.let { p ->
                     val stage = if (p.component != id && p.stage.isNotEmpty()) "${WinComponentNames.of(p.component)}: ${p.stage}" else p.stage
                     val text = when (p.phase) {
                         WinComponents.Phase.DOWNLOAD -> stringResource(R.string.wincomp_downloading, stage)
@@ -275,7 +285,7 @@ internal fun WinComponentsDialog(
             ComponentRow(
                 WinComponentNames.of(id), detail, checked = id in picks, enabled = usable || id in picks,
                 dim = !usable || busy, busy = busy, caption = caption,
-                percent = if (busy && !reverting) progress?.percent ?: -1 else -1,
+                percent = if (busy && !reverting) shownProgress?.percent ?: -1 else -1,
                 modifier = (if (usable && focus != null) Modifier.focusRequester(focus) else Modifier)
                     .onFocusChanged { if (it.isFocused) switchFocused = true },
             ) { on -> toggle(id, on) }
