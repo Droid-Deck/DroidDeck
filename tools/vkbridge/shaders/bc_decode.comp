@@ -1,0 +1,364 @@
+#version 450
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * BCn block decoder for the Mali bridge's BC texture emulation. One invocation decodes one 4x4
+ * block from the copy's source buffer and stores it into the decoded image (a 2D array view of one
+ * mip level). The arithmetic follows bcdec (third_party/bcdec, MIT/Unlicense, Sergii Kudlai) so the
+ * output can be checked bit-for-bit against it. Built once per format family (FMT_BC1 ... FMT_BC7).
+ */
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(std430, binding = 0) readonly buffer Src { uint w[]; } src;
+#if defined(FMT_BC6H)
+layout(rgba16f, binding = 1) uniform writeonly image2DArray dst;
+#elif defined(FMT_BC4)
+layout(r8, binding = 1) uniform writeonly image2DArray dst;
+#elif defined(FMT_BC5)
+layout(rg8, binding = 1) uniform writeonly image2DArray dst;
+#else
+layout(rgba8, binding = 1) uniform writeonly image2DArray dst;
+#endif
+
+layout(push_constant) uniform PC {
+    uint src_word;     /* first block, in 32-bit words from the bound range's start */
+    uint row_blocks;   /* blocks per row in the buffer */
+    uint layer_blocks; /* blocks per layer in the buffer */
+    uint flags;        /* 1: BC1 without alpha (alpha forced to 1); 2: signed (BC4/5/6H); first layer << 8 */
+    ivec2 dst_off;     /* texel offset of the region in the image */
+    uvec2 extent;      /* texels to write */
+} pc;
+
+#extension GL_GOOGLE_include_directive : require
+#include "bc_tables.glsl"
+
+uint bits(uvec4 b, uint pos, uint n)
+{
+    if (n == 0u) return 0u;
+    uint wi = pos >> 5, o = pos & 31u;
+    uint v = b[wi] >> o;
+    if (o + n > 32u && wi < 3u) v |= b[wi + 1u] << (32u - o);
+    return n == 32u ? v : (v & ((1u << n) - 1u));
+}
+
+int sext(int v, int n) { return (v << (32 - n)) >> (32 - n); }
+
+void put(uint tx, uint ty, vec4 v)
+{
+    uvec2 blk = gl_GlobalInvocationID.xy;
+    uvec2 p = blk * 4u + uvec2(tx, ty);
+    if (p.x < pc.extent.x && p.y < pc.extent.y)
+        imageStore(dst, ivec3(pc.dst_off + ivec2(p), int(gl_GlobalInvocationID.z + (pc.flags >> 8))), v);
+}
+
+/* ------------------------------------------------------------------ BC1-3 */
+
+uvec4 rgb565(uint c)
+{
+    uint r = (c >> 11) & 31u, g = (c >> 5) & 63u, b = c & 31u;
+    return uvec4((r * 527u + 23u) >> 6, (g * 259u + 33u) >> 6, (b * 527u + 23u) >> 6, 255u);
+}
+
+void color_block(uint lo, uint idx, bool opaque, inout uvec4 texels[16])
+{
+    uint c0 = lo & 0xffffu, c1 = lo >> 16;
+    uint r0 = (c0 >> 11) & 31u, g0 = (c0 >> 5) & 63u, b0 = c0 & 31u;
+    uint r1 = (c1 >> 11) & 31u, g1 = (c1 >> 5) & 63u, b1 = c1 & 31u;
+    uvec4 ref[4];
+    ref[0] = rgb565(c0);
+    ref[1] = rgb565(c1);
+    if (c0 > c1 || opaque) {
+        ref[2] = uvec4(((2u * r0 + r1) * 351u + 61u) >> 7, ((2u * g0 + g1) * 2763u + 1039u) >> 11, ((2u * b0 + b1) * 351u + 61u) >> 7, 255u);
+        ref[3] = uvec4(((r0 + r1 * 2u) * 351u + 61u) >> 7, ((g0 + g1 * 2u) * 2763u + 1039u) >> 11, ((b0 + b1 * 2u) * 351u + 61u) >> 7, 255u);
+    } else {
+        ref[2] = uvec4(((r0 + r1) * 1053u + 125u) >> 8, ((g0 + g1) * 4145u + 1019u) >> 11, ((b0 + b1) * 1053u + 125u) >> 8, 255u);
+        ref[3] = uvec4(0u);
+    }
+    for (uint t = 0u; t < 16u; t++) texels[t] = ref[(idx >> (2u * t)) & 3u];
+}
+
+/* BC3's alpha block as bcdec decodes it (integer division). */
+void smooth_alpha(uint lo, uint hi, out uint a[16])
+{
+    uint a0 = lo & 0xffu, a1 = (lo >> 8) & 0xffu;
+    uint pal[8];
+    pal[0] = a0;
+    pal[1] = a1;
+    if (a0 > a1) {
+        pal[2] = (6u * a0 + a1) / 7u; pal[3] = (5u * a0 + 2u * a1) / 7u; pal[4] = (4u * a0 + 3u * a1) / 7u;
+        pal[5] = (3u * a0 + 4u * a1) / 7u; pal[6] = (2u * a0 + 5u * a1) / 7u; pal[7] = (a0 + 6u * a1) / 7u;
+    } else {
+        pal[2] = (4u * a0 + a1) / 5u; pal[3] = (3u * a0 + 2u * a1) / 5u; pal[4] = (2u * a0 + 3u * a1) / 5u;
+        pal[5] = (a0 + 4u * a1) / 5u; pal[6] = 0u; pal[7] = 255u;
+    }
+    uvec4 b = uvec4(lo, hi, 0u, 0u);
+    for (uint t = 0u; t < 16u; t++) a[t] = pal[bits(b, 16u + 3u * t, 3u)];
+}
+
+/* BC4/BC5 channel (bcdec's precise variant), as the byte pattern of the unsigned/signed value. */
+void bc4_channel(uint lo, uint hi, bool sgn, out uint v[16])
+{
+    int e0, e1;
+    if (sgn) {
+        e0 = max(sext(int(lo & 0xffu), 8), -127);
+        e1 = max(sext(int((lo >> 8) & 0xffu), 8), -127);
+    } else {
+        e0 = int(lo & 0xffu);
+        e1 = int((lo >> 8) & 0xffu);
+    }
+    const int w6[6] = int[6](9363, 18724, 28086, 37450, 46812, 56173);
+    const int w4[4] = int[4](13107, 26215, 39321, 52429);
+    int pal[8];
+    pal[0] = e0;
+    pal[1] = e1;
+    if (e0 > e1) {
+        for (int i = 0; i < 6; i++) pal[2 + i] = (w6[5 - i] * e0 + w6[i] * e1 + 32768) >> 16;
+    } else {
+        for (int i = 0; i < 4; i++) pal[2 + i] = (w4[3 - i] * e0 + w4[i] * e1 + 32768) >> 16;
+        pal[6] = sgn ? -127 : 0;
+        pal[7] = sgn ? 127 : 255;
+    }
+    uvec4 b = uvec4(lo, hi, 0u, 0u);
+    for (uint t = 0u; t < 16u; t++) v[t] = uint(pal[bits(b, 16u + 3u * t, 3u)]) & 0xffu;
+}
+
+/* ------------------------------------------------------------------ BC6H */
+
+int bc6_unquantize(int val, int nbits, bool sgn)
+{
+    if (!sgn) {
+        if (nbits >= 15) return val;
+        if (val == 0) return 0;
+        if (val == (1 << nbits) - 1) return 0xffff;
+        return ((val << 16) + 0x8000) >> nbits;
+    }
+    if (nbits >= 16) return val;
+    int s = 0;
+    if (val < 0) { s = 1; val = -val; }
+    int unq;
+    if (val == 0) unq = 0;
+    else if (val >= (1 << (nbits - 1)) - 1) unq = 0x7fff;
+    else unq = ((val << 15) + 0x4000) >> (nbits - 1);
+    return s != 0 ? -unq : unq;
+}
+
+uint bc6_finish(int val, bool sgn)
+{
+    if (!sgn) return uint((val * 31) >> 6);
+    val = val < 0 ? -(((-val) * 31) >> 5) : (val * 31) >> 5;
+    uint s = 0u;
+    if (val < 0) { s = 0x8000u; val = -val; }
+    return s | uint(val);
+}
+
+void bc6h(uvec4 blk, bool sgn)
+{
+    uint pos = 0u;
+    uint code = bits(blk, 0u, 2u);
+    pos = 2u;
+    if (code > 1u) { code |= bits(blk, 2u, 3u) << 2; pos = 5u; }
+    int mode = BC6_MODE_OF_CODE[code];
+    if (mode < 0) {
+        for (uint t = 0u; t < 16u; t++) put(t & 3u, t >> 2, vec4(0.0, 0.0, 0.0, 1.0));
+        return;
+    }
+    int ep[12];
+    for (int i = 0; i < 12; i++) ep[i] = 0;
+    uint part_id = 0u;
+    for (uint e = BC6_LAYOUT_START[mode]; e < BC6_LAYOUT_START[mode + 1]; e++) {
+        uint d = BC6_LAYOUT[e];
+        uint target = d & 15u, n = (d >> 4) & 31u, sh = (d >> 9) & 31u;
+        uint v = bits(blk, pos, n);
+        pos += n;
+        if ((d & (1u << 14)) != 0u) v = bitfieldReverse(v) >> (32u - n);
+        if (target == 12u) part_id = v;
+        else ep[target] |= int(v << sh);
+    }
+    bool two = mode < 10;
+    int npts = two ? 4 : 2;
+    int w = BC6_BITS_W[mode];
+    if (sgn) { ep[0] = sext(ep[0], w); ep[4] = sext(ep[4], w); ep[8] = sext(ep[8], w); }
+    if ((mode != 9 && mode != 10) || sgn) {
+        for (int i = 1; i < npts; i++) {
+            ep[i] = sext(ep[i], BC6_BITS_DR[mode]);
+            ep[4 + i] = sext(ep[4 + i], BC6_BITS_DG[mode]);
+            ep[8 + i] = sext(ep[8 + i], BC6_BITS_DB[mode]);
+        }
+    }
+    if (mode != 9 && mode != 10) {
+        for (int i = 1; i < npts; i++) {
+            for (int c = 0; c < 3; c++) {
+                int v = (ep[c * 4 + i] + ep[c * 4]) & ((1 << w) - 1);
+                ep[c * 4 + i] = sgn ? sext(v, w) : v;
+            }
+        }
+    }
+    for (int i = 0; i < 12; i++) ep[i] = bc6_unquantize(ep[i], w, sgn);
+    const int w3[8] = int[8](0, 9, 18, 27, 37, 46, 55, 64);
+    const int w4[16] = int[16](0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64);
+    uint part = BC7_PART2[part_id], anchor = BC7_PART2_ANCHOR[part_id] & 15u;
+    for (uint t = 0u; t < 16u; t++) {
+        uint subset = two ? ((part >> (2u * t)) & 3u) : 0u;
+        uint nb = two ? 3u : 4u;
+        if (t == 0u || (two && subset == 1u && t == anchor)) nb--;
+        uint idx = bits(blk, pos, nb);
+        pos += nb;
+        int wt = two ? w3[idx] : w4[idx];
+        int s2 = int(subset) * 2;
+        uvec3 h;
+        for (int c = 0; c < 3; c++) {
+            int a = ep[c * 4 + s2], b = ep[c * 4 + s2 + 1];
+            h[c] = bc6_finish((a * (64 - wt) + b * wt + 32) >> 6, sgn);
+        }
+        put(t & 3u, t >> 2, vec4(unpackHalf2x16(h.x).x, unpackHalf2x16(h.y).x, unpackHalf2x16(h.z).x, 1.0));
+    }
+}
+
+/* ------------------------------------------------------------------ BC7 */
+
+void bc7(uvec4 blk)
+{
+    uint mode = 0u;
+    while (mode < 8u && bits(blk, mode, 1u) == 0u) mode++;
+    if (mode >= 8u) {
+        for (uint t = 0u; t < 16u; t++) put(t & 3u, t >> 2, vec4(0.0));
+        return;
+    }
+    uint pos = mode + 1u;
+    uint nparts = 1u, part_id = 0u, rotation = 0u, isel = 0u;
+    if (mode == 0u || mode == 1u || mode == 2u || mode == 3u || mode == 7u) {
+        nparts = (mode == 0u || mode == 2u) ? 3u : 2u;
+        uint pb = mode == 0u ? 4u : 6u;
+        part_id = bits(blk, pos, pb);
+        pos += pb;
+    }
+    uint neps = nparts * 2u;
+    if (mode == 4u || mode == 5u) {
+        rotation = bits(blk, pos, 2u);
+        pos += 2u;
+        if (mode == 4u) { isel = bits(blk, pos, 1u); pos += 1u; }
+    }
+    int cb = BC7_BITS_RGB[mode], ab = BC7_BITS_A[mode];
+    uint ep[6][4];
+    for (uint c = 0u; c < 3u; c++)
+        for (uint e = 0u; e < neps; e++) { ep[e][c] = bits(blk, pos, uint(cb)); pos += uint(cb); }
+    for (uint e = 0u; e < neps; e++) {
+        if (ab > 0) { ep[e][3] = bits(blk, pos, uint(ab)); pos += uint(ab); }
+        else ep[e][3] = 0u;
+    }
+    const uint has_pbits = 203u; /* 0b11001011 */
+    bool pbits = ((has_pbits >> mode) & 1u) != 0u || mode == 1u;
+    if (mode == 0u || mode == 1u || mode == 3u || mode == 6u || mode == 7u) {
+        for (uint e = 0u; e < neps; e++)
+            for (uint c = 0u; c < 4u; c++) ep[e][c] <<= 1;
+        if (mode == 1u) {
+            uint p0 = bits(blk, pos, 1u), p1 = bits(blk, pos + 1u, 1u);
+            pos += 2u;
+            for (uint c = 0u; c < 3u; c++) { ep[0][c] |= p0; ep[1][c] |= p0; ep[2][c] |= p1; ep[3][c] |= p1; }
+        } else {
+            for (uint e = 0u; e < neps; e++) {
+                uint p = bits(blk, pos, 1u);
+                pos += 1u;
+                for (uint c = 0u; c < 4u; c++) ep[e][c] |= p;
+            }
+        }
+    }
+    for (uint e = 0u; e < neps; e++) {
+        uint j = uint(cb) + ((has_pbits >> mode) & 1u);
+        for (uint c = 0u; c < 3u; c++) {
+            ep[e][c] = ep[e][c] << (8u - j);
+            ep[e][c] = (ep[e][c] | (ep[e][c] >> j)) & 0xffu;
+        }
+        j = uint(ab) + ((has_pbits >> mode) & 1u);
+        ep[e][3] = ep[e][3] << (8u - j);
+        ep[e][3] = (ep[e][3] | (ep[e][3] >> j)) & 0xffu;
+        if (ab == 0) ep[e][3] = 255u;
+    }
+    const uint w2[4] = uint[4](0u, 21u, 43u, 64u);
+    const uint w3[8] = uint[8](0u, 9u, 18u, 27u, 37u, 46u, 55u, 64u);
+    const uint w4[16] = uint[16](0u, 4u, 9u, 13u, 17u, 21u, 26u, 30u, 34u, 38u, 43u, 47u, 51u, 55u, 60u, 64u);
+    uint ib = (mode == 0u || mode == 1u) ? 3u : (mode == 6u ? 4u : 2u);
+    uint ib2 = mode == 4u ? 3u : (mode == 5u ? 2u : 0u);
+    uint part = nparts == 2u ? BC7_PART2[part_id] : (nparts == 3u ? BC7_PART3[part_id] : 0u);
+    uint anchors = nparts == 2u ? BC7_PART2_ANCHOR[part_id] : (nparts == 3u ? BC7_PART3_ANCHOR[part_id] : 0u);
+    uint idx1[16];
+    for (uint t = 0u; t < 16u; t++) {
+        uint subset = (part >> (2u * t)) & 3u;
+        uint nb = ib;
+        bool anchor = t == 0u || (subset == 1u && t == (anchors & 15u)) || (subset == 2u && t == (anchors >> 4));
+        if (anchor) nb--;
+        idx1[t] = bits(blk, pos, nb);
+        pos += nb;
+    }
+    for (uint t = 0u; t < 16u; t++) {
+        uint subset = (part >> (2u * t)) & 3u;
+        uint e0 = subset * 2u, e1 = e0 + 1u;
+        uint i1 = idx1[t];
+        uvec4 c;
+        if (ib2 == 0u) {
+            uint wt = ib == 2u ? w2[i1] : (ib == 3u ? w3[i1] : w4[i1]);
+            for (uint k = 0u; k < 4u; k++) c[k] = (ep[e0][k] * (64u - wt) + ep[e1][k] * wt + 32u) >> 6;
+        } else {
+            uint nb2 = t == 0u ? ib2 - 1u : ib2;
+            uint i2 = bits(blk, pos, nb2);
+            pos += nb2;
+            uint wa = ib == 2u ? w2[i1] : w3[i1];
+            uint wb = ib2 == 2u ? w2[i2] : w3[i2];
+            uint wc = isel == 0u ? wa : wb, wal = isel == 0u ? wb : wa;
+            for (uint k = 0u; k < 3u; k++) c[k] = (ep[e0][k] * (64u - wc) + ep[e1][k] * wc + 32u) >> 6;
+            c.w = (ep[e0][3] * (64u - wal) + ep[e1][3] * wal + 32u) >> 6;
+        }
+        if (rotation == 1u) c = c.agbr;
+        else if (rotation == 2u) c = c.rabg;
+        else if (rotation == 3u) c = c.rgab;
+        put(t & 3u, t >> 2, vec4(c) / 255.0);
+    }
+}
+
+/* ------------------------------------------------------------------ main */
+
+void main()
+{
+    uvec2 blk = gl_GlobalInvocationID.xy;
+    uvec2 nblk = (pc.extent + 3u) / 4u;
+    if (blk.x >= nblk.x || blk.y >= nblk.y) return;
+#if defined(FMT_BC1) || defined(FMT_BC4)
+    uint words = 2u;
+#else
+    uint words = 4u;
+#endif
+    uint base = pc.src_word + (gl_GlobalInvocationID.z * pc.layer_blocks + blk.y * pc.row_blocks + blk.x) * words;
+    uvec4 b = uvec4(src.w[base], src.w[base + 1u], words > 2u ? src.w[base + 2u] : 0u, words > 2u ? src.w[base + 3u] : 0u);
+    bool sgn = (pc.flags & 2u) != 0u;
+#if defined(FMT_BC1)
+    uvec4 tex[16];
+    color_block(b.x, b.y, false, tex);
+    for (uint t = 0u; t < 16u; t++) {
+        uvec4 c = tex[t];
+        if ((pc.flags & 1u) != 0u) c.w = 255u;
+        put(t & 3u, t >> 2, vec4(c) / 255.0);
+    }
+#elif defined(FMT_BC2) || defined(FMT_BC3)
+    uvec4 tex[16];
+    color_block(b.z, b.w, true, tex);
+    uint a[16];
+#if defined(FMT_BC2)
+    for (uint t = 0u; t < 16u; t++) a[t] = bits(b, 4u * t, 4u) * 17u;
+#else
+    smooth_alpha(b.x, b.y, a);
+#endif
+    for (uint t = 0u; t < 16u; t++) put(t & 3u, t >> 2, vec4(tex[t].rgb, a[t]) / 255.0);
+#elif defined(FMT_BC4)
+    uint v[16];
+    bc4_channel(b.x, b.y, sgn, v);
+    for (uint t = 0u; t < 16u; t++) put(t & 3u, t >> 2, vec4(float(v[t]) / 255.0, 0.0, 0.0, 1.0));
+#elif defined(FMT_BC5)
+    uint r[16], g[16];
+    bc4_channel(b.x, b.y, sgn, r);
+    bc4_channel(b.z, b.w, sgn, g);
+    for (uint t = 0u; t < 16u; t++) put(t & 3u, t >> 2, vec4(float(r[t]) / 255.0, float(g[t]) / 255.0, 0.0, 1.0));
+#elif defined(FMT_BC6H)
+    bc6h(b, sgn);
+#elif defined(FMT_BC7)
+    bc7(b);
+#endif
+}

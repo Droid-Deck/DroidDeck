@@ -2150,4 +2150,7 @@
         <item quantity="one">%1$d already in Games</item>
         <item quantity="other">%1$d already in Games</item>
     </plurals>
+    <string name="setup_gpu_bridge_off">Mali bridge: off</string>
+    <string name="setup_gpu_bridge_on">Mali bridge: on</string>
+    <string name="setup_gpu_bridge_detail">%1$s is not an Adreno. The experimental Vulkan bridge is on: the session draws through the phone\'s own driver. Expect bugs; send the session logs.</string>
 </resources>

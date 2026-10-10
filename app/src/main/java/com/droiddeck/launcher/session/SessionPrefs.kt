@@ -468,6 +468,18 @@ object SessionPrefs {
      */
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
 
+    /**
+     * The Mali bridge (experimental): the session's Vulkan goes through the app's bridge server to
+     * the phone's own driver instead of Turnip (tools/vkbridge). Only offered, and only used, on a
+     * GPU without Adreno's KGSL; off by default everywhere.
+     */
+    @JvmStatic
+    fun vkBridge(context: Context): Boolean = prefs(context).getBoolean("vkBridge", false)
+
+    fun setVkBridge(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vkBridge", on).apply()
+    }
+
     fun setZinkLazy(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("zinkLazy", on).apply()
     }

@@ -173,7 +173,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env', 'tools/vkbridge/client/**', 'tools/vkbridge/common/**', 'tools/vkbridge/tests/**', 'tools/vkbridge/build-client-linux.sh') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -203,6 +203,8 @@ jobs:
             -o "$D/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libssbs.so"
           mkdir -p "$D/usr/local/bin"
+          # The Mali bridge's Linux side: ICD, manifest and self-test (tools/vkbridge).
+          tools/vkbridge/build-client-linux.sh "$D" aarch64-linux-gnu-gcc
           aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
           for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
@@ -393,6 +395,14 @@ jobs:
         run: |
           set -euo pipefail
           bash tools/linuxfs/check-preloads.sh app/src/main/assets/linuxfs
+          D=app/src/main/assets/linuxfs
+          syms() { readelf -Ws "$1" | awk '$4 == "FUNC" && $5 == "GLOBAL" {sub(/@.*/, "", $8); print $8}'; }
+          # The bridge ICD: libc only, and nothing exported but the loader's three entry points.
+          VKB="$D/usr/local/lib/vkbridge/libvulkan_droidbridge.so"
+          test -f "$VKB" && test -f "$D/usr/local/share/vkbridge/droidbridge_icd.json" && test -f "$D/usr/local/bin/droiddeck-vkbridge-smoke"
+          VKB_NEED=$(readelf -d "$VKB" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p' | grep -vx 'libc.so.6' | grep -vx 'ld-linux-aarch64.so.1' || true)
+          [ -z "$VKB_NEED" ] || { echo "::error::the bridge ICD needs $VKB_NEED"; exit 1; }
+          [ "$(syms "$VKB" | grep -c '^vk_icd')" = 3 ] || { echo "::error::the bridge ICD does not export the loader interface"; exit 1; }
 
       # The store download engines (app/src/main/rust/stores) are Rust, built by Gradle's
       # buildRustStores task through cargo-ndk. rustup and cargo are on the runner image; the Android

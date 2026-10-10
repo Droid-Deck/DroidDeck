@@ -296,10 +296,40 @@ public final class LinuxRuntime {
      * may open) stands in: it appears as a render node with the sysfs entries libdrm reads, and our
      * Turnip build reports the same device numbers for it.
      */
+    /** Mali's kbase device, the stand-in render node on a Mali GPU (the Mali bridge's gamescope). */
+    private static final String MALI_DEVICE = "/dev/mali0";
+
+    /**
+     * The device that stands in for the GPU's render node: KGSL on an Adreno; with the Mali bridge
+     * on, Mali's own device - nothing inside opens it for rendering (the bridge does that on the
+     * Android side), but gamescope and libdrm need a render node to name before they offer
+     * linux-dmabuf, and the bridge ICD reports this one's numbers. Null when there is none.
+     */
+    public static String gpuStandIn(Context context) {
+        if (new File(KGSL_DEVICE).exists()) return KGSL_DEVICE;
+        if (com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context) && new File(MALI_DEVICE).exists()) return MALI_DEVICE;
+        return null;
+    }
+
+    /** "major:minor" of a device node, or null. */
+    public static String deviceNumbers(String path) {
+        try {
+            long dev = Os.stat(path).st_rdev;
+            long major = ((dev >> 8) & 0xfff) | ((dev >> 32) & ~0xfffL);
+            long minor = (dev & 0xff) | ((dev >> 12) & ~0xffL);
+            return major + ":" + minor;
+        } catch (ErrnoException e) {
+            return null;
+        }
+    }
+
     private static void bindGpuNode(Context context, List<String> cmd) {
+        String standIn = gpuStandIn(context);
+        if (standIn == null) return;
+        boolean kgsl = standIn.equals(KGSL_DEVICE);
         StructStat st;
         try {
-            st = Os.stat(KGSL_DEVICE);
+            st = Os.stat(standIn);
         } catch (ErrnoException e) {
             return;
         }
@@ -319,7 +349,8 @@ public final class LinuxRuntime {
             Files.write(new File(drm, "dev").toPath(),
                     (major + ":" + minor + "\n").getBytes(StandardCharsets.UTF_8));
             Files.write(new File(device, "uevent").toPath(),
-                    "DRIVER=kgsl-3d0\nMODALIAS=platform:kgsl-3d0\n".getBytes(StandardCharsets.UTF_8));
+                    (kgsl ? "DRIVER=kgsl-3d0\nMODALIAS=platform:kgsl-3d0\n" : "DRIVER=mali\nMODALIAS=platform:mali\n")
+                            .getBytes(StandardCharsets.UTF_8));
             File subsystem = new File(device, "subsystem");
             if (!Files.isSymbolicLink(subsystem.toPath())) {
                 Os.symlink("/sys/bus/platform", subsystem.getPath());
@@ -327,7 +358,7 @@ public final class LinuxRuntime {
             // What MangoHud names a GPU's driver by; msm_drm is how an Adreno's render node reads
             // on a mainline kernel, and the driver it reads the load of (bindAdrenoStats).
             File driver = new File(device, "driver");
-            if (!Files.isSymbolicLink(driver.toPath())) {
+            if (kgsl && !Files.isSymbolicLink(driver.toPath())) {
                 Os.symlink("/sys/bus/platform/drivers/msm_drm", driver.getPath());
             }
         } catch (IOException | ErrnoException e) {
@@ -335,7 +366,7 @@ public final class LinuxRuntime {
         }
         bind(cmd, new File(base, "sys").getPath() + ":/sys/dev/char");
         bind(cmd, dri.getPath() + ":/dev/dri");
-        bind(cmd, KGSL_DEVICE + ":/dev/dri/" + node);
+        bind(cmd, standIn + ":/dev/dri/" + node);
         bindDrmClass(base, cmd, node, major + ":" + minor);
     }
 
