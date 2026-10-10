@@ -517,11 +517,20 @@ fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked
         ToggleSwitch(checked, enabled, label, chipModifier.testTag("setting-$key")) { host.open = null; onChange(it) }
     }
 
+/**
+ * The thumb starts at the logical start edge (padding uses start/end), but graphicsLayer
+ * translationX is measured in physical screen coordinates. Moving toward the logical end
+ * must therefore go left in RTL, otherwise an enabled thumb is clipped past the right edge.
+ */
+internal fun toggleThumbTranslationPx(fraction: Float, direction: LayoutDirection, travelPx: Float): Float =
+    fraction.coerceIn(0f, 1f) * travelPx * if (direction == LayoutDirection.Rtl) -1f else 1f
+
 /** An on/off switch: one tap or one A press flips it, where a menu of On and Off took three. */
 @Composable
 fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = null, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val layoutDirection = LocalLayoutDirection.current
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val track by animateColorAsState(if (checked) pal.signal else colors.surfaceVariant, Motion.tw(180), label = "switchTrack")
@@ -547,7 +556,7 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
         ) {
             Box(
                 Modifier.padding(4.dp).size(22.dp)
-                    .graphicsLayer { translationX = knob * 22.dp.toPx() }
+                    .graphicsLayer { translationX = toggleThumbTranslationPx(knob, layoutDirection, 22.dp.toPx()) }
                     .clip(CircleShape)
                     .background(if (checked) pal.onSignal else colors.onSurfaceVariant),
             )
