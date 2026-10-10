@@ -325,6 +325,8 @@ class SessionService : Service() {
         killStragglers()
         SessionFiles.stage(this, root)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
+        // The compat tool asks for an Epic game's sign-in code at every launch, the client's Play button included.
+        com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
@@ -352,6 +354,9 @@ class SessionService : Service() {
 
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
+        // Follow screen: the output is resized under gamescope when a foldable opens or closes,
+        // and the session script asks gamescope to resize Steam's X screen along with it.
+        if (SessionState.followScreen) guest.add("BL_FOLLOW_OUTPUT=1")
         if (SessionState.hdr) {
             // The activity opened the compositor's HDR gate: gamescope offers HDR to its clients
             // and DXVK takes the HDR10 swapchain when a game asks for one.
@@ -369,16 +374,6 @@ class SessionService : Service() {
         SessionState.deckPad = false
         deckBinds = emptyList()
         if (controllersOn) addControllerEnvironment(guest, fakeInputDir, sessionDir)
-        // The desktop is wlroots (labwc). Stock wlroots allocates through gbm on a real DRM render
-        // node, and ours is a KGSL stand-in - labwc died at "unable to create allocator" - so the
-        // default is pixman (software, shm), where a Vulkan program cannot draw at all; those run
-        // through droiddeck-gpu instead. vulkan / gles2 use the app's patched wlroots and fall back
-        // to pixman by themselves. droiddeck-wlr-renderer in Downloads overrides the choice.
-        if (SessionState.mode == MODE_DESKTOP) {
-            val override = File(Environment.getExternalStorageDirectory(), "Download/droiddeck-wlr-renderer")
-                .takeIf { it.isFile }?.let { FileUtils.readString(it)?.trim() }
-            guest.add("BL_WLR_RENDERER=" + (override?.takeIf { it.isNotEmpty() } ?: SessionPrefs.desktopRenderer(this)))
-        }
         // The user's own games, for the runtime's shortcuts writer to put in the client's library
         // before the client starts (see frontend/AddedGames and droiddeck-steam-shortcuts).
         if (steamHere) {
@@ -394,9 +389,6 @@ class SessionService : Service() {
         // The second library's name, for droiddeck-steam-library; the bind itself is made below.
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
-        // The desktop asked for with Steam in it (the front end's "Steam Desktop UI", Big Picture's
-        // "Switch to Desktop"): the desktop's autostart opens the client's desktop UI there.
-        if (SessionState.mode == MODE_DESKTOP && SessionState.steamUi == "desktop") guest.add("BL_DESKTOP_STEAM=1")
         val shellGuest = ArrayList(guest).apply {
             add("SHELL=/bin/bash")
             add("TERM=xterm-256color")
@@ -412,7 +404,7 @@ class SessionService : Service() {
         }
         // A program under gamescope: the script's run mode takes the path (an AppImage, a script
         // or a binary inside the runtime). This is how an emulator gets the GPU - the desktop's
-        // labwc composites in software and offers no dma-buf, so a Vulkan swapchain cannot exist
+        // KWin composites in software and offers no dma-buf, so a Vulkan swapchain cannot exist
         // there (RPCS3 died with VK_ERROR_SURFACE_LOST); gamescope's Xwayland is the path the
         // Steam games already render through.
         if (SessionState.mode == MODE_RUN) {
@@ -742,6 +734,7 @@ class SessionService : Service() {
         // Decided only once its sysfs is in place: without it the client would find no Deck, and
         // with the Deck asked for the pad's own nodes are withdrawn - no controller at all.
         val wantsDeck = uinput && SessionState.mode == MODE_STEAM &&
+            SessionState.steamUi != "desktop" &&
             SessionPrefs.steamController(this) == SessionPrefs.CONTROLLER_DECK &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
         // Steam's touch controller rides on the Deck's sysfs and is offered only beside it.
@@ -898,6 +891,15 @@ class SessionService : Service() {
                 Log.i(TAG, "added games: ${root.host} -> ${root.guest}")
             } else {
                 Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
+            }
+        }
+        // Store games installed on a card: each card's Games root at its own fixed place, so the
+        // shortcuts point somewhere whether or not the card is also the Steam library.
+        for ((host, guest) in com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(this)) {
+            if (host.isDirectory && host.canRead()) {
+                File(LinuxRuntime.rootDir(this), guest.removePrefix("/")).mkdirs()
+                binds.add(host.path + ":" + guest)
+                Log.i(TAG, "store games: $host -> $guest")
             }
         }
         // Folders of added scripts outside internal storage, where their links point.
@@ -1411,6 +1413,10 @@ class SessionService : Service() {
             pipTask = false
             SessionState.guestPid = -1
             com.droiddeck.launcher.agent.AgentGuest.stop()
+            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
+            // Cloud saves of a store game played this session, if the compat tool's exit request did
+            // not upload them (a session closed from the drawer never reaches it).
+            Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()

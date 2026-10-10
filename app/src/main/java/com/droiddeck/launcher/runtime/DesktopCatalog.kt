@@ -3,6 +3,7 @@ package com.droiddeck.launcher.runtime
 import com.droiddeck.launcher.core.Hashes
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
@@ -74,10 +75,34 @@ object DesktopCatalog {
         installed(context, PROTON_SEED_ID) == null &&
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
 
-    // labwc comes with the hosted desktop package itself (its launcher is staged by the app at
-    // every session, so it cannot tell whether the package is there); SessionFiles uses the same test.
-    fun desktopInstalled(context: Context): Boolean =
-        File(LinuxRuntime.rootDir(context), "usr/bin/labwc").isFile
+    /**
+     * The desktop: KDE Plasma (tools/desktop-kde). It replaced an LXQt/labwc package of id
+     * "desktop", which a runtime may still carry; that one does not count, so the first desktop
+     * after the update installs this one over it.
+     */
+    const val DESKTOP_ID = "desktop-kde"
+
+    /**
+     * The desktop package this apk installs: pinned in tools/desktop-kde/release.env and published
+     * in DroidDeck-Components, not read from the catalog, so the desktop scripts staged by this
+     * apk always get the package they were made for.
+     */
+    fun desktopEntry(context: Context) = Entry(
+        DESKTOP_ID, context.getString(R.string.content_linux_desktop), 1, BuildConfig.DESKTOP_KDE_TAG, "tar",
+        BuildConfig.DESKTOP_KDE_URL, BuildConfig.DESKTOP_KDE_SHA256, BuildConfig.DESKTOP_KDE_SIZE, "",
+        "", "",
+    )
+
+    // The desktop package installed to the end: KWin is there and the marker install() writes once
+    // the whole package is extracted. An install cut short (the app killed, storage full) leaves
+    // KWin without the marker, and the next desktop installs it again. A newer pinned package also
+    // replaces the installed one, keeping the user's home and settings. The launcher is staged by
+    // the app at every session, so it cannot tell. SessionFiles uses the same test.
+    fun desktopInstalled(context: Context): Boolean = desktopInstalled(LinuxRuntime.rootDir(context))
+
+    fun desktopInstalled(root: File): Boolean =
+        File(root, "usr/bin/kwin_wayland").isFile &&
+            FileUtils.readString(File(root, ".droiddeck-pkg-$DESKTOP_ID"))?.trim() == BuildConfig.DESKTOP_KDE_TAG
 
     /** Downloads, verifies and installs one package. Returns null on success, else a message. */
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
@@ -111,7 +136,12 @@ object DesktopCatalog {
                         "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/${entry.id}.AppImage\n" +
                         "Icon=${entry.icon}\nTerminal=false\nCategories=${entry.category};\n")
                 }
-                else -> if (!LinuxRuntimeInstaller.extract(context, download, root, listener)) return context.getString(R.string.deskpkg_extract_failed)
+                else -> {
+                    // Not complete until written again at the end: a reinstall cut short must not
+                    // leave the last install's marker saying it is.
+                    marker(context, entry.id).delete()
+                    if (!LinuxRuntimeInstaller.extract(context, download, root, listener)) return context.getString(R.string.deskpkg_extract_failed)
+                }
             }
             FileUtils.writeString(marker(context, entry.id), entry.version)
             return null

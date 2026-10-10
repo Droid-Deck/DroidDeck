@@ -24,12 +24,18 @@ object Library {
         val hero: File? = null, val lastPlayed: Long = 0L,
         val gameFiles: File? = null, val protonPrefix: File? = null,
         val icon: File? = null,
+        /** Where the game came from: [SOURCE_STEAM], a store's id (gog, epic, amazon) or [ADDED] for a folder the user added. */
+        val source: String = SOURCE_STEAM,
+        /** The store's own id for a store install; null otherwise. */
+        val storeId: String? = null,
     ) {
         /** Decimal form used by Steam links and Android shortcuts, including unsigned shortcut ids. */
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
     }
-    /** The [SteamGame.library] of a game added to the library rather than installed by Steam. */
+    /** The [SteamGame.library] of a game added to the library rather than installed by Steam, and the [SteamGame.source] of a plain added folder. */
     const val ADDED = "added"
+    /** The [SteamGame.source] of a title Steam itself installed. */
+    const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
@@ -146,19 +152,23 @@ object Library {
     }
 
     /** The same installed-game inventory used for links, shortcuts and file exports. */
-    fun launchableGames(context: Context, strictRead: Boolean = false): List<SteamGame> {
+    /** [added]: the added games when the caller has just scanned them, so they are not scanned again. */
+    fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
         val roots = steamLibraries(context).map { it.first }
-        return (steamGames(context, strictRead) + AddedGames.scan(context).map { g ->
-            AddedGameArt.resolve(context, g).let { art ->
-                SteamGame(
-                    g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
-                    hero = art.hero ?: art.header, gameFiles = g.folder,
-                    protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
-                    icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
-                )
-            }
-        }).distinctBy { it.gameId }
+        return (steamGames(context, strictRead) + (added ?: AddedGames.scan(context)).map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
     }
+
+    /** One added game as the Games tab lists it; [roots] the Steam libraries, for its Proton prefix. */
+    fun addedGame(context: Context, g: AddedGames.Game, roots: List<File> = steamLibraries(context).map { it.first }): SteamGame =
+        AddedGameArt.resolve(context, g).let { art ->
+            SteamGame(
+                g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
+                hero = art.hero ?: art.header, gameFiles = g.folder,
+                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
+                icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
+                source = g.source, storeId = g.storeId,
+            )
+        }
 
     /** Steam stores current library art inside hash-named folders under the app's cache dir. */
     private fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {

@@ -158,6 +158,29 @@ public final class PadBridge {
                 || (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
     }
 
+    /** A Bluetooth keyboard can share a device with a joystick. Classify the key, not just
+     * the device, so its letters and modifiers still reach the desktop keyboard. */
+    public static boolean isControllerKey(KeyEvent event) {
+        return isFromController(event.getDevice())
+                && isPadKey(event.getKeyCode(), event.getDevice().getKeyboardType());
+    }
+
+    public static boolean isPadKey(int keyCode, int keyboardType) {
+        if ((keyCode >= KeyEvent.KEYCODE_BUTTON_A && keyCode <= KeyEvent.KEYCODE_BUTTON_MODE)
+                || (keyCode >= KeyEvent.KEYCODE_BUTTON_1 && keyCode <= KeyEvent.KEYCODE_BUTTON_16)) return true;
+        if (keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC) return false;
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_HOME:
+            case KeyEvent.KEYCODE_MENU: return true;
+            default: return false;
+        }
+    }
+
     /** Whether any real controller is attached right now. */
     public static boolean anyControllerConnected() {
         for (int id : InputDevice.getDeviceIds()) {
@@ -186,7 +209,7 @@ public final class PadBridge {
 
     /** @return true when the event was a pad button and has been consumed. */
     public synchronized boolean onKeyEvent(KeyEvent event) {
-        if (!isFromController(event.getDevice()) || !isPadKey(event.getKeyCode())) return false;
+        if (!isControllerKey(event)) return false;
         int slot = slotFor(event.getDevice());
         PadState pad = stateFor(slot);
         noteDevice(event.getDevice(), slot);
@@ -356,21 +379,6 @@ public final class PadBridge {
         if (generation != qamChordGeneration || !qamChordActive) return;
         qamChordActive = false;
         publish();
-    }
-
-    private static boolean isPadKey(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_BACK:
-            case KeyEvent.KEYCODE_MENU:
-            case KeyEvent.KEYCODE_HOME:
-            case KeyEvent.KEYCODE_DPAD_UP:
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                return true;
-            default:
-                return KeyEvent.isGamepadButton(keyCode);
-        }
     }
 
     /** The slot this controller plays in: the one it has, else the first free one, else player 1's. */

@@ -260,7 +260,9 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_both_proton_wrappers_call_environment_launcher(self):
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-            self.assertIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
+            # Started through bl_run, which execs it - or, for a store game with cloud saves, waits
+            # for it so droiddeck-store-launch --exited can follow (test_store_launch.CloudHooks).
+            self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
 
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
         overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"

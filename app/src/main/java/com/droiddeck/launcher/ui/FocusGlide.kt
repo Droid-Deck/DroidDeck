@@ -147,6 +147,10 @@ private fun follow(): AnimationSpec<Float> = Motion.sp(1f, 2400f)
 
 /** How long after a focus move the ring keeps its stretchy springs and keeps checking where it is. */
 private const val SETTLE_MS = 450L
+/** How long the control must stand still before the ring stops checking where it is. */
+private const val STILL_MS = 120L
+/** The longest the ring keeps checking after a move, for a control that never stands still. */
+private const val TRACK_MAX_MS = 2_000L
 
 /** Moves closer together than this are a held direction: the ring runs along as one, no stretch. */
 private const val REPEAT_MS = 180L
@@ -213,17 +217,23 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                     launch { corner.animateTo(r, Motion.tw(90)) }
                     dot(here).forEachIndexed { i, v -> launch { edges[i].animateTo(v, Motion.tw(90)) } }
                 }
-                // Across as a dot, every edge together, on a timed ease.
+                // Across as a dot, every edge together, on a timed ease, steering each frame for
+                // where the control is now: one still rising into place is met where it ends up.
                 val distance = hypot(b.center.x - here.x, b.center.y - here.y) / density.density
                 val travel = (180 + distance * 0.12f).toInt().coerceIn(220, 380)
-                dot(b.center).forEachIndexed { i, v ->
-                    jobs[i] = launch { edges[i].animateTo(v, Motion.tw(travel, easing = FastOutSlowInEasing)) }
-                }
+                val p = Animatable(0f)
+                val flight = launch { p.animateTo(1f, Motion.tw(travel, easing = FastOutSlowInEasing)) }
                 // Takes the control's shape as it arrives, not after: no resting as a dot.
-                delay(Motion.ms((travel * 0.78f).toInt()).toLong())
+                while (flight.isActive && p.value < 0.78f) {
+                    val to = (glide.boundsOf(s) ?: b).center
+                    dot(Offset(here.x + (to.x - here.x) * p.value, here.y + (to.y - here.y) * p.value)).forEachIndexed { i, v -> edges[i].snapTo(v) }
+                    withFrameNanos { }
+                }
+                flight.cancel()
+                val at = glide.boundsOf(s) ?: b
                 launch { solid.animateTo(0f, Motion.tw(150)) }
                 launch { corner.animateTo(endCorner, Motion.sp(0.8f, 600f)) }
-                listOf(b.left, b.top, b.right, b.bottom).forEachIndexed { i, v ->
+                listOf(at.left, at.top, at.right, at.bottom).forEachIndexed { i, v ->
                     jobs[i] = launch { edges[i].animateTo(v, Motion.sp(0.7f, 750f)) }
                 }
             }
@@ -267,8 +277,11 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
             var first = src !== shown
             val start = System.nanoTime()
             var last: Rect? = null
+            var seen: Rect? = null
+            var stillSince = start
             while (true) {
                 val b = glide.boundsOf(src)
+                if (b != seen) { seen = b; stillSince = System.nanoTime() }
                 if (b == null) {
                     if (first) scope.launch { alpha.animateTo(0f, Motion.tw(140)) }
                 } else if (first) {
@@ -318,9 +331,12 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                     if (last == null) scope.launch { alpha.animateTo(1f, Motion.tw(120)) }
                     last = b
                 }
-                // Layer animations (a tile growing, a row sliding) move it without a relayout, so
-                // look again each frame for a moment after anything changes.
-                if ((System.nanoTime() - start) / 1_000_000 > SETTLE_MS) break
+                // Layer animations (a tile growing, a row sliding, a page rising in) move it without
+                // a relayout, so look again each frame until it has stood still a moment: a fixed
+                // window let the ring park mid-rise and jump over when something next laid out.
+                val now = System.nanoTime()
+                val settled = (now - start) / 1_000_000 > SETTLE_MS && (now - stillSince) / 1_000_000 > STILL_MS
+                if (settled || (now - start) / 1_000_000 > TRACK_MAX_MS) break
                 withFrameNanos { }
             }
         }
