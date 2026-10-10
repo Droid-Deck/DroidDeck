@@ -134,6 +134,9 @@ object DependencyDetector {
                 val lower = f.name.lowercase(Locale.US)
                 if (f.isDirectory) {
                     if (SKIP_DIR_RE.matches(lower)) continue
+                    // Unity's <Game>_Data/Managed holds the game's own Mono assemblies, not a .NET
+                    // Framework to install.
+                    if (lower == "managed" && dir.name.endsWith("_Data", ignoreCase = true)) continue
                     val isRedistDir = insideRedist || REDIST_DIR_RE.matches(lower)
                     if (isRedistDir) consider(f, isDir = true, insideRedist = true)
                     // Aggressive coverage: descend redist containers fully, and otherwise sweep the game

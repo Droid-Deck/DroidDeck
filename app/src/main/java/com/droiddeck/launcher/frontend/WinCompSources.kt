@@ -89,6 +89,8 @@ object WinCompSources {
     const val GOG_DEPENDENCIES = "dependencies"
     const val EPIC_PREREQ_PATH = "prereqPath"
     const val EPIC_PREREQ_NAME = "prereqName"
+    /** Set beside the list when it was read whole (an empty list then means the store lists none). */
+    const val LIST_READ = "listRead"
 
     /** fuel.json's PostInstall commands. */
     fun amazonPostInstall(folder: File): List<String> = runCatching {

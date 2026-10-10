@@ -381,18 +381,33 @@ class WinCompSourcesTest {
 
     // ---- apps the client never saw ----
 
-    @Test fun anAppTheClientFetchedLaterIsReadOnceItsCacheIsWritten() {
+    @Test fun anAppTheClientLearnsLaterIsReadOnceItsCacheIsWritten() {
         val file = SteamAppInfo.appinfoFile(app)
         appinfo(file, 1)
         file.setLastModified(1_000_000_000_000L)
         assertEquals(null, SteamAppInfo.info(app, 1145360))
-        assertEquals(listOf(1145360), SteamAppInfo.unseen(app))
-        // Asked of the client: not asked again for a week.
-        SteamAppInfo.markAsked(app, 1145360)
-        assertTrue(SteamAppInfo.unseen(app).isEmpty())
+        // Unchanged file: the miss stands (no re-read).
+        assertEquals(null, SteamAppInfo.info(app, 1145360))
         // The client wrote its cache with the app in it: read at once, not a week later.
         appinfo(file, 1145360)
         file.setLastModified(1_000_000_100_000L)
         assertEquals(listOf("228986", "228990"), SteamAppInfo.info(app, 1145360)!!.sharedDepots)
+    }
+
+    @Test fun unitysManagedFolderIsNotADotNetRequirement() {
+        val folder = tmp.newFolder("DOOMBLADE")
+        File(folder, "DOOMBLADE_Data/Managed").mkdirs()
+        File(folder, "DOOMBLADE_Data/Managed/com.rlabrecque.steamworks.net.dll").writeText("x")
+        File(folder, "DOOMBLADE_Data/Managed/System.Net.Http.dll").writeText("x")
+        assertTrue(DependencyDetector.detect(folder).isEmpty())
+    }
+
+    @Test fun aListReadWholeIsNotFetchedAgainButAnUnmarkedEmptyOneIs() {
+        val read = tmp.newFolder("Read")
+        StoreGameSidecar(Store.EPIC, "a", "A", exe = "A.exe", extra = mapOf(WinCompSources.EPIC_PREREQ_NAME to "", WinCompSources.EPIC_PREREQ_PATH to "", WinCompSources.LIST_READ to "1")).write(read)
+        val older = tmp.newFolder("Older")
+        StoreGameSidecar(Store.EPIC, "b", "B", exe = "B.exe", extra = mapOf(WinCompSources.EPIC_PREREQ_NAME to "", WinCompSources.EPIC_PREREQ_PATH to "")).write(older)
+        assertFalse(StoreListBackfill.needs(StoreGameSidecar.read(read)!!))
+        assertTrue(StoreListBackfill.needs(StoreGameSidecar.read(older)!!))
     }
 }

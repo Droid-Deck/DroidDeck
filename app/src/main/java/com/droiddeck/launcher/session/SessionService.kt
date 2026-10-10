@@ -408,10 +408,6 @@ class SessionService : Service() {
             guest.add(it)
             Log.i(TAG, "steam: handing the client $it")
         }
-        // Apps a Custom game names that the client's app-info cache never saw: asked of the
-        // client quietly once it is up (a few, minutes apart from the start, one every few
-        // seconds), so Windows components can read their Steam list after the session.
-        if (SessionState.mode == MODE_STEAM) askClientForUnseenApps()
         // A program under gamescope: the script's run mode takes the path (an AppImage, a script
         // or a binary inside the runtime). This is how an emulator gets the GPU - the desktop's
         // KWin composites in software and offers no dma-buf, so a Vulkan swapchain cannot exist
@@ -966,26 +962,6 @@ class SessionService : Service() {
             Log.w(TAG, "steam library: the list could not be written; the card alone this session", e)
         }
         return binds
-    }
-
-    private fun askClientForUnseenApps() {
-        val app = applicationContext
-        if (com.droiddeck.launcher.frontend.SteamAppInfo.unseen(app).isEmpty()) return
-        Thread({
-            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
-            val up = { SessionState.running && com.droiddeck.launcher.stores.SteamLiveShortcuts.sessionUp() }
-            try {
-                // The client first: up to five minutes for its DevTools, then two to settle in.
-                var waited = 0
-                while (!up() && waited < 300) { Thread.sleep(10_000); waited += 10 }
-                if (!up()) return@Thread
-                Thread.sleep(120_000)
-                com.droiddeck.launcher.frontend.SteamAppInfo.requestUnseen(app, up)
-            } catch (e: InterruptedException) {
-            } catch (e: Exception) {
-                Log.w(TAG, "steam app info: ${e.message}")
-            }
-        }, "steam-appinfo-ask").apply { isDaemon = true }.start()
     }
 
     private fun teardown(prootPid: Int, expectedStartTime: Long? = null) {

@@ -87,11 +87,9 @@ game's page is open.
 ## Apps the client never saw
 
 A Custom game whose files name an appid the account never owned or viewed is missing from the
-client's `appinfo.vdf`. While a Steam session runs, once the client is up and has settled (two
-minutes), `SessionService` asks the client for those apps quietly, at most ten, one every five
-seconds, at background priority, stopping when the session ends: `SteamClient.Apps
-.RegisterForAppDetails(appid, callback)` through the DevTools channel `SteamLiveShortcuts` uses
-(what the library's game page calls; for an app not in its cache the client fetches the app's info
-from Steam). The client writes its cache out to `appinfo.vdf`; a miss is read again as soon as that
-file changed (else weekly), so the next look after the session finds the app's Steamworks Shared
-depots. An app asked about is not asked again for a week. Name-only matches stay Recommended.
+client's `appinfo.vdf`, and no client path gives an app's depots for such an app: the client's UI
+scripts expose no `SteamClient` call that returns depots or app info for an arbitrary appid (the
+one app-info request they make, `CommunityService.GetApps`, carries names and icons only), and
+`SteamClient.Apps.RegisterForAppDetails` gave no answer for an unowned app on the device. Those
+games stay on Recommended (the folder scan). A miss is read again whenever `appinfo.vdf` changes
+(the user may look at the app in Steam), else weekly. No third-party data is used.

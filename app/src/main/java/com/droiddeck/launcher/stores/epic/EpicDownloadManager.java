@@ -110,6 +110,8 @@ public final class EpicDownloadManager {
         /** The prerequisite the launcher runs first (UE4PrereqSetup_x64.exe...): what it is called and its path in the install. */
         public String prereqName = "";
         public String prereqPath = "";
+        /** The prerequisite fields were read (an empty name and path then mean the build names none). */
+        public boolean prereqRead = false;
         public List<CdnUrl> cdnUrls = new ArrayList<>();
     }
 
@@ -122,7 +124,8 @@ public final class EpicDownloadManager {
         public String prereqName = "";
         public String prereqPath = "";
         Result(String launchExe, String buildVersion, long bytes) { this.launchExe = launchExe; this.buildVersion = buildVersion; this.bytes = bytes; }
-        Result withPrereq(Manifest m) { prereqName = m.prereqName; prereqPath = m.prereqPath; return this; }
+        public boolean prereqRead = false;
+        Result withPrereq(Manifest m) { prereqName = m.prereqName; prereqPath = m.prereqPath; prereqRead = m.prereqRead; return this; }
     }
 
     public static final class InstallException extends Exception {
@@ -482,6 +485,8 @@ public final class EpicDownloadManager {
                 for (int i = 0; i < prereqIds && i < 64; i++) readFString(b);
                 m.prereqName = readFString(b);
                 m.prereqPath = readFString(b).replace('\\', '/');
+                readFString(b); // PrereqArgs
+                m.prereqRead = true;
             } catch (Exception e) {
                 Log.w(TAG, "manifest meta: " + e.getClass().getSimpleName());
             }
@@ -551,6 +556,7 @@ public final class EpicDownloadManager {
             m.buildVersion = root.optString("BuildVersionString", "");
             m.prereqName = root.optString("PrereqName", "");
             m.prereqPath = root.optString("PrereqPath", "").replace('\\', '/');
+            m.prereqRead = true;
             JSONObject chunkHashList = root.optJSONObject("ChunkHashList");
             JSONObject dataGroupList = root.optJSONObject("DataGroupList");
             JSONObject chunkFilesizeList = root.optJSONObject("ChunkFilesizeList");
@@ -775,7 +781,8 @@ public final class EpicDownloadManager {
             byte[] bytes = downloadManifest(manifestApiJson, cdnUrls);
             if (bytes == null) return null;
             Manifest m = parseManifest(bytes);
-            if (m == null) return null;
+            if (m == null || !m.prereqRead) { Log.w(TAG, "manifest prerequisite not read"); return null; }
+            Log.i(TAG, "manifest " + m.buildVersion + ": " + m.files.size() + " files, prerequisite " + (m.prereqName.isEmpty() && m.prereqPath.isEmpty() ? "none" : m.prereqName + " (" + m.prereqPath + ")"));
             return new String[] { m.prereqName, m.prereqPath };
         } catch (Exception e) {
             return null;

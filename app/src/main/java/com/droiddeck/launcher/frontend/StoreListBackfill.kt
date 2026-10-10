@@ -37,11 +37,12 @@ object StoreListBackfill {
     @VisibleForTesting internal var fetcher: Fetcher = storeFetcher
 
     /** Whether [sidecar] was written before the list was kept. */
-    fun needs(sidecar: StoreGameSidecar): Boolean = when (sidecar.store) {
-        Store.GOG -> WinCompSources.GOG_DEPENDENCIES !in sidecar.extra
-        Store.EPIC -> WinCompSources.EPIC_PREREQ_PATH !in sidecar.extra && WinCompSources.EPIC_PREREQ_NAME !in sidecar.extra
-        else -> false
-    }
+    /**
+     * Whether [sidecar] has no list read whole: written before the list was kept, or by a build
+     * that could have written an empty one for a manifest it did not read right.
+     */
+    fun needs(sidecar: StoreGameSidecar): Boolean =
+        (sidecar.store == Store.GOG || sidecar.store == Store.EPIC) && WinCompSources.LIST_READ !in sidecar.extra
 
     /**
      * The list for the game in [folder], fetched and kept when its sidecar lacks one and it was not
@@ -66,8 +67,11 @@ object StoreListBackfill {
         }
         // Read fresh and written whole, as an install writes it: only the list is added.
         val current = StoreGameSidecar.read(folder) ?: return false
-        current.copy(extra = current.extra + list).write(folder)
-        Log.i(TAG, "${sidecar.title}: ${sidecar.store.label} list kept (${list.values.filter { it.isNotEmpty() }.joinToString().ifEmpty { "none" }})")
+        current.copy(extra = current.extra + list + (WinCompSources.LIST_READ to "1")).write(folder)
+        Log.i(TAG, "backfill: ${sidecar.title} " + when (sidecar.store) {
+            Store.GOG -> "gog deps=[${list[WinCompSources.GOG_DEPENDENCIES].orEmpty()}]"
+            else -> "epic prereq=" + (list[WinCompSources.EPIC_PREREQ_NAME].orEmpty().ifEmpty { list[WinCompSources.EPIC_PREREQ_PATH].orEmpty() }.ifEmpty { "none" })
+        })
         return true
     }
 

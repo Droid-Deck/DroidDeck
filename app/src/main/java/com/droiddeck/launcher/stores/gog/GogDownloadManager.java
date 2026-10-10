@@ -81,6 +81,8 @@ public final class GogDownloadManager {
         public final long bytes;
         /** The build manifest's "dependencies" (GOG's redistributable ids: MSVC2017_x64, DirectX...), for Windows components. */
         public List<String> dependencies = new ArrayList<>();
+        /** The dependencies come from a gen2 build manifest read whole (gen1 builds and installers have none). */
+        public boolean dependenciesRead = false;
         Result(String exeRelative, String buildId, long bytes) { this.exeRelative = exeRelative; this.buildId = buildId; this.bytes = bytes; }
     }
 
@@ -267,6 +269,7 @@ public final class GogDownloadManager {
             if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
             out.result = new Result(pickExe(installPath, tempExe, game.title), gm.buildId, planned);
             out.result.dependencies = dependencies;
+            out.result.dependenciesRead = true;
             return out;
         } catch (Exception e) {
             out.error = "exception: " + e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : "");
@@ -1063,9 +1066,15 @@ public final class GogDownloadManager {
             if (raw == null) return null;
             String manifestStr = decompressBytes(raw);
             if (manifestStr == null) return null;
-            JSONArray deps = new JSONObject(manifestStr).optJSONArray("dependencies");
+            JSONObject manifest = new JSONObject(manifestStr);
+            // A manifest without depots is not one this reads right: no list rather than an empty one.
+            JSONArray depots = manifest.optJSONArray("depots");
+            if (depots == null) { Log.w(TAG, "gog: build manifest for " + gameId + " has no depots; keys " + manifest.names()); return null; }
+            JSONArray deps = manifest.optJSONArray("dependencies");
             List<String> out = new ArrayList<>();
             if (deps != null) for (int i = 0; i < deps.length(); i++) { String d = deps.optString(i, ""); if (!d.isEmpty()) out.add(d); }
+            Log.i(TAG, "gog: build " + manifest.optString("buildId", buildId) + " of " + gameId + ": " + depots.length() + " depots, dependencies "
+                + (manifest.has("dependencies") ? String.valueOf(deps) : "(none listed)"));
             return out;
         } catch (Exception e) {
             return null;

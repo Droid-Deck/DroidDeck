@@ -49,10 +49,16 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   Epic, Amazon). GOG/Epic games installed before the sidecar kept the list get it once from the
   store's build manifest with the saved sign-in (`StoreListBackfill`; no game files; weekly retry
   on failure). Fresh installs keep the keys even when empty.
-- **Apps the client never saw** (Dragon's Dogma 2, steam_appid.txt 2054970 not in appinfo.vdf):
-  during a Steam session the client is asked quietly via `SteamClient.Apps.RegisterForAppDetails`
-  over DevTools (max 10, 5 s apart, after the client settles); the miss is re-read when
-  appinfo.vdf changes. Not yet proven on a device: no Steam session was running to try it.
+- **Apps the client never saw** (Dragon's Dogma 2, 2054970 not in appinfo.vdf): no client path
+  gives depots for an unowned app - no `SteamClient` call in the client's scripts returns them, the
+  UI's only app-info request (`CommunityService.GetApps`) has names and icons, and
+  `RegisterForAppDetails` gave no answer on the device. The ask was taken out again; those games
+  stay Recommended. A miss is re-read when appinfo.vdf changes.
+- **Checks:** a store list counts as read only when the manifest was read whole (`listRead`;
+  GOG: a manifest with depots, Epic: the prerequisite fields read); older empty lists are fetched
+  once more. Log: `backfill: <game> gog deps=[...]` / `epic prereq=<name|none>`, plus the
+  manifest's depot/file count. Unity's `*_Data/Managed` is skipped by the folder scan (Mono
+  assemblies, not .NET Framework).
 - Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
   source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
   `AddedGameArtLookupTest` updated. Not yet on a device.

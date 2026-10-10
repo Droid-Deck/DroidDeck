@@ -40,61 +40,17 @@ object SteamAppInfo {
         val known = cache.optJSONObject(appId.toString())
         known?.let { o ->
             if (!o.optBoolean("miss")) return Info(o.optString("name"), o.optJSONArray("depots").strings())
-            // A miss is read again when the client has written its cache since (it may have been
-            // asked for the app, SteamAppInfo.requestUnseen), else a week later.
+            // A miss is read again when the client has written its cache since (the user may have
+            // looked at the app in Steam), else a week later.
             if (now - o.optLong("at") < RETRY_AFTER_MS && o.optLong("mtime") == mtime) return null
         }
         val read = runCatching { read(appinfo, appId) }.onFailure { Log.w(TAG, "appinfo: ${it.javaClass.simpleName}") }.getOrNull()
         val entry = JSONObject().put("at", now).put("mtime", mtime)
-        if (read == null) entry.put("miss", true).put("asked", known?.optLong("asked") ?: 0L) else entry.put("name", read.name).put("depots", JSONArray(read.sharedDepots))
+        if (read == null) entry.put("miss", true) else entry.put("name", read.name).put("depots", JSONArray(read.sharedDepots))
         cache.put(appId.toString(), entry)
         val out = cacheFile.startWrite()
         try { out.write(cache.toString().toByteArray()); cacheFile.finishWrite(out) } catch (e: Exception) { cacheFile.failWrite(out) }
         return read
-    }
-
-    /**
-     * Appids the client's cache did not have that have not been asked of the client in the past
-     * week: the ones [requestUnseen] asks for.
-     */
-    @Synchronized
-    fun unseen(context: Context): List<Int> {
-        val cache = runCatching { JSONObject(AtomicFile(File(context.filesDir, CACHE)).readFully().toString(Charsets.UTF_8)) }.getOrDefault(JSONObject())
-        val now = System.currentTimeMillis()
-        return cache.keys().asSequence().mapNotNull { key ->
-            val o = cache.optJSONObject(key) ?: return@mapNotNull null
-            key.toIntOrNull()?.takeIf { o.optBoolean("miss") && now - o.optLong("asked") > RETRY_AFTER_MS }
-        }.toList()
-    }
-
-    /** [appId] was asked of the client now: not again for a week. */
-    @Synchronized
-    fun markAsked(context: Context, appId: Int) {
-        val file = AtomicFile(File(context.filesDir, CACHE))
-        val cache = runCatching { JSONObject(file.readFully().toString(Charsets.UTF_8)) }.getOrDefault(JSONObject())
-        val o = cache.optJSONObject(appId.toString()) ?: return
-        cache.put(appId.toString(), o.put("asked", System.currentTimeMillis()))
-        val out = file.startWrite()
-        try { out.write(cache.toString().toByteArray()); file.finishWrite(out) } catch (e: Exception) { file.failWrite(out) }
-    }
-
-    /**
-     * While a Steam session runs: the client is asked, quietly, for each app its cache has not seen
-     * (a Custom game whose files name an appid the account never owned or viewed). Asking for an
-     * app's details ([SteamLiveShortcuts.requestAppDetails]) makes the client fetch the app's info
-     * from Steam into its cache, which it writes out to appinfo.vdf; the next look after the
-     * session (the miss is read again once that file changed) finds the app's depots. At most
-     * [max] apps, one every [gapMs], stopping as soon as the session ends. Blocking; a thread of
-     * its own at background priority.
-     */
-    fun requestUnseen(context: Context, running: () -> Boolean, max: Int = 10, gapMs: Long = 5_000) {
-        for (id in unseen(context).take(max)) {
-            if (!running()) return
-            val answer = com.droiddeck.launcher.stores.SteamLiveShortcuts.requestAppDetails(context, id)
-            Log.i(TAG, "asked the client for app $id: ${answer ?: "no answer"}")
-            if (answer != null) markAsked(context, id)
-            try { Thread.sleep(gapMs) } catch (e: InterruptedException) { return }
-        }
     }
 
     private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).map { optString(it) }
