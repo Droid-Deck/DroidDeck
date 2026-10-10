@@ -12,6 +12,7 @@ enum class PhantomProcessStatus {
     ENABLED,
     UNSET,
     UNREADABLE,
+    OVERRIDDEN,
 }
 
 object PhantomProcessLimit {
@@ -20,8 +21,18 @@ object PhantomProcessLimit {
     private const val MAX_PHANTOM = "2147483647"
     private const val PREFS = "phantom-process-limit"
     private const val PREF_ANDROID_12_OFF = "android12-off"
+    private const val PREF_MANUAL_OVERRIDE = "manual-override"
 
     fun usesDeviceConfig(sdk: Int = Build.VERSION.SDK_INT): Boolean = sdk == Build.VERSION_CODES.S
+
+    fun isOverridden(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_MANUAL_OVERRIDE, false)
+
+    fun setOverridden(context: Context, overridden: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(PREF_MANUAL_OVERRIDE, overridden)
+            .apply()
+    }
 
     fun shellCommands(enabled: Boolean, sdk: Int = Build.VERSION.SDK_INT): List<String> = when {
         usesDeviceConfig(sdk) && enabled -> listOf(
@@ -58,14 +69,26 @@ object PhantomProcessLimit {
         if (sdk < Build.VERSION_CODES.S) return PhantomProcessStatus.NOT_APPLICABLE
         if (usesDeviceConfig(sdk)) {
             val off = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_ANDROID_12_OFF, false)
-            return if (off) PhantomProcessStatus.DISABLED else PhantomProcessStatus.UNREADABLE
+            if (off) return PhantomProcessStatus.DISABLED
+            val global = try {
+                Settings.Global.getString(context.contentResolver, SETTING)
+            } catch (_: Exception) {
+                null
+            }
+            if (status(global, systemProperty(OVERRIDE_PROPERTY)) == PhantomProcessStatus.DISABLED) {
+                return PhantomProcessStatus.DISABLED
+            }
+            return if (isOverridden(context)) PhantomProcessStatus.OVERRIDDEN else PhantomProcessStatus.UNREADABLE
         }
         val global = try {
             Settings.Global.getString(context.contentResolver, SETTING)
         } catch (_: Exception) {
-            return PhantomProcessStatus.UNREADABLE
+            return if (isOverridden(context)) PhantomProcessStatus.OVERRIDDEN else PhantomProcessStatus.UNREADABLE
         }
-        return status(global, systemProperty(OVERRIDE_PROPERTY))
+        val detected = status(global, systemProperty(OVERRIDE_PROPERTY))
+        return if (detected == PhantomProcessStatus.DISABLED) PhantomProcessStatus.DISABLED
+        else if (isOverridden(context)) PhantomProcessStatus.OVERRIDDEN
+        else detected
     }
 
     /**
@@ -97,13 +120,16 @@ object PhantomProcessLimit {
     fun hasDeveloperToggle(sdk: Int = Build.VERSION.SDK_INT): Boolean = sdk >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
 
     fun blocksSteam(status: PhantomProcessStatus): Boolean =
-        status != PhantomProcessStatus.NOT_APPLICABLE && status != PhantomProcessStatus.DISABLED
+        status != PhantomProcessStatus.NOT_APPLICABLE &&
+        status != PhantomProcessStatus.DISABLED &&
+        status != PhantomProcessStatus.OVERRIDDEN
 
     fun title(context: Context, status: PhantomProcessStatus): String = context.getString(when (status) {
         PhantomProcessStatus.ENABLED -> R.string.phantom_title_on
         PhantomProcessStatus.UNSET -> R.string.phantom_title_unset
         PhantomProcessStatus.UNREADABLE -> R.string.phantom_title_unreadable
         PhantomProcessStatus.DISABLED -> R.string.phantom_title_off
+        PhantomProcessStatus.OVERRIDDEN -> R.string.phantom_title_overridden
         PhantomProcessStatus.NOT_APPLICABLE -> R.string.phantom_title_not_required
     })
 
@@ -111,6 +137,7 @@ object PhantomProcessLimit {
         PhantomProcessStatus.ENABLED, PhantomProcessStatus.UNSET, PhantomProcessStatus.UNREADABLE ->
             context.getString(R.string.phantom_instructions_fix, fixSentence(context))
         PhantomProcessStatus.DISABLED -> context.getString(R.string.phantom_instructions_off)
+        PhantomProcessStatus.OVERRIDDEN -> context.getString(R.string.phantom_instructions_overridden)
         PhantomProcessStatus.NOT_APPLICABLE -> context.getString(R.string.phantom_instructions_not_applicable)
     }
 
@@ -125,6 +152,7 @@ object PhantomProcessLimit {
     /** English: for the device report. */
     fun reportValue(status: PhantomProcessStatus): String = when (status) {
         PhantomProcessStatus.DISABLED -> "disabled (good - the OS will not kill the session's children)"
+        PhantomProcessStatus.OVERRIDDEN -> "overridden (manual override applied by user)"
         PhantomProcessStatus.ENABLED -> "ENABLED (the OS may kill the session with no log; turn off Restrict child processes)"
         PhantomProcessStatus.UNSET -> "not set (ROM default applies; DroidDeck requires an explicit disabled value)"
         PhantomProcessStatus.UNREADABLE -> "unreadable (DroidDeck could not verify the setting)"

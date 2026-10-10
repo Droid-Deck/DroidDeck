@@ -584,6 +584,8 @@
     <string name="setup_limit_on">已开启 · Android 可能会关闭 Steam。关闭该限制约需一分钟。</string>
     <string name="setup_limit_unset">未设置 · Android 可能会关闭 Steam。关闭该限制约需一分钟。</string>
     <string name="setup_limit_unknown">无法检查 · 关闭该限制约需一分钟。</string>
+    <string name="setup_limit_overridden">已跳过 · 已由用户手动覆盖。</string>
+    <string name="setup_limit_clear_override">清除覆盖</string>
     <string name="setup_fix_it">修复</string>
     <string name="setup_details">详情</string>
     <string name="setup_dev_options">开发者选项</string>
@@ -783,6 +785,8 @@
     <string name="gate_enter_manually">手动输入地址</string>
     <string name="gate_from_computer">通过装有 ADB 的电脑：</string>
     <string name="gate_copy_command">复制命令</string>
+    <string name="gate_already_applied">我已应用更改</string>
+    <string name="gate_unreadable_note">此设备无法自动检查该设置。如果您已执行 ADB 命令，可以直接继续。</string>
     <string name="gate_choose_display">选择在哪个屏幕上打开 Android 设置。</string>
     <string name="gate_main_screen">主屏幕</string>
     <string name="wadb_finding_port">已配对。正在查找无线调试端口…</string>
@@ -1938,11 +1942,13 @@
     <string name="phantom_title_unset">子进程限制未设置</string>
     <string name="phantom_title_unreadable">无法检查子进程限制</string>
     <string name="phantom_title_off">子进程限制已关闭</string>
+    <string name="phantom_title_overridden">子进程限制已跳过</string>
     <string name="phantom_title_not_required">无需更改子进程限制</string>
 
     <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s 如果无法做到，请将此设备连接到装有 ADB 的电脑并运行下方命令，然后返回此处重新检查。</string>
     <string name="phantom_instructions_off">可以启动 Steam 会话了。</string>
+    <string name="phantom_instructions_overridden">子进程限制已被手动跳过。可以启动 Steam 会话了。</string>
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用该限制。</string>
     <string name="phantom_fix_toggle">在开发者选项中打开“禁用子进程限制”，之后请保持开发者选项开启。</string>
     <string name="phantom_fix_no_toggle">此 Android 版本没有该开关。请使用无线调试在此设备上更改。</string>

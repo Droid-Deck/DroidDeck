@@ -562,6 +562,8 @@
     <string name="setup_limit_on">Включено · Android может закрыть Steam. Отключение занимает около минуты.</string>
     <string name="setup_limit_unset">Не задано · Android может закрыть Steam. Отключение занимает около минуты.</string>
     <string name="setup_limit_unknown">Невозможно проверить · отключение занимает около минуты.</string>
+    <string name="setup_limit_overridden">Пропущено · переопределено вручную пользователем.</string>
+    <string name="setup_limit_clear_override">Сбросить переопределение</string>
     <string name="setup_fix_it">Исправить</string>
     <string name="setup_details">Подробности</string>
     <string name="setup_dev_options">Для разработчиков</string>
@@ -766,6 +768,8 @@
     <string name="gate_enter_manually">Ввести адрес вручную</string>
     <string name="gate_from_computer">С компьютера через ADB:</string>
     <string name="gate_copy_command">Копировать команду</string>
+    <string name="gate_already_applied">Я уже применил(а) изменения</string>
+    <string name="gate_unreadable_note">Это устройство не может проверить настройку автоматически. Если вы уже выполнили команду ADB, вы можете продолжить.</string>
     <string name="gate_choose_display">Выберите экран для открытия настроек Android.</string>
     <string name="gate_main_screen">Главный экран</string>
     <string name="wadb_finding_port">Сопряжено. Поиск порта отладки по Wi-Fi…</string>

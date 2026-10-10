@@ -226,6 +226,7 @@ class FrontEndActions(
     val onSetPhantomProcessLimit: (Boolean, (String?) -> Unit) -> Unit,
     val onCopyPhantomCommand: (Boolean) -> Unit = {},
     val onDismissPhantomGate: () -> Unit = {},
+    val onOverridePhantomLimit: (Boolean) -> Unit = {},
     val onStartWirelessAdbPairing: () -> Unit = {},
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
@@ -562,6 +563,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onEnterAddressManually = { requestWirelessAdbFix(false) },
                     onCopyCommand = { a.onCopyPhantomCommand(false) },
                     onOpenNotificationSettings = a.onOpenNotificationSettings,
+                    onAlreadyApplied = { a.onOverridePhantomLimit(true) },
                 )
             }
         }
@@ -574,6 +576,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onPair = a.onWirelessAdbPair,
                     onFindConnectPort = a.onFindWirelessAdbPort,
                     onApply = a.onWirelessAdbApply,
+                    onCopyCommand = { a.onCopyPhantomCommand(wirelessAdbDesiredEnabled) },
+                    onAlreadyApplied = {
+                        a.onOverridePhantomLimit(true)
+                        showWirelessAdbFix = false
+                    },
                 )
             }
         }

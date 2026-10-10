@@ -162,6 +162,7 @@ class MainActivity : ComponentActivity() {
     private var phantomWarning by mutableStateOf<String?>(null)
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
     private var showPhantomGate by mutableStateOf(false)
+    private var pendingSteamIntent: Intent? = null
     private var directAudio by mutableStateOf(false)
     private var stretch16x9 by mutableStateOf(false)
     private var launcherFullscreen by mutableStateOf(true)
@@ -807,7 +808,22 @@ class MainActivity : ComponentActivity() {
                             )
                             android.widget.Toast.makeText(this, R.string.main_adb_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
-                        onDismissPhantomGate = { showPhantomGate = false },
+                        onDismissPhantomGate = {
+                            showPhantomGate = false
+                            pendingSteamIntent = null
+                        },
+                        onOverridePhantomLimit = { overridden ->
+                            PhantomProcessLimit.setOverridden(this, overridden)
+                            refreshPhantomStatus()
+                            if (overridden) {
+                                showPhantomGate = false
+                                val pending = pendingSteamIntent
+                                pendingSteamIntent = null
+                                if (pending != null) {
+                                    startSession(pending, steamSession = true)
+                                }
+                            }
+                        },
                         onStartWirelessAdbPairing = { WirelessAdbPairingService.start(this) },
                         onOpenNotificationSettings = {
                             startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -1644,6 +1660,7 @@ class MainActivity : ComponentActivity() {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
+            pendingSteamIntent = intent
             showPhantomGate = true
             return false
         }

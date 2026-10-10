@@ -59,6 +59,8 @@ fun WirelessAdbFixPage(
     onPair: (String, Int, String, (String?) -> Unit) -> Unit,
     onFindConnectPort: (String, (Int?) -> Unit) -> Unit,
     onApply: (String, Int, Boolean, (String?) -> Unit) -> Unit,
+    onCopyCommand: () -> Unit = {},
+    onAlreadyApplied: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val savedAddress = remember { WirelessAdbFix.savedConnectionAddress(context) }
@@ -216,11 +218,11 @@ fun WirelessAdbFixPage(
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         form()
-                        if (!editing) CompactComputerFallback(desiredEnabled)
+                        if (!editing) CompactComputerFallback(desiredEnabled, onCopyCommand, onAlreadyApplied)
                     }
                 } else {
                     val routes: @Composable () -> Unit = {
-                        FallbackOrder(desiredEnabled, busy, onOpenDeveloperOptions)
+                        FallbackOrder(desiredEnabled, busy, onOpenDeveloperOptions, onCopyCommand, onAlreadyApplied)
                     }
                     if (wide) {
                         Row(
@@ -465,6 +467,8 @@ private fun FallbackOrder(
     desiredEnabled: Boolean,
     busy: Boolean,
     onOpenDeveloperOptions: () -> Unit,
+    onCopyCommand: () -> Unit = {},
+    onAlreadyApplied: () -> Unit = {},
 ) {
     SettingsGroup(stringResource(R.string.wadb_other_ways)) {
         Column(
@@ -481,19 +485,33 @@ private fun FallbackOrder(
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Actions {
+                SecondaryButton(stringResource(R.string.gate_copy_command), compact = true, onClick = onCopyCommand)
+                SecondaryButton(stringResource(R.string.gate_already_applied), compact = true, onClick = onAlreadyApplied)
+            }
         }
     }
 }
 
 @Composable
-private fun CompactComputerFallback(desiredEnabled: Boolean) {
+private fun CompactComputerFallback(
+    desiredEnabled: Boolean,
+    onCopyCommand: () -> Unit = {},
+    onAlreadyApplied: () -> Unit = {},
+) {
     SettingsGroup(stringResource(R.string.wadb_computer_group), compact = true) {
-        Text(
-            PhantomProcessLimit.adbCommand(desiredEnabled),
-            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-        )
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                PhantomProcessLimit.adbCommand(desiredEnabled),
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Actions {
+                SecondaryButton(stringResource(R.string.gate_copy_command), compact = true, onClick = onCopyCommand)
+                SecondaryButton(stringResource(R.string.gate_already_applied), compact = true, onClick = onAlreadyApplied)
+            }
+        }
     }
 }
 

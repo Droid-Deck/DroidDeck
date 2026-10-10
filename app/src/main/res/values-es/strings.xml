@@ -586,6 +586,8 @@
     <string name="setup_limit_on">Activado · Android puede cerrar Steam. Desactivarlo tarda un minuto.</string>
     <string name="setup_limit_unset">Sin definir · Android puede cerrar Steam. Desactivarlo tarda un minuto.</string>
     <string name="setup_limit_unknown">No se pudo comprobar · desactivarlo tarda un minuto.</string>
+    <string name="setup_limit_overridden">Omitido · anulado manualmente por el usuario.</string>
+    <string name="setup_limit_clear_override">Restablecer anulación</string>
     <string name="setup_fix_it">Solucionar</string>
     <string name="setup_details">Detalles</string>
     <string name="setup_dev_options">Opciones de desarrollador</string>
@@ -791,6 +793,8 @@
     <string name="gate_enter_manually">Introducir dirección manualmente</string>
     <string name="gate_from_computer">Desde un ordenador con ADB:</string>
     <string name="gate_copy_command">Copiar comando</string>
+    <string name="gate_already_applied">Ya apliqué los cambios</string>
+    <string name="gate_unreadable_note">Este dispositivo no puede verificar la configuración automáticamente. Si ya ejecutaste el comando ADB, puedes continuar.</string>
     <string name="gate_choose_display">Elige en qué pantalla abrir los Ajustes de Android.</string>
     <string name="gate_main_screen">Pantalla principal</string>
     <string name="wadb_finding_port">Vinculado. Buscando el puerto de la Depuración inalámbrica…</string>
@@ -1976,11 +1980,13 @@
     <string name="phantom_title_unset">El límite de procesos secundarios no está definido</string>
     <string name="phantom_title_unreadable">No se pudo comprobar el límite de procesos secundarios</string>
     <string name="phantom_title_off">El límite de procesos secundarios está desactivado</string>
+    <string name="phantom_title_overridden">El límite de procesos secundarios está omitido</string>
     <string name="phantom_title_not_required">El límite de procesos secundarios no es necesario</string>
 
     <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s Si no es posible, conecta este dispositivo a un ordenador con ADB y ejecuta el comando de abajo. Después vuelve aquí y comprueba de nuevo.</string>
     <string name="phantom_instructions_off">Ya se pueden iniciar sesiones de Steam.</string>
+    <string name="phantom_instructions_overridden">El límite de procesos secundarios se ha omitido manualmente. Ya se pueden iniciar sesiones de Steam.</string>
     <string name="phantom_instructions_not_applicable">Esta versión de Android no usa este límite.</string>
     <string name="phantom_fix_toggle">Activa “Desactivar restricciones de procesos secundarios” en Opciones de desarrollador y deja activadas las Opciones de desarrollador después.</string>
     <string name="phantom_fix_no_toggle">Esta versión de Android no tiene un interruptor para ello. Usa la Depuración inalámbrica para cambiarlo desde este dispositivo.</string>

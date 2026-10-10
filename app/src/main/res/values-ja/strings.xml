@@ -584,6 +584,8 @@
     <string name="setup_limit_on">オン · AndroidがSteamを閉じる可能性があります。制限を解除するには約1分かかります。</string>
     <string name="setup_limit_unset">未設定 · AndroidがSteamを閉じる可能性があります。制限を解除するには約1分かかります。</string>
     <string name="setup_limit_unknown">確認できません · 制限を解除するには約1分かかります。</string>
+    <string name="setup_limit_overridden">スキップ済み · ユーザーにより手動で上書きされました。</string>
+    <string name="setup_limit_clear_override">上書きを解除</string>
     <string name="setup_fix_it">修正</string>
     <string name="setup_details">詳細</string>
     <string name="setup_dev_options">開発者向けオプション</string>
@@ -783,6 +785,8 @@
     <string name="gate_enter_manually">手動でアドレスを入力</string>
     <string name="gate_from_computer">PCでADBを使用：</string>
     <string name="gate_copy_command">コマンドをコピー</string>
+    <string name="gate_already_applied">変更を適用済み</string>
+    <string name="gate_unreadable_note">このデバイスでは設定を自動的に確認できません。ADBコマンドを既に実行した場合は、このまま続行できます。</string>
     <string name="gate_choose_display">Android設定をどの画面で開くか選択してください。</string>
     <string name="gate_main_screen">メイン画面</string>
     <string name="wadb_finding_port">ペアリング済み。ワイヤレスデバッグのポートを検索中…</string>
@@ -1938,11 +1942,13 @@
     <string name="phantom_title_unset">子プロセス制限が未設定です</string>
     <string name="phantom_title_unreadable">子プロセス制限を確認できませんでした</string>
     <string name="phantom_title_off">子プロセス制限はオフです</string>
+    <string name="phantom_title_overridden">子プロセス制限はスキップされました</string>
     <string name="phantom_title_not_required">子プロセス制限の変更は不要です</string>
 
     <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s それができない場合は、このデバイスをADBが使えるPCに接続し、以下のコマンドを実行してください。その後ここに戻って再確認してください。</string>
     <string name="phantom_instructions_off">Steamセッションを開始できます。</string>
+    <string name="phantom_instructions_overridden">子プロセス制限は手動でスキップされました。Steamセッションを開始できます。</string>
     <string name="phantom_instructions_not_applicable">このAndroidバージョンではこの制限は使用されません。</string>
     <string name="phantom_fix_toggle">開発者向けオプションで「子プロセス制限を無効にする」をオンにし、その後も開発者向けオプションをオンのままにしてください。</string>
     <string name="phantom_fix_no_toggle">このAndroidバージョンにはこのスイッチがありません。ワイヤレスデバッグを使って、このデバイスから変更してください。</string>

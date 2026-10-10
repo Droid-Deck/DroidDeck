@@ -599,6 +599,8 @@
     <string name="setup_limit_on">On · Android may close Steam. Turning it off takes a minute.</string>
     <string name="setup_limit_unset">Not set · Android may close Steam. Turning it off takes a minute.</string>
     <string name="setup_limit_unknown">Couldn\'t be checked · turning it off takes a minute.</string>
+    <string name="setup_limit_overridden">Bypassed · manually overridden by user.</string>
+    <string name="setup_limit_clear_override">Clear override</string>
     <string name="setup_fix_it">Fix it</string>
     <string name="setup_details">Details</string>
     <string name="setup_dev_options">Developer options</string>
@@ -801,6 +803,8 @@
     <string name="gate_enter_manually">Enter address manually</string>
     <string name="gate_from_computer">From a computer with ADB:</string>
     <string name="gate_copy_command">Copy command</string>
+    <string name="gate_already_applied">I\'ve already applied the changes</string>
+    <string name="gate_unreadable_note">This device cannot check the setting automatically. If you already ran the ADB command, you can proceed.</string>
     <string name="gate_choose_display">Choose which display to open Android Settings on.</string>
     <string name="gate_main_screen">Main screen</string>
     <string name="wadb_finding_port">Paired. Finding the Wireless debugging port…</string>
@@ -1881,10 +1885,12 @@
     <string name="phantom_title_unset">Child-process limit is unset</string>
     <string name="phantom_title_unreadable">Child-process limit could not be checked</string>
     <string name="phantom_title_off">Child-process limit is off</string>
+    <string name="phantom_title_overridden">Child-process limit is bypassed</string>
     <string name="phantom_title_not_required">Child-process limit not required</string>
     <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s If that is not possible, connect this device to a computer with ADB and run the command below. Return here and check again.</string>
     <string name="phantom_instructions_off">Steam sessions can start.</string>
+    <string name="phantom_instructions_overridden">Child-process restrictions have been manually bypassed. Steam sessions can start.</string>
     <string name="phantom_instructions_not_applicable">This Android version does not use this limit.</string>
     <string name="phantom_fix_toggle">Turn on “Disable child process restrictions” in Developer options, and keep Developer options on afterwards.</string>
     <string name="phantom_fix_no_toggle">This Android version has no switch for it. Use Wireless debugging to change it from this device.</string>
