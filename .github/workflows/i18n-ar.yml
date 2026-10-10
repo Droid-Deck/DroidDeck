@@ -1,0 +1,28 @@
+name: Arabic localization checks
+
+on:
+  push:
+    branches:
+      - feat/arabic-localization-complete-rtl
+  pull_request:
+    paths:
+      - 'app/src/main/res/**'
+      - 'app/src/main/java/com/droiddeck/launcher/core/AppLanguage.kt'
+      - 'app/src/main/AndroidManifest.xml'
+      - 'tools/tests/test_arabic_localization.py'
+      - '.github/workflows/i18n-ar.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  arabic-resources:
+    name: Arabic resource integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Validate Arabic strings, plurals, arrays, locale and RTL
+        run: python3 -m unittest tools/tests/test_arabic_localization.py -v
