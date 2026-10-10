@@ -110,6 +110,8 @@ class SessionLogShareTest {
         val folder = tmp.newFolder("2026-10-06-06-steam")
         File(folder, "session.log").writeText("$secret\n")
         // A folder the scrubbed copy cannot be written into: the scrub fails, the original stays.
+        // Windows still creates files in a read-only directory, so there is nothing to test there.
+        org.junit.Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         folder.setWritable(false)
         try {
             SessionArtifacts.scrubAndMark(folder)

@@ -1,0 +1,3 @@
+# Scripts that run inside the Linux session: LF even under core.autocrlf=true, or bash rejects them.
+tools/linuxfs/** text=auto eol=lf
+tools/mangoapp/** text=auto eol=lf

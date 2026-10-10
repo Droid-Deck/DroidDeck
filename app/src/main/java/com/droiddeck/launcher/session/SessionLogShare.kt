@@ -86,7 +86,7 @@ object SessionLogShare {
             if (percent != shown) { shown = percent; onProgress?.invoke(percent / 100f) }
         }
         ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).path, f); advance(f) }
+            files.forEach { f -> addEntry(z, folder.name + "/" + f.relativeTo(folder).invariantSeparatorsPath, f); advance(f) }
             live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f); advance(f) }
             stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
             tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }

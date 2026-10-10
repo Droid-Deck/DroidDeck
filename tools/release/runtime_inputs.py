@@ -34,7 +34,7 @@ def sources(root):
     for name in SOURCE_PATHS:
         path = root / name
         files.extend(path.rglob('*') if path.is_dir() else [path])
-    return {str(path.relative_to(root)): digest(path) for path in sorted(set(files))
+    return {path.relative_to(root).as_posix(): digest(path) for path in sorted(set(files))
             if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'}
 
 
@@ -44,7 +44,7 @@ def outputs(root):
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
-                result['assets/' + tree + '/' + str(path.relative_to(base))] = str(path.relative_to(root))
+                result['assets/' + tree + '/' + path.relative_to(base).as_posix()] = path.relative_to(root).as_posix()
     for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so']:
         result['lib/arm64-v8a/' + library] = 'app/src/main/jniLibs/arm64-v8a/' + library
     result['assets/pulseaudio.tzst'] = 'app/build/prepared-assets/pulseaudio.tzst'
