@@ -8,12 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to publish to'
+        description: 'Release tag to publish to (a new -rN tag for a refresh; builds pin the one in tools/linuxfs/debian-image.env)'
         required: true
-        default: 'ci-debian-bullseye-r1'
-  push:
-    branches: [ci/cache-debian-image]
-    paths: ['.github/workflows/ci-debian-image.yml']
+        default: 'ci-debian-bullseye-r2'
+      replace:
+        description: 'Overwrite the asset if the release already has one (changes its checksum: re-pin it in debian-image.env)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -26,10 +27,16 @@ jobs:
       - name: Pull, save and publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag || 'ci-debian-bullseye-r1' }}
+          TAG: ${{ inputs.tag }}
+          REPLACE: ${{ inputs.replace }}
         run: |
           set -euo pipefail
           image=public.ecr.aws/docker/library/debian:bullseye
+          # A published image is pinned by checksum in the build; never replace one by accident.
+          if [ "$REPLACE" != true ] && gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null | grep -qx debian-bullseye.tar.zst; then
+            echo "::error::$TAG already carries debian-bullseye.tar.zst; publish to a new tag, or set replace and re-pin tools/linuxfs/debian-image.env"
+            exit 1
+          fi
           for attempt in 1 2 3 4 5 6; do
             docker pull "$image" && break
             [ "$attempt" -lt 6 ] || { echo "::error::could not pull $image"; exit 1; }
