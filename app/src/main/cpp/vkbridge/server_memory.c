@@ -301,7 +301,22 @@ static VkResult alloc_shared(const vkb_dispatch *dt, VkDevice dev, uint32_t s, c
             r = VK_ERROR_INVALID_EXTERNAL_HANDLE;
             break;
         }
-        *out_fd = fcntl(nh->data[0], F_DUPFD_CLOEXEC, 0);
+        /* Mali's gralloc can put more than one fd in the handle (metadata beside the pages): the
+         * memory is the one at least as large as the allocation. */
+        int pick = -1;
+        for (int i = 0; i < nh->numFds && pick < 0; i++) {
+            off_t end = lseek(nh->data[i], 0, SEEK_END);
+            if (end >= (off_t)sz) pick = nh->data[i];
+            if (nh->numFds > 1) VKB_INFO("ahb: handle fd %d of %d is %lld bytes", i + 1, nh->numFds, (long long)end);
+        }
+        if (pick < 0) {
+            VKB_INFO("ahb: no fd in the handle covers %llu bytes", (unsigned long long)sz);
+            dt->vkFreeMemory(dev, m->mem, NULL);
+            m->mem = VK_NULL_HANDLE;
+            r = VK_ERROR_INVALID_EXTERNAL_HANDLE;
+            break;
+        }
+        *out_fd = fcntl(pick, F_DUPFD_CLOEXEC, 0);
         break;
     }
 #endif
