@@ -34,7 +34,6 @@ LAYOUT = 1
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
 PRELOAD_NAMES = ("libblsession.so", "libfakeinput.so")
 FAULT_REPORT = "libfaultreport.so"
-FAULT_REPORT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + FAULT_REPORT
 THUNK_AUDIT = "libthunkaudit.so"
 THUNK_AUDIT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + THUNK_AUDIT
 VULKAN_PIN = "libvulkan-thunk.so"
@@ -241,18 +240,23 @@ def host_preloads():
 
 
 def install_preloads(root):
-    shipped = set()
+    shipped = {}
     for arch, libdir in GUEST_LIBDIRS:
-        for name in PRELOAD_NAMES:
+        for name in PRELOAD_NAMES + (FAULT_REPORT,):
             source = os.path.join(PRELOADS, arch, name)
             if os.path.isfile(source):
                 copy_if_changed(source, os.path.join(root, libdir, "droiddeck", name))
-                shipped.add(name)
-    for name in (FAULT_REPORT, THUNK_AUDIT, VULKAN_PIN):
+                shipped.setdefault(name, set()).add(arch)
+    for name in (THUNK_AUDIT, VULKAN_PIN):
         source = os.path.join(PRELOADS, "x86_64", name)
         if os.path.isfile(source):
             copy_if_changed(source, os.path.join(root, "lib/x86_64-linux-gnu/droiddeck", name))
     wanted = [name for name in host_preloads() if name in shipped]
+    # The fault report is preloaded from the runtime's own list, which only x86 loaders read: through
+    # LD_PRELOAD it reached FEX's own loader too, and every FEX after it, which could not open it and
+    # said so at each start. Listed only with both builds, or i386 programs would say so instead.
+    if len(shipped.get(FAULT_REPORT, ())) == len(GUEST_LIBDIRS):
+        wanted.append(FAULT_REPORT)
     write_if_changed(os.path.join(root, "etc", "ld.so.preload"), "".join("/usr/$LIB/droiddeck/%s\n" % name for name in wanted))
 
 
@@ -492,8 +496,6 @@ def launch(command, env, mode, decide=None):
         return 126
     guest = guest_environment(fex, env)
     x86_64 = elf_arch(program) != "i386"
-    if os.path.isfile(os.path.join(PRELOADS, "x86_64", FAULT_REPORT)) and x86_64:
-        guest["LD_PRELOAD"] = ":".join([FAULT_REPORT_GUEST] + split_paths(guest.get("LD_PRELOAD")))
     thunks = "on" if "FEX_THUNKCONFIG" in guest else "off"
     folder = decide if decide and os.path.isdir(decide) else os.path.dirname(program)
     if thunks == "on" and x86_64 and all(os.path.isfile(os.path.join(PRELOADS, "x86_64", name)) for name in (THUNK_AUDIT, VULKAN_PIN)) \
