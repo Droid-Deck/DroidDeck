@@ -96,6 +96,10 @@ object SessionState {
     @Volatile
     var outputSize: Pair<Int, Int> = Pair(1920, 1080)
 
+    /** The session's resolution is "Follow screen": outputSize tracks the window while it runs. */
+    @Volatile
+    var followScreen = false
+
     @Volatile
     var refreshHz: Float = 60f
 
