@@ -77,6 +77,21 @@ object WinComponents {
 
     fun validId(id: String): Boolean = ID.matches(id) && ".." !in id
 
+    private val BACKGROUND = ThreadLocal<Boolean>()
+
+    /**
+     * Runs [block] as background work: the runtime helpers an install starts on this thread run
+     * at the lowest CPU and I/O priority (nice 19, ionice idle where the runtime has it).
+     */
+    fun <T> background(block: () -> T): T {
+        BACKGROUND.set(true)
+        try { return block() } finally { BACKGROUND.remove() }
+    }
+
+    private fun guest(argv: List<String>): List<String> = if (BACKGROUND.get() != true) argv else listOf(
+        "/bin/sh", "-c", "if command -v ionice >/dev/null 2>&1; then exec nice -n 19 ionice -c3 \"\$@\"; else exec nice -n 19 \"\$@\"; fi", "sh",
+    ) + argv
+
     class Step(val action: String, val json: JSONObject) {
         fun str(key: String): String = json.optString(key, "").ifEmpty {
             if (key in NESTED_KEYS) json.optJSONObject("environment")?.optString(key, "").orEmpty() else ""
@@ -532,7 +547,7 @@ object WinComponents {
         val inside = archive.relativeTo(root).path
         var problem: String? = null
         var ok = false
-        val status = GuestCommand.run(context, listOf(MSI_INSTALL, "--unpack", "/$inside", "/$MSI_CACHE/${dir.name}"),
+        val status = GuestCommand.run(context, guest(listOf(MSI_INSTALL, "--unpack", "/$inside", "/$MSI_CACHE/${dir.name}")),
             logName = "wincomponents-${c.name}") { line ->
             when {
                 line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, _) -> onProgress(Progress(c.name, text, Phase.INSTALL, -1)) }
@@ -571,7 +586,7 @@ object WinComponents {
             onProgress(Progress(c.name, "installing", Phase.INSTALL, 0))
             var result: JSONObject? = null
             var problem: String? = null
-            val status = GuestCommand.run(context, listOf(MSI_INSTALL, "/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}"),
+            val status = GuestCommand.run(context, guest(listOf(MSI_INSTALL, "/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}")),
                 logName = "wincomponents-${c.name}") { line ->
                 when {
                     line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, pct) -> onProgress(Progress(c.name, text, Phase.INSTALL, pct)) }

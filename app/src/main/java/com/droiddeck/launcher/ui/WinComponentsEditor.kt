@@ -139,8 +139,10 @@ internal fun WinComponentsDialog(
             val list = WinComponents.fetch(context)
             // The source's list first (and what it turns on by itself, already installed), then the folder scan.
             if (game != null) {
-                com.droiddeck.launcher.frontend.AutoComponents.refresh(context, game, download = false)
-                list to WinCompSources.forGame(context, game)
+                // The list kept from last time, at once; it is worked out again (and its components
+                // queued) on the background worker, which this page then follows.
+                com.droiddeck.launcher.frontend.AutoComponents.queueGame(context, game, asked = true)
+                list to com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey).orEmpty()
             } else {
                 val own = gameDir?.let { DependencyDetector.detect(it) } ?: emptyList()
                 val steam = steamAppId?.let { SteamRedists.detect(gameDir, it) } ?: emptyList()
@@ -159,6 +161,7 @@ internal fun WinComponentsDialog(
     val autoDownloading by com.droiddeck.launcher.frontend.AutoComponents.downloading.collectAsState()
     val autoChanges by com.droiddeck.launcher.frontend.AutoComponents.changes.collectAsState()
     LaunchedEffect(autoChanges) {
+        if (game != null) withContext(Dispatchers.IO) { com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey) }?.let { findings = it }
         selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
         installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }

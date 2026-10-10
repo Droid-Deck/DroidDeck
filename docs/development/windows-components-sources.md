@@ -50,12 +50,21 @@ that needs a Windows installer here, or is not in the catalog, stays Recommended
 
 ## On by itself, and the user's switches
 
-`AutoComponents.refresh` runs when a game is installed from a store, added or edited, when its
-Windows components page opens, before a launch from DroidDeck, and once at app start for every
-Steam game (Steam installs them without a word to DroidDeck). What is downloaded already turns on
-at once; every other automatic pick is queued (`queueDownloads`, one game at a time, never a
-component the user switched off), downloaded in the background with its progress on the page's
-row, and turned on when it lands - for the next launch; an open page reads the picks again. `wincomponents.json` keeps, per game,
+All of it runs on one background thread (`AutoComponents`), low priority (the runtime helpers an
+install starts run under `nice -n 19` and `ionice -c3`), one job at a time from one queue: a game's
+list (worked out again only when the files it is read from change, by modification time, and kept
+in `files/wincomp-findings.json`, so a page opens on it at once) and a component's download (each
+component once, for every game that wants it). What the user asked for goes first: the page of a
+game (on a metered network too), a store install or an add. A game's list is queued when it is
+installed, added or edited, when its page opens, when it is launched from DroidDeck (the launch
+itself only takes what is on already), and for every Steam game once per app start, ten seconds
+after the launcher is up (Steam installs them without a word to DroidDeck). The queue waits while
+a session runs; what nobody asked for also waits on battery saver, thermal status moderate or
+worse, or a metered network. A component turns on for its games when its download lands, for the
+next launch, and an open page shows the progress and reads the picks again. One log line per
+queued and per finished download.
+
+`wincomponents.json` keeps, per game,
 `auto` (each with its reason) and `user` (each switch the user pressed, on or off) beside `games`,
 the effective list the launch reads (still version 1). A user switch always wins over an automatic
 pick, either way, and a new automatic list never touches it. Picks saved before this build count

@@ -26,6 +26,12 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   here). Every refresh (page open, launch, an app-start sweep over Steam games, install/add/edit)
   now queues the missing automatic picks for a background download and turns each on when it
   lands; the open page shows the progress and reloads.
+- **Gentle on the device:** one low-priority worker and one queue (games and components each once,
+  what the user asked for first); nothing while a session runs; the start-up sweep and pre-launch
+  looks only queue, wait ten seconds after start, and skip battery saver, a warm device or a
+  metered network; runtime helpers under nice 19 / ionice idle; a game's list kept and worked out
+  again only when its files change, on the worker. Tests: download lands, queue paused while a
+  session runs, unfavourable device, dedupe.
 - Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
   source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
   `AddedGameArtLookupTest` updated. Not yet on a device.
