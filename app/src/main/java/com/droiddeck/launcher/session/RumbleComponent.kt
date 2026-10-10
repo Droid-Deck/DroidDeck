@@ -50,12 +50,11 @@ class RumbleComponent : SessionPart() {
     @Volatile private var server: LocalServerSocket? = null
     @Volatile private var stopped = false
     private var phone: Motors? = null
-    /** Where the last effect went, so the next one (or a stop) can end it there. */
-    private var playing: Motors? = null
-    private var controllerId = UNRESOLVED
-    private var controller: Motors? = null
-    /** When the target was last resolved to the phone or nothing, so a fallback is retried now and then. */
-    private var fallbackSince = 0L
+    /** Last effect destinations and resolved targets, keyed by game slot; haptics use their own key. */
+    private val playing = HashMap<Int, Motors>()
+    private val controllerIds = HashMap<Int, Int>()
+    private val controllers = HashMap<Int, Motors?>()
+    private val fallbackSince = HashMap<Int, Long>()
     /** vendor:product of the last physical pad seen driving the pad, for finding it again under a new id. */
     private var lastVendor = 0
     private var lastProduct = 0
@@ -83,15 +82,16 @@ class RumbleComponent : SessionPart() {
     internal var providerMotors: () -> Motors? = { app()?.let { RumbleProviders.motors(it) } }
 
     /** Until when (elapsedRealtime) a game's rumble runs, so Deck haptic ticks do not cut it short. */
-    private var rumbleUntil = 0L
+    private val rumbleUntil = HashMap<Int, Long>()
     private var providerGeneration = 0
 
     @Synchronized private fun refreshEnabled() {
         val ctx = app()
         enabled = ctx?.let { ControllerPrefs.rumbleEnabled(it) } == true
         phoneFallback = ctx?.let { ControllerPrefs.rumblePhoneFallback(it) } != false
-        controllerId = UNRESOLVED
-        if (!enabled) { playing?.cancel(); playing = null }
+        controllerIds.clear()
+        controllers.clear()
+        if (!enabled) cancelAll()
     }
 
     override fun start() {
@@ -178,11 +178,12 @@ class RumbleComponent : SessionPart() {
         try { inputManager?.unregisterInputDeviceListener(deviceListener) } catch (e: Exception) { }
         inputManager = null
         enabled = false
-        playing?.cancel()
-        playing = null
+        cancelAll()
         phone = null
-        controller = null
-        controllerId = UNRESOLVED
+        controllerIds.clear()
+        controllers.clear()
+        fallbackSince.clear()
+        rumbleUntil.clear()
         RumbleProviders.release("session end")
         val s = server
         server = null
@@ -197,55 +198,61 @@ class RumbleComponent : SessionPart() {
     @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) {
         if (!enabled) return
         val pulse = slot and PULSE != 0
+        val key = if (pulse) PULSE else slot and 0x7fff
         val now = SystemClock.elapsedRealtime()
+        val activeRumbleUntil = rumbleUntil.values.maxOrNull() ?: 0L
         if ((strong == 0 && weak == 0) || ms == 0) {
-            // A stop: end whatever is playing, wherever it is. Not a reason to log a target. A
-            // haptic stop leaves a game's rumble alone.
-            if (pulse && now < rumbleUntil) return
-            if (!pulse) rumbleUntil = 0L
-            playing?.cancel()
+            // Stops are scoped to the player's slot; a Deck haptic stop never cuts game rumble.
+            if (pulse && now < activeRumbleUntil) return
+            if (!pulse) rumbleUntil.remove(key)
+            playing.remove(key)?.cancel()
             return
         }
-        if (pulse && now < rumbleUntil) {
-            // A trackpad tick during a game's rumble: lost in it anyway, and replacing it would end it.
+        if (pulse && now < activeRumbleUntil) {
             logLimited("pulse-skip", "rumble: haptic tick skipped while a rumble effect runs")
             return
         }
-        if (!pulse) rumbleUntil = now + ms
-        val target = target()
-        if (target !== playing) {
-            playing?.cancel()
-            playing = target
-            if (target != null) Log.i(TAG, "rumble: playing on ${target.name}")
+        if (!pulse) rumbleUntil[key] = now + ms
+        val target = target(slot, key)
+        val previous = playing[key]
+        if (target !== previous) {
+            previous?.cancel()
+            if (target == null) playing.remove(key) else playing[key] = target
+            target?.let { Log.i(TAG, "rumble: slot $key playing on ${it.name}") }
         }
         if (target == null) {
-            logLimited("none", "rumble: dropped (strong $strong, weak $weak, $ms ms): no controller motors and phone fallback is off")
+            logLimited("none:$key", "rumble: dropped (strong $strong, weak $weak, $ms ms): no controller motors and phone fallback is off")
             return
         }
         try {
             target.play(strong, weak, ms.toLong().coerceIn(1L, 5000L))
         } catch (e: Exception) {
             Log.w(TAG, "rumble: ${target.name}: $e")
-            // The device went away or refused: look again next time.
-            controllerId = UNRESOLVED
+            controllerIds.remove(key)
+            controllers.remove(key)
         }
     }
 
-    /** The active controller's motors, or another pad's, or the phone's (if allowed). */
-    private fun target(): Motors? {
-        val id = PadBridge.activeControllerId()
+    /** Resolve each game slot independently; Deck haptics follow the most recently active pad. */
+    private fun target(packetSlot: Int, key: Int): Motors? {
+        val id = if (packetSlot and PULSE != 0) PadBridge.activeControllerId()
+            else PadBridge.controllerForSlot(packetSlot)
         val now = SystemClock.elapsedRealtime()
-        val retryFallback = controller == null && now - fallbackSince >= FALLBACK_RETRY_MS
+        val retryFallback = controllers[key] == null && now - (fallbackSince[key] ?: 0L) >= FALLBACK_RETRY_MS
         val providersChanged = RumbleProviders.generation != providerGeneration
-        if (id != controllerId || retryFallback || providersChanged) {
+        if (id != controllerIds[key] || retryFallback || providersChanged) {
             providerGeneration = RumbleProviders.generation
-            controllerId = id
-            controller = resolve(id)
-            if (controller == null) fallbackSince = now
+            controllerIds[key] = id
+            val found = resolve(id)
+            controllers[key] = found
+            if (found == null) fallbackSince[key] = now
         }
-        if (controller != null) return controller
-        if (!phoneFallback) return null
-        return phone
+        return controllers[key] ?: if (phoneFallback) phone else null
+    }
+
+    private fun cancelAll() {
+        playing.values.toSet().forEach { it.cancel() }
+        playing.clear()
     }
 
     private fun resolve(id: Int): Motors? {
@@ -380,9 +387,9 @@ class RumbleComponent : SessionPart() {
         }
         synchronized(this) {
             // Re-resolve on the next effect; the old target may be gone or a better one here.
-            controllerId = UNRESOLVED
-            controller = null
-            fallbackSince = 0L
+            controllerIds.clear()
+            controllers.clear()
+            fallbackSince.clear()
         }
     }
 

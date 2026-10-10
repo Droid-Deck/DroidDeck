@@ -34,6 +34,16 @@ object AmazonCredentialStore {
     @JvmStatic
     fun isLoggedIn(context: Context): Boolean = load(context) != null
 
+    /** A fresh access token whatever the stored expiry says: for a call Amazon refused with the stored one. */
+    @JvmStatic
+    fun refresh(context: Context): String? {
+        val creds = load(context) ?: return null
+        val result = AmazonAuthClient.refreshAccessToken(creds.refreshToken ?: return null) ?: return null
+        save(context, result.accessToken, creds.refreshToken, creds.deviceSerial, creds.clientId, System.currentTimeMillis() + result.expiresIn * 1000L, null)
+        Log.i(TAG, "token refreshed (forced)")
+        return result.accessToken
+    }
+
     /** A valid access token, refreshed within five minutes of expiry; null when signed out or the refresh failed. */
     @JvmStatic
     fun getValidAccessToken(context: Context): String? {

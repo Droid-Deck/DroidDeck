@@ -1556,6 +1556,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">隐藏</string>
     <string name="ctrl_editor_drag">拖动以移动</string>
+    <string name="ctrl_editor_snap">对齐</string>
     <string name="ctrl_editor_save">保存</string>
 
     <!-- What the second screen shows during a session -->

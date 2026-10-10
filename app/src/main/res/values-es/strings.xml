@@ -1592,6 +1592,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">Oculto</string>
     <string name="ctrl_editor_drag">Arrastra para mover</string>
+    <string name="ctrl_editor_snap">Ajustar</string>
     <string name="ctrl_editor_save">Guardar</string>
 
     <!-- What the second screen shows during a session -->

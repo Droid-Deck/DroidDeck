@@ -173,7 +173,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -195,6 +195,9 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
+            -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$D/libblaudit.so" tools/proot/fastpath/audit.c
+          aarch64-linux-gnu-strip --strip-unneeded "$D/libblaudit.so"
           # Force-SSBS adapter, preloaded into a game's Wine only when the game asks for it.
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
@@ -271,6 +274,33 @@ jobs:
           install -Dm644 tools/linuxfs/desktop/kwin_wayland_wrapper "$D/usr/local/bin/kwin_wayland_wrapper"
           install -Dm644 tools/linuxfs/desktop/firefox-droiddeck.js "$D/usr/lib/firefox/defaults/pref/droiddeck.js"
           ls -lR "$D"
+
+      # The Debian 11 image the preloads are compiled in comes from a release on this repo
+      # (published once by ci-debian-image.yml, pinned in tools/linuxfs/debian-image.env): the
+      # public registry mirrors rate-limit the shared runner addresses and failed builds on a
+      # busy evening. Only if that download fails is the image pulled, with retries.
+      - name: Fetch the Debian image the preloads build in
+        if: steps.preloads.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          . tools/linuxfs/debian-image.env
+          image=public.ecr.aws/docker/library/debian:bullseye
+          if gh release download "$DEBIAN_IMAGE_TAG" -R "$GITHUB_REPOSITORY" -p "$DEBIAN_IMAGE_ASSET" -O /tmp/debian-image.tar.zst \
+             && { [ -z "$DEBIAN_IMAGE_SHA256" ] || echo "$DEBIAN_IMAGE_SHA256  /tmp/debian-image.tar.zst" | sha256sum -c -; }; then
+            zstd -dc /tmp/debian-image.tar.zst | docker load
+            rm -f /tmp/debian-image.tar.zst
+          else
+            echo "::warning::the hosted Debian image could not be fetched; pulling from the registry instead"
+            for attempt in 1 2 3 4 5; do
+              docker pull "$image" && break
+              [ "$attempt" -lt 5 ] || { echo "::error::could not pull $image after $attempt attempts"; exit 1; }
+              echo "pull attempt $attempt failed (registry busy?); retrying in $((attempt * 30)) s"
+              sleep $((attempt * 30))
+            done
+          fi
+          docker image ls "$image"
 
       - name: Build the x86 preloads FEX guests load (glibc 2.31)
         if: steps.preloads.outputs.cache-hit != 'true'
