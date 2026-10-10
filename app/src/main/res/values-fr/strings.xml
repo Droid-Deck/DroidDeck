@@ -487,6 +487,9 @@
     <string name="setup_limit_on">Activée · Android peut fermer Steam. La désactivation de cette limite prend environ une minute.</string>
     <string name="setup_limit_unset">Non définie · Android peut fermer Steam. La désactivation de cette limite prend environ une minute.</string>
     <string name="setup_limit_unknown">Impossible de vérifier · La désactivation de cette limite prend environ une minute.</string>
+    <string name="setup_limit_overridden">Ignorée · contournée manuellement par l\'utilisateur.</string>
+    <string name="setup_limit_manual_override">Ignorer manuellement</string>
+    <string name="setup_limit_clear_override">Réinitialiser l\'exception</string>
     <string name="setup_fix_it">Corriger</string>
     <string name="setup_details">Détails</string>
     <string name="setup_dev_options">Options pour les développeurs</string>
@@ -682,6 +685,8 @@
     <string name="gate_enter_manually">Saisir l\'adresse manuellement</string>
     <string name="gate_from_computer">Utiliser ADB depuis un ordinateur :</string>
     <string name="gate_copy_command">Copier la commande</string>
+    <string name="gate_already_applied">J\'ai déjà appliqué les modifications</string>
+    <string name="gate_unreadable_note">Cet appareil ne peut pas vérifier ce paramètre automatiquement. Si vous avez déjà exécuté la commande ADB, vous pouvez continuer.</string>
     <string name="gate_choose_display">Choisissez l\'écran sur lequel ouvrir les paramètres Android.</string>
     <string name="gate_main_screen">Écran principal</string>
     <string name="wadb_finding_port">Appairé. Recherche du port de débogage sans fil…</string>

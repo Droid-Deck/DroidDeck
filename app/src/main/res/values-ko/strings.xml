@@ -584,6 +584,9 @@
     <string name="setup_limit_on">켜짐 · Android가 Steam을 종료할 수 있습니다. 제한을 해제하는 데 약 1분이 걸립니다.</string>
     <string name="setup_limit_unset">설정되지 않음 · Android가 Steam을 종료할 수 있습니다. 제한을 해제하는 데 약 1분이 걸립니다.</string>
     <string name="setup_limit_unknown">확인할 수 없음 · 제한을 해제하는 데 약 1분이 걸립니다.</string>
+    <string name="setup_limit_overridden">우회됨 · 사용자가 수동으로 재정의함.</string>
+    <string name="setup_limit_manual_override">수동 재정의</string>
+    <string name="setup_limit_clear_override">재정의 초기화</string>
     <string name="setup_fix_it">수정</string>
     <string name="setup_details">상세 정보</string>
     <string name="setup_dev_options">개발자 옵션</string>
@@ -783,6 +786,8 @@
     <string name="gate_enter_manually">수동으로 주소 입력</string>
     <string name="gate_from_computer">PC에서 ADB 사용:</string>
     <string name="gate_copy_command">명령 복사</string>
+    <string name="gate_already_applied">이미 변경 사항을 적용했습니다</string>
+    <string name="gate_unreadable_note">이 기기는 설정을 자동으로 확인할 수 없습니다. 이미 ADB 명령을 실행했다면 계속 진행할 수 있습니다.</string>
     <string name="gate_choose_display">Android 설정을 어느 화면에서 열지 선택하세요.</string>
     <string name="gate_main_screen">메인 화면</string>
     <string name="wadb_finding_port">페어링됨. 무선 디버깅 포트를 찾는 중…</string>
@@ -1936,11 +1941,13 @@
     <string name="phantom_title_unset">하위 프로세스 제한 설정되지 않음</string>
     <string name="phantom_title_unreadable">하위 프로세스 제한을 확인할 수 없음</string>
     <string name="phantom_title_off">하위 프로세스 제한 꺼짐</string>
+    <string name="phantom_title_overridden">하위 프로세스 제한 우회됨</string>
     <string name="phantom_title_not_required">하위 프로세스 제한 해당 없음</string>
 
     <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s 이 방법을 사용할 수 없으면 이 기기를 ADB가 설치된 PC에 연결하고 아래 명령을 실행하세요. 그런 다음 여기로 돌아와 다시 확인하세요.</string>
     <string name="phantom_instructions_off">Steam 세션을 시작할 수 있습니다.</string>
+    <string name="phantom_instructions_overridden">하위 프로세스 제한이 수동으로 우회되었습니다. Steam 세션을 시작할 수 있습니다.</string>
     <string name="phantom_instructions_not_applicable">이 Android 버전에서는 이 제한을 사용하지 않습니다.</string>
     <string name="phantom_fix_toggle">개발자 옵션에서 “하위 프로세스 제한 사용 중지”를 켜고, 이후에도 개발자 옵션을 켜 둔 상태로 유지하세요.</string>
     <string name="phantom_fix_no_toggle">이 Android 버전에는 해당 스위치가 없습니다. 무선 디버깅을 사용하여 이 기기에서 변경하세요.</string>

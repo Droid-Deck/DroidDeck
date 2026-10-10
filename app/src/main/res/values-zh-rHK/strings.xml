@@ -584,6 +584,9 @@
     <string name="setup_limit_on">已開啟 · Android 可能會關閉 Steam。關閉此限制約需一分鐘。</string>
     <string name="setup_limit_unset">未設定 · Android 可能會關閉 Steam。關閉此限制約需一分鐘。</string>
     <string name="setup_limit_unknown">無法檢查 · 關閉此限制約需一分鐘。</string>
+    <string name="setup_limit_overridden">已略過 · 已由使用者手動覆蓋。</string>
+    <string name="setup_limit_manual_override">手動覆蓋</string>
+    <string name="setup_limit_clear_override">清除覆蓋</string>
     <string name="setup_fix_it">修復</string>
     <string name="setup_details">詳細資料</string>
     <string name="setup_dev_options">開發人員選項</string>
@@ -783,6 +786,8 @@
     <string name="gate_enter_manually">手動輸入位址</string>
     <string name="gate_from_computer">在已安裝 ADB 的電腦上：</string>
     <string name="gate_copy_command">複製指令</string>
+    <string name="gate_already_applied">我已套用變更</string>
+    <string name="gate_unreadable_note">此裝置無法自動檢查此設定。如果您已執行 ADB 指令，可以直接繼續。</string>
     <string name="gate_choose_display">選擇要在哪個螢幕開啟 Android 設定。</string>
     <string name="gate_main_screen">主螢幕</string>
     <string name="wadb_finding_port">已配對，正在尋找無線偵錯連接埠…</string>
@@ -1936,11 +1941,13 @@
     <string name="phantom_title_unset">子進程限制未設定</string>
     <string name="phantom_title_unreadable">無法檢查子進程限制</string>
     <string name="phantom_title_off">子進程限制已關閉</string>
+    <string name="phantom_title_overridden">子進程限制已略過</string>
     <string name="phantom_title_not_required">無需理會子進程限制</string>
 
     <!-- %1$s is the sentence saying how to turn the limit off on this device -->
     <string name="phantom_instructions_fix">%1$s 如無法這樣做，請將此裝置連接到已安裝 ADB 的電腦，並執行以下指令，然後返回這裡再檢查一次。</string>
     <string name="phantom_instructions_off">可以啟動 Steam 會話。</string>
+    <string name="phantom_instructions_overridden">子進程限制已被手動略過。可以啟動 Steam 會話。</string>
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用此限制。</string>
     <string name="phantom_fix_toggle">在開發人員選項中開啟「停用子進程限制」，之後請保持開發人員選項開啟。</string>
     <string name="phantom_fix_no_toggle">此 Android 版本沒有此開關。請使用無線偵錯，直接在此裝置上更改。</string>
