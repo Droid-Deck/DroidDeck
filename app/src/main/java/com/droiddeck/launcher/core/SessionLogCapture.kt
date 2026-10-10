@@ -4,6 +4,7 @@ import android.os.Process
 import android.util.Log
 import java.io.BufferedWriter
 import java.io.File
+import java.io.FileOutputStream
 
 /**
  * `app.log`: what the app itself said while the session ran, and `crash.log`: what Android's crash
@@ -29,6 +30,7 @@ object SessionLogCapture {
     private var pid = -1
     private var writer: BufferedWriter? = null
     private var target: File? = null
+    private var syncer: Thread? = null
 
     /** Start mirroring this process's log lines into [target]. Safe to call twice. */
     @Synchronized
@@ -59,6 +61,7 @@ object SessionLogCapture {
                 out.write("logcat could not be started; this ROM may not hand an app its own entries.\n")
                 out.flush()
             }
+            target.parentFile?.let { syncer = startSyncing(it) }
             Log.i(TAG, "app log -> $target (logcat pid $pid)")
         } catch (e: Exception) {
             Log.w(TAG, "could not start the app log", e)
@@ -72,8 +75,19 @@ object SessionLogCapture {
         if (t.parentFile?.absolutePath == dir.absolutePath) stop()
     }
 
+    /** flush() only reaches the page cache, and a hard reset on f2fs lost the last minutes of every
+     *  log. Every 2 s the session folder's files (ours and the native parts') are synced to storage. */
+    private fun startSyncing(dir: File): Thread = Thread({
+        while (true) {
+            try { Thread.sleep(2000) } catch (e: InterruptedException) { break }
+            dir.listFiles()?.forEach { runCatching { FileOutputStream(it, true).use { s -> s.fd.sync() } } }
+        }
+    }, "session-log-sync").apply { isDaemon = true; start() }
+
     @Synchronized
     fun stop() {
+        syncer?.interrupt()
+        syncer = null
         target = null
         if (pid != -1) {
             try {
