@@ -121,6 +121,7 @@ extern vkb_pd_knowledge vkb_pds[VKB_MAX_PDS];
 extern int vkb_npds;
 
 /* server_memory.c */
+extern PFN_vkGetDeviceProcAddr vkb_mem_gdpa;
 void vkb_mem_selftest(vkb_pd_knowledge *k, VkInstance inst, const vkb_dispatch *idt, VkPhysicalDevice pd);
 const char *const *vkb_mem_required_extensions(uint32_t strategy, uint32_t *count);
 void vkb_mem_track(vkb_srv_table *dev, vkb_srv_mem *m);

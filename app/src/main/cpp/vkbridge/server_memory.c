@@ -170,6 +170,9 @@ void vkb_mem_free_all(vkb_srv_table *dev)
     }
 }
 
+/* The driver's vkGetDeviceProcAddr (for entry points the dispatch table does not carry). */
+PFN_vkGetDeviceProcAddr vkb_mem_gdpa;
+
 /* ------------------------------------------------------------------ allocation */
 
 /*
@@ -230,10 +233,16 @@ static VkResult alloc_shared(const vkb_dispatch *dt, VkDevice dev, uint32_t s, c
         }
         if (exp.sType != VK_STRUCTURE_TYPE_MAX_ENUM) info.pNext = &exp;
         r = dt->vkAllocateMemory(dev, &info, NULL, &m->mem);
-        if (r != VK_SUCCESS) break;
+        if (r != VK_SUCCESS) {
+            VKB_INFO("dmabuf: exportable allocation of %llu bytes (type %u) failed: %d", (unsigned long long)info.allocationSize,
+                    info.memoryTypeIndex, r);
+            break;
+        }
         VkMemoryGetFdInfoKHR gi = {VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR, NULL, m->mem, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT};
         int fd = -1;
-        if (!dt->vkGetMemoryFdKHR || dt->vkGetMemoryFdKHR(dev, &gi, &fd) != VK_SUCCESS || fd < 0) {
+        VkResult fr = dt->vkGetMemoryFdKHR ? dt->vkGetMemoryFdKHR(dev, &gi, &fd) : VK_ERROR_EXTENSION_NOT_PRESENT;
+        if (fr != VK_SUCCESS || fd < 0) {
+            VKB_INFO("dmabuf: vkGetMemoryFdKHR %s: %d (fd %d)", dt->vkGetMemoryFdKHR ? "failed" : "not loaded", fr, fd);
             dt->vkFreeMemory(dev, m->mem, NULL);
             m->mem = VK_NULL_HANDLE;
             r = VK_ERROR_INVALID_EXTERNAL_HANDLE;
@@ -245,12 +254,15 @@ static VkResult alloc_shared(const vkb_dispatch *dt, VkDevice dev, uint32_t s, c
 #ifdef __ANDROID__
     case VKB_MEM_AHB: {
         if (!ahb_load()) break;
-        static PFN_vkGetAndroidHardwareBufferPropertiesANDROID get_props;
+        /* Through the device's own vkGetDeviceProcAddr: Android's loader answers NULL for it from
+         * vkGetInstanceProcAddr(NULL, ...), which desktop loaders allow (the first device run). */
+        PFN_vkGetAndroidHardwareBufferPropertiesANDROID get_props = NULL;
+        if (vkb_mem_gdpa)
+            get_props = (PFN_vkGetAndroidHardwareBufferPropertiesANDROID)vkb_mem_gdpa(dev, "vkGetAndroidHardwareBufferPropertiesANDROID");
         if (!get_props) {
-            PFN_vkGetDeviceProcAddr gdpa = (PFN_vkGetDeviceProcAddr)vkb_gipa(VK_NULL_HANDLE, "vkGetDeviceProcAddr");
-            if (gdpa) get_props = (PFN_vkGetAndroidHardwareBufferPropertiesANDROID)gdpa(dev, "vkGetAndroidHardwareBufferPropertiesANDROID");
+            VKB_INFO("ahb: vkGetAndroidHardwareBufferPropertiesANDROID not found");
+            break;
         }
-        if (!get_props) break;
         uint64_t sz = ai->allocationSize;
         if (sz > 0xFFFFFFFFull) {
             r = VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -259,13 +271,17 @@ static VkResult alloc_shared(const vkb_dispatch *dt, VkDevice dev, uint32_t s, c
         vkb_ahb_desc d = {(uint32_t)sz, 1, 1, AHB_FORMAT_BLOB,
                           AHB_USAGE_CPU_READ_OFTEN | AHB_USAGE_CPU_WRITE_OFTEN | AHB_USAGE_GPU_DATA_BUFFER, 0, 0, 0};
         struct AHardwareBuffer *ahb = NULL;
-        if (p_AHardwareBuffer_allocate(&d, &ahb) != 0 || !ahb) {
+        int ar = p_AHardwareBuffer_allocate(&d, &ahb);
+        if (ar != 0 || !ahb) {
+            VKB_INFO("ahb: AHardwareBuffer_allocate(%u bytes) failed: %d", (unsigned)sz, ar);
             r = VK_ERROR_OUT_OF_DEVICE_MEMORY;
             break;
         }
         m->ahb = ahb;
         VkAndroidHardwareBufferPropertiesANDROID props = {VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};
-        if (get_props(dev, ahb, &props) != VK_SUCCESS || !(props.memoryTypeBits & (1u << ai->memoryTypeIndex))) {
+        VkResult pr = get_props(dev, ahb, &props);
+        if (pr != VK_SUCCESS || !(props.memoryTypeBits & (1u << ai->memoryTypeIndex))) {
+            VKB_INFO("ahb: properties %d, memory types 0x%x (want type %u)", pr, props.memoryTypeBits, ai->memoryTypeIndex);
             r = VK_ERROR_INVALID_EXTERNAL_HANDLE;
             break;
         }
@@ -273,9 +289,13 @@ static VkResult alloc_shared(const vkb_dispatch *dt, VkDevice dev, uint32_t s, c
         info.pNext = &imp;
         info.allocationSize = props.allocationSize;
         r = dt->vkAllocateMemory(dev, &info, NULL, &m->mem);
-        if (r != VK_SUCCESS) break;
+        if (r != VK_SUCCESS) {
+            VKB_INFO("ahb: import of %llu bytes failed: %d", (unsigned long long)info.allocationSize, r);
+            break;
+        }
         const vkb_native_handle *nh = p_AHardwareBuffer_getNativeHandle(ahb);
         if (!nh || nh->numFds < 1) {
+            VKB_INFO("ahb: no fd in the native handle (%d)", nh ? nh->numFds : -1);
             dt->vkFreeMemory(dev, m->mem, NULL);
             m->mem = VK_NULL_HANDLE;
             r = VK_ERROR_INVALID_EXTERNAL_HANDLE;
@@ -559,6 +579,35 @@ static int has_ext(const VkExtensionProperties *e, uint32_t n, const char *name)
     return 0;
 }
 
+/* What the driver says it can do with each kind of external buffer memory (the device runs). */
+static void log_external_props(const vkb_dispatch *idt, VkPhysicalDevice pd)
+{
+    if (!idt->vkGetPhysicalDeviceExternalBufferProperties) return;
+    static const struct { uint32_t bit; const char *name; } types[] = {
+        {VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT, "opaque fd"},
+        {VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, "dma-buf"},
+        {VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, "host allocation"},
+#ifdef __ANDROID__
+        {VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID, "AHB"},
+#endif
+    };
+    for (size_t i = 0; i < sizeof(types) / sizeof(types[0]); i++) {
+        VkPhysicalDeviceExternalBufferInfo bi = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO, NULL, 0,
+                                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                                 (VkExternalMemoryHandleTypeFlagBits)types[i].bit};
+        VkExternalBufferProperties ep = {VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES};
+        idt->vkGetPhysicalDeviceExternalBufferProperties(pd, &bi, &ep);
+        const VkExternalMemoryProperties *p = &ep.externalMemoryProperties;
+        VKB_INFO("external buffers, %s: features 0x%x (%s%s%s), export from 0x%x, compatible 0x%x", types[i].name,
+                 p->externalMemoryFeatures,
+                 p->externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT ? "dedicated-only " : "",
+                 p->externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT ? "exportable " : "",
+                 p->externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT ? "importable" : "",
+                 p->exportFromImportedHandleTypes, p->compatibleHandleTypes);
+    }
+}
+
 void vkb_mem_selftest(vkb_pd_knowledge *k, VkInstance inst, const vkb_dispatch *idt, VkPhysicalDevice pd)
 {
     selftest st;
@@ -627,6 +676,8 @@ void vkb_mem_selftest(vkb_pd_knowledge *k, VkInstance inst, const vkb_dispatch *
     }
     st.dt = *idt;
     PFN_vkGetDeviceProcAddr gdpa = (PFN_vkGetDeviceProcAddr)vkb_gipa(inst, "vkGetDeviceProcAddr");
+    vkb_mem_gdpa = gdpa;
+    log_external_props(idt, pd);
     vkb_dispatch_load_device(&st.dt, gdpa, st.dev);
     st.dt.vkGetDeviceQueue(st.dev, st.qf, 0, &st.queue);
     VkCommandPoolCreateInfo pci = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL, 0, st.qf};

@@ -78,7 +78,18 @@ static void log_device(const vkb_dispatch *dt, VkPhysicalDevice pd, const VkPhys
         }
     }
     VKB_INFO("%u device extensions in total", n);
-    for (uint32_t i = 0; i < n; i++) VKB_DBG("  %s (rev %u)", e[i].extensionName, e[i].specVersion);
+    /* All of them, until the device runs show which ones the server's process sees (it is not an
+     * app process, and saw fewer than the capability viewer on the same tablet). */
+    len = 0;
+    line[0] = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        len += (size_t)snprintf(line + len, sizeof(line) - len, "%s%s:%u", len ? " " : "", e[i].extensionName + 3, e[i].specVersion);
+        if (len > 700 || i + 1 == n) {
+            VKB_INFO("  all: %s", line);
+            len = 0;
+            line[0] = 0;
+        }
+    }
     free(e);
     VkPhysicalDeviceMemoryProperties mp;
     dt->vkGetPhysicalDeviceMemoryProperties(pd, &mp);

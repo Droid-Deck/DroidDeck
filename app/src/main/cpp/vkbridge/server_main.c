@@ -151,6 +151,33 @@ static void usage(void)
     fprintf(stderr, "usage: vkbridge-server --socket PATH [--log FILE] [--vulkan LIB] [--cache-dir DIR] [--selftest] [--verbose]\n");
 }
 
+static pid_t parent_pid;
+
+static void *parent_watch(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        sleep(1);
+        if (getppid() != parent_pid) {
+            VKB_INFO("the app (pid %d) is gone; exiting", (int)parent_pid);
+            _exit(0);
+        }
+    }
+    return NULL;
+}
+
+static void start_parent_watch(void)
+{
+    parent_pid = getppid();
+    if (parent_pid <= 1) return; /* started by init or a shell that already left: nothing to watch */
+    pthread_t t;
+    pthread_attr_t a;
+    pthread_attr_init(&a);
+    pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
+    pthread_create(&t, &a, parent_watch, NULL);
+    pthread_attr_destroy(&a);
+}
+
 int main(int argc, char **argv)
 {
     const char *sock_path = getenv("VKBRIDGE_SOCKET");
@@ -182,8 +209,11 @@ int main(int argc, char **argv)
     signal(SIGABRT, on_crash);
     signal(SIGILL, on_crash);
     signal(SIGFPE, on_crash);
-    /* The server is the app's child: when the app dies, so does the session's GPU. */
-    prctl(PR_SET_PDEATHSIG, SIGTERM);
+    /* The server is the app's child: when the app dies, so does the session's GPU. Not with
+     * PR_SET_PDEATHSIG: that fires when the parent THREAD exits, and Android's ProcessBuilder forks
+     * from the session's start-up thread, which ends right after starting the guest (the server
+     * was killed 6 ms into the first device run). The parent process is watched instead. */
+    start_parent_watch();
 
     VKB_INFO("starting (pid %d, protocol %016llx)", getpid(), (unsigned long long)VKB_PROTOCOL_HASH);
     void *lib = load_vulkan(vk_lib);
