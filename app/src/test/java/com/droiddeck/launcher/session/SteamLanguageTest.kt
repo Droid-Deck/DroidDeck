@@ -10,12 +10,20 @@ class SteamLanguageTest {
 
     @Test fun theAppsLanguagesMapToSteams() {
         assertEquals("english", steam("en"))
+        assertEquals("arabic", steam("ar"))
         assertEquals("spanish", steam("es"))
         assertEquals("japanese", steam("ja"))
         assertEquals("koreana", steam("ko"))
         assertEquals("schinese", steam("zh-CN"))
         assertEquals("tchinese", steam("zh-TW"))
         assertEquals("tchinese", steam("zh-HK"))
+    }
+
+    @Test fun arabicSystemAndRegionalLocalesUseSteamArabic() {
+        assertEquals("arabic", steam("ar"))
+        assertEquals("arabic", steam("ar-SA"))
+        assertEquals("arabic", steam("ar-EG"))
+        assertEquals("arabic", steam("ar-SY"))
     }
 
     @Test fun chineseFollowsTheScriptBeforeTheRegion() {
