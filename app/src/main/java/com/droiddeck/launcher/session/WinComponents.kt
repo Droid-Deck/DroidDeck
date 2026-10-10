@@ -68,10 +68,10 @@ object WinComponents {
     /**
      * Catalog entries every Proton here already ships, which an install would only shadow: Wine
      * Gecko and Mono, the Chinese/Japanese/Korean fonts (Malgun, MS Gothic, YaHei, SimSun are in
-     * share/fonts of Proton Experimental, GE-Proton and proton-cachyos alike) and Wine's own
-     * PowerShell wrapper.
+     * share/fonts of Proton Experimental, GE-Proton and proton-cachyos alike), Wine's own
+     * PowerShell wrapper and the Vulkan loader (vulkan-1.dll, 32- and 64-bit, in all three).
      */
-    private val PROTON_PROVIDES = setOf("gecko", "mono", "cjkfonts", "powershell")
+    private val PROTON_PROVIDES = setOf("gecko", "mono", "cjkfonts", "powershell", "VulkanRT")
     /** The keys the catalog nests under "environment" on a few .NET entries. */
     private val NESTED_KEYS = setOf("url", "file_name", "file_checksum", "file_size")
 

@@ -94,5 +94,6 @@ class WinComponentsSupportTest {
         assertEquals(Support.UNSUPPORTED, support(component("mono-10.4.1", step("install_msi", "url" to "$base/mono.msi"))))
         assertEquals(Support.UNSUPPORTED, support(component("cjkfonts", step("install_fonts", "url" to "temp/SourceHanSans.ttc"))))
         assertEquals(Support.UNSUPPORTED, support(component("powershell", step("copy_file", "file_name" to "profile.ps1", "dest" to "win64"))))
+        assertEquals(Support.UNSUPPORTED, support(component("VulkanRT", step("install_exe", "url" to "$base/VulkanRT.exe"))))
     }
 }
