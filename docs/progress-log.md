@@ -7,6 +7,25 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-10 - `fix/games-folder-migration`: Games folders become entries, not Steam libraries
+
+- **Seen on a device:** Steam's Install dialog listed "Games (Internal shared storage)" and "Games
+  (android)", the user's two Games folders saved before #492, still registered as libraries
+  while Second library is Automatic; with the settings section gone they could not be removed.
+- **Migration** (`GamesFolderMigration`, once at app start and before any scan, idempotent):
+  every game a Games folder listed becomes an entry (`AddedExes`), keeping its chosen exe, stored
+  appid, name / Start in / launch-option overrides, art choices and removal (all keyed by its
+  folder). Store installs and `steamapps` are skipped. The folders stay bound at their old guest
+  paths (`SessionPrefs.gameFolderBinds`), so the listing and every Steam shortcut are unchanged;
+  `addedGamesDirs` is cleared. Log: `games: migrated <root> → N games`.
+- **Libraries:** `GameStorage.gamesFolderLibraries` returns only a Games folder Steam installed
+  into (an appmanifest in its `steamapps/`); the others drop out of `BL_STEAM_LIBRARIES` and the
+  runtime's `droiddeck-steam-library` forgets the `/root/Games/...` entries it had registered.
+  The user's two folders have `steamapps/` without manifests (checked on the device), so both go.
+- **Tests:** `GamesFolderMigrationTest` (exe / appid / name / removal kept, guest paths unchanged,
+  idempotent, store and steamapps skipped, libraries empty, same-name folders), `GameStorageTest`
+  updated. Not yet on a device.
+
 ## 2026-10-09 - `feat/games-add-edit`: add games from the Games tab, edit them like Steam's Properties
 
 - **Steam ⚙ settings:** the Games section is gone (it was a feature, not a setting). Games

@@ -1238,6 +1238,7 @@ struct DeckHidraw {
   size_t mapping_size = 0;
   uint8_t pending_feature = 0;
   bool touch = false;  // Steam's touch controller (below), not the Deck
+  bool triton = false; // The paired 2025 Steam Controller, with native BLE report IDs
 };
 
 // What the Deck has and an Xbox pad does not, after the ring's events: motion (PadMotion) and the
@@ -1246,7 +1247,7 @@ struct DeckHidraw {
 // Absent from a ring file written without one.
 struct DeckImu {
   uint32_t magic;  // IMU1 once written
-  uint32_t reserved;
+  uint32_t imu_mode;  // written by this library: the client's SETTING_IMU_MODE | 0x80000000
   uint64_t seq;    // odd while being written
   int16_t accel[3];
   int16_t gyro[3];
@@ -1270,6 +1271,61 @@ struct DeckExtras {
 static constexpr uint32_t DECK_IMU_MAGIC = 0x31554D49;
 static constexpr size_t DECK_IMU_BLOCK_SIZE = 64;
 static_assert(sizeof(DeckImu) <= DECK_IMU_BLOCK_SIZE, "the IMU block is 64 bytes in the ring file");
+
+// Shared native Steam Controller reports. Field offsets match FakeInputWriter.java. Android writes
+// the original BLE input packet; this process writes Steam's HID output report for Android to send.
+// A feature read is a round trip: this process bumps get_request, Android reads the controller's
+// report characteristic and answers with get_reply set to the same number.
+struct TritonSharedData {
+  uint32_t magic;
+  uint32_t reserved;
+  uint64_t input_seq;
+  uint32_t report_id;
+  uint32_t input_length;
+  uint8_t input[64];
+  uint64_t output_seq;
+  uint32_t output_feature;
+  uint32_t output_length;
+  uint8_t output[64];
+  uint64_t get_request;
+  uint64_t get_reply;
+  uint32_t get_report_id;
+  int32_t get_length;
+  uint8_t get[64];
+};
+static constexpr uint32_t TRITON_SHARED_MAGIC = 0x4e525454;
+static constexpr size_t TRITON_SHARED_BLOCK_SIZE = 256;
+static constexpr size_t TRITON_SHARED_OFFSET = FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE;
+static_assert(offsetof(TritonSharedData, input_seq) == 8, "Triton input sequence offset");
+static_assert(offsetof(TritonSharedData, report_id) == 16, "Triton report ID offset");
+static_assert(offsetof(TritonSharedData, input) == 24, "Triton input offset");
+static_assert(offsetof(TritonSharedData, output_seq) == 88, "Triton output sequence offset");
+static_assert(offsetof(TritonSharedData, output_feature) == 96, "Triton output feature offset");
+static_assert(offsetof(TritonSharedData, output) == 104, "Triton output offset");
+static_assert(offsetof(TritonSharedData, get_request) == 168, "Triton feature request offset");
+static_assert(offsetof(TritonSharedData, get_reply) == 176, "Triton feature reply offset");
+static_assert(offsetof(TritonSharedData, get_report_id) == 184, "Triton feature report ID offset");
+static_assert(offsetof(TritonSharedData, get_length) == 188, "Triton feature length offset");
+static_assert(offsetof(TritonSharedData, get) == 192, "Triton feature data offset");
+static_assert(sizeof(TritonSharedData) <= TRITON_SHARED_BLOCK_SIZE, "Triton ring block size");
+
+static constexpr const char *TRITON_HIDRAW_PATH = "/dev/hidraw18";
+static constexpr unsigned int TRITON_HIDRAW_MAJOR = 240;
+static constexpr unsigned int TRITON_HIDRAW_MINOR = 18;
+static constexpr int TRITON_REPORT_ID_BYTES = 1;
+static constexpr int TRITON_STATE_BYTES = 45;
+static constexpr int TRITON_REPORT_INTERVAL_US = 4000;
+// A BLE read takes a few connection intervals; past this the controller is taken to be gone.
+static constexpr int TRITON_FEATURE_TIMEOUT_MS = 500;
+static constexpr const char *TRITON_NAME = "Steam Controller";
+static constexpr const char *TRITON_SERIAL = "DROIDDECKSC01";
+static const uint8_t kTritonReportDescriptor[] = {
+    0x06, 0x00, 0xff, 0x09, 0x01, 0xa1, 0x01, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08,
+    0x85, 0x45, 0x09, 0x02, 0x95, 0x2d, 0x81, 0x02, 0x85, 0x47, 0x09, 0x03, 0x95, 0x2d, 0x81, 0x02,
+    0x85, 0x80, 0x09, 0x04, 0x95, 0x09, 0x91, 0x02, 0x85, 0x81, 0x09, 0x05, 0x95, 0x07, 0x91, 0x02,
+    0x85, 0x82, 0x09, 0x06, 0x95, 0x03, 0x91, 0x02, 0x85, 0x83, 0x09, 0x07, 0x95, 0x09, 0x91, 0x02,
+    0x85, 0x84, 0x09, 0x08, 0x95, 0x08, 0x91, 0x02, 0x85, 0x85, 0x09, 0x09, 0x95, 0x03, 0x91, 0x02,
+    0x85, 0x01, 0x09, 0x0a, 0x95, 0x3f, 0xb1, 0x02, 0xc0};
 
 __attribute__((visibility("hidden"))) static bool read_deck_extras(const DeckHidraw &deck, DeckExtras &out) {
   if (deck.mapping_size < FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE) return false;
@@ -1307,6 +1363,13 @@ static bool fake_deck_enabled() {
   return enabled == 1;
 }
 
+static bool fake_triton_enabled() {
+  static int enabled = -1;
+  if (enabled < 0)
+    enabled = fake_deck_enabled() && getenv("FAKE_EVDEV_TRITON") && atoi(getenv("FAKE_EVDEV_TRITON")) ? 1 : 0;
+  return enabled == 1;
+}
+
 // The Deck is the client's alone: a game that found it would have the pad twice, once through it
 // and once through Steam Input's virtual pad.
 __attribute__((visibility("hidden"))) static bool process_is_steam_client() {
@@ -1335,6 +1398,10 @@ __attribute__((constructor)) static void log_client_start() {
 
 __attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char *pathname) {
   return pathname && fake_deck_enabled() && !strcmp(pathname, DECK_HIDRAW_PATH);
+}
+
+__attribute__((visibility("hidden"))) static bool is_triton_hidraw_path(const char *pathname) {
+  return pathname && fake_triton_enabled() && !strcmp(pathname, TRITON_HIDRAW_PATH);
 }
 
 // The app's first pad is the Deck now: its evdev node is withdrawn from everyone. Further players'
@@ -1504,6 +1571,116 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   }
   pthread_detach(thread);
   Logger::log("deck: %s opened as fd %d\n", DECK_HIDRAW_PATH, pair[0]);
+  return pair[0];
+}
+
+__attribute__((visibility("hidden"))) static bool read_triton_state(const DeckHidraw &triton, uint8_t &report_id,
+                                                                         uint8_t *report, size_t &length) {
+  if (triton.mapping_size < TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE) return false;
+  const auto *shared = reinterpret_cast<const TritonSharedData *>(reinterpret_cast<const uint8_t *>(triton.ring) +
+                                                                  TRITON_SHARED_OFFSET);
+  for (int attempt = 0; attempt < 8; attempt++) {
+    uint64_t seq = __atomic_load_n(&shared->input_seq, __ATOMIC_ACQUIRE);
+    if (seq & 1) continue;
+    if (__atomic_load_n(&shared->magic, __ATOMIC_RELAXED) != TRITON_SHARED_MAGIC) return false;
+    uint32_t id = __atomic_load_n(&shared->report_id, __ATOMIC_RELAXED);
+    uint32_t size = __atomic_load_n(&shared->input_length, __ATOMIC_RELAXED);
+    if (id > 0xff || size > sizeof(shared->input)) return false;
+    if (size) memcpy(report, shared->input, size);
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    if (seq == __atomic_load_n(&shared->input_seq, __ATOMIC_RELAXED)) {
+      report_id = size ? static_cast<uint8_t>(id) : 0x45;
+      length = size ? size : TRITON_STATE_BYTES;
+      if (!size) memset(report, 0, length);
+      return true;
+    }
+  }
+  return false;
+}
+
+__attribute__((visibility("hidden"))) static void *triton_report_thread(void *arg) {
+  auto *holder = static_cast<std::shared_ptr<DeckHidraw> *>(arg);
+  std::shared_ptr<DeckHidraw> self = *holder;
+  delete holder;
+  uint8_t report[TRITON_REPORT_ID_BYTES + 64] = {};
+  uint8_t report_id = 0x45;
+  size_t length = TRITON_STATE_BYTES;
+  for (;;) {
+    if (read_triton_state(*self, report_id, report + 1, length)) {
+      report[0] = report_id;
+      if (send(self->peer, report, length + 1, MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
+          errno != EAGAIN && errno != EWOULDBLOCK)
+        break;
+    }
+    struct timespec interval = {0, TRITON_REPORT_INTERVAL_US * 1000L};
+    nanosleep(&interval, nullptr);
+  }
+  syscall(SYS_close, self->peer);
+  munmap(self->ring, self->mapping_size);
+  return nullptr;
+}
+
+__attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
+  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  if (!process_is_steam_client()) {
+    errno = ENOENT;
+    return -1;
+  }
+  std::string ring_path = get_ring_path_for_slot(0);
+  int ring_fd = ring_path.empty() ? -1 : my_open(ring_path.c_str(), O_RDWR | O_CLOEXEC);
+  if (ring_fd < 0) {
+    Logger::log("triton: %s refused: ring %s not openable (%s)\n", TRITON_HIDRAW_PATH,
+                ring_path.empty() ? "(none configured)" : ring_path.c_str(), strerror(errno));
+    errno = ENODEV;
+    return -1;
+  }
+  struct stat ring_stat;
+  const size_t mapping_size = TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE;
+  if (fstat(ring_fd, &ring_stat) < 0 || static_cast<size_t>(ring_stat.st_size) < mapping_size) {
+    syscall(SYS_close, ring_fd);
+    errno = ENODEV;
+    return -1;
+  }
+  void *mapping = mmap(nullptr, mapping_size, PROT_READ | PROT_WRITE, MAP_SHARED, ring_fd, 0);
+  syscall(SYS_close, ring_fd);
+  if (mapping == MAP_FAILED || !ring_header_is_valid(static_cast<FakeInputRingHeader *>(mapping)) ||
+      reinterpret_cast<TritonSharedData *>(static_cast<uint8_t *>(mapping) + TRITON_SHARED_OFFSET)->magic != TRITON_SHARED_MAGIC) {
+    if (mapping != MAP_FAILED) munmap(mapping, mapping_size);
+    errno = ENODEV;
+    return -1;
+  }
+  int pair[2];
+  if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) < 0) {
+    munmap(mapping, mapping_size);
+    return -1;
+  }
+  int buffer = (TRITON_STATE_BYTES + TRITON_REPORT_ID_BYTES) * 4;
+  setsockopt(pair[1], SOL_SOCKET, SO_SNDBUF, &buffer, sizeof(buffer));
+  if (!(flags & O_CLOEXEC)) fcntl(pair[0], F_SETFD, 0);
+  if (flags & O_NONBLOCK) fcntl(pair[0], F_SETFL, fcntl(pair[0], F_GETFL) | O_NONBLOCK);
+  auto triton = std::make_shared<DeckHidraw>();
+  triton->peer = pair[1];
+  triton->ring = static_cast<FakeInputRingHeader *>(mapping);
+  triton->mapping_size = mapping_size;
+  triton->triton = true;
+  {
+    std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+    deck_map()[pair[0]] = triton;
+  }
+  pthread_t thread;
+  auto *thread_arg = new std::shared_ptr<DeckHidraw>(triton);
+  if (pthread_create(&thread, nullptr, triton_report_thread, thread_arg) != 0) {
+    delete thread_arg;
+    std::lock_guard<std::recursive_mutex> guard(controller_mutex());
+    deck_map().erase(pair[0]);
+    syscall(SYS_close, pair[0]);
+    syscall(SYS_close, pair[1]);
+    munmap(mapping, mapping_size);
+    errno = ENOMEM;
+    return -1;
+  }
+  pthread_detach(thread);
+  Logger::log("triton: %s opened as fd %d (28de:1303)\n", TRITON_HIDRAW_PATH, pair[0]);
   return pair[0];
 }
 
@@ -1906,6 +2083,41 @@ __attribute__((visibility("hidden"))) static void log_deck_feature(const char *w
   if ((n & (n - 1)) == 0) Logger::log("deck: feature 0x%02x %s (x%u)\n", feature, what, n);
 }
 
+// A settings report (ID_SET_SETTINGS_VALUES) is a list of (setting id, 16-bit value) triples after
+// the length byte. Returns SETTING_IMU_MODE (48, a SETTING_GYRO_MODE_* bitmask from SDL's
+// controller_constants.h) when the report changes it, logged, else -1: the client repeats its
+// settings for as long as it has the pad.
+static constexpr uint8_t DECK_SET_SETTINGS_VALUES = 0x87;
+static constexpr uint8_t DECK_SETTING_IMU_MODE = 48;
+
+__attribute__((visibility("hidden"))) static int deck_imu_mode_change(const uint8_t *buf, size_t size) {
+  static std::atomic<int32_t> last{-1};
+  size_t end = std::min(size, static_cast<size_t>(3) + buf[2]);
+  for (size_t i = 3; i + 3 <= end; i += 3) {
+    if (buf[i] != DECK_SETTING_IMU_MODE) continue;
+    int32_t value = buf[i + 1] | buf[i + 2] << 8;
+    if (last.exchange(value) == value) return -1;
+    Logger::log("deck: imu mode 0x%04x\n", value);
+    return value;
+  }
+  return -1;
+}
+
+// Tells the app whether the client wants motion (DeckImu::imu_mode, FakeInputWriter.readImuMode):
+// PadMotion reads the phone's sensors only while it does. The mapping is read-only, and the
+// client changes the mode a few times a minute at most, so the file is written directly.
+__attribute__((visibility("hidden"))) static void publish_imu_mode(const DeckHidraw &deck, int mode) {
+  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  if (deck.mapping_size < FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE) return;
+  std::string path = get_ring_path_for_slot(0);
+  int fd = path.empty() ? -1 : my_open(path.c_str(), O_WRONLY | O_CLOEXEC);
+  if (fd < 0) return;
+  uint32_t value = 0x80000000u | static_cast<uint32_t>(mode);
+  if (pwrite(fd, &value, sizeof(value), FAKE_INPUT_RING_SIZE + offsetof(DeckImu, imu_mode)) != sizeof(value))
+    Logger::log("deck: imu mode not published (%s)\n", strerror(errno));
+  syscall(SYS_close, fd);
+}
+
 __attribute__((visibility("hidden"))) static int
 deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
   size_t size = _IOC_SIZE(op);
@@ -1918,6 +2130,10 @@ deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
     if (buf[1] == DECK_TRIGGER_RUMBLE_CMD && size >= 10) {
       int left = buf[6] | buf[7] << 8, right = buf[8] | buf[9] << 8;
       send_vibration(left, right, left || right ? 1000 : 0, 0);
+    }
+    if (buf[1] == DECK_SET_SETTINGS_VALUES && size >= 3) {
+      int imu_mode = deck_imu_mode_change(buf, size);
+      if (imu_mode >= 0) publish_imu_mode(deck, imu_mode);
     }
     log_deck_feature("set", buf[1]);
     return static_cast<int>(size);
@@ -1988,6 +2204,119 @@ ioctl_deck(DeckHidraw &deck, ioctl_request_t op, void *argp) {
   case 0x07: return deck_feature(deck, op, static_cast<uint8_t *>(argp), false);  // HIDIOCGFEATURE
   default:
     Logger::log("deck: unhandled hidraw ioctl 0x%02x\n", _IOC_NR(op));
+    errno = EINVAL;
+    return -1;
+  }
+}
+
+__attribute__((visibility("hidden"))) static void triton_queue_output(DeckHidraw &triton, const uint8_t *data,
+                                                                         size_t size, bool feature) {
+  if (!data || !size || size > 64 || triton.mapping_size < TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE) return;
+  auto *shared = reinterpret_cast<TritonSharedData *>(reinterpret_cast<uint8_t *>(triton.ring) + TRITON_SHARED_OFFSET);
+  if (__atomic_load_n(&shared->magic, __ATOMIC_ACQUIRE) != TRITON_SHARED_MAGIC) return;
+  uint64_t seq = __atomic_load_n(&shared->output_seq, __ATOMIC_RELAXED);
+  if (seq & 1) seq++;
+  __atomic_store_n(&shared->output_seq, seq + 1, __ATOMIC_RELEASE);
+  shared->output_feature = feature ? 1 : 0;
+  shared->output_length = static_cast<uint32_t>(size);
+  memcpy(shared->output, data, size);
+  if (size < sizeof(shared->output)) memset(shared->output + size, 0, sizeof(shared->output) - size);
+  __atomic_thread_fence(__ATOMIC_RELEASE);
+  __atomic_store_n(&shared->output_seq, seq + 2, __ATOMIC_RELEASE);
+  static std::atomic<unsigned> counts[2][256];
+  uint8_t report_id = feature ? (size > 1 ? data[1] : 0) : data[0];
+  unsigned n = ++counts[feature ? 1 : 0][report_id];
+  if ((n & (n - 1)) == 0)
+    Logger::log("triton: %s report 0x%02x (x%u, %zu bytes)\n", feature ? "feature" : "output", report_id, n, size);
+}
+
+// HIDIOCGFEATURE: the client reads the controller's info (report 1) this way, and a device that
+// answers with nothing is dropped as a zombie. The read goes to the controller itself, as SDL's
+// BLE backend does it (hid.m, get_feature_report): its reply is the report, with the report ID
+// put in front when the controller left it out. Called without controller_mutex: it waits.
+__attribute__((visibility("hidden"))) static int triton_get_feature(DeckHidraw &triton, uint8_t *report, size_t size) {
+  if (!report || size < 2 || triton.mapping_size < TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE) {
+    errno = EINVAL;
+    return -1;
+  }
+  auto *shared = reinterpret_cast<TritonSharedData *>(reinterpret_cast<uint8_t *>(triton.ring) + TRITON_SHARED_OFFSET);
+  static std::mutex one_at_a_time;
+  std::lock_guard<std::mutex> guard(one_at_a_time);
+  uint8_t report_id = report[0];
+  __atomic_store_n(&shared->get_report_id, report_id, __ATOMIC_RELAXED);
+  uint64_t request = __atomic_add_fetch(&shared->get_request, 1, __ATOMIC_RELEASE);
+  for (int waited = 0; waited < TRITON_FEATURE_TIMEOUT_MS * 4; waited++) {
+    if (__atomic_load_n(&shared->get_reply, __ATOMIC_ACQUIRE) == request) {
+      int32_t length = __atomic_load_n(&shared->get_length, __ATOMIC_RELAXED);
+      if (length <= 0 || length > static_cast<int32_t>(sizeof(shared->get))) break;
+      size_t copied;
+      memset(report, 0, size);
+      if (shared->get[0] == report_id) {
+        copied = std::min(size, static_cast<size_t>(length));
+        memcpy(report, shared->get, copied);
+      } else {
+        report[0] = report_id;
+        copied = 1 + std::min(size - 1, static_cast<size_t>(length));
+        memcpy(report + 1, shared->get, copied - 1);
+      }
+      static std::atomic<unsigned> reads[256];
+      unsigned n = ++reads[report_id];
+      if ((n & (n - 1)) == 0)
+        Logger::log("triton: feature 0x%02x read, %d bytes from the controller [%02x %02x %02x %02x] (x%u)\n", report_id,
+                    length, shared->get[0], shared->get[1], shared->get[2], shared->get[3], n);
+      return static_cast<int>(copied);
+    }
+    struct timespec interval = {0, 250 * 1000L};
+    nanosleep(&interval, nullptr);
+  }
+  static std::atomic<unsigned> failures;
+  unsigned n = ++failures;
+  if ((n & (n - 1)) == 0) Logger::log("triton: feature 0x%02x read got no answer from the controller (x%u)\n", report_id, n);
+  errno = EIO;
+  return -1;
+}
+
+__attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton, ioctl_request_t op, void *argp) {
+  if (_IOC_TYPE(op) != 'H') {
+    errno = ENOTTY;
+    return -1;
+  }
+  switch (_IOC_NR(op)) {
+  case 0x01:
+    *static_cast<int *>(argp) = sizeof(kTritonReportDescriptor);
+    return 0;
+  case 0x02: {
+    auto *descriptor = static_cast<uint8_t *>(argp);
+    uint32_t size;
+    memcpy(&size, descriptor, sizeof(size));
+    memcpy(descriptor + 4, kTritonReportDescriptor, std::min<size_t>(size, sizeof(kTritonReportDescriptor)));
+    return 0;
+  }
+  case 0x03: {
+    struct {
+      uint32_t bustype;
+      int16_t vendor;
+      int16_t product;
+    } info = {BUS_BLUETOOTH, static_cast<int16_t>(0x28de), static_cast<int16_t>(0x1303)};
+    memcpy(argp, &info, sizeof(info));
+    return 0;
+  }
+  case 0x04: return copy_ioctl_string(op, argp, TRITON_NAME);
+  case 0x05: return copy_ioctl_string(op, argp, "bluetooth-droiddeck-1");
+  case 0x08: return copy_ioctl_string(op, argp, TRITON_SERIAL);
+  case 0x06: {
+    // The client's feature reports are the report ID and 64 bytes; the last is padding the BLE
+    // characteristic does not take (SteamControllerBle.sendOutputReport drops it), so 64 are kept.
+    size_t size = _IOC_SIZE(op);
+    if (!argp || size < 2 || size > 65) {
+      errno = EINVAL;
+      return -1;
+    }
+    triton_queue_output(triton, static_cast<const uint8_t *>(argp), std::min<size_t>(size, 64), true);
+    return static_cast<int>(size);
+  }
+  case 0x07: return triton_get_feature(triton, static_cast<uint8_t *>(argp), _IOC_SIZE(op));
+  default:
     errno = EINVAL;
     return -1;
   }
@@ -2162,6 +2491,7 @@ EXPORT int open(const char *pathname, int flags, ...) {
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
+  if (is_triton_hidraw_path(pathname)) return open_triton_hidraw(flags);
   if (is_touch_hidraw_path(pathname)) return open_touch_hidraw(flags);
   if (is_withdrawn_pad_path(pathname)) {
     errno = ENOENT;
@@ -2237,6 +2567,7 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
+  if (is_triton_hidraw_path(pathname)) return open_triton_hidraw(flags);
   if (is_touch_hidraw_path(pathname)) return open_touch_hidraw(flags);
   if (is_withdrawn_pad_path(pathname)) {
     errno = ENOENT;
@@ -2294,7 +2625,8 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 
 template <typename S, typename Real>
 static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
-  if (is_withdrawn_pad_path(pathname) || (is_deck_hidraw_path(pathname) && !process_is_steam_client())) {
+  if (is_withdrawn_pad_path(pathname) ||
+      ((is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname)) && !process_is_steam_client())) {
     errno = ENOENT;
     return -1;
   }
@@ -2308,6 +2640,12 @@ static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
     memset(statbuf, 0, sizeof(*statbuf));
     statbuf->st_mode = S_IFCHR | 0666;
     statbuf->st_rdev = makedev(DECK_HIDRAW_MAJOR, DECK_HIDRAW_MINOR);
+    return 0;
+  }
+  if (is_triton_hidraw_path(pathname)) {
+    memset(statbuf, 0, sizeof(*statbuf));
+    statbuf->st_mode = S_IFCHR | 0666;
+    statbuf->st_rdev = makedev(TRITON_HIDRAW_MAJOR, TRITON_HIDRAW_MINOR);
     return 0;
   }
 
@@ -2355,7 +2693,9 @@ static int fake_stat_fd(int fd, S *buf, Real real) {
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   if (ret == 0 && deck_map().count(fd)) {
     buf->st_mode = (buf->st_mode & ~S_IFMT) | S_IFCHR;
-    buf->st_rdev = makedev(DECK_HIDRAW_MAJOR, deck_map()[fd]->touch ? TOUCH_HIDRAW_MINOR : DECK_HIDRAW_MINOR);
+    const auto &device = *deck_map()[fd];
+    unsigned int minor = device.touch ? TOUCH_HIDRAW_MINOR : (device.triton ? TRITON_HIDRAW_MINOR : DECK_HIDRAW_MINOR);
+    buf->st_rdev = makedev(DECK_HIDRAW_MAJOR, minor);
     return ret;
   }
   auto controller = controller_map().find(fd);
@@ -2401,8 +2741,9 @@ EXPORT int access(const char *pathname, int mode) {
   static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if (is_triton_hidraw_path(pathname) && process_is_steam_client()) return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
-  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname)) {
+  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname)) {
     errno = ENOENT;
     return -1;
   }
@@ -2438,8 +2779,9 @@ EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
   static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if (is_triton_hidraw_path(pathname) && process_is_steam_client()) return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
-  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname)) {
+  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname)) {
     errno = ENOENT;
     return -1;
   }
@@ -2560,8 +2902,15 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   auto maker = uinput_map().find(fd);
   if (maker != uinput_map().end()) return ioctl_uinput(*maker->second, op, argp);
   auto deck = deck_map().find(fd);
-  if (deck != deck_map().end())
-    return deck->second->touch ? ioctl_touch(*deck->second, op, argp) : ioctl_deck(*deck->second, op, argp);
+  if (deck != deck_map().end()) {
+    if (deck->second->touch) return ioctl_touch(*deck->second, op, argp);
+    if (deck->second->triton) {
+      std::shared_ptr<DeckHidraw> triton = deck->second;
+      guard.unlock();
+      return ioctl_triton(*triton, op, argp);
+    }
+    return ioctl_deck(*deck->second, op, argp);
+  }
   auto controller = controller_map().find(fd);
   if (controller == controller_map().end()) {
     guard.unlock();
@@ -2889,6 +3238,7 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   if (made != uinput_map().end()) return write_uinput(*made->second, buf, count);
   if (deck_map().count(fd)) {
     if (deck_map()[fd]->touch) touch_output(static_cast<const uint8_t *>(buf), count);
+    else if (deck_map()[fd]->triton) triton_queue_output(*deck_map()[fd], static_cast<const uint8_t *>(buf), count, false);
     return static_cast<ssize_t>(count);
   }
   auto controller = controller_map().find(fd);
@@ -2915,9 +3265,10 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   if (deck_map().count(fd)) {
     ssize_t total = 0;
-    bool touch = deck_map()[fd]->touch;
+    auto device = deck_map()[fd];
     for (int i = 0; i < iovcnt; i++) {
-      if (touch) touch_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      if (device->touch) touch_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      else if (device->triton) triton_queue_output(*device, static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len, false);
       total += static_cast<ssize_t>(iov[i].iov_len);
     }
     return total;

@@ -68,12 +68,19 @@ object GameStorage {
 
     class Library(val host: File, val guest: String, val label: String)
 
+    /**
+     * Games folders an earlier build registered as Steam libraries that Steam has installed games
+     * into (an appmanifest in their steamapps/): those stay libraries, so the games are not lost.
+     * Any other Games folder is no longer one; the session's library list leaves it out and the
+     * runtime's droiddeck-steam-library forgets it.
+     */
     fun gamesFolderLibraries(context: Context): List<Library> {
         if (SessionPrefs.gameStorage(context).isNotEmpty()) return emptyList()
         val card = effective(context)?.let { canonical(File(it.path)) }
         val sm = context.getSystemService(StorageManager::class.java)
         return AddedGames.roots(context).mapNotNull { root ->
             val host = canonical(root.host)
+            if (!hasInstalledGames(root.host)) return@mapNotNull null
             if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null
             if (card != null && (host == card || host.startsWith("$card/") || card.startsWith("$host/"))) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(root.host)?.getDescription(context) } catch (e: Exception) { null }
@@ -82,6 +89,10 @@ object GameStorage {
             Library(root.host, root.guest, label.replace('"', ' ').replace('\\', ' '))
         }
     }
+
+    /** Steam has installed a game into [root] as a library: a manifest in its steamapps/. */
+    internal fun hasInstalledGames(root: File): Boolean =
+        File(root, "steamapps").listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }?.isNotEmpty() == true
 
     private fun canonical(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
 

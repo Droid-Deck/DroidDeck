@@ -37,6 +37,7 @@ import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.frontend.GameLaunchLink
 import com.droiddeck.launcher.input.FakeInputWriter
+import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -748,7 +749,10 @@ class SessionService : Service() {
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
         // Steam's touch controller rides on the Deck's sysfs and is offered only beside it.
         val wantsTouch = wantsDeck && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()
-        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch) else emptyList()
+        // A paired Triton is exposed as a second native Steam Controller HID, with its original
+        // report IDs and output path. The handheld's own pad remains the Deck target.
+        val wantsTriton = wantsDeck && SteamControllerBle.hasPairedController(this)
+        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch, wantsTriton) else emptyList()
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
@@ -758,6 +762,7 @@ class SessionService : Service() {
             guest.add("FAKE_EVDEV_UINPUT=1")
             if (SessionState.deckPad) {
                 guest.add("FAKE_EVDEV_DECK=1")
+                if (wantsTriton) guest.add("FAKE_EVDEV_TRITON=1")
                 // Steam's touch controller (SteamTouchDevice): the file the app and libfakeinput share.
                 if (wantsTouch) com.droiddeck.launcher.input.SteamTouchDevice.prepare(fakeInputDir)?.let {
                     guest.add("FAKE_TOUCHCTL_RING=" + it.path)

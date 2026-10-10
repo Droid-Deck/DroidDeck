@@ -83,7 +83,8 @@ class AddedExesTest {
         val result = AddedGames.addExe(app, deep)
         assertTrue(result is AddedGames.AddResult.Switched)
         assertEquals(deep.path, AddedGames.scan(app).single().exe.path)
-        assertEquals(0, AddedExes.list(app).size)
+        // The Games folder's game is an entry of its own (GamesFolderMigration); no second one.
+        assertEquals(listOf(File(games, "Example").path), AddedExes.list(app).map { it.folder })
     }
 
     @Test fun anExeTheSessionCannotSeeIsNotAdded() {

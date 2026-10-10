@@ -467,6 +467,19 @@ static void remember(const char *literal, unsigned h, const char *guest) {
   pthread_mutex_unlock(&cache_lock);
 }
 
+/*
+ * A binding below a symlink: proot canonicalised its guest path when it set it up
+ * (initialize_binding), so -b X:/sys/class/thermal/thermal_zone1/type binds the link's target,
+ * /sys/devices/virtual/thermal/thermal_zone1/type, and a path through the link meets it there.
+ * Known here by its literal text only, it would be missed; such a path is left to proot.
+ */
+static int binding_below(const char *g) {
+  size_t len = strlen(g);
+  for (int i = 0; i < nbinds; i++)
+    if (binds[i].glen > len && under(binds[i].guest, g, len)) return 1;
+  return 0;
+}
+
 /* ---------------------------------------------------------------- resolution */
 
 /*
@@ -650,7 +663,7 @@ static long walk(struct res *r, const char *text, int follow, int last) {
     if (S_ISLNK(r->st.st_mode) && (!final || follow)) {
       char target[PATH_MAX];
       long t;
-      if (++links > MAX_LINKS) return FP_SLOW;
+      if (++links > MAX_LINKS || binding_below(r->guest)) return FP_SLOW;
       if (under(r->guest, "/proc", 5)) {
         t = proc_link(r, target, final && last);
         if (t == FP_SLOW) return FP_SLOW;
