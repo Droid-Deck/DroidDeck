@@ -23,6 +23,7 @@ const VkExtensionProperties *vkb_emu_extensions(vkb_physdev *pd, uint32_t *n)
         list[c++] = (VkExtensionProperties){"VK_KHR_vertex_attribute_divisor", 1};
     }
     if (EMU(pd, VKB_EMU_DEPTH_CLIP)) list[c++] = (VkExtensionProperties){"VK_EXT_depth_clip_enable", 1};
+    if (EMU(pd, VKB_EMU_ROBUSTNESS2)) list[c++] = (VkExtensionProperties){"VK_EXT_robustness2", 1};
     *n = c;
     return list;
 }
@@ -35,6 +36,11 @@ void vkb_emu_patch_limits(vkb_physdev *pd, VkPhysicalDeviceProperties *p)
 
 void vkb_emu_patch_properties_chain(vkb_physdev *pd, VkBaseOutStructure *b)
 {
+    if (EMU(pd, VKB_EMU_ROBUSTNESS2) && b->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_PROPERTIES_EXT) {
+        VkPhysicalDeviceRobustness2PropertiesEXT *r = (void *)b;
+        r->robustStorageBufferAccessSizeAlignment = 4;
+        r->robustUniformBufferAccessSizeAlignment = 256;
+    }
     if (EMU(pd, VKB_EMU_DIVISOR)) {
         if (b->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_PROPERTIES_EXT)
             ((VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT *)b)->maxVertexAttribDivisor = UINT32_MAX;
@@ -77,6 +83,12 @@ void vkb_emu_patch_features_chain(vkb_physdev *pd, VkBaseOutStructure *b)
             VkPhysicalDeviceExtendedDynamicState3FeaturesEXT *d3 = (void *)b;
             d3->extendedDynamicState3DepthClipEnable = VK_FALSE;
             if (EMU(pd, VKB_EMU_DEPTH_CLIP)) d3->extendedDynamicState3DepthClampEnable = VK_FALSE;
+        }
+        break;
+    case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT:
+        if (EMU(pd, VKB_EMU_ROBUSTNESS2)) {
+            VkPhysicalDeviceRobustness2FeaturesEXT *r = (void *)b;
+            r->robustBufferAccess2 = r->robustImageAccess2 = r->nullDescriptor = VK_TRUE;
         }
         break;
     case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT:

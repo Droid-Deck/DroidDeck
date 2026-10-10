@@ -33,13 +33,14 @@ uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd, uint32_t *
     idt->vkEnumerateDeviceExtensionProperties(pd, NULL, &n, NULL);
     VkExtensionProperties *e = calloc(n ? n : 1, sizeof(*e));
     idt->vkEnumerateDeviceExtensionProperties(pd, NULL, &n, e);
-    int divisor = 0, depth_clip = 0, maint5 = 0;
+    int divisor = 0, depth_clip = 0, maint5 = 0, robust2 = 0;
     for (uint32_t i = 0; i < n; i++) {
         if (!strcmp(e[i].extensionName, "VK_EXT_vertex_attribute_divisor") ||
             !strcmp(e[i].extensionName, "VK_KHR_vertex_attribute_divisor"))
             divisor = 1;
         if (!strcmp(e[i].extensionName, "VK_EXT_depth_clip_enable")) depth_clip = 1;
         if (!strcmp(e[i].extensionName, "VK_KHR_maintenance5")) maint5 = 1;
+        if (!strcmp(e[i].extensionName, "VK_EXT_robustness2") || !strcmp(e[i].extensionName, "VK_KHR_robustness2")) robust2 = 1;
     }
     free(e);
     /* VKBRIDGE_FAKE_MISSING=bc,divisor,clip,cull,depthclip pretends the GPU lacks them (host tests). */
@@ -51,6 +52,7 @@ uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd, uint32_t *
         if (token(fake, "cull")) f.shaderCullDistance = VK_FALSE;
         if (token(fake, "depthclip")) depth_clip = 0;
         if (token(fake, "maint5")) maint5 = 0;
+        if (token(fake, "robustness2")) robust2 = 0;
     }
     uint32_t emu = 0;
     VkPhysicalDeviceProperties props;
@@ -63,6 +65,10 @@ uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd, uint32_t *
     if (!f.shaderClipDistance && !env_off("VKBRIDGE_EMU_CLIP")) emu |= VKB_EMU_CLIP_DISTANCE;
     if (!f.shaderCullDistance && !env_off("VKBRIDGE_EMU_CULL")) emu |= VKB_EMU_CULL_DISTANCE;
     if (!depth_clip && f.depthClamp && !env_off("VKBRIDGE_EMU_DEPTHCLIP")) emu |= VKB_EMU_DEPTH_CLIP;
+    /* DXVK will not start without robustness2. Mali r44 lacks it; GameNative's wrapper reports it
+     * (robustBufferAccess2, robustImageAccess2, nullDescriptor) without enforcing it, and DXVK
+     * games run - out-of-bounds reads and null descriptors are then up to the driver. */
+    if (!robust2 && f.robustBufferAccess && !env_off("VKBRIDGE_EMU_ROBUSTNESS2")) emu |= VKB_EMU_ROBUSTNESS2;
     /* PointSize in geometry/tessellation stages: stripped when the feature is missing. */
     if (!f.shaderTessellationAndGeometryPointSize && (f.geometryShader || f.tessellationShader)) emu |= VKB_EMU_POINT_SIZE;
     uint32_t miss = 0;
@@ -72,6 +78,7 @@ uint32_t vkb_emu_detect(const vkb_dispatch *idt, VkPhysicalDevice pd, uint32_t *
     if (!f.shaderCullDistance) miss |= VKB_EMU_CULL_DISTANCE;
     if (!depth_clip) miss |= VKB_EMU_DEPTH_CLIP;
     if (emu & VKB_EMU_MAINT5) miss |= VKB_EMU_MAINT5;
+    if (!robust2) miss |= VKB_EMU_ROBUSTNESS2;
     *missing = miss;
     return emu & VKB_EMU_IMPLEMENTED;
 }
@@ -119,6 +126,12 @@ void vkb_emu_device_create_info(vkb_srv_table *inst, VkPhysicalDevice pd, uint32
     if (emu & VKB_EMU_DIVISOR) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT);
     if (emu & VKB_EMU_DEPTH_CLIP) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT);
     if (emu & VKB_EMU_MAINT5) chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES);
+    if (emu & VKB_EMU_ROBUSTNESS2) {
+        chain_remove(ci, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT);
+        /* What robustness the GPU has stays on; robustBufferAccess2 asks for at least that. */
+        VkPhysicalDeviceFeatures *rf = find_features(ci);
+        if (rf) rf->robustBufferAccess = VK_TRUE;
+    }
 }
 
 void vkb_emu_device_init(vkb_srv_table *dev, uint32_t emu)

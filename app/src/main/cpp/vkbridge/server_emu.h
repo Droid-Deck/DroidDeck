@@ -6,7 +6,7 @@
 
 /* Emulations that are implemented (the rest are never offered to the client). */
 #define VKB_EMU_IMPLEMENTED (VKB_EMU_MAINT5 | VKB_EMU_CLIP_DISTANCE | VKB_EMU_CULL_DISTANCE | VKB_EMU_POINT_SIZE | VKB_EMU_BCN | \
-                             VKB_EMU_DIVISOR | VKB_EMU_DEPTH_CLIP)
+                             VKB_EMU_DIVISOR | VKB_EMU_DEPTH_CLIP | VKB_EMU_ROBUSTNESS2)
 
 #define VKB_EMU_BUCKETS 1024
 
