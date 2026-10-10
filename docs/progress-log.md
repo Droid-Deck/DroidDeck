@@ -45,6 +45,14 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   switched ("Available when online"), automatic picks on their way included (no progress bar);
   downloaded ones stay usable. The page follows the network live, and downloads wait in the queue
   until it is back.
+- **Every source, older installs:** the start/after-session pass covers all games (Custom, GOG,
+  Epic, Amazon). GOG/Epic games installed before the sidecar kept the list get it once from the
+  store's build manifest with the saved sign-in (`StoreListBackfill`; no game files; weekly retry
+  on failure). Fresh installs keep the keys even when empty.
+- **Apps the client never saw** (Dragon's Dogma 2, steam_appid.txt 2054970 not in appinfo.vdf):
+  during a Steam session the client is asked quietly via `SteamClient.Apps.RegisterForAppDetails`
+  over DevTools (max 10, 5 s apart, after the client settles); the miss is re-read when
+  appinfo.vdf changes. Not yet proven on a device: no Steam session was running to try it.
 - Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
   source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
   `AddedGameArtLookupTest` updated. Not yet on a device.

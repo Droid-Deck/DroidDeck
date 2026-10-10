@@ -112,6 +112,32 @@ object SteamLiveShortcuts {
         if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: art $assetType for $id")
     }
 
+    /**
+     * Asks the running client for [appId]'s details (`SteamClient.Apps.RegisterForAppDetails`, what
+     * the library's game page uses). For an app the client's app-info cache lacks, this makes the
+     * client fetch its info from Steam into that cache. Returns the name the details carried
+     * (proof the client knows the app now), "" when they came without one, or null with no client
+     * or no answer within six seconds. Blocking.
+     */
+    fun requestAppDetails(context: Context, appId: Int): String? {
+        if (!clientRunning()) return null
+        val js = """
+            (async () => await new Promise(resolve => {
+              let handle = null;
+              const done = v => { try { handle && handle.unregister(); } catch (e) {} resolve(v); };
+              try {
+                handle = SteamClient.Apps.RegisterForAppDetails($appId, d => { if (d) done(JSON.stringify({ name: d.strDisplayName || "" })); });
+              } catch (e) { resolve(null); return; }
+              setTimeout(() => done(null), 6000);
+            }))()
+        """.trimIndent()
+        val value = evaluate(context, js) ?: return null
+        return runCatching { JSONObject(value).optString("name") }.getOrNull()
+    }
+
+    /** A Steam session is up (the client's DevTools answer only then). */
+    fun sessionUp(): Boolean = clientRunning()
+
     private fun clientRunning(): Boolean = SessionState.running && SessionState.mode == SessionService.MODE_STEAM && !SessionState.stopRequested
 
     /** `Runtime.evaluate` of [expression] in the client's SharedJSContext; the value as text, or null. */

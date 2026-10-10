@@ -1036,6 +1036,42 @@ public final class GogDownloadManager {
     }
 
     /** The install size of the Windows build (English / all-language depots), or -1. Blocking. */
+    /**
+     * The "dependencies" of the build [buildId] of [gameId] (else the newest Windows build), from
+     * its build manifest alone: no game file is fetched. Null when the builds or the manifest
+     * could not be had; empty when the build lists none. Blocking.
+     */
+    public static List<String> fetchDependencies(String gameId, String buildId, String token) {
+        try {
+            String buildsUrl = "https://content-system.gog.com/products/" + gameId + "/os/windows/builds?generation=2";
+            String buildsJson = httpGet(buildsUrl, null);
+            if (buildsJson == null) buildsJson = httpGet(buildsUrl, token);
+            if (buildsJson == null) return null;
+            JSONArray items = new JSONObject(buildsJson).optJSONArray("items");
+            if (items == null || items.length() == 0) return null;
+            String manifestUrl = null;
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.getJSONObject(i);
+                if (!"windows".equals(item.optString("os"))) continue;
+                String link = item.optString("link");
+                if (link == null || link.isEmpty()) link = item.optString("meta_url");
+                if (manifestUrl == null) manifestUrl = link;
+                if (buildId != null && !buildId.isEmpty() && buildId.equals(item.optString("build_id"))) { manifestUrl = link; break; }
+            }
+            if (manifestUrl == null || manifestUrl.isEmpty()) return null;
+            byte[] raw = fetchBytes(manifestUrl, token);
+            if (raw == null) return null;
+            String manifestStr = decompressBytes(raw);
+            if (manifestStr == null) return null;
+            JSONArray deps = new JSONObject(manifestStr).optJSONArray("dependencies");
+            List<String> out = new ArrayList<>();
+            if (deps != null) for (int i = 0; i < deps.length(); i++) { String d = deps.optString(i, ""); if (!d.isEmpty()) out.add(d); }
+            return out;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public static long fetchInstallSizeBytes(String gameId, String token) {
         try {
             String buildsUrl = "https://content-system.gog.com/products/" + gameId + "/os/windows/builds?generation=2";

@@ -186,6 +186,9 @@ object AutoComponents {
         if (game.library == Library.ADDED && game.source == Library.ADDED && folder != null && SteamMatch.get(context, folder.path) == null) {
             AddedGames.single(context, folder.path)?.let { SteamMatch.resolve(context, folder.path, it.exe, it.name) }
         }
+        // A GOG or Epic game installed before its sidecar kept the store's list: read it once from the store.
+        val store = com.droiddeck.launcher.stores.Store.byId(game.source)
+        if (folder != null && (store == com.droiddeck.launcher.stores.Store.GOG || store == com.droiddeck.launcher.stores.Store.EPIC)) StoreListBackfill.fill(context, folder)
         val findings = findings(context, game)
         val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return
         val wanted = autoPicks(findings, catalog)
@@ -292,11 +295,13 @@ object AutoComponents {
     fun refreshLater(context: Context, game: Library.SteamGame) = queueGame(context, game, asked = true)
 
     /**
-     * The Steam games, once per app start (Steam installs its games without a word to DroidDeck):
-     * only queued, one game at a time, behind anything asked for, under the same conditions.
+     * Every game, whatever its source, at app start and after each session (Steam installs its
+     * games without a word to DroidDeck; older GOG and Epic installs get their list read once):
+     * only queued, one game at a time, behind anything asked for, under the same conditions. A
+     * game whose files did not change costs a look at their times.
      */
     fun sweep(context: Context, games: List<Library.SteamGame>) {
-        games.filter { it.library != Library.ADDED }.forEach { queueGame(context, it, asked = false) }
+        games.forEach { queueGame(context, it, asked = false) }
     }
 
     /** The default network is there and validated (reaches the internet). */

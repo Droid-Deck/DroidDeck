@@ -767,6 +767,21 @@ public final class EpicDownloadManager {
         }
     }
 
+    /** The manifest's prerequisite as {name, path}, from the manifest alone; null on failure. Blocking. */
+    public static String[] fetchPrereq(String manifestApiJson) {
+        try {
+            List<CdnUrl> cdnUrls = parseCdnUrls(manifestApiJson);
+            if (cdnUrls.isEmpty()) return null;
+            byte[] bytes = downloadManifest(manifestApiJson, cdnUrls);
+            if (bytes == null) return null;
+            Manifest m = parseManifest(bytes);
+            if (m == null) return null;
+            return new String[] { m.prereqName, m.prereqPath };
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** The install size for the tags (null = every file), from the manifest alone; -1 on failure. Blocking. */
     public static long fetchInstallSizeBytes(String manifestApiJson, List<String> installTags) {
         try {

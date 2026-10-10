@@ -367,6 +367,7 @@ class MainActivity : ComponentActivity() {
     private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
     @Volatile private var componentSweepDone = false
+    @Volatile private var componentSweepSession: String? = null
     private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
@@ -1645,8 +1646,11 @@ class MainActivity : ComponentActivity() {
             if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all)
             // Once per app start: the Steam games' Windows components from Steam's lists.
             // Queued only, after the launcher has been up a little; the worker takes them one at a time.
-            if (ready && !componentSweepDone) {
+            // And again after each session (a game installed in it, files changed).
+            val endedSession = SessionState.sessionId.takeIf { !SessionState.running && it != null && it != componentSweepSession }
+            if (ready && (!componentSweepDone || endedSession != null)) {
                 componentSweepDone = true
+                endedSession?.let { componentSweepSession = it }
                 ui.postDelayed({ Thread({ com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all) }, "components-sweep").start() }, 10_000)
             }
             ui.post {

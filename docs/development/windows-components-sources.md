@@ -73,3 +73,25 @@ as the user's own.
 
 The page shows "On for this game" with each reason ("From GOG's list for this game", "Steam
 installs VC++ 2015 with <game> (app N)"), then Recommended, then "Also listed".
+
+## Older store installs
+
+A GOG or Epic game installed before its sidecar kept the store's list gets it once, on the worker
+(`StoreListBackfill`): GOG's build manifest for the installed build (`dependencies`), Epic's
+manifest (prerequisite name and path), fetched with the saved sign-in - the manifest alone, never a
+game file - and kept in the sidecar as an install keeps it. Fresh installs now keep the keys even
+when empty. Without a sign-in or when the store refuses: skipped quietly, tried again a week later;
+offline is no try. Like any work nobody asked for it waits for an unmetered network, unless the
+game's page is open.
+
+## Apps the client never saw
+
+A Custom game whose files name an appid the account never owned or viewed is missing from the
+client's `appinfo.vdf`. While a Steam session runs, once the client is up and has settled (two
+minutes), `SessionService` asks the client for those apps quietly, at most ten, one every five
+seconds, at background priority, stopping when the session ends: `SteamClient.Apps
+.RegisterForAppDetails(appid, callback)` through the DevTools channel `SteamLiveShortcuts` uses
+(what the library's game page calls; for an app not in its cache the client fetches the app's info
+from Steam). The client writes its cache out to `appinfo.vdf`; a miss is read again as soon as that
+file changed (else weekly), so the next look after the session finds the app's Steamworks Shared
+depots. An app asked about is not asked again for a week. Name-only matches stay Recommended.
