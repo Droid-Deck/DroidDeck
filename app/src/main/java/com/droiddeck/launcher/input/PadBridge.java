@@ -274,7 +274,6 @@ public final class PadBridge {
         if (!isControllerKeyEvent(event)) return false;
         int slot = slotFor(event.getDevice());
         PadState pad = stateFor(slot);
-        noteDevice(event.getDevice(), slot);
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_BUTTON_A: pad.press(0, pressed); break;
@@ -301,7 +300,7 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_DPAD_LEFT: pad.left = pressed; break;
             default: return false;
         }
-        noteDevice(event.getDevice());
+        noteDevice(event.getDevice(), slot);
         if (pressed) notePlayerInput();
         statButtons++;
         scheduleStats();
