@@ -16,7 +16,8 @@ class CdpGuardTest(unittest.TestCase):
     def setUpClass(cls):
         cls.build = tempfile.TemporaryDirectory()
         cls.library = Path(cls.build.name) / "net.so"
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", str(SOURCE), "-x", "c", "-", "-ldl", "-o", str(cls.library)],
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", str(SOURCE), str(SOURCE.parent / "binfmt.c"), "-x", "c", "-", "-ldl",
+                        "-o", str(cls.library)],
                        input=b"int bl_udevmon_stand_in(int fd) { return 0; }", check=True, capture_output=True)
 
     @classmethod

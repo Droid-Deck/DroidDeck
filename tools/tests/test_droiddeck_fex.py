@@ -354,6 +354,15 @@ class LaunchTest(FexTestCase):
         self.assertNotIn("LD_PRELOAD", guest)
         self.assertNotIn("FEX_PORTABLE", guest)
 
+    def test_the_server_socket_stays_under_the_runtime_directory(self):
+        runtime = self.tmp / "run"
+        runtime.mkdir()
+        guest = FEX["guest_environment"]({"portable": True}, {"XDG_RUNTIME_DIR": str(runtime)})
+        self.assertEqual(guest["FEX_APP_DATA_LOCATION"], str(runtime / "fex") + "/")
+        self.assertTrue((runtime / "fex").is_dir())
+        guest = FEX["guest_environment"]({"portable": True}, {"XDG_RUNTIME_DIR": str(self.tmp / "missing")})
+        self.assertEqual(guest["FEX_APP_DATA_LOCATION"], G["DATA_DIR"] + "/")
+
     def test_the_runtime_and_thunks_are_passed_to_fex(self):
         fex = {"portable": True, "rootfs": "/rt/files", "host_thunks": "/h", "guest_thunks": "/g", "thunks_db": "/db"}
         guest = FEX["guest_environment"](fex, {})

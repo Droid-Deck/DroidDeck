@@ -94,6 +94,10 @@ object SessionFiles {
             // The user's own AppImages, extracted at import (AppImageManager).
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
+            // The desktop's Run entries and its exec fallback: Windows programs through Steam's Proton,
+            // x86 Linux programs through FEX.
+            "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
+            "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
             // The SteamOS helpers the client calls in Deck mode: the two Armada found it needs, plus
             // the three under /usr/bin, all no-ops that answer "nothing to do" (see each file).
             "usr/bin/steamos-update" to "usr/bin/steamos-update",
