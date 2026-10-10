@@ -96,6 +96,46 @@ TOOL_MANIFEST_VDF = """"manifest"
 # each package in use. A file that no longer matches - whatever changed it - is put back before
 # Proton starts. Only for the Proton build the choice was made for: after a Steam update the build
 # differs and the Proton's own new files are left alone until the user chooses again.
+# A store game (GOG, Epic, Amazon) is started through the launcher .bat DroidDeck wrote beside it.
+# An Epic game needs a fresh sign-in code, which only the app can mint: droiddeck-store-launch asks
+# for it and the app writes it into the game's folder, so a launch from the client's own Play
+# button signs in just as one from the app does. A real launch only; never in the way of it.
+BL_STORE_SETUP = """
+bl_store_launch() {
+  [ "${verb:-}" = waitforexitandrun ] || return 0
+  # A web address the game opens (Wine's winebrowser runs xdg-open) goes to Android's browser:
+  # droiddeck-open-url as xdg-open, first on the game's PATH, with the session channel left in a
+  # file in case Wine does not pass BL_LAUNCH_DIR on. (The prefix also names it as Wine's browser.)
+  if [ -x /usr/local/bin/droiddeck-open-url ]; then
+    mkdir -p /tmp/droiddeck-browser
+    ln -sfn /usr/local/bin/droiddeck-open-url /tmp/droiddeck-browser/xdg-open
+    [ -n "${BL_LAUNCH_DIR:-}" ] && printf '%s\n' "$BL_LAUNCH_DIR" > /tmp/droiddeck-browser/launch-dir
+    PATH="/tmp/droiddeck-browser:$PATH"; export PATH
+  fi
+  # BL_DEBUG_BROWSER=1 (droiddeck-env): Wine traces how the game opens a web address.
+  if [ "${BL_DEBUG_BROWSER:-}" = 1 ]; then
+    WINEDEBUG="${WINEDEBUG:+$WINEDEBUG,}+shell,+winebrowser"; export WINEDEBUG
+  fi
+  [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
+  /usr/local/bin/droiddeck-store-launch "$@"
+  # 10: a store game with cloud saves - the launch waits for Proton and uploads after (bl_run).
+  [ $? -eq 10 ] && BL_STORE_EXIT=1
+  return 0
+}
+
+# Runs Proton: exec'd as always, except for a store game with cloud saves, where the wrapper stays
+# to tell the app the game has exited so it can upload what changed.
+bl_run() {
+  if [ -n "${BL_STORE_EXIT:-}" ]; then
+    "$@"
+    rc=$?
+    /usr/local/bin/droiddeck-store-launch --exited "${BL_STORE_ARGS[@]}" || true
+    exit $rc
+  fi
+  exec "$@"
+}
+"""
+
 BL_COMPONENTS_SETUP = """
 bl_components() {
   base=$1
@@ -115,11 +155,23 @@ bl_components() {
   cm_build=$(awk 'NR == 1 { print $2 }' "$base/version" 2>/dev/null)
   cm_fixed=0
   cm_checked=0
+  # One sha256sum for every file: each program started here pays a dozen traced library lookups
+  # under the game's search path before it does anything.
+  local cm_rows=() cm_files=() row h p
+  local -A cm_sums=()
   while IFS=$'\\t' read -r t want comp rel sum src; do
     [ "$t" = "$cm_tool" ] && [ "$want" = "$cm_build" ] || continue
+    cm_rows+=("$comp"$'\\t'"$rel"$'\\t'"$sum"$'\\t'"$src")
+    [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
+  done < "$cm_list"
+  if [ ${#cm_files[@]} -gt 0 ]; then
+    while read -r h p; do cm_sums["$p"]=$h; done < <(sha256sum -- "${cm_files[@]}" 2>/dev/null)
+  fi
+  for row in "${cm_rows[@]}"; do
+    IFS=$'\\t' read -r comp rel sum src <<< "$row"
     cm_checked=$((cm_checked + 1))
     f="$base/$rel"
-    if [ -f "$f" ] && [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$sum" ]; then continue; fi
+    if [ -f "$f" ] && [ "${cm_sums[$f]:-}" = "$sum" ]; then continue; fi
     if [ ! -f "$src" ]; then
       echo "droiddeck-proton: components: $comp source missing ($src), left as it is" >&2
       continue
@@ -128,7 +180,7 @@ bl_components() {
     cp -f "$src" "$f.bl-new" && mv -f "$f.bl-new" "$f" || continue
     case "$rel" in *.so) chmod 755 "$f" ;; *) chmod 644 "$f" ;; esac
     cm_fixed=$((cm_fixed + 1))
-  done < "$cm_list"
+  done
   [ "$cm_checked" -gt 0 ] && echo "droiddeck-proton: components: checked $cm_checked file(s) in $cm_tool for app $cm_app" >&2
   if [ "$cm_fixed" -gt 0 ]; then
     echo "droiddeck-proton: components: re-applied $cm_fixed of $cm_checked file(s) in $cm_tool before this launch" >&2
@@ -206,7 +258,7 @@ BL_DIRECTAUDIO_SETUP = """
 bl_directaudio() {
   base=$1
   [ -n "${BL_DIRECTAUDIO:-}" ] || return 0
-  [ -d "$BL_DIRECTAUDIO/lib/wine" ] || return 0
+  [ -d "$BL_DIRECTAUDIO" ] || return 0
   version=$("$base/files/bin-arm64/wine" --version 2>/dev/null)
   major=${version#wine-}
   major=${major%%.*}
@@ -214,10 +266,32 @@ bl_directaudio() {
     echo "droiddeck-proton: DirectAudio left off - it is built for Wine 11 and this Proton is '${version:-unknown}'. Pairing them would be silent rather than broken, so it is not worth guessing." >&2
     return 0
   fi
+  # Two builds of the driver ship, one per Wine audio interface, and both Wines call themselves
+  # 11.0: the private mmdevapi table is not versioned, and the wrong set plays silence, not an
+  # error. Proton's own winepulse.so tells them apart - it imports PsCreateSystemThread only on
+  # the system-thread table (Proton-CachyOS), never on the classic one (Valve, GE-Proton).
+  winepulse="$base/files/lib/wine/aarch64-unix/winepulse.so"
+  if [ ! -f "$winepulse" ]; then
+    echo "droiddeck-proton: DirectAudio left off - no winepulse.so to read this Proton's audio interface from" >&2
+    return 0
+  fi
+  if grep -aq PsCreateSystemThread "$winepulse"; then set=linux-wine11-systhread; else set=linux-wine11; fi
+  da="$BL_DIRECTAUDIO/$set"
+  if [ ! -d "$da/lib/wine" ]; then
+    echo "droiddeck-proton: DirectAudio left off - no driver set for the $set interface is staged" >&2
+    return 0
+  fi
   # Wine appends the per-architecture subdirectory to each entry, so the directory holding
   # aarch64-unix/ and aarch64-windows/ is what goes here.
-  WINEDLLPATH="$BL_DIRECTAUDIO/lib/wine${WINEDLLPATH:+:$WINEDLLPATH}"
+  WINEDLLPATH="$da/lib/wine${WINEDLLPATH:+:$WINEDLLPATH}"
   export WINEDLLPATH
+  # Proton-CachyOS's launcher sets WINE_AUDIO_DRIVER=pulse,alsa (setdefault, so an existing value
+  # wins), and its mmdevapi reads that variable BEFORE the registry - so the selection below was
+  # being overridden to pulse on every CachyOS game. Valve's and GE's mmdevapi do not read the
+  # variable at all and take the registry, which is why both are done. A value the user set for
+  # the game still wins: the per-game environment is applied after this.
+  WINE_AUDIO_DRIVER="directaudio,pulse"
+  export WINE_AUDIO_DRIVER
   # mmdevapi only tries the drivers named in the registry; its built-in list is pulse, alsa, oss and
   # coreaudio and knows nothing about this one. The key is appended to the prefix's user.reg rather
   # than written with `wine reg`, which would start a wineserver here just to set one value.
@@ -226,25 +300,36 @@ bl_directaudio() {
   if [ -f "$reg" ]; then
     for pair in system32:aarch64-windows syswow64:i386-windows; do
       dir="$pfx/drive_c/windows/${pair%%:*}"
-      src="$BL_DIRECTAUDIO/lib/wine/${pair#*:}/winedirectaudio.drv"
+      src="$da/lib/wine/${pair#*:}/winedirectaudio.drv"
       if [ -d "$dir" ] && [ -f "$src" ] && [ "$(readlink "$dir/winedirectaudio.drv" 2>/dev/null)" != "$src" ]; then
         ln -sfn "$src" "$dir/winedirectaudio.drv.bl-new" && mv -f "$dir/winedirectaudio.drv.bl-new" "$dir/winedirectaudio.drv"
       fi
     done
     key='[Software\\\\Wine\\\\Drivers]'
-    if [ "$(readlink "$pfx/drive_c/windows/system32/winedirectaudio.drv" 2>/dev/null)" != "$BL_DIRECTAUDIO/lib/wine/aarch64-windows/winedirectaudio.drv" ]; then
+    if [ "$(readlink "$pfx/drive_c/windows/system32/winedirectaudio.drv" 2>/dev/null)" != "$da/lib/wine/aarch64-windows/winedirectaudio.drv" ]; then
       echo "droiddeck-proton: DirectAudio could not be placed in the prefix; Proton's own audio stays" >&2
     elif ! BL_KEY="$key" awk 'index($0, "[") == 1 { inside = index($0, ENVIRON["BL_KEY"] " ") == 1 } inside && index($0, "\\"Audio\\"=") == 1 { last = $0 } END { exit last != "\\"Audio\\"=\\"directaudio,pulse\\"" }' "$reg" 2>/dev/null; then
       printf '\\n%s %s\\n"Audio"="directaudio,pulse"\\n' "$key" "$(date +%s)" >> "$reg"
       echo "droiddeck-proton: DirectAudio selected in the prefix" >&2
+      # Steam runs this tool several times per launch (getcompatpath, run, waitforexitandrun); a
+      # wineserver from an earlier verb that still holds the registry saves its own copy on exit
+      # and drops this line. Said out loud so a game that stays on pulse once is explained; it
+      # takes on the next launch. (Writing through the live server with a bare `wine reg add` was
+      # tried and withdrawn: a second Wine invocation inside Steam's launch sequence is not safe.)
+      srv="${BL_WINE_SERVER_BASE:-/tmp/.wine-$(id -u)}/server-$(printf '%x-%x' $(stat -c '%d %i' "$pfx" 2>/dev/null || echo 0 0))/socket"
+      if [ -S "$srv" ]; then
+        echo "droiddeck-proton: a wineserver is already running for this prefix; DirectAudio may only engage on the next launch" >&2
+      fi
     fi
   else
     # A prefix that does not exist yet is created by Proton moments from now, after this runs, so
-    # the key lands on the NEXT launch of that game. Said out loud because silent audio on a first
-    # launch would otherwise look like a fault.
+    # the value lands on the NEXT launch of that game. Said out loud so a first launch on Proton's
+    # own audio does not look like a fault. (Having Proton create the prefix from here first was
+    # tried and withdrawn: a second Proton run inside Steam's launch sequence got the launch
+    # aborted - Steam games bounced back to their page with a half-made prefix.)
     echo "droiddeck-proton: no prefix yet - DirectAudio takes effect the next time this game starts" >&2
   fi
-  echo "droiddeck-proton: DirectAudio ready (Wine $major)" >&2
+  echo "droiddeck-proton: DirectAudio ready (Wine $major, $set)" >&2
 }
 """
 
@@ -274,12 +359,23 @@ for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
     esac
   fi
 done
+# ld.so looks every library up along the game's search path (its own directory, Steam's runtime
+# and video directories, Proton's), and under proot each miss is a round trip to the tracer. With
+# the fast path, the audit module skips the misses it can prove (tools/proot/fastpath/audit.c).
+audit=/usr/local/lib/libblaudit.so
+if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
+  case ":${LD_AUDIT:-}:" in
+    *":$audit:"*) ;;
+    *) LD_AUDIT="$audit${LD_AUDIT:+:$LD_AUDIT}"; export LD_AUDIT ;;
+  esac
+fi
 # The depot this tool is named after, newest across the libraries that hold it; the others in the
 # list stand in only when it is missing.
 depot=
+libraries=$(printf '%%s\\n' "$steam_root" /mnt/droiddeck-sd; sed -n 's/^[[:space:]]*"path"[[:space:]]*"\\(.*\\)"[[:space:]]*$/\\1/p' "$steam_root/steamapps/libraryfolders.vdf" 2>/dev/null)
 for name in %s; do
  best=0
- for library in "$steam_root" /mnt/droiddeck-sd; do
+ while IFS= read -r library; do
   candidate="$library/steamapps/common/$name"
   [ -d "$candidate/files/bin-arm64" ] && [ -x "$candidate/proton" ] || continue
   build=0
@@ -289,7 +385,7 @@ for name in %s; do
     depot=$candidate
     best=$build
   fi
- done
+ done <<< "$libraries"
  [ -n "$depot" ] && break
 done
 if [ -n "$depot" ]; then
@@ -298,7 +394,9 @@ if [ -n "$depot" ]; then
   bl_game_cpus
   bl_idtech3 "$@"
   bl_libpath
-  exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+  bl_store_launch "$@"
+  BL_STORE_ARGS=("$@")
+  bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$depot/proton" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 fi
 echo "droiddeck-proton: no ARM64 Proton depot yet - the client downloads one as this tool's dependency; retry the launch once it has" >&2
 exit 1
@@ -312,7 +410,7 @@ def launcher_sh(sources=SOURCES):
     # something else.
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
         "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-        + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+        + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
 
 
 LAUNCHER_SH = launcher_sh()
@@ -351,14 +449,24 @@ for fake in /usr/local/lib/libfakeinput.so /usr/local/lib/libblsession.so; do
     esac
   fi
 done
+# See droiddeck-proton: library lookups that cannot succeed are skipped with the fast path.
+audit=/usr/local/lib/libblaudit.so
+if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
+  case ":${LD_AUDIT:-}:" in
+    *":$audit:"*) ;;
+    *) LD_AUDIT="$audit${LD_AUDIT:+:$LD_AUDIT}"; export LD_AUDIT ;;
+  esac
+fi
 bl_components "$here"
 bl_directaudio "$here"
 bl_game_cpus
 bl_idtech3 "$@"
 bl_libpath
+bl_store_launch "$@"
+BL_STORE_ARGS=("$@")
 # Proton takes its base directory from dirname(sys.argv[0]) without resolving it, so it has to be
 # started from its own tree.
-exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
+bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$here/%s" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 """
 EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
 {
@@ -585,7 +693,7 @@ def adopt_extras(tools):
             body = (EXTRA_WRAPPER_SH % entry_point).replace(
                     'here=$(dirname "$0")',
                     'here=$(dirname "$0")\n' + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-                    + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP, 1)
+                    + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
             write_changed(wrapper, body, 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
             write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, display_name(entry)))
@@ -615,10 +723,21 @@ NOT_GAMES = frozenset((
 ))
 
 
+def libraries(steam_root):
+    found = [steam_root]
+    try:
+        with open(os.path.join(steam_root, "steamapps", "libraryfolders.vdf"), encoding="utf-8", errors="replace") as f:
+            found += [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', f.read())]
+    except OSError:
+        pass
+    found.append(LIBRARY + "-sd")
+    return list(dict.fromkeys(found))
+
+
 def installed_apps(steam_root):
     """App ids of the titles the client has installed, tools and runtimes excluded."""
     apps = set()
-    for library in (steam_root, LIBRARY + "-sd"):
+    for library in libraries(steam_root):
         steamapps = os.path.join(library, "steamapps")
         try:
             names = os.listdir(steamapps)
@@ -778,7 +897,7 @@ def fex_missing(steam_root):
     missing = []
     for app in FEX_DEPENDENCIES:
         if not any(os.path.isfile(os.path.join(library, "steamapps", "appmanifest_%s.acf" % app))
-                   for library in (steam_root, LIBRARY + "-sd")):
+                   for library in libraries(steam_root)):
             missing.append(app)
     return missing
 
@@ -1065,7 +1184,7 @@ def depot_build(depot):
 def find_source(steam_root, sources=SOURCES):
     """The first of `sources` the client has downloaded, newest across the libraries holding it."""
     for name in sources:
-        found = [os.path.join(root, "steamapps", "common", name) for root in (steam_root, "/mnt/droiddeck-sd")
+        found = [os.path.join(root, "steamapps", "common", name) for root in libraries(steam_root)
                  if os.path.isdir(os.path.join(root, "steamapps", "common", name, "files", "bin-arm64"))]
         if found:
             return max(found, key=depot_build)

@@ -1,0 +1,14 @@
+# What droiddeck-msi-install runs: msitools' msiinfo reads a Windows Installer package's tables
+# and streams, cabextract unpacks its cabinets (every compression a cabinet can use, which gcab
+# alone cannot), 7-Zip (7z + its 7z.so format plugin) opens the installer .exe wrappers around
+# packages (self-extracting 7-Zip and cabinet files, WiX bundles). Arch Linux ARM's aarch64 packages, hosted unchanged on this repo's
+# msitools-0.106-r1 release because the mirror keeps only the newest of each. CI fetches each,
+# checks the sha256 and stages the files below into the apk under usr/local/lib/droiddeck-msitools;
+# SessionFiles copies them into the runtime at every launch. Everything else they need (glib, gio,
+# libxml2.so.16, zlib, bzip2, libgcc_s) is in the runtime already.
+# sha256  url
+4ab93d800b320d19c6c1090e21b69e5764ee241b6370012459e0c5df03739a8d  https://github.com/Droid-Deck/DroidDeck/releases/download/msitools-0.106-r1/msitools-0.106-3-aarch64.pkg.tar.xz
+4028f44d83b2956ba2931d32aee8cceecbd6481e2febf86a3b6bfed69ef403d5  https://github.com/Droid-Deck/DroidDeck/releases/download/msitools-0.106-r1/libgsf-1.14.60-1-aarch64.pkg.tar.xz
+3d7bd103313cb36d6cb703a5e583363e56ff255f105bcc0727916d195967976d  https://github.com/Droid-Deck/DroidDeck/releases/download/msitools-0.106-r1/gcab-1.6-2-aarch64.pkg.tar.xz
+87fe375a22de1519982234ce99f909ae13c06500784baaa1e8d7a0c0be0d14ee  https://github.com/Droid-Deck/DroidDeck/releases/download/msitools-0.106-r1/cabextract-1.11-3-aarch64.pkg.tar.xz
+e3bc83ac5960a4363f7ce05eb1d50b03d60d627a4a29f9b02c8e0466a5381b1f  http://mirror.archlinuxarm.org/aarch64/extra/7zip-26.04-1-aarch64.pkg.tar.xz

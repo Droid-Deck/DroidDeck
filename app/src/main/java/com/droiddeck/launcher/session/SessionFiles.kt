@@ -5,6 +5,7 @@ import android.os.Environment
 import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LegacyNames
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
@@ -16,6 +17,21 @@ object SessionFiles {
     private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
     /** Where the DirectAudio driver lives inside the runtime; the wrappers get it as BL_DIRECTAUDIO. */
     const val DIRECTAUDIO_DIR = "usr/local/lib/directaudio"
+    /** The driver sets staged under it: classic Wine 11 (Valve, GE) and the system-thread interface (Proton-CachyOS). */
+    val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
+
+    // Staged only with a complete desktop; removal matches these against the APK as well.
+    internal val DESKTOP_FILES = arrayOf(
+        "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
+        // Games and emulators from the menu, full screen in a gamescope of their own.
+        "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
+        "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
+        "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
+        // KWin at the app's surface size, for Plasma's session (it starts KWin through this name).
+        "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
+        "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
+        "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
+    )
 
     /**
      * The libraries and scripts the session runs, refreshed from the apk at every launch.
@@ -27,20 +43,33 @@ object SessionFiles {
      * rename, so a session that still has one mapped keeps the file it opened.
      */
     fun stage(context: Context, root: File) {
+        if (DesktopCatalog.desktopInstalled(root)) try { DesktopCatalog.cleanLegacy(context) }
+        catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
+        WinComponents.publish(context)
         val files = arrayOf(
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
+            "usr/local/bin/droiddeck-wincomponents" to "usr/local/bin/droiddeck-wincomponents",
+            "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
             "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libblaudit.so" to "usr/local/lib/libblaudit.so",
+            "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
+            "usr/local/bin/droiddeck-fonts" to "usr/local/bin/droiddeck-fonts",
+            "usr/local/bin/droiddeck-agent" to "usr/local/bin/droiddeck-agent",
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
+            "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
+            "usr/local/bin/droiddeck-gpu-window" to "usr/local/bin/droiddeck-gpu-window",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
+            "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
+            "usr/local/bin/droiddeck-steam-desktop-ui" to "usr/local/bin/droiddeck-steam-desktop-ui",
             "usr/local/bin/droiddeck-steam-library" to "usr/local/bin/droiddeck-steam-library",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
@@ -51,6 +80,10 @@ object SessionFiles {
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
             "usr/local/bin/droiddeck-steam-shim" to "usr/local/bin/droiddeck-steam-shim",
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
+            // Asks the app for an Epic game's sign-in code at launch, from the compat tool (StoreLaunchRequests).
+            "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
+            // A game's web links to Android's browser (Wine's winebrowser starts it).
+            "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
             // Flatpak: the bwrap stand-in, the store's helper and setup, and the front end's launcher.
@@ -77,18 +110,6 @@ object SessionFiles {
             "usr/bin/steamos-polkit-helpers/jupiter-biosupdate" to "usr/bin/steamos-polkit-helpers/jupiter-biosupdate",
             "usr/bin/steamos-polkit-helpers/jupiter-dock-updater" to "usr/bin/steamos-polkit-helpers/jupiter-dock-updater",
         )
-        // The desktop's launcher and labwc defaults, only where the desktop package is installed:
-        // staging them into a runtime without it would make the desktop look present when it is not.
-        val desktop = arrayOf(
-            "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
-            // Games and emulators from the menu, full screen in a gamescope of their own.
-            "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
-            "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
-            "etc/xdg/labwc/autostart" to "etc/xdg/labwc/autostart",
-            "etc/xdg/labwc/rc.xml" to "etc/xdg/labwc/rc.xml",
-            "etc/xdg/lxqt/panel.conf" to "etc/xdg/lxqt/panel.conf",
-            "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
-        )
         // The patched gamescope (tools/gamescope): the runtime's own version rebuilt with the ARM64
         // client fixes, over /usr/local/bin so it comes first in the session's PATH. Only when the
         // apk carries it - a build without the asset leaves the runtime's copy alone.
@@ -103,10 +124,10 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
-        // The patched wlroots (tools/wlroots) the desktop loads for its vulkan / gles2 renderers.
-        val wlroots = if (File(root, "usr/bin/labwc").isFile) {
-            arrayOf("usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so" to "usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so")
-        } else emptyArray()
+        // What the Windows components installer reads .msi packages with (tools/msitools).
+        val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
+            .map { "usr/local/lib/droiddeck-msitools/$it" } +
+            listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libblsession.so", "libfakeinput.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libfaultreport.so", "libthunkaudit.so", "libvulkan-thunk.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
@@ -114,11 +135,11 @@ object SessionFiles {
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + wlroots + mangoapp + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + msitools.map { it to it } + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
-        val all = (if (File(root, "usr/bin/labwc").isFile) files + desktop else files) + optional
+        val all = (if (DesktopCatalog.desktopInstalled(root)) files + DESKTOP_FILES else files) + optional
         for ((asset, relative) in all) {
             val target = File(root, relative)
             val staged = File(target.parentFile, target.name + ".staged")
@@ -141,30 +162,37 @@ object SessionFiles {
         ComponentsManager.migrateLaunchDir(context)
         EsyncPacks.stageBundled(context, root)
         // The DirectAudio driver for games under Proton: the glibc build of winedirectaudio, which
-        // the Proton wrappers add to WINEDLLPATH when the session asks for it (BL_DIRECTAUDIO).
-        // Staged like the scripts, so a driver fix reaches an installed runtime without re-hosting.
+        // the Proton wrappers add to WINEDLLPATH when the session asks for it (BL_DIRECTAUDIO). Two
+        // sets, one per Wine audio interface - the wrapper picks by what the Proton's own winepulse.so
+        // imports (see steam-compatibility), because both Wines call themselves 11.0 and the wrong set
+        // plays silence. Staged like the scripts, so a driver fix reaches an installed runtime without
+        // re-hosting. The sets come from the pinned DirectAudio release (tools/directaudio/release.env).
         val directAudio = arrayOf(
             "aarch64-unix/winedirectaudio.so",
             "aarch64-windows/winedirectaudio.drv",
             "i386-windows/winedirectaudio.drv",
+            "version.txt",
         )
-        for (relative in directAudio) {
-            val target = File(root, "$DIRECTAUDIO_DIR/lib/wine/$relative")
+        for (set in DIRECTAUDIO_SETS) for (relative in directAudio) {
+            val target = File(root, "$DIRECTAUDIO_DIR/$set/lib/wine/$relative")
             val staged = File(target.parentFile, target.name + ".staged")
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                context.assets.open("directaudio/linux-wine11/$relative").use { input ->
+                context.assets.open("directaudio/$set/$relative").use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setReadable(true, false) && staged.renameTo(target)
             } catch (e: Exception) {
-                Log.w(TAG, "could not stage DirectAudio $relative", e)
+                Log.w(TAG, "could not stage DirectAudio $set/$relative", e)
             } finally {
                 if (!installed) staged.delete()
             }
-            if (!installed) Log.e(TAG, "DirectAudio $relative NOT staged")
+            if (!installed) Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
+        // A runtime from before the sets had names kept the driver at the directory's root; it would
+        // never be picked again, so it goes.
+        for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         // What every process in the session preloads. LD_PRELOAD in the environment would not
         // survive: the Steam client rebuilds it for each process it starts and appends its own
         // overlay entry without a separator, which silently drops whatever was there.
@@ -341,25 +369,9 @@ object SessionFiles {
     ).joinToString(newline)
 
     /**
-     * Where the session writes its log. Downloads is the point - a failed run is handed over as a
-     * folder rather than dug out of app-private storage - but the session script redirects its own
-     * output there with `exec`, and a redirection a non-interactive shell cannot open ends that
-     * shell. So a public directory is used only once it is proven writable; otherwise the app's
-     * own files directory, which is bound into the session anyway, stands in.
+     * Where the session writes its log: app-private `files/logs`, bound into the session at the same
+     * path, so the session script's own redirection always opens. A folder leaves the device only
+     * through Share logs, which scrubs every file again on the way into the zip.
      */
-    fun logDirectory(context: Context): File {
-        val public = LinuxRuntime.debugLogDir()
-        if (public.isDirectory || public.mkdirs()) {
-            val probe = File(public, ".writable")
-            try {
-                if (probe.createNewFile() || probe.isFile) {
-                    probe.delete()
-                    return public
-                }
-            } catch (ignored: Exception) {
-            }
-        }
-        Log.w(TAG, "$public is not writable (storage permission?); logging to files/logs")
-        return File(context.filesDir, "logs").apply { mkdirs() }
-    }
+    fun logDirectory(context: Context): File = LinuxRuntime.logDir(context).apply { mkdirs() }
 }

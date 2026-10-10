@@ -16,6 +16,7 @@ STATE = ".droiddeck-games.json"
 WINNATIVE = ".winnative-steam/steamapps"
 LIBRARY = "/mnt/droiddeck-sd"
 LEGACY_LIBRARY = "/mnt/bannerlator-sd"
+PARKED = ".droiddeck-parked"
 BASE_ID = 76561197960265728
 
 
@@ -284,6 +285,42 @@ def update_not_started(text, steamapps, appid, installdir):
             and not (steamapps / "downloading" / str(appid)).exists())
 
 
+def libraries(steam_root):
+    try:
+        text = (Path(steam_root) / "steamapps/libraryfolders.vdf").read_text(errors="replace")
+    except OSError:
+        text = ""
+    paths = [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', text)]
+    return list(dict.fromkeys([Path(steam_root), Path(LIBRARY)] + [Path(path) for path in paths]))
+
+
+def ours(manifest, appid):
+    try:
+        return re.search(rf'"installdir"\s*"DroidDeck-{appid}"', manifest.read_text(errors="replace")) is not None
+    except OSError:
+        return False
+
+
+def unpark(steamapps):
+    for manifest in sorted((steamapps / PARKED).glob("appmanifest_*.acf")):
+        appid = manifest.stem.removeprefix("appmanifest_")
+        live = steamapps / manifest.name
+        if os.path.lexists(live):
+            manifest.unlink(missing_ok=True)
+        elif (steamapps / "common" / f"DroidDeck-{appid}").is_dir():
+            os.replace(manifest, live)
+
+
+def park(steamapps):
+    for target in sorted((steamapps / "common").glob("DroidDeck-*")):
+        appid = target.name.removeprefix("DroidDeck-")
+        manifest = steamapps / f"appmanifest_{appid}.acf"
+        if appid.isdigit() and target.is_symlink() and not target.exists() and manifest.is_file() and ours(manifest, appid):
+            (steamapps / PARKED).mkdir(exist_ok=True)
+            os.replace(manifest, steamapps / PARKED / manifest.name)
+            print(f"droiddeck-steam-games: {appid} is not here this session; its install is set aside until it is")
+
+
 def seed_install(steam_root, game, appid):
     steamapps = Path(steam_root) / "steamapps"
     common = steamapps / "common"
@@ -307,7 +344,7 @@ def seed_install(steam_root, game, appid):
         relink.unlink(missing_ok=True)
         relink.symlink_to(source, target_is_directory=True)
         os.replace(relink, target)
-    for root in [Path(steam_root), Path(LIBRARY)]:
+    for root in libraries(steam_root):
         existing = root / "steamapps" / manifest.name
         if existing.is_file():
             if (existing == manifest and source.is_dir() and target.is_symlink()
@@ -345,6 +382,11 @@ def route(steam_root, acct, games):
     if not all(isinstance(value, dict) for value in (owned, candidates, sources)):
         owned, candidates, sources = {}, {}, {}
     shortcuts, routes = [], {}
+    steamapps = Path(steam_root) / "steamapps"
+    try:
+        unpark(steamapps)
+    except OSError as error:
+        print(f"droiddeck-steam-games: set-aside installs not restored ({error})")
     for game in games:
         if game.get("nonSteam"):
             shortcuts.append(game)
@@ -364,6 +406,10 @@ def route(steam_root, acct, games):
             except OSError as error:
                 print(f"droiddeck-steam-games: import unavailable ({error})")
         shortcuts.append(game)
+    try:
+        park(steamapps)
+    except OSError as error:
+        print(f"droiddeck-steam-games: missing installs not set aside ({error})")
     save_json(Path(acct) / "config/.droiddeck-routes.json", routes)
     return shortcuts, routes
 

@@ -63,7 +63,7 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
         if (compBusy != null) return
         compBusy = label
         Thread({
-            val message = runCatching(work).getOrElse { e -> "$label failed: ${e.message ?: e.javaClass.simpleName}" }
+            val message = runCatching(work).getOrElse { e -> activity.getString(R.string.main_action_failed, label, e.message ?: e.javaClass.simpleName) }
             ui.post {
                 compBusy = null
                 android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_LONG).show()
@@ -79,7 +79,7 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
             val cat = runCatching { ComponentsManager.catalog(activity, true) }.getOrNull()
             ui.post {
                 compChecking = false
-                if (cat == null || cat.items.isEmpty()) android.widget.Toast.makeText(activity, "The Nightlies could not be reached", android.widget.Toast.LENGTH_LONG).show()
+                if (cat == null || cat.items.isEmpty()) android.widget.Toast.makeText(activity, activity.getString(R.string.comp_nightlies_unreachable), android.widget.Toast.LENGTH_LONG).show()
                 else { compCatalog = cat.items; compCatalogAt = cat.fetchedAt }
             }
         }, "components-catalog").start()
@@ -91,8 +91,8 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
         Thread({
             val message = runCatching {
                 val pkg = ComponentsManager.download(activity, item) { pc -> ui.post { if (compDownloads.containsKey(item.file)) compDownloads = compDownloads + (item.file to pc) } }
-                "Stored ${pkg.version}"
-            }.getOrElse { e -> "Download failed: ${e.message ?: e.javaClass.simpleName}" }
+                activity.getString(R.string.comp_stored, pkg.version)
+            }.getOrElse { e -> activity.getString(R.string.comp_download_failed, e.message ?: e.javaClass.simpleName) }
             ui.post {
                 compDownloads = compDownloads - item.file
                 android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_SHORT).show()

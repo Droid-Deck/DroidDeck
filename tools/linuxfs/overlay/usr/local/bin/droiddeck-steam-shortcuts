@@ -97,7 +97,7 @@ def write(obj):
     return bytes(out)
 
 
-def shortcut(game, launch_options=""):
+def shortcut(game, launch_options=None):
     appid = int(game["appid"]) & 0xFFFFFFFF
     return {
         "appid": struct.unpack("<i", struct.pack("<I", appid))[0],
@@ -106,7 +106,7 @@ def shortcut(game, launch_options=""):
         "StartDir": '"%s"' % game["dir"],
         "icon": (game.get("art") or {}).get("icon", "") or "",
         "ShortcutPath": "",
-        "LaunchOptions": launch_options,
+        "LaunchOptions": launch_options if launch_options is not None else (game.get("launch") or ""),
         "IsHidden": 0,
         "AllowDesktopConfig": 1,
         "AllowOverlay": 1,
@@ -118,6 +118,125 @@ def shortcut(game, launch_options=""):
         "FlatpakAppID": "",
         "tags": {"0": TAG},
     }
+
+
+RECORD = ".droiddeck-shortcuts.json"
+AWAY_LIMIT = 256
+FIELDS = ("AppName", "Exe", "StartDir", "icon", "LaunchOptions")
+# What the app may change after the shortcut exists. Each follows the app only while Steam still
+# has what the app last asked for; a value the user set in Steam's Properties stays.
+FOLLOWED = ("StartDir", "LaunchOptions")
+
+
+def unquoted(value):
+    return value.strip().strip('"') if isinstance(value, str) else ""
+
+
+def read_record(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            record = json.load(f)
+    except (OSError, ValueError):
+        record = {}
+    if not isinstance(record, dict):
+        record = {}
+    games, away = record.get("games"), record.get("away")
+    return {
+        "games": {k: v for k, v in games.items() if isinstance(v, dict)} if isinstance(games, dict) else {},
+        "away": {k: v for k, v in away.items() if isinstance(v, dict) and isinstance(v.get("entry"), dict)} if isinstance(away, dict) else {},
+    }
+
+
+def merge(fresh, current, state, seen):
+    state = state if isinstance(state, dict) else {}
+    rev = state.get("rev") if isinstance(state.get("rev"), int) else 0
+    if current is None:
+        return fresh, rev
+    base = state.get("app") if isinstance(state.get("app"), dict) else {field: current.get(field) for field in FIELDS}
+    before = state.get("steam") if isinstance(state.get("steam"), dict) else {"Exe": current.get("Exe")}
+    if unquoted(current.get("Exe")) != unquoted(before.get("Exe")):
+        rev += 1
+    entry = dict(current)
+    entry["appid"] = fresh["appid"]
+    exe = unquoted(fresh["Exe"])
+    if exe != unquoted(current.get("Exe")) and (exe != unquoted(base.get("Exe")) or seen == rev):
+        entry["Exe"], entry["StartDir"] = fresh["Exe"], fresh["StartDir"]
+    for field in ("AppName", "icon"):
+        if current.get(field) == base.get(field):
+            entry[field] = fresh[field]
+    # Start in and launch options the app sets: only once there is a record of what it asked for
+    # before (a first run keeps whatever the shortcut already had), and an older record that did
+    # not keep launch options means the app asked for none.
+    if isinstance(state.get("app"), dict):
+        for field in FOLLOWED:
+            was = base.get(field, "" if field == "LaunchOptions" else current.get(field))
+            if fresh[field] != was and current.get(field) == was:
+                entry[field] = fresh[field]
+    tags = dict(current["tags"]) if isinstance(current.get("tags"), dict) else {}
+    if TAG not in tags.values():
+        slot = 0
+        while str(slot) in tags:
+            slot += 1
+        tags[str(slot)] = TAG
+    entry["tags"] = tags
+    for key, value in fresh.items():
+        entry.setdefault(key, value)
+    return entry, rev
+
+
+def reconcile(existing, wanted, seen, record):
+    games, away = record["games"], dict(record["away"])
+    kept, ours, placed = [], [], {}
+    for value in existing.values():
+        if not isinstance(value, dict):
+            continue
+        tags = value.get("tags")
+        if not isinstance(tags, dict) or TAG not in tags.values():
+            kept.append(value)
+            continue
+        appid = value.get("appid")
+        if not isinstance(appid, int) or appid in placed:
+            continue
+        key = str(appid & 0xFFFFFFFF)
+        fresh = wanted.get(appid)
+        if fresh is None:
+            away.pop(key, None)
+            away[key] = {"entry": value, "state": games.get(key)}
+            continue
+        entry, rev = merge(fresh, value, games.get(key), seen.get(appid, 0))
+        placed[appid] = (len(ours), rev)
+        ours.append(entry)
+    for appid, fresh in wanted.items():
+        if appid in placed:
+            continue
+        key = str(appid & 0xFFFFFFFF)
+        stashed = away.get(key)
+        if stashed:
+            entry, rev = merge(fresh, stashed["entry"], stashed.get("state"), seen.get(appid, 0))
+        else:
+            entry, rev = merge(fresh, None, games.get(key), seen.get(appid, 0))
+        placed[appid] = (len(ours), rev)
+        ours.append(entry)
+    for appid in placed:
+        away.pop(str(appid & 0xFFFFFFFF), None)
+    while len(away) > AWAY_LIMIT:
+        away.pop(next(iter(away)))
+    state = {}
+    for appid, (index, rev) in placed.items():
+        entry = ours[index]
+        state[str(appid & 0xFFFFFFFF)] = {
+            "app": {field: wanted[appid][field] for field in FIELDS},
+            "steam": {field: entry.get(field, "") for field in ("AppName", "Exe", "StartDir", "LaunchOptions")},
+            "rev": rev,
+        }
+    return kept, ours, {"games": state, "away": away}
+
+
+def save_record(path, record):
+    tmp = path + ".droiddeck"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(record, f)
+    os.replace(tmp, path)
 
 
 ART_MANIFEST = ".droiddeck-art.json"
@@ -208,27 +327,21 @@ def main():
     routing = importlib.util.module_from_spec(spec)
     loader.exec_module(routing)
     games, routes = routing.route(steam_root, acct, games)
-    # Steam saves Big Picture's per-shortcut launch options in shortcuts.vdf. Keep them when
-    # refreshing our entries, keyed by the appid that stays stable across session starts.
-    managed = {
-        v.get("appid"): v for v in existing.values()
-        if isinstance(v, dict) and TAG in (v.get("tags") or {}).values()
-    }
-    kept = [v for v in existing.values() if isinstance(v, dict) and TAG not in (v.get("tags") or {}).values()]
-    ours = []
+    wanted, seen = {}, {}
     for game in games:
-        if not game.get("exe") or not game.get("name"):
-            continue
-        entry = shortcut(game)
-        previous = managed.get(entry["appid"])
-        if previous and isinstance(previous.get("LaunchOptions"), str):
-            entry["LaunchOptions"] = previous["LaunchOptions"]
-        ours.append(entry)
+        if game.get("exe") and game.get("name"):
+            entry = shortcut(game)
+            if entry["appid"] not in wanted:
+                wanted[entry["appid"]] = entry
+                seen[entry["appid"]] = game["seen"] if isinstance(game.get("seen"), int) else 0
+    record_path = os.path.join(config, RECORD)
+    kept, ours, record = reconcile(existing, wanted, seen, read_record(record_path))
     entries = {str(i): v for i, v in enumerate(kept + ours)}
     tmp = path + ".droiddeck"
     with open(tmp, "wb") as f:
         f.write(write({"shortcuts": entries}))
     os.replace(tmp, path)
+    save_record(record_path, record)
     print("droiddeck-steam-shortcuts: %d added game(s) written, %d of the client's own kept" % (len(ours), len(kept)))
     install_art(acct, [g for g in games if g.get("exe") and g.get("name")])
     # Each added game runs under the ARM64 Proton: the compat registrar's own mapping writer.

@@ -30,7 +30,7 @@ object OfflineMode {
 
     private fun loginUsers(root: File) = File(root, "root/.local/share/Steam/config/loginusers.vdf")
 
-    /** Whether the client has an account it could sign in as offline. */
+    /** The account the client could sign in as offline: its name, "" when it recorded none, null when there is none. */
     fun account(context: Context): String? {
         val file = loginUsers(LinuxRuntime.rootDir(context))
         val text = try {
@@ -39,7 +39,7 @@ object OfflineMode {
             Log.w(TAG, "could not read loginusers.vdf", e); return null
         }
         if (!REMEMBER.containsMatchIn(text)) return null
-        return PERSONA.find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() } ?: "signed in"
+        return PERSONA.find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }.orEmpty()
     }
 
     fun enabled(context: Context): Boolean = prefs(context).getBoolean(KEY, false)

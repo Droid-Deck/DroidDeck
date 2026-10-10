@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.core
 
+import android.content.Context
 import android.os.Build
+import com.droiddeck.launcher.R
 import java.io.File
 
 /**
@@ -17,8 +19,12 @@ object DeviceSupport {
         File("/sys/class/kgsl/kgsl-3d0").exists() || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
 
     /** The chip as the device names it, for the card that explains the refusal. */
-    fun gpuName(): String {
+    fun gpuName(context: Context): String {
         val soc = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL.takeIf { it.isNotBlank() && it != Build.UNKNOWN } else null
-        return soc?.let { "$it (${Build.HARDWARE})" } ?: Build.HARDWARE.ifBlank { "this GPU" }
+        return soc?.let { "$it (${Build.HARDWARE})" } ?: Build.HARDWARE.ifBlank { context.getString(R.string.gpu_this_gpu) }
     }
+
+    /** False on the Odin 3 (CQ8725S): a low-latency Wi-Fi lock makes its WLAN firmware hang, and
+     *  that firmware reboots the whole device instead of restarting Wi-Fi. */
+    fun lowLatencyWifiSafe(): Boolean = Build.VERSION.SDK_INT < 31 || Build.SOC_MODEL != "CQ8725S"
 }

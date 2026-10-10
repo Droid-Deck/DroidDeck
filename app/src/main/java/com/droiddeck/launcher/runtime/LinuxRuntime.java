@@ -42,10 +42,22 @@ public final class LinuxRuntime {
      * session ended at once. A long host path behind it is proot's to shorten.
      */
     public static final String GUEST_RUNTIME_DIR = "/run/droiddeck";
-    /** Where every Linux session's debug log lands: public, so a user can just hand the folder over. */
+    private static final String SYSTEM_FONTS = "/system/fonts";
+    private static final String GUEST_SYSTEM_FONTS = "/usr/local/share/fonts/android";
+    /** The folder under Downloads where builds before private logs wrote them; read only to move them. */
     public static final String DEBUG_LOG_DIR = "DroidDeck";
 
-    public static File debugLogDir() {
+    /**
+     * Where every log lands: app-private, {@code files/logs}. Session folders, tools/ (one-off
+     * commands) and stores/ sit under it; the files directory is bound into every session at the
+     * same path, so the guest writes there too. Share logs is how a folder leaves the device.
+     */
+    public static File logDir(Context context) {
+        return new File(context.getFilesDir(), "logs");
+    }
+
+    /** {@code Download/DroidDeck}, where earlier builds wrote logs. Only LogMigration reads it. */
+    public static File legacyLogDir() {
         return new File(android.os.Environment.getExternalStoragePublicDirectory(
                 android.os.Environment.DIRECTORY_DOWNLOADS), DEBUG_LOG_DIR);
     }
@@ -207,6 +219,7 @@ public final class LinuxRuntime {
         File shm = new File(context.getCacheDir(), "shm");
         shm.mkdirs();
         bind(cmd, shm.getPath() + ":/dev/shm");
+        bindSystemFonts(cmd, root);
 
         // Android denies apps these; glibc, Steam and libcap read them at startup.
         File fakeProc = new File(root, "etc/droiddeck/proc");
@@ -463,6 +476,15 @@ public final class LinuxRuntime {
             }
         }
         return byType;
+    }
+
+    private static void bindSystemFonts(List<String> cmd, File root) {
+        File fonts = new File(SYSTEM_FONTS);
+        File target = new File(root, GUEST_SYSTEM_FONTS.substring(1));
+        if (!fonts.isDirectory() || !fonts.canRead() || !new File(root, "usr/local").isDirectory()) return;
+        if (target.isDirectory() || target.mkdirs()) {
+            bind(cmd, SYSTEM_FONTS + ":" + GUEST_SYSTEM_FONTS);
+        }
     }
 
     private static void bind(List<String> cmd, String spec) {

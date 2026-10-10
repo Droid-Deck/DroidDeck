@@ -40,7 +40,7 @@ object HostProcess {
             if (onLine == null) builder.redirectOutput(File("/dev/null"))
             val process = builder.start()
             val pid = pidOf(process)
-            Log.i(TAG, "started pid $pid: $command")
+            Log.i(TAG, "started pid $pid: ${argv.first()} (${argv.size - 1} arguments)")
             if (onLine != null) {
                 Thread({
                     try {
@@ -59,7 +59,7 @@ object HostProcess {
             }
             pid
         } catch (e: Exception) {
-            Log.e(TAG, "could not start: $command", e)
+            Log.e(TAG, "could not start: ${argv.first()}", e)
             -1
         }
     }

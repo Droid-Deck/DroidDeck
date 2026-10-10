@@ -25,15 +25,23 @@ object Library {
         val gameFiles: File? = null, val protonPrefix: File? = null,
         val icon: File? = null,
         val importPending: Boolean = false,
+        /** Where the game came from: [SOURCE_STEAM], a store's id (gog, epic, amazon) or [ADDED] for a folder the user added. */
+        val source: String = SOURCE_STEAM,
+        /** The store's own id for a store install; null otherwise. */
+        val storeId: String? = null,
     ) {
         /** Decimal form used by Steam links and Android shortcuts, including unsigned shortcut ids. */
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
     }
-    /** The [SteamGame.library] of a game added to the library rather than installed by Steam. */
+    /** The [SteamGame.library] of a game added to the library rather than installed by Steam, and the [SteamGame.source] of a plain added folder. */
     const val ADDED = "added"
+    /** The [SteamGame.source] of a title Steam itself installed. */
+    const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
+        /** The shown name of [system] when it is words rather than a platform name, else 0. */
+        val systemRes: Int get() = if (id == "retroarch") R.string.content_system_many else 0
         /** The emulator's own icon, bundled (the runtime keeps them as theme SVGs the app cannot draw). */
         val iconRes: Int get() = when (id) {
             "rpcs3" -> R.drawable.emu_rpcs3; "armsx2" -> R.drawable.emu_pcsx2; "dolphin" -> R.drawable.emu_dolphin
@@ -85,17 +93,20 @@ object Library {
         return listOfNotNull(
             root to "internal",
             GameStorage.effective(context)?.let { File(it.path) to it.label },
-        )
+        ) + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
     }
 
     /** Proton keeps each game's prefix below compatdata/<appid>/pfx in a Steam library. */
-    fun protonPrefix(context: Context, appId: Long, preferredLibrary: File? = null): File? {
+    fun protonPrefix(
+        context: Context, appId: Long, preferredLibrary: File? = null,
+        libraries: List<File> = steamLibraries(context).map { it.first },
+    ): File? {
         val ids = listOf(appId.toString(), java.lang.Integer.toString(appId.toInt())).distinct()
-        val secondary = GameStorage.effective(context)?.let { File(it.path) }
-        fun prefixRoot(root: File): File = if (secondary != null && root.canonicalPath == secondary.canonicalPath)
+        val secondary = libraries.drop(1).mapNotNull { runCatching { it.canonicalPath }.getOrNull() }.toSet()
+        fun prefixRoot(root: File): File = if (runCatching { root.canonicalPath }.getOrNull() in secondary)
             SecondaryLibrary.privateRoot(context.filesDir, root).takeIf { File(it, "steamapps/compatdata").isDirectory } ?: root
             else root
-        val roots = (listOfNotNull(preferredLibrary) + steamLibraries(context).map { it.first }).map(::prefixRoot)
+        val roots = (listOfNotNull(preferredLibrary) + libraries).map(::prefixRoot)
             .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
         return roots.asSequence()
             .flatMap { root -> ids.asSequence().map { id -> File(root, "steamapps/compatdata/$id/pfx") } }
@@ -106,11 +117,12 @@ object Library {
         val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
         val cache = File(root, "appcache/librarycache")
         val libraries = steamLibraries(context)
+        val roots = libraries.map { it.first }
         val out = LinkedHashMap<Int, SteamGame>()
         for ((library, label) in libraries) {
             val steamapps = File(library, "steamapps")
             val manifests = steamapps.listFiles { f -> f.isFile && f.name.startsWith("appmanifest_") && f.name.endsWith(".acf") }
-            if (strictRead && steamapps.isDirectory) check(manifests != null) { "Steam manifests are unavailable" }
+            if (strictRead && steamapps.isDirectory) check(manifests != null) { context.getString(R.string.game_sync_err_manifests) }
             manifests?.sortedBy { it.name }?.forEach { manifest ->
                     val appId = manifest.name.removePrefix("appmanifest_").removeSuffix(".acf").toIntOrNull() ?: return@forEach
                     if (appId in NOT_GAMES || out.containsKey(appId)) return@forEach
@@ -131,7 +143,7 @@ object Library {
                     out[appId] = SteamGame(
                         appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles,
-                        protonPrefix = protonPrefix(context, appId.toLong(), library),
+                        protonPrefix = protonPrefix(context, appId.toLong(), library, roots),
                         icon = steamCacheImage(cache, appId, listOf("icon.jpg", "icon.png"))
                             ?: File(cache, appId.toString()).listFiles()?.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) },
                     )
@@ -141,17 +153,24 @@ object Library {
     }
 
     /** The same installed-game inventory used for links, shortcuts and file exports. */
-    fun launchableGames(context: Context, strictRead: Boolean = false): List<SteamGame> = (steamGames(context, strictRead) + AddedGames.scan(context).map { g ->
+    /** [added]: the added games when the caller has just scanned them, so they are not scanned again. */
+    fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
+        val roots = steamLibraries(context).map { it.first }
+        return (steamGames(context, strictRead) + (added ?: AddedGames.scan(context)).map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
+    }
+
+    /** One added game as the Games tab lists it; [roots] the Steam libraries, for its Proton prefix. */
+    fun addedGame(context: Context, g: AddedGames.Game, roots: List<File> = steamLibraries(context).map { it.first }): SteamGame =
         AddedGameArt.resolve(context, g).let { art ->
             SteamGame(
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
                 hero = art.hero ?: art.header, gameFiles = g.folder,
-                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId),
+                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 importPending = AddedGames.pending(context, g),
+                source = g.source, storeId = g.storeId,
             )
         }
-    }).distinctBy { it.gameId }
 
     /** Steam stores current library art inside hash-named folders under the app's cache dir. */
     private fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {

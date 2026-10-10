@@ -1,0 +1,1059 @@
+#!/usr/bin/python3
+"""Installs a Windows Installer package (.msi) the way Wine's own msiexec would, without running it.
+
+droiddeck-msi-install <package.msi | installer.exe> <component dir>
+droiddeck-msi-install --unpack <archive | installer.exe | cabinet> <dir>
+
+A .msi is a database: which files go to which folder, which registry values to write, which .NET
+and side-by-side assemblies to register. This reads those tables (msiinfo), unpacks the package's
+cabinets (cabextract, which knows every compression a cabinet can use) and lays the result out
+for droiddeck-wincomponents, which puts it into a game's prefix at launch:
+
+  <component dir>/drive_c/...      the files, at the paths they get on 64-bit Windows
+  <component dir>/registry.json    the registry values, in the view (32/64-bit) Windows uses
+
+An installer .exe is opened the same way when it is a wrapper around packages: a WiX bundle
+(Visual C++ 2012 and later, the .NET Core and 5+ runtimes: the packages sit in a cabinet the
+bundle's own header locates, named in its manifest), a self-extracting cabinet (Visual C++ 2005
+to 2010) or a self-extracting 7-Zip archive (.NET Framework 4.0 to 4.8). The packages inside are
+laid out one after the other into the same component dir; the 32- and 64-bit ones both, an ARM64
+one never. An .exe that is its own setup program (NSIS, InnoSetup) holds no package: an error says so.
+
+What a package does by running its own code (custom actions such as DXSETUP, self-registering
+DLLs) cannot be done this way; each is named in the notes, so nothing is left out silently.
+
+--unpack opens an archive or installer for the caller to take files out of (cabextract for a
+cabinet or self-extracting cabinet, 7-Zip for the rest) and prints the files it found.
+
+Prints "progress <text>" lines while it works and ends with "result <json>": the counts and notes.
+"""
+import json
+import os
+import re
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+TOOLS = Path(os.environ.get("DROIDDECK_MSITOOLS", "/usr/local/lib/droiddeck-msitools"))
+MSIINFO = os.environ.get("DROIDDECK_MSIINFO", str(TOOLS / "msiinfo"))
+CABEXTRACT = os.environ.get("DROIDDECK_CABEXTRACT", str(TOOLS / "cabextract"))
+SEVENZIP = os.environ.get("DROIDDECK_7Z", str(TOOLS / "7z"))
+MSI_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+BURN_MAGIC = 0x00F14300
+# A bundle's manifest names ARM64 packages too; a game's prefix wants the x86 and x64 ones.
+SKIP_PLATFORMS = ("arm64", "arm")
+
+
+def tool_env():
+    """The environment the tools run in: their own libraries (libmsi, libgsf, libgcab) beside them."""
+    env = dict(os.environ)
+    env["LD_LIBRARY_PATH"] = ":".join(p for p in (str(TOOLS), env.get("LD_LIBRARY_PATH", "")) if p)
+    return env
+
+# The folders Windows Installer knows by name, as a 64-bit Windows 10 prefix lays them out (Proton's
+# user is steamuser). None is a folder whose files a game never needs: installer temp files and
+# shortcuts.
+SKIP = None
+KNOWN_FOLDERS = {
+    "TARGETDIR": "C:\\", "ROOTDRIVE": "C:\\", "WindowsVolume": "C:\\",
+    "WindowsFolder": "C:\\windows\\",
+    "SystemFolder": "C:\\windows\\syswow64\\",
+    "System64Folder": "C:\\windows\\system32\\",
+    "System16Folder": "C:\\windows\\system\\",
+    "FontsFolder": "C:\\windows\\Fonts\\",
+    "ProgramFilesFolder": "C:\\Program Files (x86)\\",
+    "ProgramFiles64Folder": "C:\\Program Files\\",
+    "CommonFilesFolder": "C:\\Program Files (x86)\\Common Files\\",
+    "CommonFiles64Folder": "C:\\Program Files\\Common Files\\",
+    "CommonAppDataFolder": "C:\\ProgramData\\",
+    "AppDataFolder": "C:\\users\\steamuser\\AppData\\Roaming\\",
+    "LocalAppDataFolder": "C:\\users\\steamuser\\AppData\\Local\\",
+    "PersonalFolder": "C:\\users\\steamuser\\Documents\\",
+}
+for _name in ("TempFolder", "DesktopFolder", "ProgramMenuFolder", "StartMenuFolder", "StartupFolder",
+              "SendToFolder", "FavoritesFolder", "NetHoodFolder", "PrintHoodFolder", "RecentFolder",
+              "TemplateFolder", "MyPicturesFolder", "AdminToolsFolder"):
+    KNOWN_FOLDERS[_name] = SKIP
+
+# What Wine's msi reports on a 64-bit Windows 10 prefix, for the packages' conditions.
+SYSTEM_PROPERTIES = {
+    "VersionNT": "603", "VersionNT64": "603", "WindowsBuild": "9600", "ServicePackLevel": "0",
+    "Msix64": "6", "ALLUSERS": "1", "Privileged": "1", "AdminUser": "1", "MsiNTProductType": "1",
+    "UILevel": "2", "INSTALLLEVEL": "1", "ProgramFilesFolder": None, "VersionMsi": "5.00",
+}
+
+# Win64 component (msidbComponentAttributes64bit); file attributes.
+COMPONENT_64BIT = 0x100
+FILE_NONCOMPRESSED = 0x2000
+# Custom action types that only set a property or a folder: done here, the rest are named in notes.
+SET_PROPERTY, SET_DIRECTORY, ERROR_ACTION = 51, 35, 19
+# Microsoft's "SFP CA" merge module (MDAC, MSXML): on Windows 2000 and later it parks system DLLs in a
+# cache folder and its own code copies them into the system folder past Windows File Protection.
+# Skipping the folder change puts them where that copy would. Its actions, and the side-by-side
+# merge module's (done here from MsiAssembly), are then left out of the notes.
+SFP_CACHE_ACTION = "CDirSystemSFPCacheDir"
+HANDLED_ACTIONS = ("Wdsfpca_", "SxsInstallCA", "SxsUninstallCA")
+# Tables whose work needs the package's own code or is not done here yet.
+UNSUPPORTED_TABLES = ("SelfReg", "Class", "ProgId", "TypeLib", "Extension", "Verb", "MIME", "AppId",
+                      "IniFile", "ServiceInstall", "MoveFile", "IsolatedComponent", "PublishComponent",
+                      "ODBCDriver", "ODBCDataSource")
+
+
+class MsiError(Exception):
+    pass
+
+
+def progress(text, fraction=None):
+    """A progress line: "progress <text>", or "progress NN% <text>" when how far along is known."""
+    if fraction is None:
+        print("progress " + text, flush=True)
+    else:
+        print("progress %d%% %s" % (max(0, min(100, int(fraction * 100))), text), flush=True)
+
+
+class Span:
+    """The slice of the whole job one package's progress maps into (a wrapper runs several)."""
+    def __init__(self, lo=0.0, hi=1.0):
+        self.lo, self.hi = lo, hi
+
+    def report(self, fraction, text):
+        progress(text, self.lo + (self.hi - self.lo) * max(0.0, min(1.0, fraction)))
+
+
+# ---------------------------------------------------------------- reading the package
+
+IDT_ESCAPES = str.maketrans({"\x19": "\n", "\x11": "\r", "\x15": "\t", "\x1b": ";"})
+
+
+def msiinfo(*args, binary=False):
+    try:
+        result = subprocess.run([MSIINFO, *args], capture_output=True, timeout=600, env=tool_env())
+    except OSError as error:
+        raise MsiError("msitools is not available (%s)" % error)
+    if result.returncode != 0:
+        raise MsiError("msiinfo %s: %s" % (args[0], result.stderr.decode("utf-8", "replace").strip()[:300]))
+    return result.stdout if binary else result.stdout.decode("utf-8", "replace")
+
+
+class Package:
+    def __init__(self, path):
+        self.path = str(path)
+        self.table_names = set(msiinfo("tables", self.path).split())
+        self._tables = {}
+        self.summary = {}
+        for line in msiinfo("suminfo", self.path).splitlines():
+            name, sep, value = line.partition(":")
+            if sep:
+                self.summary[name.strip().lower()] = value.strip()
+
+    def table(self, name):
+        """The table's rows as dicts by column name; an absent table has none."""
+        if name in self._tables:
+            return self._tables[name]
+        rows = []
+        if name in self.table_names:
+            lines = [line.rstrip("\r") for line in msiinfo("export", self.path, name).split("\n")]
+            columns = lines[0].split("\t") if lines else []
+            for line in lines[3:]:
+                if not line:
+                    continue
+                cells = [cell.translate(IDT_ESCAPES) for cell in line.split("\t")]
+                cells += [""] * (len(columns) - len(cells))
+                rows.append(dict(zip(columns, cells)))
+        self._tables[name] = rows
+        return rows
+
+    def stream(self, name, target):
+        Path(target).write_bytes(msiinfo("extract", self.path, name, binary=True))
+
+
+def long_name(value):
+    """A Directory/File name column: "short|long", the long one when there are two."""
+    return value.split("|")[-1]
+
+
+def to_int(value, default=0):
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return default
+
+
+# ---------------------------------------------------------------- conditions
+
+TOKEN = re.compile(r'\s*(?:(?P<str>"[^"]*")|(?P<num>-?\d+)(?![\w.])|(?P<op>~?(?:<>|<=|>=|><|<<|>>|=|<|>))'
+                   r'|(?P<paren>[()])|(?P<word>[%$?&!]?[A-Za-z_][\w.]*))')
+KEYWORDS = {"not", "and", "or", "xor", "eqv", "imp"}
+
+
+class Conditions:
+    """Windows Installer's condition language, enough of it for what packages ask at install time."""
+
+    def __init__(self, props, feature_state=None, component_state=None):
+        self.props = props
+        self.feature_state = feature_state or (lambda name: None)
+        self.component_state = component_state or (lambda name: None)
+
+    def evaluate(self, text, default=True):
+        text = (text or "").strip()
+        if not text:
+            return True
+        try:
+            self.tokens = self.tokenize(text)
+            self.pos = 0
+            value = self.expression()
+            if self.pos != len(self.tokens):
+                return default
+            return self.truth(value)
+        except (ValueError, IndexError):
+            return default
+
+    def tokenize(self, text):
+        tokens, pos = [], 0
+        while pos < len(text):
+            if text[pos:].strip() == "":
+                break
+            match = TOKEN.match(text, pos)
+            if not match or match.end() == pos:
+                raise ValueError(text)
+            pos = match.end()
+            kind = match.lastgroup
+            value = match.group(kind)
+            if kind == "word" and value.lower() in KEYWORDS:
+                tokens.append(("kw", value.lower()))
+            else:
+                tokens.append((kind, value))
+        return tokens
+
+    def peek(self):
+        return self.tokens[self.pos] if self.pos < len(self.tokens) else (None, None)
+
+    def take(self, kind, value=None):
+        token = self.peek()
+        if token[0] == kind and (value is None or token[1] == value):
+            self.pos += 1
+            return True
+        return False
+
+    def expression(self):
+        value = self.binary(0)
+        return value
+
+    LEVELS = ("imp", "eqv", "xor", "or", "and")
+
+    def binary(self, level):
+        if level == len(self.LEVELS):
+            return self.negation()
+        left = self.binary(level + 1)
+        op = self.LEVELS[level]
+        while self.take("kw", op):
+            right = self.truth(self.binary(level + 1))
+            a = self.truth(left)
+            left = {"and": a and right, "or": a or right, "xor": a != right,
+                    "eqv": a == right, "imp": (not a) or right}[op]
+        return left
+
+    def negation(self):
+        if self.take("kw", "not"):
+            return not self.truth(self.negation())
+        return self.comparison()
+
+    def comparison(self):
+        left = self.operand()
+        kind, op = self.peek()
+        if kind != "op":
+            return left
+        self.pos += 1
+        right = self.operand()
+        return self.compare(left, op, right)
+
+    def operand(self):
+        kind, value = self.peek()
+        self.pos += 1
+        if kind == "paren" and value == "(":
+            inner = self.expression()
+            if not self.take("paren", ")"):
+                raise ValueError("unbalanced")
+            return inner
+        if kind == "str":
+            return value[1:-1]
+        if kind == "num":
+            return int(value)
+        if kind == "word":
+            sigil, name = (value[0], value[1:]) if value[0] in "%$?&!" else ("", value)
+            if sigil == "%":
+                return os.environ.get(name, "")
+            if sigil in ("&", "!"):
+                state = self.feature_state(name)
+                return state if state is not None else -1
+            if sigil in ("$", "?"):
+                state = self.component_state(name)
+                return state if state is not None else -1
+            found = self.props.get(name)
+            return "" if found is None else found
+        raise ValueError("operand expected")
+
+    @staticmethod
+    def number(value):
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and re.fullmatch(r"-?\d+", value.strip()):
+            return int(value)
+        return None
+
+    def compare(self, left, op, right):
+        fold = op.startswith("~")
+        op = op.lstrip("~")
+        a, b = self.number(left), self.number(right)
+        if a is not None and b is not None:
+            return {"=": a == b, "<>": a != b, "<": a < b, ">": a > b, "<=": a <= b, ">=": a >= b,
+                    "><": (a & b) != 0, "<<": (a >> 16) == b, ">>": (a & 0xFFFF) == b}[op]
+        if isinstance(left, (int, bool)) or isinstance(right, (int, bool)):
+            return op == "<>"
+        a, b = str(left), str(right)
+        if fold:
+            a, b = a.lower(), b.lower()
+        return {"=": a == b, "<>": a != b, "<": a < b, ">": a > b, "<=": a <= b, ">=": a >= b,
+                "><": b in a, "<<": a.startswith(b), ">>": a.endswith(b)}[op]
+
+    @staticmethod
+    def truth(value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return value != 0
+        return value not in ("", None)
+
+
+# ---------------------------------------------------------------- the install
+
+def win_to_rel(path):
+    """C:\\windows\\x\\ -> drive_c/windows/x; None for a path off drive C or a folder left out."""
+    if not path:
+        return None
+    match = re.match(r"^[Cc]:\\?(.*)$", path)
+    if not match:
+        return None
+    rest = [part for part in match.group(1).replace("/", "\\").split("\\") if part not in ("", ".")]
+    if any(part == ".." for part in rest):
+        return None
+    return "/".join(["drive_c"] + rest)
+
+
+def rel_to_win(rel, folder=True):
+    parts = rel.split("/")[1:]
+    return "C:\\" + "\\".join(parts) + ("\\" if folder and parts else "")
+
+
+def clean_version(version):
+    parts = [str(to_int(p)) for p in version.split(".") if p != ""]
+    return ".".join(parts) if parts else "0.0.0.0"
+
+
+def clr_version(path):
+    """The .NET runtime an assembly was built for ("v4.0.30319"), from its metadata header."""
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return ""
+    at = data.find(b"BSJB")
+    if at < 0 or at + 16 > len(data):
+        return ""
+    length = int.from_bytes(data[at + 12:at + 16], "little")
+    return data[at + 16:at + 16 + min(length, 32)].split(b"\0")[0].decode("ascii", "replace")
+
+
+class Installer:
+    def __init__(self, msi, out, package=None, span=None):
+        self.pkg = package or Package(msi)
+        self.out = Path(out)
+        self.span = span or Span()
+        self.notes = []
+        self.registry = []
+        self.files = {}          # File key -> rel path it was installed to
+        self.counts = {"files": 0, "assemblies": 0, "registry": 0}
+        template = self.pkg.summary.get("template", "")
+        self.platform = template.split(";")[0].strip().lower()
+        self.props = {k: v for k, v in SYSTEM_PROPERTIES.items() if v is not None}
+        if self.platform in ("", "intel"):
+            self.props["Intel"] = "6"
+        for name, path in KNOWN_FOLDERS.items():
+            self.props[name] = path if path is not None else "\0skip"
+        for row in self.pkg.table("Property"):
+            # The package's own defaults, but never over the folders and the system it runs on.
+            if row["Property"] not in self.props or row["Property"] in ("INSTALLLEVEL", "ALLUSERS", "UILevel"):
+                self.props[row["Property"]] = row["Value"]
+        self.props["ALLUSERS"] = "1"
+        self.directories = {row["Directory"]: row for row in self.pkg.table("Directory")}
+        self.components = {row["Component"]: row for row in self.pkg.table("Component")}
+        self.included_features = set()
+        self.included_components = set()
+        self.conditions = Conditions(self.props, self.feature_state, self.component_state)
+        self._resolving = set()
+        self._set_by_action = set()
+
+    # -- states, folders, formatted text
+
+    def feature_state(self, name):
+        return 3 if name in self.included_features else -1
+
+    def component_state(self, name):
+        return 3 if name in self.included_components else -1
+
+    def directory(self, key):
+        """The folder a Directory key resolves to, as drive_c/..., or None when it is left out."""
+        if key in self._resolving:
+            return None
+        value = self.props.get(key)
+        row = self.directories.get(key)
+        # A folder Windows knows by name, one a custom action set, or a property naming a path.
+        if key in KNOWN_FOLDERS or key in self._set_by_action or row is None:
+            return None if value in (None, "", "\0skip") else win_to_rel(value)
+        parent_key = row.get("Directory_Parent", "")
+        default = long_name(row.get("DefaultDir", "").split(":")[0])
+        if not parent_key or parent_key == key:
+            # A root: TARGETDIR (SourceDir) is drive C.
+            return "drive_c"
+        self._resolving.add(key)
+        try:
+            parent = self.directory(parent_key)
+        finally:
+            self._resolving.discard(key)
+        if parent is None:
+            return None
+        if default in (".", ""):
+            return parent
+        if "\\" in default or "/" in default or default == "..":
+            return None
+        return parent + "/" + default
+
+    def format(self, text):
+        """Formatted text: [Property], [Folder], [#file], [$component], [%env], [\\x], [~]."""
+        if not text:
+            return text
+
+        def one(match):
+            inner = match.group(1)
+            if inner.startswith("\\") and len(inner) == 2:
+                return inner[1]
+            if inner == "~":
+                return "\0"
+            if inner.startswith("#") or inner.startswith("!"):
+                rel = self.files.get(inner[1:])
+                return rel_to_win(rel, folder=False) if rel else ""
+            if inner.startswith("$"):
+                comp = self.components.get(inner[1:])
+                rel = self.directory(comp["Directory_"]) if comp else None
+                return rel_to_win(rel) if rel else ""
+            if inner.startswith("%"):
+                return os.environ.get(inner[1:], "")
+            if inner in self.directories or inner in KNOWN_FOLDERS:
+                rel = self.directory(inner)
+                return rel_to_win(rel) if rel else ""
+            value = self.props.get(inner, "")
+            return "" if value == "\0skip" else value
+
+        previous = None
+        for _ in range(8):
+            if text == previous:
+                break
+            previous = text
+            text = re.sub(r"\[([^\[\]]*)\]", one, text)
+        return text
+
+    # -- what gets installed
+
+    def run_set_actions(self):
+        """The property/folder-setting custom actions, in sequence order; the rest go to the notes."""
+        actions = {row["Action"]: row for row in self.pkg.table("CustomAction")}
+        sequence = {}
+        for table in ("InstallUISequence", "InstallExecuteSequence"):
+            for row in self.pkg.table(table):
+                if row["Action"] in actions and row["Action"] not in sequence:
+                    sequence[row["Action"]] = (to_int(row.get("Sequence"), 0), row.get("Condition", ""))
+        skipped = []
+        sfp = "_SfpCaInf" in self.pkg.table_names
+        for name, (_, condition) in sorted(sequence.items(), key=lambda item: item[1][0]):
+            row = actions[name]
+            kind = to_int(row["Type"]) & 0x3F
+            if name.startswith(HANDLED_ACTIONS) or (sfp and name.startswith(SFP_CACHE_ACTION)):
+                continue
+            if kind in (SET_PROPERTY, SET_DIRECTORY):
+                if not self.conditions.evaluate(condition, default=True):
+                    continue
+                value = self.format(row.get("Target", ""))
+                self.props[row["Source"]] = value
+                self._set_by_action.add(row["Source"])
+            elif kind != ERROR_ACTION and self.conditions.evaluate(condition, default=True):
+                skipped.append(name)
+        if skipped:
+            self.notes.append("setup actions not run (they need the installer's own code): " + ", ".join(skipped[:8])
+                              + (" and %d more" % (len(skipped) - 8) if len(skipped) > 8 else ""))
+
+    def select(self):
+        install_level = to_int(self.props.get("INSTALLLEVEL"), 1) or 1
+        features = {row["Feature"]: dict(row) for row in self.pkg.table("Feature")}
+        for row in self.pkg.table("Condition"):
+            feature = features.get(row["Feature_"])
+            if feature is not None and self.conditions.evaluate(row["Condition"], default=False):
+                feature["Level"] = row["Level"]
+
+        def included(name, depth=0):
+            feature = features.get(name)
+            if feature is None or depth > 32:
+                return False
+            level = to_int(feature.get("Level"), 0)
+            if level <= 0 or level > install_level:
+                return False
+            parent = feature.get("Feature_Parent", "")
+            return not parent or parent == name or included(parent, depth + 1)
+
+        self.included_features = {name for name in features if included(name)}
+        mapped = {}
+        for row in self.pkg.table("FeatureComponents"):
+            mapped.setdefault(row["Component_"], set()).add(row["Feature_"])
+        for name, row in self.components.items():
+            owners = mapped.get(name)
+            if owners is not None and not owners & self.included_features:
+                continue
+            if not self.conditions.evaluate(row.get("Condition", ""), default=True):
+                continue
+            self.included_components.add(name)
+
+    def assemblies(self):
+        """Component -> where its files go when it is a global assembly (the GAC or winsxs)."""
+        names = {}
+        for row in self.pkg.table("MsiAssemblyName"):
+            names.setdefault(row["Component_"], {})[row["Name"].lower()] = row["Value"]
+        placed = {}
+        for row in self.pkg.table("MsiAssembly"):
+            comp = row["Component_"]
+            if comp not in self.included_components or row.get("File_Application"):
+                continue
+            ident = names.get(comp, {})
+            placed[comp] = (to_int(row.get("Attributes"), 0), ident, row.get("File_Manifest", ""))
+        return placed
+
+    def gac_folder(self, ident, assembly_file):
+        name = ident.get("name", "")
+        token = ident.get("publickeytoken", "").lower()
+        if not name or not token or "/" in name or "\\" in name:
+            return None
+        version = clean_version(ident.get("version", "0.0.0.0"))
+        culture = ident.get("culture", "neutral")
+        culture = "" if culture.lower() == "neutral" else culture
+        arch = ident.get("processorarchitecture", "").lower()
+        gac = {"x86": "GAC_32", "amd64": "GAC_64", "x64": "GAC_64", "msil": "GAC_MSIL"}.get(arch, "GAC_MSIL" if arch else "GAC")
+        if clr_version(assembly_file).startswith("v4"):
+            return "drive_c/windows/Microsoft.NET/assembly/%s/%s/v4.0_%s_%s_%s" % (gac, name, version, culture, token)
+        return "drive_c/windows/assembly/%s/%s/%s_%s_%s" % (gac, name, version, culture, token)
+
+    @staticmethod
+    def sxs_names(ident):
+        """Wine's winsxs names for a side-by-side assembly: its folder and, for a policy, the policy folder."""
+        arch = ident.get("processorarchitecture", "x86").lower() or "x86"
+        name = ident.get("name", "").lower()
+        token = ident.get("publickeytoken", "").lower()
+        version = ident.get("version", "")
+        if not name or not token or not version or "/" in name or "\\" in name:
+            return None
+        if ident.get("type", "").lower() == "win32-policy":
+            target = re.sub(r"^policy\.\d+\.\d+\.", "", name)
+            return "policy", "drive_c/windows/winsxs/policies/%s_%s_%s_none_deadbeef" % (arch, target, token), version
+        return "assembly", "%s_%s_%s_%s_none_deadbeef" % (arch, name, token, version), version
+
+    def unpack(self, work):
+        """Every cabinet in the package, unpacked; returns File key -> unpacked file."""
+        found = {}
+        media = [row for row in self.pkg.table("Media") if row.get("Cabinet", "")]
+        for index, row in enumerate(media):
+            cabinet = row.get("Cabinet", "")
+            self.span.report(0.05 + 0.3 * index / max(1, len(media)), "unpacking %s" % cabinet.lstrip("#"))
+            dest = Path(work) / ("media%d" % index)
+            dest.mkdir()
+            if cabinet.startswith("#"):
+                cab = Path(work) / ("media%d.cab" % index)
+                self.pkg.stream(cabinet[1:], cab)
+                own = True
+            else:
+                # An external cabinet: a file beside the package, as an installer wrapper lays it out
+                # (vc_red.cab beside vc_red.msi, netfx_Full.mzz beside netfx_Full_x64.msi).
+                cab = sibling(Path(self.pkg.path), cabinet)
+                if cab is None:
+                    self.notes.append("external cabinet %s is not part of the package; its files are missing" % cabinet)
+                    continue
+                own = False
+            result = subprocess.run([CABEXTRACT, "-q", "-d", str(dest), str(cab)], capture_output=True, timeout=1800,
+                                    env=tool_env())
+            if result.returncode != 0:
+                raise MsiError("cabextract: %s" % result.stderr.decode("utf-8", "replace").strip()[:300])
+            if own:
+                cab.unlink()
+            for entry in dest.rglob("*"):
+                if entry.is_file():
+                    found.setdefault(entry.relative_to(dest).as_posix(), entry)
+        return found
+
+    def put(self, source, rel):
+        target = self.out / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+
+    def install_files(self, unpacked):
+        assemblies = self.assemblies()
+        files = self.pkg.table("File")
+        missing = 0
+        destinations = {}
+        # Where each file goes: its component's folder, or the assembly store for a global assembly.
+        for row in files:
+            comp = row["Component_"]
+            if comp not in self.included_components:
+                continue
+            name = long_name(row["FileName"])
+            if not name or "/" in name or "\\" in name or name in (".", ".."):
+                continue
+            if comp in assemblies:
+                kind, ident, manifest = assemblies[comp]
+                if kind == 0:
+                    source = unpacked.get(self.components[comp].get("KeyPath", ""))
+                    folder = self.gac_folder(ident, source) if source else None
+                    destinations[row["File"]] = folder + "/" + name if folder else None
+                else:
+                    names = self.sxs_names(ident)
+                    if names is None:
+                        destinations[row["File"]] = None
+                    elif names[0] == "policy":
+                        destinations[row["File"]] = (names[1] + "/" + names[2] + ".policy") if row["File"] == manifest else None
+                    elif row["File"] == manifest:
+                        destinations[row["File"]] = "drive_c/windows/winsxs/manifests/%s.manifest" % names[1]
+                    elif name.lower().endswith(".cat"):
+                        destinations[row["File"]] = None
+                    else:
+                        destinations[row["File"]] = "drive_c/windows/winsxs/%s/%s" % (names[1], name)
+                continue
+            folder = self.directory(self.components[comp]["Directory_"])
+            destinations[row["File"]] = folder + "/" + name if folder else None
+        for key, rel in destinations.items():
+            if rel:
+                self.files[key] = rel
+        assembly_folders = set()
+        todo = [(key, rel) for key, rel in destinations.items() if rel]
+        last = -1
+        for done, (key, rel) in enumerate(todo):
+            step = done * 20 // max(1, len(todo))
+            if step != last:
+                last = step
+                self.span.report(0.35 + 0.55 * done / max(1, len(todo)), "placing files (%d of %d)" % (done, len(todo)))
+            source = unpacked.get(key)
+            if source is None:
+                missing += 1
+                continue
+            self.put(source, rel)
+            self.counts["files"] += 1
+            if "/assembly/" in rel or "/winsxs/" in rel:
+                assembly_folders.add(rel.rsplit("/", 1)[0])
+        self.counts["assemblies"] = len(assembly_folders)
+        for row in self.pkg.table("DuplicateFile"):
+            if row["Component_"] not in self.included_components or row["File_"] not in self.files:
+                continue
+            folder = self.directory(row["DestFolder"]) if row.get("DestFolder") else self.files[row["File_"]].rsplit("/", 1)[0]
+            name = long_name(row.get("DestName", "")) or self.files[row["File_"]].rsplit("/", 1)[1]
+            source = self.out / self.files[row["File_"]]
+            if folder and source.is_file() and "/" not in name:
+                self.put(source, folder + "/" + name)
+                self.counts["files"] += 1
+        if missing:
+            self.notes.append("%d file(s) were not in the package's cabinets" % missing)
+
+    def value(self, hive, key, name, kind, data, wow64):
+        # A 32-bit component writes through the 32-bit view, as Wine's msi does: HKLM\Software is
+        # Software\Wow6432Node, and the prefix's link keys there (Classes, TypeLib, Fonts...) lead
+        # to the keys both views share - droiddeck-wincomponents follows them when it writes.
+        lower = key.lower()
+        if hive == "HKLM" and wow64 and lower.startswith("software\\") and not lower.startswith("software\\wow6432node\\"):
+            key = "Software\\Wow6432Node\\" + key[len("software\\"):]
+        self.registry.append({"hive": hive, "key": key, "name": name, "type": kind, "data": data})
+
+    def registry_data(self, raw):
+        """A Registry table Value: (type, data) as droiddeck-wincomponents writes them."""
+        if raw is None or raw == "":
+            return "sz", ""
+        if raw.startswith("#x") or raw.startswith("#X"):
+            hexdigits = re.sub(r"[^0-9A-Fa-f]", "", self.format(raw[2:]))
+            if len(hexdigits) % 2:
+                hexdigits = "0" + hexdigits
+            return "binary", hexdigits.lower()
+        if raw.startswith("#%"):
+            return "expand_sz", self.format(raw[2:])
+        if raw.startswith("##"):
+            return "sz", self.format(raw[1:])
+        if raw.startswith("#"):
+            number = self.format(raw[1:])
+            if re.fullmatch(r"[+-]?\d+", number.strip()):
+                return "dword", int(number) & 0xFFFFFFFF
+            return "sz", number
+        text = self.format(raw)
+        if "\0" in text:
+            parts = [part for part in text.split("\0") if part]
+            return "multi_sz", parts
+        return "sz", text
+
+    def install_registry(self):
+        for row in self.pkg.table("Registry"):
+            comp = row["Component_"]
+            if comp not in self.included_components:
+                continue
+            root = to_int(row["Root"], 2)
+            hive, prefix = {-1: ("HKLM", ""), 0: ("HKLM", "Software\\Classes\\"), 1: ("HKCU", ""),
+                            2: ("HKLM", "")}.get(root, (None, None))
+            if hive is None:
+                continue
+            key = prefix + self.format(row["Key"]).strip("\\")
+            wow64 = not (to_int(self.components[comp].get("Attributes"), 0) & COMPONENT_64BIT)
+            name = row.get("Name", "")
+            raw = row.get("Value", "")
+            if name in ("+", "-", "*") and not raw:
+                self.value(hive, key, None, "key", None, wow64)
+                continue
+            if not name and not raw:
+                self.value(hive, key, None, "key", None, wow64)
+                continue
+            kind, data = self.registry_data(raw)
+            self.value(hive, key, self.format(name) or "", kind, data, wow64)
+            self.counts["registry"] += 1
+        for row in self.pkg.table("Environment"):
+            if row["Component_"] not in self.included_components:
+                continue
+            flags = re.match(r"^[=+\-!*]*", row["Name"]).group(0)
+            name = row["Name"][len(flags):]
+            if "!" in flags or not name:
+                continue
+            raw = row.get("Value", "") or ""
+            hive, key = ("HKLM", "System\\CurrentControlSet\\Control\\Session Manager\\Environment") if "*" in flags \
+                else ("HKCU", "Environment")
+            mode = "set"
+            if raw.startswith("[~]"):
+                mode, raw = "append", raw[3:]
+            elif raw.endswith("[~]"):
+                mode, raw = "prepend", raw[:-3]
+            separator = ";"
+            if mode == "append" and raw[:1] in ";:":
+                separator, raw = raw[0], raw[1:]
+            elif mode == "prepend" and raw[-1:] in ";:":
+                separator, raw = raw[-1], raw[:-1]
+            value = self.format(raw)
+            if value:
+                self.registry.append({"hive": hive, "key": key, "name": name, "type": mode, "data": value, "separator": separator})
+                self.counts["registry"] += 1
+        for row in self.pkg.table("Font"):
+            rel = self.files.get(row["File_"])
+            if not rel:
+                continue
+            title = row.get("FontTitle") or Path(rel).stem + " (TrueType)"
+            self.value("HKLM", "Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts", title, "sz",
+                       rel.rsplit("/", 1)[1], False)
+            self.counts["registry"] += 1
+
+    def check(self):
+        for row in self.pkg.table("LaunchCondition"):
+            if not self.conditions.evaluate(row["Condition"], default=True):
+                self.notes.append("the package says: " + self.format(row.get("Description", "")).strip())
+        for name in UNSUPPORTED_TABLES:
+            count = len(self.pkg.table(name)) if name in self.pkg.table_names else 0
+            if count:
+                what = "self-registering DLL(s) not registered" if name == "SelfReg" else "%s entries not written" % name
+                self.notes.append("%d %s" % (count, what))
+
+    def install(self):
+        self.span.report(0.0, "reading %s" % (self.pkg.summary.get("subject") or Path(self.pkg.path).name))
+        self.run_set_actions()
+        self.select()
+        with tempfile.TemporaryDirectory(dir=str(self.out.parent), prefix=".msi-") as work:
+            unpacked = self.unpack(work)
+            self.span.report(0.35, "placing files")
+            self.install_files(unpacked)
+        self.span.report(0.9, "writing the registry values")
+        self.install_registry()
+        self.check()
+        if not self.counts["files"] and not self.registry:
+            raise MsiError("the package installs nothing here")
+        # A component made of several packages (32- and 64-bit) gets them all in one registry.json.
+        values = []
+        try:
+            with open(self.out / "registry.json", encoding="utf-8") as source:
+                values = json.load(source).get("values", [])
+        except (FileNotFoundError, ValueError, AttributeError):
+            pass
+        with open(self.out / "registry.json", "w", encoding="utf-8") as out:
+            json.dump({"version": 1, "values": values + self.registry}, out, indent=1)
+        self.span.report(1.0, "done")
+        return {"product": self.props.get("ProductName", ""), "version": self.props.get("ProductVersion", ""),
+                "counts": self.counts, "notes": self.notes}
+
+
+# ---------------------------------------------------------------- installer wrappers
+
+def sibling(path, name):
+    """A file next to [path] called [name], whatever its case; None when there is none."""
+    folder = path.parent
+    candidate = folder / name
+    if candidate.is_file():
+        return candidate
+    lower = name.lower()
+    for entry in folder.iterdir():
+        if entry.is_file() and entry.name.lower() == lower:
+            return entry
+    return None
+
+
+def kind_of(path):
+    """What a file is by its first bytes: msi, exe, cab or other."""
+    with open(path, "rb") as source:
+        head = source.read(8)
+    if head.startswith(MSI_MAGIC):
+        return "msi"
+    if head[:2] == b"MZ":
+        return "exe"
+    if head[:4] == b"MSCF":
+        return "cab"
+    return "other"
+
+
+def run_tool(args, timeout=1800):
+    try:
+        return subprocess.run(args, capture_output=True, timeout=timeout, env=tool_env())
+    except OSError as error:
+        raise MsiError("%s is not available (%s)" % (Path(args[0]).name, error))
+
+
+def burn_containers(data):
+    """A WiX bundle's containers as (offset, size) pairs: the .wixburn section of the stub names
+    their sizes; each is a cabinet laid out after the stub, found by its header since signing can
+    move them. None when the file is no bundle."""
+    try:
+        pe = struct.unpack_from("<I", data, 0x3C)[0]
+        if data[pe:pe + 4] != b"PE\0\0":
+            return None
+        count, optional = struct.unpack_from("<H", data, pe + 6)[0], struct.unpack_from("<H", data, pe + 20)[0]
+        table = pe + 24 + optional
+        section = None
+        for i in range(count):
+            name, _, _, raw_size, raw_offset = struct.unpack_from("<8sIIII", data, table + 40 * i)
+            if name.rstrip(b"\0") == b".wixburn":
+                section = (raw_offset, raw_size)
+        if section is None or section[1] < 52:
+            return None
+        offset = section[0]
+        if struct.unpack_from("<I", data, offset)[0] != BURN_MAGIC:
+            return None
+        stub, _, _, _, _, containers = struct.unpack_from("<IIIIII", data, offset + 24)
+        sizes = struct.unpack_from("<%dI" % containers, data, offset + 48)
+    except (struct.error, IndexError):
+        return None
+    found = []
+    position = stub
+    for size in sizes:
+        while True:
+            start = data.find(b"MSCF", position)
+            if start < 0 or start + 12 > len(data):
+                return None
+            if struct.unpack_from("<I", data, start + 8)[0] == size:
+                break
+            position = start + 4
+        found.append((start, size))
+        position = start + size
+    return found
+
+
+def unpack_burn(path, dest, containers):
+    """Unpacks a bundle's containers into [dest] and gives the payloads the names its manifest
+    lists (a9 -> packages/vcRuntimeMinimum_amd64/vc_runtimeMinimum_x64.msi)."""
+    data = path.read_bytes()
+    names = {}
+    for index, (start, size) in enumerate(containers):
+        progress("unpacking the bundle, part %d of %d" % (index + 1, len(containers)), 0.02 + 0.08 * index / max(1, len(containers)))
+        cab = dest / ("container%d.cab" % index)
+        cab.write_bytes(data[start:start + size])
+        folder = dest / ("container%d" % index)
+        folder.mkdir()
+        result = run_tool([CABEXTRACT, "-q", "-d", str(folder), str(cab)])
+        cab.unlink()
+        if result.returncode != 0:
+            raise MsiError("cabextract: %s" % result.stderr.decode("utf-8", "replace").strip()[:300])
+        if index == 0:
+            manifest = folder / "0"
+            if manifest.is_file():
+                text = manifest.read_text("utf-8", "replace")
+                for file_path, source in re.findall(r'<Payload\b[^>]*?\bFilePath="([^"]+)"[^>]*?\bSourcePath="([^"]+)"', text):
+                    names[source] = file_path
+            continue
+        for entry in list(folder.iterdir()):
+            wanted = names.get(entry.name)
+            if not wanted:
+                continue
+            rel = Path(*[part for part in wanted.replace("\\", "/").split("/") if part not in ("", ".", "..")])
+            target = folder / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            entry.rename(target)
+
+
+def unpack_installer(path, dest):
+    """Opens an installer or archive into [dest]: a bundle by its header, a cabinet (or
+    self-extracting one) with cabextract, anything else with 7-Zip."""
+    kind = kind_of(path)
+    if kind == "exe":
+        containers = burn_containers(path.read_bytes())
+        if containers:
+            unpack_burn(path, dest, containers)
+            return "bundle"
+    if kind == "cab" or kind == "exe" and b"MSCF" in path.read_bytes():
+        result = run_tool([CABEXTRACT, "-q", "-d", str(dest), str(path)])
+        if result.returncode == 0 and any(dest.rglob("*")):
+            return "cabinet"
+        for stale in list(dest.iterdir()):
+            shutil.rmtree(stale) if stale.is_dir() else stale.unlink()
+    progress("unpacking %s" % path.name, 0.02)
+    result = run_tool([SEVENZIP, "x", "-y", "-bd", "-bso0", "-bsp0", "-o" + str(dest), str(path)])
+    if result.returncode not in (0, 1) or not any(dest.rglob("*")):
+        raise MsiError("could not open %s: %s" % (path.name, (result.stderr or result.stdout).decode("utf-8", "replace").strip()[:200]
+                                                   or "nothing inside it can be unpacked"))
+    return "archive"
+
+
+def packages_in(root):
+    """The Windows Installer packages an unpacked installer holds, shallowest first, by name."""
+    found = []
+    for entry in sorted(root.rglob("*")):
+        if entry.is_file() and kind_of(entry) == "msi":
+            found.append(entry)
+    found.sort(key=lambda entry: (len(entry.relative_to(root).parts), entry.name.lower()))
+    return found
+
+
+def choose_packages(found, root):
+    """Which packages make up the install: the ones at the top of the installer (a bundle keeps
+    each in its own folder, so there every level counts), for the x86 and x64 platforms. The .NET
+    Framework 4.5+ installers carry a complete product (netfx_Full_*) beside the 4.0 parts they
+    patch (netfx_Core_*, netfx_Extended_*) and per-Windows-version copies in NetFx* folders: the
+    complete product wins, the copies are left out."""
+    if not found:
+        return []
+    depth = min(len(entry.relative_to(root).parts) for entry in found)
+    bundle = (root / "container1").is_dir()
+    top = [entry for entry in found if bundle or len(entry.relative_to(root).parts) == depth]
+    names = [entry.name.lower() for entry in top]
+    if any("full" in name for name in names) and any("_core" in name or "_extended" in name for name in names):
+        top = [entry for entry in top if not ("_core" in entry.name.lower() or "_extended" in entry.name.lower())]
+    chosen = []
+    for entry in top:
+        template = Package(entry).summary.get("template", "").split(";")[0].strip().lower()
+        if template in SKIP_PLATFORMS:
+            continue
+        chosen.append(entry)
+    return chosen
+
+
+def install_wrapper(path, out):
+    """Lays out every package inside an installer wrapper; the result is the sum of them."""
+    total = {"product": "", "version": "", "counts": {"files": 0, "assemblies": 0, "registry": 0}, "notes": [], "packages": []}
+    with tempfile.TemporaryDirectory(dir=str(out.parent), prefix=".unpack-") as work:
+        dest = Path(work) / "x"
+        dest.mkdir()
+        how = unpack_installer(path, dest)
+        packages = choose_packages(packages_in(dest), dest)
+        if not packages:
+            raise MsiError("%s holds no installer package: it is its own setup program, which cannot be run here" % path.name)
+        for index, package in enumerate(packages):
+            lo, hi = 0.1 + 0.9 * index / len(packages), 0.1 + 0.9 * (index + 1) / len(packages)
+            progress("package %d of %d: %s" % (index + 1, len(packages), package.name), lo)
+            try:
+                result = Installer(str(package), out, span=Span(lo, hi)).install()
+            except MsiError as error:
+                # A package with nothing for this prefix (a patch for another Windows) is skipped,
+                # unless it is the only one; anything else is the whole installer's failure.
+                if "installs nothing" in str(error) and len(packages) > 1:
+                    total["notes"].append("%s: %s" % (package.name, error))
+                    continue
+                raise
+            total["packages"].append(package.name)
+            if not total["product"]:
+                total["product"], total["version"] = result["product"], result["version"]
+            for key in total["counts"]:
+                total["counts"][key] += result["counts"].get(key, 0)
+            for note in result["notes"]:
+                if note not in total["notes"]:
+                    total["notes"].append(note)
+        total["how"] = how
+    return total
+
+
+NESTED_SUFFIXES = (".7z", ".zip", ".cab", ".exe", ".msi", ".rar", ".xz", ".gz", ".tar")
+
+
+def open_nested(dest, depth=0):
+    """Archives inside an unpacked installer (QuickTime's cabinets, an NSIS pack's payloads) are
+    opened in place, one "<name>.nested" folder per archive, two levels deep: the same layout the
+    component recordings (winlator-contents tools/snapshot/record.py) map their file sources to."""
+    if depth > 1:
+        return 0
+    opened = 0
+    for path in sorted(p for p in dest.rglob("*") if p.is_file() and p.suffix.lower() in NESTED_SUFFIXES):
+        if path.name.endswith(".nested") or path.stat().st_size < 1024 or ".nested/" in path.relative_to(dest).as_posix() and depth == 0 and False:
+            continue
+        probe = run_tool([SEVENZIP, "l", "-ba", str(path)], timeout=300)
+        if probe.returncode != 0 or not probe.stdout.strip():
+            continue
+        folder = path.with_name(path.name + ".nested")
+        folder.mkdir(exist_ok=True)
+        run_tool([SEVENZIP, "x", "-y", "-bd", "-bso0", "-bsp0", "-o" + str(folder), str(path)])
+        if any(folder.rglob("*")):
+            opened += 1 + open_nested(folder, depth + 1)
+        else:
+            shutil.rmtree(folder, ignore_errors=True)
+    return opened
+
+
+def unpack_only(path, dest):
+    dest.mkdir(parents=True, exist_ok=True)
+    how = unpack_installer(path, dest)
+    progress("opening archives inside %s" % path.name)
+    nested = open_nested(dest)
+    files = sorted(str(entry.relative_to(dest)) for entry in dest.rglob("*") if entry.is_file())
+    return {"how": how, "files": len(files), "nested": nested, "names": files[:2000]}
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) == 3 and args[0] == "--unpack":
+        try:
+            result = unpack_only(Path(args[1]), Path(args[2]))
+        except MsiError as error:
+            print("error " + str(error), flush=True)
+            return 1
+        print("result " + json.dumps(result), flush=True)
+        return 0
+    if len(args) != 2:
+        print("usage: droiddeck-msi-install <package.msi | installer.exe> <component dir>\n"
+              "       droiddeck-msi-install --unpack <archive> <dir>", file=sys.stderr)
+        return 2
+    source, out = Path(args[0]), Path(args[1])
+    out.mkdir(parents=True, exist_ok=True)
+    try:
+        if kind_of(source) == "msi":
+            result = Installer(str(source), out).install()
+        else:
+            result = install_wrapper(source, out)
+    except MsiError as error:
+        print("error " + str(error), flush=True)
+        return 1
+    print("result " + json.dumps(result), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -38,14 +38,12 @@ library list, before anything is published.
   iconify request is remembered and the window goes back to NormalState before input returns to it,
   then focus is handed over again. `GAMESCOPE_RESTORE_FOCUS_WINDOW` on the root window asks for the
   same restore from outside (the session script's resume watcher).
-
-- `0113-steam-overlay-keeps-game-keyboard-focus.patch` - this app: the Steam client opens the Quick
-  Access Menu and Steam menu over a game with `STEAM_INPUT_FOCUS` 1, which moves X keyboard focus to
-  its overlay; wine then deactivates the game and a fullscreen game minimizes itself, freezing
-  behind the menu instead of running on as on a Steam Deck. Steam's own overlay taking input now
-  keeps keyboard focus on the game, as mode 2 does; its input comes from the controller through
-  Steam Input, not the X keyboard. The pointer warps gamescope makes as input moves to Steam and
-  back are skipped around it, since the game - still taking input - saw them as a mouse jump.
+- `0114-take-override-redirect-from-mapnotify.patch` - upstream (ValveSoftware/gamescope 3829340),
+  verbatim; drop it once the runtime's gamescope includes it. Wine creates a game's window
+  override-redirect and makes it managed before mapping it, which sends no X event. When gamescope
+  read the window's attributes first, it kept the window as override-redirect and left it out of
+  `GAMESCOPE_FOCUSABLE_WINDOWS`, so the client kept its loading screen over the running game
+  (Skyrim SE, A Plague Tale: Innocence, on the games' own Xwayland). MapNotify now refreshes the flag.
 
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.

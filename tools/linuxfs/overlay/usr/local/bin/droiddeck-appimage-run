@@ -24,6 +24,8 @@ fi
 # X11, which it picks from the session type.
 export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
 export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
+# Android 16 refuses Firefox the size seal on a tab's shared memory; see droiddeck-desktop.
+export MOZ_SHM_NO_SEALS=1
 # sharun images start the app through their own ld.so, patched not to read /etc/ld.so.preload, and
 # drop LD_PRELOAD unless allowed: without this the app never gets the session's pads.
 if [ -s /etc/ld.so.preload ]; then

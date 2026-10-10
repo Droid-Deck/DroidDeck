@@ -26,6 +26,25 @@ def config_text(entries):
 
 
 class GameEnvironmentTest(unittest.TestCase):
+    def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "legacycompat/evaluatorscript_409710.vdf"
+            script.parent.mkdir(parents=True)
+            script.write_text("{}")
+            calls = []
+            run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
+            MODULE["mark_install_scripts"].__globals__["subprocess"].run = lambda args, **kw: calls.append((args, kw["env"]))
+            try:
+                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)}
+                MODULE["mark_install_scripts"](["/proton", "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"], env)
+                MODULE["mark_install_scripts"](["/proton", "waitforexitandrun", "/game/Game.exe"], env)
+            finally:
+                MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][0][1], str(root))
+            self.assertEqual(calls[0][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+
     def test_profile_precedence_and_unset(self):
         env = {"KEEP": "inherited", "REMOVE": "inherited", "CUSTOM": "launch option"}
         config = {"version": 1, "shared": {"CUSTOM": "shared"}, "games": {"42": {"REMOVE": None, "CUSTOM": "game", "EMPTY": ""}}}
@@ -241,7 +260,9 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_both_proton_wrappers_call_environment_launcher(self):
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-            self.assertIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
+            # Started through bl_run, which execs it - or, for a store game with cloud saves, waits
+            # for it so droiddeck-store-launch --exited can follow (test_store_launch.CloudHooks).
+            self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
 
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
         overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"
@@ -375,11 +396,18 @@ class DirectAudioPrefixTest(unittest.TestCase):
         wine = self.tool / "files/bin-arm64/wine"
         wine.write_text("#!/bin/sh\necho wine-11.0-4c8f2e1 '(Staging)'\n")
         wine.chmod(0o755)
-        self.audio = base / "directaudio"
-        for arch in ("aarch64-windows", "i386-windows", "aarch64-unix"):
-            (self.audio / "lib/wine" / arch).mkdir(parents=True)
-        (self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv").write_bytes(b"arm64x")
-        (self.audio / "lib/wine/i386-windows/winedirectaudio.drv").write_bytes(b"i386")
+        # Proton's own winepulse.so names the audio interface: the classic table never imports
+        # PsCreateSystemThread, the system-thread one (Proton-CachyOS) always does.
+        (self.tool / "files/lib/wine/aarch64-unix").mkdir(parents=True)
+        self.winepulse = self.tool / "files/lib/wine/aarch64-unix/winepulse.so"
+        self.winepulse.write_bytes(b"\x7fELF classic wine 11 pulse driver")
+        self.sets = base / "directaudio"
+        for set_name in ("linux-wine11", "linux-wine11-systhread"):
+            for arch in ("aarch64-windows", "i386-windows", "aarch64-unix"):
+                (self.sets / set_name / "lib/wine" / arch).mkdir(parents=True)
+            (self.sets / set_name / "lib/wine/aarch64-windows/winedirectaudio.drv").write_bytes(b"arm64x-" + set_name.encode())
+            (self.sets / set_name / "lib/wine/i386-windows/winedirectaudio.drv").write_bytes(b"i386")
+        self.audio = self.sets / "linux-wine11"
         self.compat = base / "compat"
         self.windows = self.compat / "pfx/drive_c/windows"
         for folder in ("system32", "syswow64"):
@@ -387,9 +415,10 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.reg = self.compat / "pfx/user.reg"
 
     def run_setup(self):
-        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\necho "WINEDLLPATH=$WINEDLLPATH"\n'
-        env = dict(os.environ, BL_DIRECTAUDIO=str(self.audio), STEAM_COMPAT_DATA_PATH=str(self.compat))
+        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nbl_directaudio "$1"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\n'
+        env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat))
         env.pop("WINEDLLPATH", None)
+        env.pop("WINE_AUDIO_DRIVER", None)
         return subprocess.run(["bash", "-c", script, "bash", str(self.tool)], env=env, capture_output=True, text=True, check=True)
 
     def audio_values(self):
@@ -410,14 +439,42 @@ class DirectAudioPrefixTest(unittest.TestCase):
         result = self.run_setup()
         self.assertIn("DirectAudio selected", result.stderr)
         self.assertIn("WINEDLLPATH=%s/lib/wine" % self.audio, result.stdout)
+        # Proton-CachyOS's mmdevapi takes the driver list from this variable, and its launcher
+        # pre-sets it to pulse,alsa unless it is already set.
+        self.assertIn("WINE_AUDIO_DRIVER=directaudio,pulse\n", result.stdout)
         self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
         self.assertEqual(self.link("syswow64"), str(self.audio / "lib/wine/i386-windows/winedirectaudio.drv"))
-        self.assertEqual((self.windows / "system32/winedirectaudio.drv").read_bytes(), b"arm64x")
+        self.assertEqual((self.windows / "system32/winedirectaudio.drv").read_bytes(), b"arm64x-linux-wine11")
         self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
         before = self.reg.read_text()
         self.assertNotIn("DirectAudio selected", self.run_setup().stderr)
         self.assertEqual(self.reg.read_text(), before)
         self.assertEqual(sorted(os.listdir(self.windows / "system32")), ["winedirectaudio.drv"])
+
+    def test_without_a_prefix_it_waits_for_the_next_launch(self):
+        result = self.run_setup()
+        self.assertIn("takes effect the next time this game starts", result.stderr)
+        self.assertEqual(self.link("system32"), None)
+
+    def test_the_system_thread_set_is_picked_from_winepulse_not_the_version(self):
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+        self.winepulse.write_bytes(b"\x7fELF cachyos pulse driver PsCreateSystemThread NtSetInformationThread")
+        result = self.run_setup()
+        systhread = self.sets / "linux-wine11-systhread"
+        self.assertIn("DirectAudio ready (Wine 11, linux-wine11-systhread)", result.stderr)
+        self.assertIn("WINEDLLPATH=%s/lib/wine" % systhread, result.stdout)
+        self.assertEqual(self.link("system32"), str(systhread / "lib/wine/aarch64-windows/winedirectaudio.drv"))
+        self.assertEqual((self.windows / "system32/winedirectaudio.drv").read_bytes(), b"arm64x-linux-wine11-systhread")
+
+    def test_no_set_for_the_interface_leaves_protons_own_audio(self):
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+        self.winepulse.write_bytes(b"\x7fELF PsCreateSystemThread")
+        shutil.rmtree(self.sets / "linux-wine11-systhread")
+        result = self.run_setup()
+        self.assertIn("no driver set for the linux-wine11-systhread interface", result.stderr)
+        self.assertIn("WINEDLLPATH=\n", result.stdout)
+        self.assertIn("WINE_AUDIO_DRIVER=\n", result.stdout)
+        self.assertFalse((self.windows / "system32/winedirectaudio.drv").exists())
 
     def test_older_selections_are_upgraded(self):
         self.reg.write_text('WINE REGISTRY Version 2\n\n[SoftwareWineDrivers] 1790995967\n#time=1dd52e24550e980\n"Audio"="directaudio"\n'
@@ -461,3 +518,27 @@ class DirectAudioPrefixTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ForceSsbsTest(unittest.TestCase):
+    def test_libssbs_is_preloaded_only_when_asked_and_only_into_arm64_proton(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            arm = Path(tmp) / "arm"
+            (arm / "files/lib/wine/aarch64-unix").mkdir(parents=True)
+            x86 = Path(tmp) / "x86"
+            (x86 / "files/lib/wine/x86_64-unix").mkdir(parents=True)
+            lib = Path(tmp) / "libssbs.so"
+            lib.write_bytes(b"\x7fELF")
+            g = MODULE["force_ssbs"].__globals__
+            old = g["SSBS_LIB"]
+            g["SSBS_LIB"] = str(lib)
+            try:
+                env = {"LD_PRELOAD": "/usr/local/lib/libblsession.so"}
+                self.assertEqual(MODULE["force_ssbs"]([str(arm / "proton"), "waitforexitandrun"], env), env)
+                on = dict(env, DROIDDECK_FORCE_SSBS="1")
+                got = MODULE["force_ssbs"]([str(arm / "proton"), "waitforexitandrun"], on)
+                self.assertEqual(got["LD_PRELOAD"], "/usr/local/lib/libblsession.so:" + str(lib))
+                self.assertEqual(MODULE["force_ssbs"]([str(arm / "proton")], got)["LD_PRELOAD"], got["LD_PRELOAD"])
+                self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
+            finally:
+                g["SSBS_LIB"] = old

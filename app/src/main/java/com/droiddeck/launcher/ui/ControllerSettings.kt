@@ -43,18 +43,18 @@ private fun Swatch(color: Int) {
 fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPrefs.Settings, a: ControllerActions) {
     ChoiceRow(
         host, "controller-osc", stringResource(R.string.mode_osc), stringResource(R.string.ctrl_osc_hint),
-        listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
+        listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
         oscMode, note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,
     )
     val tintOpen = host.open == "controller-tint"
     SettingsRow(stringResource(R.string.ctrl_color), stringResource(R.string.ctrl_color_hint), highlighted = tintOpen) {
         Box {
-            ValueChip(ControllerPrefs.tints.firstOrNull { it.first == c.tint }?.second ?: stringResource(R.string.ctrl_custom), tintOpen) {
+            ValueChip(ControllerPrefs.tints.firstOrNull { it.first == c.tint }?.second?.let { stringResource(it) } ?: stringResource(R.string.ctrl_custom), tintOpen) {
                 host.open = if (tintOpen) null else "controller-tint"
             }
             AnchoredMenu(tintOpen, onDismiss = { if (host.open == "controller-tint") host.open = null }, title = stringResource(R.string.ctrl_color)) { firstItemFocus ->
                 ControllerPrefs.tints.forEachIndexed { index, (color, name) ->
-                    MenuItem(name, checked = c.tint == color, leading = { Swatch(color) }, focusRequester = if (index == 0) firstItemFocus else null) {
+                    MenuItem(stringResource(name), checked = c.tint == color, leading = { Swatch(color) }, focusRequester = if (index == 0) firstItemFocus else null) {
                         a.onTint(color)
                         host.open = null
                     }
@@ -90,8 +90,9 @@ fun ControllerMappingPage(mapping: Map<String, String>, onPick: (String, String)
         onBack = onBack,
     ) {
         SettingsGroup(stringResource(R.string.ctrl_onscreen_buttons)) {
+            val targets = ControllerPrefs.targets.map { (id, label) -> id to stringResource(label) }
             for ((id, name) in ControllerPrefs.mappable) {
-                ChoiceRow(host, "map-$id", name, null, ControllerPrefs.targets, mapping[id] ?: id) { onPick(id, it) }
+                ChoiceRow(host, "map-$id", stringResource(name), null, targets, mapping[id] ?: id) { onPick(id, it) }
             }
         }
         SettingsGroup(stringResource(R.string.ctrl_defaults)) {

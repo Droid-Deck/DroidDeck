@@ -53,7 +53,7 @@ object DeviceReport {
         b.append("DroidDeck session report\n")
         b.append("========================\n")
         k("Written", SimpleDateFormat("yyyy-MM-dd HH:mm:ss zzz", Locale.US).format(Date()))
-        k("Session mode", when (mode) { SessionService.MODE_DESKTOP -> "desktop (labwc/LXQt)"; SessionService.MODE_RUN -> "a program under gamescope"; else -> "Steam client (gamescope)" })
+        k("Session mode", when (mode) { SessionService.MODE_DESKTOP -> "desktop (KDE Plasma)"; SessionService.MODE_RUN -> "a program under gamescope"; else -> "Steam client (gamescope)" })
 
         h("App")
         runCatching {
@@ -109,8 +109,11 @@ object DeviceReport {
         k("Session output", SessionState.outputSize?.let { "${it.first}x${it.second}" })
         k("Session refresh", String.format(Locale.US, "%.2f Hz", SessionState.refreshHz))
         val panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(context)
-        k("Resolution (Steam)", SessionPrefs.resolutionChoice(context, SessionService.MODE_STEAM, panelSize))
-        k("Resolution (Desktop)", SessionPrefs.resolutionChoice(context, SessionService.MODE_DESKTOP, panelSize))
+        for ((label, mode) in listOf("Resolution (Steam)" to SessionService.MODE_STEAM, "Resolution (Desktop)" to SessionService.MODE_DESKTOP)) {
+            val choice = SessionPrefs.resolutionChoice(context, mode, panelSize)
+            val size = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panelSize, choice)
+            k(label, "$choice (${size.first}x${size.second})")
+        }
         k("Foldable", context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle"))
 
         h("Drivers")
@@ -163,9 +166,7 @@ object DeviceReport {
         k("proot fast path", SessionPrefs.prootFastPath(context))
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
-        k("Stretch games to fill", SessionPrefs.forceFullscreen(context))
         k("Stretch 16:9 to panel", SessionPrefs.stretch16x9(context))
-        k("Client audio", if (SessionPrefs.clientDirectAudio(context)) "DirectAudio" else "classic")
         k("Microphone", SessionPrefs.micEnabled(context))
         k("On-screen controls", SessionPrefs.oscMode(context))
         k("Touch mode", SessionPrefs.touchMode(context))
@@ -179,10 +180,16 @@ object DeviceReport {
         h("Android process limits")
         k("Phantom proc monitor", PhantomProcessLimit.reportValue(PhantomProcessLimit.read(context)))
 
-        h("Device switch files in Download")
-        for (name in listOf("droiddeck-env", "droiddeck-tu-debug", "droiddeck-driver",
+        h("Device switch files")
+        SessionService.envSwitchFile(context)?.takeIf { it.isFile }?.let { f ->
+            k("droiddeck-env", FileUtils.readString(f)?.trim()?.replace('\n', ' ')?.ifEmpty { "(present, empty)" } ?: "(present)")
+        }
+        if (File(Environment.getExternalStorageDirectory(), "Download/droiddeck-env").isFile) {
+            k("Download/droiddeck-env", "(ignored - it moved to Android/data/${context.packageName}/files)")
+        }
+        for (name in listOf("droiddeck-tu-debug", "droiddeck-driver",
                             "droiddeck-osc", "droiddeck-no-pad",
-                            "droiddeck-no-hud", "droiddeck-wlr-renderer")) {
+                            "droiddeck-no-hud")) {
             val f = File(Environment.getExternalStorageDirectory(), "Download/$name")
             if (f.isFile) k(name, FileUtils.readString(f)?.trim()?.replace('\n', ' ')?.ifEmpty { "(present, empty)" } ?: "(present)")
         }

@@ -3,6 +3,8 @@ package com.droiddeck.launcher.runtime
 import com.droiddeck.launcher.core.Hashes
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONObject
@@ -73,28 +75,65 @@ object DesktopCatalog {
         installed(context, PROTON_SEED_ID) == null &&
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
 
-    // labwc comes with the hosted desktop package itself (its launcher is staged by the app at
-    // every session, so it cannot tell whether the package is there); SessionFiles uses the same test.
-    fun desktopInstalled(context: Context): Boolean =
-        File(LinuxRuntime.rootDir(context), "usr/bin/labwc").isFile
+    /**
+     * The desktop: KDE Plasma (tools/desktop-kde). It replaced an LXQt/labwc package of id
+     * "desktop", which a runtime may still carry; that one does not count, so the first desktop
+     * after the update installs this one over it.
+     */
+    const val DESKTOP_ID = "desktop-kde"
+
+    /**
+     * The desktop package this apk installs: pinned in tools/desktop-kde/release.env and published
+     * in DroidDeck-Components, not read from the catalog, so the desktop scripts staged by this
+     * apk always get the package they were made for.
+     */
+    fun desktopEntry(context: Context) = Entry(
+        DESKTOP_ID, context.getString(R.string.content_linux_desktop), 1, BuildConfig.DESKTOP_KDE_TAG, "tar",
+        BuildConfig.DESKTOP_KDE_URL, BuildConfig.DESKTOP_KDE_SHA256, BuildConfig.DESKTOP_KDE_SIZE, "",
+        "", "",
+    )
+
+    // The desktop package installed to the end: KWin is there and the marker install() writes once
+    // the whole package is extracted. An install cut short (the app killed, storage full) leaves
+    // KWin without the marker, and the next desktop installs it again. A newer pinned package also
+    // replaces the installed one, keeping the user's home and settings. The launcher is staged by
+    // the app at every session, so it cannot tell. SessionFiles uses the same test.
+    fun desktopInstalled(context: Context): Boolean = desktopInstalled(LinuxRuntime.rootDir(context))
+
+    fun desktopInstalled(root: File): Boolean =
+        !File(root, DesktopRemoval.PENDING).exists() &&
+        File(root, "usr/bin/kwin_wayland").isFile &&
+            FileUtils.readString(File(root, ".droiddeck-pkg-$DESKTOP_ID"))?.trim() == BuildConfig.DESKTOP_KDE_TAG
+
+    fun desktopPresent(context: Context): Boolean {
+        val root = LinuxRuntime.rootDir(context)
+        return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists()
+    }
+
+    fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) =
+        DesktopRemoval.cleanLegacy(context, listener)
+
+    fun removeDesktop(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? =
+        DesktopRemoval.remove(context, listener)
 
     /** Downloads, verifies and installs one package. Returns null on success, else a message. */
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
         val root = LinuxRuntime.rootDir(context)
-        if (!root.isDirectory) return "The Linux runtime is not installed"
+        if (!root.isDirectory) return context.getString(R.string.deskpkg_runtime_missing)
         // Every catalog row carries a sha256; one without is refused rather than trusted.
-        if (entry.sha256.isEmpty()) return "The catalog has no checksum for ${entry.name}"
+        if (entry.sha256.isEmpty()) return context.getString(R.string.deskpkg_no_checksum, entry.name)
         val download = File(context.cacheDir, "pkg-${entry.id}.download")
         try {
-            listener?.onProgress("Downloading ${entry.name}", 0)
+            val downloading = context.getString(R.string.user_apps_downloading, entry.name)
+            listener?.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, 0)
             val ok = Downloader.downloadFile(entry.url, download, true) { f ->
-                listener?.onProgress("Downloading ${entry.name}", if (f < 0) -1 else Math.round(f * 100f))
+                listener?.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, if (f < 0) -1 else Math.round(f * 100f))
             }
-            if (!ok) return "Download failed"
-            listener?.onProgress("Verifying", -1)
+            if (!ok) return context.getString(R.string.user_apps_download_failed)
+            listener?.onProgress(LinuxRuntimeInstaller.Step.VERIFYING, context.getString(R.string.rtinst_verifying), -1)
             val actual = Hashes.sha256(download)
-            if (!entry.sha256.equals(actual, ignoreCase = true)) return "Checksum mismatch - nothing was changed"
-            listener?.onProgress("Installing ${entry.name}", -1)
+            if (!entry.sha256.equals(actual, ignoreCase = true)) return context.getString(R.string.deskpkg_checksum_mismatch)
+            listener?.onProgress(context.getString(R.string.deskpkg_installing, entry.name), -1)
             when (entry.kind) {
                 "appimage" -> {
                     val dir = File(root, "opt/appimages").apply { mkdirs() }
@@ -102,20 +141,31 @@ object DesktopCatalog {
                     // Some projects zip the AppImage (melonDS); the one file inside is what we want.
                     val placed = if (entry.url.endsWith(".zip", ignoreCase = true)) unzipAppImage(download, target)
                                  else download.renameTo(target)
-                    if (!placed) return "Could not place the AppImage"
+                    if (!placed) return context.getString(R.string.deskpkg_place_failed)
                     target.setExecutable(true, false)
                     FileUtils.writeString(File(root, "usr/share/applications/droiddeck-${entry.id}.desktop"),
                         "[Desktop Entry]\nType=Application\nName=${entry.name}\n" +
                         "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/${entry.id}.AppImage\n" +
                         "Icon=${entry.icon}\nTerminal=false\nCategories=${entry.category};\n")
                 }
-                else -> if (!LinuxRuntimeInstaller.extract(download, root, listener)) return "Extraction failed"
+                else -> {
+                    // Not complete until written again at the end: a reinstall cut short must not
+                    // leave the last install's marker saying it is.
+                    marker(context, entry.id).delete()
+                    if (!LinuxRuntimeInstaller.extract(context, download, root, listener)) return context.getString(R.string.deskpkg_extract_failed)
+                }
+            }
+            if (entry.id == DESKTOP_ID) {
+                cleanLegacy(context, listener)
+                val pending = File(root, DesktopRemoval.PENDING)
+                check(!pending.exists() || pending.delete()) { "Could not finish desktop installation" }
             }
             FileUtils.writeString(marker(context, entry.id), entry.version)
+            check(installed(context, entry.id) == entry.version) { "Could not finish package installation" }
             return null
         } catch (e: Exception) {
             Log.e(TAG, "install ${entry.id}", e)
-            return e.message ?: "Install failed"
+            return e.message ?: context.getString(R.string.deskpkg_install_failed)
         } finally {
             download.delete()
         }

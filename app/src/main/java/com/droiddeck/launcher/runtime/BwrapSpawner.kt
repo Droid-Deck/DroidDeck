@@ -232,10 +232,10 @@ object BwrapSpawner {
         val driver = File(lib, "libvulkan_freedreno.so")
         if (!driver.isFile || !File("/dev/kgsl-3d0").exists()) return null
         if (env.containsKey("VK_ICD_FILENAMES") || env.containsKey("VK_DRIVER_FILES")) return null
-        // A window on the desktop while labwc composites with pixman gets shared-memory buffers
-        // only; Zink cannot present there, so such an app keeps Flathub's own Mesa (llvmpipe).
-        // From the desktop, games go through droiddeck-gpu's gamescope and do get the GPU.
-        if (env["WLR_RENDERER"] == "pixman" && env["GAMESCOPE_WAYLAND_DISPLAY"] == null) return null
+        // A window on the desktop gets shared-memory buffers only (KWin composites in software);
+        // Zink cannot present there, so such an app keeps Flathub's own Mesa (llvmpipe). From the
+        // desktop, games go through droiddeck-gpu's gamescope and do get the GPU.
+        if (env["BL_DESKTOP"] == "1" && env["GAMESCOPE_WAYLAND_DISPLAY"] == null) return null
         val binds = ArrayList<Bind>()
         for (name in listOf("libvulkan_freedreno.so", "libdisplay-info.so.3", "libSPIRV-Tools.so", "libSPIRV-Tools-opt.so")) {
             val f = File(lib, name)
@@ -300,7 +300,10 @@ object BwrapSpawner {
         // session has Xwayland) it stays on X11, which works. GTK and Qt go by their own settings.
         if (env.containsKey("DISPLAY")) env["XDG_SESSION_TYPE"] = "x11"
         for (name in listOf("MOZ_DISABLE_CONTENT_SANDBOX", "MOZ_DISABLE_GMP_SANDBOX", "MOZ_DISABLE_RDD_SANDBOX",
-                            "MOZ_DISABLE_SOCKET_PROCESS_SANDBOX", "MOZ_DISABLE_UTILITY_SANDBOX")) {
+                            "MOZ_DISABLE_SOCKET_PROCESS_SANDBOX", "MOZ_DISABLE_UTILITY_SANDBOX",
+                            // Android 16 refuses the size seal Firefox puts on a tab's shared
+                            // memory, and the tab then dies on every page (droiddeck-desktop).
+                            "MOZ_SHM_NO_SEALS")) {
             env.putIfAbsent(name, "1")
         }
     }

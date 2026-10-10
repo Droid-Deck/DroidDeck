@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
@@ -51,9 +52,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -109,6 +115,11 @@ import androidx.compose.ui.window.PopupProperties
 private val RowShape = RoundedCornerShape(12.dp)
 private val GroupShape = RoundedCornerShape(14.dp)
 
+/** Whether a pad's A is held right now, as the activity sees it: a focus move waits for its release. */
+internal object HeldKeys {
+    @Volatile var confirm = false
+}
+
 internal fun Modifier.controllerConfirm(enabled: Boolean = true, onClick: () -> Unit): Modifier = onPreviewKeyEvent { event ->
     val keyEvent = event.nativeKeyEvent
     if (keyEvent.keyCode != KeyEvent.KEYCODE_BUTTON_A) {
@@ -146,6 +157,7 @@ internal fun Modifier.bumpers(onPrevious: () -> Unit, onNext: () -> Unit): Modif
  * [bumpers]); the keycaps are for touch and stay out of the d-pad's path. The row scrolls sideways
  * when a narrow page cannot fit every tab.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun TabStrip(
     tabs: List<String>, selected: Int, onSelect: (Int) -> Unit,
@@ -154,11 +166,17 @@ internal fun TabStrip(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(12.dp)
+    // Tabs that overflow (long labels on a small phone) first close up; only what still does not
+    // fit scrolls. Once tight the row stays tight, so it cannot flip back and forth.
+    val scroll = rememberScrollState()
+    var tight by remember(tabs) { mutableStateOf(false) }
+    LaunchedEffect(scroll.maxValue) { if (scroll.maxValue in 1 until Int.MAX_VALUE) tight = true }
+    val tabPadding = if (tight) 10.dp else 16.dp
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
         BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
         Row(
             modifier = Modifier.weight(1f, fill = false).clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
-                .horizontalScroll(rememberScrollState()).padding(3.dp),
+                .horizontalScroll(scroll).padding(3.dp),
         ) {
             tabs.forEachIndexed { i, label ->
                 val on = i == selected
@@ -166,17 +184,22 @@ internal fun TabStrip(
                 val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
                 val pick = { onSelect(i) }
                 val tabShape = RoundedCornerShape(9.dp)
+                // The chosen tab scrolls fully into view, so one at the end is not left cut off.
+                val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+                if (on) LaunchedEffect(Unit) { reveal.bringIntoView() }
                 Text(
                     label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1,
                     color = if (on) pal.onSignal else if (hot) colors.onBackground else colors.onSurfaceVariant,
                     modifier = Modifier
+                        .bringIntoViewRequester(reveal)
+                        .testTag("tab-$i")
                         .then(focusRequesters?.getOrNull(i)?.let { Modifier.focusRequester(it) } ?: Modifier)
                         .clip(tabShape)
                         .background(if (on) pal.signal else if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
                         .glideBorder(hot, tabShape, if (on) colors.onBackground else pal.signal)
                         .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
                         .controllerConfirm(onClick = pick)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = tabPadding, vertical = 12.dp),
                 )
             }
         }
@@ -215,6 +238,19 @@ class MenuHost {
 @Composable
 fun rememberMenuHost(): MenuHost = remember { MenuHost() }
 
+/** Under the anchor with left edges aligned, kept on screen: a dropdown that belongs to a tab. */
+private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+        var x = anchorBounds.left
+        if (x + popupContentSize.width > windowSize.width - 8) x = windowSize.width - 8 - popupContentSize.width
+        if (x < 8) x = 8
+        var y = anchorBounds.bottom + gap
+        if (y + popupContentSize.height > windowSize.height - 8) y = anchorBounds.top - gap - popupContentSize.height
+        if (y < 8) y = 8
+        return IntOffset(x, y)
+    }
+}
+
 private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
         var x = anchorBounds.right - popupContentSize.width
@@ -227,7 +263,12 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
 }
 
 @Composable
-fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null, content: @Composable ColumnScope.(FocusRequester) -> Unit) {
+fun AnchoredMenu(
+    open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
+    /** A tab's dropdown: under its anchor, left edges aligned, as wide as its entries (within [minWidth]..260 dp). */
+    compact: Boolean = false, minWidth: androidx.compose.ui.unit.Dp = 120.dp,
+    content: @Composable ColumnScope.(FocusRequester) -> Unit,
+) {
     val state = remember { MutableTransitionState(false) }
     state.targetState = open
     if (!state.currentState && !state.targetState && state.isIdle) return
@@ -241,14 +282,14 @@ fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, no
         }
     }
     val gap = with(LocalDensity.current) { 6.dp.roundToPx() }
-    val provider = remember(gap) { BelowEndProvider(gap) }
+    val provider = remember(gap, compact) { if (compact) BelowStartProvider(gap) else BelowEndProvider(gap) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         AnimatedVisibility(
             visibleState = state,
-            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(1f, 0f)),
-            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(1f, 0f)),
+            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
+            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
             label = "menu",
         ) {
             // A long list (a driver menu with its downloads) must not run off the screen: the menu is
@@ -256,7 +297,7 @@ fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, no
             val maxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp
             Column(
                 modifier = Modifier
-                    .widthIn(min = 220.dp, max = 340.dp)
+                    .then(if (compact) Modifier.widthIn(min = minWidth, max = 260.dp).width(androidx.compose.foundation.layout.IntrinsicSize.Max) else Modifier.widthIn(min = 220.dp, max = 340.dp))
                     .heightIn(max = maxHeight)
                     .shadow(24.dp, RowShape, ambientColor = Color.Black, spotColor = Color.Black)
                     .clip(RowShape)
@@ -269,7 +310,34 @@ fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, no
                     title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant,
                     modifier = Modifier.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
                 )
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { content(firstItemFocus) }
+                // While entries remain below the fold the list fades out at the bottom over a down
+                // arrow, so a short screen (a phone in landscape) shows that the menu goes on.
+                val scroll = rememberScrollState()
+                Box(Modifier.weight(1f, fill = false)) {
+                    Column(
+                        Modifier
+                            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                            .drawWithContent {
+                                drawContent()
+                                if (scroll.canScrollForward) {
+                                    val fade = 36.dp.toPx().coerceAtMost(size.height / 3)
+                                    drawRect(
+                                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                                            listOf(Color.Black, Color.Transparent), startY = size.height - fade, endY = size.height,
+                                        ),
+                                        topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - fade),
+                                        size = androidx.compose.ui.geometry.Size(size.width, fade),
+                                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                                    )
+                                }
+                            }
+                            .verticalScroll(scroll),
+                    ) { content(firstItemFocus) }
+                    if (scroll.canScrollForward) Icon(
+                        Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = colors.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.BottomCenter).size(20.dp),
+                    )
+                }
                 if (note != null) {
                     Spacer(Modifier.height(4.dp))
                     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
@@ -280,6 +348,7 @@ fun AnchoredMenu(open: Boolean, onDismiss: () -> Unit, title: String? = null, no
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MenuItem(
     label: String, checked: Boolean, enabled: Boolean = true, detail: String? = null,
@@ -291,9 +360,13 @@ fun MenuItem(
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val shift by animateFloatAsState(if (hot) 2f else 0f, Motion.sp(0.5f), label = "miShift")
+    // A menu taller than the screen opens scrolled to the current choice, not past it.
+    val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    if (checked) LaunchedEffect(Unit) { reveal.bringIntoView() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth()
+            .bringIntoViewRequester(reveal)
             .graphicsLayer { translationX = shift.dp.toPx() }
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .clip(RoundedCornerShape(8.dp))
@@ -408,7 +481,7 @@ fun <T> ChoiceRow(
     val open = host.open == key
     SettingsRow(label, hint, highlighted = open, hintLines = hintLines) {
         Box {
-            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier) { host.open = if (open) null else key }
+            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier.testTag("setting-$key")) { host.open = if (open) null else key }
             AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
                 options.forEachIndexed { index, (value, text) ->
                     MenuItem(text, checked = value == selected, focusRequester = if (index == 0) firstItemFocus else null) {
@@ -421,10 +494,23 @@ fun <T> ChoiceRow(
     }
 }
 
+/** A small "?" beside a value the app guessed and is not sure of; [description] says what to check. */
+@Composable
+fun UncertainMark(description: String) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(22.dp).clip(CircleShape).background(colors.surfaceVariant)
+            .semantics { contentDescription = description },
+    ) {
+        Text("?", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant)
+    }
+}
+
 @Composable
 fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked: Boolean, enabled: Boolean = true, chipModifier: Modifier = Modifier, onChange: (Boolean) -> Unit) =
     SettingsRow(label, hint) {
-        ToggleSwitch(checked, enabled, label, chipModifier) { host.open = null; onChange(it) }
+        ToggleSwitch(checked, enabled, label, chipModifier.testTag("setting-$key")) { host.open = null; onChange(it) }
     }
 
 /** An on/off switch: one tap or one A press flips it, where a menu of On and Off took three. */
@@ -591,8 +677,8 @@ fun MultiRow(
 }
 
 @Composable
-fun ActionRow(label: String, hint: String?, button: String, onClick: () -> Unit) {
-    SettingsRow(label, hint) { SecondaryButton(button, onClick = onClick) }
+fun ActionRow(label: String, hint: String?, button: String, onClick: () -> Unit, progress: Float? = null) {
+    SettingsRow(label, hint) { SecondaryButton(button, progress = progress, onClick = onClick) }
 }
 
 @Composable

@@ -3,10 +3,12 @@ import json
 import os
 import re
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 
 SYNC_KEYS = ("BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 
 
@@ -117,6 +119,21 @@ def engine_fixes(exe, args):
     return env, extra, notes
 
 
+def win_components(compat, app_id):
+    """The game's Windows components put into its prefix; returns their WINEDLLOVERRIDES entries."""
+    if not compat:
+        return ""
+    try:
+        module = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wincomponents"))
+        names, notes = module["apply"](compat.rstrip("/"), app_id)
+        for note in notes:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
+        return module["overrides_value"](names)
+    except Exception as error:
+        print("droiddeck-game-env: Windows components not applied (%s)" % error, file=sys.stderr)
+        return ""
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
@@ -196,11 +213,57 @@ def without_pack(chosen_env, env):
     return result
 
 
+SSBS_LIB = "/usr/local/lib/libssbs.so"
+
+
+def force_ssbs(command, env):
+    """DROIDDECK_FORCE_SSBS=1 (a game's or the shared environment): preload libssbs.so into this
+    Proton's Wine, which then keeps PSTATE.SSBS set across signal returns - speculative store
+    bypass stays allowed, as force_ssbs.diff does inside a rebuilt ntdll. ARM64 Protons only: the
+    library is aarch64 and only arm64 Wine has the signal path it fixes."""
+    if env.get("DROIDDECK_FORCE_SSBS", "").lower() not in ("1", "on", "true", "yes"):
+        return env
+    proton = os.path.dirname(command[0]) if command else ""
+    if not os.path.isdir(os.path.join(proton, "files/lib/wine/aarch64-unix")):
+        print("droiddeck-game-env: force SSBS asked for, but this Proton is not an ARM64 one; left off", file=sys.stderr)
+        return env
+    if not os.path.isfile(SSBS_LIB):
+        print("droiddeck-game-env: force SSBS asked for, but %s is missing; left off" % SSBS_LIB, file=sys.stderr)
+        return env
+    parts = [p for p in re.split(r"[:\s]+", env.get("LD_PRELOAD", "")) if p]
+    if SSBS_LIB not in parts:
+        env = dict(env, LD_PRELOAD=":".join(parts + [SSBS_LIB]))
+        print("droiddeck-game-env: force SSBS on (libssbs.so preloaded)", file=sys.stderr)
+    return env
+
+
+EVALUATOR_SCRIPT = re.compile(r"(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$", re.IGNORECASE)
+
+
+def mark_install_scripts(command, env):
+    """The client is about to run a game's install scripts (iscriptevaluator.exe): mark every process
+    in them as already run first, so no redistributable installer starts - on first launch the
+    shared ones may still be downloading, and on ARM64 Proton the VC++ ones stop with an error."""
+    if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
+        return
+    root = env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
+    scripts = [str(Path(root) / arg.replace("\\", "/")) for arg in command if EVALUATOR_SCRIPT.search(arg)]
+    scripts = [path for path in scripts if os.path.isfile(path)]
+    if not scripts:
+        return
+    try:
+        subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
+                       stdout=sys.stderr, timeout=60, check=False)
+    except (OSError, subprocess.SubprocessError) as error:
+        print("droiddeck-game-env: install scripts not marked (%s)" % error, file=sys.stderr)
+
+
 def main():
     command = sys.argv[1:]
     if not command:
         return 2
     env = os.environ.copy()
+    mark_install_scripts(command, env)
     app_id = game_id(env)
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
@@ -210,6 +273,10 @@ def main():
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
+            components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id)
+            if components:
+                own = fixes.get("WINEDLLOVERRIDES")
+                fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
         path = Path.home() / ".config/droiddeck/game-environment.json"
         try:
             with path.open(encoding="utf-8") as source:
@@ -223,6 +290,7 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    env = force_ssbs(command, env)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:

@@ -21,13 +21,22 @@ import java.security.MessageDigest
  */
 object ProotFastPath {
     const val LIBRARY = "/usr/local/lib/libblfastpath.so"
+    /** MAX_BINDS in fastpath.c: past it the library turns itself off, so the session keeps it off. */
+    const val MAX_BINDS = 256
 
+    /**
+     * Only the app's own proot (libproot.so, built with patches/0014) lets the trampoline through.
+     * The runtime's fallback copy (LinuxRuntime.prootBinary) is Termux's, which traps those calls
+     * too and translates their host paths a second time: every lookup then fails inside the
+     * process and goes to proot anyway, paying for both.
+     */
     fun enabled(context: Context): Boolean =
-        SessionPrefs.prootFastPath(context) && !SessionPrefs.prootNoSeccomp(context)
+        SessionPrefs.prootFastPath(context) && !SessionPrefs.prootNoSeccomp(context) &&
+            LinuxRuntime.prootBinary(context).parent == context.applicationInfo.nativeLibraryDir
 
     /** The key for this rootfs and these binds, or null when the library cannot be told them. */
     fun key(root: File, binds: List<String>): String? {
-        if (binds.any { it.contains('|') } || root.path.contains('|')) return null
+        if (binds.size > MAX_BINDS || binds.any { it.contains('|') } || root.path.contains('|')) return null
         val digest = MessageDigest.getInstance("SHA-256")
             .digest((root.path + "\n" + binds.joinToString("\n")).toByteArray())
         return digest.take(12).joinToString("") { "%02x".format(it) }
