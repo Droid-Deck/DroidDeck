@@ -1,0 +1,24 @@
+#!/bin/bash
+# Puts umu-launcher into the runtime
+set -u
+export LANG=C.UTF-8
+json=$(curl -s --max-time 10 https://api.github.com/repos/Open-Wine-Components/umu-launcher/releases/latest)
+if [[ -z "$json" || "$json" != *'"tag_name"'* ]]; then
+    echo "Error: Failed to fetch release info from GitHub." >&2
+    exit 1
+fi
+pattern='\-ziptar\.tar$'
+url=$(echo "$release_json" |
+    grep browser_download_url |
+    cut -d\" -f4 |
+    grep -E "$tarball_pattern" |
+    head -n1 || true)
+name=$(basename "$url")
+release_name=${name%.tar.gz}
+if [[ -z "$tarball_url" ]]; then
+    echo "Error: Could not find a release." >&2
+    exit 1
+fi
+curl -L "$url" -o "$name" --progress-bar
+tar -xf "$name" -C "/usr/local/bin"
+echo "Done :)"
