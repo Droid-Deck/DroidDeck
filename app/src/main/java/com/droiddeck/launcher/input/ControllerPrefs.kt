@@ -6,6 +6,8 @@ import com.droiddeck.launcher.R
 object ControllerPrefs {
     const val STEAM_BLUE = 0xFF1A9FFF.toInt()
     const val OFF = "off"
+    /** When the controller has no motors Android exposes, may game vibration buzz the phone instead? */
+    const val RUMBLE_PHONE_FALLBACK = "rumblePhoneFallback"
 
     val tints = listOf(
         STEAM_BLUE to R.string.ctrl_tint_steam_blue,
@@ -43,6 +45,7 @@ object ControllerPrefs {
         val stickClick: Boolean,
         val adaptiveSticks: Boolean,
         val rumble: Boolean,
+        val rumblePhoneFallback: Boolean,
         val steamButton: Boolean,
         val qamButton: Boolean,
         val keyboardButton: Boolean,
@@ -62,6 +65,7 @@ object ControllerPrefs {
             stickClick = p.getBoolean("stickClick", true),
             adaptiveSticks = p.getBoolean("adaptiveSticks", true),
             rumble = rumbleEnabled(context),
+            rumblePhoneFallback = rumblePhoneFallback(context),
             steamButton = p.getBoolean("steamButton", true),
             qamButton = p.getBoolean("qamButton", true),
             keyboardButton = p.getBoolean("keyboardButton", true),
@@ -109,6 +113,12 @@ object ControllerPrefs {
         prefs(context).edit().putBoolean("rumble", on).apply()
     }
 
+    fun rumblePhoneFallback(context: Context): Boolean = prefs(context).getBoolean(RUMBLE_PHONE_FALLBACK, true)
+
+    fun setRumblePhoneFallback(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(RUMBLE_PHONE_FALLBACK, on).apply()
+    }
+
     fun setSteamButton(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("steamButton", on).apply()
     }
@@ -145,7 +155,7 @@ object ControllerPrefs {
 
     fun resetAll(context: Context) {
         // On older Android versions clear() does not notify listeners; restore rumble explicitly.
-        prefs(context).edit().clear().putBoolean("rumble", true).apply()
+        prefs(context).edit().clear().putBoolean("rumble", true).putBoolean(RUMBLE_PHONE_FALLBACK, true).apply()
     }
 
     fun resetAllLayouts(context: Context) {
