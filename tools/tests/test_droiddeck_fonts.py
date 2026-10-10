@@ -58,6 +58,7 @@ class DroidDeckFontsTest(unittest.TestCase):
         self.assertIn('ja=Noto Sans CJK JP', session)
         self.assertIn('ko=Noto Sans CJK KR', session)
         self.assertIn('th=Noto Sans Thai', session)
+        self.assertIn('ar=Noto Naskh Arabic', session)
 
     def test_unchanged_fonts_do_not_rewrite_owned_conf(self):
         self.run_fonts()
