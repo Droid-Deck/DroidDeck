@@ -42,6 +42,19 @@ static const char *net_dir(void) {
   return dir;
 }
 
+static int loopback_family(const struct sockaddr *address, socklen_t length) {
+  if (address && address->sa_family == AF_INET && length >= sizeof(struct sockaddr_in)) {
+    return ((const struct sockaddr_in *)address)->sin_addr.s_addr == htonl(INADDR_LOOPBACK) ? AF_INET : 0;
+  }
+  if (address && address->sa_family == AF_INET6 && length >= sizeof(struct sockaddr_in6)) {
+    const struct in6_addr *ip = &((const struct sockaddr_in6 *)address)->sin6_addr;
+    if (IN6_IS_ADDR_LOOPBACK(ip)) return AF_INET6;
+    if (IN6_IS_ADDR_V4MAPPED(ip) && ip->s6_addr[12] == 127 && ip->s6_addr[13] == 0 &&
+        ip->s6_addr[14] == 0 && ip->s6_addr[15] == 1) return AF_INET;
+  }
+  return 0;
+}
+
 /* Record that this process owns a loopback socket on its local port; peer is the far end's port,
  * 0 for a listening socket. */
 static void record_port(int fd, unsigned peer) {
@@ -50,12 +63,11 @@ static void record_port(int fd, unsigned peer) {
   if (getsockname(fd, (struct sockaddr *)&ss, &len) != 0) {
     return;
   }
+  int family = loopback_family((struct sockaddr *)&ss, len);
+  if (!family) return;
   unsigned port;
   if (ss.ss_family == AF_INET) {
     struct sockaddr_in *in = (struct sockaddr_in *)&ss;
-    if (in->sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
-      return;
-    }
     port = ntohs(in->sin_port);
   } else if (ss.ss_family == AF_INET6) {
     port = ntohs(((struct sockaddr_in6 *)&ss)->sin6_port);
@@ -65,14 +77,21 @@ static void record_port(int fd, unsigned peer) {
   if (port == 0) {
     return;
   }
+  struct stat socket_stat;
+  if (fstat(fd, &socket_stat) != 0) return;
   char path[300];
   snprintf(path, sizeof(path), "%s/p%u", net_dir(), port);
-  char line[64];
-  int n = snprintf(line, sizeof(line), "%d %d %d %u\n", (int)getpid(), (int)getppid(), (int)getuid(), peer);
-  int out = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+  char staged[360];
+  snprintf(staged, sizeof(staged), "%s.tmp.%d.%d", path, (int)getpid(), fd);
+  char line[128];
+  int n = snprintf(line, sizeof(line), "%d %d %d %u %d %llu %d\n", (int)getpid(), (int)getppid(),
+      (int)getuid(), peer, fd, (unsigned long long)socket_stat.st_ino, family);
+  int out = open(staged, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0600);
   if (out >= 0) {
-    if (write(out, line, n) != n) { /* best effort */ }
+    int complete = write(out, line, n) == n;
     close(out);
+    if (complete) rename(staged, path);
+    unlink(staged);
   }
 }
 
@@ -99,6 +118,7 @@ typedef int (*bind_fn)(int, const struct sockaddr *, socklen_t);
 typedef int (*listen_fn)(int, int);
 typedef int (*connect_fn)(int, const struct sockaddr *, socklen_t);
 typedef int (*accept4_fn)(int, struct sockaddr *, socklen_t *, int);
+static unsigned guarded_port(void);
 
 /* udevmon.c: a stand-in for the netlink socket the sandbox refuses, bound here without the kernel. */
 __attribute__((visibility("hidden"))) int bl_udevmon_stand_in(int fd);
@@ -112,6 +132,18 @@ int bind(int fd, const struct sockaddr *addr, socklen_t len) {
       return -1;
     }
     return 0;
+  }
+  struct sockaddr_storage local;
+  unsigned guarded = guarded_port();
+  if (guarded && addr_port(addr, len) == guarded && len <= sizeof(local)) {
+    memcpy(&local, addr, len);
+    if (addr->sa_family == AF_INET) {
+      ((struct sockaddr_in *)&local)->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      addr = (struct sockaddr *)&local;
+    } else if (addr->sa_family == AF_INET6) {
+      ((struct sockaddr_in6 *)&local)->sin6_addr = in6addr_loopback;
+      addr = (struct sockaddr *)&local;
+    }
   }
   int ret = real(fd, addr, len);
   if (ret == 0) record_port(fd, 0);
@@ -136,22 +168,20 @@ static unsigned local_port(int fd) {
 }
 
 static void bind_before_loopback_connect(int fd, const struct sockaddr *addr, socklen_t len) {
-  if (!addr || addr->sa_family != AF_INET || len < sizeof(struct sockaddr_in) ||
-      ((const struct sockaddr_in *)addr)->sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
-    return;
-  }
+  if (!loopback_family(addr, len)) return;
   struct sockaddr_storage ss;
   socklen_t slen = sizeof(ss);
-  if (getsockname(fd, (struct sockaddr *)&ss, &slen) != 0 || ss.ss_family != AF_INET ||
-      ((struct sockaddr_in *)&ss)->sin_port != 0) {
+  if (getsockname(fd, (struct sockaddr *)&ss, &slen) != 0 || ss.ss_family != addr->sa_family ||
+      addr_port((struct sockaddr *)&ss, slen) != 0) {
     return;
   }
-  struct sockaddr_in local;
-  memset(&local, 0, sizeof(local));
-  local.sin_family = AF_INET;
-  local.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  struct sockaddr_storage local;
+  if (len > sizeof(local)) return;
+  memcpy(&local, addr, len);
+  if (addr->sa_family == AF_INET) ((struct sockaddr_in *)&local)->sin_port = 0;
+  else ((struct sockaddr_in6 *)&local)->sin6_port = 0;
   int saved = errno;
-  bind(fd, (struct sockaddr *)&local, sizeof(local));
+  bind(fd, (struct sockaddr *)&local, len);
   errno = saved;
 }
 
@@ -166,6 +196,11 @@ static unsigned guarded_port(void) {
 }
 
 static int guest_peer(int fd) {
+  struct sockaddr_storage address;
+  socklen_t length = sizeof(address);
+  if (getpeername(fd, (struct sockaddr *)&address, &length) != 0) return 0;
+  int family = loopback_family((struct sockaddr *)&address, length);
+  if (!family) return 0;
   unsigned peer = peer_port(fd);
   if (peer == 0) {
     return 0;
@@ -180,26 +215,34 @@ static int guest_peer(int fd) {
   if (in < 0) {
     return 0;
   }
-  char buf[64];
+  char buf[128];
   int n = read(in, buf, sizeof(buf) - 1);
   close(in);
   if (n <= 0) {
     return 0;
   }
   buf[n] = '\0';
-  int pid = atoi(buf);
-  return pid > 0 && (kill(pid, 0) == 0 || errno != ESRCH);
+  int pid, parent, uid, descriptor, recorded_family;
+  unsigned destination;
+  unsigned long long inode;
+  if (sscanf(buf, "%d %d %d %u %d %llu %d", &pid, &parent, &uid, &destination, &descriptor,
+      &inode, &recorded_family) != 7 || pid <= 0 || descriptor < 0 || destination != guarded_port() ||
+      recorded_family != family) return 0;
+  snprintf(path, sizeof(path), "/proc/%d/fd/%d", pid, descriptor);
+  return stat(path, &st) == 0 && S_ISSOCK(st.st_mode) && (unsigned long long)st.st_ino == inode;
 }
 
 int connect(int fd, const struct sockaddr *addr, socklen_t len) {
   static connect_fn real;
   if (!real) real = (connect_fn)dlsym(RTLD_NEXT, "connect");
   bind_before_loopback_connect(fd, addr, len);
+  unsigned peer = loopback_family(addr, len) ? addr_port(addr, len) : 0;
+  if (peer) record_port(fd, peer);
   int ret = real(fd, addr, len);
   if (ret == 0 || errno == EINPROGRESS) {
     /* The caller goes on to test for EINPROGRESS, which the bookkeeping must not disturb. */
     int saved = errno;
-    record_port(fd, addr_port(addr, len));
+    record_port(fd, peer);
     errno = saved;
   }
   return ret;

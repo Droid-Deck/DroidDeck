@@ -72,6 +72,7 @@ cache="$steam_root/.droiddeck-game-scripts"
 libraries="$steam_root"
 for library in $LIBRARIES; do libraries="$libraries
 $library"; done
+libraries=$(printf '%s\n%s\n' "$libraries" "$(sed -n 's/^[[:space:]]*"path"[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$steam_root/steamapps/libraryfolders.vdf" 2>/dev/null)" | awk 'NF && !seen[$0]++')
 sig=$(while IFS= read -r library; do ls -l --time-style=+%s "$library"/steamapps/appmanifest_*.acf 2>/dev/null; done <<<"$libraries" | cksum)
 if [ "$(head -n 1 "$cache" 2>/dev/null)" != "$sig" ]; then
   {
@@ -111,7 +112,8 @@ vcrt() {
 # dated block it never matched, and every prefix had the whole block appended again on every beat.
 stamp=$(printf '%s vcrt %s.%s.%s' "$pairs" "$VCRT_MAJOR" "$VCRT_MINOR" "$VCRT_BUILD" | cksum)
 
-block=$(printf '%s\n' "$pairs" | awk -F'\t' -v now="$(date +%s)" '
+printf -v now '%(%s)T' -1
+block=$(printf '%s\n' "$pairs" | awk -F'\t' -v now="$now" '
   {
     path = $1
     sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
@@ -127,22 +129,27 @@ block=$(printf '%s\n' "$pairs" | awk -F'\t' -v now="$(date +%s)" '
   }
 ')
 block="$block
-$(vcrt "$(date +%s)")"
+$(vcrt "$now")"
 
 # Proton builds a new prefix from its template, and the client runs the install scripts in that
 # prefix moments later, so the template carries the markers too. Its date is kept: Proton reads a
 # changed one as a new template and upgrades every prefix made from the old.
 for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            "$steam_root"/compatibilitytools.d/*/files/share/default_pfx*/system.reg \
            "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
-           /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg; do
+           /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
+           /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
   [ -f "$reg" ] || continue
-  seeded=$(dirname "$reg")/.droiddeck-redists
-  legacy=$(dirname "$reg")/.bannerlator-redists
+  seeded=${reg%/*}/.droiddeck-redists
+  legacy=${reg%/*}/.bannerlator-redists
   if [ -f "$legacy" ] && [ ! -f "$seeded" ]; then
     mv -f "$legacy" "$seeded"
   fi
-  [ "$(cat "$seeded" 2>/dev/null)" = "$stamp" ] && continue
+  have=
+  [ -f "$seeded" ] && read -r have < "$seeded"
+  [ "$have" = "$stamp" ] && continue
   dated=$(mktemp) || continue
   touch -r "$reg" "$dated"
   if printf '%s\n' "$block" >>"$reg"; then

@@ -41,9 +41,7 @@
     <string name="hud_fg_failed">%1$s：エンジンエラー</string>
     <string name="hud_fg_needs_lossless">%1$s：Lossless Scalingが必要です</string>
     <string name="hud_fg_starting">%1$s  %2$s · 起動中</string>
-    <string name="added_games_import_hint">複数のサブフォルダを含むフォルダ。各サブフォルダはWindowsゲームに対応します。Steamで所有しているゲームはSteamの再起動後にSteamの項目を使用し、それ以外のゲームは非Steamショートカットになります。</string>
     <string name="second_library_import_hint">Steamライブラリを追加し、その中のWindowsゲームをスキャンします。所有しているゲームはSteamの項目を使用し、それ以外のゲームは非Steamショートカットになります。</string>
-    <string name="added_games_forget_hint">「忘れる」を選択すると、次回のセッションでこれらのショートカットが削除されます。ただし、ファイルはディスク上に残ります。</string>
     <string name="game_env_title">ゲーム環境</string>
     <string name="game_env_hint">Protonゲームの環境変数です。</string>
     <string name="game_env_edit">編集</string>
@@ -278,12 +276,12 @@
     <string name="mode_decky_installed">インストール済み · %1$s</string>
     <string name="mode_decky_update">アップデートあり · %1$s</string>
     <string name="mode_decky_current">最新です · %1$s</string>
-    <string name="mode_decky_loader">ローダー</string>
+    <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">最新バージョンをインストール</string>
     <string name="mode_decky_on">Steamと共に起動します。有効にすると、このデバイス上の他のアプリがSteamを制御できる場合があります。</string>
     <string name="mode_decky_off">オフ。Steamのリモートデバッグポートは閉じたままになります。</string>
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
-    <string name="mode_decky_remove_text">ローダーを削除します。プラグインと設定は保持されます。</string>
+    <string name="mode_decky_remove_text">Loaderを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>
     <string name="mode_deck_mode">Steam Deckモード</string>
     <string name="mode_deck_mode_hint">Steam DeckのUIとクイックアクセスパフォーマンスコントロール。次回のセッションで有効になります。</string>
@@ -299,16 +297,18 @@
     <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
     <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>
     <string name="mode_steam_repair_button">修復</string>
-    <string name="mode_added_games">追加されたゲーム</string>
-    <string name="mode_added_none">.exeを含むゲームフォルダが見つかりません</string>
-    <string name="mode_games_folder">ゲームフォルダ</string>
-    <string name="mode_games_folder_another">別のゲームフォルダ</string>
-    <string name="mode_added_art">Steamからの画像</string>
+    <string name="mode_added_art">アートワーク</string>
+    <string name="mode_sgdb_key">SteamGridDB API キー</string>
+    <string name="mode_sgdb_key_yours">自分のキー</string>
+    <string name="mode_sgdb_edit">編集…</string>
     <string name="mode_added_art_hint">フォルダ名に基づいて不足している画像を補完します。ゲームフォルダ内のcover.jpg、hero.jpg、logo.png、またはicon.pngが優先的に使用されます。</string>
-    <string name="mode_added_launches">%1$sを起動</string>
-    <string name="mode_added_launches_in">%1$sを起動 · %2$s内</string>
-    <string name="mode_added_choose">別のファイルを選択…</string>
-    <string name="mode_added_exe_note">デフォルトではフォルダと同じ名前の.exeを使用し、ない場合は最大の.exeを使用します。</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">削除？</string>
+    <string name="games_add">ゲームを追加</string>
+    <string name="games_add_title">ゲームを追加:</string>
+    <string name="games_pick_exe_title">exe を選択:</string>
+    <string name="games_add_unreachable">この場所はセッションから使えません</string>
+    <string name="mode_added_exe_check">この exe を確認</string>
     <string name="wincomp_title">Windowsコンポーネント</string>
     <string name="wincomp_pad_hint">LB / RBでセクション間を移動します。</string>
     <string name="wincomp_card_none">なし</string>
@@ -337,10 +337,6 @@
     <string name="mode_audio">オーディオ</string>
     <string name="mode_directaudio">ゲームでDirectAudioを使用</string>
     <string name="mode_directaudio_hint">PulseAudioをバイパスして遅延を減らします。</string>
-    <string name="mode_client_audio">Steamクライアントオーディオ</string>
-    <string name="mode_client_audio_hint">次回のセッションで有効になります。</string>
-    <string name="mode_client_audio_classic">クラシック</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">マイク</string>
     <string name="mode_mic_hint">ボイスチャットに使用します。</string>
     <string name="mode_network">ネットワーク</string>
@@ -353,8 +349,8 @@
     <string name="mode_wifi_explain_title">Wi-Fi検出を有効にしますか？</string>
     <string name="mode_wifi_explain_text">AndroidがWi-Fi名を読み取り、付近のネットワークを検出するには位置情報の権限が必要です。DroidDeckはこの権限を使用してSteamにこれらのネットワークを表示します。位置情報を追跡することはありません。この権限がなくてもインターネットにアクセスできます。</string>
     <string name="mode_storage">ゲームストレージ</string>
-    <string name="mode_storage_auto">自動 - SDカードがあればSDカード</string>
-    <string name="mode_storage_auto_none">自動 - SDカードがあればSDカード（現在なし）</string>
+    <string name="mode_storage_auto">自動 - SDカードがあればSDカード、およびゲームフォルダ</string>
+    <string name="mode_storage_auto_none">自動 - ゲームフォルダ、およびSDカードがあればSDカード（現在なし）</string>
     <string name="mode_storage_internal">内部ストレージのみ</string>
     <string name="mode_storage_folder">フォルダ：%1$s</string>
     <string name="mode_second_library">第2ライブラリ</string>
@@ -362,13 +358,6 @@
     <string name="mode_storage_diagnostics">ストレージ診断</string>
     <string name="mode_storage_diagnostics_hint">割り当て結果とサンプリングしたストレージの処理時間を「ログを共有」に記録します。有効中はインストールが遅くなる場合があります。次回のセッションで有効になります。</string>
     <string name="mode_choose_folder">フォルダを選択…</string>
-    <string name="mode_renderer">レンダラー</string>
-    <string name="mode_desktop_renderer">デスクトップレンダラー</string>
-    <string name="mode_renderer_hint">デスクトップの描画を担当します。</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU（実験的）</string>
-    <string name="mode_renderer_pixman">pixman - ソフトウェア</string>
-    <string name="mode_renderer_note">VulkanはGPUを使用してデスクトッププログラムを実行し、失敗した場合はpixmanにフォールバックします。pixmanを使用する場合でも、ゲームはGPU上で全画面実行されます。</string>
     <string name="mode_custom_res_title">カスタム解像度</string>
     <string name="mode_custom_res_text">解像度の上限と画面比率を置き換えます。画面に合わないサイズは黒帯で表示されます。</string>
     <string name="mode_width">幅</string>
@@ -611,6 +600,7 @@
     <string name="setup_session">セッション</string>
     <string name="setup_logs">セッションログ</string>
     <string name="setup_logs_hint">各セッション終了後に保存</string>
+    <string name="setup_agent_commands">デバッグツール</string>
     <string name="setup_latest_logs">最新のセッションログ</string>
     <string name="setup_saved_logs">保存されたセッションログ</string>
     <string name="setup_saved_logs_hint">最新の%1$d件を保持</string>
@@ -889,7 +879,7 @@
     <string name="content_open_desktop">デスクトップを開く</string>
     <string name="content_install_open_desktop">インストールしてデスクトップを開く</string>
     <string name="content_linux_desktop">Linuxデスクトップ</string>
-    <string name="content_linux_desktop_hint">LXQt、Firefox、エミュレーター</string>
+    <string name="content_linux_desktop_hint">KDE Plasma、Firefox、エミュレーター</string>
     <string name="games_empty">Steamでインストールされたゲームは、セッション終了後にここに表示されます。</string>
     <string name="games_play_steam">Steamを実行</string>
     <string name="games_launch_settings">起動設定</string>
@@ -904,11 +894,8 @@
     <string name="games_manage_saves">セーブデータの管理</string>
     <string name="games_saves">ゲームセーブデータ</string>
     <string name="games_import_saves">セーブデータをインポート…</string>
-    <string name="games_import_saves_hint">GameHubまたはWinlatorのアーカイブ。インポート前に現在のセーブデータをバックアップします。</string>
     <string name="games_export_gamehub">GameHubアーカイブとしてエクスポート…</string>
-    <string name="games_export_gamehub_hint">GameHubおよびBannerHubに適しています</string>
     <string name="games_export_winlator">Winlatorアーカイブとしてエクスポート…</string>
-    <string name="games_export_winlator_hint">Winlator、WinNative、Bannerlatorに適しています</string>
     <string name="games_open_save_folder">セーブフォルダを開く</string>
     <string name="games_never_played">未プレイ</string>
     <string name="games_runtime_busy_percent">実行環境がビジー · %1$d%%</string>
@@ -1136,8 +1123,6 @@
     <string name="main_removing_named">%1$sを削除中…</string>
     <string name="main_forgetting_named">%1$sを登録解除中…</string>
     <string name="main_pick_game_storage">ゲームの保存先フォルダを選択</string>
-    <string name="main_pick_added_games">自分のゲームがあるフォルダを選択</string>
-    <string name="main_pick_game_exe">ゲームの.exeを選択</string>
     <string name="main_pick_decky_zip">Deckyプラグインのzipを選択</string>
     <string name="main_storage_not_usable">使用できません：%1$s</string>
 
@@ -1240,7 +1225,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$sは一時停止中です</string>
     <string name="session_program_paused">プログラムは一時停止中です</string>
-    <string name="session_starting_steam_desktop">デスクトップでSteamを起動中</string>
     <string name="session_starting_desktop">デスクトップを起動中</string>
 
     <!-- %1$s is the program's name -->
@@ -1266,7 +1250,6 @@
     <string name="session_proton_unpacking">Proton Experimental（ARM64）を展開中</string>
     <string name="session_runtime_catalog_unreachable">実行環境のカタログに接続できませんでした。接続を確認して、もう一度Playをタップしてください。</string>
     <string name="session_runtime_install_failed">Linux実行環境をインストールできませんでした。「設定」で実行環境を確認して、もう一度Playをタップしてください。</string>
-    <string name="session_desktop_catalog_unreachable">デスクトップのカタログに接続できませんでした。接続を確認して、もう一度「デスクトップ」をタップしてください。</string>
 
     <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">デスクトップをインストールできませんでした（%1$s）。接続を確認して、もう一度「デスクトップ」をタップしてください。</string>
@@ -1377,6 +1360,7 @@
 
     <!-- File manager -->
     <string name="fm_drive_internal">内部</string>
+    <string name="fm_drive_linux">Linux システム</string>
     <string name="fm_drive_sd">SDカード</string>
     <string name="fm_drive_storage">ストレージ</string>
     <string name="fm_select">選択</string>
@@ -1572,6 +1556,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">非表示</string>
     <string name="ctrl_editor_drag">ドラッグして移動</string>
+    <string name="ctrl_editor_snap">スナップ</string>
     <string name="ctrl_editor_save">保存</string>
 
     <!-- What the second screen shows during a session -->
@@ -2062,4 +2047,35 @@
     <string name="device_info_copied">コピーしました。</string>
     <string name="force_ssbs_title">SSBSを強制</string>
     <string name="force_ssbs_hint">Wineがオフにし続けるCPUの速度設定をオンに保ちます。Snapdragon 8 EliteではWindowsゲームが速くなることがあります。古いチップではほとんど変化がありません。次のゲーム起動時に反映されます。</string>
+    <string name="common_close">閉じる</string>
+    <string name="common_back">戻る</string>
+    <string name="common_edit">編集</string>
+    <string name="games_add_all">このフォルダーのゲームをすべて追加</string>
+    <string name="games_added_none">このフォルダーに新しいゲームはありません</string>
+    <string name="edit_name">名前</string>
+    <string name="edit_target">ターゲット</string>
+    <string name="edit_start_in">開始フォルダー</string>
+    <string name="edit_launch_options">起動オプション</string>
+    <string name="edit_artwork">アートワーク</string>
+    <string name="edit_other_exe">別の exe…</string>
+    <string name="edit_remove">削除</string>
+    <string name="art_cover">カバー</string>
+    <string name="art_background">背景</string>
+    <string name="art_logo">ロゴ</string>
+    <string name="art_icon">アイコン</string>
+    <string name="art_src_folder">ゲームフォルダー</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">自分のファイル</string>
+    <string name="art_src_exe">exe から</string>
+    <string name="art_src_auto">自動</string>
+    <string name="art_pick_image">画像を選択…</string>
+    <string name="art_pick_title">画像を選択: %1$s</string>
+    <string name="art_reset">自動に戻す</string>
+    <plurals name="games_added_n">
+        <item quantity="other">%1$d 本のゲームを追加しました</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="other">%1$d 本はすでにゲームにあります</item>
+    </plurals>
 </resources>

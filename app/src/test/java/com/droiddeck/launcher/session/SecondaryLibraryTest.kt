@@ -25,6 +25,17 @@ class SecondaryLibraryTest {
         }
     }
 
+    @Test fun aGamesFolderLibraryIsBoundOnlyAtItsOwnPath() {
+        val files = tmp.newFolder("files")
+        val library = tmp.newFolder("PC")
+        val binds = SecondaryLibrary.binds(files, library, listOf("/root/Games/PC"))
+        val private = SecondaryLibrary.privateRoot(files, library)
+        assertEquals("${library.path}:/root/Games/PC", binds.first())
+        assertTrue(binds.contains("$private/steamapps/compatdata:/root/Games/PC/steamapps/compatdata"))
+        assertTrue(binds.drop(1).all { it.substringAfter(':').startsWith("/root/Games/PC/steamapps/") })
+        assertFalse(binds.any { it.contains("/mnt/") })
+    }
+
     @Test fun migrationPreservesSavesLinksAndOriginalAndNeverOverwritesNewSaves() {
         val files = tmp.newFolder("files")
         val library = tmp.newFolder("card")
