@@ -1246,7 +1246,7 @@ struct DeckHidraw {
 // Absent from a ring file written without one.
 struct DeckImu {
   uint32_t magic;  // IMU1 once written
-  uint32_t reserved;
+  uint32_t imu_mode;  // written by this library: the client's SETTING_IMU_MODE | 0x80000000
   uint64_t seq;    // odd while being written
   int16_t accel[3];
   int16_t gyro[3];
@@ -1906,6 +1906,41 @@ __attribute__((visibility("hidden"))) static void log_deck_feature(const char *w
   if ((n & (n - 1)) == 0) Logger::log("deck: feature 0x%02x %s (x%u)\n", feature, what, n);
 }
 
+// A settings report (ID_SET_SETTINGS_VALUES) is a list of (setting id, 16-bit value) triples after
+// the length byte. Returns SETTING_IMU_MODE (48, a SETTING_GYRO_MODE_* bitmask from SDL's
+// controller_constants.h) when the report changes it, logged, else -1: the client repeats its
+// settings for as long as it has the pad.
+static constexpr uint8_t DECK_SET_SETTINGS_VALUES = 0x87;
+static constexpr uint8_t DECK_SETTING_IMU_MODE = 48;
+
+__attribute__((visibility("hidden"))) static int deck_imu_mode_change(const uint8_t *buf, size_t size) {
+  static std::atomic<int32_t> last{-1};
+  size_t end = std::min(size, static_cast<size_t>(3) + buf[2]);
+  for (size_t i = 3; i + 3 <= end; i += 3) {
+    if (buf[i] != DECK_SETTING_IMU_MODE) continue;
+    int32_t value = buf[i + 1] | buf[i + 2] << 8;
+    if (last.exchange(value) == value) return -1;
+    Logger::log("deck: imu mode 0x%04x\n", value);
+    return value;
+  }
+  return -1;
+}
+
+// Tells the app whether the client wants motion (DeckImu::imu_mode, FakeInputWriter.readImuMode):
+// PadMotion reads the phone's sensors only while it does. The mapping is read-only, and the
+// client changes the mode a few times a minute at most, so the file is written directly.
+__attribute__((visibility("hidden"))) static void publish_imu_mode(const DeckHidraw &deck, int mode) {
+  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  if (deck.mapping_size < FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE) return;
+  std::string path = get_ring_path_for_slot(0);
+  int fd = path.empty() ? -1 : my_open(path.c_str(), O_WRONLY | O_CLOEXEC);
+  if (fd < 0) return;
+  uint32_t value = 0x80000000u | static_cast<uint32_t>(mode);
+  if (pwrite(fd, &value, sizeof(value), FAKE_INPUT_RING_SIZE + offsetof(DeckImu, imu_mode)) != sizeof(value))
+    Logger::log("deck: imu mode not published (%s)\n", strerror(errno));
+  syscall(SYS_close, fd);
+}
+
 __attribute__((visibility("hidden"))) static int
 deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
   size_t size = _IOC_SIZE(op);
@@ -1918,6 +1953,10 @@ deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
     if (buf[1] == DECK_TRIGGER_RUMBLE_CMD && size >= 10) {
       int left = buf[6] | buf[7] << 8, right = buf[8] | buf[9] << 8;
       send_vibration(left, right, left || right ? 1000 : 0, 0);
+    }
+    if (buf[1] == DECK_SET_SETTINGS_VALUES && size >= 3) {
+      int imu_mode = deck_imu_mode_change(buf, size);
+      if (imu_mode >= 0) publish_imu_mode(deck, imu_mode);
     }
     log_deck_feature("set", buf[1]);
     return static_cast<int>(size);
