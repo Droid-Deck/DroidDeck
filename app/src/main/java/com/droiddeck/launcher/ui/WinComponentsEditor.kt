@@ -112,6 +112,9 @@ internal fun WinComponentsDialog(
     var findings by remember { mutableStateOf(emptyList<WinCompSources.Finding>()) }
     // Whether the game's list has been worked out at least once (kept from an earlier time counts).
     var findingsKnown by remember { mutableStateOf(game == null) }
+    // "Loading the components" only when the catalog takes a while.
+    var slowCatalog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(300); slowCatalog = true }
     var installed by remember { mutableStateOf(emptySet<String>()) }
     // Detector names (oalinst, physx...) already in the prefix from elsewhere.
     var present by remember { mutableStateOf(emptySet<String>()) }
@@ -223,7 +226,9 @@ internal fun WinComponentsDialog(
     // folder scan, a name match, an auto pick that cannot install here); then what the lists name
     // that is no component here, by its own name.
     // Still being worked out on the background worker: the page says so instead of "nothing found".
-    val checking = game != null && (appKey in pendingGames || !findingsKnown)
+    // Only before the game's list has ever been worked out: a list kept from before shows at once and
+    // is checked again quietly, its changes easing in.
+    val checking = game != null && !findingsKnown
     // Automatic picks on their way (queued or downloading) sit in their section already, with
     // their progress, and settle there when they land.
     val turningOn = if (all == null) emptyMap() else findings.filter { it.auto && it.component != null }
@@ -273,7 +278,7 @@ internal fun WinComponentsDialog(
         DialogHeader(gameName, stringResource(R.string.wincomp_title))
         Small(stringResource(R.string.wincomp_applies))
         if (byPad) Small(stringResource(R.string.wincomp_pad_hint))
-        if (all == null) Small(stringResource(R.string.wincomp_loading))
+        if (all == null && slowCatalog) Small(stringResource(R.string.wincomp_loading))
         if (offline) Small(stringResource(R.string.wincomp_offline), error = true)
         @Composable
         fun Item(id: String, reason: String?, focus: FocusRequester?) {
@@ -319,82 +324,97 @@ internal fun WinComponentsDialog(
             return { id -> focus.takeIf { id == first } }
         }
 
-        if (checking) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            androidx.compose.material3.CircularProgressIndicator(Modifier.padding(start = 2.dp).size(12.dp), strokeWidth = 1.5.dp)
-            Small(stringResource(R.string.wincomp_checking))
-        }
+        // The lists only once the catalog is in, faded in once: no half list counted before it.
         androidx.compose.animation.AnimatedVisibility(
-            visible = all != null && autoIds.isNotEmpty(),
-            enter = androidx.compose.animation.fadeIn(Motion.tw(260)) + androidx.compose.animation.expandVertically(Motion.tw(260)),
-            exit = androidx.compose.animation.fadeOut(Motion.tw(180)) + androidx.compose.animation.shrinkVertically(Motion.tw(200)),
-            label = "autoSection",
+            visible = all != null,
+            enter = androidx.compose.animation.fadeIn(Motion.tw(220)),
+            exit = androidx.compose.animation.fadeOut(Motion.tw(0)),
+            label = "lists",
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Section(stringResource(R.string.wincomp_auto_section))
-                if (turningOn.isNotEmpty()) Small(pluralStringResource(R.plurals.wincomp_turning_on, turningOn.size, turningOn.size))
-                val focusOf = firstUsable(autoIds, recFocus)
-                Panel {
-                    autoIds.forEachIndexed { i, id ->
-                        key(id) {
-                            Arrive(arrived) {
-                                Column {
-                                    if (i > 0) Divider()
-                                    val reason = selection.auto[id] ?: turningOn[id]?.let { f -> WinComponents.AutoReason(f.origin.name, listOf(f.original) + f.args) }
-                                    Item(id, reason?.let { autoReason(it) }, focusOf(id))
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                if (checking) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.padding(start = 2.dp).size(12.dp), strokeWidth = 1.5.dp)
+                    Small(stringResource(R.string.wincomp_checking))
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = all != null && autoIds.isNotEmpty(),
+                    enter = androidx.compose.animation.fadeIn(Motion.tw(260)) + androidx.compose.animation.expandVertically(Motion.tw(260)),
+                    exit = androidx.compose.animation.fadeOut(Motion.tw(180)) + androidx.compose.animation.shrinkVertically(Motion.tw(200)),
+                    label = "autoSection",
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Section(stringResource(R.string.wincomp_auto_section))
+                        if (turningOn.isNotEmpty()) Small(pluralStringResource(R.plurals.wincomp_turning_on, turningOn.size, turningOn.size))
+                        val focusOf = firstUsable(autoIds, recFocus)
+                        Panel {
+                            autoIds.forEachIndexed { i, id ->
+                                key(id) {
+                                    Arrive(arrived) {
+                                        Column {
+                                            if (i > 0) Divider()
+                                            val reason = selection.auto[id] ?: turningOn[id]?.let { f -> WinComponents.AutoReason(f.origin.name, listOf(f.original) + f.args) }
+                                            Item(id, reason?.let { autoReason(it) }, focusOf(id))
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-        }
-        if (all != null && recIds.isNotEmpty()) {
-            Section(stringResource(R.string.wincomp_recommended))
-            val focusOf = firstUsable(recIds.map { installable(it.component!!, all) }, if (autoIds.isEmpty()) recFocus else recFocusAfterAuto)
-            Panel {
-                recIds.forEachIndexed { i, rec ->
-                    if (i > 0) Divider()
-                    val id = installable(rec.component!!, all)
-                    Item(id, findingReason(rec), focusOf(id))
-                }
-            }
-        } else if (all != null && gameDir != null && autoIds.isEmpty() && !checking) Small(stringResource(R.string.wincomp_no_recommendation))
-        if (suggestions.isNotEmpty()) {
-            Section(stringResource(R.string.wincomp_suggestions))
-            Panel {
-                suggestions.forEachIndexed { i, f ->
-                    if (i > 0) Divider()
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-                        Text(f.original, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
-                        Text(stringResource(R.string.wincomp_suggestion_reason, originName(f.origin.name)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (all != null && recIds.isNotEmpty()) {
+                    Section(stringResource(R.string.wincomp_recommended))
+                    val focusOf = firstUsable(recIds.map { installable(it.component!!, all) }, if (autoIds.isEmpty()) recFocus else recFocusAfterAuto)
+                    Panel {
+                        recIds.forEachIndexed { i, rec ->
+                            val id = installable(rec.component!!, all)
+                            key(id) {
+                                Arrive(arrived) {
+                                    Column {
+                                        if (i > 0) Divider()
+                                        Item(id, findingReason(rec), focusOf(id))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (all != null && gameDir != null && autoIds.isEmpty() && !checking) Small(stringResource(R.string.wincomp_no_recommendation))
+                if (suggestions.isNotEmpty()) {
+                    Section(stringResource(R.string.wincomp_suggestions))
+                    Panel {
+                        suggestions.forEachIndexed { i, f ->
+                            if (i > 0) Divider()
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                Text(f.original, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+                                Text(stringResource(R.string.wincomp_suggestion_reason, originName(f.origin.name)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
+
+                if (active.isNotEmpty()) {
+                    Section(stringResource(R.string.wincomp_active, active.size))
+                    val focusOf = firstUsable(active, activeFocus)
+                    Panel { active.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
+                }
+                if (list.isNotEmpty()) {
+                    Section(stringResource(R.string.wincomp_all, list.size))
+                    val focusOf = firstUsable(list, allFocus)
+                    Panel { list.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
+                }
+                if (waiting.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Section(stringResource(R.string.wincomp_installers, waiting.size))
+                        Spacer(Modifier.weight(1f))
+                        SecondaryButton(
+                            stringResource(if (showWaiting) R.string.wincomp_hide else R.string.wincomp_show), compact = true,
+                            modifier = Modifier.focusRequester(waitFocus),
+                        ) { showWaiting = !showWaiting }
+                    }
+                    Small(stringResource(R.string.wincomp_installers_note))
+                    if (showWaiting) Panel { waiting.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, null) } }
+                }
             }
         }
-
-        if (active.isNotEmpty()) {
-            Section(stringResource(R.string.wincomp_active, active.size))
-            val focusOf = firstUsable(active, activeFocus)
-            Panel { active.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
-        }
-        if (list.isNotEmpty()) {
-            Section(stringResource(R.string.wincomp_all, list.size))
-            val focusOf = firstUsable(list, allFocus)
-            Panel { list.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, focusOf(id)) } }
-        }
-        if (waiting.isNotEmpty()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Section(stringResource(R.string.wincomp_installers, waiting.size))
-                Spacer(Modifier.weight(1f))
-                SecondaryButton(
-                    stringResource(if (showWaiting) R.string.wincomp_hide else R.string.wincomp_show), compact = true,
-                    modifier = Modifier.focusRequester(waitFocus),
-                ) { showWaiting = !showWaiting }
-            }
-            Small(stringResource(R.string.wincomp_installers_note))
-            if (showWaiting) Panel { waiting.forEachIndexed { i, id -> if (i > 0) Divider(); Item(id, null, null) } }
-        }
-
         error?.let { Small(it, error = true) }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             Small(stringResource(R.string.wincomp_next_launch))

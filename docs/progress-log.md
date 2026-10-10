@@ -38,6 +38,9 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   the list is worked out, never "nothing found" before; "On for this game" expands in, components
   on their way sit there with their progress and a "Turning on N components…" line, and rows ease
   in (~250 ms; instant with animations off).
+- **Quieter:** "Checking…" only when the game's list was never worked out; a kept list shows at
+  once and is checked again silently, its changes easing in. The lists wait for the catalog and
+  fade in once; "Loading the components…" only after 300 ms.
 - Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
   source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
   `AddedGameArtLookupTest` updated. Not yet on a device.
