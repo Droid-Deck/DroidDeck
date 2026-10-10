@@ -633,4 +633,183 @@
     <string name="stores_login_error_ssl">الاتصال بصفحة تسجيل الدخول غير آمن.</string>
     <string name="stores_login_error_verification">تعذّر التحقق من تسجيل الدخول. حاول مجددًا.</string>
     <string name="stores_login_error_generic">فشل تسجيل الدخول. حاول مجددًا.</string>
+    <plurals name="mode_added_count">
+        <item quantity="zero">لم تُضف أي لعبة (%1$d)</item>
+        <item quantity="one">أُضيفت لعبة واحدة (%1$d)</item>
+        <item quantity="two">أُضيفت لعبتان (%1$d)</item>
+        <item quantity="few">أُضيفت %1$d ألعاب</item>
+        <item quantity="many">أُضيفت %1$d لعبة</item>
+        <item quantity="other">أُضيفت %1$d لعبة</item>
+    </plurals>
+    <plurals name="upd_tests_count">
+        <item quantity="zero">لا توجد نسخ للتجربة (%1$d)</item>
+        <item quantity="one">نسخة واحدة للتجربة (%1$d)</item>
+        <item quantity="two">نسختان للتجربة (%1$d)</item>
+        <item quantity="few">%1$d نسخ للتجربة</item>
+        <item quantity="many">%1$d نسخة للتجربة</item>
+        <item quantity="other">%1$d نسخة للتجربة</item>
+    </plurals>
+    <plurals name="upd_preview_behind">
+        <item quantity="zero">التغييرات منذ إصدارك · لا تأخير (%1$d)</item>
+        <item quantity="one">التغييرات منذ إصدارك · متأخر بإصدار واحد (%1$d)</item>
+        <item quantity="two">التغييرات منذ إصدارك · متأخر بإصدارين (%1$d)</item>
+        <item quantity="few">التغييرات منذ إصدارك · متأخر بـ %1$d إصدارات</item>
+        <item quantity="many">التغييرات منذ إصدارك · متأخر بـ %1$d إصدارًا</item>
+        <item quantity="other">التغييرات منذ إصدارك · متأخر بـ %1$d إصدار</item>
+    </plurals>
+    <plurals name="upd_preview_recent">
+        <item quantity="zero">التغييرات الأخيرة · لا إصدارات (%1$d)</item>
+        <item quantity="one">التغييرات الأخيرة · إصدار واحد (%1$d)</item>
+        <item quantity="two">التغييرات الأخيرة · إصداران (%1$d)</item>
+        <item quantity="few">التغييرات الأخيرة · %1$d إصدارات</item>
+        <item quantity="many">التغييرات الأخيرة · %1$d إصدارًا</item>
+        <item quantity="other">التغييرات الأخيرة · %1$d إصدار</item>
+    </plurals>
+    <plurals name="main_saves_imported">
+        <item quantity="zero">استُورد %1$d ملف من %2$s إلى %3$s</item>
+        <item quantity="one">استُورد ملف واحد (%1$d) من %2$s إلى %3$s</item>
+        <item quantity="two">استُورد ملفان (%1$d) من %2$s إلى %3$s</item>
+        <item quantity="few">استُوردت %1$d ملفات من %2$s إلى %3$s</item>
+        <item quantity="many">استُورد %1$d ملفًا من %2$s إلى %3$s</item>
+        <item quantity="other">استُورد %1$d ملف من %2$s إلى %3$s</item>
+    </plurals>
+    <plurals name="main_saves_imported_backup">
+        <item quantity="zero">استُورد %1$d ملف من %2$s إلى %3$s. نُسخت ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
+        <item quantity="one">استُورد ملف واحد (%1$d) من %2$s إلى %3$s. نُسخت ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
+        <item quantity="two">استُورد ملفان (%1$d) من %2$s إلى %3$s. نُسخت ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
+        <item quantity="few">استُوردت %1$d ملفات من %2$s إلى %3$s. نُسخت ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
+        <item quantity="many">استُورد %1$d ملفًا من %2$s إلى %3$s. نُسخت ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
+        <item quantity="other">استُورد %1$d ملف من %2$s إلى %3$s. نُسخت ملفات الحفظ القديمة احتياطيًا إلى Download/DroidDeck/Saves/backups</item>
+    </plurals>
+    <plurals name="main_saves_exported">
+        <item quantity="zero">صُدّر %1$d ملف بصيغة %2$s: %3$s</item>
+        <item quantity="one">صُدّر ملف واحد (%1$d) بصيغة %2$s: %3$s</item>
+        <item quantity="two">صُدّر ملفان (%1$d) بصيغة %2$s: %3$s</item>
+        <item quantity="few">صُدّرت %1$d ملفات بصيغة %2$s: %3$s</item>
+        <item quantity="many">صُدّر %1$d ملفًا بصيغة %2$s: %3$s</item>
+        <item quantity="other">صُدّر %1$d ملف بصيغة %2$s: %3$s</item>
+    </plurals>
+    <plurals name="main_logs_cleared">
+        <item quantity="zero">لم يُمسح أي مجلد سجلات (%1$d).</item>
+        <item quantity="one">مُسح مجلد سجلات واحد (%1$d).</item>
+        <item quantity="two">مُسح مجلدا سجلات (%1$d).</item>
+        <item quantity="few">مُسحت %1$d مجلدات سجلات.</item>
+        <item quantity="many">مُسح %1$d مجلد سجلات.</item>
+        <item quantity="other">مُسح %1$d مجلد سجلات.</item>
+    </plurals>
+    <plurals name="drivers_ago_minutes">
+        <item quantity="zero">منذ %1$d دقيقة</item>
+        <item quantity="one">منذ دقيقة واحدة (%1$d)</item>
+        <item quantity="two">منذ دقيقتين (%1$d)</item>
+        <item quantity="few">منذ %1$d دقائق</item>
+        <item quantity="many">منذ %1$d دقيقة</item>
+        <item quantity="other">منذ %1$d دقيقة</item>
+    </plurals>
+    <plurals name="drivers_ago_hours">
+        <item quantity="zero">منذ %1$d ساعة</item>
+        <item quantity="one">منذ ساعة واحدة (%1$d)</item>
+        <item quantity="two">منذ ساعتين (%1$d)</item>
+        <item quantity="few">منذ %1$d ساعات</item>
+        <item quantity="many">منذ %1$d ساعة</item>
+        <item quantity="other">منذ %1$d ساعة</item>
+    </plurals>
+    <plurals name="drivers_ago_days">
+        <item quantity="zero">منذ %1$d يوم</item>
+        <item quantity="one">منذ يوم واحد (%1$d)</item>
+        <item quantity="two">منذ يومين (%1$d)</item>
+        <item quantity="few">منذ %1$d أيام</item>
+        <item quantity="many">منذ %1$d يومًا</item>
+        <item quantity="other">منذ %1$d يوم</item>
+    </plurals>
+    <plurals name="session_hint_enosys">
+        <item quantity="zero">يُظهر السجل %1$d خطأ من نوع «الوظيفة غير منفّذة»: تعطل تسريع seccomp في proot أحد المساعدات على هذا الجهاز. جرّب %2$s ← «%3$s» (أو «%4$s») ثم شغّل مجددًا.</item>
+        <item quantity="one">يُظهر السجل خطأ واحدًا (%1$d) من نوع «الوظيفة غير منفّذة»: فشل تسريع seccomp في proot. جرّب %2$s ← «%3$s» (أو «%4$s») ثم شغّل مجددًا.</item>
+        <item quantity="two">يُظهر السجل خطأين (%1$d) من نوع «الوظيفة غير منفّذة»: فشل تسريع seccomp في proot. جرّب %2$s ← «%3$s» (أو «%4$s») ثم شغّل مجددًا.</item>
+        <item quantity="few">يُظهر السجل %1$d أخطاء من نوع «الوظيفة غير منفّذة»: فشل تسريع seccomp في proot. جرّب %2$s ← «%3$s» (أو «%4$s») ثم شغّل مجددًا.</item>
+        <item quantity="many">يُظهر السجل %1$d خطأً من نوع «الوظيفة غير منفّذة»: فشل تسريع seccomp في proot. جرّب %2$s ← «%3$s» (أو «%4$s») ثم شغّل مجددًا.</item>
+        <item quantity="other">يُظهر السجل %1$d خطأ من نوع «الوظيفة غير منفّذة»: فشل تسريع seccomp في proot. جرّب %2$s ← «%3$s» (أو «%4$s») ثم شغّل مجددًا.</item>
+    </plurals>
+    <plurals name="fm_paste_moved">
+        <item quantity="zero">لم يُنقل أي عنصر (%1$d)</item>
+        <item quantity="one">نُقل عنصر واحد (%1$d)</item>
+        <item quantity="two">نُقل عنصران (%1$d)</item>
+        <item quantity="few">نُقلت %1$d عناصر</item>
+        <item quantity="many">نُقل %1$d عنصرًا</item>
+        <item quantity="other">نُقل %1$d عنصر</item>
+    </plurals>
+    <plurals name="fm_paste_copied">
+        <item quantity="zero">لم يُنسخ أي عنصر (%1$d)</item>
+        <item quantity="one">نُسخ عنصر واحد (%1$d)</item>
+        <item quantity="two">نُسخ عنصران (%1$d)</item>
+        <item quantity="few">نُسخت %1$d عناصر</item>
+        <item quantity="many">نُسخ %1$d عنصرًا</item>
+        <item quantity="other">نُسخ %1$d عنصر</item>
+    </plurals>
+    <plurals name="fm_delete_items_title">
+        <item quantity="zero">حذف %1$d عنصر؟</item>
+        <item quantity="one">حذف عنصر واحد (%1$d)؟</item>
+        <item quantity="two">حذف عنصرين (%1$d)؟</item>
+        <item quantity="few">حذف %1$d عناصر؟</item>
+        <item quantity="many">حذف %1$d عنصرًا؟</item>
+        <item quantity="other">حذف %1$d عنصر؟</item>
+    </plurals>
+    <plurals name="fm_and_more">
+        <item quantity="zero">…و%1$d إضافي</item>
+        <item quantity="one">…وواحد إضافي (%1$d)</item>
+        <item quantity="two">…واثنان إضافيان (%1$d)</item>
+        <item quantity="few">…و%1$d عناصر إضافية</item>
+        <item quantity="many">…و%1$d عنصرًا إضافيًا</item>
+        <item quantity="other">…و%1$d عنصر إضافي</item>
+    </plurals>
+    <plurals name="fm_delete_some_failed">
+        <item quantity="zero">تعذّر حذف %1$d عنصر</item>
+        <item quantity="one">تعذّر حذف عنصر واحد (%1$d)</item>
+        <item quantity="two">تعذّر حذف عنصرين (%1$d)</item>
+        <item quantity="few">تعذّر حذف %1$d عناصر</item>
+        <item quantity="many">تعذّر حذف %1$d عنصرًا</item>
+        <item quantity="other">تعذّر حذف %1$d عنصر</item>
+    </plurals>
+    <plurals name="fm_items">
+        <item quantity="zero">%1$d عنصر</item>
+        <item quantity="one">عنصر واحد (%1$d)</item>
+        <item quantity="two">عنصران (%1$d)</item>
+        <item quantity="few">%1$d عناصر</item>
+        <item quantity="many">%1$d عنصرًا</item>
+        <item quantity="other">%1$d عنصر</item>
+    </plurals>
+    <plurals name="rtinst_removing_entries">
+        <item quantity="zero">جارٍ إزالة بيئة تشغيل Linux · %1$d مدخلة</item>
+        <item quantity="one">جارٍ إزالة بيئة تشغيل Linux · مدخلة واحدة (%1$d)</item>
+        <item quantity="two">جارٍ إزالة بيئة تشغيل Linux · مدخلتان (%1$d)</item>
+        <item quantity="few">جارٍ إزالة بيئة تشغيل Linux · %1$d مدخلات</item>
+        <item quantity="many">جارٍ إزالة بيئة تشغيل Linux · %1$d مدخلة</item>
+        <item quantity="other">جارٍ إزالة بيئة تشغيل Linux · %1$d مدخلة</item>
+    </plurals>
+    <plurals name="games_added_n">
+        <item quantity="zero">لم تُضف ألعاب (%1$d)</item>
+        <item quantity="one">أُضيفت لعبة واحدة (%1$d)</item>
+        <item quantity="two">أُضيفت لعبتان (%1$d)</item>
+        <item quantity="few">أُضيفت %1$d ألعاب</item>
+        <item quantity="many">أُضيفت %1$d لعبة</item>
+        <item quantity="other">أُضيفت %1$d لعبة</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="zero">لا توجد ألعاب مضافة مسبقًا (%1$d)</item>
+        <item quantity="one">لعبة واحدة موجودة في الألعاب (%1$d)</item>
+        <item quantity="two">لعبتان موجودتان في الألعاب (%1$d)</item>
+        <item quantity="few">%1$d ألعاب موجودة في الألعاب</item>
+        <item quantity="many">%1$d لعبة موجودة في الألعاب</item>
+        <item quantity="other">%1$d لعبة موجودة في الألعاب</item>
+    </plurals>
+    <string-array name="loading_hints">
+        <item>ينزّل التطبيق Steam عند أول تشغيل. قد يستغرق ذلك بضع دقائق.</item>
+        <item>عند مغادرة التطبيق، تتوقف جلسة Steam مؤقتًا بصورة افتراضية، ثم تُستأنف عند العودة.</item>
+        <item>ستظهر وحدة التحكم الخاصة بك بوصفها وحدة Xbox 360. ويمكنك بدلًا منها استخدام أدوات التحكم على الشاشة.</item>
+    </string-array>
+    <string-array name="loading_hints_desktop">
+        <item>يُعدّ التطبيق سطح المكتب عند أول تشغيل. قد يستغرق ذلك بضع دقائق.</item>
+        <item>عند مغادرة التطبيق، تتوقف الجلسة مؤقتًا بصورة افتراضية، ثم تُستأنف عند العودة.</item>
+        <item>تعمل شاشة اللمس كلوحة لمس: اسحب لتحريك المؤشر، واضغط للنقر.</item>
+        <item>ستظهر وحدة التحكم الخاصة بك بوصفها وحدة Xbox 360. ويمكنك بدلًا منها استخدام أدوات التحكم على الشاشة.</item>
+    </string-array>
 </resources>
