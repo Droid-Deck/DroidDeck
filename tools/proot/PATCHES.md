@@ -92,3 +92,12 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   first tracee starts at `-w`'s, so relative lookups inside the tracee resolve where proot would.
   SM8850 (adb shell): `stat` 25.3 -> 0.6 us, `open+close` 25.3 -> 0.9 us, ENOENT 22.9 -> 1.6 us,
   8 threads `stat`ing 89k -> 3.6M/s; equivalence suite (`bench/equiv.py`) byte-identical to proot.
+- `0015-lost-fork-events.patch` - works around a problem reported on Xiaomi's msm 4.14
+  kernel: the kernel sometimes tells PRoot that a new process or thread was created,
+  but gives its ID as zero. Without the ID, PRoot cannot finish setting it up, which
+  can leave the session stuck during startup. The patch looks for the new process or
+  thread in `/proc`, where Linux exposes information about running tasks. It continues
+  only if exactly one matches, then uses PRoot's existing setup code. When the kernel
+  supplies a valid ID, this search is skipped. The patch does not add background polling.
+  It cannot recover a creation notification that never arrives or a child it cannot
+  identify uniquely.
