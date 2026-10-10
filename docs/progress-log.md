@@ -49,11 +49,12 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   Epic, Amazon). GOG/Epic games installed before the sidecar kept the list get it once from the
   store's build manifest with the saved sign-in (`StoreListBackfill`; no game files; weekly retry
   on failure). Fresh installs keep the keys even when empty.
-- **Apps the client never saw** (Dragon's Dogma 2, 2054970 not in appinfo.vdf): no client path
-  gives depots for an unowned app - no `SteamClient` call in the client's scripts returns them, the
-  UI's only app-info request (`CommunityService.GetApps`) has names and icons, and
-  `RegisterForAppDetails` gave no answer on the device. The ask was taken out again; those games
-  stay Recommended. A miss is re-read when appinfo.vdf changes.
+- **Apps the client never saw** (Dragon's Dogma 2, 2054970 not in appinfo.vdf): the client ask
+  gave nothing (no `SteamClient` call returns depots), so Steam is asked anonymously instead
+  (`SteamPics`: CM list, WebSocket CM, anonymous logon, PICS access tokens + product info, ≤25
+  apps a request, one connection a pass, on the worker; Kotlin, no new library). Prototyped first
+  against Steam from the build host: 2054970 → depot 228988 (VC++ 2019), 1190460 → one shared
+  depot. Cached in steam-appinfo.json like the client's, weekly retry on a miss.
 - **Checks:** a store list counts as read only when the manifest was read whole (`listRead`;
   GOG: a manifest with depots, Epic: the prerequisite fields read); older empty lists are fetched
   once more. Log: `backfill: <game> gog deps=[...]` / `epic prereq=<name|none>`, plus the

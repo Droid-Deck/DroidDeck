@@ -107,8 +107,11 @@ class WinCompSourcesTest {
 
     // ---- Custom: certainty decides ----
 
+    private fun appinfo(file: File, appId: Int) = writeAppinfo(file, appId)
+
+    companion object {
     /** A version 29 appinfo.vdf with one app, whose depots point at two Steamworks Shared ones. */
-    private fun appinfo(file: File, appId: Int) {
+    fun writeAppinfo(file: File, appId: Int) {
         val strings = listOf("appinfo", "common", "name", "depots", "228986", "depotfromapp", "228990", "1001", "maxsize")
         fun key(s: String) = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(strings.indexOf(s)).array()
         val kv = ByteArrayOutputStream().apply {
@@ -129,6 +132,7 @@ class WinCompSourcesTest {
         head.putLong(16L + entries.size)
         file.parentFile!!.mkdirs()
         file.writeBytes(head.array() + entries + table)
+    }
     }
 
     @Test fun steamsAppInfoIsReadForAnAppWithoutAManifest() {

@@ -86,10 +86,17 @@ game's page is open.
 
 ## Apps the client never saw
 
-A Custom game whose files name an appid the account never owned or viewed is missing from the
-client's `appinfo.vdf`, and no client path gives an app's depots for such an app: the client's UI
-scripts expose no `SteamClient` call that returns depots or app info for an arbitrary appid (the
-one app-info request they make, `CommunityService.GetApps`, carries names and icons only), and
-`SteamClient.Apps.RegisterForAppDetails` gave no answer for an unowned app on the device. Those
-games stay on Recommended (the folder scan). A miss is read again whenever `appinfo.vdf` changes
-(the user may look at the app in Steam), else weekly. No third-party data is used.
+A Steam app the client in the runtime never saw (not owned, never viewed: a Custom game's
+steam_appid.txt) is missing from its `appinfo.vdf`. `SteamPics` asks Steam for it anonymously:
+Steam's public CM list (`ISteamDirectory/GetCMListForConnect`), a WebSocket connection to a
+connection manager (`wss://<cm>/cmsocket/`, the transport Steam's web clients use), an anonymous
+logon (an AnonUser SteamID, no account, nothing of the user's Steam sign-in), a
+`ClientPICSAccessTokenRequest` and a `ClientPICSProductInfoRequest` (at most 25 apps each, all in
+one connection), the app KeyValues read for depots with `depotfromapp` 228980 and the name, and a
+logoff. Kotlin only, no library (TLS from the platform, a minimal WebSocket and protobuf reader).
+Answers go into `steam-appinfo.json` like the client's (a miss is asked again after a week).
+
+Order for an appid: the client's `appinfo.vdf` first (free), then the anonymous lookup. It runs on
+the components' worker: one batch for every game in the start/after-session pass (before their
+lists), or the one app of a game whose page is open; never during a session, and as work nobody
+asked for only on an unmetered, favourable device. Log: `steam pics: N apps, M with shared redists`.

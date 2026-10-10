@@ -139,13 +139,16 @@ object WinCompSources {
                 if (parts.isEmpty()) out += Finding(null, original, Origin.AMAZON, false)
                 parts.forEach { out += Finding(it, original, Origin.AMAZON, true) }
             }
-            folder != null -> SteamMatch.get(context, folder.path)?.let { match ->
-                val id = match.appId ?: return@let
-                when (match.certainty) {
-                    SteamMatch.Certainty.FILES -> out += steamList(context, folder, id, game.name, auto = true)
-                    SteamMatch.Certainty.NAME -> out += steamList(context, folder, id, game.name, auto = false)
-                    else -> {}
-                }
+            else -> {}
+        }
+        // A game added in DroidDeck (Custom, or a store's) that is a Steam app: Steam's list for it,
+        // on by itself when its files say so, else only recommended.
+        if (game.library == Library.ADDED && folder != null) SteamMatch.get(context, folder.path)?.let { match ->
+            val id = match.appId ?: return@let
+            when (match.certainty) {
+                SteamMatch.Certainty.FILES -> out += steamList(context, folder, id, game.name, auto = true)
+                SteamMatch.Certainty.NAME -> out += steamList(context, folder, id, game.name, auto = false)
+                else -> {}
             }
         }
         // The folder scan, for every game: what it bundles, as Recommended.

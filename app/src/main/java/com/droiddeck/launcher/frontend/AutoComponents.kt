@@ -78,14 +78,21 @@ object AutoComponents {
     val pendingComponents = MutableStateFlow<Set<String>>(emptySet())
 
     private fun mark(job: Job, on: Boolean) {
+        if (job.pics != null) return
         val flow = if (job.component != null) pendingComponents else pendingGames
         val id = job.component ?: job.game?.let { appKey(it) } ?: return
         flow.value = if (on) flow.value + id else flow.value - id
     }
 
     /** One piece of work: a game's list ([game]) or one component's download ([component]). [asked]: the user is waiting on it. */
-    internal class Job(val game: Library.SteamGame?, val component: String?, val asked: Boolean, val seq: Long) {
-        val key get() = if (component != null) "c:$component" else "g:" + (game?.let { appKey(it) } ?: "")
+    internal class Job(val game: Library.SteamGame?, val component: String?, val asked: Boolean, val seq: Long, val pics: List<Int>? = null) {
+        val key get() = when {
+            pics != null -> "pics"
+            component != null -> "c:$component"
+            else -> "g:" + (game?.let { appKey(it) } ?: "")
+        }
+        /** Needs the network: a download, or Steam asked anonymously. */
+        val online get() = component != null || pics != null
     }
 
     private val seq = java.util.concurrent.atomic.AtomicLong()
@@ -125,7 +132,7 @@ object AutoComponents {
 
     /** Whether [job] has to wait: always while a session runs; one nobody asked for also when it is unfavourable. */
     internal fun mustWait(context: Context, job: Job): Boolean =
-        sessionRunning() || (job.component != null && !online(context)) || (!job.asked && unfavourable(context))
+        sessionRunning() || (job.online && !online(context)) || (!job.asked && unfavourable(context))
 
     /** Runs the queued jobs on this thread until the queue is empty or the next one has to wait. Tests. */
     @VisibleForTesting
@@ -167,7 +174,11 @@ object AutoComponents {
 
     private fun run(context: Context, job: Job) {
         try {
-            if (job.component != null) download(context, job.component, job.asked) else job.game?.let { apply(context, it, job.asked) }
+            when {
+                job.pics != null -> SteamAppInfo.lookup(context, job.pics)
+                job.component != null -> download(context, job.component, job.asked)
+                else -> job.game?.let { apply(context, it, job.asked) }
+            }
         } catch (e: Exception) {
             Log.w(TAG, "wincomp: ${job.key}: ${e.javaClass.simpleName}: ${e.message}")
         } finally {
@@ -189,6 +200,9 @@ object AutoComponents {
         // A GOG or Epic game installed before its sidecar kept the store's list: read it once from the store.
         val store = com.droiddeck.launcher.stores.Store.byId(game.source)
         if (folder != null && (store == com.droiddeck.launcher.stores.Store.GOG || store == com.droiddeck.launcher.stores.Store.EPIC)) StoreListBackfill.fill(context, folder)
+        // Its Steam app, when the client never saw it: Steam asked anonymously now if the user is
+        // waiting on this game (a pass over every game asks for all of them in one go, [sweep]).
+        if (asked && online(context)) steamAppOf(context, game)?.let { SteamAppInfo.lookup(context, listOf(it)) }
         val findings = findings(context, game)
         val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return
         val wanted = autoPicks(findings, catalog)
@@ -242,6 +256,7 @@ object AutoComponents {
             folder?.let { File(it, "fuel.json").lastModified() },
             SteamAppInfo.appinfoFile(context).lastModified(),
             folder?.let { SteamMatch.get(context, it.path) }?.let { "${it.appId}/${it.certainty}" },
+            steamAppOf(context, game)?.let { SteamAppInfo.state(context, it) },
         )
         return parts.joinToString("|")
     }
@@ -301,8 +316,17 @@ object AutoComponents {
      * game whose files did not change costs a look at their times.
      */
     fun sweep(context: Context, games: List<Library.SteamGame>) {
+        // First every Steam app these games are that the client never saw, asked of Steam in one
+        // connection; then each game's list.
+        val apps = games.mapNotNull { steamAppOf(context, it) }.distinct()
+        if (apps.isNotEmpty() && SteamAppInfo.needLookup(context, apps).isNotEmpty()) enqueue(context, Job(null, null, false, seq.incrementAndGet(), pics = apps))
         games.forEach { queueGame(context, it, asked = false) }
     }
+
+    /** The Steam app whose list a game takes: a Steam game's own, or an added game's match. */
+    private fun steamAppOf(context: Context, game: Library.SteamGame): Int? =
+        if (game.library != Library.ADDED) game.appId.takeIf { it > 0 }
+        else game.gameFiles?.let { SteamMatch.get(context, it.path) }?.appId
 
     /** The default network is there and validated (reaches the internet). */
     fun isOnline(context: Context): Boolean {

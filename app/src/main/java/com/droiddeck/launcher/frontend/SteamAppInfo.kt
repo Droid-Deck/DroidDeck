@@ -46,12 +46,61 @@ object SteamAppInfo {
         }
         val read = runCatching { read(appinfo, appId) }.onFailure { Log.w(TAG, "appinfo: ${it.javaClass.simpleName}") }.getOrNull()
         val entry = JSONObject().put("at", now).put("mtime", mtime)
+        // When Steam was last asked anonymously ([lookup]), kept across re-reads of the file.
+        known?.optLong("picsAt")?.takeIf { it > 0 }?.let { entry.put("picsAt", it) }
         if (read == null) entry.put("miss", true) else entry.put("name", read.name).put("depots", JSONArray(read.sharedDepots))
         cache.put(appId.toString(), entry)
         val out = cacheFile.startWrite()
         try { out.write(cache.toString().toByteArray()); cacheFile.finishWrite(out) } catch (e: Exception) { cacheFile.failWrite(out) }
         return read
     }
+
+    /** Steam asked anonymously ([SteamPics]); a test stands in for it. */
+    @androidx.annotation.VisibleForTesting
+    internal var pics: (List<Int>) -> Map<Int, Info?>? = { SteamPics.lookup(it) }
+
+    /**
+     * Of [appIds], those neither the client's cache (appinfo.vdf, read first: free) nor an earlier
+     * answer has, and that Steam was not asked about anonymously in the past week.
+     */
+    fun needLookup(context: Context, appIds: List<Int>): List<Int> {
+        val wanted = appIds.distinct().filter { it > 0 && info(context, it) == null }
+        if (wanted.isEmpty()) return emptyList()
+        val cache = cache(context)
+        val now = System.currentTimeMillis()
+        return wanted.filter { now - (cache.optJSONObject(it.toString())?.optLong("picsAt") ?: 0L) >= RETRY_AFTER_MS }
+    }
+
+    /**
+     * [appIds] the client never saw, asked of Steam anonymously in one connection ([SteamPics], in
+     * batches) and every answer kept like the client's: an app's depots and name, or a miss tried
+     * again in a week. False when nothing needed asking or Steam could not be reached. Blocking.
+     */
+    @Synchronized
+    fun lookup(context: Context, appIds: List<Int>): Boolean {
+        val need = needLookup(context, appIds)
+        if (need.isEmpty()) return false
+        val answers = pics(need) ?: return false
+        val cache = cache(context)
+        val now = System.currentTimeMillis()
+        val mtime = appinfoFile(context).lastModified()
+        for (id in need) {
+            val info = answers[id]
+            val entry = JSONObject().put("at", now).put("mtime", mtime).put("picsAt", now)
+            if (info == null) entry.put("miss", true) else entry.put("name", info.name).put("depots", JSONArray(info.sharedDepots)).put("source", "pics")
+            cache.put(id.toString(), entry)
+        }
+        val file = AtomicFile(File(context.filesDir, CACHE))
+        val out = file.startWrite()
+        try { out.write(cache.toString().toByteArray()); file.finishWrite(out) } catch (e: Exception) { file.failWrite(out) }
+        return true
+    }
+
+    /** What is kept for [appId]: "hit", "miss" or "none" (part of a game's list fingerprint). */
+    fun state(context: Context, appId: Int): String = cache(context).optJSONObject(appId.toString())?.let { if (it.optBoolean("miss")) "miss" else "hit" } ?: "none"
+
+    private fun cache(context: Context): JSONObject =
+        runCatching { JSONObject(AtomicFile(File(context.filesDir, CACHE)).readFully().toString(Charsets.UTF_8)) }.getOrDefault(JSONObject())
 
     private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).map { optString(it) }
 
