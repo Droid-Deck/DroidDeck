@@ -383,7 +383,7 @@ SERVER_DISPATCH_EXTRA = ['vkMapMemory', 'vkUnmapMemory', 'vkGetMemoryHostPointer
                          'vkUpdateDescriptorSetWithTemplate', 'vkCmdPushDescriptorSetWithTemplateKHR']
 dispatch_cmds = sorted(set(wire_cmds) | {reg.canon_cmd(c) for c in SERVER_DISPATCH_EXTRA})
 # Wire-only helpers that are not Vulkan commands (handled by hand on both sides).
-EXTRA_WIRE = ['vkbHello', 'vkbQueryServer', 'vkbDescUpdateRaw', 'vkbPushDescRaw']
+EXTRA_WIRE = ['vkbHello', 'vkbQueryServer', 'vkbDescUpdateRaw', 'vkbPushDescRaw', 'vkbAllocDescSets']
 
 # --------------------------------------------------------------------------------------------
 # Struct closure: every struct reachable from wire commands (params, members, pNext extenders).

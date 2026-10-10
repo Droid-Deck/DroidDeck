@@ -7428,6 +7428,7 @@ const vkb_srv_handler vkb_srv_handlers[VKB_CMD_COUNT] = {
     [VKB_CMD_vkbQueryServer] = vkb_sv_vkbQueryServer,
     [VKB_CMD_vkbDescUpdateRaw] = vkb_sv_vkbDescUpdateRaw,
     [VKB_CMD_vkbPushDescRaw] = vkb_sv_vkbPushDescRaw,
+    [VKB_CMD_vkbAllocDescSets] = vkb_sv_vkbAllocDescSets,
     [VKB_CMD_vkAllocateCommandBuffers] = vkb_sv_vkAllocateCommandBuffers,
     [VKB_CMD_vkAllocateDescriptorSets] = vkb_sv_vkAllocateDescriptorSets,
     [VKB_CMD_vkAllocateMemory] = vkb_sv_vkAllocateMemory,

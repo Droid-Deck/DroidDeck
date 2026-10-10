@@ -296,4 +296,5 @@ void vkb_sv_vkbHello(vkb_srv_call *c);
 void vkb_sv_vkbQueryServer(vkb_srv_call *c);
 void vkb_sv_vkbDescUpdateRaw(vkb_srv_call *c);
 void vkb_sv_vkbPushDescRaw(vkb_srv_call *c);
+void vkb_sv_vkbAllocDescSets(vkb_srv_call *c);
 #endif

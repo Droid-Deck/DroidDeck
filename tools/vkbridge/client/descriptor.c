@@ -528,6 +528,49 @@ static VkResult ds_refill(VkDevice device, ds_pool *p, const ds_layout *l, ds_ca
     return r;
 }
 
+/*
+ * Sets the client names itself: with the pool's books kept and every layout known, whether the
+ * allocation fits is known here, so the sets get names (VKB_DS_TAG | n) at once and the server
+ * allocates the driver's sets without a reply (server_dsmap.c). All or nothing, as the spec has
+ * it. VK_ERROR_UNKNOWN: not for this path (a layout the books cannot follow).
+ */
+#define VKB_DS_TAG (1ull << 63)
+#define DS_NAMED_MAX 1024
+
+static VkResult ds_alloc_named(VkDevice device, ds_pool *p, const VkDescriptorSetAllocateInfo *ai, VkDescriptorSet *out)
+{
+    static uint64_t next_name;
+    uint32_t n = ai->descriptorSetCount;
+    if (!n || n > DS_NAMED_MAX) return VK_ERROR_UNKNOWN;
+    uint64_t need[DS_TYPES] = {0};
+    for (uint32_t i = 0; i < n; i++) {
+        const ds_layout *l = layout_find(ai->pSetLayouts[i]);
+        if (!l || !l->known) return VK_ERROR_UNKNOWN;
+        for (int t = 0; t < DS_TYPES; t++) need[t] += l->count[t];
+    }
+    if (n > p->sets_left) return VK_ERROR_OUT_OF_POOL_MEMORY;
+    for (int t = 0; t < DS_TYPES; t++)
+        if (need[t] > p->left[t]) return VK_ERROR_OUT_OF_POOL_MEMORY;
+    vkb_device *dev = vkb_dev(device);
+    vkb_call c;
+    vkb_call_begin(&c, VKB_CMD_vkbAllocDescSets, dev->obj.table);
+    vkb_enc_u64(&c.e, dev->obj.remote);
+    vkb_enc_bytes(&c.e, &ai->descriptorPool, sizeof(ai->descriptorPool));
+    vkb_enc_u32(&c.e, n);
+    for (uint32_t i = 0; i < n; i++) {
+        out[i] = (VkDescriptorSet)(VKB_DS_TAG | __atomic_add_fetch(&next_name, 1, __ATOMIC_RELAXED));
+        vkb_enc_bytes(&c.e, &ai->pSetLayouts[i], sizeof(ai->pSetLayouts[i]));
+        vkb_enc_u64(&c.e, (uint64_t)out[i]);
+    }
+    if (!vkb_call_exec_async(&c)) {
+        for (uint32_t i = 0; i < n; i++) out[i] = VK_NULL_HANDLE;
+        return VK_ERROR_DEVICE_LOST;
+    }
+    p->sets_left -= n;
+    for (int t = 0; t < DS_TYPES; t++) p->left[t] -= (uint32_t)need[t];
+    return VK_SUCCESS;
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAllocateDescriptorSets(VkDevice device, const VkDescriptorSetAllocateInfo *ai, VkDescriptorSet *out)
 {
     /* Variable descriptor counts and the like are per allocation: those go straight through. */
@@ -537,6 +580,13 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAllocateDescriptorSets(VkDevice device, 
     if (!p || p->max_batch <= 1) {
         pthread_mutex_unlock(&ds_lock);
         return vkb_wire_vkAllocateDescriptorSets(device, ai, out);
+    }
+    if (p->books) {
+        VkResult nr = ds_alloc_named(device, p, ai, out);
+        if (nr != VK_ERROR_UNKNOWN) {
+            pthread_mutex_unlock(&ds_lock);
+            return nr;
+        }
     }
     VkResult r = VK_SUCCESS;
     uint32_t done = 0;
