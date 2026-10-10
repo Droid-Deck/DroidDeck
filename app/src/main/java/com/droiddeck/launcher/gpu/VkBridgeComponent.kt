@@ -34,7 +34,10 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
         socket.parentFile?.mkdirs()
         socket.delete()
         exited = false
-        val cmd = listOf(binary.absolutePath, "--socket", socket.absolutePath, "--log", logFile.absolutePath)
+        // Pipeline cache kept across sessions (Mali recompiles everything in a new process otherwise).
+        val cacheDir = File(app().cacheDir, "vkbridge-pipelines").apply { mkdirs() }
+        val cmd = listOf(binary.absolutePath, "--socket", socket.absolutePath, "--log", logFile.absolutePath,
+            "--cache-dir", cacheDir.absolutePath)
             .joinToString(" ") { it.replace("\\", "\\\\").replace(" ", "\\ ") }
         val env = arrayOf("HOME=" + app().filesDir)
         pid = HostProcess.start(cmd, env, app().filesDir, { status ->

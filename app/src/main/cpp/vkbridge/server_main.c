@@ -2,7 +2,7 @@
  *
  * vkbridge server entry point.
  *
- *   libvkbridge_server.so --socket <path> [--log <file>] [--vulkan <libvulkan>] [--selftest]
+ *   libvkbridge_server.so --socket <path> [--log <file>] [--vulkan <libvulkan>] [--cache-dir <dir>] [--selftest]
  *
  * Packaged as a "library" so Android extracts it into the native library directory, from where
  * the app executes it like proot. It loads the system Vulkan loader (on the device: the vendor's
@@ -148,7 +148,7 @@ static int listen_on(const char *path)
 
 static void usage(void)
 {
-    fprintf(stderr, "usage: vkbridge-server --socket PATH [--log FILE] [--vulkan LIB] [--selftest] [--verbose]\n");
+    fprintf(stderr, "usage: vkbridge-server --socket PATH [--log FILE] [--vulkan LIB] [--cache-dir DIR] [--selftest] [--verbose]\n");
 }
 
 int main(int argc, char **argv)
@@ -156,11 +156,13 @@ int main(int argc, char **argv)
     const char *sock_path = getenv("VKBRIDGE_SOCKET");
     const char *log_path = getenv("VKBRIDGE_SERVER_LOG");
     const char *vk_lib = getenv("VKBRIDGE_SERVER_VULKAN");
+    const char *cache_dir = getenv("VKBRIDGE_CACHE_DIR");
     int selftest_only = 0;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--socket") && i + 1 < argc) sock_path = argv[++i];
         else if (!strcmp(argv[i], "--log") && i + 1 < argc) log_path = argv[++i];
         else if (!strcmp(argv[i], "--vulkan") && i + 1 < argc) vk_lib = argv[++i];
+        else if (!strcmp(argv[i], "--cache-dir") && i + 1 < argc) cache_dir = argv[++i];
         else if (!strcmp(argv[i], "--selftest")) selftest_only = 1;
         else if (!strcmp(argv[i], "--verbose")) vkb_verbose = 1;
         else {
@@ -196,6 +198,7 @@ int main(int argc, char **argv)
     }
     vkb_dispatch_load_instance(&vkb_global_dt, vkb_gipa, VK_NULL_HANDLE);
 
+    vkb_pcache_set_dir(cache_dir);
     vkb_selftest_all();
     if (selftest_only) return vkb_npds > 0 ? 0 : 1;
 

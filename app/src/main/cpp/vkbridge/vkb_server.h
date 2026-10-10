@@ -85,12 +85,18 @@ typedef struct vkb_srv_table {
     pthread_mutex_t lock;
     vkb_srv_mem *mems[256];                  /* hash by handle */
     struct vkb_emu_device *emu;
+    struct vkb_pcache *pcache;               /* server_pcache.c */
 } vkb_srv_table;
 
 /* server_main.c */
 extern PFN_vkGetInstanceProcAddr vkb_gipa;
 extern vkb_dispatch vkb_global_dt;
 extern int vkb_verbose;
+
+/* server_pcache.c */
+void vkb_pcache_set_dir(const char *dir);
+void vkb_pcache_device_init(vkb_srv_table *t);
+void vkb_pcache_device_destroy(vkb_srv_table *t);
 
 /* server_conn.c */
 void vkb_srv_serve(int listen_fd);
