@@ -15,6 +15,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -107,6 +110,8 @@ internal fun WinComponentsDialog(
     var catalog by remember { mutableStateOf<Map<String, WinComponents.Component>?>(null) }
     var offline by remember { mutableStateOf(false) }
     var findings by remember { mutableStateOf(emptyList<WinCompSources.Finding>()) }
+    // Whether the game's list has been worked out at least once (kept from an earlier time counts).
+    var findingsKnown by remember { mutableStateOf(game == null) }
     var installed by remember { mutableStateOf(emptySet<String>()) }
     // Detector names (oalinst, physx...) already in the prefix from elsewhere.
     var present by remember { mutableStateOf(emptySet<String>()) }
@@ -142,7 +147,9 @@ internal fun WinComponentsDialog(
                 // The list kept from last time, at once; it is worked out again (and its components
                 // queued) on the background worker, which this page then follows.
                 com.droiddeck.launcher.frontend.AutoComponents.queueGame(context, game, asked = true)
-                list to com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey).orEmpty()
+                val kept = com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey)
+                if (kept != null) findingsKnown = true
+                list to kept.orEmpty()
             } else {
                 val own = gameDir?.let { DependencyDetector.detect(it) } ?: emptyList()
                 val steam = steamAppId?.let { SteamRedists.detect(gameDir, it) } ?: emptyList()
@@ -160,8 +167,11 @@ internal fun WinComponentsDialog(
     // Automatic picks still downloading show on their rows; when one lands the page reads the picks again.
     val autoDownloading by com.droiddeck.launcher.frontend.AutoComponents.downloading.collectAsState()
     val autoChanges by com.droiddeck.launcher.frontend.AutoComponents.changes.collectAsState()
+    val pendingGames by com.droiddeck.launcher.frontend.AutoComponents.pendingGames.collectAsState()
+    val pendingComponents by com.droiddeck.launcher.frontend.AutoComponents.pendingComponents.collectAsState()
     LaunchedEffect(autoChanges) {
-        if (game != null) withContext(Dispatchers.IO) { com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey) }?.let { findings = it }
+        if (game != null) withContext(Dispatchers.IO) { com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey) }
+            ?.let { findings = it; if (appKey !in pendingGames) findingsKnown = true }
         selection = withContext(Dispatchers.IO) { WinComponents.selection(context, appKey) }
         installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }
@@ -203,15 +213,25 @@ internal fun WinComponentsDialog(
     }
 
     val all = catalog
+    // The first data is in: rows that show up from now on ease in.
+    var arrived by remember { mutableStateOf(false) }
+    LaunchedEffect(all != null && findingsKnown) { if (all != null && findingsKnown) { withFrameNanos { }; arrived = true } }
     val here = if (all == null) emptySet() else present.map { installable(it, all) }.toSet()
     fun supportOf(id: String): Support =
         all?.get(id)?.let { WinComponents.support(it, all) } ?: if (id in installed) Support.READY else Support.UNSUPPORTED
     // Turned on by itself for this game, each with its reason; then what is only recommended (the
     // folder scan, a name match, an auto pick that cannot install here); then what the lists name
     // that is no component here, by its own name.
-    val autoIds = selection.auto.keys.toList()
+    // Still being worked out on the background worker: the page says so instead of "nothing found".
+    val checking = game != null && (appKey in pendingGames || !findingsKnown)
+    // Automatic picks on their way (queued or downloading) sit in their section already, with
+    // their progress, and settle there when they land.
+    val turningOn = if (all == null) emptyMap() else findings.filter { it.auto && it.component != null }
+        .associateBy { installable(it.component!!, all) }
+        .filterKeys { it !in selection.auto && selection.user[it] != false && (it in pendingComponents || it in autoDownloading) }
+    val autoIds = selection.auto.keys.toList() + turningOn.keys
     val recIds = if (all == null) emptyList() else findings.filter { it.component != null }
-        .filter { installable(it.component!!, all) !in selection.auto }
+        .filter { installable(it.component!!, all).let { id -> id !in selection.auto && id !in turningOn } }
         .distinctBy { installable(it.component!!, all) }
     val suggestions = findings.filter { it.component == null }.distinctBy { it.origin to it.original }
     val ready = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.READY }.map { it.name }
@@ -299,13 +319,32 @@ internal fun WinComponentsDialog(
             return { id -> focus.takeIf { id == first } }
         }
 
-        if (all != null && autoIds.isNotEmpty()) {
-            Section(stringResource(R.string.wincomp_auto_section))
-            val focusOf = firstUsable(autoIds, recFocus)
-            Panel {
-                autoIds.forEachIndexed { i, id ->
-                    if (i > 0) Divider()
-                    Item(id, autoReason(selection.auto.getValue(id)), focusOf(id))
+        if (checking) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.padding(start = 2.dp).size(12.dp), strokeWidth = 1.5.dp)
+            Small(stringResource(R.string.wincomp_checking))
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = all != null && autoIds.isNotEmpty(),
+            enter = androidx.compose.animation.fadeIn(Motion.tw(260)) + androidx.compose.animation.expandVertically(Motion.tw(260)),
+            exit = androidx.compose.animation.fadeOut(Motion.tw(180)) + androidx.compose.animation.shrinkVertically(Motion.tw(200)),
+            label = "autoSection",
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Section(stringResource(R.string.wincomp_auto_section))
+                if (turningOn.isNotEmpty()) Small(pluralStringResource(R.plurals.wincomp_turning_on, turningOn.size, turningOn.size))
+                val focusOf = firstUsable(autoIds, recFocus)
+                Panel {
+                    autoIds.forEachIndexed { i, id ->
+                        key(id) {
+                            Arrive(arrived) {
+                                Column {
+                                    if (i > 0) Divider()
+                                    val reason = selection.auto[id] ?: turningOn[id]?.let { f -> WinComponents.AutoReason(f.origin.name, listOf(f.original) + f.args) }
+                                    Item(id, reason?.let { autoReason(it) }, focusOf(id))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -319,7 +358,7 @@ internal fun WinComponentsDialog(
                     Item(id, findingReason(rec), focusOf(id))
                 }
             }
-        } else if (all != null && gameDir != null && autoIds.isEmpty()) Small(stringResource(R.string.wincomp_no_recommendation))
+        } else if (all != null && gameDir != null && autoIds.isEmpty() && !checking) Small(stringResource(R.string.wincomp_no_recommendation))
         if (suggestions.isNotEmpty()) {
             Section(stringResource(R.string.wincomp_suggestions))
             Panel {
@@ -363,6 +402,19 @@ internal fun WinComponentsDialog(
             PrimaryButton(stringResource(R.string.game_env_done), enabled = busyId == null, modifier = Modifier.focusRequester(doneFocus), onClick = close)
         }
     }
+}
+
+/** Once the page has its first data ([arrived]), a row that shows up eases in; the first ones are simply there. */
+@Composable
+private fun Arrive(arrived: Boolean, content: @Composable () -> Unit) {
+    val state = remember { androidx.compose.animation.core.MutableTransitionState(!arrived) }.apply { targetState = true }
+    androidx.compose.animation.AnimatedVisibility(
+        visibleState = state,
+        enter = androidx.compose.animation.fadeIn(Motion.tw(240)) + androidx.compose.animation.expandVertically(Motion.tw(240)) +
+            androidx.compose.animation.slideInVertically(Motion.tw(240)) { -it / 4 },
+        exit = androidx.compose.animation.fadeOut(Motion.tw(160)),
+        label = "arrive",
+    ) { content() }
 }
 
 @Composable

@@ -32,6 +32,12 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   metered network; runtime helpers under nice 19 / ionice idle; a game's list kept and worked out
   again only when its files change, on the worker. Tests: download lands, queue paused while a
   session runs, unfavourable device, dedupe.
+- **Fluid:** after a session the Games tab reads Steam's manifests first (no wait for the added
+  games' walk), a newly installed game eases into the list and its components' list is queued on
+  the worker. The components page shows "Checking what this game needs…" (small spinner) until
+  the list is worked out, never "nothing found" before; "On for this game" expands in, components
+  on their way sit there with their progress and a "Turning on N components…" line, and rows ease
+  in (~250 ms; instant with animations off).
 - Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
   source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
   `AddedGameArtLookupTest` updated. Not yet on a device.

@@ -1619,9 +1619,26 @@ class MainActivity : ComponentActivity() {
         val scanGeneration = ++libraryScanGeneration
         if (shortcutPicker) shortcutLibraryScanning = true
         Thread({
-            // One update with the whole list: the wall places games by their position in it, so a
-            // partial list first would shuffle every capsule when the rest arrived. LibraryCache
-            // covers the wait.
+            // Steam's own games first, from their manifests alone (quick), beside the added games
+            // already listed: a game Steam installed during the session shows as the session ends,
+            // without waiting for the added games' walk below. Its Windows components' list is
+            // queued then too, on the low-priority worker, so its page is usually ready.
+            if (ready) {
+                val quick = runCatching { Library.steamGames(this) }.getOrNull()
+                if (quick != null) ui.post {
+                    if (scanGeneration == libraryScanGeneration && steamGames.isNotEmpty()) {
+                        val before = steamGames.map { it.gameId }.toSet()
+                        val fresh = quick.filter { it.gameId !in before }
+                        if (fresh.isNotEmpty()) {
+                            steamGames = (quick + steamGames.filter { it.library == Library.ADDED }).distinctBy { it.gameId }
+                            fresh.forEach { com.droiddeck.launcher.frontend.AutoComponents.queueGame(this, it, asked = false) }
+                        }
+                    }
+                }
+            }
+            // Then one update with the whole list: the wall places games by their position in it,
+            // so a partial list first would shuffle every capsule when the rest arrived.
+            // LibraryCache covers the wait.
             val games = if (ready) Library.launchableGames(this) else emptyList()
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             val all = games.distinctBy { it.gameId }

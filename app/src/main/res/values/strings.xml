@@ -325,6 +325,11 @@
     <string name="wincomp_applies">Windows DLLs Proton does not include, from the component list. Turn on the ones this game needs: they go into the game\'s own Windows folder, never its files, and stay whichever Proton it runs on.</string>
     <string name="wincomp_offline">Could not reach the component list. Components already downloaded can still be switched.</string>
     <string name="wincomp_recommended">Recommended for this game</string>
+    <string name="wincomp_checking">Checking what this game needs…</string>
+    <plurals name="wincomp_turning_on">
+        <item quantity="one">Turning on %1$d component…</item>
+        <item quantity="other">Turning on %1$d components…</item>
+    </plurals>
     <string name="wincomp_auto_section">On for this game</string>
     <string name="wincomp_auto_steam">Steam installs %1$s with %2$s (app %3$s)</string>
     <string name="wincomp_auto_gog">From GOG\'s list for this game</string>

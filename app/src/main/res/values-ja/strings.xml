@@ -315,6 +315,10 @@
     <string name="wincomp_applies">Protonに含まれないWindows DLLです（コンポーネント一覧から）。このゲームに必要なものをオンにしてください。ゲーム専用のWindowsフォルダーに入り、ゲームのファイルには触れず、どのProtonで実行しても維持されます。</string>
     <string name="wincomp_offline">コンポーネント一覧に接続できませんでした。ダウンロード済みのコンポーネントは引き続き切り替えられます。</string>
     <string name="wincomp_recommended">このゲームにおすすめ</string>
+    <string name="wincomp_checking">このゲームに必要なものを確認しています…</string>
+    <plurals name="wincomp_turning_on">
+        <item quantity="other">%1$d 個のコンポーネントを有効にしています…</item>
+    </plurals>
     <string name="wincomp_auto_section">このゲームで有効</string>
     <string name="wincomp_auto_steam">Steamが%2$s（アプリ %3$s）と一緒に%1$sをインストールします</string>
     <string name="wincomp_auto_gog">このゲームのGOGのリストから</string>

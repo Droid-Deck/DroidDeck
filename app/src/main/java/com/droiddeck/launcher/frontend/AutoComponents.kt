@@ -69,6 +69,18 @@ object AutoComponents {
     /** The components downloading for an automatic pick right now, with their progress. */
     val downloading = MutableStateFlow<Map<String, WinComponents.Progress>>(emptyMap())
 
+    /** Games (by [appKey]) whose list is queued or being worked out: a page waits on it. */
+    val pendingGames = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Components queued for an automatic pick, not yet downloaded. */
+    val pendingComponents = MutableStateFlow<Set<String>>(emptySet())
+
+    private fun mark(job: Job, on: Boolean) {
+        val flow = if (job.component != null) pendingComponents else pendingGames
+        val id = job.component ?: job.game?.let { appKey(it) } ?: return
+        flow.value = if (on) flow.value + id else flow.value - id
+    }
+
     /** One piece of work: a game's list ([game]) or one component's download ([component]). [asked]: the user is waiting on it. */
     internal class Job(val game: Library.SteamGame?, val component: String?, val asked: Boolean, val seq: Long) {
         val key get() = if (component != null) "c:$component" else "g:" + (game?.let { appKey(it) } ?: "")
@@ -104,6 +116,7 @@ object AutoComponents {
             return
         }
         if (job.component != null) Log.i(TAG, "wincomp: queued ${job.component}")
+        mark(job, true)
         jobs.add(job)
         if (runNow) { if (!draining) drain(context) } else ensureWorker(context.applicationContext)
     }
@@ -154,6 +167,9 @@ object AutoComponents {
             if (job.component != null) download(context, job.component, job.asked) else job.game?.let { apply(context, it, job.asked) }
         } catch (e: Exception) {
             Log.w(TAG, "wincomp: ${job.key}: ${e.javaClass.simpleName}: ${e.message}")
+        } finally {
+            mark(job, false)
+            changes.value = changes.value + 1
         }
     }
 

@@ -315,6 +315,10 @@
     <string name="wincomp_applies">Proton 未內含的 Windows DLL，取自元件清單。開啟這款遊戲需要的元件：它們會放進遊戲自己的 Windows 資料夾，絕不更動遊戲檔案，且不論遊戲使用哪個 Proton 都會保留。</string>
     <string name="wincomp_offline">無法連上元件清單。已下載的元件仍可開啟或關閉。</string>
     <string name="wincomp_recommended">建議用於這款遊戲</string>
+    <string name="wincomp_checking">正在檢查這款遊戲需要什麼…</string>
+    <plurals name="wincomp_turning_on">
+        <item quantity="other">正在開啟 %1$d 個元件…</item>
+    </plurals>
     <string name="wincomp_auto_section">這款遊戲已開啟</string>
     <string name="wincomp_auto_steam">Steam 會隨 %2$s（應用程式 %3$s）安裝 %1$s</string>
     <string name="wincomp_auto_gog">來自這款遊戲的 GOG 清單</string>
