@@ -10,8 +10,16 @@ on:
       - 'app/src/main/java/com/droiddeck/launcher/core/AppLanguage.kt'
       - 'app/src/main/AndroidManifest.xml'
       - 'tools/tests/test_arabic_localization.py'
+      - 'tools/tests/test_no_hardcoded_ui.py'
+      - 'tools/tests/test_droiddeck_fonts.py'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-session'
+      - 'app/src/main/java/**'
       - '.github/workflows/i18n-ar.yml'
   workflow_dispatch:
+
+concurrency:
+  group: arabic-i18n-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
