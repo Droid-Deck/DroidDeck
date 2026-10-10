@@ -250,7 +250,7 @@ private fun OtherWays(
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Actions {
                 SecondaryButton(stringResource(R.string.gate_copy_command), compact = true, onClick = onCopyCommand)
                 SecondaryButton(stringResource(R.string.gate_already_applied), compact = true, onClick = onAlreadyApplied)
             }

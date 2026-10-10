@@ -573,6 +573,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onPair = a.onWirelessAdbPair,
                     onFindConnectPort = a.onFindWirelessAdbPort,
                     onApply = a.onWirelessAdbApply,
+                    onCopyCommand = { a.onCopyPhantomCommand(wirelessAdbDesiredEnabled) },
+                    onAlreadyApplied = {
+                        a.onOverridePhantomLimit(true)
+                        showWirelessAdbFix = false
+                    },
                 )
             }
         }

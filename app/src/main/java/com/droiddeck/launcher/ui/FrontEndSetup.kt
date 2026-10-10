@@ -259,11 +259,17 @@ internal fun SetupPanel(
                                         else PhantomProcessLimit.instructions(ctx, s.phantomProcessStatus),
                                         fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp),
                                     )
+                                    if (s.phantomProcessStatus == PhantomProcessStatus.UNREADABLE) {
+                                        Text(stringResource(R.string.gate_unreadable_note), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(vertical = 2.dp))
+                                    }
                                     Actions {
                                         if (limitBlocks) {
                                             PrimaryButton(stringResource(R.string.setup_dev_options), compact = true, onClick = onOpenDeveloperOptions)
                                             SecondaryButton(stringResource(R.string.setup_use_wireless), compact = true, enabled = !processLimitBusy) { setProcessLimit(false) }
                                             SecondaryButton(stringResource(R.string.setup_check_again), compact = true, onClick = a.onRefreshPhantomStatus)
+                                            if (s.phantomProcessStatus == PhantomProcessStatus.UNREADABLE) {
+                                                SecondaryButton(stringResource(R.string.gate_already_applied), compact = true, onClick = { a.onOverridePhantomLimit(true) })
+                                            }
                                         } else if (s.phantomProcessStatus == PhantomProcessStatus.OVERRIDDEN) {
                                             SecondaryButton(stringResource(R.string.setup_limit_clear_override), compact = true, onClick = { a.onOverridePhantomLimit(false) })
                                         } else if (s.phantomProcessStatus == PhantomProcessStatus.DISABLED) {
