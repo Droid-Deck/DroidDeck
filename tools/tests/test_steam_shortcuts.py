@@ -165,5 +165,41 @@ class ShortcutsTest(unittest.TestCase):
         self.assertIn(str(0x80000000 + shortcuts.AWAY_LIMIT + 3), away)
 
 
+    def test_name_start_in_and_launch_options_set_in_the_app_reach_the_shortcut(self):
+        self.run_writer(self.game())
+        game = dict(self.game(name='Example: Renamed'), dir=GUEST + '/data', launch='-dx11')
+        entry = self.run_writer(game)[APPID]
+        self.assertEqual('Example: Renamed', entry['AppName'])
+        self.assertEqual('"%s/data"' % GUEST, entry['StartDir'])
+        self.assertEqual('-dx11', entry['LaunchOptions'])
+        # One shortcut, the same appid.
+        self.assertEqual([APPID], list(self.run_writer(game)))
+
+    def test_a_target_chosen_in_the_app_updates_the_same_shortcut(self):
+        self.run_writer(self.game())
+        entries = self.run_writer(self.game('bin/Example64.exe'))
+        self.assertEqual([APPID], list(entries))
+        self.assertEqual('"%s/bin/Example64.exe"' % GUEST, entries[APPID]['Exe'])
+        self.assertEqual('"%s/bin"' % GUEST, entries[APPID]['StartDir'])
+
+    def test_launch_options_set_in_steam_stay_over_the_apps_old_value(self):
+        self.run_writer(dict(self.game(), launch='-dx11'))
+        self.steam_edits(LaunchOptions='-vulkan', AppName='Mine')
+        entry = self.run_writer(dict(self.game(), launch='-dx11'))[APPID]
+        self.assertEqual('-vulkan', entry['LaunchOptions'])
+        self.assertEqual('Mine', entry['AppName'])
+        steam = self.record()['games'][str(APPID)]['steam']
+        self.assertEqual('-vulkan', steam['LaunchOptions'])
+        self.assertEqual('Mine', steam['AppName'])
+
+    def test_an_older_record_without_launch_options_still_takes_the_apps(self):
+        self.run_writer(self.game())
+        record = self.record()
+        del record['games'][str(APPID)]['app']['LaunchOptions']
+        (self.config / shortcuts.RECORD).write_text(json.dumps(record))
+        entry = self.run_writer(dict(self.game(), launch='-safe'))[APPID]
+        self.assertEqual('-safe', entry['LaunchOptions'])
+
+
 if __name__ == '__main__':
     unittest.main()

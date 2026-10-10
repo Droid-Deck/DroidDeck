@@ -41,9 +41,7 @@
     <string name="hud_fg_failed">%1$s: falló el motor</string>
     <string name="hud_fg_needs_lossless">%1$s: requiere Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · iniciando</string>
-    <string name="added_games_import_hint">Una carpeta con una subcarpeta por cada juego de Windows. Los juegos que tienes en Steam usan sus entradas de Steam tras reiniciar Steam; el resto se convierten en accesos directos ajenos a Steam. Con Segunda biblioteca en Automático, Steam también puede instalar juegos en esta carpeta.</string>
     <string name="second_library_import_hint">Añade una biblioteca de Steam y busca juegos de Windows en ella. Los juegos que tienes usan sus entradas de Steam; el resto se convierten en accesos directos ajenos a Steam.</string>
-    <string name="added_games_forget_hint">Olvidar quita los accesos directos en la próxima sesión. Los archivos se conservan.</string>
     <string name="game_env_title">Entorno del juego</string>
     <string name="game_env_hint">Variables de entorno para juegos de Proton.</string>
     <string name="game_env_edit">Editar</string>
@@ -79,7 +77,7 @@
     <string name="game_env_no_fsync">Pon 1 para que este juego no use droiddeck-fsync; usa droiddeck-esync si hay un paquete y, si no, droiddeck-ntsync.</string>
     <string name="game_env_fsync_first">Pon 1 para que este juego use droiddeck-fsync, o 0 para dar prioridad a droiddeck-esync cuando haya un paquete para su Proton.</string>
     <string name="game_env_xalia">Pon 0 para desactivar el asistente de navegación con mando de Proton en este juego.</string>
-    <string name="game_env_hud">Overlay de DXVK para D3D9–11. fps muestra la tasa de fotogramas; sin definir la oculta.</string>
+    <string name="game_env_hud">Superposición de DXVK para D3D9–11. fps muestra la tasa de fotogramas; sin definir la oculta.</string>
     <string name="game_env_dxvk_config">Ajustes de DXVK separados por punto y coma. Las versiones recientes usan dxvk.maxFrameRate para limitar fotogramas; para el uso normal prefiere el límite de fotogramas de la sesión.</string>
     <string name="game_env_vkd3d_limit">Límite de fotogramas de D3D12. 0 desactiva el límite.</string>
     <string name="game_env_glthread">Subprocesos de OpenGL de Mesa. true puede ayudar a juegos OpenGL limitados por la CPU; pruébalo en cada juego.</string>
@@ -287,7 +285,7 @@
     <string name="mode_client">Cliente</string>
     <string name="mode_deck_mode">Modo Steam Deck</string>
     <string name="mode_deck_mode_hint">La interfaz Deck de Steam y los controles de rendimiento de Quick Access. Se aplica en la próxima sesión.</string>
-    <string name="mode_mangoapp">Overlay de rendimiento</string>
+    <string name="mode_mangoapp">Superposición de rendimiento</string>
     <string name="mode_mangoapp_hint">Desactívalo si los juegos fallan o se quedan en negro en modo Deck. Se aplica en la próxima sesión.</string>
     <string name="mode_return_after_game">Volver a DroidDeck al cerrar un juego</string>
     <string name="mode_return_after_game_hint">Cuando se cierra un juego que iniciaste desde DroidDeck u otro lanzador, Steam se cierra correctamente (primero termina de sincronizar las partidas en la nube) y vuelves allí. Desactivado: te quedas en Steam.</string>
@@ -301,16 +299,18 @@
     <string name="mode_steam_repair_hint">Vuelve a descargar el cliente de Steam la próxima vez que se inicie Steam. Úsalo si Steam se queda en la pantalla de carga. Se conservan los juegos, la sesión iniciada y los ajustes.</string>
     <string name="mode_steam_repair_queued">El cliente de Steam se volverá a descargar la próxima vez que se inicie Steam.</string>
     <string name="mode_steam_repair_button">Reparar</string>
-    <string name="mode_added_games">Juegos añadidos</string>
-    <string name="mode_added_none">no hay carpetas de juegos con un .exe</string>
-    <string name="mode_games_folder">Carpeta de juegos</string>
-    <string name="mode_games_folder_another">Otra carpeta de juegos</string>
-    <string name="mode_added_art">Imágenes de Steam</string>
+    <string name="mode_added_art">Ilustraciones</string>
+    <string name="mode_sgdb_key">Clave API de SteamGridDB</string>
+    <string name="mode_sgdb_key_yours">Tu clave</string>
+    <string name="mode_sgdb_edit">Editar…</string>
     <string name="mode_added_art_hint">Completa las imágenes que faltan según el nombre de la carpeta. Tus propios cover.jpg, hero.jpg, logo.png o icon.png en la carpeta del juego tienen prioridad.</string>
-    <string name="mode_added_launches">Inicia %1$s</string>
-    <string name="mode_added_launches_in">Inicia %1$s · en %2$s</string>
-    <string name="mode_added_choose">Elegir otro archivo…</string>
-    <string name="mode_added_exe_note">Por defecto, el .exe con el nombre de la carpeta o, si no, el más grande.</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">¿Quitar?</string>
+    <string name="games_add">Añadir juego</string>
+    <string name="games_add_title">Añadir un juego:</string>
+    <string name="games_pick_exe_title">Elige el exe:</string>
+    <string name="games_add_unreachable">Esta ubicación no está disponible en la sesión</string>
+    <string name="mode_added_exe_check">Revisa este .exe</string>
     <string name="wincomp_title">Componentes de Windows</string>
     <string name="wincomp_pad_hint">LB / RB saltan entre las secciones.</string>
     <string name="wincomp_card_none">Ninguno</string>
@@ -339,20 +339,16 @@
     <string name="mode_audio">Audio</string>
     <string name="mode_directaudio">DirectAudio para juegos</string>
     <string name="mode_directaudio_hint">Evita PulseAudio para menor latencia.</string>
-    <string name="mode_client_audio">Audio del cliente de Steam</string>
-    <string name="mode_client_audio_hint">Se aplica en la próxima sesión.</string>
-    <string name="mode_client_audio_classic">Clásico</string>
-    <string name="mode_client_audio_direct">DirectAudio</string>
     <string name="mode_mic">Micrófono</string>
     <string name="mode_mic_hint">Para el chat de voz.</string>
     <string name="mode_network">Red</string>
-    <string name="mode_wifi_discovery">Detección de Wi-Fi</string>
+    <string name="mode_wifi_discovery">Detección de redes Wi-Fi</string>
     <string name="mode_wifi_discovery_hint">Muestra en Steam los nombres de Wi-Fi y las redes cercanas.</string>
     <string name="mode_wifi_location_off">Los servicios de ubicación están desactivados.</string>
     <string name="mode_wifi_permission_denied">No se concedió el permiso de ubicación.</string>
     <string name="mode_wifi_open_settings">Abrir ajustes</string>
     <string name="mode_wifi_continue">Continuar</string>
-    <string name="mode_wifi_explain_title">¿Activar la detección de Wi-Fi?</string>
+    <string name="mode_wifi_explain_title">¿Activar la detección de redes Wi-Fi?</string>
     <string name="mode_wifi_explain_text">Android exige el permiso de ubicación para leer los nombres de Wi-Fi y detectar redes cercanas. DroidDeck usa este acceso para mostrar esas redes en Steam. No rastreamos tu ubicación. El acceso a internet funciona sin este permiso.</string>
     <string name="mode_storage">Almacenamiento de juegos</string>
     <string name="mode_storage_auto">Automático - la tarjeta SD si está presente, y tus carpetas de juegos</string>
@@ -364,13 +360,6 @@
     <string name="mode_storage_diagnostics">Diagnóstico de almacenamiento</string>
     <string name="mode_storage_diagnostics_hint">Registra los resultados de asignación y muestras de tiempos de almacenamiento en Compartir registros. Puede ralentizar las instalaciones mientras esté activado. Se aplica en la próxima sesión.</string>
     <string name="mode_choose_folder">Elegir una carpeta…</string>
-    <string name="mode_renderer">Renderizador</string>
-    <string name="mode_desktop_renderer">Renderizador del escritorio</string>
-    <string name="mode_renderer_hint">Dibuja el escritorio.</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU (experimental)</string>
-    <string name="mode_renderer_pixman">pixman - software</string>
-    <string name="mode_renderer_note">Vulkan ejecuta los programas del escritorio en la GPU y recurre a pixman si falla. Con pixman, los juegos se abren a pantalla completa en la GPU.</string>
     <string name="mode_custom_res_title">Resolución personalizada</string>
     <string name="mode_custom_res_text">Sustituye el límite y la relación de aspecto. Un tamaño que no coincide con la pantalla muestra barras.</string>
     <string name="mode_width">Ancho</string>
@@ -394,7 +383,7 @@
     <string name="comp_display_driver_hint">Dibuja los fotogramas en pantalla en ambos modos. Reinicia la app para aplicarlo.</string>
     <string name="comp_import_adrenotools">Importar un zip de AdrenoTools…</string>
     <string name="comp_never">nunca</string>
-    <string name="comp_nightlies_checked">Nightlies comprobadas %1$s</string>
+    <string name="comp_nightlies_checked">Última comprobación de Nightlies: %1$s</string>
     <string name="comp_title">Componentes</string>
     <string name="comp_about">Acerca de Componentes</string>
     <string name="comp_check_drivers">Buscar controladores nuevos</string>
@@ -615,6 +604,7 @@
     <string name="setup_session">Sesión</string>
     <string name="setup_logs">Registros de sesión</string>
     <string name="setup_logs_hint">Se guardan tras cada sesión</string>
+    <string name="setup_agent_commands">Herramientas de depuración</string>
     <string name="setup_latest_logs">Últimos registros de sesión</string>
     <string name="setup_saved_logs">Registros de sesión guardados</string>
     <string name="setup_saved_logs_hint">Conserva los %1$d más recientes</string>
@@ -899,7 +889,7 @@
     <string name="content_open_desktop">Abrir escritorio</string>
     <string name="content_install_open_desktop">Instalar y abrir escritorio</string>
     <string name="content_linux_desktop">Escritorio de Linux</string>
-    <string name="content_linux_desktop_hint">LXQt, Firefox y tus emuladores</string>
+    <string name="content_linux_desktop_hint">KDE Plasma, Firefox y tus emuladores</string>
     <string name="games_empty">Los juegos que instales en Steam aparecen aquí después de la sesión.</string>
     <string name="games_play_steam">Jugar en Steam</string>
     <string name="games_launch_settings">Ajustes de inicio</string>
@@ -914,11 +904,8 @@
     <string name="games_manage_saves">Gestionar partidas guardadas</string>
     <string name="games_saves">Partidas guardadas</string>
     <string name="games_import_saves">Importar partidas guardadas…</string>
-    <string name="games_import_saves_hint">Zip de GameHub o Winlator. Antes se hace una copia de las partidas actuales.</string>
     <string name="games_export_gamehub">Exportar como zip de GameHub…</string>
-    <string name="games_export_gamehub_hint">Para GameHub y BannerHub</string>
     <string name="games_export_winlator">Exportar como zip de Winlator…</string>
-    <string name="games_export_winlator_hint">Para Winlator, WinNative y Bannerlator</string>
     <string name="games_open_save_folder">Abrir carpeta de guardado</string>
     <string name="games_never_played">Nunca jugado</string>
     <string name="games_runtime_busy_percent">Runtime ocupado · %1$d%%</string>
@@ -1154,8 +1141,6 @@
     <string name="main_removing_named">Quitando %1$s…</string>
     <string name="main_forgetting_named">Olvidando %1$s…</string>
     <string name="main_pick_game_storage">Elige la carpeta de almacenamiento de juegos</string>
-    <string name="main_pick_added_games">Elige una carpeta con tus propios juegos</string>
-    <string name="main_pick_game_exe">Elige el .exe del juego</string>
     <string name="main_pick_decky_zip">Elige un ZIP de plugin de Decky</string>
     <string name="main_storage_not_usable">No se puede usar: %1$s</string>
 
@@ -1264,7 +1249,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s está en pausa</string>
     <string name="session_program_paused">El programa está en pausa</string>
-    <string name="session_starting_steam_desktop">Iniciando Steam en el escritorio</string>
     <string name="session_starting_desktop">Iniciando el escritorio</string>
 
     <!-- %1$s is the program's name -->
@@ -1290,7 +1274,6 @@
     <string name="session_proton_unpacking">descomprimiendo Proton Experimental (ARM64)</string>
     <string name="session_runtime_catalog_unreachable">No se pudo acceder al catálogo del runtime. Revisa la conexión y vuelve a pulsar Jugar.</string>
     <string name="session_runtime_install_failed">El runtime de Linux no se instaló. Revisa el runtime en Configuración y vuelve a pulsar Jugar.</string>
-    <string name="session_desktop_catalog_unreachable">No se pudo acceder al catálogo del escritorio. Revisa la conexión y pulsa Escritorio de nuevo.</string>
 
     <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">El escritorio no se instaló (%1$s). Revisa la conexión y pulsa Escritorio de nuevo.</string>
@@ -1611,6 +1594,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">Oculto</string>
     <string name="ctrl_editor_drag">Arrastra para mover</string>
+    <string name="ctrl_editor_snap">Ajustar</string>
     <string name="ctrl_editor_save">Guardar</string>
 
     <!-- What the second screen shows during a session -->
@@ -2103,4 +2087,39 @@
     <string name="device_info_copied">Copiado.</string>
     <string name="force_ssbs_title">Forzar SSBS</string>
     <string name="force_ssbs_hint">Mantiene activado un ajuste de velocidad de la CPU que Wine sigue desactivando. Puede hacer más rápidos los juegos de Windows en Snapdragon 8 Elite; poco cambio en chips anteriores. Se aplica en el próximo inicio de un juego.</string>
+    <string name="common_close">Cerrar</string>
+    <string name="common_back">Atrás</string>
+    <string name="common_edit">Editar</string>
+    <string name="games_add_all">Añadir todos los juegos de esta carpeta</string>
+    <string name="games_added_none">Nada nuevo en esta carpeta</string>
+    <string name="edit_name">Nombre</string>
+    <string name="edit_target">Destino</string>
+    <string name="edit_start_in">Iniciar en</string>
+    <string name="edit_launch_options">Opciones de lanzamiento</string>
+    <string name="edit_artwork">Ilustraciones</string>
+    <string name="edit_other_exe">Otro exe…</string>
+    <string name="edit_remove">Quitar</string>
+    <string name="art_cover">Portada</string>
+    <string name="art_background">Fondo</string>
+    <string name="art_logo">Logotipo</string>
+    <string name="art_icon">Icono</string>
+    <string name="art_src_folder">Carpeta del juego</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">Tu archivo</string>
+    <string name="art_src_exe">Del exe</string>
+    <string name="art_src_auto">Automático</string>
+    <string name="art_pick_image">Elegir imagen…</string>
+    <string name="art_pick_title">Elige una imagen: %1$s</string>
+    <string name="art_reset">Restablecer a automático</string>
+    <plurals name="games_added_n">
+        <item quantity="one">%1$d juego añadido</item>
+        <item quantity="many">%1$d juegos añadidos</item>
+        <item quantity="other">%1$d juegos añadidos</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="one">%1$d ya en Juegos</item>
+        <item quantity="many">%1$d ya en Juegos</item>
+        <item quantity="other">%1$d ya en Juegos</item>
+    </plurals>
 </resources>

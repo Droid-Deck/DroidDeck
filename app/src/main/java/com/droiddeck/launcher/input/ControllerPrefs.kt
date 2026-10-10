@@ -46,6 +46,7 @@ object ControllerPrefs {
         val steamButton: Boolean,
         val qamButton: Boolean,
         val keyboardButton: Boolean,
+        val snap: Boolean,
         val customLayout: Boolean,
         val mapping: Map<String, String>,
     )
@@ -64,6 +65,7 @@ object ControllerPrefs {
             steamButton = p.getBoolean("steamButton", true),
             qamButton = p.getBoolean("qamButton", true),
             keyboardButton = p.getBoolean("keyboardButton", true),
+            snap = p.getBoolean("snap", true),
             customLayout = p.all.keys.any { it.startsWith("layout.") },
             mapping = mappable.associate { (id, _) -> id to target(context, id) },
         )
@@ -117,6 +119,10 @@ object ControllerPrefs {
 
     fun setKeyboardButton(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("keyboardButton", on).apply()
+    }
+
+    fun setSnap(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("snap", on).apply()
     }
 
     fun layout(context: Context, width: Int, height: Int): Map<String, Pair<Float, Float>> {
