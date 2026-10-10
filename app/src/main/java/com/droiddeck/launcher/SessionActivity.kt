@@ -829,7 +829,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     WaylandCompositor.nativeSendSceneInput(3, it, 0)
                 }
             }
-            if (nextTouchMode == SessionPrefs.TOUCH_OFF) cursorVisible = false
+            if (nextTouchMode == SessionPrefs.TOUCH_OFF || !usingTouchpad()) cursorVisible = false
         }
         touchMode = nextTouchMode
         routedTouchMode = effectiveTouchMode()
