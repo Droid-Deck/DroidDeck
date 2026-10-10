@@ -4,13 +4,14 @@
 # Flathub as the remote, this device's architecture.
 #
 #   droiddeck-flatpak install <app-id>      the app and whatever runtimes it needs
+#   droiddeck-flatpak install-bundle <file> a .flatpak file, its runtimes from Flathub
 #   droiddeck-flatpak uninstall <app-id>    the app, then runtimes nothing uses any more
 #   droiddeck-flatpak update [<app-id>]     one app, or everything with an update
 #   droiddeck-flatpak updates               what has one (a "updates" line)
 #
 # Lines: {"e":"op","i":1,"n":3,"kind":"install","ref":"..."} as each step starts,
 # {"e":"progress","i":1,"n":3,"percent":45,"status":"..."} while it runs,
-# {"e":"error","message":"..."} and {"e":"done"} at the end. Exit status 0 on success.
+# {"e":"error","message":"..."} and {"e":"done"} at the end (with "id" for a bundle). Exit status 0 on success.
 import json
 import os
 import sys
@@ -20,7 +21,7 @@ os.environ.setdefault("FLATPAK_BWRAP", "/usr/local/bin/droiddeck-bwrap")
 import gi  # noqa: E402
 
 gi.require_version("Flatpak", "1.0")
-from gi.repository import Flatpak, GLib  # noqa: E402
+from gi.repository import Flatpak, Gio, GLib  # noqa: E402
 
 REMOTE = "flathub"
 
@@ -158,6 +159,29 @@ def install(app_id):
     return rc
 
 
+def install_bundle(path):
+    """A single-file bundle (flatpak build-bundle), for apps Flathub does not carry."""
+    inst = installation()
+    bundle = Gio.File.new_for_path(path)
+    try:
+        app_id = Flatpak.BundleRef.new(bundle).get_name()
+    except GLib.Error as err:
+        emit(e="error", message="%s is not a Flatpak bundle (%s)" % (os.path.basename(path), err.message))
+        return 1
+    if app_ref(inst, app_id) is not None:
+        emit(e="done", id=app_id, note="already installed")
+        return 0
+    t, state = transaction(inst)
+    t.add_install_bundle(bundle, None)
+    rc = run(t, state, report_done=False)
+    if rc == 0 and app_ref(installation(), app_id) is None:
+        emit(e="error", message="%s did not install; see flatpak-install-bundle.log" % app_id)
+        return 1
+    if rc == 0:
+        emit(e="done", id=app_id)
+    return rc
+
+
 def uninstall(app_id):
     inst = installation()
     ref = app_ref(inst, app_id)
@@ -216,20 +240,22 @@ def updates():
 
 def main():
     if len(sys.argv) < 2:
-        sys.stderr.write(__doc__ or "usage: droiddeck-flatpak install|uninstall|update|updates [app-id]\n")
+        sys.stderr.write(__doc__ or "usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates [app-id|file]\n")
         return 2
     cmd, args = sys.argv[1], sys.argv[2:]
-    if cmd in ("install", "update"):
+    if cmd in ("install", "install-bundle", "update"):
         prepare_rootfs()
     if cmd == "install" and args:
         return install(args[0])
+    if cmd == "install-bundle" and args:
+        return install_bundle(args[0])
     if cmd == "uninstall" and args:
         return uninstall(args[0])
     if cmd == "update":
         return update(args[0] if args else None)
     if cmd == "updates":
         return updates()
-    sys.stderr.write("usage: droiddeck-flatpak install|uninstall|update|updates [app-id]\n")
+    sys.stderr.write("usage: droiddeck-flatpak install|install-bundle|uninstall|update|updates [app-id|file]\n")
     return 2
 
 

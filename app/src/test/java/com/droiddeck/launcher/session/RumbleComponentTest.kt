@@ -115,16 +115,41 @@ class RumbleComponentTest {
         assertFalse(pad.vibrating)
     }
 
-    @After fun clearActiveController() { activeController(PadBridge.NO_CONTROLLER) }
-
-    private fun activeController(id: Int) {
-        PadBridge::class.java.getDeclaredField("activeControllerId").apply { isAccessible = true }.setInt(null, id)
+    @Test fun eachPlayerSlotRumblesItsOwnControllerAndVirtualPadsUseTheLastActive() {
+        val first = FakeMotors()
+        val second = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) first else if (id == SECOND_PAD_ID) second else null }
+        activeController(PAD_ID)
+        activeController(SECOND_PAD_ID, slot = 1)
+        effect(strong = 100, weak = 0, slot = 1)
+        assertEquals(listOf(Triple(100, 0, 5000L)), second.played)
+        assertTrue(first.played.isEmpty())
+        effect(strong = 200, weak = 0)
+        assertEquals(listOf(Triple(200, 0, 5000L)), first.played)
+        assertTrue("one player's effect ended another's", second.vibrating)
+        effect(strong = 0, weak = 0, slot = 1)
+        assertFalse(second.vibrating)
+        assertTrue(first.vibrating)
+        effect(strong = 300, weak = 0, slot = 16)
+        assertEquals(Triple(300, 0, 5000L), second.played.last())
+        assertFalse(shadowOf(vibrator).isVibrating)
     }
 
-    private fun effect(strong: Int = 65535, weak: Int = 65535) {
+    @After fun clearActiveController() {
+        for (slot in 0 until PadBridge.SLOTS) activeController(PadBridge.NO_CONTROLLER, slot)
+    }
+
+    private fun activeController(id: Int, slot: Int = 0) {
+        PadBridge::class.java.getDeclaredField("activeControllerId").apply { isAccessible = true }.setInt(null, id)
+        val slots = PadBridge::class.java.getDeclaredField("slotControllers").apply { isAccessible = true }.get(null)
+        (slots as java.util.concurrent.atomic.AtomicIntegerArray).set(slot, id)
+    }
+
+    private fun effect(strong: Int = 65535, weak: Int = 65535, slot: Int = 0) {
         // Inject a decoded force-feedback packet; transport is outside these tests.
-        RumbleComponent::class.java.getDeclaredMethod("buzz", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-            .apply { isAccessible = true }.invoke(rumble, strong, weak, 5000)
+        val int = Int::class.javaPrimitiveType
+        RumbleComponent::class.java.getDeclaredMethod("buzz", int, int, int, int)
+            .apply { isAccessible = true }.invoke(rumble, strong, weak, 5000, slot)
     }
 
     private class FakeMotors : RumbleComponent.Motors {
@@ -135,7 +160,10 @@ class RumbleComponentTest {
         override fun cancel() { vibrating = false }
     }
 
-    private companion object { const val PAD_ID = 7 }
+    private companion object {
+        const val PAD_ID = 7
+        const val SECOND_PAD_ID = 8
+    }
 
     @Implements(LocalServerSocket::class)
     class NoPacketsSocket {
