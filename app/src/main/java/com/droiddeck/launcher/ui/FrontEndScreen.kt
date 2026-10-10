@@ -180,8 +180,12 @@ class FrontEndActions(
     val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
+    /** Reads Steam's session settings for its lifted sheet (under Play). */
     val onSteamSettings: () -> Unit,
+    /** Reads the desktop's session settings for its lifted sheet (under Open desktop). */
     val onDesktopSettings: () -> Unit,
+    /** A lifted sheet's rows for one tab of [mode]'s settings, as last read. */
+    val modeSheet: @Composable (mode: String, tab: String, extras: SheetExtras) -> Unit = { _, _, _ -> },
     val onRemoveDesktop: () -> Unit = {},
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
@@ -455,9 +459,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val railSelection = when {
         // A hop's page belongs to the rail item it flew to.
         Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
-        s.pageKey == "performance" || s.pageKey == "protons" || s.pageKey == "controller-mapping" -> "setup"
-        s.pageKey?.startsWith("settings:steam") == true -> "steam"
-        s.pageKey?.startsWith("settings:") == true -> "desktop"
+        // Performance opens from Play's sheet, and is Steam's.
+        s.pageKey == "performance" -> "steam"
+        s.pageKey == "protons" || s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") -> "desktop"
         else -> s.pageKey ?: selected
@@ -470,7 +474,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         if (key == "components") a.onComponents(focusContent)
         else {
             if (s.pageKey != null) a.onPageBack()
+            // Another section: no way back to keep, and no sheet to put back.
             Hops.origin = null
+            Hops.restore = null
             selected = key
         }
     }
@@ -563,6 +569,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
 
         // Dots on their way somewhere: a hop to another section and back, a swap flying home.
         FlightsLayer(screenAt)
+        // A confirm stepping out of the control that asked for it.
+        StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->
             val secondaryDisplay = s.secondScreenDisplays.firstOrNull()

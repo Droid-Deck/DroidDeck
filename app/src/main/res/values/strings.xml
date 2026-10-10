@@ -2176,4 +2176,8 @@
     <string name="hop_from_games">the game</string>
     <string name="hop_from_play">Play settings</string>
     <string name="hop_from_desktop">Desktop settings</string>
+    <!-- The lifted settings sheets under Play and Open desktop. -->
+    <string name="lip_fps">%1$d fps</string>
+    <string name="lip_touch_off">Touch off</string>
+    <string name="sheet_graphics_drivers">Graphics drivers</string>
 </resources>

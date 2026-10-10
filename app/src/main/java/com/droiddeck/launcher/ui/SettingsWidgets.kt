@@ -423,6 +423,8 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
 fun SettingsGroup(title: String, compact: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    // In a lifted sheet each group fades and rises in on its own beat.
+    Column(Modifier.fillMaxWidth().sheetPiece()) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp),
@@ -432,6 +434,7 @@ fun SettingsGroup(title: String, compact: Boolean = false, content: @Composable 
         Box(modifier = Modifier.weight(1f).height(1.dp).background(pal.line))
     }
     Column(modifier = Modifier.fillMaxWidth().clip(GroupShape).background(colors.surface).border(1.dp, pal.line, GroupShape)) { content() }
+    }
 }
 
 /**

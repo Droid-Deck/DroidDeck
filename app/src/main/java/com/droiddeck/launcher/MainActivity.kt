@@ -55,7 +55,6 @@ import com.droiddeck.launcher.core.WifiDiscovery
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 import com.droiddeck.launcher.ui.CoreRow
 import com.droiddeck.launcher.ui.PerformancePage
-import com.droiddeck.launcher.ui.ModeSettingsPage
 import com.droiddeck.launcher.ui.ModeSettings
 import com.droiddeck.launcher.ui.ModeSettingsActions
 import com.droiddeck.launcher.ui.ConfirmDialog
@@ -339,7 +338,7 @@ class MainActivity : ComponentActivity() {
             romsDir = path
         }
     }
-    // The mode whose settings dialog is open, with what it shows; refreshed by openModeSettings().
+    // The mode whose lifted sheet last read its settings, with what it shows; refreshed by loadModeSettings().
     private var settingsMode by mutableStateOf<String?>(null)
     private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
@@ -549,9 +548,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
-                val sm = settingsMode
                 val page: (@Composable () -> Unit)? = when {
-                    sm != null -> { { ModeSettingsHost(sm) } }
                     showPerformance -> { { PerformanceHost() } }
                     showProtons -> { { ProtonHost() } }
                     showComponents -> { { ComponentsHost() } }
@@ -572,7 +569,7 @@ class MainActivity : ComponentActivity() {
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
-                        pageKey = sm?.let { "settings:$it" } ?: if (showPerformance) "performance" else if (showProtons) "protons" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
+                        pageKey = if (showPerformance) "performance" else if (showProtons) "protons" else if (showComponents) "components" else if (showMapping) "controller-mapping" else null,
                         theme = theme,
                         language = com.droiddeck.launcher.core.AppLanguage.chosen(this),
                         appScale = appScale,
@@ -675,9 +672,10 @@ class MainActivity : ComponentActivity() {
                         },
                         // The activity re-attaches to the session that is running; nothing restarts.
                         onResume = { startActivity(Intent(this, SessionActivity::class.java)) },
-                        onSteamSettings = { openModeSettings(SessionService.MODE_STEAM) },
+                        onSteamSettings = { loadModeSettings(SessionService.MODE_STEAM) },
                         onRemoveDesktop = { removeDesktop() },
-                        onDesktopSettings = { openModeSettings(SessionService.MODE_DESKTOP) },
+                        onDesktopSettings = { loadModeSettings(SessionService.MODE_DESKTOP) },
+                        modeSheet = { mode, tab, extras -> ModeSheetHost(mode, tab, extras) },
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
@@ -729,7 +727,7 @@ class MainActivity : ComponentActivity() {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
                             offline = OfflineMode.enabled(this)
                         },
-                        onPageBack = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = false },
+                        onPageBack = { showPerformance = false; showProtons = false; showComponents = false; showMapping = false },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
                         onLanguage = { tag ->
                             if (tag != com.droiddeck.launcher.core.AppLanguage.chosen(this)) {
@@ -839,7 +837,7 @@ class MainActivity : ComponentActivity() {
                             onSelectSteam = { on -> ControllerPrefs.setSelectSteam(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
-                            onMapping = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = true },
+                            onMapping = { showPerformance = false; showProtons = false; showComponents = false; showMapping = true },
                             onResetAll = { ControllerPrefs.resetAll(this); refreshController() },
                         ),
                     ),
@@ -1120,7 +1118,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openProtons() {
-        settingsMode = null
         showPerformance = false
         showComponents = false
         showMapping = false
@@ -1146,7 +1143,6 @@ class MainActivity : ComponentActivity() {
     private fun openComponents(focusContent: Boolean = true, tab: String? = null) {
         focusComponentsContent = focusContent
         if (tab != null) components.compComp = tab
-        settingsMode = null
         showPerformance = false
         showProtons = false
         showMapping = false
@@ -1267,8 +1263,10 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun ModeSettingsHost(mode: String) {
-        ModeSettingsPage(
+    private fun ModeSheetHost(mode: String, tab: String, extras: com.droiddeck.launcher.ui.SheetExtras) {
+        // Read for the other mode last (or not yet): what this one shows is read as it opens.
+        if (settingsMode != mode) return
+        com.droiddeck.launcher.ui.ModeSheetRows(
             ModeSettings(
                 mode = mode, resolution = resolution,
                 panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
@@ -1396,8 +1394,9 @@ class MainActivity : ComponentActivity() {
                 onPickDeckyPluginZip = {
                     pickDeckyPluginZip.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.main_pick_decky_zip)))
                 },
-                onDismiss = { settingsMode = null },
+                onDismiss = {},
             ),
+            tab, extras,
         )
     }
 
@@ -1496,13 +1495,9 @@ class MainActivity : ComponentActivity() {
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
 
-    private fun openModeSettings(mode: String) {
+    private fun loadModeSettings(mode: String) {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
-        showPerformance = false
-        showProtons = false
-        showComponents = false
-        showMapping = false
         resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         fexPreset = SessionPrefs.fexPreset(this)
         forceSsbs = SessionPrefs.forceSsbs(this)
@@ -1532,8 +1527,8 @@ class MainActivity : ComponentActivity() {
         gameStorage = SessionPrefs.gameStorage(this)
         storageDiagnostics = SessionPrefs.storageDiagnosticsEnabled(this)
         settingsMode = mode
-        // The page opens at once, on what was last read; the slow part (driver files, a walk of the
-        // added-games folders, the storage volumes) lands while it animates in.
+        // The sheet lifts at once, on what was last read; the slow part (driver files, a walk of the
+        // added-games folders, the storage volumes) lands while it rises.
         Thread({
             drivers.refreshDrivers()
             val storage = GameStorage.options(this)
