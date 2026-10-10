@@ -1,0 +1,11 @@
+#!/bin/bash
+# Plasma starts this after its nested Xwayland display is available. The session launcher still
+# sees the outer compositor before startplasma, so starting its X11 helper there cannot work.
+[ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -n "${DISPLAY:-}" ] || exit 0
+# The native helper dies with its parent. Keep this shell until it exits: Plasma's autostart
+# launcher may itself exit immediately after starting us.
+/usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
+child=$!
+trap 'kill "$child" 2>/dev/null' EXIT
+trap 'exit 0' TERM INT
+wait "$child"

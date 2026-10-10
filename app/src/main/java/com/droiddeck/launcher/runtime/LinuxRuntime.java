@@ -44,10 +44,20 @@ public final class LinuxRuntime {
     public static final String GUEST_RUNTIME_DIR = "/run/droiddeck";
     private static final String SYSTEM_FONTS = "/system/fonts";
     private static final String GUEST_SYSTEM_FONTS = "/usr/local/share/fonts/android";
-    /** Where every Linux session's debug log lands: public, so a user can just hand the folder over. */
+    /** The folder under Downloads where builds before private logs wrote them; read only to move them. */
     public static final String DEBUG_LOG_DIR = "DroidDeck";
 
-    public static File debugLogDir() {
+    /**
+     * Where every log lands: app-private, {@code files/logs}. Session folders, tools/ (one-off
+     * commands) and stores/ sit under it; the files directory is bound into every session at the
+     * same path, so the guest writes there too. Share logs is how a folder leaves the device.
+     */
+    public static File logDir(Context context) {
+        return new File(context.getFilesDir(), "logs");
+    }
+
+    /** {@code Download/DroidDeck}, where earlier builds wrote logs. Only LogMigration reads it. */
+    public static File legacyLogDir() {
         return new File(android.os.Environment.getExternalStoragePublicDirectory(
                 android.os.Environment.DIRECTORY_DOWNLOADS), DEBUG_LOG_DIR);
     }

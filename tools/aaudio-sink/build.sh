@@ -2,7 +2,8 @@
 # Compiles module-aaudio-sink.so against the upstream PulseAudio 13.0 headers and the daemon's own
 # libraries the app ships (app/src/main/jniLibs/arm64-v8a), with the Android NDK.
 #   NDK=<ndk root> tools/aaudio-sink/build.sh <pulseaudio-13.0 source dir> <output dir>
-# Produces module-aaudio-sink.so and module-directaudio-sink.so in the output dir.
+# Produces module-aaudio-sink.so in the output dir (the fallback sink; the DirectAudio sinks come
+# from the pinned DirectAudio release, see tools/directaudio/fetch.sh).
 set -euo pipefail
 PA_SRC=$1
 OUTDIR=$2
@@ -61,4 +62,3 @@ build_one() {
   ls -l "$OUT"
 }
 build_one module-aaudio-sink.c "$OUTDIR/module-aaudio-sink.so" -laaudio
-build_one module-directaudio-sink.c "$OUTDIR/module-directaudio-sink.so" ""

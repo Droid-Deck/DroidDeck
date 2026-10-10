@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.input
 
+import kotlin.math.abs
 import kotlin.math.sqrt
 import android.content.Context
 import android.graphics.Bitmap
@@ -30,6 +31,88 @@ class OnScreenControlsTest {
         ControllerPrefs.setLayout(context, 1200, 800, mapOf("ls" to (0.45f to 0.5f), "rs" to (0.55f to 0.5f)))
         view = OnScreenControls(context, null)
         view.layout(0, 0, 1200, 800)
+    }
+
+    @Test fun editorSnapsToOtherGroupCentreLines() {
+        editor()
+        val button = control("lb")
+        val target = control("rb")
+        val x = value(button, "cx")
+        val y = value(button, "cy")
+        touch(MotionEvent.ACTION_DOWN, 1 to (x to y))
+        touch(MotionEvent.ACTION_MOVE, 1 to (x to y + 5f))
+        assertEquals(value(target, "cy"), value(button, "cy"), 0f)
+        assertEquals(value(target, "cy"), nullableFloat(view, "snapY")!!, 0f)
+        touch(MotionEvent.ACTION_UP, 1 to (x to y + 5f))
+        assertNull(nullableFloat(view, "snapY"))
+    }
+
+    @Test fun editorSnapsToClusterCentresNotTheirOuterButtons() {
+        editor()
+        val button = control("lb")
+        val x = value(button, "cx")
+        val row = value(control("y"), "cy") + 3f
+        touch(MotionEvent.ACTION_DOWN, 1 to (x to value(button, "cy")))
+        touch(MotionEvent.ACTION_MOVE, 1 to (x to row))
+        assertEquals(row, value(button, "cy"), 0f)
+        assertNull(nullableFloat(view, "snapY"))
+        touch(MotionEvent.ACTION_MOVE, 1 to (x to value(control("x"), "cy") + 3f))
+        assertEquals(value(control("x"), "cy"), value(button, "cy"), 0f)
+        touch(MotionEvent.ACTION_UP, 1 to (x to row))
+    }
+
+    @Test fun editorDoesNotSnapBeyondDistanceAndCanDragFreeFromGuide() {
+        editor()
+        val button = control("lb")
+        val x = value(button, "cx")
+        val y = value(button, "cy")
+        val otherYs = (field(view, "controls") as List<*>)
+            .filter { field(it!!, "group") != "lb" }
+            .map { value(it!!, "cy") }
+        val freeY = (100..700 step 31).map(Int::toFloat).first {
+            otherYs.minOf { targetY -> abs(it - targetY) } > 12f
+        }
+        touch(MotionEvent.ACTION_DOWN, 1 to (x to y))
+        touch(MotionEvent.ACTION_MOVE, 1 to (x to freeY))
+        assertEquals(freeY, value(button, "cy"), 0f)
+        assertNull(nullableFloat(view, "snapY"))
+        val target = value(control("rb"), "cy")
+        touch(MotionEvent.ACTION_MOVE, 1 to (x to target + 5f))
+        assertEquals(target, value(button, "cy"), 0f)
+        touch(MotionEvent.ACTION_MOVE, 1 to (x to freeY))
+        assertEquals(freeY, value(button, "cy"), 0f)
+        assertNull(nullableFloat(view, "snapY"))
+        touch(MotionEvent.ACTION_UP, 1 to (x to freeY))
+    }
+
+    @Test fun editorSnapsToScreenCentreAndCanDisableSnapping() {
+        editor()
+        val button = control("lb")
+        val y = value(button, "cy")
+        touch(MotionEvent.ACTION_DOWN, 1 to (value(button, "cx") to y))
+        touch(MotionEvent.ACTION_MOVE, 1 to (605f to y))
+        assertEquals(600f, value(button, "cx"), 0f)
+        assertEquals(600f, nullableFloat(view, "snapX")!!, 0f)
+        touch(MotionEvent.ACTION_UP, 1 to (605f to y))
+
+        ControllerPrefs.setSnap(context, false)
+        editor()
+        val unsnapped = control("lb")
+        val x = value(unsnapped, "cx")
+        val startY = value(unsnapped, "cy")
+        touch(MotionEvent.ACTION_DOWN, 1 to (x to startY))
+        touch(MotionEvent.ACTION_MOVE, 1 to (605f to startY))
+        assertEquals(605f, value(unsnapped, "cx"), 0f)
+        assertNull(nullableFloat(view, "snapX"))
+        touch(MotionEvent.ACTION_UP, 1 to (605f to startY))
+    }
+
+    @Test fun editorSnapPreferenceDefaultsOnAndCanBeChanged() {
+        assertTrue(ControllerPrefs.read(context).snap)
+        ControllerPrefs.setSnap(context, false)
+        assertFalse(ControllerPrefs.read(context).snap)
+        ControllerPrefs.resetAll(context)
+        assertTrue(ControllerPrefs.read(context).snap)
     }
 
     @Test fun adaptiveStickHidesUntilTouchedAndReturnsToNeutralOnRelease() {
@@ -171,6 +254,10 @@ class OnScreenControlsTest {
     }
 
     private fun control(id: String): Any = (field(view, "controls") as List<*>).first { field(it!!, "id") == id }!!
+    private fun editor() {
+        view = OnScreenControls(context, null, editing = true)
+        view.layout(0, 0, 1200, 800)
+    }
 
     @Test fun keyboardShortcutWorksWithHiddenPadAndButtonsOnly() {
         var opened = 0
@@ -236,6 +323,7 @@ class OnScreenControlsTest {
         }
     }
     private fun field(owner: Any, name: String): Any = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)!!
+    private fun nullableFloat(owner: Any, name: String) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner) as Float?
     private fun value(owner: Any, name: String) = field(owner, name) as Float
 
     private fun pixel(x: Float, y: Float): Int {

@@ -10,16 +10,23 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
@@ -49,19 +56,27 @@ class ControllerEditorActivity : ComponentActivity() {
         val bar = ComposeView(this).apply {
             setContent {
                 DroidDeckTheme {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    var snap by remember { mutableStateOf(ControllerPrefs.read(context).snap) }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
                         modifier = Modifier
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), RoundedCornerShape(50))
-                            .padding(start = 14.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), RoundedCornerShape(20.dp))
+                            .padding(start = 5.dp, end = 5.dp, top = 8.dp, bottom = 5.dp),
                     ) {
-                        Text(stringResource(R.string.ctrl_editor_drag), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 4.dp))
-                        EditorButton(stringResource(R.string.ctrl_reset), false) { controls.resetLayout() }
-                        EditorButton(stringResource(R.string.common_cancel), false) { finish() }
-                        EditorButton(stringResource(R.string.ctrl_editor_save), true) {
-                            controls.saveLayout()
-                            finish()
+                        Text(stringResource(R.string.ctrl_editor_drag), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            EditorButton(stringResource(R.string.ctrl_editor_snap), false, selected = snap) {
+                                snap = !snap
+                                ControllerPrefs.setSnap(context, snap)
+                                controls.setSnap(snap)
+                            }
+                            EditorButton(stringResource(R.string.ctrl_reset), false) { controls.resetLayout() }
+                            EditorButton(stringResource(R.string.common_cancel), false) { finish() }
+                            EditorButton(stringResource(R.string.ctrl_editor_save), true) {
+                                controls.saveLayout()
+                                finish()
+                            }
                         }
                     }
                 }
@@ -72,14 +87,27 @@ class ControllerEditorActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun EditorButton(label: String, primary: Boolean, onClick: () -> Unit) {
+    private fun EditorButton(label: String, primary: Boolean, selected: Boolean? = null, onClick: () -> Unit) {
         val pal = LocalPalette.current
         Text(
             label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-            color = if (primary) pal.onSignal else MaterialTheme.colorScheme.onBackground,
+            color = when {
+                primary -> pal.onSignal
+                selected == true -> pal.signal
+                else -> MaterialTheme.colorScheme.onBackground
+            },
             modifier = Modifier.clip(RoundedCornerShape(50))
-                .background(if (primary) pal.signal else Color.White.copy(alpha = 0.06f))
-                .clickable(onClick = onClick)
+                .background(
+                    when {
+                        primary -> pal.signal
+                        selected == true -> pal.signal.copy(alpha = 0.18f)
+                        else -> Color.White.copy(alpha = 0.06f)
+                    },
+                )
+                .then(
+                    if (selected == null) Modifier.clickable(onClick = onClick)
+                    else Modifier.toggleable(value = selected, role = Role.Switch, onValueChange = { onClick() }),
+                )
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }
