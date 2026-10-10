@@ -316,6 +316,7 @@
     <string name="wincomp_offline">コンポーネント一覧に接続できませんでした。ダウンロード済みのコンポーネントは引き続き切り替えられます。</string>
     <string name="wincomp_recommended">このゲームにおすすめ</string>
     <string name="wincomp_checking">このゲームに必要なものを確認しています…</string>
+    <string name="wincomp_when_online">オンライン時に利用可能</string>
     <plurals name="wincomp_turning_on">
         <item quantity="other">%1$d 個のコンポーネントを有効にしています…</item>
     </plurals>

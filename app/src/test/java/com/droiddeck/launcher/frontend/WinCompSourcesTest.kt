@@ -244,6 +244,7 @@ class WinCompSourcesTest {
         AutoComponents.installer = { _, c, _, _ -> downloaded.add(c.name); installedNow.add(c.name); null }
         AutoComponents.sessionRunning = { session }
         AutoComponents.unfavourable = { false }
+        AutoComponents.online = { true }
         AutoComponents.runNow = true
         try {
             return block()
@@ -253,6 +254,7 @@ class WinCompSourcesTest {
             AutoComponents.installedOf = { WinComponents.installedIds(it).toSet() }
             AutoComponents.installer = { c, comp, all, progress -> WinComponents.install(c, comp, all, progress) }
             AutoComponents.sessionRunning = { com.droiddeck.launcher.session.SessionState.running }
+            AutoComponents.online = { c -> AutoComponents.isOnline(c) }
         }
     }
 
@@ -304,5 +306,17 @@ class WinCompSourcesTest {
         AutoComponents.drain(app)
         // Each component once, though two games could want it.
         assertEquals(downloaded.distinct(), downloaded)
+    }
+
+    @Test fun aDownloadWaitsForANetwork() = withFakeWorker {
+        val game = payback()
+        AutoComponents.online = { false }
+        AutoComponents.queueGame(app, game, asked = true)
+        // The list is worked out offline; the downloads wait.
+        assertTrue(downloaded.isEmpty())
+        assertTrue(AutoComponents.queued().all { it.startsWith("c:") })
+        AutoComponents.online = { true }
+        AutoComponents.drain(app)
+        assertEquals(3, downloaded.size)
     }
 }

@@ -59,7 +59,8 @@ game (on a metered network too), a store install or an add. A game's list is que
 installed, added or edited, when its page opens, when it is launched from DroidDeck (the launch
 itself only takes what is on already), and for every Steam game once per app start, ten seconds
 after the launcher is up (Steam installs them without a word to DroidDeck). The queue waits while
-a session runs; what nobody asked for also waits on battery saver, thermal status moderate or
+a session runs, and a download also waits for a validated network (the page then greys what is not
+downloaded yet, "Available when online", and follows the network live); what nobody asked for also waits on battery saver, thermal status moderate or
 worse, or a metered network. A component turns on for its games when its download lands, for the
 next launch, and an open page shows the progress and reads the picks again. One log line per
 queued and per finished download.

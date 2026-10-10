@@ -316,6 +316,7 @@
     <string name="wincomp_offline">No se pudo acceder a la lista de componentes. Los componentes ya descargados se pueden seguir activando o desactivando.</string>
     <string name="wincomp_recommended">Recomendados para este juego</string>
     <string name="wincomp_checking">Comprobando lo que necesita este juego…</string>
+    <string name="wincomp_when_online">Disponible con conexión</string>
     <plurals name="wincomp_turning_on">
         <item quantity="one">Activando %1$d componente…</item>
         <item quantity="many">Activando %1$d componentes…</item>

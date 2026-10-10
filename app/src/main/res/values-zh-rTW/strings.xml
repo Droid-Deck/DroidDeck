@@ -316,6 +316,7 @@
     <string name="wincomp_offline">無法連上元件清單。已下載的元件仍可開啟或關閉。</string>
     <string name="wincomp_recommended">建議用於這款遊戲</string>
     <string name="wincomp_checking">正在檢查這款遊戲需要什麼…</string>
+    <string name="wincomp_when_online">連線後可用</string>
     <plurals name="wincomp_turning_on">
         <item quantity="other">正在開啟 %1$d 個元件…</item>
     </plurals>

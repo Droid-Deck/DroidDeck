@@ -60,6 +60,8 @@ object AutoComponents {
     @VisibleForTesting internal var sessionRunning: () -> Boolean = { SessionState.running }
     /** Battery saver, a warm device or a metered network: no work nobody asked for. */
     @VisibleForTesting internal var unfavourable: (Context) -> Boolean = { c -> constrained(c) }
+    /** A usable network: a download waits for one. */
+    @VisibleForTesting internal var online: (Context) -> Boolean = { c -> isOnline(c) }
     /** Tests run the queue on the caller's thread ([drain]) instead of the worker. */
     @VisibleForTesting @Volatile internal var runNow = false
 
@@ -122,7 +124,8 @@ object AutoComponents {
     }
 
     /** Whether [job] has to wait: always while a session runs; one nobody asked for also when it is unfavourable. */
-    internal fun mustWait(context: Context, job: Job): Boolean = sessionRunning() || (!job.asked && unfavourable(context))
+    internal fun mustWait(context: Context, job: Job): Boolean =
+        sessionRunning() || (job.component != null && !online(context)) || (!job.asked && unfavourable(context))
 
     /** Runs the queued jobs on this thread until the queue is empty or the next one has to wait. Tests. */
     @VisibleForTesting
@@ -294,6 +297,14 @@ object AutoComponents {
      */
     fun sweep(context: Context, games: List<Library.SteamGame>) {
         games.filter { it.library != Library.ADDED }.forEach { queueGame(context, it, asked = false) }
+    }
+
+    /** The default network is there and validated (reaches the internet). */
+    fun isOnline(context: Context): Boolean {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
+        return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
     /** Battery saver, thermal status moderate or worse, or a metered network. */

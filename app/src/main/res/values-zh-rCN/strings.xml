@@ -316,6 +316,7 @@
     <string name="wincomp_offline">无法访问组件列表。已下载的组件仍可开启或关闭。</string>
     <string name="wincomp_recommended">此游戏推荐</string>
     <string name="wincomp_checking">正在检查此游戏需要什么…</string>
+    <string name="wincomp_when_online">联网后可用</string>
     <plurals name="wincomp_turning_on">
         <item quantity="other">正在开启 %1$d 个组件…</item>
     </plurals>

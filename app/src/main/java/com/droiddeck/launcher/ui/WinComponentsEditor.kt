@@ -169,6 +169,9 @@ internal fun WinComponentsDialog(
     /** The user's own switch for [id]: kept apart from what was turned on by itself, and over it. */
     // Automatic picks still downloading show on their rows; when one lands the page reads the picks again.
     val autoDownloading by com.droiddeck.launcher.frontend.AutoComponents.downloading.collectAsState()
+    // Without a network a component not downloaded yet cannot be turned on; the rows say so and
+    // come back the moment the network does.
+    val online = rememberOnline()
     val autoChanges by com.droiddeck.launcher.frontend.AutoComponents.changes.collectAsState()
     val pendingGames by com.droiddeck.launcher.frontend.AutoComponents.pendingGames.collectAsState()
     val pendingComponents by com.droiddeck.launcher.frontend.AutoComponents.pendingComponents.collectAsState()
@@ -285,6 +288,7 @@ internal fun WinComponentsDialog(
             val c = all?.get(id)
             val support = supportOf(id)
             val status = when {
+                !online && id !in installed && support == Support.READY -> stringResource(R.string.wincomp_when_online)
                 id == failed && error != null -> stringResource(R.string.wincomp_failed, error.orEmpty())
                 id in here && id !in picks -> stringResource(R.string.wincomp_already_here)
                 id in installed -> stringResource(R.string.wincomp_downloaded)
@@ -294,8 +298,9 @@ internal fun WinComponentsDialog(
             }
             // The catalog key stays in the detail: it is what a log or a bug report names.
             val detail = listOfNotNull(reason, c?.description?.takeIf { it.isNotEmpty() }, status, id).joinToString(" · ")
-            val usable = support == Support.READY
-            val autoProgress = autoDownloading[id]
+            val offlineHere = !online && id !in installed
+            val usable = support == Support.READY && !offlineHere
+            val autoProgress = autoDownloading[id]?.takeIf { !offlineHere }
             val busy = id == busyId || autoProgress != null
             val shownProgress = if (id == busyId) progress else autoProgress
             val caption = when {
@@ -311,7 +316,7 @@ internal fun WinComponentsDialog(
                 }
             }
             ComponentRow(
-                WinComponentNames.of(id), detail, checked = id in picks, enabled = usable || id in picks,
+                WinComponentNames.of(id), detail, checked = id in picks, enabled = usable || (id in picks && id in installed),
                 dim = !usable || busy, busy = busy, caption = caption,
                 percent = if (busy && !reverting) shownProgress?.percent ?: -1 else -1,
                 modifier = (if (usable && focus != null) Modifier.focusRequester(focus) else Modifier)
@@ -435,6 +440,26 @@ private fun Arrive(arrived: Boolean, content: @Composable () -> Unit) {
         exit = androidx.compose.animation.fadeOut(Motion.tw(160)),
         label = "arrive",
     ) { content() }
+}
+
+/** Whether the default network is there and validated, followed live. */
+@Composable
+private fun rememberOnline(): Boolean {
+    val context = LocalContext.current
+    var online by remember { mutableStateOf(com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+            private fun update() = main.post { online = com.droiddeck.launcher.frontend.AutoComponents.isOnline(context) }
+            override fun onAvailable(network: android.net.Network) { update() }
+            override fun onLost(network: android.net.Network) { update() }
+            override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) { update() }
+        }
+        runCatching { cm?.registerDefaultNetworkCallback(callback) }
+        onDispose { runCatching { cm?.unregisterNetworkCallback(callback) } }
+    }
+    return online
 }
 
 @Composable

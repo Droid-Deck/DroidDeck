@@ -326,6 +326,7 @@
     <string name="wincomp_offline">Could not reach the component list. Components already downloaded can still be switched.</string>
     <string name="wincomp_recommended">Recommended for this game</string>
     <string name="wincomp_checking">Checking what this game needs…</string>
+    <string name="wincomp_when_online">Available when online</string>
     <plurals name="wincomp_turning_on">
         <item quantity="one">Turning on %1$d component…</item>
         <item quantity="other">Turning on %1$d components…</item>

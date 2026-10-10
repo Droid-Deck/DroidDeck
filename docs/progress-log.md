@@ -41,6 +41,10 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 - **Quieter:** "Checking…" only when the game's list was never worked out; a kept list shows at
   once and is checked again silently, its changes easing in. The lists wait for the catalog and
   fade in once; "Loading the components…" only after 300 ms.
+- **Offline:** with no validated network, components not downloaded yet are greyed and cannot be
+  switched ("Available when online"), automatic picks on their way included (no progress bar);
+  downloaded ones stay usable. The page follows the network live, and downloads wait in the queue
+  until it is back.
 - Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
   source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
   `AddedGameArtLookupTest` updated. Not yet on a device.
