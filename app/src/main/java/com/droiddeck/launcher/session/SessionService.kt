@@ -645,6 +645,8 @@ class SessionService : Service() {
         // gamescope's realtime Vulkan queues (the session script turns this into
         // GAMESCOPE_FORCE_VULKAN_REALTIME); off unless the user turns it on.
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
+        if (SessionState.mode == MODE_STEAM && SessionPrefs.zramCompression(this) &&
+            com.droiddeck.launcher.core.ZramSupport.supported()) guest.add("BL_ZRAM=1")
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
         // Anything else, for a device that cannot be reached with a debugger: droiddeck-env in the
         // app's own external files (envSwitchFile) holds KEY=VALUE lines that go into the session's

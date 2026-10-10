@@ -68,6 +68,10 @@ class ModeSettings(
     val touchMode: String,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
+    /** Steam only; null hides it. */
+    val zramCompression: Boolean? = null,
+    /** Null until checked off the main thread. */
+    val zramSupported: Boolean? = null,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
     /** Steam only. */
@@ -127,6 +131,7 @@ class ModeSettingsActions(
     val onTouch: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
+    val onZramCompression: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit = {},
@@ -300,6 +305,12 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     host, "background-downloads", stringResource(R.string.mode_background_downloads),
                     stringResource(R.string.mode_background_downloads_hint),
                     s.steamDownloadsInBackground, onChange = a.onSteamDownloadsInBackground,
+                )
+                if (s.zramCompression != null) ToggleRow(
+                    host, "zram", stringResource(R.string.mode_zram),
+                    stringResource(if (s.zramSupported == false) R.string.mode_zram_unsupported else R.string.mode_zram_hint),
+                    s.zramCompression && s.zramSupported != false, enabled = s.zramSupported == true,
+                    onChange = a.onZramCompression,
                 )
             }
             if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
