@@ -121,6 +121,8 @@ object LogRedactor {
     fun learnFromRuntime(root: java.io.File) {
         learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
         learnAccounts(java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"))
+        // The x86-64 client's own copy (droiddeck-steam-x64), which can name an account the other has not.
+        learnAccounts(java.io.File(root, "root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf"))
     }
 
     /** This device's public addresses as patterns (see [learnOwnAddresses]); empty until learned. */

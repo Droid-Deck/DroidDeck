@@ -88,6 +88,7 @@ class ModeSettings(
     val stretch16x9: Boolean? = null,
     /** Steam only: the client branch forced on the command line. */
     val steamChannel: String? = null,
+    val steamClientArch: String? = null,
     /** Steam only: enable the SteamOS client interface and its performance controls. */
     val steamDeckMode: Boolean = false,
     val steamRepairQueued: Boolean = false,
@@ -141,6 +142,7 @@ class ModeSettingsActions(
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamChannel: (String) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
+    val onSteamClientArch: (String) -> Unit = {},
     val onSteamDeckMode: (Boolean) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
@@ -398,6 +400,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
             ) {
                 SecondaryButton(stringResource(R.string.mode_steam_repair_button), enabled = !s.steamRepairQueued, onClick = a.onSteamRepair)
             }
+            if (s.steamClientArch != null) ChoiceRow(
+                host, "clientArch", stringResource(R.string.mode_client_arch), stringResource(R.string.mode_client_arch_hint),
+                listOf("arm64" to stringResource(R.string.mode_client_arch_arm64), "x86_64" to stringResource(R.string.mode_client_arch_x64)), s.steamClientArch,
+                onPick = a.onSteamClientArch,
+            )
         }
         if (steam && tab == ModeSettingsTab.STEAM && s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
             val hint = when {

@@ -7,6 +7,104 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-02 - `feat/x86-64-steam-client`: Valve's x86-64 Linux client under FEX (experiment)
+
+Why: the arm64 Linux client never runs VAC. L4D2 (and TF2 in Bannerlator) are refused by VAC
+servers ("Connection Blocked ... VAC secured server") and no client log mentions VAC; VAC modules
+are x86 code. The question is whether Valve's x86-64 client under FEX gets a VAC module it can run.
+Branched from `feat/vac-diagnostics`. Opt-in: `bannerlator-steam-x64` (desktop menu "Steam x86-64
+(FEX, experimental)") runs the client in its own home (`~/.droiddeck-x64`) with its own rootfs,
+login and library. The arm64 client stays the default and is not touched.
+
+Device-proven on the FIT (Genshin repack): **the x86-64 client runs, self-updates, renders its full
+UI (software GL), logs in, shows friends, and downloads games.** VAC itself is not tested yet.
+
+What it took, in order (each step was the next failure on device):
+- **FEX for the guest** - `tools/fex/build-in-arch.sh` + `build-fex.yml` (FEX-2609, Arch Linux ARM
+  container, no thunks), released as `fex-2609-r2` (not Latest). Rootfs: FEX's Ubuntu 24.04 image.
+- **openat2** - our proot answers it with ENOSYS; FEX opened every rootfs path with
+  `openat2(RESOLVE_IN_ROOT)`, fell through to the arm64 guest on anything but EXDEV, and x86 bash
+  could not find libtinfo. `tools/fex/patches/0001-openat2-enosys-fallback.patch`.
+- **FEXServer owns the rootfs** - a server started before `FEX_ROOTFS` (any earlier FEX run) answers
+  every client with no rootfs. The launcher stops it first.
+- **32-bit x86 died with SIGILL** - libblfastpath (the proot fast path, preloaded into every guest
+  process, FEX itself included) breaks FEX's 32-bit mode. `PROOT_FP_OFF=1` for FEX.
+- **"Steam now requires user namespaces"** - steam-runtime-check-requirements' bwrap probe; the
+  arm64 client has no such probe. The SteamRT3 client (`steamrt64/steam`) is started directly, the
+  way the session starts `steamrtarm64/steam`, with `STEAM_RUNTIME_STEAMRT` pointing at Valve's
+  runtime linked file by file and only the probe replaced.
+- **tier0 assertion "Function not implemented"** - semget: Android has no System V IPC. Traced with
+  a `-DDEBUG_STRACE` FEX (build-fex.yml `cxxflags` input, artifact only). The session shim
+  (`preload/*.c`) is now also built natively as `libblsession-x86_64.so`, staged, and preloaded
+  through the rootfs's own `/etc/ld.so.preload`.
+- **re-exec into pressure-vessel after self-update** - `STEAM_STEAMRT_RECURSION_GUARD=1`.
+- **libgtk-x11-2.0 missing / soname links / old glibc shadowing** - Valve's steamrt3c platform
+  libraries linked into `~/.droiddeck-x64/steamrt-libs`, soname links from the rootfs `ldconfig`,
+  and only libraries the rootfs lacks (LD_LIBRARY_PATH beats system folders whatever its order).
+- **GLX failed** - the desktop exports zink over the arm64 Turnip ICD; cleared, llvmpipe used.
+- **web helper died of SIGTRAP a second after start** - found with pid-tagged traces (FEX AppConfig
+  `OutputLog=server` + a foreground FEXServer, `BL_FEXSERVER_LOG`; file logs overwrite each other):
+  every web helper read `/proc/self/status` from libtier0_s.so, saw proot as a tracer, and tier0 broke
+  into the "debugger" with int3. `preload/tracer.c` exempts the web helper on purpose (Chromium traps
+  on a status fd that is not procfs); with `BL_WEBHELPER_HIDE_TRACER=1` only opens called from
+  libtier0_s.so get the copy.
+- `SessionFiles` stages `bannerlator-steam-x64` and the x86-64 shim (they were missing from the list).
+
+Dead ends worth remembering: headless VAC testing is impossible (current Steam starts the saved
+login from its UI); `-cef-*` switches are not forwarded to the x86 web helper; the KMS
+`CREATE_DUMB` errors are a red herring (40 fast ENOTTY per process); not an address-space problem
+(0 ENOMEM in 618k traced syscalls, although the device is 39-bit VA).
+
+Later the same day (device-proven unless noted):
+- **Controllers**: libfakeinput is now also built for x86-64 and preloaded in the FEX rootfs; the
+  client registers the pad, and **Big Picture works with it** (Xbox prompts, D-pad moves focus).
+- **Online**: the launcher starts the system bus and the NetworkManager stand-in like the session.
+- From an audit of `bannerlator-session`: stale lock cleanup, branch sync before every start, core
+  re-pinning, path cache and `perms.c` for `steamrt64`, the app's FEX preset (PERFORMANCE_TSO).
+- **Play button (built, not yet device-tested)**: Steam settings > Client > "Steam client: ARM64 /
+  x86-64 (FEX, experimental)" (`BL_STEAM_CLIENT_ARCH`). The session then starts the x86 client via
+  `bannerlator-steam-x64 --prepare/--exec` and gives it everything it gives the arm64 one; steps
+  only for the arm64 client (ARM64 Proton, mapping, seeding, Decky, steamclient.so probes) are
+  skipped.
+- L4D2 hard-link reuse does not work: switching platform makes Steam redownload depot 551 anyway.
+
+Evening (device-proven unless noted):
+- **Play button with the x86-64 client works** (Steam settings > Client > Steam client: x86-64).
+  Deck mode is skipped for it: with -steamos3 its SteamOS audio manager aborts on the runtime's
+  PulseAudio 13 (pa_operation_get_state assertion).
+- **Left 4 Dead 2 runs in the x86-64 client and joined a live online game** (Quick Match, Swamp
+  Fever, other players, 138 ms) - the server type that refused the arm64 client with "Connection
+  Blocked ... VAC secured server". Not yet hard proof of VAC (no client log line; -condebug added
+  for the server's secure flag). Software rendering: ~11 fps.
+- What the launch needed: "DroidDeck direct", a compatibility tool running native Linux games with
+  Valve's scout library runtime instead of the Steam Linux Runtime container; a stand-in
+  steam-runtime-launch-client (the client, believing itself inside the SteamRT container, starts
+  every game "alongside Steam" through it, and Valve's needs a launcher service on a session bus);
+  i386 builds of the session shim (the i386 controller reader crashes the game and is left out for
+  now). A steam:// URL written to the launch dir now reaches the running client.
+- **FEX with host thunks** (fex-2609-r3): FEX's Vulkan/GL/EGL/DRM/Wayland/ALSA thunks, 64- and
+  32-bit guests, guest halves cross-compiled against an Arch x86_64/multilib sysroot. The x86 client
+  uses them when installed (GPU mode, the arm64 client's ANGLE-on-Vulkan flags) - built, not yet
+  device-tested.
+- The proot fast path now stands down in FEX only for 32-bit programs (it broke FEX's 32-bit mode).
+- **On the GPU, VAC proven (19:40):** games get FEX's host thunks and the session's Turnip/Zink
+  settings (the client and its browser stay in software: with the thunks the browser's GPU process
+  dies and the client never opens a window). Left 4 Dead 2 in The Passing on an online server:
+  51 fps (was ~11 in software). The server answered the A2S info query as "Valve Left4Dead 2 US
+  East Server", VAC=1 - an official VAC-secured server, which the arm64 client is refused.
+- The crash that held this up was not the GPU: the 32-bit controller reader was still preloaded
+  (FEX falls through to the session's own i386 copy), and the game's SDL2 strdup()s a NULL udev
+  attribute of its fake devices. Found with a SIGSEGV logger (tools/diag/segvlog.c).
+- The Linux FEX as a component file: /sdcard/Download/FEX-2609-r2-x86-64-guest.wcp (type
+  FEX-Guest); the Components section does not know that type yet.
+
+Open:
+- VAC test: L4D2's native Linux build in the x86 client's own library (hard-linked from the arm64
+  copy, same filesystem, so only the Linux depots download). Native Linux games start inside the
+  Steam Linux Runtime container (pressure-vessel) - expected to need the same treatment.
+- No x86 GPU driver: games render with llvmpipe. Playable needs FEX host thunks.
+- Windows games in the x86 client need x86 Proton = pressure-vessel.
+- One client per account: integration would be a per-title hand-off, not side by side.
 ## 2026-10-09 - `feat/games-add-edit`: add games from the Games tab, edit them like Steam's Properties
 
 - **Steam ⚙ settings:** the Games section is gone (it was a feature, not a setting). Games

@@ -55,7 +55,8 @@ internal class SteamDownloadMonitor {
     }
 
     private fun readContentActivity(runtimeRoot: File, now: Long): Boolean {
-        val log = File(runtimeRoot, "root/.local/share/Steam/logs/content_log.txt")
+        // Either client's (the x86-64 one keeps its own, droiddeck-steam-x64): the newer log is the one in use.
+        val log = STEAM_HOMES.map { File(runtimeRoot, "$it/logs/content_log.txt") }.maxByOrNull { it.lastModified() }!!
         if (!log.isFile) return false
         if (log.length() < contentLogOffset) {
             contentLogOffset = 0L
@@ -100,12 +101,15 @@ internal class SteamDownloadMonitor {
     }
 
     private fun manifests(runtimeRoot: File): List<File> {
-        val steamRoots = linkedSetOf(File(runtimeRoot, "root/.local/share/Steam"))
-        val primary = steamRoots.first()
-        val libraryFolders = File(primary, "steamapps/libraryfolders.vdf")
-        runCatching {
-            PATH.findAll(libraryFolders.readText()).forEach { match ->
-                steamRoots += File(runtimeRoot, match.groupValues[1].removePrefix("/"))
+        val steamRoots = linkedSetOf<File>()
+        for (home in STEAM_HOMES) {
+            val primary = File(runtimeRoot, home)
+            steamRoots += primary
+            val libraryFolders = File(primary, "steamapps/libraryfolders.vdf")
+            runCatching {
+                PATH.findAll(libraryFolders.readText()).forEach { match ->
+                    steamRoots += File(runtimeRoot, match.groupValues[1].removePrefix("/"))
+                }
             }
         }
         return steamRoots.flatMap { root ->
@@ -132,6 +136,8 @@ internal class SteamDownloadMonitor {
         const val CONTENT_ACTIVITY_GRACE_MS = 90_000L
         const val MIN_RECEIVE_BYTES_PER_SEC = 64L * 1024L
         val PATH = Regex("\"path\"\\s+\"([^\"]+)\"")
+        /** The arm64 client's Steam folder and the x86-64 client's (droiddeck-steam-x64). */
+        val STEAM_HOMES = listOf("root/.local/share/Steam", "root/.droiddeck-x64/.local/share/Steam")
         val CONTENT_UPDATE = Regex("""AppID (\d+) (App|Workshop|Shader) update changed : (.*)""")
         val CURRENT_RATE = Regex("""Current download rate: ([\d.]+) Mbps""")
     }

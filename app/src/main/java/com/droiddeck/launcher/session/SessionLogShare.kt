@@ -116,7 +116,7 @@ object SessionLogShare {
      */
     private fun liveSteamLogs(context: Context, folder: File): List<File> {
         if (folder != SessionPaths.current() || File(folder, "steam").exists()) return emptyList()
-        val logs = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/logs")
+        val logs = File(SessionPrefs.activeSteamRoot(context), "logs")
         return logs.listFiles()?.filter { it.isFile && it.length() <= STEAM_LOG_MAX_BYTES }.orEmpty()
     }
 

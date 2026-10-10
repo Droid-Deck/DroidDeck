@@ -88,10 +88,12 @@ object Library {
 
     /** Steam's library roots visible to this launcher: its private default plus the selected library. */
     private fun steamLibraries(context: Context): List<Pair<File, String>> {
-        val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+        val root = SessionPrefs.activeSteamRoot(context)
+        // The x86-64 client keeps one library of its own; the selected library is the arm64 client's.
+        val x64 = SessionPrefs.steamClientArch(context) == "x86_64"
         return listOfNotNull(
             root to "internal",
-            GameStorage.effective(context)?.let { File(it.path) to it.label },
+            GameStorage.effective(context)?.takeUnless { x64 }?.let { File(it.path) to it.label },
         ) + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
     }
 
@@ -113,7 +115,7 @@ object Library {
     }
 
     fun steamGames(context: Context, strictRead: Boolean = false): List<SteamGame> {
-        val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+        val root = SessionPrefs.activeSteamRoot(context)
         val cache = File(root, "appcache/librarycache")
         val libraries = steamLibraries(context)
         val roots = libraries.map { it.first }

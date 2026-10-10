@@ -329,6 +329,7 @@ class SessionService : Service() {
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
         SessionFiles.stage(this, root)
+        VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         // The compat tool asks for an Epic game's sign-in code at every launch, the client's Play button included.
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
@@ -637,6 +638,7 @@ class SessionService : Service() {
         if (SessionState.mode == MODE_STEAM) guest.add("BL_STEAMDECK=" + (if (SessionPrefs.steamDeckMode(this)) "1" else "0"))
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
         if (steamHere) guest.add("BL_STEAM_CHANNEL=" + SessionPrefs.steamChannel(this))
+        if (steamHere) guest.add("BL_STEAM_CLIENT_ARCH=" + SessionPrefs.steamClientArch(this))
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
         }
