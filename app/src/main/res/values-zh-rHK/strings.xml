@@ -15,8 +15,10 @@
     <string name="session_channel">會話</string>
     <string name="session_channel_description">Steam 或桌面會話開啟時顯示</string>
     <string name="session_notification">Steam 正在執行</string>
+    <string name="session_notification_downloads">Steam 下載進行中</string>
     <string name="session_notification_paused">會話已暫停 - 準備好後請輕按「繼續」</string>
     <string name="resume_session">繼續</string>
+    <string name="suspend_now">立即暫停</string>
     <string name="stop_session">結束會話</string>
     <string name="frame_gen_title">幀生成</string>
     <string name="frame_gen_hint">選擇幀生成模式</string>
@@ -36,7 +38,7 @@
     <string name="lsfg_import_invalid">此檔案不是 Lossless Scaling 的 Lossless.dll</string>
     <string name="lsfg_import_failed">無法從此 Lossless.dll 準備 LSFG</string>
     <string name="lsfg_problem_missing">LSFG 需要 Steam 上的 Lossless Scaling 或已匯入的 Lossless.dll</string>
-    <string name="lsfg_problem_failed">LSFG 無法從 Lossless.dll 準備着色器</string>
+    <string name="lsfg_problem_failed">LSFG 無法從 Lossless.dll 準備著色器</string>
     <string name="hud_fg_unsupported">%1$s：不支援</string>
     <string name="hud_fg_failed">%1$s：引擎故障</string>
     <string name="hud_fg_needs_lossless">%1$s：需要 Lossless Scaling</string>
@@ -66,9 +68,9 @@
     <string name="game_env_unused">標準 Proton 運行環境不會讀取此變數。</string>
     <string name="game_env_loading">正在載入…</string>
     <string name="game_env_feature">D3D12 功能級別覆寫。12_2 會回報 DirectX 12 Ultimate 功能；不支援的功能可能會出錯。不設定則自動偵測。</string>
-    <string name="game_env_shader">D3D12 着色器模型覆寫。6_9 需要夠新的 VKD3D 及相應的 GPU 功能。不設定則自動偵測。</string>
-    <string name="game_env_cache">保持啟用 Mesa 着色器快取，以減少重複編譯。設為 false 即啟用快取。</string>
-    <string name="game_env_cache_size">Mesa 着色器快取的大小上限，例如 1G。快取越大，佔用的儲存空間越多。</string>
+    <string name="game_env_shader">D3D12 著色器模型覆寫。6_9 需要夠新的 VKD3D 及相應的 GPU 功能。不設定則自動偵測。</string>
+    <string name="game_env_cache">保持啟用 Mesa 著色器快取，以減少重複編譯。設為 false 即啟用快取。</string>
+    <string name="game_env_cache_size">Mesa 著色器快取的大小上限，例如 1G。快取越大，佔用的儲存空間越多。</string>
     <string name="game_env_vkd3d_config">D3D12 的 VKD3D 選項。nodxr 會停用光線追蹤；只在個別遊戲需要時使用。</string>
     <string name="game_env_proton_log">設為 1 以產生 Proton 診斷記錄。記錄可能會降低效能並佔用儲存空間。</string>
     <string name="game_env_wined3d">設為 1 以改用基於 OpenGL 的 WineD3D 代替 DXVK，用於 D3D9–11 兼容性測試。</string>
@@ -90,7 +92,7 @@
     <string name="fex_preset_title">FEX 預設</string>
     <string name="fex_next_launch">下次啟動遊戲時生效。</string>
     <string name="game_settings_title">遊戲</string>
-    <string name="fex_default_label">FEX 預設</string>
+    <string name="fex_default_label">FEX 預設值</string>
     <string name="fex_default_detail">使用 FEX 預設設定。</string>
     <string name="fex_stability_label">穩定</string>
     <string name="fex_stability_detail">最安全但最慢的設定。</string>
@@ -182,6 +184,8 @@
     <string name="add_app_flatpak_id">應用程式 ID</string>
     <string name="add_app_flatpak_placeholder">org.ppsspp.PPSSPP</string>
     <string name="add_app_flatpak_invalid">不是 Flathub 應用程式 ID</string>
+    <string name="add_app_flatpak_bundle_hint">或使用 .flatpak 檔案，安裝不在 Flathub 上的應用。</string>
+    <string name="add_app_pick_flatpak">選擇 .flatpak 檔案</string>
     <string name="add_app_source">來源</string>
     <string name="add_app_appearance">顯示在桌面</string>
     <string name="add_app_preview_name">新應用程式</string>
@@ -201,7 +205,7 @@
     <string name="add_app_folder_copied">該資料夾包含 Linux 程式，而共用儲存空間無法執行這些程式，因此會複製到 DroidDeck（%1$s）。</string>
     <string name="add_app_confirm">新增</string>
     <string name="add_app_cancel">取消</string>
-    <string name="add_app_runtime_required">請先在「設定」中安裝 Linux 運行環境。</string>
+    <string name="add_app_runtime_required">請先在「初始設定」中安裝 Linux 運行環境。</string>
     <string name="add_app_busy">請等待 %1$s 完成。</string>
     <string name="steam_compat_label">兼容</string>
     <string name="proton_compatible_note">在 Steam「兼容性」選單中標示為「%1$s」的版本已包含 DroidDeck 的前綴修正，可在此啟動遊戲。預設為 Proton Experimental ARM64（%1$s）；安裝較新的 Proton 11.0 ARM64（%1$s）後則改用該版本。Valve 本身沒有此標示的 Proton 項目無法在此裝置上啟動遊戲。</string>
@@ -215,7 +219,7 @@
     <string name="common_update">更新</string>
     <string name="common_checking">正在檢查…</string>
     <string name="common_working">處理中…</string>
-    <string name="common_forget">忘記</string>
+    <string name="common_forget">清除</string>
     <string name="common_add_ellipsis">新增…</string>
     <string name="common_use">使用</string>
     <string name="common_applies_next_session">下次會話生效。</string>
@@ -242,7 +246,7 @@
     <string name="mode_hdr_restart">重新啟動應用程式後生效。</string>
     <string name="mode_drivers">驅動程式</string>
     <string name="mode_gpu_drivers">GPU 驅動程式</string>
-    <string name="mode_gpu_drivers_hint">Steam 和桌面共用，請在「元件」頁面設定。</string>
+    <string name="mode_gpu_drivers_hint">Steam 和桌面共用，請在「組件」頁面設定。</string>
     <string name="mode_touch_controls">觸控與控制</string>
     <string name="mode_touch">觸控</string>
     <string name="mode_touch_touchpad">觸控板</string>
@@ -251,6 +255,10 @@
     <string name="mode_osc">螢幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">「自動」會在未連接控制器時顯示螢幕控制。</string>
+    <string name="osc_steam_touch">Steam 觸控（測試版）</string>
+    <string name="osc_style_next_session">Steam 觸控按鈕會在下次 Steam 會話開始時生效</string>
+    <string name="osc_steam_layout">Steam 觸控佈局</string>
+    <string name="osc_steam_layout_hint">移動、調整大小或隱藏這款遊戲的觸控按鈕；會儲存到 Steam</string>
     <string name="mode_controller">控制器</string>
     <string name="mode_controller_hint">Steam 如何識別你的控制器。下次會話生效。</string>
     <string name="mode_controller_deck">Steam Deck 控制器</string>
@@ -265,6 +273,8 @@
     <string name="mode_suspend_manual">手動</string>
     <string name="mode_suspend_native">原生</string>
     <string name="mode_suspend_steam_note">「自動」會暫停，並在重新顯示時繼續；「原生」會先讓 Steam 準備好休眠；「手動」會等你按「繼續」；「從不」會保持執行。</string>
+    <string name="mode_background_downloads">保持下載進行</string>
+    <string name="mode_background_downloads_hint">Steam 正在下載時，延後背景暫停。</string>
     <string name="mode_suspend_note">「自動」會在背景時暫停，並在重新顯示時繼續；「手動」會等你按「繼續」；「從不」會保持執行。</string>
     <string name="mode_startup">啟動</string>
     <string name="mode_steam_startup">隨 DroidDeck 啟動 Steam</string>
@@ -301,13 +311,13 @@
     <string name="mode_sgdb_key">SteamGridDB API 密鑰</string>
     <string name="mode_sgdb_key_yours">你的密鑰</string>
     <string name="mode_sgdb_edit">編輯…</string>
-    <string name="mode_added_art_hint">按資料夾名稱補上缺少的圖片。遊戲資料夾中你自己的 cover.jpg、hero.jpg、logo.png 或 icon.png 會優先使用。</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">自動從 Steam、其次從 SteamGridDB 補上缺少的圖片。遊戲資料夾中你自己的 cover.jpg、hero.jpg、logo.png 或 icon.png 優先使用。</string>
+    <string name="summary_remove_game">移除 %1$s</string>
     <string name="mode_added_remove_confirm">移除？</string>
     <string name="games_add">加入遊戲</string>
     <string name="games_add_title">加入遊戲：</string>
     <string name="games_pick_exe_title">選擇 exe：</string>
-    <string name="games_add_unreachable">工作階段無法存取此位置</string>
+    <string name="games_add_unreachable">會話無法存取此位置</string>
     <string name="mode_added_exe_check">請檢查此 exe</string>
     <string name="wincomp_title">Windows 組件</string>
     <string name="wincomp_pad_hint">按 LB / RB 在各部分之間切換。</string>
@@ -320,16 +330,20 @@
     <string name="wincomp_found_steam">Steam 會隨這款遊戲安裝 %1$s</string>
     <string name="wincomp_already_here">這款遊戲中已有</string>
     <string name="wincomp_no_recommendation">遊戲資料夾內沒有指向任何組件的內容。</string>
+    <string name="wincomp_active">已為這款遊戲安裝（%1$d）</string>
     <string name="wincomp_all">所有組件（%1$d）</string>
     <string name="wincomp_installers">需要 Windows 安裝程式（%1$d）</string>
-    <string name="wincomp_installers_note">這些組件需要在前綴內執行真正的安裝程式（.NET、PhysX、XNA、完整的 Visual C++ 安裝程式等）。DroidDeck 暫時未能做到，下一步就會支援。</string>
+    <string name="wincomp_installers_note">這些是各自的安裝程式，內部沒有可拆出的軟件包，目前也還沒有記錄它們會安裝什麼。其中多數是 Proton 內建 Mono 已能取代的舊運行環境；安裝記錄會陸續補充。</string>
     <string name="wincomp_show">顯示</string>
     <string name="wincomp_hide">隱藏</string>
-    <string name="wincomp_needs_installer">需要 Windows 安裝程式（即將支援）</string>
+    <string name="wincomp_needs_installer">會執行自己的安裝程式（暫無安裝記錄）</string>
     <string name="wincomp_unsupported">這裏暫不支援</string>
     <string name="wincomp_loading">正在載入組件…</string>
     <string name="wincomp_failed">無法安裝：%1$s</string>
     <string name="wincomp_downloaded">已下載</string>
+    <string name="wincomp_downloading">正在下載 %1$s</string>
+    <string name="wincomp_installing">正在安裝：%1$s</string>
+    <string name="wincomp_reverting">正在關閉…</string>
     <string name="wincomp_download_size">下載 %1$s</string>
     <string name="wincomp_next_launch">會在下次啟動遊戲時生效。</string>
     <string name="mode_stretch169">拉伸 16:9 遊戲</string>
@@ -379,9 +393,9 @@
     <string name="comp_display_driver_hint">在兩種模式下負責將畫面繪製到螢幕。重新啟動應用程式後生效。</string>
     <string name="comp_import_adrenotools">匯入 AdrenoTools zip…</string>
     <string name="comp_never">從未</string>
-    <string name="comp_nightlies_checked">已於 %1$s 檢查 Nightlies</string>
-    <string name="comp_title">元件</string>
-    <string name="comp_about">關於元件</string>
+    <string name="comp_nightlies_checked">Nightlies 檢查時間：%1$s</string>
+    <string name="comp_title">組件</string>
+    <string name="comp_about">關於組件</string>
     <string name="comp_check_drivers">檢查新驅動程式</string>
     <string name="comp_check_nightlies">在 Nightlies 檢查新軟件包</string>
     <string name="comp_proton">Proton</string>
@@ -486,7 +500,7 @@
     <string name="drawer_page_display">顯示</string>
     <string name="drawer_page_effects">效果</string>
     <string name="drawer_page_controls">控制</string>
-    <string name="drawer_page_components">元件</string>
+    <string name="drawer_page_components">組件</string>
     <string name="drawer_page_controller">控制器</string>
     <string name="drawer_page_settings">設定</string>
     <string name="drawer_page_desc">%1$s頁面</string>
@@ -502,7 +516,7 @@
     <string name="drawer_scaling_sharpness">縮放銳利度</string>
     <string name="drawer_effects">畫面效果</string>
     <string name="drawer_effects_hint">即時生效。開啟任何效果都會略為佔用 GPU 時間。</string>
-    <string name="drawer_look">預設</string>
+    <string name="drawer_look">預設集</string>
     <string name="drawer_look_custom">自訂</string>
     <string name="drawer_effects_advanced">進階</string>
     <string name="widgets_expanded">已展開</string>
@@ -553,7 +567,7 @@
     <string name="drawer_game_running">遊戲執行中</string>
     <string name="drawer_reapplied">於 %1$s 啟動時重新套用</string>
     <string name="drawer_original">原始</string>
-    <string name="drawer_components_note">請在「元件」頁面下載、匯入及刪除。</string>
+    <string name="drawer_components_note">請在「組件」頁面下載、匯入及刪除。</string>
     <string name="setup_check_done">完成</string>
     <string name="setup_check_warn">需要處理</string>
     <string name="setup_check_busy">處理中</string>
@@ -638,7 +652,7 @@
     <string name="setup_tool_performance_hint">CPU 核心分配</string>
     <string name="setup_tool_roms">ROM 資料夾</string>
     <string name="setup_tool_roms_hint">模擬器遊戲的存放位置</string>
-    <string name="setup_card_components">元件</string>
+    <string name="setup_card_components">組件</string>
     <string name="setup_card_components_hint">FEX、DXVK、VKD3D</string>
     <string name="setup_card_controls">控制</string>
     <string name="setup_card_controls_hint">按鍵對應</string>
@@ -649,7 +663,7 @@
     <string name="store_title">商店</string>
     <string name="store_chip_flathub">Flathub · ARM64</string>
     <string name="store_chip_ready">● Flatpak 已就緒</string>
-    <string name="store_needs_runtime">請先在「設定」中安裝 Linux 運行環境。</string>
+    <string name="store_needs_runtime">請先在「初始設定」中安裝 Linux 運行環境。</string>
     <string name="store_setup_title">設定 Flatpak</string>
     <string name="store_setup_text">新增 Flatpak 並連接到 Flathub（約 20 MB）。安裝第一個應用程式時亦會下載其運行環境。</string>
     <string name="store_setting_up">正在設定…</string>
@@ -759,7 +773,7 @@
     </plurals>
     <string name="gate_title">需要更改一項 Android 設定</string>
     <string name="gate_eyebrow">Steam</string>
-    <string name="gate_lede">Android 會停止啟動大量背景程序的應用程式，而 Steam 會啟動數十個。更改此設定前，遊戲會在沒有任何錯誤訊息的情況下關閉。</string>
+    <string name="gate_lede">Android 會停止啟動大量背景程序的應用程式，而 Steam 會啟動數十個。在變更此設定前，遊戲會在沒有任何錯誤訊息的情況下關閉。</string>
     <string name="gate_fix_for_me">幫我修復</string>
     <string name="gate_toggle_steps">開啟「停用子進程限制」，然後返回。請保持開發人員選項開啟，否則此開關會再次關閉。</string>
     <string name="gate_open_dev">開啟開發人員選項</string>
@@ -767,13 +781,13 @@
     <string name="gate_needs_wifi">無線偵錯需要 Wi-Fi。任何網絡都可以，無需連接互聯網。</string>
     <string name="gate_needs_notifications">配對碼需在通知中輸入。請允許 DroidDeck 發出通知，或使用「其他方式」。</string>
     <string name="gate_allow_notifications">允許通知</string>
-    <string name="gate_step1">開啟「設定」→「開發人員選項」→「無線偵錯」，並將其開啟</string>
+    <string name="gate_step1">開啟「系統設定」→「開發人員選項」→「無線偵錯」，並將其開啟</string>
     <string name="gate_step2">輕按「使用配對碼配對裝置」</string>
     <string name="gate_step3">在 DroidDeck 通知中輸入配對碼</string>
     <string name="gate_waiting">正在等待配對彈出式視窗…</string>
     <string name="gate_code_needed">已找到彈出式視窗，請在通知中輸入其中的配對碼。</string>
     <string name="gate_status">狀態</string>
-    <string name="gate_polling">每 2 秒檢查一次。關閉後此頁面會自動關閉。</string>
+    <string name="gate_polling">每 2 秒檢查一次。關閉此開關後，本頁面會自動關閉。</string>
     <string name="gate_other_ways">其他方式</string>
     <string name="gate_other_toggle">無線偵錯、手動輸入位址、電腦 ADB</string>
     <string name="gate_other_no_toggle">手動輸入位址、電腦 ADB、開發人員選項</string>
@@ -786,7 +800,7 @@
     <string name="gate_choose_display">選擇要在哪個螢幕開啟 Android 設定。</string>
     <string name="gate_main_screen">主螢幕</string>
     <string name="wadb_finding_port">已配對，正在尋找無線偵錯連接埠…</string>
-    <string name="wadb_enter_port">已配對，請輸入「設定」中顯示的連接埠。</string>
+    <string name="wadb_enter_port">已配對，請輸入「系統設定」中顯示的連接埠。</string>
     <string name="wadb_applying">已找到裝置，正在套用設定…</string>
     <string name="wadb_apply_failed">無法自動套用。請檢查下方的位址，然後重試。%1$s</string>
     <string name="wadb_title_wireless">無線偵錯</string>
@@ -868,7 +882,7 @@
     <string name="content_runtime_required">需要運行環境</string>
     <string name="content_loading_details">正在載入安裝詳情…</string>
     <string name="content_details_unavailable">無法取得安裝詳情，請稍後再試。</string>
-    <string name="content_needs_runtime">請先在「設定」中安裝 Linux 運行環境。</string>
+    <string name="content_needs_runtime">請先在「初始設定」中安裝 Linux 運行環境。</string>
     <string name="content_stop_first">請先停止正在執行的會話，再安裝桌面應用程式。</string>
     <string name="content_install_into">將 %1$s 安裝到 Linux 桌面。</string>
     <string name="store_busy_percent_short">%1$s · %2$d%%</string>
@@ -880,6 +894,12 @@
     <string name="content_page_gone">該頁面已不存在，請在左側選擇一個部分。</string>
     <string name="content_open_desktop">開啟桌面</string>
     <string name="content_install_open_desktop">安裝並開啟桌面</string>
+    <string name="desktop_remove_title">解除安裝桌面</string>
+    <string name="desktop_remove_text">移除桌面及其內建應用。保留遊戲、已加入的應用、設定和共用函式庫。</string>
+    <string name="desktop_removing">正在移除桌面</string>
+    <string name="desktop_removed">桌面已移除</string>
+    <string name="desktop_cleaning_legacy">正在移除舊 LXQt 檔案</string>
+    <string name="desktop_removal_unknown">移除這個桌面版本前，請先更新 DroidDeck。</string>
     <string name="content_linux_desktop">Linux 桌面</string>
     <string name="content_linux_desktop_hint">KDE Plasma、Firefox 和你的模擬器</string>
     <string name="games_empty">你在 Steam 安裝的遊戲會在會話結束後顯示在這裡。</string>
@@ -908,6 +928,8 @@
     <string name="games_last_played">上次遊玩：%1$s</string>
     <string name="games_internal">內部儲存空間</string>
     <string name="games_added">已新增的遊戲</string>
+    <string name="games_custom">自訂遊戲</string>
+    <string name="games_store_storage">遊戲儲存位置</string>
     <string name="gpu_auto_hint">此 GPU 的最佳組合，並會保持最新</string>
     <string name="gpu_manual_hint">自行選擇組合</string>
     <string name="gpu_checking">正在檢查驅動程式…</string>
@@ -967,7 +989,7 @@
     <string name="rail_games">遊戲</string>
     <string name="rail_desktop">桌面</string>
     <string name="rail_store">商店</string>
-    <string name="rail_components">元件</string>
+    <string name="rail_components">組件</string>
     <string name="rail_apps">應用程式</string>
     <string name="rail_setup">設定</string>
     <string name="rail_updates">更新</string>
@@ -1110,7 +1132,7 @@
     <!-- %1$s is a version or a name -->
     <string name="comp_imported">已匯入 %1$s</string>
     <string name="comp_swap_cancelled">已取消等待中的替換。</string>
-    <string name="comp_pick_wcp">選擇元件套件（-linux .wcp）</string>
+    <string name="comp_pick_wcp">選擇組件套件（-linux .wcp）</string>
     <string name="comp_nightlies_unreachable">無法連接 Nightlies</string>
 
     <!-- %1$s is the package version -->
@@ -1123,7 +1145,7 @@
     <!-- %1$s is a desktop app's name, %2$s what went wrong -->
     <string name="main_pkg_problem">%1$s：%2$s</string>
     <string name="main_removing_named">正在移除 %1$s…</string>
-    <string name="main_forgetting_named">正在忘記 %1$s…</string>
+    <string name="main_forgetting_named">正在清除 %1$s…</string>
     <string name="main_pick_game_storage">選擇遊戲儲存資料夾</string>
     <string name="main_pick_decky_zip">選擇 Decky 插件 ZIP</string>
     <string name="main_storage_not_usable">無法使用：%1$s</string>
@@ -1132,7 +1154,7 @@
     <string name="main_running_program">程式</string>
     <string name="main_removing_runtime">正在移除 Linux 運行環境</string>
     <string name="main_settings_main_screen">無法在下方螢幕開啟「設定」，已改為在主螢幕開啟。</string>
-    <string name="main_open_dev_options">在「設定」中開啟開發人員選項</string>
+    <string name="main_open_dev_options">在「系統設定」中開啟開發人員選項</string>
 
     <!-- Updates -->
     <string name="upd_unknown_apps_failed">無法開啟 Android 的「安裝不明應用程式」設定</string>
@@ -1743,14 +1765,14 @@
     <string name="adbpair_applying">正在套用設定…</string>
     <string name="adbpair_command_failed">無線偵錯指令失敗</string>
     <string name="adbpair_channel_name">無線偵錯設定</string>
-    <string name="adbpair_channel_description">在「設定」開啟時要求輸入無線偵錯配對碼</string>
+    <string name="adbpair_channel_description">在「系統設定」開啟時要求輸入無線偵錯配對碼</string>
     <string name="adbpair_title_pair">配對無線偵錯</string>
     <string name="adbpair_waiting_text">開啟無線偵錯，然後輕按「使用配對碼配對裝置」。</string>
-    <string name="adbpair_waiting_long">開啟無線偵錯，然後輕按「使用配對碼配對裝置」。請留在「設定」中：配對碼需在此通知中輸入。</string>
+    <string name="adbpair_waiting_long">開啟無線偵錯，然後輕按「使用配對碼配對裝置」。請留在「系統設定」中：配對碼需在此通知中輸入。</string>
 
     <!-- Label of the notification's reply field -->
     <string name="adbpair_code_label">6 位數配對碼</string>
-    <string name="adbpair_code_hint">輕按「輸入配對碼」，然後輸入「設定」中顯示的 6 位數字。</string>
+    <string name="adbpair_code_hint">輕按「輸入配對碼」，然後輸入「系統設定」中顯示的 6 位數字。</string>
     <string name="adbpair_title_code">輸入 Wi-Fi 配對碼</string>
     <string name="adbpair_title_retry">請再次輸入配對碼</string>
 
@@ -1818,7 +1840,7 @@
     <string name="cmgr_fex_linux_helpers">包含 Linux 輔助程式</string>
     <string name="cmgr_fex_dlls_only">只有 DLL</string>
     <string name="cmgr_original_proton_updated">原始（上次替換後 Proton 已更新）</string>
-    <string name="cmgr_changed_outside">已在「元件」以外更改</string>
+    <string name="cmgr_changed_outside">已在「組件」以外更改</string>
 
     <!-- A component version that could not be found in a Proton -->
     <string name="cmgr_not_present">不存在</string>
@@ -1996,7 +2018,7 @@
     <string name="cmgr_no_profile">%1$s 中沒有 profile.json</string>
 
     <!-- %1$s is a package file name, %2$s the type its profile.json gives -->
-    <string name="cmgr_not_component_package">%1$s 不是 Linux 元件套件（類型為 %2$s）</string>
+    <string name="cmgr_not_component_package">%1$s 不是 Linux 組件套件（類型為 %2$s）</string>
 
     <!-- A storage volume in the second-library menu; %1$s is its name, %2$s its free space, like 12.3 GB -->
     <string name="gstore_volume_free">%1$s · 可用 %2$s</string>
@@ -2040,6 +2062,7 @@
     <string name="display_frame_rate">幀率</string>
     <string name="display_look_filter">%1$s 將縮放設為 %2$s。</string>
     <string name="display_match_screen">配合螢幕（%1$d×%2$d）</string>
+    <string name="display_follow_screen">跟隨螢幕（摺疊或展開時調整大小）</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">顯示裝置詳情</string>
     <string name="device_info_hide">隱藏裝置詳情</string>
@@ -2049,6 +2072,167 @@
     <string name="device_info_copied">已複製。</string>
     <string name="force_ssbs_title">強制 SSBS</string>
     <string name="force_ssbs_hint">讓一項 Wine 會不斷關閉的 CPU 速度設定保持開啟。在 Snapdragon 8 Elite 上可能令 Windows 遊戲更快；在較舊的晶片上變化不大。下次啟動遊戲時生效。</string>
+    <string name="rail_stores">商店</string>
+    <string name="source_steam">Steam</string>
+    <string name="source_added">自訂</string>
+    <string name="setup_stores">商店</string>
+    <string name="setup_stores_show">在側欄顯示商店</string>
+    <string name="setup_stores_open_on">開啟商店時顯示</string>
+    <string name="setup_stores_speed">下載速度等級</string>
+    <string name="setup_stores_engine">商店引擎</string>
+    <string name="setup_stores_engine_chip_ready">● 引擎就緒</string>
+    <string name="setup_stores_engine_chip_missing">未建置</string>
+    <string name="stores_tier_balanced">均衡</string>
+    <string name="stores_tier_fast">快速</string>
+    <string name="stores_tier_max">最大</string>
+    <string name="stores_title">商店</string>
+    <string name="stores_settings">商店設定</string>
+    <string name="stores_settings_eyebrow">設定</string>
+    <string name="stores_chip_signed_out">（未登入）</string>
+    <string name="stores_tab_store">商店</string>
+    <string name="stores_tab_installed">已安裝</string>
+    <string name="stores_tab_library">收藏庫</string>
+    <string name="stores_tab_all">全部</string>
+    <string name="stores_tab_downloads">下載</string>
+    <string name="stores_tab_count">%1$s（%2$d）</string>
+    <string name="stores_signin">登入</string>
+    <string name="stores_signout_named">%1$s · 登出</string>
+    <string name="stores_signout_title">登出 %1$s？</string>
+    <string name="stores_signout_note">已安裝的遊戲會保留。重新登入後會再次取得你的收藏庫。</string>
+    <string name="stores_signout_stay">保持登入</string>
+    <string name="stores_signout_go">登出</string>
+    <string name="stores_search_catalog">搜尋 %1$s 目錄…</string>
+    <string name="stores_search_installed">搜尋已安裝的遊戲…</string>
+    <string name="stores_search_library">搜尋你的收藏庫…</string>
+    <string name="stores_search_open">搜尋</string>
+    <string name="stores_installed_empty">沒有已安裝的遊戲</string>
+    <string name="stores_library_loading">正在載入</string>
+    <string name="stores_nothing_matches">沒有遊戲</string>
+    <string name="stores_shelves_loading">正在載入商店…</string>
+    <string name="stores_amazon_no_catalog">無目錄</string>
+    <string name="stores_shelf_new">最新內容</string>
+    <string name="stores_shelf_deals">特價</string>
+    <string name="stores_shelf_free">免費遊戲</string>
+    <string name="stores_shelf_trending">趨勢</string>
+    <string name="stores_shelf_library">你的收藏庫</string>
+    <string name="stores_play">開啟遊戲</string>
+    <string name="stores_install">安裝</string>
+    <string name="stores_resume_install">繼續安裝</string>
+    <string name="stores_install_size">安裝 · %1$s</string>
+    <string name="stores_get_free">免費取得</string>
+    <string name="stores_view_on">在 %1$s 上查看</string>
+    <string name="stores_buy_price">購買 · %1$s</string>
+    <string name="stores_installed_chip">已安裝</string>
+    <string name="stores_in_library">已在收藏庫中</string>
+    <string name="stores_free">免費</string>
+    <string name="stores_resume">繼續</string>
+    <string name="stores_refresh">重新整理</string>
+    <string name="stores_show_mature">顯示成人內容</string>
+    <string name="epic_card_title">Epic</string>
+    <string name="epic_card_eos">EOS</string>
+    <string name="epic_card_offline">離線</string>
+    <string name="epic_card_none">關</string>
+    <string name="epic_eos">Epic 登入（EOS）</string>
+    <string name="epic_offline">離線啟動</string>
+    <string name="epic_resolve">修正 Epic 登入</string>
+    <string name="store_cloud_saves">雲存檔</string>
+    <string name="cloud_upload">上傳到雲端</string>
+    <string name="cloud_download">從雲端下載</string>
+    <string name="cloud_none">無雲存檔</string>
+    <string name="cloud_conflict">雲存檔衝突</string>
+    <string name="cloud_conflict_files">雲存檔衝突 · %1$d 個檔案</string>
+    <string name="cloud_pending">…</string>
+    <string name="cloud_keep_cloud">保留雲端</string>
+    <string name="cloud_keep_local">保留本機</string>
+    <string name="cloud_checking">正在檢查雲端…</string>
+    <string name="cloud_last_sync">上次同步 %1$s</string>
+    <string name="cloud_never">尚未同步</string>
+    <string name="cloud_done">%1$d 個檔案</string>
+    <string name="stores_eyebrow_installed">已安裝</string>
+    <string name="stores_eyebrow_library">在你的收藏庫中</string>
+    <string name="stores_eyebrow_store">商店</string>
+    <string name="stores_in_steam">✓ 已加入 Steam</string>
+    <string name="stores_uninstall">解除安裝</string>
+    <string name="stores_uninstall_confirm">再按一次即可解除安裝</string>
+    <string name="stores_launch_not_registered">Steam 下次啟動時會收錄這款遊戲；可從那裡啟動，或現在啟動 Steam。</string>
+    <string name="stores_card_proton">Proton</string>
+    <string name="stores_card_proton_value">Steam 為每款遊戲的選擇</string>
+    <string name="stores_card_audio">音訊</string>
+    <string name="stores_card_audio_value">DirectAudio</string>
+    <string name="stores_card_components">組件</string>
+    <string name="stores_card_components_value">FEX、DXVK、VKD3D</string>
+    <string name="stores_card_engine">引擎</string>
+    <string name="stores_card_engine_value">%1$s · 原生</string>
+    <string name="stores_card_engine_java">%1$s · 內建</string>
+    <string name="stores_how_it_runs">執行方式</string>
+    <string name="stores_kv_fetched">來源</string>
+    <string name="stores_kv_fetched_value">%1$s，使用你的帳戶</string>
+    <string name="stores_kv_installed_to">安裝位置</string>
+    <string name="stores_kv_installed_to_value">遊戲儲存位置（Games/%1$s/%2$s）</string>
+    <string name="stores_kv_launched_by">啟動方式</string>
+    <string name="stores_kv_launched_by_value">Steam 和 Proton，與 Steam 遊戲路徑相同</string>
+    <string name="stores_kv_launched_by_epic">Steam 和 Proton · 每次啟動都進行 Epic 登入，EOS 覆蓋層關閉</string>
+    <string name="stores_kv_launched_by_amazon">Steam 和 Proton · 已設定 Amazon Games Services 環境變數</string>
+    <string name="stores_kv_steam">Steam</string>
+    <string name="stores_kv_steam_on">安裝時加入 Steam（Deck 介面 + Steam Input）</string>
+    <string name="stores_downloads_empty">沒有下載</string>
+    <string name="stores_dl_paused">已暫停</string>
+    <string name="stores_dl_queued">排隊中</string>
+    <string name="stores_dl_queued_at">排隊中 · #%1$d</string>
+    <string name="stores_dl_cancelled">已取消</string>
+    <string name="stores_dl_failed">失敗</string>
+    <string name="stores_dl_failed_reason">失敗 · %1$s</string>
+    <string name="stores_dl_stage_percent">%1$s · %2$d%%</string>
+    <string name="stores_dl_bytes">%1$s / %2$s · %3$d%%</string>
+    <string name="stores_dl_pause">暫停</string>
+    <string name="stores_dl_resume">繼續</string>
+    <string name="stores_dl_cancel">取消</string>
+    <string name="stores_dl_retry">重試</string>
+    <string name="stores_dl_clear">清除</string>
+    <string name="stores_dl_clear_all">清除已完成</string>
+    <string name="stores_stage_manifest">清單</string>
+    <string name="stores_stage_download">下載</string>
+    <string name="stores_stage_verify">驗證</string>
+    <string name="stores_stage_install">安裝</string>
+    <string name="stores_stage_done">完成</string>
+    <string name="stores_stage_checking">正在檢查</string>
+    <string name="stores_stage_downloading">正在下載</string>
+    <string name="stores_dl_cancel_confirm">刪除下載項目？</string>
+    <string name="stores_dl_failed_kept">失敗 · 已保留 %1$s</string>
+    <string name="stores_stage_verifying">正在驗證</string>
+    <string name="stores_stage_installing">正在安裝</string>
+    <string name="stores_dl_active_percent">%1$s %2$d%%</string>
+    <string name="stores_dl_with">%1$s · %2$s</string>
+    <string name="stores_dl_amount">%1$s / %2$s</string>
+    <string name="stores_dl_items">%1$d/%2$d 個檔案</string>
+    <string name="stores_download_manager">下載管理員</string>
+    <string name="stores_parallel">同時下載數</string>
+    <string name="stores_install_where">安裝到</string>
+    <string name="stores_install_title">安裝 %1$s：</string>
+    <string name="stores_target_internal">內部儲存</string>
+    <string name="stores_target_free">剩餘 %1$s</string>
+    <string name="stores_notification_channel">商店下載</string>
+    <string name="stores_notification_channel_hint">顯示遊戲下載進度，並讓下載在背景持續執行</string>
+    <string name="stores_notification_one">正在下載</string>
+    <string name="stores_notification_many">%1$d 個下載</string>
+    <string name="stores_notification_waiting">正在準備…</string>
+    <string name="stores_notification_done_channel">已完成的商店下載</string>
+    <string name="stores_notification_installed">%1$s 已安裝</string>
+    <string name="stores_notification_failed">%1$s 下載失敗</string>
+    <string name="stores_notification_delete">刪除</string>
+    <string name="stores_notification_keep">保留</string>
+    <string name="stores_login_title">登入 %1$s</string>
+    <string name="stores_login_provider_title">使用你的服務商帳戶登入</string>
+    <string name="stores_login_reload">重新載入</string>
+    <string name="stores_login_close">關閉</string>
+    <string name="stores_login_retry">重試</string>
+    <string name="stores_login_finishing">正在完成登入…</string>
+    <string name="stores_login_error_network">登入頁面無法載入：%1$s</string>
+    <string name="stores_login_error_idp_blocked">該登入服務不允許在內嵌頁面中登入。請改用商店密碼登入。</string>
+    <string name="stores_login_error_http">登入頁面傳回錯誤（HTTP %1$d）。</string>
+    <string name="stores_login_error_ssl">與登入頁面的連線不安全。</string>
+    <string name="stores_login_error_verification">無法驗證登入。請再試一次。</string>
+    <string name="stores_login_error_generic">登入失敗。請再試一次。</string>
     <string name="common_close">關閉</string>
     <string name="common_back">返回</string>
     <string name="common_edit">編輯</string>
@@ -2078,6 +2262,6 @@
         <item quantity="other">已加入 %1$d 個遊戲</item>
     </plurals>
     <plurals name="games_already_n">
-        <item quantity="other">%1$d 個已在遊戲中</item>
+        <item quantity="other">%1$d 個已加入遊戲</item>
     </plurals>
 </resources>
