@@ -20,9 +20,10 @@ import kotlin.math.roundToInt
  * and units as SDL's Deck driver undoes them (SDL_hidapi_steamdeck.c): X right, Y away from the
  * player, Z up; 1 g = 16384, 2000 °/s = 32768. The Steam client calibrates the gyro itself.
  *
- * Sensors run only while the session is on screen with the pad a Deck controller, sampled as often
- * as the Deck reports (4 ms); each reading goes straight into the pad's ring
- * ([FakeInputWriter.writeMotion]), where libfakeinput's 4 ms report picks up the latest.
+ * Sensors run only while the session is on screen with the pad a Deck controller, and the client
+ * wants motion (see [follow]), sampled as often as the Deck reports (4 ms); each reading goes
+ * straight into the pad's ring ([FakeInputWriter.writeMotion]), where libfakeinput's 4 ms report
+ * picks up the latest.
  */
 class PadMotion(private val context: Context, private val rotation: () -> Int) : SensorEventListener {
     private val sensors = context.getSystemService(SensorManager::class.java)
@@ -32,6 +33,8 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
     // Touched only on the worker thread.
     private val accel = ShortArray(3)
     private val gyro = ShortArray(3)
+    private var reading = false
+    private var idlePolls = 0
 
     fun start() {
         if (thread != null || sensors == null) return
@@ -45,8 +48,13 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         thread = worker
         val handler = Handler(worker.looper)
         active = true
-        gyroscope?.let { sensors.registerListener(this, it, SAMPLING_US, handler) }
-        accelerometer?.let { sensors.registerListener(this, it, SAMPLING_US, handler) }
+        handler.post(object : Runnable {
+            override fun run() {
+                if (!active) return
+                follow(handler, gyroscope, accelerometer)
+                handler.postDelayed(this, POLL_MS)
+            }
+        })
         Log.i(TAG, "pad motion: gyro ${gyroscope?.name ?: "none"}, accelerometer ${accelerometer?.name ?: "none"}")
     }
 
@@ -54,15 +62,46 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         val worker = thread ?: return
         thread = null
         active = false
-        sensors?.unregisterListener(this)
-        // A still controller, not one frozen mid-turn - published on the worker, after any reading
-        // already queued there, so nothing can overwrite it.
+        // On the worker, after any poll or reading already queued there, so nothing registers again
+        // or overwrites the still controller.
         Handler(worker.looper).post {
-            gyro.fill(0)
-            FakeInputWriter.writeMotion(SLOT, accel, gyro)
-            SteamTouchDevice.current?.setMotion(accel, gyro)
+            sensors?.unregisterListener(this)
+            reading = false
+            idlePolls = 0
+            still()
         }
         worker.quitSafely()
+    }
+
+    /**
+     * Reads the sensors while the client wants motion: the Deck's IMU mode (unknown counts as
+     * wanted), or Steam's touch controls asking for gyro. A game whose layout has no gyro turns the
+     * mode off; Steam's own menus keep it on. The client also turns it off and on again for a few
+     * ms whenever it re-applies a layout, so the sensors stop only after two polls without it.
+     */
+    private fun follow(handler: Handler, gyroscope: Sensor?, accelerometer: Sensor?) {
+        val touch = SteamTouchDevice.current
+        val wanted = FakeInputWriter.readImuMode(SLOT) != 0 ||
+            touch != null && touch.plugged && touch.gyroRequested && touch.motionEnabled
+        idlePolls = if (wanted) 0 else idlePolls + 1
+        if (wanted && !reading) {
+            reading = true
+            gyroscope?.let { sensors?.registerListener(this, it, SAMPLING_US, handler) }
+            accelerometer?.let { sensors?.registerListener(this, it, SAMPLING_US, handler) }
+            Log.i(TAG, "pad motion: reading")
+        } else if (reading && idlePolls >= 2) {
+            reading = false
+            sensors?.unregisterListener(this)
+            still()
+            Log.i(TAG, "pad motion: paused, the client wants none")
+        }
+    }
+
+    /** A still controller, not one frozen mid-turn. */
+    private fun still() {
+        gyro.fill(0)
+        FakeInputWriter.writeMotion(SLOT, accel, gyro)
+        SteamTouchDevice.current?.setMotion(accel, gyro)
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -99,6 +138,8 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         private const val SLOT = 0
         /** The Deck controller's report interval (libfakeinput: DECK_REPORT_INTERVAL_US). */
         private const val SAMPLING_US = 4000
+        /** How often [follow] checks whether the client wants motion. */
+        private const val POLL_MS = 500L
         private const val ACCEL_COUNTS_PER_M_S2 = 16384f / SensorManager.GRAVITY_EARTH
         private const val GYRO_COUNTS_PER_RAD_S = (32768f / 2000f) * (180f / Math.PI.toFloat())
     }
