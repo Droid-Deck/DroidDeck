@@ -7,6 +7,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,6 +65,19 @@ class GameProfileManagerTest {
         assertEquals(8, SessionPrefs.gameTextureFiltering(context, other).anisotropy)
         assertEquals(emptyList<String>(), WinComponents.picks(context, game))
         assertEquals(listOf("dotnet48"), WinComponents.picks(context, other))
+    }
+
+    @Test
+    fun resetRejectsEmptyScopeWithoutChangingSharedSettings() {
+        GameEnvironmentStore.save(
+            context,
+            GameEnvironment.Config(shared = mapOf("DXVK_HUD" to "fps")),
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            GameProfileManager.reset(context, "")
+        }
+        assertEquals("fps", GameEnvironmentStore.read(context).shared["DXVK_HUD"])
     }
 
     private fun proton(name: String) = ComponentsManager.Proton(
