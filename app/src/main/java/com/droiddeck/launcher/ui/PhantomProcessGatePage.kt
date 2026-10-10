@@ -50,6 +50,7 @@ fun PhantomProcessGatePage(
     onEnterAddressManually: () -> Unit,
     onCopyCommand: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
+    onAlreadyApplied: () -> Unit,
 ) {
     BackHandler(onBack = onDismiss)
     val context = LocalContext.current
@@ -80,8 +81,8 @@ fun PhantomProcessGatePage(
                         onOpenNotificationSettings, onCancel = { WirelessAdbPairingService.cancel(context) })
                 }
                 val side: @Composable ColumnScope.() -> Unit = {
-                    StatusGroup(status, compact)
-                    OtherWays(hasToggle, compact, onOpenDeveloperOptions, onFixWithWirelessDebugging, onEnterAddressManually, onCopyCommand)
+                    StatusGroup(status, compact, onAlreadyApplied)
+                    OtherWays(hasToggle, compact, onOpenDeveloperOptions, onFixWithWirelessDebugging, onEnterAddressManually, onCopyCommand, onAlreadyApplied)
                 }
                 if (wide) {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.widthIn(max = 900.dp).fillMaxWidth()) {
@@ -199,11 +200,15 @@ private fun PairingProgress(stage: Stage, onCancel: () -> Unit) {
 }
 
 @Composable
-private fun StatusGroup(status: PhantomProcessStatus, compact: Boolean) {
+private fun StatusGroup(status: PhantomProcessStatus, compact: Boolean, onAlreadyApplied: () -> Unit) {
     SettingsGroup(stringResource(R.string.gate_status), compact = compact) {
-        Column(Modifier.fillMaxWidth().padding(if (compact) 10.dp else 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.fillMaxWidth().padding(if (compact) 10.dp else 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(PhantomProcessLimit.title(LocalContext.current, status), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
             Body(stringResource(R.string.gate_polling))
+            if (status == PhantomProcessStatus.UNREADABLE) {
+                Body(stringResource(R.string.gate_unreadable_note))
+                SecondaryButton(stringResource(R.string.gate_already_applied), compact = true, onClick = onAlreadyApplied)
+            }
         }
     }
 }
@@ -216,6 +221,7 @@ private fun OtherWays(
     onFixWithWirelessDebugging: () -> Unit,
     onEnterAddressManually: () -> Unit,
     onCopyCommand: () -> Unit,
+    onAlreadyApplied: () -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
     SettingsGroup(stringResource(R.string.gate_other_ways), compact = compact) {
@@ -244,7 +250,10 @@ private fun OtherWays(
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            SecondaryButton(stringResource(R.string.gate_copy_command), compact = true, onClick = onCopyCommand)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SecondaryButton(stringResource(R.string.gate_copy_command), compact = true, onClick = onCopyCommand)
+                SecondaryButton(stringResource(R.string.gate_already_applied), compact = true, onClick = onAlreadyApplied)
+            }
         }
     }
 }

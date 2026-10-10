@@ -241,6 +241,7 @@ internal fun SetupPanel(
                                     PhantomProcessStatus.ENABLED -> stringResource(R.string.setup_limit_on)
                                     PhantomProcessStatus.UNSET -> stringResource(R.string.setup_limit_unset)
                                     PhantomProcessStatus.UNREADABLE -> stringResource(R.string.setup_limit_unknown)
+                                    PhantomProcessStatus.OVERRIDDEN -> stringResource(R.string.setup_limit_overridden)
                                     else -> PhantomProcessLimit.title(ctx, s.phantomProcessStatus)
                                 },
                             ) {
@@ -263,6 +264,9 @@ internal fun SetupPanel(
                                             PrimaryButton(stringResource(R.string.setup_dev_options), compact = true, onClick = onOpenDeveloperOptions)
                                             SecondaryButton(stringResource(R.string.setup_use_wireless), compact = true, enabled = !processLimitBusy) { setProcessLimit(false) }
                                             SecondaryButton(stringResource(R.string.setup_check_again), compact = true, onClick = a.onRefreshPhantomStatus)
+                                            SecondaryButton(stringResource(R.string.setup_limit_manual_override), compact = true, onClick = { a.onOverridePhantomLimit(true) })
+                                        } else if (s.phantomProcessStatus == PhantomProcessStatus.OVERRIDDEN) {
+                                            SecondaryButton(stringResource(R.string.setup_limit_clear_override), compact = true, onClick = { a.onOverridePhantomLimit(false) })
                                         } else if (s.phantomProcessStatus == PhantomProcessStatus.DISABLED) {
                                             SecondaryButton(stringResource(R.string.setup_limit_turn_on), compact = true, enabled = !processLimitBusy) { setProcessLimit(true) }
                                         }

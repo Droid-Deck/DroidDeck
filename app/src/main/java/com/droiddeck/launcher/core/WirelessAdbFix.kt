@@ -181,6 +181,7 @@ object WirelessAdbFix {
             }
         }
         if (PhantomProcessLimit.usesDeviceConfig()) PhantomProcessLimit.rememberAndroid12(context, !enabled)
+        PhantomProcessLimit.setOverridden(context, false)
         saveConnection(context, host, port)
     }
 
