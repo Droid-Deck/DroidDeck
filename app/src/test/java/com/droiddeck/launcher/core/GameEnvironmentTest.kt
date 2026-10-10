@@ -86,4 +86,14 @@ class GameEnvironmentTest {
         assertTrue(GameEnvironment.validScope("4294967295"))
         for (scope in listOf("0", "-1", "01", "+1", "4294967296", "../42")) assertFalse(GameEnvironment.validScope(scope))
     }
+
+    @Test fun tuDebugDefaultsToNolrzOnAdrenoX185() {
+        assertEquals("nolrz,nolrzfc", GameEnvironment.defaults("", gpuModel = 741)["TU_DEBUG"])
+        assertNull(GameEnvironment.defaults("", gpuModel = 740)["TU_DEBUG"])
+        assertNull(GameEnvironment.defaults("", gpuModel = 825)["TU_DEBUG"])
+
+        // User override in shared or game profile should override the default
+        val config = GameEnvironment.Config(shared = mapOf("TU_DEBUG" to "noubwc"))
+        assertEquals("noubwc", GameEnvironment.effective(config, "", "42", gpuModel = 741)["TU_DEBUG"])
+    }
 }
