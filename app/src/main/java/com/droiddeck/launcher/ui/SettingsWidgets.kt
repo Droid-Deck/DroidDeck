@@ -311,7 +311,7 @@ fun AnchoredMenu(
                     .padding(6.dp),
             ) {
                 if (title != null) Text(
-                    title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant,
+                    title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = if (isRtl) 0.sp else 1.5.sp, color = colors.onSurfaceVariant,
                     modifier = Modifier.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
                 )
                 // While entries remain below the fold the list fades out at the bottom over a down
