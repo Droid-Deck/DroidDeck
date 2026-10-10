@@ -25,7 +25,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
       - name: Validate Arabic strings, plurals, arrays, locale and RTL
-        run: python3 -m unittest tools/tests/test_arabic_localization.py -v
+        run: python3 -m unittest tools/tests/test_arabic_localization.py tools/tests/test_no_hardcoded_ui.py tools/tests/test_droiddeck_fonts.py -v
 
   android-unit-tests:
     name: Android resources and JVM unit tests
