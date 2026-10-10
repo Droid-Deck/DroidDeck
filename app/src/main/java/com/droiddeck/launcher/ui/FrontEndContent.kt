@@ -132,8 +132,14 @@ internal fun Pane(
         if (selected == "games" || selected.startsWith("app:")) gameShown[0] = selected
         if (page != null && s.pageKey != null) {
             pages[s.pageKey] = page
-            if (s.pageKey !in origins) PageOrigin.take()?.let { origins[s.pageKey] = it.translate(-paneAt[0]).ownedBy(railContent) }
+            if (s.pageKey !in origins) PageOrigin.take()?.let { o ->
+                // A hop's page came out of its own rail item, and is that item's content.
+                origins[s.pageKey] = o.translate(-paneAt[0]).let { if (it.owner == null) it.ownedBy(railContent) else it }
+            }
         }
+        // A page leaving through a hop's link is not coming back to its control.
+        val leave = if (Hops.linking) PageLeave.Link else PageLeave.Ordinary
+        LaunchedEffect(target) { Hops.linking = false }
         AnimatedContent(
             targetState = target,
             modifier = Modifier.onGloballyPositioned { paneAt[0] = it.positionInRoot() },
@@ -144,7 +150,7 @@ internal fun Pane(
                         .togetherWith(fadeOut(Motion.tw(320, 80)) + scaleOut(Motion.tw(480), targetScale = 0.95f))
                         .apply { targetContentZIndex = 1f }
                     // Back out of it: the flood draws back into the control as the pane comes forward again.
-                    initialState in origins && pageExit(origins[initialState]?.owner, targetState, PageLeave.Ordinary) == PageExit.Drain ->
+                    initialState in origins && pageExit(origins[initialState]?.owner, targetState, leave) == PageExit.Drain ->
                         (fadeIn(Motion.tw(300, 100)) + scaleIn(Motion.tw(460, 40), initialScale = 0.95f))
                             .togetherWith(ExitTransition.None)
                             .apply { targetContentZIndex = -1f }
@@ -167,7 +173,7 @@ internal fun Pane(
                 else {
                     val leaving = transition.targetState == EnterExitState.PostExit
                     // Settled as the page starts to leave, from what is coming in, not from where it came in.
-                    val drains = remember(leaving) { !leaving || pageExit(from.owner, target, PageLeave.Ordinary) == PageExit.Drain }
+                    val drains = remember(leaving) { !leaving || pageExit(from.owner, target, leave) == PageExit.Drain }
                     // Keeps a leaving page on screen while its flood draws back into the control.
                     transition.animateFloat(
                         transitionSpec = { if (targetState == EnterExitState.PostExit && drains) Motion.tw(PAGE_RETURN_MS) else snap() },

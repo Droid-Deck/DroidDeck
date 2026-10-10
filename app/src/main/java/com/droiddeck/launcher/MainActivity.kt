@@ -690,6 +690,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onProtons = { openProtons() },
                         onComponents = { focusContent -> openComponents(focusContent) },
+                        onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
                         // A game page's Manage saves: the game's Proton and saves are read when the work runs, off the main thread.
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
@@ -1185,7 +1186,8 @@ class MainActivity : ComponentActivity() {
             onDownload = { components.downloadComponent(it) },
             onRefresh = { components.refreshComponentCatalog() },
             onImport = { pickComponent.launch(InAppFilePicker.buildIntent(this, WCP_EXT, getString(R.string.comp_pick_wcp))) },
-            onBack = { showComponents = false },
+            // Reached by a hop (a game's Components card, Play's Graphics drivers): back the way it came.
+            onBack = { if (!com.droiddeck.launcher.ui.Hops.back { showComponents = false }) showComponents = false },
             gpu = drivers.state(),
             gpuActions = com.droiddeck.launcher.ui.GpuDriversActions(
                 onAuto = { on -> drivers.setMode(on) },

@@ -2171,4 +2171,9 @@
         <item quantity="one">%1$d already in Games</item>
         <item quantity="other">%1$d already in Games</item>
     </plurals>
+    <!-- A page reached through a link from another section: the way back, named for where it came from. -->
+    <string name="hop_back">B · Back to %1$s</string>
+    <string name="hop_from_games">the game</string>
+    <string name="hop_from_play">Play settings</string>
+    <string name="hop_from_desktop">Desktop settings</string>
 </resources>

@@ -479,7 +479,15 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     var wincompOpen by remember(wincompKey) { mutableStateOf<Boolean?>(null) }
     val wincompPicks = remember(wincompKey, wincompOpen) { wincompKey?.let { com.droiddeck.launcher.session.WinComponents.picks(context, it) }.orEmpty() }
     val cards = buildList<@Composable (Modifier) -> Unit> {
-        add { m -> SettingCard(stringResource(R.string.setup_card_components), stringResource(R.string.setup_card_components_hint), "card:components", m) { a.onComponents(true) } }
+        add { m ->
+            val back = stringResource(R.string.hop_from_games)
+            // Components is its own section: the card hops there, and B on it comes back here.
+            SettingCard(stringResource(R.string.setup_card_components), stringResource(R.string.setup_card_components_hint), "card:components", m.hopSource("card:components")) {
+                val at = Hops.sources["card:components"]
+                if (at == null) a.onComponents(true)
+                else Hops.go(HopOrigin("games", HOP_SURFACE_GAMES, null, "card:components", at, back, dest = "components", page = "components")) { a.onComponents(true) }
+            }
+        }
         add { m ->
             Box(m) {
                 SettingCard(stringResource(R.string.frame_gen_title), s.frameGenLabel, "card:fg", Modifier.fillMaxSize()) {
