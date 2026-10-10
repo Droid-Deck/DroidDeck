@@ -44,7 +44,7 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Reject AI co-author trailers
+      - name: Check co-authors
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
