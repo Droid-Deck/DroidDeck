@@ -2197,4 +2197,16 @@
     <string name="gpu_separately">Runtime and display drivers separately</string>
     <string name="gpu_use_title">Use %1$s?</string>
     <string name="proton_remove_title">Remove %1$s?</string>
+    <!-- Setup sorted by scope. -->
+    <string name="setup_tab_diagnostics">Diagnostics</string>
+    <string name="setup_ready">Ready to play</string>
+    <string name="setup_not_ready">Not ready to play yet</string>
+    <string name="setup_ready_runtime">runtime %1$s</string>
+    <string name="setup_ready_limit_off">process limit off</string>
+    <string name="setup_ready_signed_in">signed in as %1$s</string>
+    <string name="setup_needs_you">When something needs you</string>
+    <string name="setup_group_look">Look</string>
+    <string name="setup_group_device">This device</string>
+    <string name="setup_group_rail">Sections on the rail</string>
+    <string name="setup_group_art">Library art</string>
 </resources>

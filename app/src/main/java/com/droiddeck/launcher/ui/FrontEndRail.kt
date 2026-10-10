@@ -143,9 +143,10 @@ internal fun SideRail(
             RailItem(stringResource(R.string.rail_games), Icons.Outlined.VideoLibrary, "games", shown == "games", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("games") }) { onSelect("games") }
             // The game stores, right under Games: what they install lands there. Its badge counts
             // the downloads in flight, so a download started here is never out of sight.
-            if (s.gameStoresEnabled) RailItem(stringResource(R.string.rail_stores), Icons.Outlined.LocalMall, "stores", shown == "stores", compact, iconOnly, fit, count = s.storeDownloadsActive, place = place, onFocus = { onFocusSelect("stores") }) { onSelect("stores") }
+            // A section switched on in Setup comes in as the rail's own entrance; off, it folds away.
+            RailEntrance(s.gameStoresEnabled) { RailItem(stringResource(R.string.rail_stores), Icons.Outlined.LocalMall, "stores", shown == "stores", compact, iconOnly, fit, count = s.storeDownloadsActive, place = place, onFocus = { onFocusSelect("stores") }) { onSelect("stores") } }
             RailItem(stringResource(R.string.rail_desktop), Icons.Outlined.DesktopWindows, "desktop", shown == "desktop", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("desktop") }) { onSelect("desktop") }
-            if (s.storeEnabled) RailItem(stringResource(R.string.rail_store), Icons.Outlined.Storefront, "store", shown == "store", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("store") }) { onSelect("store") }
+            RailEntrance(s.storeEnabled) { RailItem(stringResource(R.string.rail_store), Icons.Outlined.Storefront, "store", shown == "store", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("store") }) { onSelect("store") } }
             RailItem(stringResource(R.string.rail_components), Icons.Outlined.Layers, "components", shown == "components", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("components") }) { onSelect("components") }
             // Home mode's extra section goes last, so it shifts nothing above it.
             if (s.isHomeApp) RailItem(stringResource(R.string.rail_apps), Icons.Outlined.Apps, "android-apps", shown == "android-apps", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("android-apps") }) { onSelect("android-apps") }
@@ -162,6 +163,16 @@ internal fun SideRail(
             exit = shrinkVertically(Motion.tw(220)) + fadeOut(Motion.tw(180)),
         ) { ResumeRailItem(lastRunning, compact, iconOnly, a.onResume) }
     }
+}
+
+/** A rail item that comes and goes with a setting: it opens in (fade, rising) and folds away. */
+@Composable
+private fun androidx.compose.foundation.layout.ColumnScope.RailEntrance(visible: Boolean, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visible,
+        enter = expandVertically(Motion.sp(0.75f)) + fadeIn(Motion.tw(300, 80)) + androidx.compose.animation.slideInVertically(Motion.tw(420, 80)) { it / 3 },
+        exit = shrinkVertically(Motion.tw(260, 120)) + fadeOut(Motion.tw(180)),
+    ) { content() }
 }
 
 @Composable

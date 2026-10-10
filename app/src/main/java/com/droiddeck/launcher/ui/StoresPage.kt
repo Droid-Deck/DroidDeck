@@ -159,7 +159,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     var tab by rememberSaveable { mutableStateOf(if (SessionPrefs.storesOpenTab(ctx) == SessionPrefs.STORES_OPEN_STORE) "store" else "library") }
     var query by rememberSaveable { mutableStateOf("") }
     var openGame by rememberSaveable { mutableStateOf<String?>(null) }
-    var settings by rememberSaveable { mutableStateOf(false) }
+    // The cog's settings read the front end's state live while stepped out.
+    val liveState = androidx.compose.runtime.rememberUpdatedState(s)
     LaunchedEffect(StoresState.openDownloads) { if (StoresState.openDownloads) { chip = DOWNLOADS; StoresState.openDownloads = false } }
     val store = Store.byId(chip)
     // A tab this store does not have (Store or All on Amazon) reads as Library.
@@ -336,7 +337,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             StoreTheme(Store.byId(focusedChip ?: chip)) {
                 Rise(0) { StoreChips(chip, focusedChip, s.storeDownloadsActive, onStore = { st, at -> openModes(st, at) }, onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
-                    onFocusChip = { focusedChip = it }, onSettings = { settings = true }) }
+                    onFocusChip = { focusedChip = it }, onSettings = { at -> if (at != null) StoresMotion.ask(storesSettingsStep(at, liveState, a, pal.signal)) }) }
             }
         }
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
@@ -474,7 +475,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         seenActive.clear(); seenActive.addAll(activeKeys)
         if (fresh.isNotEmpty()) StoresMotion.takeInstall()?.let { StoresMotion.fly(it) }
     }
-    if (settings) StoresSettingsDialog(s, a) { settings = false }
     StoresState.pendingInstall?.let { item -> InstallWhere(item) }
 }
 
@@ -570,7 +570,7 @@ private fun SignInFloodLayer(hostAt: Offset) {
  */
 @Composable
 private fun StoreChips(
-    selected: String, focused: String?, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: () -> Unit,
+    selected: String, focused: String?, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit,
     /** The chip a pad's focus is on (null when it leaves the row): the page shows that store. */
     onFocusChip: (String?) -> Unit,
 ) {
@@ -620,7 +620,10 @@ private fun StoreChips(
                 trail = if (active > 0) { { CountPill(active) } } else null,
                 onFocused = onFocusChip,
             ) { onDownloads() }
-            IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings), onSettings)
+            var cogAt by remember { mutableStateOf<Rect?>(null) }
+            Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
+                IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
+            }
         }
         // Over the chips: the fill is translucent, and the other chips' rest fill would hide it in flight.
         ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint)
