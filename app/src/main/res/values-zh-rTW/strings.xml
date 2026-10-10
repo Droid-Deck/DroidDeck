@@ -283,16 +283,8 @@
     <string name="mode_decky_remove_title">解除安裝 Decky Loader？</string>
     <string name="mode_decky_remove_text">移除載入器。你的外掛程式和設定會保留。</string>
     <string name="mode_client">用戶端</string>
-    <string name="mode_deck_mode">Steam Deck 模式</string>
-    <string name="mode_deck_mode_hint">Steam Deck 介面和快速存取效能控制。下次工作階段生效。</string>
     <string name="mode_mangoapp">效能重疊層</string>
     <string name="mode_mangoapp_hint">如果 Deck 模式下遊戲崩潰或黑畫面，請關閉此項。下次工作階段生效。</string>
-    <string name="mode_branch">用戶端分支</string>
-    <string name="mode_branch_deck">Steam Deck 公開測試版（Deck 模式所需）。</string>
-    <string name="mode_branch_hint">下次工作階段生效。Steam 可能會自行更新一次。</string>
-    <string name="mode_branch_public">公開測試版</string>
-    <string name="mode_branch_deck_beta">Steam Deck 公開測試版</string>
-    <string name="mode_branch_note">Deck 模式一律使用 Steam Deck 公開測試版。</string>
     <string name="mode_steam_repair">修復 Steam 用戶端</string>
     <string name="mode_steam_repair_hint">下次啟動 Steam 時重新下載 Steam 用戶端。如果 Steam 一直停在載入畫面，請使用此功能。遊戲、登入狀態和設定都會保留。</string>
     <string name="mode_steam_repair_queued">下次啟動 Steam 時會重新下載 Steam 用戶端。</string>

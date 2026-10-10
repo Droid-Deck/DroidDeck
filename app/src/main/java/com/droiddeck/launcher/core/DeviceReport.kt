@@ -152,7 +152,6 @@ object DeviceReport {
         k("Zink lazy descriptors", SessionPrefs.zinkLazy(context))
         k("Threaded GL (glthread)", SessionPrefs.glThread(context))
         k("No GL error checks", SessionPrefs.noGlError(context))
-        k("Steam Deck mode", SessionPrefs.steamDeckMode(context))
         k("Steam controller", SessionPrefs.steamController(context))
         k("Upscaler", (SessionPrefs.upscalerChoices.firstOrNull { it.first == SessionPrefs.upscaler(context) }?.second ?: "Off") +
             " (sharpness ${SessionPrefs.upscaleSharpness(context)}%)")

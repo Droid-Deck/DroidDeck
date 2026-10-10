@@ -264,12 +264,12 @@ if [ -z "${BL_INSIDE:-}" ]; then
   [ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
   # Extra gamescope arguments for an experiment (--debug-focus, say), from Download/droiddeck-env.
   [ -n "${BL_GAMESCOPE_ARGS:-}" ] && read -r -a _bl_extra <<<"$BL_GAMESCOPE_ARGS" && args+=("${_bl_extra[@]}")
-  # Deck mode's performance overlay (Quick Access Menu → Performance → Overlay Level) is drawn by
+  # The performance overlay (Quick Access Menu → Performance → Overlay Level) is drawn by
   # mangoapp, which gamescope starts beside the client; the client sets the level by rewriting
   # MANGOHUD_CONFIGFILE. The apk stages Valve's aarch64 build (tools/mangoapp) - without it the menu
   # still offers the levels and nothing appears. Starts hidden until the client writes a level.
   # BL_MANGOAPP=0 turns it off (one community build found Valve's mangoapp crashing on Turnip).
-  if [ "$mode" = steam ] && [ "${BL_STEAMDECK:-0}" = 1 ] && [ "${BL_MANGOAPP:-1}" = 1 ] \
+  if [ "$mode" = steam ] && [ "${BL_MANGOAPP:-1}" = 1 ] \
      && [ "${BL_STEAM_UI:-}" != desktop ] && command -v mangoapp >/dev/null 2>&1; then
     MANGOHUD_CONFIGFILE=$(mktemp /tmp/mangohud.XXXXXXXX)
     echo no_display > "$MANGOHUD_CONFIGFILE"
@@ -814,7 +814,7 @@ BUSCONF
     # desktop's launchers ask for; gamescope shows one window at a time and the game takes over.
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
-    # Deck mode (BL_STEAMDECK=1, the Steam page's Client settings): -steamdeck is the flag that puts
+    # Deck mode, always outside the desktop UI: -steamdeck is the flag that puts
     # the Quick Access Menu and the Deck settings pages on screen; the QAM's performance overlay
     # controls stay greyed out without -steamos3, as SteamOS and Armada launch it. -steamos3 makes
     # the client manage itself as SteamOS does - it calls steamos-select-branch and writes
@@ -822,7 +822,7 @@ BUSCONF
     # is an update that never installs: exit 42, a restart, for ever (Bannerlator 38996ea1). The
     # loop below puts package/beta back before every start. The SteamOS helpers the client calls
     # in this mode are staged as no-op stubs under /usr/bin.
-    if [ "${BL_STEAMDECK:-0}" = 1 ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
+    if [ "${BL_STEAM_UI:-}" != desktop ]; then
       _bl_ui+=(-steamdeck -steamos3)
       # The QAM's Scaling Filter lists NVIDIA Image Scaling only when told gamescope has it (it does).
       export STEAM_GAMESCOPE_NIS_SUPPORTED=1
@@ -844,13 +844,16 @@ BUSCONF
       [ -n "$_stale" ] && echo "== steam: cleared what an earlier session left:$_stale"
       unset _stale _f
     fi
-    # Use the same configured branch as the first-run download. Whatever wrote package/beta, the branch on
-    # disk has to agree with the one forced here - a disagreement is the restart loop above, and
-    # it is silent apart from rc=42 in this log.
+    # The Deck's beta branch, the one the first-run download takes: with -steamos3 on publicbeta
+    # the client settled on steamdeck_stable, an older client it then offered as a "Software
+    # Update" every session (2026-09-30); on steamdeck_publicbeta it finds no update. Whatever
+    # wrote package/beta, the branch on disk has to agree with the one forced here - a
+    # disagreement is the restart loop above, and it is silent apart from rc=42 in this log. A
+    # client installed from publicbeta by an older app moves over this way at its next start.
     # Checked before every start, not once: the client rewrites package/beta during its own run,
     # and a restart below (rc=42, or the one after the ARM64 Proton lands) would otherwise start it
     # again on the branch it just wrote.
-    steam_channel=${BL_STEAM_CHANNEL:-steamdeck_publicbeta}
+    steam_channel=steamdeck_publicbeta
     # The app's language (Setup, or the system's): the client's interface takes -language over its
     # registry, and the registry is rewritten before each start below for its update window.
     _bl_lang=()

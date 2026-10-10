@@ -283,16 +283,8 @@
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
     <string name="mode_decky_remove_text">Loaderを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>
-    <string name="mode_deck_mode">Steam Deckモード</string>
-    <string name="mode_deck_mode_hint">Steam DeckのUIとクイックアクセスパフォーマンスコントロール。次回のセッションで有効になります。</string>
     <string name="mode_mangoapp">パフォーマンスオーバーレイ</string>
     <string name="mode_mangoapp_hint">Deckモードでゲームがクラッシュしたり画面が真っ暗になる場合は、これをオフにしてください。次回のセッションで有効になります。</string>
-    <string name="mode_branch">クライアントブランチ</string>
-    <string name="mode_branch_deck">Steam Deckベータ版（Deckモードに必要）。</string>
-    <string name="mode_branch_hint">次回のセッションで有効になります。Steamが自動的に一度アップデートされる場合があります。</string>
-    <string name="mode_branch_public">ベータ版</string>
-    <string name="mode_branch_deck_beta">Steam Deckベータ版</string>
-    <string name="mode_branch_note">Deckモードは常にSteam Deckベータ版を使用します。</string>
     <string name="mode_steam_repair">Steamクライアントを修復</string>
     <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
     <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>

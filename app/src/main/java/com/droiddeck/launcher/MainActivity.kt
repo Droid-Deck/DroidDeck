@@ -121,7 +121,6 @@ class MainActivity : ComponentActivity() {
     private var showNonAdreno by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
-    private var steamDeckMode by mutableStateOf(false)
     private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
@@ -344,7 +343,6 @@ class MainActivity : ComponentActivity() {
     private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
     private var forceSsbs by mutableStateOf(false)
-    private var steamChannel by mutableStateOf("steamdeck_publicbeta")
     private var runSteamAtStartup by mutableStateOf(false)
     private var theme by mutableStateOf("graphite")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
@@ -1291,8 +1289,6 @@ class MainActivity : ComponentActivity() {
                 fexPreset = if (mode == SessionService.MODE_STEAM) fexPreset else null,
                 forceSsbs = forceSsbs,
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
-                steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
-                steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
                 steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
@@ -1370,13 +1366,7 @@ class MainActivity : ComponentActivity() {
                     fsyncFirst = SessionPrefs.fsyncFirst(this)
                     syncFallback = SessionPrefs.syncFallback(this)
                 },
-                onSteamChannel = { id -> SessionPrefs.setSteamChannel(this, id); steamChannel = id },
                 onSteamRepair = { steamRepairQueued = SteamRepair.queue(this) },
-                onSteamDeckMode = { on ->
-                    SessionPrefs.setSteamDeckMode(this, on)
-                    steamDeckMode = on
-                    steamChannel = SessionPrefs.steamChannel(this)
-                },
                 onMangoapp = { on -> SessionPrefs.setMangoapp(this, on); mangoapp = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
                 onRunSteamAtStartup = { on ->
@@ -1507,8 +1497,6 @@ class MainActivity : ComponentActivity() {
         fastSync = SessionPrefs.fastSync(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         syncFallback = SessionPrefs.syncFallback(this)
-        steamChannel = SessionPrefs.steamChannel(this)
-        steamDeckMode = SessionPrefs.steamDeckMode(this)
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
@@ -1567,7 +1555,6 @@ class MainActivity : ComponentActivity() {
         clientOverride = SessionPrefs.clientCpusOverride(this)
         glThread = SessionPrefs.glThread(this)
         noGlError = SessionPrefs.noGlError(this)
-        steamDeckMode = SessionPrefs.steamDeckMode(this)
         clientCores = CpuCores.parse(SessionPrefs.clientCpus(this)).ifEmpty { CpuCores.all.toSet() }
         gameCores = CpuCores.parse(SessionPrefs.gameCpus(this)).ifEmpty { CpuCores.all.toSet() }
         tuSysmem = SessionPrefs.tuSysmem(this)

@@ -281,16 +281,8 @@
     <string name="mode_decky_remove_title">Удалить Decky Loader?</string>
     <string name="mode_decky_remove_text">Удаляет загрузчик. Ваши плагины и настройки сохранятся.</string>
     <string name="mode_client">Клиент</string>
-    <string name="mode_deck_mode">Режим Steam Deck</string>
-    <string name="mode_deck_mode_hint">Интерфейс Steam Deck и управление производительностью через быстрый доступ. Вступит в силу в следующей сессии.</string>
     <string name="mode_mangoapp">Оверлей производительности</string>
     <string name="mode_mangoapp_hint">Отключите, если игры вылетают или показывают черный экран в режиме Deck. Вступит в силу в следующей сессии.</string>
-    <string name="mode_branch">Ветка клиента</string>
-    <string name="mode_branch_deck">Публичная бета Steam Deck (требуется для режима Deck).</string>
-    <string name="mode_branch_hint">Вступит в силу в следующей сессии. Steam может обновиться самостоятельно один раз.</string>
-    <string name="mode_branch_public">Публичная бета</string>
-    <string name="mode_branch_deck_beta">Публичная бета Steam Deck</string>
-    <string name="mode_branch_note">Режим Deck всегда использует публичную бету Steam Deck.</string>
     <string name="mode_steam_repair">Восстановить клиент Steam</string>
     <string name="mode_steam_repair_hint">При следующем запуске Steam клиент будет скачан заново. Используйте, если Steam зависает на экране загрузки. Игры, вход и настройки сохраняются.</string>
     <string name="mode_steam_repair_queued">Клиент Steam будет скачан заново при следующем запуске Steam.</string>

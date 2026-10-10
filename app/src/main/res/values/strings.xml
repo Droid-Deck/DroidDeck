@@ -293,16 +293,8 @@
     <string name="mode_decky_remove_title">Uninstall Decky Loader?</string>
     <string name="mode_decky_remove_text">Removes the loader. Your plugins and settings are kept.</string>
     <string name="mode_client">Client</string>
-    <string name="mode_deck_mode">Steam Deck mode</string>
-    <string name="mode_deck_mode_hint">Steam\'s Deck interface and Quick Access performance controls. Applies next session.</string>
     <string name="mode_mangoapp">Performance overlay</string>
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
-    <string name="mode_branch">Client branch</string>
-    <string name="mode_branch_deck">Steam Deck public beta (required by Deck mode).</string>
-    <string name="mode_branch_hint">Applies next session. Steam may update itself once.</string>
-    <string name="mode_branch_public">Public beta</string>
-    <string name="mode_branch_deck_beta">Steam Deck public beta</string>
-    <string name="mode_branch_note">Deck mode always uses Steam Deck public beta.</string>
     <string name="mode_steam_repair">Repair Steam client</string>
     <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
     <string name="mode_steam_repair_queued">The Steam client will be downloaded again the next time Steam starts.</string>
