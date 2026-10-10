@@ -601,6 +601,8 @@
     <string name="drawer_no_game">No game is running on a Proton</string>
     <string name="drawer_selected_profile">Game profile</string>
     <string name="drawer_selected_profile_none">Profile details are not available yet.</string>
+    <string name="drawer_profile_refresh_failed_initial">Couldn\'t load game profiles. Retrying automatically.</string>
+    <string name="drawer_profile_refresh_failed_stale">Couldn\'t refresh game profiles. Showing the last available data; retrying automatically.</string>
     <string name="drawer_profile_inspect_hint">View and edit the saved settings used on the next launch.</string>
     <string name="drawer_profile_default">Using Default profile</string>
     <string name="drawer_profile_custom">Custom profile</string>

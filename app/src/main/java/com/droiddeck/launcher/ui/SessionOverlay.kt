@@ -260,6 +260,8 @@ class DrawerActions(
     /** The selected game profile, or null for the Default profile. */
     val selectedGameProfileId: Long? = null,
     val selectedGameProfile: SelectedGameProfile? = null,
+    val gameProfilesLoaded: Boolean = false,
+    val gameProfileRefreshFailed: Boolean = false,
     val onSelectedGameProfile: (Long?) -> Unit = {},
     val onSelectedGameProfileFollowSteam: () -> Unit = {},
     val onSelectedGameProfileRefresh: () -> Unit = {},
@@ -919,9 +921,23 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
             chipModifier = track("game-profile"),
             onPick = a.onSelectedGameProfile,
         )
+        if (a.gameProfileRefreshFailed) {
+            Text(
+                stringResource(
+                    if (a.gameProfilesLoaded) {
+                        R.string.drawer_profile_refresh_failed_stale
+                    } else {
+                        R.string.drawer_profile_refresh_failed_initial
+                    },
+                ),
+                fontSize = 13.sp,
+                color = colors.error,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
         if (a.selectedGameProfileId == null) return@SettingsGroup
         if (profile == null) {
-            Text(
+            if (!a.gameProfileRefreshFailed) Text(
                 stringResource(R.string.drawer_selected_profile_none),
                 fontSize = 13.sp,
                 color = colors.onSurfaceVariant,
