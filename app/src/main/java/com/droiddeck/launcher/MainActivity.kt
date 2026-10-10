@@ -301,29 +301,34 @@ class MainActivity : ComponentActivity() {
         GameSaves.savesDir().mkdirs()
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_saves_pick_folder, name, layout.label(this)), GameSaves.savesDir().path))
     }
-    private val pickAddedGamesDir = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path ->
-            SessionPrefs.setAddedGamesDirs(this, addedGamesDirs + path)
-            addedGamesDirs = SessionPrefs.addedGamesDirs(this)
-        addedGamesArt = SessionPrefs.addedGamesArt(this)
-            refreshAddedGames()
-            refresh()
-        }
+    /** The Games tab's +: the picked .exe becomes a game (or selects / switches the one it belongs to). */
+    private fun addGameExe(path: String) {
+        val exe = java.io.File(path)
+        Thread({
+            val result = try { com.droiddeck.launcher.frontend.AddedGames.addExe(this, exe) } catch (e: Exception) {
+                Log.w(TAG, "add game: ${e.message}"); com.droiddeck.launcher.frontend.AddedGames.AddResult.NotFound
+            }
+            val game = when (result) {
+                is com.droiddeck.launcher.frontend.AddedGames.AddResult.Added -> result.game
+                is com.droiddeck.launcher.frontend.AddedGames.AddResult.Existing -> result.game
+                is com.droiddeck.launcher.frontend.AddedGames.AddResult.Switched -> result.game
+                else -> null
+            }
+            ui.post {
+                if (game == null) {
+                    if (result is com.droiddeck.launcher.frontend.AddedGames.AddResult.Unreachable)
+                        android.widget.Toast.makeText(this, R.string.games_add_unreachable, android.widget.Toast.LENGTH_LONG).show()
+                    return@post
+                }
+                updateAddedGames(listOf(game.folder.path), then = { fetchAddedGameArt() })
+                navRequest = "app:${game.steamAppId ?: game.appId.toInt()}"
+            }
+        }, "add-game-exe").start()
     }
-    private var pendingAddedGame: String? = null
-    private val pickAddedGameExe = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val folder = pendingAddedGame ?: return@registerForActivityResult
-        pendingAddedGame = null
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path ->
-            SessionPrefs.setAddedGameExe(this, folder, path)
-            refreshAddedGames()
-            refresh()
-        }
-    }
-    private var addedGamesDirs by mutableStateOf<List<String>>(emptyList())
     private var addedGamesArt by mutableStateOf(true)
     @Volatile private var artFetchRunning = false
-    private var addedGames by mutableStateOf<List<com.droiddeck.launcher.ui.AddedGameRow>>(emptyList())
+    /** The user entered a SteamGridDB API key of their own. */
+    private var sgdbUserKey by mutableStateOf(false)
     private val pickRomsDir = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path ->
             SessionPrefs.setRomsDir(this, path)
@@ -590,6 +595,8 @@ class MainActivity : ComponentActivity() {
                         gameStoresSpeedTier = gameStoresSpeedTier,
                         storesOpenTab = storesOpenTab,
                         navigate = navRequest,
+                        addedGamesArt = addedGamesArt,
+                        sgdbUserKey = sgdbUserKey,
                         storesShowMature = storesShowMature,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
                     ),
@@ -606,6 +613,20 @@ class MainActivity : ComponentActivity() {
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
                         onExportGameFile = { g -> pickGameExport(g) },
                         onSyncGameFiles = { pickGameExport(null) },
+                        onAddGameExe = { path -> addGameExe(path) },
+                        onAddedGamesChanged = { folders ->
+                            // New games want art; an edit does not.
+                            val known = steamGames.mapNotNull { it.gameFiles?.path }.toSet()
+                            updateAddedGames(folders, then = { if (folders.any { it !in known }) fetchAddedGameArt() })
+                        },
+                        onAddedGameRemoved = { folder, appId, name -> removeAddedGame(folder, appId, name) },
+                        onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
+                        onSgdbKey = { key ->
+                            Thread({
+                                com.droiddeck.launcher.frontend.SteamGridDb.setUserKey(this, key)
+                                ui.post { sgdbUserKey = key.isNotBlank(); refreshAddedGames() }
+                            }, "sgdb-key").start()
+                        },
                         onStopGameFileSync = {
                             Thread({
                                 GameFileSync.disable(this)
@@ -1252,9 +1273,6 @@ class MainActivity : ComponentActivity() {
                 wifiDiscoveryLocation = wifiDiscoveryLocation,
                 wifiDiscoveryAsked = wifiDiscoveryAsked,
                 wifiDiscoveryBlocked = wifiDiscoveryBlocked,
-                addedGamesDirs = if (mode == SessionService.MODE_STEAM) addedGamesDirs else null,
-                addedGames = if (mode == SessionService.MODE_STEAM) addedGames else emptyList(),
-                addedGamesArt = addedGamesArt,
                 deckyInstalled = if (mode == SessionService.MODE_STEAM) decky.deckyInstalled else null,
                 deckyLatestRelease = if (mode == SessionService.MODE_STEAM) decky.deckyReleases.firstOrNull() else null,
                 deckyChecking = decky.deckyChecking, deckyStage = decky.deckyStage, deckyPercent = decky.deckyPercent,
@@ -1335,14 +1353,6 @@ class MainActivity : ComponentActivity() {
                     SessionPrefs.setRunSteamAtStartup(this, on)
                     runSteamAtStartup = on
                 },
-                onPickAddedGamesDir = { pickAddedGamesDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_added_games), addedGamesDirs.lastOrNull())) },
-                onAddedGamesArt = { on -> SessionPrefs.setAddedGamesArt(this, on); addedGamesArt = on; if (on) refreshAddedGames() },
-                onForgetAddedGamesDir = { dir -> SessionPrefs.setAddedGamesDirs(this, addedGamesDirs - dir); addedGamesDirs = SessionPrefs.addedGamesDirs(this); refreshAddedGames(); refresh() },
-                onAddedGameExe = { folder, path -> SessionPrefs.setAddedGameExe(this, folder, path); refreshAddedGames(); refresh() },
-                onPickAddedGameExe = { folder ->
-                    pendingAddedGame = folder
-                    pickAddedGameExe.launch(InAppFilePicker.buildIntent(this, listOf("exe"), getString(R.string.main_pick_game_exe), folder))
-                },
                 onDeckyInstall = { release -> decky.installDecky(release) },
                 onDeckyCheck = { decky.refreshDecky() },
                 onDeckyEnabled = { enabled -> DeckyManager.setSupervisorEnabled(this, enabled); decky.deckySupervisor = enabled },
@@ -1397,18 +1407,42 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    /** The added games as the settings page lists them; a scan of the folder, on this thread (one level, small). */
-    /** The added games for the session settings: a folder walk, so off the main thread. */
-    private fun refreshAddedGames() {
+    /**
+     * The Games tab after these added games were added or edited: each read alone and put in
+     * place of its old entry (or added), no library-wide scan. [then] runs after, on the main thread.
+     */
+    private fun updateAddedGames(folders: List<String>, then: () -> Unit = {}) {
+        if (folders.isEmpty()) return
         Thread({
-            val games = scanAddedGames()
-            ui.post { addedGames = games; fetchAddedGameArt() }
-        }, "added-games").start()
+            val fresh = folders.mapNotNull { f ->
+                com.droiddeck.launcher.frontend.AddedGames.single(this, f)?.let { com.droiddeck.launcher.frontend.Library.addedGame(this, it) }
+            }
+            ui.post {
+                val paths = folders.toSet()
+                steamGames = (steamGames.filterNot { it.library == Library.ADDED && it.gameFiles?.path in paths } + fresh).distinctBy { it.gameId }
+                then()
+            }
+        }, "added-games-update").start()
     }
 
-    /** Walks the added-games folders, which can sit on slow shared storage or an SD card. */
-    private fun scanAddedGames() = com.droiddeck.launcher.frontend.AddedGames.scan(this).map { g ->
-        com.droiddeck.launcher.ui.AddedGameRow(g.folder.path, g.folderName(), g.exe.path, g.exe.name, (g.candidates + g.exe).map { c -> c.path to c.name }.distinctBy { it.first })
+    /** An added game removed: off the Games tab now; the rest (cache, Steam, listing) off the main thread. */
+    private fun removeAddedGame(folder: String, appId: Long?, name: String) {
+        steamGames = steamGames.filterNot { it.library == Library.ADDED && it.gameFiles?.path == folder }
+        Thread({ com.droiddeck.launcher.frontend.AddedGames.remove(this, java.io.File(folder), appId, name) }, "added-game-remove").start()
+    }
+
+    /** After the added games changed: art that is missing is fetched (off the main thread). */
+    private fun refreshAddedGames() {
+        sgdbKeyKnown()
+        fetchAddedGameArt()
+    }
+
+    /** Whether the user has a SteamGridDB key of their own, for Setup; read off the main thread. */
+    private fun sgdbKeyKnown() {
+        Thread({
+            val set = com.droiddeck.launcher.frontend.SteamGridDb.userKey(this).isNotEmpty()
+            ui.post { sgdbUserKey = set }
+        }, "sgdb-key-state").start()
     }
 
     private fun fetchAddedGameArt() {
@@ -1447,7 +1481,6 @@ class MainActivity : ComponentActivity() {
         mangoapp = SessionPrefs.mangoapp(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
-        addedGamesDirs = SessionPrefs.addedGamesDirs(this)
         hdrOn = SessionPrefs.hdr(this, mode)
         fpsLimit = SessionPrefs.fpsLimit(this, mode)
         upscaler = SessionPrefs.upscaler(this)
@@ -1469,12 +1502,10 @@ class MainActivity : ComponentActivity() {
         // added-games folders, the storage volumes) lands while it animates in.
         Thread({
             drivers.refreshDrivers()
-            val games = scanAddedGames()
             val storage = GameStorage.options(this)
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
             val deckySupervisor = mode == SessionService.MODE_STEAM && DeckyManager.supervisorEnabled(this)
             ui.post {
-                addedGames = games
                 storageOptions = storage
                 if (mode == SessionService.MODE_STEAM) {
                     decky.deckyInstalled = deckyInstalled
@@ -1523,6 +1554,7 @@ class MainActivity : ComponentActivity() {
 
     private fun refresh() {
         if (!busy && LinuxRuntimeInstaller.isBusy()) followRuntimeOperation { LinuxRuntimeInstaller.attach(it) }
+        addedGamesArt = SessionPrefs.addedGamesArt(this)
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)

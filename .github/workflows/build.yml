@@ -414,6 +414,7 @@ jobs:
         id: build
         env:
           DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
+          SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
         run: |
           set -o pipefail
           python3 tools/release/runtime_inputs.py record
