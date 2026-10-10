@@ -905,6 +905,7 @@ class MainActivity : ComponentActivity() {
         // A session folder left without its ending - the process was killed - gets it now.
         if (!SessionState.running) Thread({
             com.droiddeck.launcher.session.LogMigration.run(this)
+            com.droiddeck.launcher.frontend.GamesFolderMigration.run(this)
             SessionLogShare.clear(this)
             SessionArtifacts.finishAbandoned(this)
             SessionArtifacts.scrubOlder(this)
