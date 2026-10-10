@@ -118,7 +118,10 @@ object WinComponents {
         (step.action == "install_msi" || listOf(step.str("file_name"), step.str("url").substringBefore('?'))
             .any { it.endsWith(".msi", ignoreCase = true) || it.endsWith(".exe", ignoreCase = true) })
 
-    private fun protonProvides(name: String): Boolean = name in PROTON_PROVIDES || name.startsWith("mono-")
+    /** Catalog entries nothing here can use: the IE8 security update patches a browser no prefix has. */
+    private val POINTLESS = setOf("ie8_kb2936068")
+
+    private fun protonProvides(name: String): Boolean = name in PROTON_PROVIDES || name in POINTLESS || name.startsWith("mono-")
 
     fun hasSnapshot(c: Component): Boolean = c.snapshot.startsWith("https://github.com/") && c.snapshot.endsWith(".snapshot.json")
 
