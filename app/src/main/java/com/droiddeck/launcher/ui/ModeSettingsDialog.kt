@@ -90,6 +90,8 @@ class ModeSettings(
     val steamChannel: String? = null,
     /** Steam only: enable the SteamOS client interface and its performance controls. */
     val steamDeckMode: Boolean = false,
+    /** Steam only: a game launched from the front end returns there when it closes; null hides the row. */
+    val returnAfterGame: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     /** Steam, Deck mode: the QAM's performance overlay (mangoapp) is started. */
     val mangoapp: Boolean = true,
@@ -143,6 +145,7 @@ class ModeSettingsActions(
     val onSteamRepair: () -> Unit = {},
     val onSteamDeckMode: (Boolean) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
+    val onReturnAfterGame: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onWifiDiscovery: (Boolean) -> Unit = {},
@@ -383,6 +386,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 host, "mangoapp", stringResource(R.string.mode_mangoapp),
                 stringResource(R.string.mode_mangoapp_hint),
                 s.mangoapp, onChange = a.onMangoapp,
+            )
+            if (s.returnAfterGame != null) ToggleRow(
+                host, "returnaftergame", stringResource(R.string.mode_return_after_game),
+                stringResource(R.string.mode_return_after_game_hint),
+                s.returnAfterGame, onChange = a.onReturnAfterGame,
             )
             // Deck mode fixes the branch (SessionPrefs.steamChannel); the choice is for Deck mode off.
             if (s.steamDeckMode) SettingsRow(stringResource(R.string.mode_branch), stringResource(R.string.mode_branch_deck)) {}

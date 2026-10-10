@@ -287,6 +287,8 @@
     <string name="mode_deck_mode_hint">Steam DeckのUIとクイックアクセスパフォーマンスコントロール。次回のセッションで有効になります。</string>
     <string name="mode_mangoapp">パフォーマンスオーバーレイ</string>
     <string name="mode_mangoapp_hint">Deckモードでゲームがクラッシュしたり画面が真っ暗になる場合は、これをオフにしてください。次回のセッションで有効になります。</string>
+    <string name="mode_return_after_game">ゲーム終了後にDroidDeckへ戻る</string>
+    <string name="mode_return_after_game_hint">DroidDeckや他のランチャーから起動したゲームを閉じると、Steamが正しく終了し（クラウドセーブの同期を先に完了）、起動元に戻ります。オフ：Steamに留まります。</string>
     <string name="mode_branch">クライアントブランチ</string>
     <string name="mode_branch_deck">Steam Deckベータ版（Deckモードに必要）。</string>
     <string name="mode_branch_hint">次回のセッションで有効になります。Steamが自動的に一度アップデートされる場合があります。</string>

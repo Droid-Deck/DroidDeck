@@ -120,6 +120,7 @@ class MainActivity : ComponentActivity() {
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
     private var steamDeckMode by mutableStateOf(false)
+    private var returnAfterGame by mutableStateOf(true)
     private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
@@ -1267,6 +1268,7 @@ class MainActivity : ComponentActivity() {
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamChannel = if (mode == SessionService.MODE_STEAM) steamChannel else null,
                 steamDeckMode = mode == SessionService.MODE_STEAM && steamDeckMode,
+                returnAfterGame = if (mode == SessionService.MODE_STEAM) returnAfterGame else null,
                 steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
@@ -1351,6 +1353,7 @@ class MainActivity : ComponentActivity() {
                     steamChannel = SessionPrefs.steamChannel(this)
                 },
                 onMangoapp = { on -> SessionPrefs.setMangoapp(this, on); mangoapp = on },
+                onReturnAfterGame = { on -> SessionPrefs.setReturnAfterGame(this, on); returnAfterGame = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
                 onRunSteamAtStartup = { on ->
                     SessionPrefs.setRunSteamAtStartup(this, on)
@@ -1482,6 +1485,7 @@ class MainActivity : ComponentActivity() {
         steamDeckMode = SessionPrefs.steamDeckMode(this)
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
+        returnAfterGame = SessionPrefs.returnAfterGame(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         hdrOn = SessionPrefs.hdr(this, mode)
