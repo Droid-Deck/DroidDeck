@@ -44,9 +44,37 @@ import kotlin.math.sin
 // Play (LaunchFlood): the control stretches out over the pane on loose springs, the far edges
 // first, and the page rises into it once it is covered. Back draws it down into the control again.
 
-/** Where a page opened from: the control's bounds and corner radius, in px. */
-internal class Origin(val bounds: Rect, val corner: Float) {
-    fun translate(by: Offset) = Origin(bounds.translate(by), corner)
+/**
+ * Where a page opened from: the control's bounds and corner radius, in px, and the rail item that
+ * was showing it ([owner]), so the page only draws back into it when that content returns.
+ */
+internal class Origin(val bounds: Rect, val corner: Float, val owner: String? = null) {
+    fun translate(by: Offset) = Origin(bounds.translate(by), corner, owner)
+    fun ownedBy(key: String) = Origin(bounds, corner, key)
+}
+
+/** How a page that opened from a control leaves. */
+internal enum class PageExit {
+    /** Back into the control it came from, which is on screen again. */
+    Drain,
+    /** Out through a link into another section, which takes the page there itself. */
+    Hop,
+    /** Away with the pane, as any page goes: the control it came from is not coming back. */
+    Sink,
+}
+
+/** Why a page is leaving: an ordinary change of page, or a link into another section. */
+internal enum class PageLeave { Ordinary, Link }
+
+/**
+ * The exit for a page opened from a control on [owner]'s content, leaving for [incoming]. It only
+ * draws back into the control when the content that control belongs to is what comes back; a page
+ * left for another rail item or another page drained into a control that was no longer there.
+ */
+internal fun pageExit(owner: String?, incoming: String, leave: PageLeave): PageExit = when {
+    owner != null && incoming == owner -> PageExit.Drain
+    leave == PageLeave.Link -> PageExit.Hop
+    else -> PageExit.Sink
 }
 
 internal object PageOrigin {
@@ -70,6 +98,7 @@ internal const val PAGE_RETURN_MS = 900
  * [content], a page that opened from the control at [from] (in this element's coordinates): the
  * control's tile stretching over it until covered, then the page rising in as the tile fades.
  * Once [leaving], the reverse: the tile comes back over the page and draws down into the control.
+ * A page that [sinks] instead goes with the pane and draws no tile at all.
  * The focus ring stays out of it until it is done.
  */
 @Composable
@@ -78,6 +107,7 @@ internal fun PageFlood(
     leaving: Boolean,
     /** What the tile shows instead of the control's fill: a game card's art, cropped to the tile as it grows. */
     art: Painter? = null,
+    sinks: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -87,7 +117,14 @@ internal fun PageFlood(
     val shown = remember { Animatable(0f) }
     val tile = remember { Animatable(1f) }
     var size by remember { mutableStateOf(Size.Zero) }
-    LaunchedEffect(size != Size.Zero, leaving) {
+    LaunchedEffect(size != Size.Zero, leaving, sinks) {
+        if (sinks) {
+            // Whatever the flood in was doing, the page is shown whole and leaves with the pane.
+            tile.snapTo(0f)
+            shown.snapTo(1f)
+            glide?.hidden = false
+            return@LaunchedEffect
+        }
         if (size == Size.Zero) return@LaunchedEffect
         glide?.hidden = true
         val b = from.bounds

@@ -2171,4 +2171,42 @@
         <item quantity="one">%1$d already in Games</item>
         <item quantity="other">%1$d already in Games</item>
     </plurals>
+    <!-- A page reached through a link from another section: the way back, named for where it came from. -->
+    <string name="hop_back">B · Back to %1$s</string>
+    <string name="hop_from_games">the game</string>
+    <string name="hop_from_play">Play settings</string>
+    <string name="hop_from_desktop">Desktop settings</string>
+    <!-- The lifted settings sheets under Play and Open desktop. -->
+    <string name="lip_fps">%1$d fps</string>
+    <string name="lip_touch_off">Touch off</string>
+    <string name="sheet_graphics_drivers">Graphics drivers</string>
+    <!-- Components as one stack of layers. -->
+    <string name="comp_this_proton">This Proton</string>
+    <string name="comp_every_proton">Every Proton</string>
+    <string name="comp_for_every_proton">For every Proton</string>
+    <string name="comp_available_count">Available · %1$d</string>
+    <string name="comp_checked">Checked %1$s</string>
+    <string name="comp_check_all">Check for new components and drivers</string>
+    <string name="comp_get">Get</string>
+    <string name="comp_proton_bar">%1$s · DXVK, VKD3D-Proton and FEX below are this Proton\'s</string>
+    <string name="comp_device_tested">%1$s · tested</string>
+    <string name="comp_device_untested">%1$s · untested</string>
+    <string name="comp_device_unsupported">%1$s · unsupported</string>
+    <string name="gpu_auto_keeps">Keeps the recommended pair current</string>
+    <string name="gpu_bar_auto">Auto · %1$s</string>
+    <string name="gpu_separately">Runtime and display drivers separately</string>
+    <string name="gpu_use_title">Use %1$s?</string>
+    <string name="proton_remove_title">Remove %1$s?</string>
+    <!-- Setup sorted by scope. -->
+    <string name="setup_tab_diagnostics">Diagnostics</string>
+    <string name="setup_ready">Ready to play</string>
+    <string name="setup_not_ready">Not ready to play yet</string>
+    <string name="setup_ready_runtime">runtime %1$s</string>
+    <string name="setup_ready_limit_off">process limit off</string>
+    <string name="setup_ready_signed_in">signed in as %1$s</string>
+    <string name="setup_needs_you">When something needs you</string>
+    <string name="setup_group_look">Look</string>
+    <string name="setup_group_device">This device</string>
+    <string name="setup_group_rail">Sections on the rail</string>
+    <string name="setup_group_art">Library art</string>
 </resources>

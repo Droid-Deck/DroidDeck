@@ -67,36 +67,48 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     // came out differently from one read of the library to the next moved every capsule.
     val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
-    val colors = MaterialTheme.colorScheme
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     // Where the words and buttons sit, for the empty library's wandering mark to keep off.
     var words by remember { mutableStateOf<Rect?>(null) }
-    Box(modifier = modifier.fillMaxSize().clipToBounds()) {
-        when {
-            games.isEmpty() -> EmptyLibrary(avoid = words) { WallFade() }
-            games.size < WALL_MIN_GAMES -> CapsuleFan(games)
-            else -> {
-                CapsuleWall(games)
-                WallFade()
+    val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
+    val tabs = modeSheetTabs(steam = true).map { it to sheetTabLabel(it) }
+    val back = stringResource(R.string.hop_from_play)
+    val extras = SheetExtras(
+        frameGen = { FrameGenGroup(s, a) },
+        performance = { PerformanceLink(a, "steam", SheetTab.SESSION) },
+        drivers = { summary -> DriversLink(a, summary, "steam", back) },
+    )
+    LiftHero(
+        key = "steam", tabs = tabs, lip = { lipFor(ctx, mode, full = true) },
+        onOpen = a.onSteamSettings, onPrimary = a.onPlay,
+        modifier = modifier.clipToBounds(),
+        start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
+        background = {
+            when {
+                games.isEmpty() -> EmptyLibrary(avoid = words) { WallFade() }
+                games.size < WALL_MIN_GAMES -> CapsuleFan(games)
+                else -> {
+                    CapsuleWall(games)
+                    WallFade()
+                }
             }
-        }
-        Column(
-            modifier = Modifier.align(Alignment.BottomStart)
-                .padding(start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp, end = 20.dp)
-                .onPlaced { words = it.boundsInParent() },
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        },
+        words = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.onPlaced { words = it.boundsInParent() },
+            ) {
                 Wordmark(if (narrow) 30.dp else 40.dp)
                 // Said only when something stands between Play and Steam; a ready runtime needs no words.
                 if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
             }
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Enabled without a runtime: the session's loading screen installs it first.
-                PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = a.onPlay)
-                Cog(size = 54.dp, onClick = a.onSteamSettings)
-            }
-        }
-    }
+        },
+        button = { click ->
+            // Enabled without a runtime: the session's loading screen installs it first.
+            PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
+        },
+        rows = { tab -> a.modeSheet(mode, tab, extras) },
+    )
 }
 
 /** The wall fades out behind the words, and toward the bottom where the buttons sit. */

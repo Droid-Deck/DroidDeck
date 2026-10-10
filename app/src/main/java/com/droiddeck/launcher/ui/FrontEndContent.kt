@@ -124,15 +124,22 @@ internal fun Pane(
         val paneAt = remember { arrayOf(Offset.Zero) }
         val livePage by rememberUpdatedState(s.pageKey)
         // Picking another game changes the detail beside the list, not the whole page.
-        val target = if (page != null && s.pageKey != null) s.pageKey else if (selected.startsWith("app:")) "games" else selected
+        val railContent = if (selected.startsWith("app:")) "games" else selected
+        val target = if (page != null && s.pageKey != null) s.pageKey else railContent
         // The game the Games page shows. It must outlive the selection: while the page animates out,
         // drawing it with what is selected now (another rail item) turned it into a copy of that page.
         val gameShown = remember { arrayOf("games") }
         if (selected == "games" || selected.startsWith("app:")) gameShown[0] = selected
         if (page != null && s.pageKey != null) {
             pages[s.pageKey] = page
-            if (s.pageKey !in origins) PageOrigin.take()?.let { origins[s.pageKey] = it.translate(-paneAt[0]) }
+            if (s.pageKey !in origins) PageOrigin.take()?.let { o ->
+                // A hop's page came out of its own rail item, and is that item's content.
+                origins[s.pageKey] = o.translate(-paneAt[0]).let { if (it.owner == null) it.ownedBy(railContent) else it }
+            }
         }
+        // A page leaving through a hop's link is not coming back to its control.
+        val leave = if (Hops.linking) PageLeave.Link else PageLeave.Ordinary
+        LaunchedEffect(target) { Hops.linking = false }
         AnimatedContent(
             targetState = target,
             modifier = Modifier.onGloballyPositioned { paneAt[0] = it.positionInRoot() },
@@ -143,9 +150,14 @@ internal fun Pane(
                         .togetherWith(fadeOut(Motion.tw(320, 80)) + scaleOut(Motion.tw(480), targetScale = 0.95f))
                         .apply { targetContentZIndex = 1f }
                     // Back out of it: the flood draws back into the control as the pane comes forward again.
-                    initialState in origins -> (fadeIn(Motion.tw(300, 100)) + scaleIn(Motion.tw(460, 40), initialScale = 0.95f))
-                        .togetherWith(ExitTransition.None)
-                        .apply { targetContentZIndex = -1f }
+                    initialState in origins && pageExit(origins[initialState]?.owner, targetState, leave) == PageExit.Drain ->
+                        (fadeIn(Motion.tw(300, 100)) + scaleIn(Motion.tw(460, 40), initialScale = 0.95f))
+                            .togetherWith(ExitTransition.None)
+                            .apply { targetContentZIndex = -1f }
+                    // Away to something else: the control is not coming back, so the page sinks with the pane.
+                    initialState in origins -> (fadeIn(Motion.tw(300, 80)) + slideInVertically(Motion.tw(420, 80)) { it / 24 })
+                        .togetherWith(fadeOut(Motion.tw(170)) + scaleOut(Motion.tw(170), targetScale = 0.95f))
+                        .apply { targetContentZIndex = 1f }
                     else -> (fadeIn(Motion.tw(300, 80)) + slideInVertically(Motion.tw(420, 80)) { it / 24 })
                         .togetherWith(fadeOut(Motion.tw(170)) + slideOutVertically(Motion.tw(170)) { -it / 40 })
                         .apply { targetContentZIndex = 1f }
@@ -159,12 +171,15 @@ internal fun Pane(
                 val from = origins[key]
                 if (from == null) shown()
                 else {
+                    val leaving = transition.targetState == EnterExitState.PostExit
+                    // Settled as the page starts to leave, from what is coming in, not from where it came in.
+                    val drains = remember(leaving) { !leaving || pageExit(from.owner, target, leave) == PageExit.Drain }
                     // Keeps a leaving page on screen while its flood draws back into the control.
                     transition.animateFloat(
-                        transitionSpec = { if (targetState == EnterExitState.PostExit) Motion.tw(PAGE_RETURN_MS) else snap() },
+                        transitionSpec = { if (targetState == EnterExitState.PostExit && drains) Motion.tw(PAGE_RETURN_MS) else snap() },
                         label = "pageReturn",
                     ) { if (it == EnterExitState.PostExit) 1f else 0f }
-                    PageFlood(from, leaving = transition.targetState == EnterExitState.PostExit) { shown() }
+                    PageFlood(from, leaving = leaving, sinks = !drains) { shown() }
                 }
             }
             else Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb)

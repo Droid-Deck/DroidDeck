@@ -159,7 +159,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     var tab by rememberSaveable { mutableStateOf(if (SessionPrefs.storesOpenTab(ctx) == SessionPrefs.STORES_OPEN_STORE) "store" else "library") }
     var query by rememberSaveable { mutableStateOf("") }
     var openGame by rememberSaveable { mutableStateOf<String?>(null) }
-    var settings by rememberSaveable { mutableStateOf(false) }
+    // The cog's settings read the front end's state live while stepped out.
+    val liveState = androidx.compose.runtime.rememberUpdatedState(s)
     LaunchedEffect(StoresState.openDownloads) { if (StoresState.openDownloads) { chip = DOWNLOADS; StoresState.openDownloads = false } }
     val store = Store.byId(chip)
     // A tab this store does not have (Store or All on Amazon) reads as Library.
@@ -336,7 +337,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             StoreTheme(Store.byId(focusedChip ?: chip)) {
                 Rise(0) { StoreChips(chip, focusedChip, s.storeDownloadsActive, onStore = { st, at -> openModes(st, at) }, onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
-                    onFocusChip = { focusedChip = it }, onSettings = { settings = true }) }
+                    onFocusChip = { focusedChip = it }, onSettings = { at -> if (at != null) StoresMotion.ask(storesSettingsStep(at, liveState, a, pal.signal)) }) }
             }
         }
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
@@ -474,7 +475,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         seenActive.clear(); seenActive.addAll(activeKeys)
         if (fresh.isNotEmpty()) StoresMotion.takeInstall()?.let { StoresMotion.fly(it) }
     }
-    if (settings) StoresSettingsDialog(s, a) { settings = false }
     StoresState.pendingInstall?.let { item -> InstallWhere(item) }
 }
 
@@ -570,7 +570,7 @@ private fun SignInFloodLayer(hostAt: Offset) {
  */
 @Composable
 private fun StoreChips(
-    selected: String, focused: String?, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: () -> Unit,
+    selected: String, focused: String?, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit,
     /** The chip a pad's focus is on (null when it leaves the row): the page shows that store. */
     onFocusChip: (String?) -> Unit,
 ) {
@@ -620,72 +620,13 @@ private fun StoreChips(
                 trail = if (active > 0) { { CountPill(active) } } else null,
                 onFocused = onFocusChip,
             ) { onDownloads() }
-            IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings), onSettings)
+            var cogAt by remember { mutableStateOf<Rect?>(null) }
+            Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
+                IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
+            }
         }
         // Over the chips: the fill is translucent, and the other chips' rest fill would hide it in flight.
         ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint)
-    }
-}
-
-/**
- * The selection under the chips: [at] (in the row) of chip [index], in [tint]. A move to the next
- * chip stretches it - the leading edge on the focus ring's lead spring, the trailing one a beat
- * later on its trail spring - and a hop past a chip pinches it to a drop, carries it and opens it.
- */
-@Composable
-private fun BoxScope.ChipGlide(index: Int, at: Rect?, tint: State<Color>) {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val left = remember { Animatable(Float.NaN) }
-    val right = remember { Animatable(0f) }
-    val pinch = remember { Animatable(0f) }
-    val top = remember { mutableStateOf(0f) }
-    val bottom = remember { mutableStateOf(0f) }
-    val was = remember { intArrayOf(-1) }
-    LaunchedEffect(index, at) {
-        val b = at ?: return@LaunchedEffect
-        top.value = b.top; bottom.value = b.bottom
-        val from = was[0]
-        was[0] = index
-        if (left.value.isNaN() || from == index || from < 0 || Motion.scale == 0f) {
-            left.snapTo(b.left); right.snapTo(b.right); pinch.snapTo(0f)
-            return@LaunchedEffect
-        }
-        coroutineScope {
-            if (kotlin.math.abs(index - from) > 1) {
-                // Too far to stretch: pinch into a drop where it is, carry it over, open it there.
-                pinch.animateTo(1f, Motion.tw(90))
-                val l = launch { left.animateTo(b.left, Motion.sp(0.7f, 380f)) }
-                val r = launch { right.animateTo(b.right, Motion.sp(0.7f, 380f)) }
-                l.join(); r.join()
-                pinch.animateTo(0f, Motion.sp(0.6f, 500f))
-            } else {
-                val forward = index > from
-                val (lead, trail) = if (forward) right to left else left to right
-                val leadTo = if (forward) b.right else b.left
-                val trailTo = if (forward) b.left else b.right
-                launch { lead.animateTo(leadTo, Motion.sp(0.62f, 700f)) }
-                launch { delay(Motion.ms(40).toLong()); trail.animateTo(trailTo, Motion.sp(0.78f, 360f)) }
-            }
-        }
-    }
-    androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
-        if (left.value.isNaN() || bottom.value <= top.value) return@Canvas
-        val l = minOf(left.value, right.value)
-        val r = maxOf(left.value, right.value)
-        val cx = (l + r) / 2f
-        val cy = (top.value + bottom.value) / 2f
-        val drop = with(density) { 6.dp.toPx() }
-        val p = pinch.value
-        val x0 = androidx.compose.ui.util.lerp(l, cx - drop, p)
-        val x1 = androidx.compose.ui.util.lerp(r, cx + drop, p)
-        val y0 = androidx.compose.ui.util.lerp(top.value, cy - drop, p)
-        val y1 = androidx.compose.ui.util.lerp(bottom.value, cy + drop, p)
-        val size = androidx.compose.ui.geometry.Size(x1 - x0, y1 - y0)
-        val corner = androidx.compose.ui.geometry.CornerRadius(minOf(size.width, size.height) / 2f)
-        val at0 = Offset(x0, y0)
-        // A drop in flight is solid; on a chip it is the chip's tinted fill and outline.
-        drawRoundRect(tint.value.copy(alpha = androidx.compose.ui.util.lerp(0.16f, 0.9f, p)), at0, size, corner)
-        drawRoundRect(tint.value.copy(alpha = 0.7f * (1f - p)), at0, size, corner, style = androidx.compose.ui.graphics.drawscope.Stroke(with(density) { 1.dp.toPx() }))
     }
 }
 

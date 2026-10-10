@@ -70,6 +70,8 @@ import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
@@ -178,8 +180,12 @@ class FrontEndActions(
     val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
+    /** Reads Steam's session settings for its lifted sheet (under Play). */
     val onSteamSettings: () -> Unit,
+    /** Reads the desktop's session settings for its lifted sheet (under Open desktop). */
     val onDesktopSettings: () -> Unit,
+    /** A lifted sheet's rows for one tab of [mode]'s settings, as last read. */
+    val modeSheet: @Composable (mode: String, tab: String, extras: SheetExtras) -> Unit = { _, _, _ -> },
     val onRemoveDesktop: () -> Unit = {},
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
@@ -189,6 +195,8 @@ class FrontEndActions(
     val onProtons: () -> Unit,
     /** The Components page: FEX / DXVK / VKD3D-Proton per Proton. */
     val onComponents: (focusContent: Boolean) -> Unit,
+    /** The Components page on one layer ([GPU_TAB], a component id): a hop's destination. */
+    val onComponentsTab: (String) -> Unit = {},
     /** A game page's Manage saves: import a save zip into this game, or export its saves in a layout. */
     val onSaveImport: (Library.SteamGame) -> Unit = {},
     val onSaveExport: (Library.SteamGame, com.droiddeck.launcher.session.GameSaves.Layout) -> Unit = { _, _ -> },
@@ -423,7 +431,13 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             }
         }
     }
-    BackHandler(enabled = !processSettingsPageVisible && s.pageKey != null && page != null) { a.onPageBack() }
+    // A page reached by a hop goes back the way it came; any other page just closes.
+    val pageBack = { if (!Hops.back(a.onPageBack)) a.onPageBack() }
+    BackHandler(enabled = !processSettingsPageVisible && s.pageKey != null && page != null) { pageBack() }
+    // Left any other way, the hop's page has no way back to keep.
+    LaunchedEffect(s.pageKey) { Hops.forget(s.pageKey) }
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    remember(density) { Hops.density = density; true }
     // Back (and B) from a ROM, an emulator or an added app steps out one level, as its "‹" link
     // does, instead of leaving the app: a ROM -> its emulator, the others -> Desktop.
     BackHandler(
@@ -443,9 +457,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     remember { Motion.refresh(ctx); true }
 
     val railSelection = when {
-        s.pageKey == "performance" || s.pageKey == "protons" || s.pageKey == "controller-mapping" -> "setup"
-        s.pageKey?.startsWith("settings:steam") == true -> "steam"
-        s.pageKey?.startsWith("settings:") == true -> "desktop"
+        // A hop's page belongs to the rail item it flew to.
+        Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
+        // Performance opens from Play's sheet, and is Steam's.
+        s.pageKey == "performance" -> "steam"
+        s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") -> "desktop"
         else -> s.pageKey ?: selected
@@ -458,6 +474,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         if (key == "components") a.onComponents(focusContent)
         else {
             if (s.pageKey != null) a.onPageBack()
+            // Another section: no way back to keep, and no sheet to put back.
+            Hops.origin = null
+            Hops.restore = null
             selected = key
         }
     }
@@ -519,7 +538,20 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         val railFocus = Modifier
             .focusProperties { enter = { frontFocus.railFor(railSelection) } }
             .focusGroup()
-        Row(modifier = Modifier.fillMaxSize()) {
+        // Back from a hop onto a surface that is not a sheet (a game's Components card): focus
+        // goes back to the control that asked, once the page has gone.
+        LaunchedEffect(Hops.restore) {
+            val r = Hops.restore ?: return@LaunchedEffect
+            if (r.surface != HOP_SURFACE_GAMES) return@LaunchedEffect
+            Hops.restore = null
+            if (r.rail != selected && !(r.rail == "games" && selected.startsWith("app:"))) selected = r.rail
+            kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
+            if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
+            frontFocus.last = r.control
+            focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
+        }
+        var screenAt by remember { mutableStateOf(Offset.Zero) }
+        Row(modifier = Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }) {
             SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
             Box(Modifier.width(1.dp).fillMaxHeight().background(pal.line))
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
@@ -534,6 +566,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 )
             }
         }
+
+        // Dots on their way somewhere: a hop to another section and back, a swap flying home.
+        FlightsLayer(screenAt)
+        // A confirm stepping out of the control that asked for it.
+        StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->
             val secondaryDisplay = s.secondScreenDisplays.firstOrNull()

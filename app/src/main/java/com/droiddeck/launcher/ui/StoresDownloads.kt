@@ -24,6 +24,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -490,31 +493,36 @@ internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
 }
 
 /**
- * The chip row's cog: the section's own settings in a small card - which tab a store opens on
- * and the speed tier. Setup › Stores repeats them under its gate. Every install is added to Steam;
- * that is not a choice.
+ * The chip row's cog: the section's own settings stepped out of it - which tab a store opens on,
+ * mature titles, the speed tier and how many at once, and the download engine. Their only home;
+ * Setup no longer repeats them. Every install is added to Steam; that is not a choice. [s] is
+ * read live, so a change shows at once in what is stepped out.
  */
-@Composable
-internal fun StoresSettingsDialog(s: FrontEndState, a: FrontEndActions, onDismiss: () -> Unit) {
-    val shown = rememberShown(onDismiss)
-    val close = { shown.targetState = false }
-    AppDialog(shown, close, "storesSettings", wide = false, maxWidth = 440.dp) {
-        DialogHeader(stringResource(R.string.stores_settings_eyebrow), stringResource(R.string.stores_title))
-        Rise(1) {
-            Column {
-                SettingsRow(stringResource(R.string.setup_stores_open_on), null) {
-                    SegmentedTabs(
-                        listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
-                        s.storesOpenTab,
-                    ) { a.onStoresOpenTab(it) }
-                }
-                SettingsRow(stringResource(R.string.stores_show_mature), null) {
-                    ToggleSwitch(s.storesShowMature, label = stringResource(R.string.stores_show_mature)) { a.onStoresShowMature(it) }
-                }
-                // The queue's two knobs as one compact row, the same control the Downloads page has.
-                Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(s, a) }
+internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color): StepAsk =
+    StepAsk(
+        anchor = at, side = StepSide.Left, accent = accent, items = 3, maxWidth = 440.dp,
+        handle = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Settings, null, tint = accent, modifier = Modifier.size(20.dp)) },
+    ) {
+        StepTitle(stringResource(R.string.stores_settings_eyebrow))
+        Column(
+            Modifier.stepItem(1).fillMaxWidth().heightIn(max = 340.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val st = s.value
+            SettingsRow(stringResource(R.string.setup_stores_open_on), null) {
+                SegmentedTabs(
+                    listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
+                    st.storesOpenTab,
+                ) { a.onStoresOpenTab(it) }
             }
+            SettingsRow(stringResource(R.string.stores_show_mature), null) {
+                ToggleSwitch(st.storesShowMature, label = stringResource(R.string.stores_show_mature)) { a.onStoresShowMature(it) }
+            }
+            // The queue's two knobs as one compact row, the same control the Downloads page has.
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
+            StoresEngineRow()
         }
-        Rise(2) { Actions { SecondaryButton(stringResource(R.string.common_ok), onClick = close) } }
+        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth().stepItem(2).padding(top = 8.dp)) {
+            StepChoice(stringResource(R.string.common_ok), enabled = open, modifier = Modifier.focusRequester(first)) { StoresMotion.fold() }
+        }
     }
-}
