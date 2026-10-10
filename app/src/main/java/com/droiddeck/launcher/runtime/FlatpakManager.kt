@@ -87,15 +87,16 @@ object FlatpakManager {
             ?.maxByOrNull { it.first }?.second
     }
 
-    /** Runs [argv] in the runtime, its output also in Download/DroidDeck/flatpak-<verb>.log. */
+    /** Runs [argv] in the runtime, its output also in files/logs/tools/flatpak-<verb>.log. */
     private fun runGuest(context: Context, argv: List<String>, fakeRoot: Boolean, onLine: (String) -> Unit): Int {
         val name = "flatpak-" + (argv.getOrNull(2)?.takeIf { argv.getOrNull(1) == HELPER } ?: "setup")
         return GuestCommand.run(context, argv, fakeRoot, name, onLine = onLine)
     }
 
-    private inline fun <T> exclusive(what: String, block: () -> T): T? {
+    /** [block]'s result, or [ifBusy]'s while another operation has the installation. */
+    private inline fun <T> exclusive(what: String, ifBusy: () -> T, block: () -> T): T {
         synchronized(this) {
-            if (busy != null) return null
+            if (busy != null) return ifBusy()
             busy = what
         }
         try { return block() } finally { busy = null }
@@ -104,7 +105,7 @@ object FlatpakManager {
     /** Puts Flatpak into the runtime and adds Flathub. Null on success, else what went wrong. */
     fun setup(context: Context, onProgress: (String, Int) -> Unit): String? {
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
-        return exclusive("setup") {
+        return exclusive("setup", { context.getString(R.string.flatpakmgr_busy) }) {
             var failure: String? = null
             val status = runGuest(context, listOf("/bin/bash", SETUP), fakeRoot = true) { line ->
                 Log.i(TAG, "setup: $line")
@@ -119,16 +120,18 @@ object FlatpakManager {
                 !ready(context) -> context.getString(R.string.flatpakmgr_setup_unfinished)
                 else -> null
             }
-        } ?: context.getString(R.string.flatpakmgr_busy)
+        }
     }
 
     /**
      * One store operation - install, uninstall or update - with its progress as a stage line and
      * an overall percentage across the steps Flatpak plans (a runtime, its extensions, the app).
      */
-    private fun transaction(context: Context, verb: String, id: String?, onProgress: (String, Int) -> Unit): String? {
+    private fun transaction(
+        context: Context, verb: String, id: String?, onProgress: (String, Int) -> Unit, onDone: (JSONObject) -> Unit = {},
+    ): String? {
         if (!ready(context)) return context.getString(R.string.flatpakmgr_not_ready)
-        return exclusive("$verb:${id ?: "all"}") {
+        return exclusive("$verb:${id ?: "all"}", { context.getString(R.string.flatpakmgr_busy) }) {
             var error: String? = null
             // Progress lines carry no ref; they belong to the step the last "op" line started.
             var step = context.getString(R.string.flatpakmgr_starting)
@@ -141,10 +144,11 @@ object FlatpakManager {
                     "progress" -> onProgress(step, overall(o, o.optInt("percent")))
                     "error" -> { error = o.optString("message"); Log.w(TAG, "$verb $id: $error") }
                     "warning" -> Log.w(TAG, "$verb $id: ${o.optString("message")}")
+                    "done" -> onDone(o)
                 }
             }
             error ?: if (status != 0) context.getString(R.string.flatpakmgr_exit_status, status) else null
-        } ?: context.getString(R.string.flatpakmgr_busy)
+        }
     }
 
     private fun stage(context: Context, o: JSONObject): String {
@@ -195,13 +199,20 @@ object FlatpakManager {
 
     fun install(context: Context, id: String, onProgress: (String, Int) -> Unit) = transaction(context, "install", id, onProgress)
     fun uninstall(context: Context, id: String, onProgress: (String, Int) -> Unit) = transaction(context, "uninstall", id, onProgress)
+
+    /** Installs the .flatpak bundle at [guestPath], its runtimes from Flathub: the app's ID, and what went wrong if anything. */
+    fun installBundle(context: Context, guestPath: String, onProgress: (String, Int) -> Unit): Pair<String?, String?> {
+        var id: String? = null
+        val problem = transaction(context, "install-bundle", guestPath, onProgress) { id = it.optString("id").ifEmpty { null } }
+        return id to problem
+    }
     fun update(context: Context, id: String?, onProgress: (String, Int) -> Unit) = transaction(context, "update", id, onProgress)
 
     /** Installed apps with an update on Flathub, or null when that could not be checked. */
     fun updates(context: Context): Set<String>? {
         if (!ready(context)) return emptySet()
         var apps: Set<String>? = null
-        exclusive("updates") {
+        exclusive("updates", {}) {
             runGuest(context, listOf("/usr/bin/python3", HELPER, "updates"), fakeRoot = false) { line ->
                 val o = runCatching { JSONObject(line) }.getOrNull() ?: return@runGuest
                 if (o.optString("e") == "updates") {

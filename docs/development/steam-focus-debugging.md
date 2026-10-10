@@ -81,7 +81,7 @@ $R/usr/lib/ld-linux-aarch64.so.1 --library-path $R/usr/lib $R/usr/bin/xprop -dis
   nothing.
 - To test gamescope with a candidate binary without rebuilding the apk, put it in the rootfs (for
   example `/opt/gstest/gamescope`, owned by the app's uid) and add
-  `PATH=/opt/gstest:/usr/local/bin:/usr/bin:/bin` to `Download/droiddeck-env`. The session log's
+  `PATH=/opt/gstest:/usr/local/bin:/usr/bin:/bin` to `Android/data/com.droiddeck.launcher/files/droiddeck-env`. The session log's
   first lines name the gamescope that ran. Remove the line afterwards: the app stages its own
   gamescope over `/usr/local/bin` at every session start.
 - Never `pkill -f <pattern>` inside `su -c '…'`: the pattern matches that shell's own command line.

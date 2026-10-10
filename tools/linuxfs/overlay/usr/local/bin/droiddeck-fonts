@@ -1,0 +1,46 @@
+#!/bin/bash
+# DroidDeck's fontconfig setup for the Linux runtime. The rootfs ships DejaVu alone and no rules
+# for a default family: applications then find fonts but no default, and Firefox logs "no fonts"
+# and draws pages without text. DejaVu also has no CJK, Thai or Arabic glyphs, so those draw as
+# tofu boxes. The app binds Android's fonts for the session, which adds language-specific fallbacks
+# separately. This script links fontconfig's default rules and writes generic DejaVu aliases to an
+# owned conf.d file. Fontconfig reads local.conf afterward, so user overrides keep precedence and
+# are never replaced.
+# The first argument is the root to set up, "/" in a session; the tests point it at a temp tree.
+set -u
+root=${1:-/}
+root=${root%/}
+# "/" strips to empty above; put it back so the paths below read as absolute and the test for a
+# real session ("/") still holds.
+[ -n "$root" ] || root=/
+conf_dir=$root/etc/fonts
+defaults_dir=$root/usr/share/fontconfig/conf.default
+mkdir -p "$conf_dir/conf.d" 2>/dev/null
+
+# The default rules (sans-serif -> DejaVu Sans and the rest) live as links in /etc/fonts/conf.d,
+# and the rootfs has none. Linked by name, so a file we ship is never overwritten.
+if [ -d "$defaults_dir" ]; then
+  for f in "$defaults_dir"/*.conf; do
+    [ -e "$f" ] || continue
+    [ -e "$conf_dir/conf.d/${f##*/}" ] || ln -sf "$f" "$conf_dir/conf.d/${f##*/}"
+  done
+fi
+
+owned_conf=$conf_dir/conf.d/65-droiddeck-default-fonts.conf
+{
+  echo '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd"><fontconfig>'
+  for generic in sans-serif sans serif monospace mono cursive fantasy system-ui ui-sans-serif; do
+    case $generic in
+      serif) face="DejaVu Serif" ;;
+      mono*|ui-mono) face="DejaVu Sans Mono" ;;
+      *) face="DejaVu Sans" ;;
+    esac
+    printf '<alias binding="weak"><family>%s</family><prefer><family>%s</family></prefer></alias>\n' "$generic" "$face"
+  done
+  echo '</fontconfig>'
+} > "$owned_conf.new"
+if ! cmp -s "$owned_conf.new" "$owned_conf" 2>/dev/null; then
+  mv -f "$owned_conf.new" "$owned_conf"
+  echo "== fontconfig: wrote DejaVu defaults"
+fi
+rm -f "$owned_conf.new"

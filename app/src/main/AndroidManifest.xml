@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Store download progress and "installed" / "failed" notices (Android 13+). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- The session keeps running while the app is not on screen: a foreground service holds the
          process at perceptible priority, and a high-performance WiFi lock keeps a backgrounded
          download from being throttled to nothing by the radio's power-save. -->
@@ -130,6 +132,13 @@
             android:screenOrientation="sensorLandscape"
             android:theme="@style/AppTheme" />
 
+        <!-- A store's own sign-in page (GOG, Epic Games, Amazon Games) in a WebView. -->
+        <activity
+            android:name=".stores.StoreLoginActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/AppTheme" />
+
         <activity
             android:name=".agent.AgentStartActivity"
             android:exported="true"
@@ -166,6 +175,11 @@
         <service
             android:name=".core.WirelessAdbPairingService"
             android:exported="false" />
+        <!-- Keeps the process alive while a store (GOG, Epic, Amazon) game downloads. -->
+        <service
+            android:name=".stores.download.StoreDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <!-- Hands a zipped session folder to the share sheet; nothing else is exposed. -->
         <provider
             android:name="androidx.core.content.FileProvider"
