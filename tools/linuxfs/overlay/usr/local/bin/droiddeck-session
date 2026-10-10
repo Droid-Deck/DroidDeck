@@ -642,11 +642,18 @@ case $mode in
         beat=$((beat + 1))
         [ "$((beat % 3))" -eq 0 ] || continue
         libraries=("$steam_root/steamapps" /mnt/droiddeck/steamapps /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps)
-        if seed_due; then
+        seed=; compat=
+        seed_due && seed=1
+        compat_due && compat=1
+        [ -n "$seed$compat" ] || continue
+        # Not beside a running game: the client rewrites its manifest at each launch, which made both
+        # due while it loaded. Its own launch seeds its prefix (droiddeck-game-env) regardless.
+        pgrep -x wineserver >/dev/null 2>&1 && continue
+        if [ -n "$seed" ]; then
           : > "$seed_stamp"
           droiddeck-seed-redists "$steam_root" >/dev/null 2>&1 || true
         fi
-        if compat_due; then
+        if [ -n "$compat" ]; then
           : > "$compat_stamp"
           steam-compatibility "$steam_root" >/dev/null 2>&1 || true
         fi
@@ -869,6 +876,8 @@ BUSCONF
         for ((_i = 0; _i < 60; _i++)); do
           nap 30
           [ -e "$owned" ] && exit 0
+          # Loading steamclient.so under proot takes seconds of CPU: not while a game loads or runs.
+          pgrep -x wineserver >/dev/null 2>&1 && continue
           answer=$(droiddeck-steam-games probe "$steam_root" 993090 2>/dev/null) || continue
           case $answer in
             *'"993090": true'*) mkdir -p "${owned%/*}" && : > "$owned" && echo "== Lossless Scaling: owned" ;;
