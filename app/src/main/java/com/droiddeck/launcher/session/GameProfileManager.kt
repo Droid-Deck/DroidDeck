@@ -6,7 +6,7 @@ import com.droiddeck.launcher.core.GameEnvironment
 object GameProfileManager {
     @Synchronized
     fun reset(context: Context, scope: String) {
-        require(GameEnvironment.validScope(scope))
+        require(scope.isNotEmpty() && GameEnvironment.validScope(scope))
         val failures = mutableListOf<Pair<String, Throwable>>()
         fun clear(name: String, action: () -> Unit) {
             runCatching(action).onFailure { failures += name to it }
