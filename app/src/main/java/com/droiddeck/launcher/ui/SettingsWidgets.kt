@@ -241,7 +241,7 @@ fun rememberMenuHost(): MenuHost = remember { MenuHost() }
 /** Under the anchor with left edges aligned, kept on screen: a dropdown that belongs to a tab. */
 private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        var x = anchorBounds.left
+        var x = if (layoutDirection == LayoutDirection.Rtl) anchorBounds.right - popupContentSize.width else anchorBounds.left
         if (x + popupContentSize.width > windowSize.width - 8) x = windowSize.width - 8 - popupContentSize.width
         if (x < 8) x = 8
         var y = anchorBounds.bottom + gap
@@ -253,7 +253,8 @@ private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
 
 private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        var x = anchorBounds.right - popupContentSize.width
+        var x = if (layoutDirection == LayoutDirection.Rtl) anchorBounds.left else anchorBounds.right - popupContentSize.width
+        if (x + popupContentSize.width > windowSize.width - 8) x = windowSize.width - 8 - popupContentSize.width
         if (x < 8) x = 8
         var y = anchorBounds.bottom + gap
         if (y + popupContentSize.height > windowSize.height - 8) y = anchorBounds.top - gap - popupContentSize.height
