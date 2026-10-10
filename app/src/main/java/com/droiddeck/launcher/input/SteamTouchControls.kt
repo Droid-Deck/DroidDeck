@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.SteamTouchConfig.Element
 import java.util.concurrent.Executors
 import kotlin.math.abs
@@ -335,7 +336,7 @@ class SteamTouchControls(
                 if (editing) {
                     text.textSize = r * 0.3f
                     text.color = Color.argb(alpha / 2, 255, 255, 255)
-                    canvas.drawText("Trackpad", x, y - (text.descent() + text.ascent()) / 2, text)
+                    canvas.drawText(trackpadLabel, x, y - (text.descent() + text.ascent()) / 2, text)
                 }
             }
             SteamTouchConfig.STEAM -> {
