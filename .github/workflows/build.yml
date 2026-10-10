@@ -44,6 +44,19 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - name: Reject AI co-author trailers
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          base=$(git merge-base origin/main HEAD)
+          messages=$(git log --format=%B "$base..HEAD")
+          messages+=$'\n'"$(jq -r '.pull_request.title, (.pull_request.body // "")' "$GITHUB_EVENT_PATH")"
+          if grep -Eiq '^[[:space:]]*Co-authored-by:.*(Claude|Anthropic|OpenAI|ChatGPT|GPT|Copilot|Cursor|Gemini|Codex|Devin|Windsurf|Codeium|Amazon Q|Tabnine|Cody|\[bot\])' <<<"$messages"; then
+            echo "::error::AI and bot identities cannot be co-authors; remove the Co-authored-by trailer."
+            exit 1
+          fi
+
       - name: The packages a signed build ships as
         id: variants
         run: echo "list=$(awk '!/^#/ && NF { print $1 }' tools/release/variants.txt | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
