@@ -97,6 +97,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.roundToInt
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.text.font.FontWeight
@@ -238,7 +239,7 @@ class MenuHost {
 @Composable
 fun rememberMenuHost(): MenuHost = remember { MenuHost() }
 
-/** Under the anchor with left edges aligned, kept on screen: a dropdown that belongs to a tab. */
+/** Under the anchor with logical start edges aligned, kept on screen: a dropdown that belongs to a tab. */
 private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
         var x = if (layoutDirection == LayoutDirection.Rtl) anchorBounds.right - popupContentSize.width else anchorBounds.left
@@ -266,7 +267,7 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
 @Composable
 fun AnchoredMenu(
     open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
-    /** A tab's dropdown: under its anchor, left edges aligned, as wide as its entries (within [minWidth]..260 dp). */
+    /** A tab's dropdown: under its anchor, logical start edges aligned, as wide as its entries (within [minWidth]..260 dp). */
     compact: Boolean = false, minWidth: androidx.compose.ui.unit.Dp = 120.dp,
     content: @Composable ColumnScope.(FocusRequester) -> Unit,
 ) {
@@ -286,11 +287,13 @@ fun AnchoredMenu(
     val provider = remember(gap, compact) { if (compact) BelowStartProvider(gap) else BelowEndProvider(gap) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val originX = if (compact) (if (isRtl) 1f else 0f) else (if (isRtl) 0f else 1f)
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         AnimatedVisibility(
             visibleState = state,
-            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
-            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
+            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(originX, 0f)),
+            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(originX, 0f)),
             label = "menu",
         ) {
             // A long list (a driver menu with its downloads) must not run off the screen: the menu is
