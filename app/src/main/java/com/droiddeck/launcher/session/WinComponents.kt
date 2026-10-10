@@ -65,8 +65,13 @@ object WinComponents {
     private const val MSI_INSTALL = "/usr/local/bin/droiddeck-msi-install"
     /** Where a downloaded package or installer waits for the installer, inside the runtime so it can read it. */
     private const val MSI_CACHE = "$STORE/.packages"
-    /** Catalog entries Proton already provides newer copies of, which an install would only shadow. */
-    private val PROTON_PROVIDES = setOf("gecko", "mono")
+    /**
+     * Catalog entries every Proton here already ships, which an install would only shadow: Wine
+     * Gecko and Mono, the Chinese/Japanese/Korean fonts (Malgun, MS Gothic, YaHei, SimSun are in
+     * share/fonts of Proton Experimental, GE-Proton and proton-cachyos alike) and Wine's own
+     * PowerShell wrapper.
+     */
+    private val PROTON_PROVIDES = setOf("gecko", "mono", "cjkfonts", "powershell")
     /** The keys the catalog nests under "environment" on a few .NET entries. */
     private val NESTED_KEYS = setOf("url", "file_name", "file_checksum", "file_size")
 
