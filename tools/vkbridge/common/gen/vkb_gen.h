@@ -307,6 +307,7 @@ enum vkb_cmd_id {
     VKB_CMD_COUNT = 290
 };
 extern const char *const vkb_cmd_names[VKB_CMD_COUNT];
+extern const unsigned char vkb_cmd_result[VKB_CMD_COUNT]; /* returns VkResult (first in the reply) */
 
 /* Every bridged command, by its canonical name (aliases resolve to these). */
 typedef struct vkb_dispatch {

@@ -134,7 +134,7 @@ VKAPI_ATTR void VKAPI_CALL vkb_ep_vkUpdateDescriptorSetWithTemplate(VkDevice dev
     vkb_enc_u64(&c.e, t->size);
     size_t at = vkb_enc_raw(&c.e, NULL, t->size);
     if (!c.e.oom) pack(t, pData, c.e.buf + at);
-    if (vkb_call_exec(&c)) vkb_call_end(&c);
+    vkb_call_exec_async(&c);
 }
 
 VKAPI_ATTR void VKAPI_CALL vkb_ep_vkCmdPushDescriptorSetWithTemplate(VkCommandBuffer commandBuffer, VkDescriptorUpdateTemplate tmpl,
@@ -305,4 +305,298 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkTransitionImageLayout(VkDevice device, u
     (void)transitionCount;
     (void)pTransitions;
     return VK_ERROR_FEATURE_NOT_PRESENT;
+}
+
+/* ------------------------------------------------------------------ descriptor set batching */
+
+/*
+ * DXVK allocates a descriptor set (or two) per draw; one round trip each was most of a frame's
+ * time. Sets are allocated from the server in batches per (pool, layout) and handed out here. A
+ * pool's reset or destruction drops what was cached for it (the reset freed those sets anyway).
+ *
+ * Where it can, the client keeps the pool's books: what each layout takes of every descriptor
+ * type, and what the pool has left. A batch then asks for no more than fits, and a pool that is
+ * full answers VK_ERROR_OUT_OF_POOL_MEMORY here, without a round trip (DXVK fills a pool every few
+ * hundred draws). Pools and layouts the books cannot follow (sets freed one by one, inline uniform
+ * blocks, mutable or variable-count descriptors) go by the driver's answers: a batch that does not
+ * fit falls back to what the app asked for, so the app sees the out-of-pool error when it would.
+ */
+#define DS_BATCH 256
+#define DS_TYPES 12 /* VK_DESCRIPTOR_TYPE_SAMPLER..INPUT_ATTACHMENT, then ACCELERATION_STRUCTURE_KHR */
+
+static int ds_type_index(VkDescriptorType t)
+{
+    if ((uint32_t)t <= VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) return (int)t;
+    if (t == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR) return 11;
+    return -1;
+}
+
+typedef struct ds_cache {
+    VkDescriptorPool pool;
+    VkDescriptorSetLayout layout;
+    VkDescriptorSet sets[DS_BATCH];
+    uint32_t n;
+    uint32_t batch;              /* grows from 4 to the pool's max_batch while the pool keeps up */
+    struct ds_cache *next;
+} ds_cache;
+
+static pthread_mutex_t ds_lock = PTHREAD_MUTEX_INITIALIZER;
+static ds_cache *ds_head;
+
+/* Pools the app made, with the batch they allow: a pool sized for exactly what the app will
+ * allocate (DXVK's sampler pool) must not lose capacity to prefetching. */
+typedef struct ds_pool {
+    VkDescriptorPool pool;
+    uint32_t max_batch;
+    int books;                   /* capacity below is kept */
+    uint32_t max_sets, sets_left;
+    uint32_t size[DS_TYPES], left[DS_TYPES];
+    struct ds_pool *next;
+} ds_pool;
+static ds_pool *ds_pools;
+
+/* Layouts with what one set of them takes; known = 0 when the books cannot follow it. */
+typedef struct ds_layout {
+    VkDescriptorSetLayout layout;
+    int known;
+    uint32_t count[DS_TYPES];
+    struct ds_layout *next;
+} ds_layout;
+static ds_layout *ds_layouts;
+
+static ds_pool *pool_find(VkDescriptorPool pool)
+{
+    for (ds_pool *p = ds_pools; p; p = p->next)
+        if (p->pool == pool) return p;
+    return NULL;
+}
+
+static ds_layout *layout_find(VkDescriptorSetLayout layout)
+{
+    for (ds_layout *l = ds_layouts; l; l = l->next)
+        if (l->layout == layout) return l;
+    return NULL;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDescriptorSetLayout(VkDevice device, const VkDescriptorSetLayoutCreateInfo *ci,
+                                                                  const VkAllocationCallbacks *pAllocator, VkDescriptorSetLayout *pLayout)
+{
+    VkResult r = vkb_wire_vkCreateDescriptorSetLayout(device, ci, pAllocator, pLayout);
+    if (r != VK_SUCCESS) return r;
+    ds_layout *l = calloc(1, sizeof(*l));
+    if (!l) return r;
+    l->layout = *pLayout;
+    /* Binding flags only matter for variable counts; anything else in the chain is left alone. */
+    l->known = 1;
+    for (const VkBaseInStructure *n = ci->pNext; n; n = n->pNext) {
+        if (n->sType != VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO) {
+            l->known = 0;
+            continue;
+        }
+        const VkDescriptorSetLayoutBindingFlagsCreateInfo *bf = (const void *)n;
+        for (uint32_t i = 0; i < bf->bindingCount; i++)
+            if (bf->pBindingFlags[i] & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT) l->known = 0;
+    }
+    for (uint32_t i = 0; i < ci->bindingCount && l->known; i++) {
+        int t = ds_type_index(ci->pBindings[i].descriptorType);
+        if (t < 0) l->known = 0;
+        else l->count[t] += ci->pBindings[i].descriptorCount;
+    }
+    pthread_mutex_lock(&ds_lock);
+    l->next = ds_layouts;
+    ds_layouts = l;
+    pthread_mutex_unlock(&ds_lock);
+    return r;
+}
+
+VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDescriptorSetLayout(VkDevice device, VkDescriptorSetLayout layout,
+                                                               const VkAllocationCallbacks *pAllocator)
+{
+    if (!layout) return;
+    pthread_mutex_lock(&ds_lock);
+    for (ds_layout **pp = &ds_layouts; *pp; pp = &(*pp)->next) {
+        if ((*pp)->layout == layout) {
+            ds_layout *l = *pp;
+            *pp = l->next;
+            free(l);
+            break;
+        }
+    }
+    /* Sets cached for it stay allocated in their pools, but a new layout may get its handle. */
+    for (ds_cache **pp = &ds_head; *pp;) {
+        if ((*pp)->layout == layout) {
+            ds_cache *c = *pp;
+            *pp = c->next;
+            free(c);
+        } else {
+            pp = &(*pp)->next;
+        }
+    }
+    pthread_mutex_unlock(&ds_lock);
+    vkb_wire_vkDestroyDescriptorSetLayout(device, layout, pAllocator);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDescriptorPool(VkDevice device, const VkDescriptorPoolCreateInfo *ci,
+                                                             const VkAllocationCallbacks *pAllocator, VkDescriptorPool *pPool)
+{
+    VkResult r = vkb_wire_vkCreateDescriptorPool(device, ci, pAllocator, pPool);
+    if (r != VK_SUCCESS) return r;
+    ds_pool *p = calloc(1, sizeof(*p));
+    if (!p) return r;
+    p->pool = *pPool;
+    p->max_batch = ci->maxSets >= 256 ? ci->maxSets / 8 : 1;
+    if (p->max_batch > DS_BATCH) p->max_batch = DS_BATCH;
+    p->books = !ci->pNext && !(ci->flags & VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
+    p->max_sets = p->sets_left = ci->maxSets;
+    for (uint32_t i = 0; i < ci->poolSizeCount && p->books; i++) {
+        int t = ds_type_index(ci->pPoolSizes[i].type);
+        if (t < 0) p->books = 0;
+        else p->size[t] += ci->pPoolSizes[i].descriptorCount;
+    }
+    memcpy(p->left, p->size, sizeof(p->left));
+    VKB_DBG("descriptor pool: maxSets %u, %u pool sizes, prefetch up to %u%s", ci->maxSets, ci->poolSizeCount,
+            p->max_batch, p->books ? ", capacity tracked" : "");
+    pthread_mutex_lock(&ds_lock);
+    p->next = ds_pools;
+    ds_pools = p;
+    pthread_mutex_unlock(&ds_lock);
+    return r;
+}
+
+static ds_cache *ds_find(VkDescriptorPool pool, VkDescriptorSetLayout layout, int create)
+{
+    for (ds_cache *c = ds_head; c; c = c->next)
+        if (c->pool == pool && c->layout == layout) return c;
+    if (!create) return NULL;
+    ds_cache *c = calloc(1, sizeof(*c));
+    if (!c) return NULL;
+    c->pool = pool;
+    c->layout = layout;
+    c->batch = 4;
+    c->next = ds_head;
+    ds_head = c;
+    return c;
+}
+
+/* A reset frees the pool's sets, cached ones included; destruction also forgets the pool. The
+ * learned batch size survives a reset (pools are reset every frame). */
+static void ds_drop_pool(VkDescriptorPool pool, int destroy)
+{
+    pthread_mutex_lock(&ds_lock);
+    ds_cache **pp = &ds_head;
+    while (*pp) {
+        if ((*pp)->pool == pool && destroy) {
+            ds_cache *c = *pp;
+            *pp = c->next;
+            free(c);
+        } else {
+            if ((*pp)->pool == pool) (*pp)->n = 0;
+            pp = &(*pp)->next;
+        }
+    }
+    ds_pool *p = pool_find(pool);
+    if (p && !destroy) {
+        p->sets_left = p->max_sets;
+        memcpy(p->left, p->size, sizeof(p->left));
+    }
+    pthread_mutex_unlock(&ds_lock);
+}
+
+/* How many sets of layout l still fit in pool p by the books; UINT32_MAX when not kept. */
+static uint32_t ds_fits(const ds_pool *p, const ds_layout *l)
+{
+    if (!p->books || !l || !l->known) return UINT32_MAX;
+    uint32_t n = p->sets_left;
+    for (int t = 0; t < DS_TYPES; t++)
+        if (l->count[t] && p->left[t] / l->count[t] < n) n = p->left[t] / l->count[t];
+    return n;
+}
+
+/* Fills the cache for (pool, layout) with `want` sets; returns the driver's result. */
+static VkResult ds_refill(VkDevice device, ds_pool *p, const ds_layout *l, ds_cache *c, uint32_t want)
+{
+    VkDescriptorSetLayout layouts[DS_BATCH];
+    for (uint32_t i = 0; i < want; i++) layouts[i] = c->layout;
+    VkDescriptorSetAllocateInfo ai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, NULL, c->pool, want, layouts};
+    VkResult r = vkb_wire_vkAllocateDescriptorSets(device, &ai, c->sets + c->n);
+    if (r != VK_SUCCESS) return r;
+    c->n += want;
+    if (ds_fits(p, l) != UINT32_MAX) {
+        p->sets_left -= want;
+        for (int t = 0; t < DS_TYPES; t++) p->left[t] -= want * l->count[t];
+    }
+    return r;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAllocateDescriptorSets(VkDevice device, const VkDescriptorSetAllocateInfo *ai, VkDescriptorSet *out)
+{
+    /* Variable descriptor counts and the like are per allocation: those go straight through. */
+    if (ai->pNext || getenv("VKBRIDGE_SYNC")) return vkb_wire_vkAllocateDescriptorSets(device, ai, out);
+    pthread_mutex_lock(&ds_lock);
+    ds_pool *p = pool_find(ai->descriptorPool);
+    if (!p || p->max_batch <= 1) {
+        pthread_mutex_unlock(&ds_lock);
+        return vkb_wire_vkAllocateDescriptorSets(device, ai, out);
+    }
+    VkResult r = VK_SUCCESS;
+    uint32_t done = 0;
+    for (; done < ai->descriptorSetCount; done++) {
+        ds_cache *c = ds_find(ai->descriptorPool, ai->pSetLayouts[done], 1);
+        if (!c) {
+            r = VK_ERROR_OUT_OF_HOST_MEMORY;
+            break;
+        }
+        if (c->batch > p->max_batch) c->batch = p->max_batch;
+        if (!c->n) {
+            const ds_layout *l = layout_find(c->layout);
+            uint32_t fits = ds_fits(p, l), want = c->batch < fits ? c->batch : fits;
+            if (!want) {
+                r = VK_ERROR_OUT_OF_POOL_MEMORY;
+                break;
+            }
+            r = ds_refill(device, p, l, c, want);
+            if ((r == VK_ERROR_OUT_OF_POOL_MEMORY || r == VK_ERROR_FRAGMENTED_POOL) && want > 1) {
+                /* The driver disagrees with the batch (or the books): just what was asked for. */
+                c->batch = want / 2 > 4 ? want / 2 : 4;
+                r = ds_refill(device, p, l, c, 1);
+            } else if (r == VK_SUCCESS && c->batch < p->max_batch && want == c->batch) {
+                c->batch = c->batch * 2 > p->max_batch ? p->max_batch : c->batch * 2;
+            }
+            if (r != VK_SUCCESS) break;
+        }
+        out[done] = c->sets[--c->n];
+    }
+    if (r != VK_SUCCESS) {
+        /* None allocated, as the spec has it: what was taken goes back to the cache. */
+        for (uint32_t i = 0; i < done; i++) {
+            ds_cache *c = ds_find(ai->descriptorPool, ai->pSetLayouts[i], 0);
+            if (c && c->n < DS_BATCH) c->sets[c->n++] = out[i];
+        }
+        for (uint32_t i = 0; i < ai->descriptorSetCount; i++) out[i] = VK_NULL_HANDLE;
+    }
+    pthread_mutex_unlock(&ds_lock);
+    return r;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkResetDescriptorPool(VkDevice device, VkDescriptorPool pool, VkDescriptorPoolResetFlags flags)
+{
+    ds_drop_pool(pool, 0);
+    return vkb_wire_vkResetDescriptorPool(device, pool, flags);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool pool, const VkAllocationCallbacks *pAllocator)
+{
+    if (!pool) return;
+    ds_drop_pool(pool, 1);
+    pthread_mutex_lock(&ds_lock);
+    for (ds_pool **pp = &ds_pools; *pp; pp = &(*pp)->next) {
+        if ((*pp)->pool == pool) {
+            ds_pool *p = *pp;
+            *pp = p->next;
+            free(p);
+            break;
+        }
+    }
+    pthread_mutex_unlock(&ds_lock);
+    vkb_wire_vkDestroyDescriptorPool(device, pool, pAllocator);
 }

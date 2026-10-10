@@ -370,7 +370,7 @@ VKAPI_ATTR void VKAPI_CALL vkb_ep_vkFreeMemory(VkDevice device, VkDeviceMemory m
     vkb_call_begin(&c, VKB_CMD_vkFreeMemory, dev->obj.table);
     vkb_enc_u64(&c.e, dev->obj.remote);
     vkb_enc_u64(&c.e, (uint64_t)memory);
-    if (vkb_call_exec(&c)) vkb_call_end(&c);
+    vkb_call_exec_async(&c);
     if (m) vkb_memory_unmap_free(m);
 }
 

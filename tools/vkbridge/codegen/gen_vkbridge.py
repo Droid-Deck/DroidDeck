@@ -77,6 +77,8 @@ LOCAL_COMMANDS_PREFIX = ('vkCreateDebugUtilsMessengerEXT', 'vkDestroyDebugUtilsM
 
 # Commands whose client entry point is hand-written (the generated wire stub may still be used).
 CLIENT_CUSTOM = {
+    'vkAllocateDescriptorSets', 'vkResetDescriptorPool', 'vkDestroyDescriptorPool', 'vkCreateDescriptorPool',
+    'vkCreateDescriptorSetLayout', 'vkDestroyDescriptorSetLayout',
     'vkCreateInstance', 'vkDestroyInstance', 'vkEnumerateInstanceExtensionProperties',
     'vkEnumerateInstanceLayerProperties', 'vkEnumerateInstanceVersion', 'vkGetInstanceProcAddr',
     'vkGetDeviceProcAddr', 'vkEnumeratePhysicalDevices', 'vkEnumeratePhysicalDeviceGroups',
@@ -118,6 +120,12 @@ SERVER_CUSTOM = {
     'vkAllocateMemory', 'vkFreeMemory',
     'vkFlushMappedMemoryRanges', 'vkInvalidateMappedMemoryRanges', 'vkEndCommandBuffer',
 }
+
+# VkResult commands sent without waiting (VK_SUCCESS returned at once; a failure is logged by the
+# server). What an app does next with their objects is ordered after them by the protocol.
+ASYNC_RESULT = {'vkQueueSubmit', 'vkQueueSubmit2', 'vkResetDescriptorPool', 'vkResetCommandPool',
+                'vkResetCommandBuffer', 'vkResetFences', 'vkResetEvent', 'vkSetEvent', 'vkFreeDescriptorSets',
+                'vkBindBufferMemory', 'vkBindBufferMemory2', 'vkBindImageMemory', 'vkBindImageMemory2'}
 
 # File descriptors: (struct, member) and (command, param).
 FD_MEMBERS = {('VkImportMemoryFdInfoKHR', 'fd'), ('VkImportSemaphoreFdInfoKHR', 'fd'),
@@ -871,6 +879,7 @@ for i, c in enumerate(cmd_ids):
 hw(f'VKB_CMD_COUNT = {len(cmd_ids)}')
 hw('};')
 hw('extern const char *const vkb_cmd_names[VKB_CMD_COUNT];')
+hw('extern const unsigned char vkb_cmd_result[VKB_CMD_COUNT]; /* returns VkResult (first in the reply) */')
 hw()
 hw('/* Every bridged command, by its canonical name (aliases resolve to these). */')
 hw('typedef struct vkb_dispatch {')
@@ -906,6 +915,10 @@ names = W()
 names('const char *const vkb_cmd_names[VKB_CMD_COUNT] = {')
 for c in cmd_ids:
     names(f'"{c}",')
+names('};')
+names('const unsigned char vkb_cmd_result[VKB_CMD_COUNT] = {')
+for c in cmd_ids:
+    names(f'{1 if c in reg.commands and reg.commands[c]["ret"] == "VkResult" else 0},')
 names('};')
 names('const vkb_ext_desc vkb_exts[VKB_EXT_COUNT] = {')
 for e in bridged_exts:
@@ -1083,6 +1096,19 @@ for c in wire_cmds:
                 outs.append(('single', p))
     if is_cmdbuf:
         cw(f'vkb_cmd_record_end({first});')
+        cw('}')
+        cw()
+    elif ret == 'void' and not outs and not any((c, p.name) in FD_PARAMS for p in params):
+        # Nothing comes back: sent without waiting (ordered by the protocol's sequence numbers).
+        cw('vkb_call_exec_async(&call_);')
+        cw('}')
+        cw()
+    elif c in ASYNC_RESULT and not outs:
+        cw('if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;')
+        cw('if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;')
+        cw('VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);')
+        cw('vkb_call_end(&call_);')
+        cw('return r_;')
         cw('}')
         cw()
     else:

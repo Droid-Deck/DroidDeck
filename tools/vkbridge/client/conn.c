@@ -79,6 +79,8 @@ typedef struct vkb_conn {
 } vkb_conn;
 
 static uint64_t process_token;
+/* The last asynchronous request's sequence number in this process (see vkb_msg_hdr). */
+static uint64_t async_seq;
 static uint32_t fork_epoch;
 static pthread_key_t conn_key;
 static pthread_once_t conn_once = PTHREAD_ONCE_INIT;
@@ -99,11 +101,102 @@ static void conn_thread_exit(void *p)
     conn_free(p);
 }
 
+/* Asynchronous requests of the whole process wait here and are written out in one go, ahead of
+ * the next synchronous request any thread makes (or when the queue grows large). They carry their
+ * sequence numbers, so whichever connection carries them, the server runs them in order. */
+static pthread_mutex_t aq_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint8_t *aq_buf;
+static size_t aq_len, aq_cap;
+#define AQ_FLUSH (256u << 10)
+
+static int write_all(int sock, const void *p, size_t n)
+{
+    const uint8_t *b = p;
+    while (n) {
+        ssize_t r = send(sock, b, n, MSG_NOSIGNAL);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        b += r;
+        n -= (size_t)r;
+    }
+    return 0;
+}
+
+static int aq_flush_locked(vkb_conn *conn)
+{
+    if (!aq_len) return 0;
+    int r = write_all(conn->sock, aq_buf, aq_len);
+    aq_len = 0;
+    if (aq_cap > (4u << 20)) {
+        free(aq_buf);
+        aq_buf = NULL;
+        aq_cap = 0;
+    }
+    return r;
+}
+
+/* The flusher: asynchronous requests do not wait for the next synchronous one forever - another
+ * thread may be blocked in the server on work they would start (a submit that signals what it is
+ * waiting for). It sends what is queued ~100 us after it was queued, batching what follows. */
+static pthread_cond_t aq_cond = PTHREAD_COND_INITIALIZER;
+static int aq_flusher_started;
+static uint64_t aq_first_ns;
+
+static uint64_t now_ns(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+static vkb_conn *get_conn(void);
+
+static void *aq_flusher(void *arg)
+{
+    (void)arg;
+    vkb_conn *conn = get_conn();
+    if (!conn) return NULL;
+    pthread_mutex_lock(&aq_lock);
+    for (;;) {
+        while (!aq_len) pthread_cond_wait(&aq_cond, &aq_lock);
+        uint64_t due = aq_first_ns + 100000, now = now_ns();
+        if (now < due && aq_len < AQ_FLUSH / 4) {
+            pthread_mutex_unlock(&aq_lock);
+            struct timespec ts = {0, (long)(due - now)};
+            nanosleep(&ts, NULL);
+            pthread_mutex_lock(&aq_lock);
+            continue;
+        }
+        if (aq_flush_locked(conn) < 0) {
+            conn->dead = 1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&aq_lock);
+    return NULL;
+}
+
+static void aq_exit_flush(void)
+{
+    vkb_conn *c = tls_conn;
+    if (!c || c->dead) return;
+    pthread_mutex_lock(&aq_lock);
+    aq_flush_locked(c);
+    pthread_mutex_unlock(&aq_lock);
+}
+
 static void atfork_child(void)
 {
+    aq_len = 0;
+    aq_flusher_started = 0;
+    pthread_cond_init(&aq_cond, NULL);
+    pthread_mutex_init(&aq_lock, NULL);
     /* The child must not talk on the parent's sockets: new token, new connections. */
     fork_epoch++;
     process_token = 0;
+    async_seq = 0;
     tls_conn = NULL; /* the old one is leaked deliberately: its socket belongs to the parent too */
 }
 
@@ -111,6 +204,7 @@ static void conn_init_once(void)
 {
     pthread_key_create(&conn_key, conn_thread_exit);
     pthread_atfork(NULL, NULL, atfork_child);
+    atexit(aq_exit_flush);
 }
 
 void vkb_conn_after_fork(void) { atfork_child(); }
@@ -172,7 +266,7 @@ static int do_connect(vkb_conn *c)
         fclose(f);
     }
     vkb_enc_str(&e, comm);
-    vkb_msg_hdr h = {VKB_MAGIC, (uint32_t)e.len, VKB_CMD_vkbHello, 0, 0, 0};
+    vkb_msg_hdr h = {VKB_MAGIC, (uint32_t)e.len, VKB_CMD_vkbHello, 0, 0, 0, 0, 0};
     int ok = vkb_send_msg(s, &h, e.buf, NULL, 0) == 0;
     vkb_enc_free(&e);
     int fds[VKB_MAX_FDS], nfds = 0;
@@ -279,8 +373,62 @@ int vkb_call_exec(vkb_call *c)
         c->conn = NULL;
         return 0;
     }
-    vkb_msg_hdr h = {VKB_MAGIC, (uint32_t)c->e.len, c->cmd, c->table, (uint32_t)c->e.nfds, c->flags & VKB_F_NOREPLY};
-    if (vkb_send_msg(conn->sock, &h, c->e.buf, c->e.fds, c->e.nfds) < 0) {
+    vkb_msg_hdr h = {VKB_MAGIC, (uint32_t)c->e.len, c->cmd, c->table, (uint32_t)c->e.nfds, c->flags & VKB_F_NOREPLY, 0, 0};
+    vkb_stats_count(c->cmd, (c->flags & VKB_F_NOREPLY) != 0, c->e.len);
+    pthread_mutex_lock(&aq_lock);
+    if ((c->flags & VKB_F_NOREPLY) && !c->e.nfds) {
+        /* Queued: header and payload appended under the lock that also orders the seqs. */
+        h.seq = ++async_seq;
+        h.barrier = h.seq - 1;
+        size_t need = aq_len + sizeof(h) + c->e.len;
+        if (need > aq_cap) {
+            size_t nc = aq_cap ? aq_cap : 65536;
+            while (nc < need) nc *= 2;
+            uint8_t *nb = realloc(aq_buf, nc);
+            if (!nb) {
+                pthread_mutex_unlock(&aq_lock);
+                release_enc(c);
+                c->conn = NULL;
+                return 0;
+            }
+            aq_buf = nb;
+            aq_cap = nc;
+        }
+        if (!aq_len) aq_first_ns = now_ns();
+        memcpy(aq_buf + aq_len, &h, sizeof(h));
+        memcpy(aq_buf + aq_len + sizeof(h), c->e.buf, c->e.len);
+        aq_len = need;
+        if (!aq_flusher_started) {
+            aq_flusher_started = 1;
+            pthread_t t;
+            pthread_attr_t a;
+            pthread_attr_init(&a);
+            pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
+            if (pthread_create(&t, &a, aq_flusher, NULL) != 0) aq_flusher_started = 0;
+            pthread_attr_destroy(&a);
+        }
+        pthread_cond_signal(&aq_cond);
+        int r = aq_len >= AQ_FLUSH ? aq_flush_locked(conn) : 0;
+        pthread_mutex_unlock(&aq_lock);
+        release_enc(c);
+        c->conn = NULL;
+        if (r < 0) {
+            VKB_ERR("lost the bridge server (%s)", strerror(errno));
+            conn->dead = 1;
+            return 0;
+        }
+        return 1;
+    }
+    /* Everything queued goes first, on this connection. */
+    int qr = aq_flush_locked(conn);
+    if (c->flags & VKB_F_NOREPLY) {
+        h.seq = ++async_seq;
+        h.barrier = h.seq - 1;
+    } else {
+        h.barrier = async_seq;
+    }
+    pthread_mutex_unlock(&aq_lock);
+    if (qr < 0 || vkb_send_msg(conn->sock, &h, c->e.buf, c->e.fds, c->e.nfds) < 0) {
         VKB_ERR("%s: lost the bridge server (%s)", vkb_cmd_names[c->cmd], strerror(errno));
         conn->dead = 1;
         release_enc(c);
@@ -321,6 +469,70 @@ void vkb_call_end(vkb_call *c)
     vkb_dec_close_untaken(&c->d);
     vkb_arena_reset(&c->conn->arena);
     c->conn = NULL;
+}
+
+/* VkResult commands treated as asynchronous (ASYNC_RESULT in the generator): on unless
+ * VKBRIDGE_SYNC is set. */
+int vkb_async_results(void)
+{
+    static int v = -1;
+    if (v < 0) v = getenv("VKBRIDGE_SYNC") == NULL;
+    return v;
+}
+
+/* Asynchronous variant: no reply is awaited (void commands without outputs). */
+int vkb_call_exec_async(vkb_call *c)
+{
+    if (getenv("VKBRIDGE_SYNC")) return vkb_call_exec(c) ? (vkb_call_end(c), 1) : 0;
+    c->flags |= VKB_F_NOREPLY;
+    return vkb_call_exec(c);
+}
+
+/* VKBRIDGE_STATS=<seconds>: per-command counts of round trips and async sends, logged. */
+static uint32_t stat_sync[VKB_CMD_COUNT], stat_async[VKB_CMD_COUNT];
+static uint64_t stat_bytes;
+static uint64_t stat_last;
+void vkb_stats_count(uint32_t cmd, int async, size_t bytes)
+{
+    static int period = -1;
+    if (period < 0) {
+        const char *v = getenv("VKBRIDGE_STATS");
+        period = v ? atoi(v) : 0;
+    }
+    if (!period) return;
+    __atomic_add_fetch(async ? &stat_async[cmd] : &stat_sync[cmd], 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&stat_bytes, bytes, __ATOMIC_RELAXED);
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t now = (uint64_t)ts.tv_sec;
+    uint64_t last = __atomic_load_n(&stat_last, __ATOMIC_RELAXED);
+    if (!last) {
+        __atomic_store_n(&stat_last, now, __ATOMIC_RELAXED);
+        return;
+    }
+    if (now - last < (uint64_t)period || !__atomic_compare_exchange_n(&stat_last, &last, now, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED))
+        return;
+    uint32_t tot_s = 0, tot_a = 0;
+    for (uint32_t i = 0; i < VKB_CMD_COUNT; i++) {
+        tot_s += stat_sync[i];
+        tot_a += stat_async[i];
+    }
+    vkb_log(VKB_LOG_ERROR, "stats over %us: %u round trips, %u async, %llu KB sent", period, tot_s, tot_a,
+            (unsigned long long)(stat_bytes >> 10));
+    for (int k = 0; k < 8; k++) {
+        uint32_t best = 0, bi = 0;
+        for (uint32_t i = 0; i < VKB_CMD_COUNT; i++)
+            if (stat_sync[i] + stat_async[i] > best) {
+                best = stat_sync[i] + stat_async[i];
+                bi = i;
+            }
+        if (!best) break;
+        vkb_log(VKB_LOG_ERROR, "  %-40s %6u sync %6u async", vkb_cmd_names[bi], stat_sync[bi], stat_async[bi]);
+        stat_sync[bi] = stat_async[bi] = 0;
+    }
+    memset(stat_sync, 0, sizeof(stat_sync));
+    memset(stat_async, 0, sizeof(stat_async));
+    stat_bytes = 0;
 }
 
 uint32_t vkb_table_of(const void *h)

@@ -143,13 +143,9 @@ VkResult vkb_wire_vkBindBufferMemory(VkDevice device, VkBuffer buffer, VkDeviceM
     vkb_enc_bytes(e, &buffer, sizeof(buffer));
     vkb_enc_bytes(e, &memory, sizeof(memory));
     vkb_enc_bytes(e, &memoryOffset, sizeof(memoryOffset));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -168,13 +164,9 @@ VkResult vkb_wire_vkBindBufferMemory2(VkDevice device, uint32_t bindInfoCount, c
     } else {
         vkb_enc_u8(e, 0);
     }
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -188,13 +180,9 @@ VkResult vkb_wire_vkBindImageMemory(VkDevice device, VkImage image, VkDeviceMemo
     vkb_enc_bytes(e, &image, sizeof(image));
     vkb_enc_bytes(e, &memory, sizeof(memory));
     vkb_enc_bytes(e, &memoryOffset, sizeof(memoryOffset));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -213,13 +201,9 @@ VkResult vkb_wire_vkBindImageMemory2(VkDevice device, uint32_t bindInfoCount, co
     } else {
         vkb_enc_u8(e, 0);
     }
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -2950,12 +2934,7 @@ void vkb_wire_vkDestroyBuffer(VkDevice device, VkBuffer buffer, const VkAllocati
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &buffer, sizeof(buffer));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyBufferView(VkDevice device, VkBufferView bufferView, const VkAllocationCallbacks* pAllocator)
@@ -2966,12 +2945,7 @@ void vkb_wire_vkDestroyBufferView(VkDevice device, VkBufferView bufferView, cons
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &bufferView, sizeof(bufferView));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyCommandPool(VkDevice device, VkCommandPool commandPool, const VkAllocationCallbacks* pAllocator)
@@ -2982,12 +2956,7 @@ void vkb_wire_vkDestroyCommandPool(VkDevice device, VkCommandPool commandPool, c
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &commandPool, sizeof(commandPool));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool, const VkAllocationCallbacks* pAllocator)
@@ -2998,12 +2967,7 @@ void vkb_wire_vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descript
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &descriptorPool, sizeof(descriptorPool));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyDescriptorSetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout, const VkAllocationCallbacks* pAllocator)
@@ -3014,12 +2978,7 @@ void vkb_wire_vkDestroyDescriptorSetLayout(VkDevice device, VkDescriptorSetLayou
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &descriptorSetLayout, sizeof(descriptorSetLayout));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyDescriptorUpdateTemplate(VkDevice device, VkDescriptorUpdateTemplate descriptorUpdateTemplate, const VkAllocationCallbacks* pAllocator)
@@ -3030,12 +2989,7 @@ void vkb_wire_vkDestroyDescriptorUpdateTemplate(VkDevice device, VkDescriptorUpd
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &descriptorUpdateTemplate, sizeof(descriptorUpdateTemplate));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pAllocator)
@@ -3045,12 +2999,7 @@ void vkb_wire_vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pAll
     vkb_enc *e = &call_.e;
     vkb_enc_u64(e, vkb_remote((const void *)device));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyEvent(VkDevice device, VkEvent event, const VkAllocationCallbacks* pAllocator)
@@ -3061,12 +3010,7 @@ void vkb_wire_vkDestroyEvent(VkDevice device, VkEvent event, const VkAllocationC
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &event, sizeof(event));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyFence(VkDevice device, VkFence fence, const VkAllocationCallbacks* pAllocator)
@@ -3077,12 +3021,7 @@ void vkb_wire_vkDestroyFence(VkDevice device, VkFence fence, const VkAllocationC
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &fence, sizeof(fence));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyFramebuffer(VkDevice device, VkFramebuffer framebuffer, const VkAllocationCallbacks* pAllocator)
@@ -3093,12 +3032,7 @@ void vkb_wire_vkDestroyFramebuffer(VkDevice device, VkFramebuffer framebuffer, c
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &framebuffer, sizeof(framebuffer));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyImage(VkDevice device, VkImage image, const VkAllocationCallbacks* pAllocator)
@@ -3109,12 +3043,7 @@ void vkb_wire_vkDestroyImage(VkDevice device, VkImage image, const VkAllocationC
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &image, sizeof(image));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyImageView(VkDevice device, VkImageView imageView, const VkAllocationCallbacks* pAllocator)
@@ -3125,12 +3054,7 @@ void vkb_wire_vkDestroyImageView(VkDevice device, VkImageView imageView, const V
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &imageView, sizeof(imageView));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyInstance(VkInstance instance, const VkAllocationCallbacks* pAllocator)
@@ -3140,12 +3064,7 @@ void vkb_wire_vkDestroyInstance(VkInstance instance, const VkAllocationCallbacks
     vkb_enc *e = &call_.e;
     vkb_enc_u64(e, vkb_remote((const void *)instance));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks* pAllocator)
@@ -3156,12 +3075,7 @@ void vkb_wire_vkDestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAl
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &pipeline, sizeof(pipeline));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyPipelineCache(VkDevice device, VkPipelineCache pipelineCache, const VkAllocationCallbacks* pAllocator)
@@ -3172,12 +3086,7 @@ void vkb_wire_vkDestroyPipelineCache(VkDevice device, VkPipelineCache pipelineCa
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &pipelineCache, sizeof(pipelineCache));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyPipelineLayout(VkDevice device, VkPipelineLayout pipelineLayout, const VkAllocationCallbacks* pAllocator)
@@ -3188,12 +3097,7 @@ void vkb_wire_vkDestroyPipelineLayout(VkDevice device, VkPipelineLayout pipeline
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &pipelineLayout, sizeof(pipelineLayout));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyQueryPool(VkDevice device, VkQueryPool queryPool, const VkAllocationCallbacks* pAllocator)
@@ -3204,12 +3108,7 @@ void vkb_wire_vkDestroyQueryPool(VkDevice device, VkQueryPool queryPool, const V
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &queryPool, sizeof(queryPool));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyRenderPass(VkDevice device, VkRenderPass renderPass, const VkAllocationCallbacks* pAllocator)
@@ -3220,12 +3119,7 @@ void vkb_wire_vkDestroyRenderPass(VkDevice device, VkRenderPass renderPass, cons
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &renderPass, sizeof(renderPass));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroySampler(VkDevice device, VkSampler sampler, const VkAllocationCallbacks* pAllocator)
@@ -3236,12 +3130,7 @@ void vkb_wire_vkDestroySampler(VkDevice device, VkSampler sampler, const VkAlloc
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &sampler, sizeof(sampler));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroySamplerYcbcrConversion(VkDevice device, VkSamplerYcbcrConversion ycbcrConversion, const VkAllocationCallbacks* pAllocator)
@@ -3252,12 +3141,7 @@ void vkb_wire_vkDestroySamplerYcbcrConversion(VkDevice device, VkSamplerYcbcrCon
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &ycbcrConversion, sizeof(ycbcrConversion));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroySemaphore(VkDevice device, VkSemaphore semaphore, const VkAllocationCallbacks* pAllocator)
@@ -3268,12 +3152,7 @@ void vkb_wire_vkDestroySemaphore(VkDevice device, VkSemaphore semaphore, const V
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &semaphore, sizeof(semaphore));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyShaderModule(VkDevice device, VkShaderModule shaderModule, const VkAllocationCallbacks* pAllocator)
@@ -3284,12 +3163,7 @@ void vkb_wire_vkDestroyShaderModule(VkDevice device, VkShaderModule shaderModule
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &shaderModule, sizeof(shaderModule));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyTensorARM(VkDevice device, VkTensorARM tensor, const VkAllocationCallbacks* pAllocator)
@@ -3300,12 +3174,7 @@ void vkb_wire_vkDestroyTensorARM(VkDevice device, VkTensorARM tensor, const VkAl
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &tensor, sizeof(tensor));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkDestroyTensorViewARM(VkDevice device, VkTensorViewARM tensorView, const VkAllocationCallbacks* pAllocator)
@@ -3316,12 +3185,7 @@ void vkb_wire_vkDestroyTensorViewARM(VkDevice device, VkTensorViewARM tensorView
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &tensorView, sizeof(tensorView));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 VkResult vkb_wire_vkDeviceWaitIdle(VkDevice device)
@@ -3653,12 +3517,7 @@ void vkb_wire_vkFreeCommandBuffers(VkDevice device, VkCommandPool commandPool, u
     } else {
         vkb_enc_u8(e, 0);
     }
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 VkResult vkb_wire_vkFreeDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets)
@@ -3676,13 +3535,9 @@ VkResult vkb_wire_vkFreeDescriptorSets(VkDevice device, VkDescriptorPool descrip
     } else {
         vkb_enc_u8(e, 0);
     }
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -3695,12 +3550,7 @@ void vkb_wire_vkFreeMemory(VkDevice device, VkDeviceMemory memory, const VkAlloc
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &memory, sizeof(memory));
     (void)pAllocator;
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 VkDeviceAddress vkb_wire_vkGetBufferDeviceAddress(VkDevice device, const VkBufferDeviceAddressInfo* pInfo)
@@ -5408,13 +5258,9 @@ VkResult vkb_wire_vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSub
         vkb_enc_u8(e, 0);
     }
     vkb_enc_bytes(e, &fence, sizeof(fence));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -5434,13 +5280,9 @@ VkResult vkb_wire_vkQueueSubmit2(VkQueue queue, uint32_t submitCount, const VkSu
         vkb_enc_u8(e, 0);
     }
     vkb_enc_bytes(e, &fence, sizeof(fence));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -5469,13 +5311,9 @@ VkResult vkb_wire_vkResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandB
     vkb_enc *e = &call_.e;
     vkb_enc_u64(e, vkb_remote((const void *)commandBuffer));
     vkb_enc_bytes(e, &flags, sizeof(flags));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -5488,13 +5326,9 @@ VkResult vkb_wire_vkResetCommandPool(VkDevice device, VkCommandPool commandPool,
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &commandPool, sizeof(commandPool));
     vkb_enc_bytes(e, &flags, sizeof(flags));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -5507,13 +5341,9 @@ VkResult vkb_wire_vkResetDescriptorPool(VkDevice device, VkDescriptorPool descri
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &descriptorPool, sizeof(descriptorPool));
     vkb_enc_bytes(e, &flags, sizeof(flags));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -5525,13 +5355,9 @@ VkResult vkb_wire_vkResetEvent(VkDevice device, VkEvent event)
     vkb_enc *e = &call_.e;
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &event, sizeof(event));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -5550,13 +5376,9 @@ VkResult vkb_wire_vkResetFences(VkDevice device, uint32_t fenceCount, const VkFe
     } else {
         vkb_enc_u8(e, 0);
     }
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -5570,12 +5392,7 @@ void vkb_wire_vkResetQueryPool(VkDevice device, VkQueryPool queryPool, uint32_t 
     vkb_enc_bytes(e, &queryPool, sizeof(queryPool));
     vkb_enc_bytes(e, &firstQuery, sizeof(firstQuery));
     vkb_enc_bytes(e, &queryCount, sizeof(queryCount));
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkSetDeviceMemoryPriorityEXT(VkDevice device, VkDeviceMemory memory, float priority)
@@ -5586,12 +5403,7 @@ void vkb_wire_vkSetDeviceMemoryPriorityEXT(VkDevice device, VkDeviceMemory memor
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &memory, sizeof(memory));
     vkb_enc_bytes(e, &priority, sizeof(priority));
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 VkResult vkb_wire_vkSetEvent(VkDevice device, VkEvent event)
@@ -5601,13 +5413,9 @@ VkResult vkb_wire_vkSetEvent(VkDevice device, VkEvent event)
     vkb_enc *e = &call_.e;
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &event, sizeof(event));
-    if (!vkb_call_exec(&call_)) {
-        return VK_ERROR_DEVICE_LOST;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    VkResult r_;
-    vkb_dec_bytes(d, &r_, sizeof(r_));
+    if (vkb_async_results()) return vkb_call_exec_async(&call_) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    if (!vkb_call_exec(&call_)) return VK_ERROR_DEVICE_LOST;
+    VkResult r_ = (VkResult)vkb_dec_u32(&call_.d);
     vkb_call_end(&call_);
     return r_;
 }
@@ -5644,12 +5452,7 @@ void vkb_wire_vkTrimCommandPool(VkDevice device, VkCommandPool commandPool, VkCo
     vkb_enc_u64(e, vkb_remote((const void *)device));
     vkb_enc_bytes(e, &commandPool, sizeof(commandPool));
     vkb_enc_bytes(e, &flags, sizeof(flags));
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 void vkb_wire_vkUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount, const VkWriteDescriptorSet* pDescriptorWrites, uint32_t descriptorCopyCount, const VkCopyDescriptorSet* pDescriptorCopies)
@@ -5674,12 +5477,7 @@ void vkb_wire_vkUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCo
     } else {
         vkb_enc_u8(e, 0);
     }
-    if (!vkb_call_exec(&call_)) {
-        return;
-    }
-    vkb_dec *d = &call_.d;
-    (void)d;
-    vkb_call_end(&call_);
+    vkb_call_exec_async(&call_);
 }
 
 VkResult vkb_wire_vkWaitForFences(VkDevice device, uint32_t fenceCount, const VkFence* pFences, VkBool32 waitAll, uint64_t timeout)
@@ -5735,11 +5533,6 @@ VkResult vkb_wire_vkWaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo* p
 }
 
 /* Default entry points. */
-static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAllocateDescriptorSets(VkDevice device, const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pDescriptorSets)
-{
-    return vkb_wire_vkAllocateDescriptorSets(device, pAllocateInfo, pDescriptorSets);
-}
-
 static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkBindTensorMemoryARM(VkDevice device, uint32_t bindInfoCount, const VkBindTensorMemoryInfoARM* pBindInfos)
 {
     return vkb_wire_vkBindTensorMemoryARM(device, bindInfoCount, pBindInfos);
@@ -6420,16 +6213,6 @@ static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateComputePipelines(VkDevice d
     return vkb_wire_vkCreateComputePipelines(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
 }
 
-static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDescriptorPool(VkDevice device, const VkDescriptorPoolCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDescriptorPool* pDescriptorPool)
-{
-    return vkb_wire_vkCreateDescriptorPool(device, pCreateInfo, pAllocator, pDescriptorPool);
-}
-
-static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDescriptorSetLayout(VkDevice device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDescriptorSetLayout* pSetLayout)
-{
-    return vkb_wire_vkCreateDescriptorSetLayout(device, pCreateInfo, pAllocator, pSetLayout);
-}
-
 static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateEvent(VkDevice device, const VkEventCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkEvent* pEvent)
 {
     return vkb_wire_vkCreateEvent(device, pCreateInfo, pAllocator, pEvent);
@@ -6513,16 +6296,6 @@ static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateTensorViewARM(VkDevice devi
 static VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyBufferView(VkDevice device, VkBufferView bufferView, const VkAllocationCallbacks* pAllocator)
 {
     vkb_wire_vkDestroyBufferView(device, bufferView, pAllocator);
-}
-
-static VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool, const VkAllocationCallbacks* pAllocator)
-{
-    vkb_wire_vkDestroyDescriptorPool(device, descriptorPool, pAllocator);
-}
-
-static VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDescriptorSetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout, const VkAllocationCallbacks* pAllocator)
-{
-    vkb_wire_vkDestroyDescriptorSetLayout(device, descriptorSetLayout, pAllocator);
 }
 
 static VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyEvent(VkDevice device, VkEvent event, const VkAllocationCallbacks* pAllocator)
@@ -6758,11 +6531,6 @@ static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkMergePipelineCaches(VkDevice devi
 static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkQueueBindSparse(VkQueue queue, uint32_t bindInfoCount, const VkBindSparseInfo* pBindInfo, VkFence fence)
 {
     return vkb_wire_vkQueueBindSparse(queue, bindInfoCount, pBindInfo, fence);
-}
-
-static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkResetDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorPoolResetFlags flags)
-{
-    return vkb_wire_vkResetDescriptorPool(device, descriptorPool, flags);
 }
 
 static VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkResetEvent(VkDevice device, VkEvent event)

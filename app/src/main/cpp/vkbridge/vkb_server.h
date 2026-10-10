@@ -20,18 +20,29 @@
 #define VKB_MAX_PDS 16
 
 /* A client process (all connections that said hello with the same token). */
+#define VKB_SEQ_RING 65536
+
 typedef struct vkb_srv_proc {
     uint64_t token;
     int pid;
     int conns;
     struct vkb_srv_proc *next;
+    /* Ordering of the process's asynchronous requests (vkb_msg_hdr.seq/barrier). */
+    pthread_mutex_t olock;
+    pthread_cond_t ocond;
+    uint64_t watermark;            /* every async seq <= this has run */
+    uint8_t done[VKB_SEQ_RING];    /* seqs above the watermark that have run */
+    int conn_closed;               /* a connection ended (a seq may never arrive) */
 } vkb_srv_proc;
 
 typedef struct vkb_srv_conn {
     int sock;
     vkb_srv_proc *proc;
-    uint8_t *inbuf;
-    size_t incap;
+    /* Receive buffer: messages are parsed out of it in place (srv_recv). */
+    uint8_t *rb;
+    size_t rcap, rpos, rlen;
+    int fdq[2 * VKB_MAX_FDS]; /* descriptors received ahead of their message's turn */
+    int fdn;
     vkb_arena arena;
     pthread_t thread;
 } vkb_srv_conn;

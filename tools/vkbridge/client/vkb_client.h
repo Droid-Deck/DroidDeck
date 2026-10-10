@@ -145,6 +145,10 @@ void vkb_call_begin(vkb_call *c, uint32_t cmd, uint32_t table);
 /* Sends the request and waits for the reply. 0 = failed (the call is already released). */
 int vkb_call_exec(vkb_call *c);
 void vkb_call_end(vkb_call *c);
+/* Sends without waiting for a reply (void commands without outputs); ordered by vkb_msg_hdr.seq. */
+int vkb_call_exec_async(vkb_call *c);
+int vkb_async_results(void);
+void vkb_stats_count(uint32_t cmd, int async, size_t bytes);
 uint32_t vkb_table_of(const void *dispatchable);
 int vkb_connected(void);
 /* Per-thread transport cleanup for fork children. */

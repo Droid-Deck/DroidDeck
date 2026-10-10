@@ -292,6 +292,7 @@ VkResult vkb_wire_vkWaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo* p
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAcquireNextImage2KHR(VkDevice device, const VkAcquireNextImageInfoKHR* pAcquireInfo, uint32_t* pImageIndex);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAcquireNextImageKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore, VkFence fence, uint32_t* pImageIndex);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAllocateCommandBuffers(VkDevice device, const VkCommandBufferAllocateInfo* pAllocateInfo, VkCommandBuffer* pCommandBuffers);
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAllocateDescriptorSets(VkDevice device, const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pDescriptorSets);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkAllocateMemory(VkDevice device, const VkMemoryAllocateInfo* pAllocateInfo, const VkAllocationCallbacks* pAllocator, VkDeviceMemory* pMemory);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkBeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBeginInfo* pBeginInfo);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkBindBufferMemory(VkDevice device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize memoryOffset);
@@ -309,6 +310,8 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCopyImageToMemory(VkDevice device, const
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCopyMemoryToImage(VkDevice device, const VkCopyMemoryToImageInfo* pCopyMemoryToImageInfo);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateBuffer(VkDevice device, const VkBufferCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkBuffer* pBuffer);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pMessenger);
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDescriptorPool(VkDevice device, const VkDescriptorPoolCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDescriptorPool* pDescriptorPool);
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDescriptorSetLayout(VkDevice device, const VkDescriptorSetLayoutCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDescriptorSetLayout* pSetLayout);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDescriptorUpdateTemplate(VkDevice device, const VkDescriptorUpdateTemplateCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDescriptorUpdateTemplate* pDescriptorUpdateTemplate);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDevice* pDevice);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateHeadlessSurfaceEXT(VkInstance instance, const VkHeadlessSurfaceCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface);
@@ -322,6 +325,8 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkCreateXlibSurfaceKHR(VkInstance instance
 VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyBuffer(VkDevice device, VkBuffer buffer, const VkAllocationCallbacks* pAllocator);
 VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyCommandPool(VkDevice device, VkCommandPool commandPool, const VkAllocationCallbacks* pAllocator);
 VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT messenger, const VkAllocationCallbacks* pAllocator);
+VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool, const VkAllocationCallbacks* pAllocator);
+VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDescriptorSetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout, const VkAllocationCallbacks* pAllocator);
 VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDescriptorUpdateTemplate(VkDevice device, VkDescriptorUpdateTemplate descriptorUpdateTemplate, const VkAllocationCallbacks* pAllocator);
 VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pAllocator);
 VKAPI_ATTR void VKAPI_CALL vkb_ep_vkDestroyImage(VkDevice device, VkImage image, const VkAllocationCallbacks* pAllocator);
@@ -403,6 +408,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkQueueSubmit2(VkQueue queue, uint32_t sub
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkQueueWaitIdle(VkQueue queue);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferResetFlags flags);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkResetCommandPool(VkDevice device, VkCommandPool commandPool, VkCommandPoolResetFlags flags);
+VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkResetDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorPoolResetFlags flags);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkSetDebugUtilsObjectNameEXT(VkDevice device, const VkDebugUtilsObjectNameInfoEXT* pNameInfo);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkSetDebugUtilsObjectTagEXT(VkDevice device, const VkDebugUtilsObjectTagInfoEXT* pTagInfo);
 VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkSetPrivateData(VkDevice device, VkObjectType objectType, uint64_t objectHandle, VkPrivateDataSlot privateDataSlot, uint64_t data);

@@ -100,8 +100,13 @@ typedef struct vkb_msg_hdr {
     uint32_t table;     /* request: server dispatch table id */
     uint32_t nfds;
     uint32_t flags;
+    /* Ordering of asynchronous requests across a process's connections: an async request has
+     * seq > 0; every request carries barrier = the highest async seq its process had issued
+     * before it, and is not executed until all of those have been. */
+    uint64_t seq;
+    uint64_t barrier;
 } vkb_msg_hdr;
-#define VKB_MAGIC 0x31424b56u   /* "VKB1" */
+#define VKB_MAGIC 0x32424b56u   /* "VKB2" */
 #define VKB_F_NOREPLY 1u
 
 /* Reply status codes (vkb_msg_hdr.cmd in replies). */

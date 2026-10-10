@@ -192,7 +192,10 @@ VKAPI_ATTR VkResult VKAPI_CALL vkb_ep_vkEndCommandBuffer(VkCommandBuffer command
     vkb_enc_u64(&c.e, cb->obj.remote);
     vkb_enc_blob(&c.e, cb->stream.buf ? cb->stream.buf : (const void *)"", cb->stream.len);
     VkResult r = VK_ERROR_DEVICE_LOST;
-    if (vkb_call_exec(&c)) {
+    if (vkb_async_results()) {
+        /* Replayed on the server while the app goes on; ordered before its submit. */
+        r = vkb_call_exec_async(&c) ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
+    } else if (vkb_call_exec(&c)) {
         r = (VkResult)vkb_dec_u32(&c.d);
         vkb_call_end(&c);
     }
