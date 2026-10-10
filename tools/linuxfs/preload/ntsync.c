@@ -1237,9 +1237,15 @@ static void ns_received(struct msghdr *msg) {
   }
 }
 
+int bl_udevmon_recvmsg(int fd, struct msghdr *msg, int flags, ssize_t (*real_recvmsg)(int, struct msghdr *, int),
+                       ssize_t *result) __attribute__((visibility("hidden")));
+
 ssize_t recvmsg(int fd, struct msghdr *msg, int flags) {
   static ssize_t (*real)(int, struct msghdr *, int);
   if (!real) real = (ssize_t (*)(int, struct msghdr *, int))dlsym(RTLD_NEXT, "recvmsg");
+  /* udevmon.c's stand-in netlink sockets first: their messages are dressed as udevd's. */
+  ssize_t answered;
+  if (msg && bl_udevmon_recvmsg(fd, msg, flags, real, &answered)) return answered;
   ssize_t r = real(fd, msg, flags);
   if (r >= 0 && msg && msg->msg_control && msg->msg_controllen && ns_on()) {
     int saved = errno;

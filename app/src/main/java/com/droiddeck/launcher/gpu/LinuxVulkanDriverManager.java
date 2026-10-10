@@ -25,7 +25,7 @@ import java.util.zip.ZipInputStream;
 /**
  * Imported LINUX Vulkan drivers: glibc Turnip ICDs ({@code Turnip-<tag>[-variant]-Linux.zip} from
  * Banners-Turnip) for the runtime - the gamescope session that runs Valve's native ARM64 Steam
- * client, and the labwc desktop beside it. This is the driver that DRAWS there: the client's own UI
+ * client, and the KDE Plasma desktop beside it. This is the driver that DRAWS there: the client's own UI
  * (OpenGL through the runtime's Zink), every game the client launches (D3D through Proton's
  * DXVK/VKD3D) and everything on the desktop. Putting the frame on the screen stays the Android
  * driver's job, in the app's compositor ({@link TurnipDriver}).

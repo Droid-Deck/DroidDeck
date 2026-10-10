@@ -60,14 +60,38 @@ object LogRedactor {
     private val IPV4 = Regex("(?<![0-9.])(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})(?![0-9.])")
     /** An IPv6 literal: "::" somewhere, or all eight groups (a clock's 10:03:05 is neither). */
     private val IPV6 = Regex("(?<![0-9A-Za-z:])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:%[A-Za-z0-9_.]+)?(?![0-9A-Za-z:])")
+    private val MAC = Regex("(?i)(?<![0-9a-z:-])[0-9a-f]{2}([:-])(?:[0-9a-f]{2}\\1){4}[0-9a-f]{2}(?![0-9a-z:-])")
+    private val MAC_FIELD = Regex(
+        "(?i)(\\bmac(?:[_ ]?address)?[\"']?\\s*[:=]\\s*[\"']?)[0-9a-f]{2}([:-])" +
+            "(?:[0-9a-f]{2}\\2){4}[0-9a-f]{2}(?![0-9a-z:-])"
+    )
+    private val DEVICE_IDENTIFIER = Regex(
+        "(?i)(\\b(?:android[_ ]?id|(?:device|controller)[_ ]?serial|serial(?:[_ ]?number)?|build\\.serial)" +
+            "[\"']?\\s*[:=]\\s*)(\"[^\"\\r\\n<>]+\"|'[^'\\r\\n<>]+'|[^\\s\"'<>&;,\\[\\]{}]+)"
+    )
 
     /**
      * The account a Steam UI login line names ("Login: OnLoginStateChange <account> 2 1 0 0"): a
      * user who signs in with a plain account name, not an email, had it in every log. The single
      * space then a non-space keeps "OnLoginStateChange  0 1 0 0" (no account yet) as it is.
      */
-    private val LOGIN_STATE = Regex("(OnLoginStateChange )(\\S+)")
+    private val LOGIN_STATE = Regex("(?i)(OnLoginStateChange:? )([^\\s<]\\S*)")
     private val LOGIN_USERS = Regex("(OnLoginUsersChanged )(\\S.*)$")
+
+    /**
+     * An account name as a field: `AccountName`, `account_name`, `username` (`"AccountName"
+     * "someone"` in a VDF, `account_name=...`, `"username": "..."`) and `login` - the last only
+     * as `login=`, a quoted key or a VDF pair, so "Login: OnLoginStateChange ..." keeps its label.
+     * A quoted value is blanked whole; one already blanked is left as it is.
+     */
+    private const val ACCOUNT_VALUE = "(\"[^\"<\\r\\n]+\"|'[^'<\\r\\n]+'|[^\\s\"'<>&;,}]+)"
+    private val ACCOUNT_KV = Regex(
+        "(?i)(?<![A-Za-z0-9_])(account[_-]?name|user[_-]?name|epicusername)" +
+            "([\"']?\\s*[=:]\\s*|[\"']\\s+)" + ACCOUNT_VALUE
+    )
+    private val LOGIN_KV = Regex(
+        "(?i)(?<![A-Za-z0-9_])(login)(\\s*=\\s*|[\"']\\s*[=:]\\s*|[\"']\\s+)" + ACCOUNT_VALUE
+    )
 
     /** The device's Steam accounts and persona names as patterns (see [learnAccounts]). */
     @Volatile
@@ -196,11 +220,47 @@ object LogRedactor {
      * only when that matches, so a folder scrubbed under older rules is scrubbed again on the way
      * out.
      */
-    const val RULES_VERSION = 1
+    const val RULES_VERSION = 3
+
+    /**
+     * A private IPv4 address (10/8, 172.16/12, 192.168/16, link-local 169.254/16): the home
+     * network's layout, e.g. its router as the resolver. Blanked in a shared zip only; public
+     * server addresses stay. Not part of a longer dotted number (a version like 10.0.19041.1).
+     */
+    private val LAN_IPV4 = Regex(
+        "(?<![\\d.])(?:10\\.\\d{1,3}|192\\.168|172\\.(?:1[6-9]|2\\d|3[01])|169\\.254)\\.\\d{1,3}\\.\\d{1,3}(?!\\.?\\d)"
+    )
 
     /** [src]'s lines, scrubbed, to [out]. */
     fun scrubTo(src: java.io.File, out: java.io.Writer) {
         src.forEachLine { line -> out.write(redact(line)); out.write("\n") }
+    }
+
+    /**
+     * The last pass for a file going into a shared zip: [redact], then the rules the stores' log
+     * uses too ([SecretScrub]) - URLs without query, fragment and user:password and with any
+     * token-bearing path segment blanked, token values and Authorization / Cookie headers blanked
+     * - and private IPv4 addresses as `<lan-address>`. A line already clean comes out unchanged.
+     */
+    fun redactForShare(line: String): String {
+        if (line.isEmpty()) return line
+        return try {
+            val out = SecretScrub.scrub(redact(line), SecretScrub.Urls.KEEP_PATH, "<redacted:token>")
+            LAN_IPV4.replace(out, "<lan-address>")
+        } catch (t: Throwable) {
+            "<redaction failed; line withheld>"
+        }
+    }
+
+    /** [src]'s lines through [redactForShare], to [out]: the pass every text file in a shared zip gets. */
+    fun scrubForShare(src: java.io.File, out: java.io.Writer) {
+        src.forEachLine { line -> out.write(redactForShare(line)); out.write("\n") }
+    }
+
+    /** `<redacted:account>`, inside [value]'s quotes when it had them. */
+    private fun quoted(value: String): String {
+        val q = value.first().takeIf { it == '"' || it == '\'' }?.toString().orEmpty()
+        return "$q<redacted:account>$q"
     }
 
     /** [line] with every credential shape replaced. Null- and exception-safe by construction. */
@@ -208,6 +268,13 @@ object LogRedactor {
         if (line.isEmpty()) return line
         return try {
             var out = line
+            out = MAC_FIELD.replace(out) { "${it.groupValues[1]}<redacted:mac>" }
+            out = MAC.replace(out, "<redacted:mac>")
+            out = DEVICE_IDENTIFIER.replace(out) {
+                val value = it.groupValues[2]
+                val quote = value.first().takeIf { char -> char == '\"' || char == '\'' }?.toString().orEmpty()
+                "${it.groupValues[1]}${quote}<redacted:serial>${quote}"
+            }
             out = GUID.replace(out, "<redacted:guid>")
             out = JWT_LABELLED.replace(out) { "${it.groupValues[1]}<redacted:jwt>" }
             out = JWT_BASE64.replace(out, "<redacted:jwt>")
@@ -224,6 +291,8 @@ object LogRedactor {
             for (r in own) out = r.replace(out, "<redacted:ip>")
             out = LOGIN_STATE.replace(out) { "${it.groupValues[1]}<redacted:account>" }
             out = LOGIN_USERS.replace(out) { "${it.groupValues[1]}<redacted:account>" }
+            out = ACCOUNT_KV.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" }
+            out = LOGIN_KV.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" }
             for (r in accounts) out = r.replace(out, "<redacted:account>")
             out = EMAIL.replace(out, "<redacted:email>")
             out = RESIDUAL.replace(out) { "${it.groupValues[1]}=<redacted:token>" }

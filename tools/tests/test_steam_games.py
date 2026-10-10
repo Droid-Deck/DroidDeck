@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 BIN = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin'
 
@@ -76,8 +76,8 @@ class ImportsTest(unittest.TestCase):
         result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
         with patch.object(imports, 'identify', side_effect=[None, 42]) as identify, \
              patch.object(imports, 'request_restart'), \
-             patch.object(imports.time, 'monotonic', side_effect=[0, 301]), \
-             patch.object(imports.time, 'sleep', side_effect=[None, RuntimeError('stop')]), \
+             patch.object(imports, 'time', Mock(monotonic=Mock(side_effect=[0, 301]),
+                                               sleep=Mock(side_effect=[None, RuntimeError('stop')]))), \
              patch.object(imports.subprocess, 'run', return_value=result), \
              patch('builtins.print'):
             with self.assertRaisesRegex(RuntimeError, 'stop'):
@@ -98,8 +98,8 @@ class ImportsTest(unittest.TestCase):
         with patch.object(imports, 'identify', return_value=42), \
              patch.object(imports, 'game_running', return_value=False), \
              patch.object(imports, 'request_restart') as restart, \
-             patch.object(imports.time, 'monotonic', side_effect=list(range(0, 30 * beats, 30))), \
-             patch.object(imports.time, 'sleep', side_effect=[None] * (beats - 1) + [RuntimeError('stop')]), \
+             patch.object(imports, 'time', Mock(monotonic=Mock(side_effect=list(range(0, 30 * beats, 30))),
+                                               sleep=Mock(side_effect=[None] * (beats - 1) + [RuntimeError('stop')]))), \
              patch.object(imports.subprocess, 'run', return_value=result), \
              patch('builtins.print'):
             with self.assertRaisesRegex(RuntimeError, 'stop'):

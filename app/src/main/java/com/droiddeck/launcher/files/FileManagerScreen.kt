@@ -1031,7 +1031,8 @@ fun FileManagerScreen(
             // The ROMs folder chosen on the main screen: what the session shows as /root/ROMs.
             (if (inspecting) "" else SessionPrefs.romsDir(context)).takeIf { it.isNotEmpty() }?.let(::File)?.takeIf { it.isDirectory }
                 ?.let { add(locItem(stringResource(R.string.fm_rail_roms), Icons.Filled.SportsEsports, it)) }
-            File("/storage/emulated/0/Download/DroidDeck").takeIf { !inspecting && it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_session_logs), Icons.Filled.Description, it)) }
+            // The app's own logs folder: private, which this file manager (the app itself) can read.
+            com.droiddeck.launcher.runtime.LinuxRuntime.logDir(context).takeIf { !inspecting && it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_session_logs), Icons.Filled.Description, it)) }
             File("/storage/emulated/0/Pictures").takeIf { !inspecting && it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_pictures), Icons.Filled.Image, it)) }
         }
         val favItems = remember(favTick) { if (inspecting) sample?.entries.orEmpty().filter { it.isDirectory } else FavoritesStore.list(context).map(::File).filter { it.exists() } }

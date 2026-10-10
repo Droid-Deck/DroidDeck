@@ -231,6 +231,11 @@ private fun Content(
         StorePage(s, a, modifier)
         return
     }
+    // Stores (GOG, Epic, Amazon) takes the whole pane: chips, shelves and a game's page inside it.
+    if (selected == "stores" && s.gameStoresEnabled) {
+        StoresPage(s, a, modifier)
+        return
+    }
     // The Games tab lays out its own list and detail.
     if (selected == "games" || selected.startsWith("app:")) {
         GamesPage(s, a, selected, onSelect, modifier)
@@ -421,11 +426,18 @@ private fun Content(
 private fun DesktopCard(s: FrontEndState, a: FrontEndActions) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    var confirmRemove by rememberSaveable { mutableStateOf(false) }
+    if (confirmRemove) ConfirmDialog(
+        stringResource(R.string.desktop_remove_title), stringResource(R.string.desktop_remove_text),
+        stringResource(R.string.common_uninstall), a.onRemoveDesktop, { confirmRemove = false },
+    )
     val actions: @Composable () -> Unit = {
         Actions {
             // Enabled without a runtime or the desktop: the session's loading screen installs them first.
             PrimaryButton(if (s.desktopInstalled) stringResource(R.string.content_open_desktop) else stringResource(R.string.content_install_open_desktop), enabled = !s.busy, main = true, onClick = a.onDesktop)
             Cog(onClick = a.onDesktopSettings)
+            if (s.desktopPresent) SecondaryButton(stringResource(R.string.common_uninstall),
+                enabled = !s.runtimeActionsBlocked) { confirmRemove = true }
             BusyChip(s)
         }
     }

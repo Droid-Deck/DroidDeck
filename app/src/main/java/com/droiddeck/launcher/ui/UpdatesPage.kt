@@ -115,8 +115,9 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             // Landscape has the width for channels and status side by side; a narrow pane, or a small
-            // phone's (where each channel's name and date would be cut to a word), stacks them.
-            val stacked = LocalNarrowPane.current || maxWidth < 720.dp
+            // phone's (where each channel's name and date would be cut to a word), stacks them. The
+            // Thor's top screen leaves about 690dp here and keeps them side by side.
+            val stacked = LocalNarrowPane.current || maxWidth < 600.dp
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
                 if (stacked) {
                     StatusPanel(s, u, ua, me)

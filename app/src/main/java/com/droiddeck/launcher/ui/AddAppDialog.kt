@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -83,6 +84,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -125,6 +127,7 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
     var imagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var repo by rememberSaveable { mutableStateOf("") }
     var flatpak by rememberSaveable { mutableStateOf("") }
+    var bundlePath by rememberSaveable { mutableStateOf<String?>(null) }
     var name by rememberSaveable { mutableStateOf("") }
     var iconPath by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -133,6 +136,9 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
     }
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { imagePath = it.path }
+    }
+    val pickBundle = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { bundlePath = it.path; flatpak = "" }
     }
     val pickIcon = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { iconPath = it.path }
@@ -147,7 +153,9 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
         AddSource.APPIMAGE -> imagePath?.takeIf { it.endsWith(".appimage", ignoreCase = true) }?.let { File(it) }
             ?.let { UserApps.Request(UserApps.Source.AppImage(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
         AddSource.GITHUB -> repoId?.let { UserApps.Request(UserApps.Source.GitHub(it), custom, iconPath) to (custom ?: it) }
-        AddSource.FLATPAK -> flatpakId?.let { UserApps.Request(UserApps.Source.Flatpak(it), custom, iconPath) to (custom ?: it) }
+        AddSource.FLATPAK -> bundlePath?.takeIf { it.endsWith(".flatpak", ignoreCase = true) }?.let { File(it) }
+            ?.let { UserApps.Request(UserApps.Source.FlatpakBundle(it), custom, iconPath) to (custom ?: it.nameWithoutExtension) }
+            ?: flatpakId?.let { UserApps.Request(UserApps.Source.Flatpak(it), custom, iconPath) to (custom ?: it) }
     }
     val busy = UserAppsState.working
     val tabFocus = remember { AddSource.entries.map { FocusRequester() } }
@@ -193,11 +201,17 @@ internal fun AddAppDialog(runtimeReady: Boolean, onDismiss: () -> Unit, onAdd: (
                                     stringResource(R.string.add_app_repository_placeholder),
                                     stringResource(R.string.add_app_repository_invalid).takeIf { repo.isNotBlank() && repoId == null },
                                 )
-                                AddSource.FLATPAK -> CheckedField(
-                                    flatpak, { flatpak = it.take(200) }, stringResource(R.string.add_app_flatpak_id),
-                                    stringResource(R.string.add_app_flatpak_placeholder),
-                                    stringResource(R.string.add_app_flatpak_invalid).takeIf { flatpak.isNotBlank() && flatpakId == null },
-                                )
+                                AddSource.FLATPAK -> {
+                                    CheckedField(
+                                        flatpak, { flatpak = it.take(200); bundlePath = null }, stringResource(R.string.add_app_flatpak_id),
+                                        stringResource(R.string.add_app_flatpak_placeholder),
+                                        stringResource(R.string.add_app_flatpak_invalid).takeIf { flatpak.isNotBlank() && flatpakId == null },
+                                    )
+                                    Small(stringResource(R.string.add_app_flatpak_bundle_hint))
+                                    FileRow(bundlePath) {
+                                        pickBundle.launch(InAppFilePicker.buildIntent(ctx, listOf("flatpak"), ctx.getString(R.string.add_app_pick_flatpak)))
+                                    }
+                                }
                             }
                         }
                     }
@@ -302,12 +316,17 @@ internal fun rememberShown(onDismiss: () -> Unit): MutableTransitionState<Boolea
 @Composable
 internal fun AppDialog(
     shown: MutableTransitionState<Boolean>, close: () -> Unit, label: String, wide: Boolean,
-    modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit,
+    modifier: Modifier = Modifier, maxWidth: Dp? = null,
+    /** [width] fixed, else as wide as its content when [fitContent], else as wide as it may be. */
+    width: Dp? = null, fitContent: Boolean = false,
+    /** What B / Back does, when not [close] (a picker goes up a folder first). */
+    back: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
     // The page's ring stays out of sight behind it.
     VeilRing()
-    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    Dialog(onDismissRequest = back ?: close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
       // The page's focus memory stays the page's: nothing in here is a place to come back to.
       CompositionLocalProvider(LocalFrontFocus provides null) {
         Box(
@@ -325,15 +344,21 @@ internal fun AppDialog(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier
                         .padding(12.dp)
-                        .widthIn(max = if (wide) 860.dp else 560.dp)
-                        .fillMaxWidth()
+                        .widthIn(max = maxWidth ?: if (wide) 860.dp else 560.dp)
+                        .then(
+                            when {
+                                width != null -> Modifier.width(width)
+                                fitContent -> Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max)
+                                else -> Modifier.fillMaxWidth()
+                            },
+                        )
                         .heightIn(max = (LocalConfiguration.current.screenHeightDp - 24).dp)
                         .shadow(24.dp, Shape16, ambientColor = Color.Black, spotColor = Color.Black)
                         .clip(Shape16)
                         .background(pal.surfaceVariant.copy(alpha = 0.97f))
                         .border(1.dp, pal.signal.copy(alpha = 0.22f), Shape16)
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
-                        .controllerBack(close)
+                        .controllerBack(back ?: close)
                         .then(modifier)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 18.dp, vertical = 16.dp),

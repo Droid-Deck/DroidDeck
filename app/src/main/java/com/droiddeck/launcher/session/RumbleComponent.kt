@@ -22,19 +22,19 @@ import kotlin.math.max
  * When a game plays a force-feedback effect on the fake pad (or Steam Input sends the Deck's
  * rumble report), the fake evdev layer inside the guest connects to the abstract socket [NAME]
  * and sends one packet: strong, weak, duration in ms and the pad slot, four little-endian 16-bit
- * values. This listens for those and plays the effect on the physical controller that last drove
- * the pad (PadBridge.activeControllerId) when Android exposes its motors - strong and weak
- * separately where it has two - and otherwise on the device's own vibrator, with the stronger
- * motor's strength: the on-screen pad, or a controller without rumble. Best effort both ways: a
- * missing listener costs the guest nothing, and a bad packet is dropped.
+ * values. This listens for those and plays the effect on the physical controller playing in that
+ * slot (PadBridge.controllerForSlot) when Android exposes its motors - strong and weak separately
+ * where it has two - and otherwise on the device's own vibrator, with the stronger motor's
+ * strength: the on-screen pad, or a controller without rumble. Best effort both ways: a missing
+ * listener costs the guest nothing, and a bad packet is dropped.
  */
 class RumbleComponent : SessionPart() {
     @Volatile private var server: LocalServerSocket? = null
     private var phone: Motors? = null
-    /** Where the last effect went, so the next one (or a stop) can end it there. */
-    private var playing: Motors? = null
-    private var controllerId = PadBridge.NO_CONTROLLER
-    private var controller: Motors? = null
+    /** Per slot, where its last effect went, so the next one (or a stop) can end it there. */
+    private val playing = HashMap<Int, Motors>()
+    /** Each controller's motors, looked up once; null when it has none. */
+    private val controllers = HashMap<Int, Motors?>()
     private var preferences: SharedPreferences? = null
     private var enabled = false
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -46,7 +46,7 @@ class RumbleComponent : SessionPart() {
 
     @Synchronized private fun refreshEnabled() {
         enabled = app()?.let { ControllerPrefs.rumbleEnabled(it) } == true
-        if (!enabled) { playing?.cancel(); playing = null }
+        if (!enabled) cancelAll()
     }
 
     override fun start() {
@@ -64,7 +64,7 @@ class RumbleComponent : SessionPart() {
                 try {
                     val bytes = ByteArray(8)
                     DataInputStream(client.inputStream).readFully(bytes)
-                    buzz(u16(bytes, 0), u16(bytes, 2), u16(bytes, 4))
+                    buzz(u16(bytes, 0), u16(bytes, 2), u16(bytes, 4), u16(bytes, 6))
                 } catch (e: Exception) {
                     // A partial packet or a closed peer: nothing to play.
                 } finally {
@@ -79,11 +79,9 @@ class RumbleComponent : SessionPart() {
         preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         preferences = null
         enabled = false
-        playing?.cancel()
-        playing = null
+        cancelAll()
         phone = null
-        controller = null
-        controllerId = PadBridge.NO_CONTROLLER
+        controllers.clear()
         val s = server
         server = null
         try { s?.close() } catch (e: Exception) { /* the accept loop ends on the next wake */ }
@@ -91,13 +89,14 @@ class RumbleComponent : SessionPart() {
 
     private fun u16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or ((b[at + 1].toInt() and 0xFF) shl 8)
 
-    @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int) {
+    @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) {
         if (!enabled) return
-        val target = target()
-        if (target !== playing) {
-            playing?.cancel()
-            playing = target
-            target?.let { Log.i(TAG, "rumble: playing on ${it.name}") }
+        val target = target(slot)
+        val previous = playing[slot]
+        if (target !== previous) {
+            previous?.cancel()
+            if (target == null) playing.remove(slot) else playing[slot] = target
+            target?.let { Log.i(TAG, "rumble: slot $slot playing on ${it.name}") }
         }
         if (target == null) return
         if ((strong == 0 && weak == 0) || ms == 0) { target.cancel(); return }
@@ -108,14 +107,17 @@ class RumbleComponent : SessionPart() {
         }
     }
 
-    /** The active controller's motors when it has any, else the phone's. */
-    private fun target(): Motors? {
-        val id = PadBridge.activeControllerId()
-        if (id != controllerId) {
-            controllerId = id
-            controller = if (id == PadBridge.NO_CONTROLLER) null else try { controllerMotors(id) } catch (e: Exception) { null }
-        }
-        return controller ?: phone
+    /** The motors of the controller playing in this slot when it has any, else the phone's. */
+    private fun target(slot: Int): Motors? {
+        val id = PadBridge.controllerForSlot(slot)
+        if (id == PadBridge.NO_CONTROLLER) return phone
+        if (!controllers.containsKey(id)) controllers[id] = try { controllerMotors(id) } catch (e: Exception) { null }
+        return controllers[id] ?: phone
+    }
+
+    private fun cancelAll() {
+        playing.values.toSet().forEach { it.cancel() }
+        playing.clear()
     }
 
     /** One place an effect can play. Strengths are the evdev 0..65535 magnitudes. */

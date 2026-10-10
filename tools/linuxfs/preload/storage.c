@@ -262,7 +262,10 @@ int ftruncate(int fd, off_t length) {
   int known = 0;
   if (steam_client()) {
     if (next_fstat == NULL) next_fstat = dlsym(RTLD_NEXT, "fstat");
-    known = next_fstat != NULL && next_fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && staging_file(fd);
+    /* staging_file() reads /proc/self/fd, a round trip through proot: skip it for a shrink, which
+     * is passed through untouched either way. */
+    known = next_fstat != NULL && next_fstat(fd, &st) == 0 && S_ISREG(st.st_mode) &&
+            length >= st.st_size && staging_file(fd);
   }
   int result = 0, call_errno = entry_errno;
   if (!known || length <= st.st_size || !cannot_reserve((long long)st.st_dev)) {

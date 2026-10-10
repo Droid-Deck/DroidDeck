@@ -173,7 +173,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -195,6 +195,9 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
+            -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$D/libblaudit.so" tools/proot/fastpath/audit.c
+          aarch64-linux-gnu-strip --strip-unneeded "$D/libblaudit.so"
           # Force-SSBS adapter, preloaded into a game's Wine only when the game asks for it.
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
@@ -215,14 +218,6 @@ jobs:
             tar --use-compress-program=unzstd -xf gamescope.tzst -C "$D"
             test -f "$D/usr/local/bin/gamescope"
             rm gamescope.tzst
-          fi
-          if [ -f tools/wlroots/release.env ]; then
-            . tools/wlroots/release.env
-            gh release download "${WLROOTS_TAG}" -R "${GITHUB_REPOSITORY}" -p wlroots.tzst -O wlroots.tzst
-            echo "${WLROOTS_SHA256}  wlroots.tzst" | sha256sum -c -
-            tar --use-compress-program=unzstd -xf wlroots.tzst -C "$D"
-            test -f "$D/usr/local/lib/droiddeck-wlroots/libwlroots-0.20.so"
-            rm wlroots.tzst
           fi
           . tools/linuxfs/uruntime.env
           curl -fsSL --retry 3 -o uruntime "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}"
@@ -262,10 +257,13 @@ jobs:
           done
           install -m644 msi-pkgs/usr/bin/msiinfo "$T/msiinfo"
           install -m644 msi-pkgs/usr/bin/cabextract "$T/cabextract"
+          # 7-Zip (the full build with its format plugin) opens installer .exe wrappers.
+          install -m644 msi-pkgs/usr/lib/7zip/7z "$T/7z"
+          install -m644 msi-pkgs/usr/lib/7zip/7z.so "$T/7z.so"
           for so in libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
             cp -L "msi-pkgs/usr/lib/$so" "$T/$so"
           done
-          for f in NOTICE GPL-2 GPL-3 LGPL-2.1; do
+          for f in NOTICE GPL-2 GPL-3 LGPL-2.1 7zip-License 7zip-unRarLicense; do
             install -Dm644 "tools/msitools/licenses/$f" "$D/usr/local/share/licenses/droiddeck-msitools/$f"
           done
           rm -rf msi-pkgs
@@ -273,17 +271,42 @@ jobs:
           install -Dm644 tools/linuxfs/desktop/droiddeck-desktop "$D/usr/local/bin/droiddeck-desktop"
           install -Dm644 tools/linuxfs/desktop/droiddeck-gpu "$D/usr/local/bin/droiddeck-gpu"
           install -Dm644 tools/linuxfs/desktop/droiddeck-desktop-gpu "$D/usr/local/bin/droiddeck-desktop-gpu"
-          install -Dm644 tools/linuxfs/desktop/autostart "$D/etc/xdg/labwc/autostart"
-          install -Dm644 tools/linuxfs/desktop/rc.xml "$D/etc/xdg/labwc/rc.xml"
-          install -Dm644 tools/linuxfs/desktop/panel.conf "$D/etc/xdg/lxqt/panel.conf"
+          install -Dm644 tools/linuxfs/desktop/kwin_wayland_wrapper "$D/usr/local/bin/kwin_wayland_wrapper"
           install -Dm644 tools/linuxfs/desktop/firefox-droiddeck.js "$D/usr/lib/firefox/defaults/pref/droiddeck.js"
           ls -lR "$D"
+
+      # The Debian 11 image the preloads are compiled in comes from a release on this repo
+      # (published once by ci-debian-image.yml, pinned in tools/linuxfs/debian-image.env): the
+      # public registry mirrors rate-limit the shared runner addresses and failed builds on a
+      # busy evening. Only if that download fails is the image pulled, with retries.
+      - name: Fetch the Debian image the preloads build in
+        if: steps.preloads.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          . tools/linuxfs/debian-image.env
+          image=public.ecr.aws/docker/library/debian:bullseye
+          if gh release download "$DEBIAN_IMAGE_TAG" -R "$GITHUB_REPOSITORY" -p "$DEBIAN_IMAGE_ASSET" -O /tmp/debian-image.tar.zst \
+             && { [ -z "$DEBIAN_IMAGE_SHA256" ] || echo "$DEBIAN_IMAGE_SHA256  /tmp/debian-image.tar.zst" | sha256sum -c -; }; then
+            zstd -dc /tmp/debian-image.tar.zst | docker load
+            rm -f /tmp/debian-image.tar.zst
+          else
+            echo "::warning::the hosted Debian image could not be fetched; pulling from the registry instead"
+            for attempt in 1 2 3 4 5; do
+              docker pull "$image" && break
+              [ "$attempt" -lt 5 ] || { echo "::error::could not pull $image after $attempt attempts"; exit 1; }
+              echo "pull attempt $attempt failed (registry busy?); retrying in $((attempt * 30)) s"
+              sleep $((attempt * 30))
+            done
+          fi
+          docker image ls "$image"
 
       - name: Build the x86 preloads FEX guests load (glibc 2.31)
         if: steps.preloads.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          docker run --rm -v "$PWD:/src" -w /src debian:bullseye bash -c '
+          docker run --rm -v "$PWD:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
             printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
             apt-get -o Acquire::Check-Valid-Until=false update -qq
@@ -331,6 +354,11 @@ jobs:
           set -euo pipefail
           curl -fsSL -o pa.tar.gz https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz
           mkdir -p pa13 && tar -xzf pa.tar.gz -C pa13 --strip-components=1 && rm pa.tar.gz
+      # DirectAudio - the game driver (one set per Wine audio interface), the Android-side helper and
+      # the Steam client's sinks - comes from a pinned release of The412Banner/directaudio, checksummed,
+      # exactly like gamescope; nothing compiled for audio is kept in this repo.
+      - name: Fetch DirectAudio (tools/directaudio/release.env)
+        run: tools/directaudio/fetch.sh "$PWD" "$PWD/sink-out"
       - name: Build the AAudio sink into the audio bundle
         run: |
           set -euo pipefail
@@ -340,17 +368,12 @@ jobs:
           tar --use-compress-program=unzstd -xf app/src/main/assets/pulseaudio.tzst -C pa-bundle
           test ! -f pa-bundle/modules/arm64/module-aaudio-sink.so
           install -m755 sink-out/module-aaudio-sink.so pa-bundle/modules/arm64/module-aaudio-sink.so
-          install -m755 sink-out/module-directaudio-sink.so pa-bundle/modules/arm64/module-directaudio-sink.so
+          install -m755 sink-out/module-directaudio-native-sink.so pa-bundle/modules/arm64/module-directaudio-native-sink.so
           (cd pa-bundle && tar --use-compress-program='zstd -19' -cf ../pulseaudio.tzst .)
-          mv pulseaudio.tzst app/src/main/assets/pulseaudio.tzst
-          tar --use-compress-program=unzstd -tf app/src/main/assets/pulseaudio.tzst | grep -c '\.so$'
+          mkdir -p app/build/prepared-assets
+          mv pulseaudio.tzst app/build/prepared-assets/pulseaudio.tzst
+          tar --use-compress-program=unzstd -tf app/build/prepared-assets/pulseaudio.tzst | grep -c '\.so$'
           rm -rf pa-bundle sink-out
-      - name: Build the DirectAudio relay
-        run: |
-          set -euo pipefail
-          export NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
-          tools/directaudio-relay/build.sh app/src/main/jniLibs/arm64-v8a
-
       - name: Cache proot
         id: proot
         uses: actions/cache@v4
@@ -369,42 +392,40 @@ jobs:
       - name: Check the preloads
         run: |
           set -euo pipefail
-          D=app/src/main/assets/linuxfs
-          NEED=$(readelf -d "$D/libfakeinput.so" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p')
-          for bad in libstdc++.so.6 libgcc_s.so.1; do
-            if printf '%s\n' "$NEED" | grep -qx "$bad"; then
-              echo "::error::libfakeinput.so links $bad - the C++ runtime must stay static"; exit 1
-            fi
-          done
-          syms() { readelf -Ws "$1" | awk '$4 == "FUNC" && $5 == "GLOBAL" {sub(/@.*/, "", $8); print $8}'; }
-          FAKE=$(syms "$D/libfakeinput.so")
-          for sym in open openat ioctl read close poll ppoll select stat fstat access scandir; do
-            grep -qx "$sym" <<<"$FAKE" || { echo "::error::libfakeinput.so does not export $sym"; exit 1; }
-          done
-          # The static C++ runtime stays private: every session process preloads this library,
-          # and an exported personality routine takes over other programs' unwinding (shadPS4
-          # aborted in pthread_exit).
-          if grep -qxE '__gxx_personality_v0|__cxa_throw|_Unwind_Resume' <<<"$FAKE"; then
-            echo "::error::libfakeinput.so exports the C++ runtime"; exit 1
-          fi
-          SESSION=$(syms "$D/libblsession.so")
-          for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap drmPrimeFDToHandle drmCloseBufferHandle; do
-            grep -qx "$sym" <<<"$SESSION" || { echo "::error::libblsession.so does not export $sym"; exit 1; }
-          done
-          # Zink's GEM_CLOSE is caught at ioctl(); an exported drmIoctl made NMS replay old frames.
-          if grep -qx drmIoctl <<<"$SESSION"; then
-            echo "::error::libblsession.so exports drmIoctl"; exit 1
-          fi
-          SSBS=$(syms "$D/libssbs.so")
-          for sym in sigaction signal bsd_signal sysv_signal; do
-            grep -qx "$sym" <<<"$SSBS" || { echo "::error::libssbs.so does not export $sym"; exit 1; }
-          done
-          test -f "$D/usr/local/bin/droiddeck-session"
-          test -f "$D/usr/local/bin/droiddeck-proton-extra"
-          test -f "$D/usr/local/bin/droiddeck-msi-install"
-          for f in msiinfo cabextract libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
-            test -f "$D/usr/local/lib/droiddeck-msitools/$f" || { echo "::error::droiddeck-msitools/$f missing"; exit 1; }
-          done
+          bash tools/linuxfs/check-preloads.sh app/src/main/assets/linuxfs
+
+      # The store download engines (app/src/main/rust/stores) are Rust, built by Gradle's
+      # buildRustStores task through cargo-ndk. rustup and cargo are on the runner image; the Android
+      # target and cargo-ndk are added here. Cache = cargo registry + cargo-ndk + the crate's target
+      # tree, keyed on the rustc version and Cargo.lock, so a source-only change rebuilds this crate
+      # on top of the cached dependency objects, and a lockfile change still starts from the
+      # previous objects (restore-keys).
+      - name: Rust toolchain for the store engines (aarch64-linux-android)
+        id: rust
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-linux-android
+          echo "rustc=$(rustc -V | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          rustc -V; cargo -V
+
+      - name: Cache cargo registry and the store engines' target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/.cargo/bin/cargo-ndk
+            app/src/main/rust/stores/target
+          key: stores-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}
+          restore-keys: |
+            stores-${{ steps.rust.outputs.rustc }}-
+
+      - name: cargo-ndk
+        run: |
+          set -euo pipefail
+          command -v cargo-ndk >/dev/null || cargo install cargo-ndk --locked
+          cargo ndk --version
 
       - name: Cache the CMake build tree
         uses: actions/cache@v4
@@ -420,10 +441,46 @@ jobs:
         id: build
         env:
           DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
+          SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
         run: |
           set -o pipefail
+          python3 tools/release/runtime_inputs.py record
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
+          python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
+
+      - name: Check the store engines' library
+        # The exports Kotlin binds must be in the apk's libdroiddeckstores.so, or the stores fail on
+        # the device with an UnsatisfiedLinkError instead of here. The lockfile check is the
+        # reproducibility guard: cargo must not have had to re-resolve anything.
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          python3 tools/release/check_android_libraries.py app/build/outputs/apk/release/app-release.apk \
+            --readelf "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          git diff --stat -- app/src/main/rust/stores/Cargo.lock
+          git diff --exit-code -- app/src/main/rust/stores/Cargo.lock \
+            || { echo "::error::Cargo.lock changed during the build; commit the regenerated lockfile (uploaded as stores-cargo-lock)"; exit 1; }
+
+      - name: Store engines host unit tests
+        # The crate's #[test] functions are pure host-side logic (manifest parsing, chunk plans,
+        # assembly from a cache, hashes), so a plain `cargo test` on the runner's own architecture
+        # runs them; the Android build above compiles none of them. Informational on this first
+        # run - the point is to learn whether they pass - and bounded so a hang can never hold
+        # the apk. Make it blocking once it is known green.
+        timeout-minutes: 10
+        continue-on-error: true
+        run: |
+          cd app/src/main/rust/stores
+          cargo test --locked 2>&1 | tail -60
+
+      - name: Upload the regenerated Cargo.lock
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stores-cargo-lock
+          path: app/src/main/rust/stores/Cargo.lock
+          if-no-files-found: ignore
 
       - name: Steam import and game environment tests
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
