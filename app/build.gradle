@@ -214,6 +214,10 @@ tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 // Unit tests and previews remain usable without Docker. Packaging an APK requires the complete
 // runtime payload prepared by the local helper or CI, with matching sources and output hashes.
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
+    // The session scripts are re-copied into the asset tree by stageSessionScripts; with parallel
+    // task execution this check once hashed a file mid-copy and failed a main build. Hash only
+    // once the staging has finished.
+    mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
     commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
 }
