@@ -66,6 +66,7 @@ class ResolvedController(val profile: ControllerProfile?, val deadZone: Float, p
 object ControllerProfiles {
     const val FILE_NAME = "controller-profiles.json"
     const val DOWNLOAD_NAME = "droiddeck-controller-profiles.json"
+    const val REPORT_NAME = "droiddeck-controller-report.txt"
     const val DEFAULT_DEAD_ZONE = 0.12f
     const val MAX_DEAD_ZONE = 0.5f
 
@@ -211,4 +212,33 @@ object ControllerProfiles {
             .replace(Regex("\\s+"), " ")
         return "keys [$keys]; axes [$axes]; profile entry $template"
     }
+
+    /**
+     * Writes what every connected controller reports to `Download/droiddeck-controller-report.txt`,
+     * to hand over when a pad misbehaves or to start a profile from. It holds the controllers'
+     * names (a Bluetooth pad can carry a name its owner gave it), the phone model and the app
+     * version, and nothing else about the person. Returns the file, or null when nothing was written.
+     */
+    @JvmStatic fun exportReport(context: Context): File? = runCatching {
+        reload(context)
+        val b = StringBuilder("DroidDeck controller report\n===========================\n")
+        b.append("Written     ").append(java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss zzz", Locale.US).format(java.util.Date())).append('\n')
+        b.append("App         ").append(runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()).append('\n')
+        b.append("Phone       ").append(android.os.Build.MANUFACTURER).append(' ').append(android.os.Build.MODEL)
+            .append(", Android ").append(android.os.Build.VERSION.RELEASE).append('\n')
+        b.append("Dead zone   ").append(Math.round(globalDeadZone * 100)).append(" % (setting); ").append(profiles.size).append(" profile(s) loaded\n")
+        val pads = InputDevice.getDeviceIds().toList().mapNotNull { InputDevice.getDevice(it) }.filter { PadBridge.isFromController(it) }
+        if (pads.isEmpty()) b.append("\nNo controller is connected.\n")
+        for (d in pads) {
+            val r = resolve(d)
+            b.append("\nController  ").append(d.name).append('\n')
+            b.append(String.format(Locale.ROOT, "Ids         %04x:%04x, sources 0x%x\n", d.vendorId, d.productId, d.sources))
+            b.append("Profile     ").append(r.profile?.name ?: "none (the global dead zone applies)").append('\n')
+            b.append("Reports     ").append(describe(d)).append('\n')
+        }
+        val target = File(Environment.getExternalStorageDirectory(), "Download/$REPORT_NAME")
+        target.parentFile?.mkdirs()
+        target.writeText(b.toString())
+        target
+    }.getOrNull()
 }
