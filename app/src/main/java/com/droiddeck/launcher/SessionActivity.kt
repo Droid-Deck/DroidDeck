@@ -1975,6 +1975,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!PadBridge.isFromController(d)) return
         Log.i(TAG, String.format(java.util.Locale.ROOT, "controller %s: \"%s\" (%04x:%04x, id %d, sources 0x%x)",
             what, d.name, d.vendorId, d.productId, d.id, d.sources))
+        if (what == "connected") Log.i(TAG, "controller \"${d.name}\" reports ${com.droiddeck.launcher.input.ControllerProfiles.describe(d)}")
     }
 
     /** Steam's touch controls, once the session has made the device (SessionService). */
@@ -2210,6 +2211,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
+        com.droiddeck.launcher.input.ControllerProfiles.reload(this)
         updateOnScreenControls()
         resumed = true
         updatePointerCapture()
