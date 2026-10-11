@@ -52,7 +52,11 @@ import kotlinx.coroutines.withContext
 // dialog, with each variable's actions in a menu off its value as everywhere else.
 
 @Composable
-fun GameEnvironmentRow(modifier: Modifier = Modifier, showHint: Boolean = true) {
+fun GameEnvironmentRow(
+    modifier: Modifier = Modifier,
+    showHint: Boolean = true,
+    initialScope: String = "",
+) {
     var open by remember { mutableStateOf(false) }
     // Opened with a pad, the editor starts with focus in it; the dialog is a window of its own and
     // would otherwise give the pad nothing to move from.
@@ -64,7 +68,7 @@ fun GameEnvironmentRow(modifier: Modifier = Modifier, showHint: Boolean = true) 
             open = true
         }
     }
-    if (open) GameEnvironmentEditor(byPad) { open = false }
+    if (open) GameEnvironmentEditor(byPad, initialScope) { open = false }
 }
 
 /** With a pad driving, focus [target] once the dialog is laid out, and keep the dialog in pad mode. */

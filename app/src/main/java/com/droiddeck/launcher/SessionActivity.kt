@@ -258,6 +258,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
     private var drawerGameInventoryRevision = 0L
+    private var drawerGameFexPresetSaving by mutableStateOf(false)
     private val drawerGameProfileFollowState = GameProfileFollowState()
     private data class DrawerGameProfileRefresh(
         val followsSteam: Boolean,
@@ -723,6 +724,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         drawerGameInventoryRevision++
                     },
                     onSelectedGameProfileRefresh = ::refreshDrawerGameProfile,
+                    gameFexPresetSaving = drawerGameFexPresetSaving,
+                    onGameFexPreset = ::setDrawerGameFexPreset,
                     onComponentSwap = { pid, comp, value -> swapDrawerComponent(pid, comp, value) },
                     onGameComponent = ::setDrawerGameComponent,
                 ))
@@ -958,6 +961,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 refreshDrawerGameProfile()
             }
         }, "drawer-game-component").start()
+    }
+
+    private fun setDrawerGameFexPreset(appId: Long, preset: String?) {
+        if (drawerGameFexPresetSaving) return
+        drawerGameFexPresetSaving = true
+        val name = drawerGameProfileRefresh.data?.profiles?.firstOrNull { it.first == appId }?.second ?: appId.toString()
+        Thread({
+            val message = try {
+                GameEnvironmentStore.setGameFexPreset(this, appId.toString(), preset)
+                getString(R.string.comp_game_saved_next, name)
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not save the game FEX preset for $appId", error)
+                getString(R.string.session_profile_save_failed, error.message ?: error.javaClass.simpleName)
+            }
+            uiHandler.post {
+                drawerGameFexPresetSaving = false
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                refreshDrawerGameProfile()
+            }
+        }, "drawer-game-fex-preset").start()
     }
 
     /** The session this screen is bringing up: the live one when re-attached, else the intent's. */

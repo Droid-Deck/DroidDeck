@@ -105,6 +105,28 @@ class ForcedPackageTest {
         assertTrue(ComponentsManager.gameComponents(context, "43").isEmpty())
     }
 
+    @Test fun removingLastGameOverrideKeepsBundledComponentRestoreRow() {
+        val protonName = "proton-exp"
+        proton(protonName)
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+
+        ComponentsManager.clearGameComponents(context, "42")
+
+        assertFalse(ComponentsManager.gameComponents(context, "42").containsKey("dxvk"))
+        assertDefaultDxvkRestoreRow(protonName)
+    }
+
+    @Test fun usingDefaultForLastGameOverrideKeepsBundledComponentRestoreRow() {
+        val protonName = "proton-exp"
+        proton(protonName)
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+
+        ComponentsManager.setGameComponent(context, "42", "dxvk", null)
+
+        assertFalse(ComponentsManager.gameComponents(context, "42").containsKey("dxvk"))
+        assertDefaultDxvkRestoreRow(protonName)
+    }
+
     @Test fun theSamePackageOnThisProtonBuildIsNotFetchedAgain() {
         proton("proton-exp")
         writeState("proton-exp", dxvk2, "experimental-11")
@@ -219,6 +241,40 @@ class ForcedPackageTest {
     private fun refuseFetch(item: ComponentsManager.CatalogItem) { error("fetch ${item.file}") }
 
     private fun refuseApply(protonId: String, file: String): String = error("apply $protonId $file")
+
+    private fun writeGameProfile(scope: String, comp: String, file: String) {
+        val state = File(context.filesDir, "components/state.json")
+        state.parentFile!!.mkdirs()
+        state.writeText(
+            JSONObject()
+                .put("active", JSONObject())
+                .put("queued", JSONObject())
+                .put("profiles", JSONObject().put(scope, JSONObject().put(comp, file)))
+                .toString(),
+        )
+    }
+
+    private fun assertDefaultDxvkRestoreRow(protonName: String) {
+        val desired = File(
+            LinuxRuntime.rootDir(context),
+            "root/.local/share/droiddeck-components/desired.tsv",
+        ).readLines()
+        assertTrue(
+            desired.joinToString("\n"),
+            desired.any { line ->
+                val fields = line.split('\t')
+                fields.size == 7 &&
+                    fields[0] == "*" &&
+                    fields[1] == protonName &&
+                    fields[3] == "dxvk" &&
+                    fields[4].endsWith("/d3d11.dll")
+            },
+        )
+        val state = JSONObject(File(context.filesDir, "components/state.json").readText())
+        assertEquals(listOf("dxvk"), state.getJSONArray("profiledComponents").let { values ->
+            (0 until values.length()).map(values::getString)
+        })
+    }
 
     private fun proton(name: String, version: String = "experimental-11") {
         val dir = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/common/$name")

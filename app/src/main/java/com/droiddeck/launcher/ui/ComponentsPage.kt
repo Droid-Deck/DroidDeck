@@ -267,25 +267,25 @@ fun ComponentsPage(
     }
     fun setGameFexPreset(preset: String?) {
         val game = selectedGame ?: return
-        val current = environment ?: return
-        val next = GameEnvironment.withGameFexPreset(current, game.profileKey, preset)
         environmentBusy = true
         profileNotice = null
         coroutine.launch {
-            runCatching { withContext(Dispatchers.IO) { GameEnvironmentStore.save(ctx, next) } }
-                .onSuccess {
-                    environment = next
-                    if (selectedGameKey == game.profileKey) {
-                        environmentError = false
-                        profileNotice = ctx.getString(R.string.comp_game_saved_next, game.name)
-                    }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    GameEnvironmentStore.setGameFexPreset(ctx, game.profileKey, preset)
                 }
-                .onFailure {
-                    if (selectedGameKey == game.profileKey) {
-                        environmentError = true
-                        profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
-                    }
+            }.onSuccess { saved ->
+                environment = saved
+                if (selectedGameKey == game.profileKey) {
+                    environmentError = false
+                    profileNotice = ctx.getString(R.string.comp_game_saved_next, game.name)
                 }
+            }.onFailure {
+                if (selectedGameKey == game.profileKey) {
+                    environmentError = true
+                    profileNotice = ctx.getString(R.string.comp_game_save_failed, it.message ?: it.javaClass.simpleName)
+                }
+            }
             environmentBusy = false
         }
     }
@@ -362,8 +362,8 @@ fun ComponentsPage(
                     ProfileEditorState(config, choice, id, components) to resetFailure
                 }
             }.onSuccess { (state, resetFailure) ->
+                environment = state.environment
                 if (selectedGameKey == game.profileKey) {
-                    environment = state.environment
                     gameProtonChoice = state.protonChoice
                     gameProtonId = state.protonId
                     gameComponents = state.components
@@ -1180,6 +1180,7 @@ private fun GameComponentOverrides(
                     inherited = override == null,
                     open = fexMenu,
                     enabled = config != null && !busy,
+                    allowInheritance = true,
                     onToggle = { onFexMenu(!fexMenu) },
                     onDismiss = { onFexMenu(false) },
                     onPick = onFexPreset,
@@ -1333,7 +1334,7 @@ private fun GamePackageRow(
 }
 
 @Composable
-private fun FexPresetChip(
+internal fun FexPresetChip(
     preset: String,
     inherited: Boolean,
     open: Boolean,
@@ -1341,6 +1342,8 @@ private fun FexPresetChip(
     onToggle: () -> Unit,
     onDismiss: () -> Unit,
     onPick: (String?) -> Unit,
+    allowInheritance: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     val chosen = FexPreset.all.firstOrNull { it.id == preset }
     val label = when {
@@ -1350,9 +1353,9 @@ private fun FexPresetChip(
         else -> stringResource(chosen.label)
     }
     Box {
-        ValueChip(label, open, enabled = enabled, modifier = Modifier.widthIn(max = 260.dp), onClick = onToggle)
-        AnchoredMenu(open, onDismiss = onDismiss, title = stringResource(R.string.fex_preset_title)) { first ->
-            if (inherited || preset == GameEnvironment.CUSTOM_FEX_PRESET) {
+        ValueChip(label, open, enabled = enabled, modifier = modifier.widthIn(max = 260.dp), onClick = onToggle)
+        AnchoredMenu(open && enabled, onDismiss = onDismiss, title = stringResource(R.string.fex_preset_title)) { first ->
+            if (allowInheritance) {
                 MenuItem(
                     stringResource(R.string.comp_game_use_general),
                     checked = inherited,
@@ -1364,7 +1367,7 @@ private fun FexPresetChip(
                     stringResource(option.label),
                     checked = !inherited && option.id == preset,
                     detail = stringResource(option.detail),
-                    focusRequester = if (index == 0 && !inherited && preset != GameEnvironment.CUSTOM_FEX_PRESET) first else null,
+                    focusRequester = if (index == 0 && !allowInheritance) first else null,
                 ) { onPick(option.id); onDismiss() }
             }
         }

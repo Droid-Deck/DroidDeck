@@ -75,15 +75,44 @@ class SelectedGameProfileTest {
         assertNull(resolve(selectedAppId = 42))
     }
 
+    @Test fun switchingProfilesResolvesEachGamesFexPresetWithoutChangingSettings() {
+        val other = Library.SteamGame(42, "Other game", null, "internal")
+        val games = listOf(game, other)
+        val environment = GameEnvironment.withGameFexPreset(
+            GameEnvironment.Config(), game.profileKey, "STABILITY",
+        )
+
+        assertEquals(ProfileValue("STABILITY", false),
+            resolve(games = games, environment = environment)!!.fexPreset)
+        assertEquals(ProfileValue("PERFORMANCE_TSO", true),
+            resolve(selectedAppId = 42, games = games, environment = environment)!!.fexPreset)
+        assertEquals(ProfileValue("STABILITY", false),
+            resolve(games = games, environment = environment)!!.fexPreset)
+        assertNull(GameEnvironment.gameFexPreset(environment, other.profileKey))
+    }
+
+    @Test fun customAndExplicitDefaultFexPresetsAreNotShownAsInherited() {
+        val custom = GameEnvironment.Config(
+            games = mapOf(game.profileKey to mapOf("FEX_TSOENABLED" to "0")),
+        )
+        assertEquals(ProfileValue(GameEnvironment.CUSTOM_FEX_PRESET, false),
+            resolve(environment = custom)!!.fexPreset)
+        val defaults = GameEnvironment.withGameFexPreset(custom, game.profileKey, "")
+        assertEquals(ProfileValue("", false), resolve(environment = defaults)!!.fexPreset)
+        val inherited = GameEnvironment.withGameFexPreset(defaults, game.profileKey, null)
+        assertEquals(ProfileValue("PERFORMANCE_TSO", true), resolve(environment = inherited)!!.fexPreset)
+    }
+
     private fun resolve(
         selectedAppId: Long = 3180310,
+        games: List<Library.SteamGame> = listOf(game),
         environment: GameEnvironment.Config = GameEnvironment.Config(),
         gameChoice: ProtonDefault.GameChoice? = null,
         gameComponents: Map<String, String> = emptyMap(),
         gameWindowsComponents: List<String> = emptyList(),
     ) = SelectedGameProfile.resolve(
         selectedAppId = selectedAppId,
-        games = listOf(game),
+        games = games,
         generalFexPreset = "PERFORMANCE_TSO",
         environment = environment,
         snapshot = snapshot,

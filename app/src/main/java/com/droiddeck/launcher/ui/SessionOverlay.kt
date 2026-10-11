@@ -271,6 +271,8 @@ class DrawerActions(
     val onSelectedGameProfile: (Long?) -> Unit = {},
     val onGameProfilesPageOpened: () -> Unit = {},
     val onSelectedGameProfileRefresh: () -> Unit = {},
+    val gameFexPresetSaving: Boolean = false,
+    val onGameFexPreset: (Long, String?) -> Unit = { _, _ -> },
     /** Swaps [value] ("orig:<build>" or a stored package file) into a Proton's component. */
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
     /** Saves a stored package for a game, or null to inherit that component from the Default profile. */
@@ -302,6 +304,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     }
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
     LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
+    LaunchedEffect(a.selectedGameProfileId) {
+        if (host.open == "fex") host.open = null
+    }
     LaunchedEffect(open, page) {
         if (open && page == SessionDrawerPage.GAMES) {
             a.onGameProfilesPageOpened()
@@ -509,10 +514,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
                             TextureFilteringGroup(host, a) { key -> focus.track(page, key) }
                             if (a.steam) SettingsGroup(stringResource(R.string.game_settings_title)) {
-                                ChoiceRow(host, "fex", stringResource(R.string.fex_preset_title), null,
-                                    FexPreset.all.map { it.id to stringResource(it.label) }, a.fexPreset,
-                                    chipModifier = focus.track(page, "fex"), onPick = a.onFexPreset)
-                                GameEnvironmentRow(modifier = focus.track(page, "game-env"), showHint = false)
+                                DrawerFexPresetRow(host, a, focus.track(page, "fex"))
+                                GameEnvironmentRow(
+                                    modifier = focus.track(page, "game-env"),
+                                    showHint = false,
+                                    initialScope = a.selectedGameProfileId?.toString().orEmpty(),
+                                )
                             }
                             ComponentsDrawerPage(host, a) { key -> focus.track(page, key) }
                         }
@@ -897,6 +904,39 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
         if (a.secondScreenDisplays.size > 1) ChoiceRow(host, "second-screen-display", stringResource(R.string.drawer_page_display), null,
             a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
             chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)
+    }
+}
+
+@Composable
+private fun DrawerFexPresetRow(host: MenuHost, a: DrawerActions, modifier: Modifier) {
+    val appId = a.selectedGameProfileId
+    val profile = a.selectedGameProfile?.takeIf { it.appId == appId }
+    val inherited = profile?.fexPreset?.inherited == true
+    val hint = if (profile == null) null else stringResource(
+        if (inherited) R.string.comp_game_fex_inherited else R.string.comp_game_fex_override,
+    )
+    SettingsRow(stringResource(R.string.fex_preset_title), hint, highlighted = host.open == "fex") {
+        if (appId != null && profile == null) {
+            ValueChip("-", false, enabled = false, modifier = modifier) {}
+        } else {
+            FexPresetChip(
+                preset = profile?.fexPreset?.value ?: a.fexPreset,
+                inherited = inherited,
+                open = host.open == "fex",
+                enabled = !a.gameFexPresetSaving,
+                onToggle = { host.open = if (host.open == "fex") null else "fex" },
+                onDismiss = { if (host.open == "fex") host.open = null },
+                onPick = { preset ->
+                    if (appId == null) {
+                        preset?.let(a.onFexPreset)
+                    } else {
+                        a.onGameFexPreset(appId, preset)
+                    }
+                },
+                allowInheritance = appId != null,
+                modifier = modifier,
+            )
+        }
     }
 }
 

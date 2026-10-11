@@ -155,6 +155,14 @@ object ComponentsManager {
 
     private fun JSONObject.sub(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }
 
+    // Keep launch-time restore rows after the last per-game selection is removed.
+    private fun rememberProfiledComponent(state: JSONObject, comp: String) {
+        val profiled = state.optJSONArray("profiledComponents")?.let { values ->
+            (0 until values.length()).mapNotNull { values.optString(it).takeIf(COMPONENTS::contains) }
+        }.orEmpty().toMutableSet()
+        if (profiled.add(comp)) state.put("profiledComponents", JSONArray(profiled.sorted()))
+    }
+
     fun gameComponents(context: Context, scope: String): Map<String, String> = synchronized(lock) {
         val profile = loadState(context).sub("profiles").optJSONObject(scope) ?: return emptyMap()
         COMPONENTS.mapNotNull { comp -> profile.optString(comp).takeIf(String::isNotEmpty)?.let { comp to it } }.toMap()
@@ -167,6 +175,7 @@ object ComponentsManager {
         val profiles = state.sub("profiles")
         val profile = profiles.optJSONObject(scope) ?: JSONObject().also { profiles.put(scope, it) }
         if (file == null) {
+            if (profile.optString(comp).isNotEmpty()) rememberProfiledComponent(state, comp)
             profile.remove(comp)
             if (profile.length() == 0) profiles.remove(scope)
         } else {
@@ -174,6 +183,7 @@ object ComponentsManager {
             val wcp = File(packagesDir(context), name)
             require(packageInfo(context, wcp).comp == comp)
             for (proton in protons(context)) ensureOriginal(context, proton, comp, state)
+            rememberProfiledComponent(state, comp)
             profile.put(comp, name)
         }
         saveState(context, state)
@@ -182,7 +192,12 @@ object ComponentsManager {
     fun clearGameComponents(context: Context, scope: String) = synchronized(lock) {
         require(GameEnvironment.validScope(scope))
         val state = loadState(context)
-        state.sub("profiles").remove(scope)
+        val profiles = state.sub("profiles")
+        profiles.optJSONObject(scope)?.let { profile ->
+            COMPONENTS.filter { profile.optString(it).isNotEmpty() }
+                .forEach { rememberProfiledComponent(state, it) }
+        }
+        profiles.remove(scope)
         saveState(context, state)
     }
 
@@ -577,6 +592,11 @@ object ComponentsManager {
 
         val profiles = state.sub("profiles")
         val profiledComponents = buildSet {
+            state.optJSONArray("profiledComponents")?.let { stored ->
+                for (index in 0 until stored.length()) {
+                    stored.optString(index).takeIf(COMPONENTS::contains)?.let(::add)
+                }
+            }
             for (scope in profiles.keys()) {
                 val profile = profiles.optJSONObject(scope) ?: continue
                 COMPONENTS.filterTo(this) { profile.optString(it).isNotEmpty() }
