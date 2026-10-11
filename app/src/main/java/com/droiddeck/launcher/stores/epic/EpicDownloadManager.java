@@ -548,10 +548,10 @@ public final class EpicDownloadManager {
         try {
             JSONObject root = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
             int manifestVersion = 0;
-            try { manifestVersion = Integer.parseInt(root.optString("ManifestFileVersion", "0")); } catch (NumberFormatException ignored) {}
+            try { manifestVersion = (int) blobToNum(root.optString("ManifestFileVersion", "0")); } catch (NumberFormatException ignored) {}
             Manifest m = new Manifest();
             m.chunkDir = manifestVersion >= 15 ? "ChunksV4" : manifestVersion >= 6 ? "ChunksV3" : manifestVersion >= 3 ? "ChunksV2" : "ChunksV4";
-            m.launchExe = root.optString("LaunchExe", "").replace('\\', '/');
+            m.launchExe = root.optString("LaunchExeString", root.optString("LaunchExe", "")).replace('\\', '/');
             m.launchCommand = root.optString("LaunchCommand", "");
             m.buildVersion = root.optString("BuildVersionString", "");
             m.prereqName = root.optString("PrereqName", "");
@@ -568,10 +568,9 @@ public final class EpicDownloadManager {
                 if (guidHex.length() < 32) continue;
                 ChunkInfo c = new ChunkInfo();
                 for (int k = 0; k < 4; k++) c.guid[k] = (int) Long.parseLong(guidHex.substring(k * 8, k * 8 + 8), 16);
-                String hashHex = chunkHashList.getString(guidHex);
-                if (hashHex != null && hashHex.length() >= 16) { try { c.hash = Long.parseUnsignedLong(hashHex.substring(0, 16), 16); } catch (Exception ignored) {} }
-                if (dataGroupList != null) { try { c.groupNum = Integer.parseInt(dataGroupList.optString(guidHex, "0")); } catch (NumberFormatException ignored) {} }
-                if (chunkFilesizeList != null) { try { c.fileSize = Long.parseLong(chunkFilesizeList.optString(guidHex, "0"), 16); } catch (NumberFormatException ignored) {} }
+                try { c.hash = blobToNum(chunkHashList.getString(guidHex)); } catch (NumberFormatException ignored) {}
+                if (dataGroupList != null) { try { c.groupNum = (int) blobToNum(dataGroupList.optString(guidHex, "0")); } catch (NumberFormatException ignored) {} }
+                if (chunkFilesizeList != null) { try { c.fileSize = blobToNum(chunkFilesizeList.optString(guidHex, "0")); } catch (NumberFormatException ignored) {} }
                 chunkMap.put(guidHex, c);
             }
             JSONArray fileList = root.optJSONArray("FileManifestList");
@@ -589,8 +588,8 @@ public final class EpicDownloadManager {
                     ChunkPart part = new ChunkPart();
                     String g = po.optString("Guid", "");
                     if (g.length() >= 32) for (int k = 0; k < 4; k++) part.guid[k] = (int) Long.parseLong(g.substring(k * 8, k * 8 + 8), 16);
-                    try { part.offset = Integer.parseInt(po.optString("Offset", "0")); } catch (NumberFormatException ignored) {}
-                    try { part.size = Integer.parseInt(po.optString("Size", "0")); } catch (NumberFormatException ignored) {}
+                    try { part.offset = (int) blobToNum(po.optString("Offset", "0")); } catch (NumberFormatException ignored) {}
+                    try { part.size = (int) blobToNum(po.optString("Size", "0")); } catch (NumberFormatException ignored) {}
                     fi.parts.add(part);
                 }
                 files.add(fi);
@@ -602,6 +601,24 @@ public final class EpicDownloadManager {
             Log.e(TAG, "json manifest parse: " + e.getClass().getSimpleName());
             return null;
         }
+    }
+
+    /**
+     * A JSON manifest writes every number as a "blob": each byte as three decimal digits, least
+     * significant first ("013000000000" = 13), as Legendary's blob_to_num reads it. Bits past 64
+     * are dropped; a group that is not digits throws.
+     */
+    static long blobToNum(String blob) {
+        long num = 0;
+        for (int i = 0, shift = 0; i < blob.length(); i += 3, shift += 8) {
+            String group = blob.substring(i, Math.min(i + 3, blob.length()));
+            for (int k = 0; k < group.length(); k++) {
+                char ch = group.charAt(k);
+                if (ch < '0' || ch > '9') throw new NumberFormatException("not a blob: " + blob);
+            }
+            if (shift < 64) num += Long.parseLong(group) << shift;
+        }
+        return num;
     }
 
     public static String readFString(ByteBuffer buf) {
