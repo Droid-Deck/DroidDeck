@@ -840,6 +840,7 @@ class MainActivity : ComponentActivity() {
                             onStickClick = { on -> ControllerPrefs.setStickClick(this, on); refreshController() },
                             onAdaptiveSticks = { on -> ControllerPrefs.setAdaptiveSticks(this, on); refreshController() },
                             onRumble = { on -> ControllerPrefs.setRumble(this, on); refreshController() },
+                            onDeadZone = { v -> ControllerPrefs.setDeadZone(this, v); refreshController() },
                             onSteamButton = { on -> ControllerPrefs.setSteamButton(this, on); refreshController() },
                             onQamButton = { on -> ControllerPrefs.setQamButton(this, on); refreshController() },
                             onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
@@ -847,6 +848,12 @@ class MainActivity : ComponentActivity() {
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = true },
+                            onExportReport = {
+                                val message = if (!com.droiddeck.launcher.input.PadBridge.anyControllerConnected()) getString(R.string.ctrl_report_none)
+                                else com.droiddeck.launcher.input.ControllerProfiles.exportReport(this)
+                                    ?.let { getString(R.string.ctrl_report_saved, it.path) } ?: getString(R.string.ctrl_report_failed)
+                                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+                            },
                             onResetAll = { ControllerPrefs.resetAll(this); refreshController() },
                         ),
                     ),

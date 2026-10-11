@@ -35,7 +35,6 @@ public final class PadBridge {
     private static final String TAG = "PadBridge";
     /** Player slots: the session prepares a ring for each (SessionService). */
     public static final int SLOTS = 4;
-    private static final float DEAD_ZONE = 0.12f;
     private static final int[] JOYSTICK_AXES = {
             MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
             MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y, MotionEvent.AXIS_LTRIGGER,
@@ -281,7 +280,8 @@ public final class PadBridge {
         int slot = slotFor(event.getDevice());
         PadState pad = stateFor(slot);
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
-        switch (event.getKeyCode()) {
+        // A profile can have a pad's button count as another (ControllerProfiles).
+        switch (ControllerProfiles.resolve(event.getDevice()).key(event.getKeyCode())) {
             case KeyEvent.KEYCODE_BUTTON_A: pad.press(0, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_B: pad.press(1, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_X: pad.press(2, pressed); break;
@@ -328,12 +328,21 @@ public final class PadBridge {
         noteDevice(event.getDevice(), slot);
         statAxes++;
         scheduleStats();
-        pad.leftX = axis(event, MotionEvent.AXIS_X);
+        float deadZone = ControllerProfiles.resolve(event.getDevice()).getDeadZone();
+        // Each stick's dead zone is a circle round its centre, so a stick held well over to one
+        // side still answers small movements on the other axis.
+        float lx = event.getAxisValue(MotionEvent.AXIS_X);
         // Android's Y axis grows downwards and evdev's ABS_Y does too, so no flip here: what the
         // pad reports as "down" is what the client is told.
-        pad.leftY = axis(event, MotionEvent.AXIS_Y);
-        pad.rightX = axis(event, MotionEvent.AXIS_Z);
-        pad.rightY = axis(event, MotionEvent.AXIS_RZ);
+        float ly = event.getAxisValue(MotionEvent.AXIS_Y);
+        float rx = event.getAxisValue(MotionEvent.AXIS_Z);
+        float ry = event.getAxisValue(MotionEvent.AXIS_RZ);
+        boolean leftCentred = ControllerProfiles.inDeadZone(lx, ly, deadZone);
+        boolean rightCentred = ControllerProfiles.inDeadZone(rx, ry, deadZone);
+        pad.leftX = leftCentred ? 0f : lx;
+        pad.leftY = leftCentred ? 0f : ly;
+        pad.rightX = rightCentred ? 0f : rx;
+        pad.rightY = rightCentred ? 0f : ry;
         float lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
         float rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
         // Some pads only report the triggers on BRAKE/GAS.
@@ -413,6 +422,7 @@ public final class PadBridge {
 
     /** A controller went away: its player's buttons are let go, and a further player's pad is unplugged. */
     public synchronized void onDeviceRemoved(int deviceId) {
+        ControllerProfiles.forget(deviceId);
         for (int slot = 0; slot < SLOTS; slot++) {
             if (owners[slot] == deviceId) free(slot);
         }
@@ -521,6 +531,9 @@ public final class PadBridge {
             Log.i(TAG, String.format(java.util.Locale.ROOT, "first input from \"%s\" (%04x:%04x, id %d, sources 0x%x); slot %d, ring %s, deck pad %b",
                     device.getName(), device.getVendorId(), device.getProductId(), device.getId(), device.getSources(),
                     slot, open ? "open" : "not open yet", SessionState.getDeckPad()));
+            ControllerProfile profile = ControllerProfiles.resolve(device).getProfile();
+            Log.i(TAG, profile != null ? "profile \"" + profile.getName() + "\" applies to \"" + device.getName() + "\""
+                    : "no profile for \"" + device.getName() + "\"; global dead zone");
         }
     }
 
@@ -573,10 +586,5 @@ public final class PadBridge {
         if (qam) effectiveState.press(PadState.QAM, true);
         if (qamSyntheticAPressed) effectiveState.press(PadState.A, true);
         writer.writePad(effectiveState);
-    }
-
-    private static float axis(MotionEvent event, int axis) {
-        float value = event.getAxisValue(axis);
-        return Math.abs(value) < DEAD_ZONE ? 0f : value;
     }
 }
