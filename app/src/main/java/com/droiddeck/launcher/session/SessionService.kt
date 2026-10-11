@@ -410,6 +410,8 @@ class SessionService : Service() {
             guest.add(it)
             Log.i(TAG, "steam: handing the client $it")
         }
+        // A game whose download finishes in this session gets its Windows components readied in it.
+        if (SessionState.mode == MODE_STEAM) com.droiddeck.launcher.frontend.SessionInstalls.watch(this)
         // A program under gamescope: the script's run mode takes the path (an AppImage, a script
         // or a binary inside the runtime). This is how an emulator gets the GPU - the desktop's
         // KWin composites in software and offers no dma-buf, so a Vulkan swapchain cannot exist

@@ -366,6 +366,8 @@ class MainActivity : ComponentActivity() {
     }
     private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
+    @Volatile private var componentSweepDone = false
+    @Volatile private var componentSweepSession: String? = null
     private var emulatorList by mutableStateOf<List<Library.Emulator>>(emptyList())
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
@@ -616,7 +618,15 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
                         },
                         // A store game may need something done first (an Epic game its sign-in code).
-                        onSteamGame = { g -> if (shortcutPicker) chooseGameShortcut(g) else com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) } },
+                        onSteamGame = { g ->
+                            if (shortcutPicker) chooseGameShortcut(g)
+                            else {
+                                // The launch takes the Windows components already on; the game's list is
+                                // looked at again in the background once the session is over.
+                                com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
+                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                            }
+                        },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
                         onExportGameFile = { g -> pickGameExport(g) },
                         onSyncGameFiles = { pickGameExport(null) },
@@ -1447,6 +1457,8 @@ class MainActivity : ComponentActivity() {
             val fresh = folders.mapNotNull { f ->
                 com.droiddeck.launcher.frontend.AddedGames.single(this, f)?.let { com.droiddeck.launcher.frontend.Library.addedGame(this, it) }
             }
+            // An added or edited game's Windows components, from its source's list.
+            fresh.forEach { com.droiddeck.launcher.frontend.AutoComponents.refreshLater(this, it) }
             ui.post {
                 val paths = folders.toSet()
                 steamGames = (steamGames.filterNot { it.library == Library.ADDED && it.gameFiles?.path in paths } + fresh).distinctBy { it.gameId }
@@ -1608,13 +1620,39 @@ class MainActivity : ComponentActivity() {
         val scanGeneration = ++libraryScanGeneration
         if (shortcutPicker) shortcutLibraryScanning = true
         Thread({
-            // One update with the whole list: the wall places games by their position in it, so a
-            // partial list first would shuffle every capsule when the rest arrived. LibraryCache
-            // covers the wait.
+            // Steam's own games first, from their manifests alone (quick), beside the added games
+            // already listed: a game Steam installed during the session shows as the session ends,
+            // without waiting for the added games' walk below. Its Windows components' list is
+            // queued then too, on the low-priority worker, so its page is usually ready.
+            if (ready) {
+                val quick = runCatching { Library.steamGames(this) }.getOrNull()
+                if (quick != null) ui.post {
+                    if (scanGeneration == libraryScanGeneration && steamGames.isNotEmpty()) {
+                        val before = steamGames.map { it.gameId }.toSet()
+                        val fresh = quick.filter { it.gameId !in before }
+                        if (fresh.isNotEmpty()) {
+                            steamGames = (quick + steamGames.filter { it.library == Library.ADDED }).distinctBy { it.gameId }
+                            fresh.forEach { com.droiddeck.launcher.frontend.AutoComponents.queueGame(this, it, asked = false) }
+                        }
+                    }
+                }
+            }
+            // Then one update with the whole list: the wall places games by their position in it,
+            // so a partial list first would shuffle every capsule when the rest arrived.
+            // LibraryCache covers the wait.
             val games = if (ready) Library.launchableGames(this) else emptyList()
             val emus = Library.emulators(this) { id -> DesktopCatalog.installed(this, id) != null }
             val all = games.distinctBy { it.gameId }
             if (ready) com.droiddeck.launcher.frontend.LibraryCache.save(this, all)
+            // Once per app start: the Steam games' Windows components from Steam's lists.
+            // Queued only, after the launcher has been up a little; the worker takes them one at a time.
+            // And again after each session (a game installed in it, files changed).
+            val endedSession = SessionState.sessionId.takeIf { !SessionState.running && it != null && it != componentSweepSession }
+            if (ready && (!componentSweepDone || endedSession != null)) {
+                componentSweepDone = true
+                endedSession?.let { componentSweepSession = it }
+                ui.postDelayed({ Thread({ com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all) }, "components-sweep").start() }, 10_000)
+            }
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
                     steamGames = all
