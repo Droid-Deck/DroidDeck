@@ -17,6 +17,9 @@ object SocNames {
         "SM8750" to "Snapdragon 8 Elite", "SM8850" to "Snapdragon 8 Elite Gen 5",
         "SM7325" to "Snapdragon 778G", "SM7450" to "Snapdragon 7 Gen 1", "SM7550" to "Snapdragon 7 Gen 3",
         "SM6375" to "Snapdragon 695",
+        // Xiaomi Mi Note 10 (tucana): Snapdragon 730/730G (SM7150, platform sm6150), Adreno 618.
+        "SM7150" to "Snapdragon 730G", "SM7150-AA" to "Snapdragon 730", "SM7150-AB" to "Snapdragon 730G",
+        "SDM730" to "Snapdragon 730", "SDM730G" to "Snapdragon 730G",
     )
 
     /** Platform code names: every chip of one platform shares its CPU and GPU design. */
@@ -24,6 +27,7 @@ object SocNames {
         "msmnile" to "Snapdragon 855/860", "kona" to "Snapdragon 865/870", "lahaina" to "Snapdragon 888",
         "taro" to "Snapdragon 8 Gen 1", "cape" to "Snapdragon 8+ Gen 1", "kalama" to "Snapdragon 8 Gen 2",
         "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite",
+        "sm6150" to "Snapdragon 730/730G", "sm7150" to "Snapdragon 730/730G",
     )
 
     /** The chip's model code ("QCS8550", "SG8350P"), or "" when the phone does not say. */
