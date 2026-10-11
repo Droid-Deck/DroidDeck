@@ -33,6 +33,7 @@ class ControllerActions(
     val onEditLayout: () -> Unit,
     val onResetLayout: () -> Unit,
     val onMapping: () -> Unit,
+    val onExportReport: () -> Unit,
     val onResetAll: () -> Unit,
 )
 
@@ -82,6 +83,7 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
     }
     val remapped = c.mapping.count { (id, target) -> id != target }
     ActionRow(stringResource(R.string.ctrl_mapping), if (remapped == 0) stringResource(R.string.ctrl_mapping_default) else stringResource(R.string.ctrl_mapping_count, remapped, c.mapping.size), stringResource(R.string.ctrl_configure), a.onMapping)
+    ActionRow(stringResource(R.string.ctrl_report), stringResource(R.string.ctrl_report_hint), stringResource(R.string.ctrl_report_export), a.onExportReport)
     ActionRow(stringResource(R.string.ctrl_reset_all), stringResource(R.string.ctrl_reset_all_hint), stringResource(R.string.ctrl_reset), a.onResetAll)
 }
 

@@ -848,6 +848,12 @@ class MainActivity : ComponentActivity() {
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { settingsMode = null; showPerformance = false; showProtons = false; showComponents = false; showMapping = true },
+                            onExportReport = {
+                                val message = if (!com.droiddeck.launcher.input.PadBridge.anyControllerConnected()) getString(R.string.ctrl_report_none)
+                                else com.droiddeck.launcher.input.ControllerProfiles.exportReport(this)
+                                    ?.let { getString(R.string.ctrl_report_saved, it.path) } ?: getString(R.string.ctrl_report_failed)
+                                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+                            },
                             onResetAll = { ControllerPrefs.resetAll(this); refreshController() },
                         ),
                     ),

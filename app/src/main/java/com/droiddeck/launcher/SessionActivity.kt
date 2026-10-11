@@ -2212,6 +2212,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         com.droiddeck.launcher.input.ControllerProfiles.reload(this)
+        if (PadBridge.anyControllerConnected()) Thread { com.droiddeck.launcher.input.ControllerProfiles.exportReport(this) }.start()
         updateOnScreenControls()
         resumed = true
         updatePointerCapture()

@@ -50,6 +50,14 @@ Copy the entry, change what is wrong, and save it as one of the files above. `fl
 pad itself asks Android for, a good starting point. `PadBridge` then logs `profile "..." applies`
 the first time that pad sends input.
 
+## Exporting the report
+
+**Setup › Controller › Controller report › Export** (and automatically when a session opens with a
+controller connected) writes `Download/droiddeck-controller-report.txt`: the controllers' names and
+ids, the profile each one got, their buttons and axis ranges, a profile entry to start from, plus the
+phone model and app version. A Bluetooth pad can carry a name its owner gave it, so read the file before
+posting it; nothing else about the person is in it.
+
 ## Code
 
 `input/ControllerProfiles.kt` (matching, files, parsing, the per-device cache), read per event by
