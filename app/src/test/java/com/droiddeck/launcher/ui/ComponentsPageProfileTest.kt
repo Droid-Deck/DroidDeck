@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.ui
 
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.droiddeck.launcher.R
@@ -15,7 +14,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ComponentsPageProfileTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createRobolectricComposeRule()
 
     @Test fun gameProfilesCoexistWithTheDefaultComponentStack() {
         val context = RuntimeEnvironment.getApplication()

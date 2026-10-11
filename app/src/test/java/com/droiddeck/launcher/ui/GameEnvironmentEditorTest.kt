@@ -3,7 +3,6 @@ package com.droiddeck.launcher.ui
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithText
@@ -23,7 +22,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class GameEnvironmentEditorTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createRobolectricComposeRule()
 
     @Test fun backgroundSelectionCannotRetargetAnOpenVariableEdit() {
         val context: Context = RuntimeEnvironment.getApplication()
