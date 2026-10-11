@@ -474,7 +474,7 @@ fun ComponentsPage(
     val layerFocus = remember { LAYERS.associateWith { FocusRequester() } }
     // Arrived (from the rail, a hop, a game's card): a pad starts on the chosen layer.
     LaunchedEffect(requestInitialFocus) {
-        if (!requestInitialFocus || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
+        if (!requestInitialFocus || selectedGame != null || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
         delay(Motion.ms(200).toLong())
         focusSoon { layerFocus.getValue(layer) }
     }
@@ -486,7 +486,7 @@ fun ComponentsPage(
     LaunchedEffect(layer) {
         if (seenLayer[0] == layer) return@LaunchedEffect
         seenLayer[0] = layer
-        if (!pageFocused || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
+        if (selectedGame != null || !pageFocused || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
         if (narrowOpen != null) runCatching { firstRow.requestFocus() }
         else focusSoon { layerFocus.getValue(layer) }
     }
@@ -739,6 +739,21 @@ fun ComponentsPage(
                     Column(Modifier.weight(1f)) { slide { k -> RowGroup(availableTitle(k)) { availableRows(k) } } }
                 }
                 Box(Modifier.padding(top = 14.dp)) { slide { k -> actions(k) } }
+                if (l == "fex") {
+                    SettingsGroup(stringResource(R.string.fex_preset_title)) {
+                        SettingsRow(stringResource(R.string.fex_preset_title), null) {
+                            FexPresetChip(
+                                preset = generalFexPreset,
+                                inherited = false,
+                                open = fexMenu,
+                                enabled = true,
+                                onToggle = { fexMenu = !fexMenu },
+                                onDismiss = { fexMenu = false },
+                                onPick = { it?.let(onGeneralFexPreset) },
+                            )
+                        }
+                    }
+                }
                 if (l == PROTON_TAB) {
                     Spacer(Modifier.height(10.dp))
                     if (!protons.runtimeReady) EmptyLine(stringResource(R.string.content_needs_runtime))
@@ -755,7 +770,10 @@ fun ComponentsPage(
     Box(Modifier.fillMaxSize().onGloballyPositioned { pageAt = it.positionInRoot() }.onFocusChanged { pageFocused = it.hasFocus }) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)
-                .bumpers(onPrevious = { pick(layerStep(layer, -1)) }, onNext = { pick(layerStep(layer, 1)) }),
+                .then(if (selectedGame == null) Modifier.bumpers(
+                    onPrevious = { pick(layerStep(layer, -1)) },
+                    onNext = { pick(layerStep(layer, 1)) },
+                ) else Modifier),
         ) {
             // ---- header: the title, the device, when the lists were checked and the one refresh ----
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -774,111 +792,111 @@ fun ComponentsPage(
             }
             if (narrow) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) { DeviceChip(gpu) }
             Spacer(Modifier.height(14.dp))
-        if (games.isNotEmpty()) {
-            SettingsGroup(stringResource(R.string.comp_profile_configure)) {
-                SettingsRow(
-                    stringResource(R.string.comp_profile),
-                    if (selectedGame == null) {
-                        stringResource(R.string.comp_scope_general_detail)
-                    } else {
-                        stringResource(R.string.comp_profile_game_detail, selectedGame.name)
-                    },
-                ) {
-                    Box {
-                        ValueChip(
-                            selectedGame?.name ?: stringResource(R.string.comp_scope_general),
-                            scopeMenu,
-                            modifier = Modifier.widthIn(max = 320.dp).heightIn(min = 44.dp),
-                        ) { scopeMenu = !scopeMenu }
-                        AnchoredMenu(
-                            scopeMenu,
-                            onDismiss = { scopeMenu = false },
-                            title = stringResource(R.string.comp_profile_configure),
-                        ) { first ->
-                            MenuItem(
-                                stringResource(R.string.comp_scope_general),
-                                checked = selectedGame == null,
-                                detail = stringResource(R.string.comp_scope_general_detail),
-                                focusRequester = first,
-                            ) {
-                                selectedGameKey = null
-                                scopeMenu = false
-                            }
-                            games.sortedBy { it.name.lowercase() }.forEach { game ->
-                                MenuItem(game.name, checked = selectedGameKey == game.profileKey) {
-                                    selectedGameKey = game.profileKey
+            if (games.isNotEmpty()) {
+                SettingsGroup(stringResource(R.string.comp_profile_configure)) {
+                    SettingsRow(
+                        stringResource(R.string.comp_profile),
+                        if (selectedGame == null) {
+                            stringResource(R.string.comp_scope_general_detail)
+                        } else {
+                            stringResource(R.string.comp_profile_game_detail, selectedGame.name)
+                        },
+                    ) {
+                        Box {
+                            ValueChip(
+                                selectedGame?.name ?: stringResource(R.string.comp_scope_general),
+                                scopeMenu,
+                                modifier = Modifier.widthIn(max = 320.dp).heightIn(min = 44.dp),
+                            ) { scopeMenu = !scopeMenu }
+                            AnchoredMenu(
+                                scopeMenu,
+                                onDismiss = { scopeMenu = false },
+                                title = stringResource(R.string.comp_profile_configure),
+                            ) { first ->
+                                MenuItem(
+                                    stringResource(R.string.comp_scope_general),
+                                    checked = selectedGame == null,
+                                    detail = stringResource(R.string.comp_scope_general_detail),
+                                    focusRequester = first,
+                                ) {
+                                    selectedGameKey = null
                                     scopeMenu = false
+                                }
+                                games.sortedBy { it.name.lowercase() }.forEach { game ->
+                                    MenuItem(game.name, checked = selectedGameKey == game.profileKey) {
+                                        selectedGameKey = game.profileKey
+                                        scopeMenu = false
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        if (selectedGame != null) {
-            GameComponentOverrides(
-                game = selectedGame,
-                config = environment,
-                generalFexPreset = generalFexPreset,
-                generalProton = view?.proton,
-                protons = views.map { it.proton },
-                protonId = gameProtonId,
-                protonChoice = gameProtonChoice,
-                packages = snapshot?.packages.orEmpty(),
-                componentChoices = gameComponents,
-                componentMenu = gameComponentMenu,
-                protonMenu = gameProtonMenu,
-                fexMenu = fexMenu,
-                busy = environmentBusy || profileLoading,
-                error = environmentError,
-                notice = profileNotice,
-                winComponentsRevision = winComponentsRevision,
-                onFexMenu = { fexMenu = it },
-                onFexPreset = ::setGameFexPreset,
-                onProtonMenu = { gameProtonMenu = it },
-                onProton = ::setGameProton,
-                onComponentMenu = { gameComponentMenu = it },
-                onComponent = ::setGameComponent,
-                onEnvironment = { environmentEditor = true },
-                onWinComponents = { winComponentsOpen = false },
-                onReset = {
-                    ask(
-                        ctx.getString(R.string.comp_game_reset_title, selectedGame.name),
-                        ctx.getString(R.string.comp_game_reset_body),
-                        R.string.comp_game_reset,
-                        ::resetGameProfile,
-                    )
-                },
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
-        } else {
-            Row(Modifier.weight(1f).fillMaxWidth()) {
-                // ---- the stack ----
-                Box(
-                    (if (narrow) Modifier.fillMaxWidth() else Modifier.width(250.dp)).fillMaxHeight()
-                        .onGloballyPositioned { stackAt = it.positionInRoot() },
-                ) {
-                    val tint = rememberUpdatedState(pal.signal)
-                    val local = cardsAt[layer]?.translate(-stackAt)
-                    ChipGlide(LAYERS.indexOf(layer), local, tint, GlideAxis.Vertical, corner = 12.dp)
-                    Stack(
-                        layer, view, gpu, focus = layerFocus, landed = landed, rings = rings,
-                        onPlaced = { l, r -> cardsAt[l] = r },
-                        onFocus = { l -> pick(l) },
-                        onOpen = { l ->
-                            pick(l)
-                            if (narrow) narrowOpen = l
-                            else runCatching { firstRow.requestFocus() }
-                        },
-                    )
-                }
-                if (!narrow) {
-                    Spacer(Modifier.width(16.dp))
-                    Box(Modifier.weight(1f).fillMaxHeight()) { detail(layer, false) }
+            if (selectedGame != null) {
+                GameComponentOverrides(
+                    game = selectedGame,
+                    config = environment,
+                    generalFexPreset = generalFexPreset,
+                    generalProton = view?.proton,
+                    protons = views.map { it.proton },
+                    protonId = gameProtonId,
+                    protonChoice = gameProtonChoice,
+                    packages = snapshot?.packages.orEmpty(),
+                    componentChoices = gameComponents,
+                    componentMenu = gameComponentMenu,
+                    protonMenu = gameProtonMenu,
+                    fexMenu = fexMenu,
+                    busy = environmentBusy || profileLoading,
+                    error = environmentError,
+                    notice = profileNotice,
+                    winComponentsRevision = winComponentsRevision,
+                    onFexMenu = { fexMenu = it },
+                    onFexPreset = ::setGameFexPreset,
+                    onProtonMenu = { gameProtonMenu = it },
+                    onProton = ::setGameProton,
+                    onComponentMenu = { gameComponentMenu = it },
+                    onComponent = ::setGameComponent,
+                    onEnvironment = { environmentEditor = true },
+                    onWinComponents = { winComponentsOpen = false },
+                    onReset = {
+                        ask(
+                            ctx.getString(R.string.comp_game_reset_title, selectedGame.name),
+                            ctx.getString(R.string.comp_game_reset_body),
+                            R.string.comp_game_reset,
+                            ::resetGameProfile,
+                        )
+                    },
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            } else {
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    // ---- the stack ----
+                    Box(
+                        (if (narrow) Modifier.fillMaxWidth() else Modifier.width(250.dp)).fillMaxHeight()
+                            .onGloballyPositioned { stackAt = it.positionInRoot() },
+                    ) {
+                        val tint = rememberUpdatedState(pal.signal)
+                        val local = cardsAt[layer]?.translate(-stackAt)
+                        ChipGlide(LAYERS.indexOf(layer), local, tint, GlideAxis.Vertical, corner = 12.dp)
+                        Stack(
+                            layer, view, gpu, focus = layerFocus, landed = landed, rings = rings,
+                            onPlaced = { l, r -> cardsAt[l] = r },
+                            onFocus = { l -> pick(l) },
+                            onOpen = { l ->
+                                pick(l)
+                                if (narrow) narrowOpen = l
+                                else runCatching { firstRow.requestFocus() }
+                            },
+                        )
+                    }
+                    if (!narrow) {
+                        Spacer(Modifier.width(16.dp))
+                        Box(Modifier.weight(1f).fillMaxHeight()) { detail(layer, false) }
+                    }
                 }
             }
-        }
         }
         // Narrow: the layer's detail over the stack, out of its card.
         narrowShown?.let { l ->
