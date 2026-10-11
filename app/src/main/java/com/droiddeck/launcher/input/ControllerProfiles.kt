@@ -81,6 +81,9 @@ object ControllerProfiles {
         cache.clear()
     }
 
+    /** A stick within [deadZone] of its centre, as a circle: reads as centred on both axes. */
+    @JvmStatic fun inDeadZone(x: Float, y: Float, deadZone: Float): Boolean = x * x + y * y < deadZone * deadZone
+
     @JvmStatic fun forget(deviceId: Int) {
         cache.remove(deviceId)
     }

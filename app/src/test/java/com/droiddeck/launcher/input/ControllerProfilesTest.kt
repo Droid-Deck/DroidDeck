@@ -73,6 +73,15 @@ class ControllerProfilesTest {
         assertEquals(KeyEvent.KEYCODE_BUTTON_A, resolved.key(KeyEvent.KEYCODE_BUTTON_A))
     }
 
+    @Test fun theDeadZoneIsACircleNotACross() {
+        // Held well over to the right, a small push up still counts.
+        assertEquals(false, ControllerProfiles.inDeadZone(0.5f, 0.05f, 0.12f))
+        assertEquals(true, ControllerProfiles.inDeadZone(0.05f, 0.05f, 0.12f))
+        assertEquals(true, ControllerProfiles.inDeadZone(0.11f, 0f, 0.12f))
+        assertEquals(false, ControllerProfiles.inDeadZone(0.09f, 0.09f, 0.12f))
+        assertEquals(false, ControllerProfiles.inDeadZone(0f, 0f, 0f))
+    }
+
     @Test fun whatIsWrittenCanBeReadBack() {
         val original = ControllerProfile("MCON", 0x1234, 0x5678, "mcon", 0.06f, mapOf(KeyEvent.KEYCODE_HOME to KeyEvent.KEYCODE_BUTTON_MODE))
         val back = ControllerProfiles.parse(ControllerProfiles.toJson(listOf(original))).single()
