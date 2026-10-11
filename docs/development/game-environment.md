@@ -3,6 +3,9 @@
 Open **Games → Game environment**, directly below **FEX preset**, in Steam
 settings or the in-session drawer. Choose all Proton games, an installed game, or enter a Steam app ID. For a
 non-Steam shortcut, use its numeric `compatdata` directory ID (unsigned 32-bit).
+The drawer opens the editor on its selected game profile. That editing scope stays
+fixed if Steam's selected game changes in the background; use the editor's own
+profile picker to switch deliberately.
 Changes apply on the next game launch, including when Steam is already running.
 A running game must be restarted. Native Linux games and Steam itself are outside
 this editor's scope.
@@ -20,6 +23,13 @@ immediately before Proton starts, removes managed files that are absent from the
 selection, and restores Default component choices for the next game. **Use
 Default** removes the game override. Component packages must first be downloaded
 or imported on the Default Components page.
+
+Before publishing game component choices, DroidDeck preserves each Proton build's
+original components, including an explicitly empty bundle when a component is not
+shipped. Those restore choices remain after the last override is cleared. A missing
+or unreadable original is an error, not permission to delete the component's files.
+If an original is missing after a build may already have used a game override,
+DroidDeck refuses to capture those potentially modified files as originals.
 
 **Reset game profile** removes all overrides owned by the selected game: Proton,
 FEX preset, component packages, environment variables, texture filtering and
@@ -91,7 +101,8 @@ wrapper and adopted third-party Proton wrappers execute `droiddeck-game-env`,
 which reads that snapshot for each real game launch and uses `execvpe` to start
 Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. Malformed
 configuration falls back to the inherited environment without evaluating its
-contents. Signed non-Steam prefix IDs are normalized to unsigned IDs.
+contents. Both component and environment selection normalize signed non-Steam
+prefix IDs to unsigned IDs.
 
 The published file also carries generated `dxvkConfig` and `dxvkConfigGames`
 values the app's own file never has. The session menu's texture filtering

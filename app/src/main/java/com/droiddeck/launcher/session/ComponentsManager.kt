@@ -148,9 +148,12 @@ object ComponentsManager {
         val f = stateFile(context)
         val tmp = File(f.parentFile, f.name + ".tmp")
         tmp.writeText(state.toString(2))
-        tmp.renameTo(f)
-        // Every change of choice reaches the launch wrappers at once.
-        runCatching { syncLaunchState(context, state) }.onFailure { Log.w(TAG, "launch state", it) }
+        try {
+            syncLaunchState(context, state)
+            check(tmp.renameTo(f)) { "Could not save component selections" }
+        } finally {
+            tmp.delete()
+        }
     }
 
     private fun JSONObject.sub(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }
@@ -325,7 +328,7 @@ object ComponentsManager {
     private fun compFiles(dir: File, comp: String): List<String> {
         if (comp == "fex") return FEX_FILES.filter { File(dir, it).isFile }
         val base = File(dir, COMP_DIR.getValue(comp))
-        return base.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }.sorted().toList()
+        return base.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).invariantSeparatorsPath }.sorted().toList()
     }
 
     private fun owned(comp: String, rel: String) = comp == "fex" || PE_ARCHES.any { "/$it/" in rel }
@@ -416,7 +419,7 @@ object ComponentsManager {
                 tar.closeArchiveEntry()
             }
         }
-        tmp.renameTo(dest)
+        check(tmp.renameTo(dest)) { "Could not save original bundle ${dest.name}" }
     }
 
     // ------------------------------------------------------------------ originals
@@ -444,8 +447,18 @@ object ComponentsManager {
         if (dest.isFile) return
         val active = state.sub("active").optJSONObject(p.id)?.optJSONObject(comp)
         if (active != null && active.optString("protonVersion") == p.version) return
+        val published = File(launchDir(context), "desired.tsv")
+        if (published.isFile) {
+            val mayHaveOverride = published.useLines { rows ->
+                rows.any { row ->
+                    val fields = row.split('\t')
+                    fields.size == 7 && fields[0] != "*" && fields[1] == p.dir.name &&
+                        fields[2] == p.version && fields[3] == comp
+                }
+            }
+            check(!mayHaveOverride) { context.getString(R.string.cmgr_original_missing) }
+        }
         val rels = compFiles(p.dir, comp)
-        if (rels.isEmpty()) return
         val current = if (comp == "fex") fexVersion(p.dir) else readVersionFile(File(p.dir, "${COMP_DIR.getValue(comp)}/version"))
         val profile = JSONObject()
             .put("type", TYPE_OF.getValue(comp))
@@ -536,13 +549,14 @@ object ComponentsManager {
         val all = protons(context)
         val lines = StringBuilder()
         val keep = HashSet<String>()
-        val rootPath = root(context).absolutePath.trimEnd('/')
 
-        fun unpack(key: String, wcp: File): File? {
-            if (!wcp.isFile) return null
+        fun unpack(key: String, wcp: File, comp: String): File {
+            check(wcp.isFile) { context.getString(R.string.cmgr_not_stored) }
             val unpacked = File(store, key)
             if (!File(unpacked, ".complete").isFile) {
+                check(packageInfo(context, wcp).comp == comp) { "Wrong component in ${wcp.name}" }
                 unpacked.deleteRecursively()
+                check(unpacked.mkdirs()) { "Could not stage component bundle ${wcp.name}" }
                 readWcp(wcp) { tar ->
                     while (true) {
                         val e = tar.nextTarEntry ?: break
@@ -563,18 +577,18 @@ object ComponentsManager {
             for (arch in PE_ARCHES) for (dll in COMP_DLLS.getValue(comp)) add("${COMP_DIR.getValue(comp)}/$arch/$dll")
         }
 
-        fun append(scope: String, p: Proton, comp: String, key: String, wcp: File?) {
-            val unpacked = wcp?.let { unpack(key, it) }
-            val files = unpacked?.let { base ->
-                File(base, "files").walkTopDown().filter { it.isFile }.map { it.relativeTo(base).path }
+        fun append(scope: String, p: Proton, comp: String, key: String, wcp: File) {
+            val unpacked = unpack(key, wcp, comp)
+            val files = unpacked.let { base ->
+                File(base, "files").walkTopDown().filter { it.isFile }.map { it.relativeTo(base).invariantSeparatorsPath }
                     .filter { owned(comp, it) }.associateWith { File(base, it) }
-            }.orEmpty()
+            }
             for (rel in managed(comp) - files.keys) {
                 lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
                     .append('\t').append(rel).append("\t-\t-\n")
             }
             for ((rel, src) in files) {
-                val guestSrc = "/" + src.absolutePath.removePrefix(rootPath).trimStart('/')
+                val guestSrc = "/" + src.relativeTo(root(context)).invariantSeparatorsPath
                 lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
                     .append('\t').append(rel).append('\t').append(Hashes.sha256(src)).append('\t').append(guestSrc).append('\n')
             }
@@ -608,7 +622,9 @@ object ComponentsManager {
             val selected = entry?.takeIf { it.optString("protonVersion") == p.version }?.let { choice(p, comp, it) }
             if (selected != null) append("*", p, comp, selected.first, selected.second)
             else if (comp in profiledComponents) {
-                val original = originalFile(context, p, comp).takeIf(File::isFile)
+                ensureOriginal(context, p, comp, state)
+                val original = originalFile(context, p, comp)
+                check(original.isFile) { context.getString(R.string.cmgr_original_missing) }
                 append("*", p, comp, "original-${p.id}-${safeName(p.version)}-$comp", original)
             }
         }
@@ -623,11 +639,15 @@ object ComponentsManager {
                 for (p in all) append(scope, p, comp, key, wcp)
             }
         }
-        store.listFiles()?.filter { it.isDirectory && it.name !in keep }?.forEach { it.deleteRecursively() }
         val list = File(dir, "desired.tsv")
         val tmp = File(dir, "desired.tsv.tmp")
-        tmp.writeText(lines.toString())
-        tmp.renameTo(list)
+        try {
+            tmp.writeText(lines.toString())
+            check(tmp.renameTo(list)) { "Could not publish component selections" }
+        } finally {
+            tmp.delete()
+        }
+        store.listFiles()?.filter { it.isDirectory && it.name !in keep }?.forEach { it.deleteRecursively() }
     }
 
     // ------------------------------------------------------------------ actions

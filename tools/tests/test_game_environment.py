@@ -87,6 +87,38 @@ class GameEnvironmentTest(unittest.TestCase):
             subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True)
             self.assertEqual(target.read_text(), "general")
 
+    def test_component_scope_matches_environment_scope_for_shortcut_ids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            component_dir = root / ".local/share/droiddeck-components"
+            base = root / "proton"
+            target = base / "files/lib/wine/dxvk/aarch64-windows/d3d11.dll"
+            component_dir.mkdir(parents=True)
+            target.parent.mkdir(parents=True)
+            (base / "version").write_text("1 build-1\n")
+            rows = []
+            for scope in ("*", "42", "4294967295", "2147483648"):
+                source = root / ("default" if scope == "*" else scope)
+                source.write_text(scope)
+                rows.append("%s\tproton\tbuild-1\tdxvk\t%s\t%s\t%s\n" % (
+                    scope, target.relative_to(base),
+                    hashlib.sha256(source.read_bytes()).hexdigest(), source,
+                ))
+            (component_dir / "desired.tsv").write_text("".join(rows))
+            script = COMPAT["BL_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; bl_components "$1"\n'
+            for value in (
+                "42", "00042", "43", "-1", "-0001", "4294967295", "-2147483648",
+                "2147483648", "-1///", "0", "-0", "000", "-2147483649", "4294967296",
+                "999999999999999999999999999", "not-an-id", "1+1", "",
+            ):
+                with self.subTest(prefix=value):
+                    env = dict(os.environ, HOME=str(root), STEAM_COMPAT_DATA_PATH="/steam/compatdata/" + value)
+                    target.write_text("untouched")
+                    subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
+                    scope = MODULE["game_id"](env)
+                    expected = "untouched" if scope is None else scope if scope in {"42", "4294967295", "2147483648"} else "*"
+                    self.assertEqual(target.read_text(), expected)
+
     def test_engine_fixes_follow_the_games_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             game = Path(tmp) / "Godot Game"

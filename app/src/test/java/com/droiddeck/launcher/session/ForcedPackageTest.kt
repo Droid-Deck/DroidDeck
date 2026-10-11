@@ -2,7 +2,10 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import com.droiddeck.launcher.gpu.GpuInfo
+import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.github.luben.zstd.ZstdOutputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -125,6 +128,94 @@ class ForcedPackageTest {
 
         assertFalse(ComponentsManager.gameComponents(context, "42").containsKey("dxvk"))
         assertDefaultDxvkRestoreRow(protonName)
+    }
+
+    @Test fun aNewProtonIsCapturedWhenTheLastOverrideIsReset() {
+        proton("existing")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        ComponentsManager.snapshotAll(context)
+        proton("new-proton")
+
+        ComponentsManager.clearGameComponents(context, "42")
+
+        assertDefaultDxvkRestoreRow("existing")
+        assertDefaultDxvkRestoreRow("new-proton")
+    }
+
+    @Test fun anUpdatedBuildIsCapturedEvenAfterTheLastProfileWasRemoved() {
+        proton("proton-exp")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        ComponentsManager.clearGameComponents(context, "42")
+        proton("proton-exp", "experimental-12")
+
+        ComponentsManager.setGameComponent(context, "43", "dxvk", null)
+
+        assertDefaultDxvkRestoreRow("proton-exp", "experimental-12")
+        assertTrue(original("proton-exp", "experimental-11").isFile)
+        assertTrue(original("proton-exp", "experimental-12").isFile)
+    }
+
+    @Test fun aKnownEmptyComponentHasAnExplicitOriginalBundle() {
+        proton("proton-exp", dxvk = false)
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+
+        ComponentsManager.clearGameComponents(context, "42")
+
+        assertTrue(original("proton-exp").isFile)
+        val rows = launchState().readLines().map { it.split('\t') }
+        assertEquals(14, rows.size)
+        assertTrue(rows.all { it[3] == "dxvk" && it[5] == "-" && it[6] == "-" })
+    }
+
+    @Test fun missingOriginalsCannotBeRecapturedFromPreviouslyProfiledFiles() {
+        proton("proton-exp")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        val saved = File(context.filesDir, "components/state.json").readText()
+        val prior = "42\tproton-exp\texperimental-11\tdxvk\tfiles/lib/wine/dxvk/aarch64-windows/d3d11.dll\t-\t-\n"
+        launchState().apply { parentFile!!.mkdirs(); writeText(prior) }
+
+        assertThrows(IllegalStateException::class.java) {
+            ComponentsManager.setGameComponent(context, "42", "dxvk", null)
+        }
+
+        assertEquals(saved, File(context.filesDir, "components/state.json").readText())
+        assertEquals(prior, launchState().readText())
+        assertFalse(original("proton-exp").isFile)
+    }
+
+    @Test fun aBrokenOriginalDoesNotPublishDeletionRowsOrRemoveThePreviousStore() {
+        proton("proton-exp")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        val state = File(context.filesDir, "components/state.json")
+        val saved = state.readText()
+        val prior = "*\tother\tbuild\tdxvk\tfiles/old.dll\told-hash\t/old.dll\n"
+        launchState().apply { parentFile!!.mkdirs(); writeText(prior) }
+        val oldSource = File(launchState().parentFile, "store/old/files/old.dll")
+        oldSource.apply { parentFile!!.mkdirs(); writeText("old component") }
+        original("proton-exp").apply { parentFile!!.mkdirs(); writeText("not a bundle") }
+
+        assertThrows(java.io.IOException::class.java) {
+            ComponentsManager.clearGameComponents(context, "42")
+        }
+
+        assertEquals(saved, state.readText())
+        assertEquals(prior, launchState().readText())
+        assertEquals("old component", oldSource.readText())
+    }
+
+    @Test fun anArchiveWithoutAProfileIsNotAKnownEmptyOriginal() {
+        proton("proton-exp")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        val bundle = original("proton-exp")
+        bundle.parentFile!!.mkdirs()
+        TarArchiveOutputStream(ZstdOutputStream(bundle.outputStream())).use { }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            ComponentsManager.clearGameComponents(context, "42")
+        }
+
+        assertFalse(launchState().exists())
+        assertEquals("custom-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
     }
 
     @Test fun theSamePackageOnThisProtonBuildIsNotFetchedAgain() {
@@ -254,33 +345,36 @@ class ForcedPackageTest {
         )
     }
 
-    private fun assertDefaultDxvkRestoreRow(protonName: String) {
-        val desired = File(
-            LinuxRuntime.rootDir(context),
-            "root/.local/share/droiddeck-components/desired.tsv",
-        ).readLines()
-        assertTrue(
-            desired.joinToString("\n"),
-            desired.any { line ->
-                val fields = line.split('\t')
-                fields.size == 7 &&
-                    fields[0] == "*" &&
-                    fields[1] == protonName &&
-                    fields[3] == "dxvk" &&
-                    fields[4].endsWith("/d3d11.dll")
-            },
-        )
+    private fun launchState() = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components/desired.tsv")
+
+    private fun original(protonName: String, version: String = "experimental-11") =
+        File(context.filesDir, "components/originals/$protonName/$version/dxvk.wcp")
+
+    private fun assertDefaultDxvkRestoreRow(protonName: String, version: String = "experimental-11") {
+        val row = launchState().readLines().map { it.split('\t') }.single {
+            it.size == 7 && it[0] == "*" && it[1] == protonName && it[2] == version &&
+                it[3] == "dxvk" && it[4].endsWith("/aarch64-windows/d3d11.dll")
+        }
+        assertNotEquals("-", row[6])
+        val source = File(LinuxRuntime.rootDir(context), row[6].removePrefix("/"))
+        assertEquals("bundled DXVK $version", source.readText())
+        assertEquals(Hashes.sha256(source), row[5])
+        assertTrue(original(protonName, version).isFile)
         val state = JSONObject(File(context.filesDir, "components/state.json").readText())
         assertEquals(listOf("dxvk"), state.getJSONArray("profiledComponents").let { values ->
             (0 until values.length()).map(values::getString)
         })
     }
 
-    private fun proton(name: String, version: String = "experimental-11") {
+    private fun proton(name: String, version: String = "experimental-11", dxvk: Boolean = true) {
         val dir = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/common/$name")
         File(dir, "files/lib/wine").mkdirs()
         File(dir, "proton").writeText("#!/bin/sh\n")
         File(dir, "version").writeText("1 $version\n")
+        if (dxvk) File(dir, "files/lib/wine/dxvk/aarch64-windows/d3d11.dll").apply {
+            parentFile!!.mkdirs()
+            writeText("bundled DXVK $version")
+        }
     }
 
     private fun writeState(protonId: String, file: String, protonVersion: String) {

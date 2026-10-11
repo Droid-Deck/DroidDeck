@@ -151,8 +151,31 @@ bl_components() {
   [ "${verb:-}" = waitforexitandrun ] || return 0
   case "${STEAM_COMPAT_DATA_PATH:-}" in ''|*/compatdata/0|*/compatdata/0/|*/compatdata/0-*) return 0 ;; esac
   [ -f "$cm_list" ] || return 0
-  cm_app=${STEAM_COMPAT_DATA_PATH%/}
+  cm_app=${STEAM_COMPAT_DATA_PATH}
+  while [[ "$cm_app" == */ ]]; do cm_app=${cm_app%/}; done
   cm_app=${cm_app##*/}
+  if [[ "$cm_app" =~ ^(-?)([0-9]+)$ ]]; then
+    cm_sign=${BASH_REMATCH[1]}
+    cm_digits=${BASH_REMATCH[2]}
+    while [[ ${#cm_digits} -gt 1 && "$cm_digits" == 0* ]]; do cm_digits=${cm_digits#0}; done
+    if [[ ${#cm_digits} -le 10 ]]; then
+      cm_app=$((10#$cm_digits))
+      [ "$cm_sign" = "-" ] && cm_app=$((-cm_app))
+      if (( cm_app >= -2147483648 && cm_app <= 4294967295 && cm_app != 0 )); then
+        (( cm_app < 0 )) && cm_app=$((cm_app + 4294967296))
+      else
+        cm_app=""
+      fi
+    else
+      cm_app=""
+    fi
+  else
+    cm_app=""
+  fi
+  if [ -z "$cm_app" ]; then
+    echo "droiddeck-proton: components: invalid game prefix, left as it is" >&2
+    return 0
+  fi
   cm_tool=${base##*/}
   cm_build=$(awk 'NR == 1 { print $2 }' "$base/version" 2>/dev/null)
   cm_fixed=0

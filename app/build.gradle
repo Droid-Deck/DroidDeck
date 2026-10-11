@@ -302,4 +302,8 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
+    testImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    // The Android archive does not include the host natives used by JVM archive tests.
+    testRuntimeOnly 'com.github.luben:zstd-jni:1.5.2-3@jar'
 }
