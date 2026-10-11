@@ -77,6 +77,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import com.droiddeck.launcher.core.PhantomProcessLimit
 
 // The front end's side rail: the page list and the resume entry under it.
@@ -103,27 +106,53 @@ internal fun SideRail(
         modifier = modifier.width(if (iconOnly) 64.dp else 92.dp).background(colors.surface).padding(vertical = if (compact) 8.dp else 12.dp),
     ) {
         // Every section on screen at once: items shrink (to 44dp, still a touch target) before the rail scrolls.
-        val count = 6 + (if (s.storeEnabled) 1 else 0) + (if (s.gameStoresEnabled) 1 else 0) + (if (s.isHomeApp) 1 else 0)
+        val count = 7 + (if (s.isHomeApp) 1 else 0)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
         val fit = (maxHeight / count - 4.dp).coerceIn(44.dp, if (iconOnly) 48.dp else if (compact) 52.dp else 60.dp)
+        // A hop in flight moves the selection ahead of the page it is bringing.
+        val shown = Hops.railPreview ?: selected
+        val keys = buildList {
+            add("steam"); add("games")
+            add("stores")
+            add("desktop")
+            add("components")
+            if (s.isHomeApp) add("android-apps")
+            add("setup"); add("updates")
+        }
+        // Where each item sits in the column, for the selection that glides between them.
+        val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+        val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
+        var railAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).onGloballyPositioned { railAt = it.boundsInRoot().topLeft }) {
+        // One selection for the whole rail, under the items: it glides from item to item as the
+        // chips' does, its leading edge first, and a jump of more than one item goes as a drop.
+        if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown]?.translate(-railAt), tint, GlideAxis.Vertical, corner = 14.dp, fill = 0.14f, outline = 0f)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            RailItem(stringResource(R.string.rail_steam), Icons.Outlined.SportsEsports, "steam", selected == "steam", compact, iconOnly, fit, onFocus = { onFocusSelect("steam") }) { onSelect("steam") }
+            val place: (String) -> Modifier = { key ->
+                // In root px: an item that comes and goes sits in its own wrapper, not the column.
+                Modifier.onGloballyPositioned {
+                    bounds[key] = it.boundsInRoot()
+                    Hops.railBounds[key] = it.boundsInRoot()
+                }
+            }
+            RailItem(stringResource(R.string.rail_steam), Icons.Outlined.SportsEsports, "steam", shown == "steam", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("steam") }) { onSelect("steam") }
             // Always there, so the items below it never move; an empty library says how to fill it.
-            RailItem(stringResource(R.string.rail_games), Icons.Outlined.VideoLibrary, "games", selected == "games", compact, iconOnly, fit, onFocus = { onFocusSelect("games") }) { onSelect("games") }
+            RailItem(stringResource(R.string.rail_games), Icons.Outlined.VideoLibrary, "games", shown == "games", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("games") }) { onSelect("games") }
             // The game stores, right under Games: what they install lands there. Its badge counts
             // the downloads in flight, so a download started here is never out of sight.
-            if (s.gameStoresEnabled) RailItem(stringResource(R.string.rail_stores), Icons.Outlined.LocalMall, "stores", selected == "stores", compact, iconOnly, fit, count = s.storeDownloadsActive, onFocus = { onFocusSelect("stores") }) { onSelect("stores") }
-            RailItem(stringResource(R.string.rail_desktop), Icons.Outlined.DesktopWindows, "desktop", selected == "desktop", compact, iconOnly, fit, onFocus = { onFocusSelect("desktop") }) { onSelect("desktop") }
-            if (s.storeEnabled) RailItem(stringResource(R.string.rail_store), Icons.Outlined.Storefront, "store", selected == "store", compact, iconOnly, fit, onFocus = { onFocusSelect("store") }) { onSelect("store") }
-            RailItem(stringResource(R.string.rail_components), Icons.Outlined.Layers, "components", selected == "components", compact, iconOnly, fit, onFocus = { onFocusSelect("components") }) { onSelect("components") }
+            // A section switched on in Setup comes in as the rail's own entrance; off, it folds away.
+            RailItem(stringResource(R.string.rail_stores), Icons.Outlined.LocalMall, "stores", shown == "stores", compact, iconOnly, fit, count = s.storeDownloadsActive, place = place, onFocus = { onFocusSelect("stores") }) { onSelect("stores") }
+            RailItem(stringResource(R.string.rail_desktop), Icons.Outlined.DesktopWindows, "desktop", shown == "desktop", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("desktop") }) { onSelect("desktop") }
+            RailItem(stringResource(R.string.rail_components), Icons.Outlined.Layers, "components", shown == "components", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("components") }) { onSelect("components") }
             // Home mode's extra section goes last, so it shifts nothing above it.
-            if (s.isHomeApp) RailItem(stringResource(R.string.rail_apps), Icons.Outlined.Apps, "android-apps", selected == "android-apps", compact, iconOnly, fit, onFocus = { onFocusSelect("android-apps") }) { onSelect("android-apps") }
-            RailItem(stringResource(R.string.rail_setup), Icons.Outlined.Tune, "setup", selected == "setup", compact, iconOnly, fit, badge = setupNeedsAttention, onFocus = { onFocusSelect("setup") }) { onSelect("setup") }
-            RailItem(stringResource(R.string.rail_updates), Icons.Outlined.SystemUpdate, "updates", selected == "updates", compact, iconOnly, fit, badge = s.updates.hasUpdate, onFocus = { onFocusSelect("updates") }) { onSelect("updates") }
+            if (s.isHomeApp) RailItem(stringResource(R.string.rail_apps), Icons.Outlined.Apps, "android-apps", shown == "android-apps", compact, iconOnly, fit, place = place, onFocus = { onFocusSelect("android-apps") }) { onSelect("android-apps") }
+            RailItem(stringResource(R.string.rail_setup), Icons.Outlined.Tune, "setup", shown == "setup", compact, iconOnly, fit, badge = setupNeedsAttention, place = place, onFocus = { onFocusSelect("setup") }) { onSelect("setup") }
+            RailItem(stringResource(R.string.rail_updates), Icons.Outlined.SystemUpdate, "updates", shown == "updates", compact, iconOnly, fit, badge = s.updates.hasUpdate, place = place, onFocus = { onFocusSelect("updates") }) { onSelect("updates") }
+        }
         }
         }
         var lastRunning by remember { mutableStateOf("") }
@@ -142,6 +171,8 @@ private fun RailItem(
     badge: Boolean = false,
     /** A number on the item (downloads in flight); 0 shows nothing. */
     count: Int = 0,
+    /** Reports where the item sits, for the rail's gliding selection and a hop's dot. */
+    place: (String) -> Modifier = { Modifier },
     onFocus: () -> Unit = {}, onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -162,8 +193,9 @@ private fun RailItem(
         if (current) pal.signal else if (focused || hovered) colors.onBackground else colors.onSurfaceVariant,
         Motion.tw(220), label = "railFg",
     )
+    // The selected look is the rail's glide under the item, so the item draws only hover here.
     val fill by animateColorAsState(
-        if (current) pal.signal.copy(alpha = 0.14f) else if (focused || hovered) Color.White.copy(alpha = 0.05f) else Color.Transparent,
+        if (current) Color.Transparent else if (focused || hovered) Color.White.copy(alpha = 0.05f) else Color.Transparent,
         Motion.tw(220), label = "railFill",
     )
     val scale by animateFloatAsState(if (pressed) 0.95f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "railScale")
@@ -172,6 +204,9 @@ private fun RailItem(
         modifier = Modifier
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.railFor(key)) else Modifier)
             .testTag("rail-$key")
+            .then(place(key))
+            // Pops as a hop's dot lands on it.
+            .landingPop(Hops.railLanded[key] ?: 0)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .size(width = if (iconOnly) 52.dp else 80.dp, height = height)
             .clip(Shape14)

@@ -83,7 +83,8 @@ internal object StoresMotion {
 
     fun fly(from: Rect) {
         if (Motion.scale == 0f || downloadsChip == null) { landed++; return }
-        flights += Flight(from, SystemClock.uptimeMillis())
+        // The count sits at the chip's right end.
+        flights += Flight(from, to = { downloadsChip?.let { Offset(it.right - 22.dp.toPx(), it.center.y) } }, onLand = { landed++ })
     }
 
     /** The confirm or list stepping out of a control on the Stores page now, and whether it is open. */
@@ -140,8 +141,6 @@ internal object StoresMotion {
 /** A game card at [bounds] (root px) with corner [corner] (px) and its art, for the page it opens to flood out of. */
 internal class CardMark(val key: String, val bounds: Rect, val corner: Float, val art: String?)
 
-internal class Flight(val from: Rect, val id: Long)
-
 /**
  * A confirm or short list for [StepOut] on the Stores page, asked by a control that sits at [anchor]
  * (root px). [content] gets a close that folds it; [onDismiss] runs once it has folded, however.
@@ -153,6 +152,7 @@ internal class StepAsk(
     val pillCorner: androidx.compose.ui.unit.Dp? = null,
     val items: Int = 4,
     val onDismiss: () -> Unit = {},
+    val maxWidth: androidx.compose.ui.unit.Dp = 300.dp,
     val handle: @Composable () -> Unit,
     val content: @Composable StepOutScope.() -> Unit,
 )
@@ -167,63 +167,21 @@ internal class SignInFlood(val store: Store, val from: Rect, val start: Color, v
 /** The dots flying to the Downloads chip, drawn over the page whose root offset is [origin]. */
 @Composable
 internal fun FlightLayer(origin: Offset) {
-    for (f in StoresMotion.flights.toList()) key(f.id) { FlightDot(f, origin) }
+    for (f in StoresMotion.flights.toList()) key(f.id) { FlightDot(f, origin) { StoresMotion.flights.remove(f) } }
 }
 
 /**
- * One install's dot: the button squashes into a 14dp dot (width first, a little bloop), which then
- * flies on an arc to the Downloads chip, stretched along its path like the focus ring's drop.
+ * Pops (1.3 to 1, with one ring) each time [trigger] changes: by default each time a download's
+ * dot lands, for the count on the chip and the rail; any other landing passes its own count.
  */
-@Composable
-private fun FlightDot(f: Flight, origin: Offset) {
-    val pal = LocalPalette.current
-    val t = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        t.animateTo(1f, Motion.tw(150, easing = FastOutSlowInEasing))
-        t.animateTo(2f, Motion.tw(300, easing = FastOutSlowInEasing))
-        StoresMotion.landed++
-        StoresMotion.flights.remove(f)
-    }
-    Canvas(Modifier.fillMaxSize()) {
-        val r = 7.dp.toPx()
-        val from = f.from.translate(-origin)
-        val chip = (StoresMotion.downloadsChip ?: return@Canvas).translate(-origin)
-        val a = from.center
-        // The count sits at the chip's right end.
-        val b = Offset(chip.right - 22.dp.toPx(), chip.center.y)
-        val v = t.value
-        if (v < 1f) {
-            // Squash: the width goes first, then the height, into the dot; a bloop at the end.
-            val w = lerp(from.width, 2 * r, (v * 1.4f).coerceAtMost(1f))
-            val h = lerp(from.height, 2 * r, ((v - 0.25f) / 0.75f).coerceIn(0f, 1f))
-            val k = 1f - 0.15f * sin(PI * v).toFloat()
-            drawRoundRect(pal.signal, Offset(a.x - w * k / 2, a.y - h * k / 2), Size(w * k, h * k), CornerRadius(minOf(w, h) * k / 2))
-        } else {
-            val p = v - 1f
-            val c = Offset((a.x + b.x) / 2, minOf(a.y, b.y) - 80.dp.toPx())
-            val q = 1f - p
-            val pos = Offset(q * q * a.x + 2 * q * p * c.x + p * p * b.x, q * q * a.y + 2 * q * p * c.y + p * p * b.y)
-            val d = Offset(2 * q * (c.x - a.x) + 2 * p * (b.x - c.x), 2 * q * (c.y - a.y) + 2 * p * (b.y - c.y))
-            val stretch = sin(PI * p).toFloat()
-            val angle = atan2(d.y, d.x) * 180f / PI.toFloat()
-            rotate(angle, pos) {
-                val w = 2 * r * (1f + 0.5f * stretch)
-                val h = 2 * r * (1f - 0.25f * stretch)
-                drawOval(pal.signal, Offset(pos.x - w / 2, pos.y - h / 2), Size(w, h))
-            }
-        }
-    }
-}
-
-/** Pops (1.3 to 1, with one ring) each time a download's dot lands; for the count on the chip and the rail. */
-internal fun Modifier.landingPop(): Modifier = composed {
+internal fun Modifier.landingPop(trigger: Int = StoresMotion.landed): Modifier = composed {
     val pal = LocalPalette.current
     val scale = remember { Animatable(1f) }
     val ring = remember { Animatable(1f) }
-    val seen = remember { intArrayOf(StoresMotion.landed) }
-    LaunchedEffect(StoresMotion.landed) {
-        if (StoresMotion.landed == seen[0]) return@LaunchedEffect
-        seen[0] = StoresMotion.landed
+    val seen = remember { intArrayOf(trigger) }
+    LaunchedEffect(trigger) {
+        if (trigger == seen[0]) return@LaunchedEffect
+        seen[0] = trigger
         coroutineScope {
             launch { scale.snapTo(1.3f); scale.animateTo(1f, Motion.sp(0.45f, 500f)) }
             launch { ring.snapTo(0f); ring.animateTo(1f, Motion.tw(400)) }

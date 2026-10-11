@@ -184,6 +184,10 @@ internal fun StepOut(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val hostWidth = constraints.maxWidth.toFloat()
+        val hostHeight = constraints.maxHeight.toFloat()
+        // No room under the control (a row near the foot of the screen): it steps out upward
+        // instead, the same outline mirrored about the control.
+        val up = measured?.let { pill.bottom + pull + it.height > hostHeight && pill.top - pull - it.height >= 0f } ?: false
         val room = if (side == StepSide.Left) pill.right else hostWidth - pill.left
         val maxW = with(density) { maxWidth.toPx() }.coerceAtMost(room).coerceAtLeast(pill.width)
         LaunchedEffect(open, measured) {
@@ -246,6 +250,7 @@ internal fun StepOut(
             if (!grown) return@Canvas
             if (side == StepSide.Left) stepPath(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
             else stepPathRight(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
+            if (up) path.transform(Matrix().apply { this[1, 1] = -1f; this[3, 1] = pill.top + pill.bottom })
             drawPath(path, lerp(hotFill, restFill, tint.value))
             drawPath(path, accent.copy(alpha = lerpF(0.9f, 0.55f, tint.value)), style = Stroke(rim))
         }
@@ -258,7 +263,7 @@ internal fun StepOut(
         val x = if (side == StepSide.Left) pill.right - (measured?.width?.toFloat() ?: maxW) else pill.left
         Column(
             modifier = Modifier
-                .offset { IntOffset(x.roundToInt(), (pill.bottom + pull).roundToInt()) }
+                .offset { IntOffset(x.roundToInt(), (if (up) pill.top - pull - (measured?.height ?: 0) else pill.bottom + pull).roundToInt()) }
                 .widthIn(min = with(density) { pill.width.toDp() }, max = with(density) { maxW.toDp() })
                 .onSizeChanged { if (measured != it) measured = it }
                 .controllerBack(onDismiss)

@@ -110,6 +110,9 @@ object DesktopCatalog {
         return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists()
     }
 
+    /** The installed desktop's size on disk; off the main thread. */
+    fun desktopSize(context: Context): Long = DesktopRemoval.installedSize(context)
+
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) =
         DesktopRemoval.cleanLegacy(context, listener)
 

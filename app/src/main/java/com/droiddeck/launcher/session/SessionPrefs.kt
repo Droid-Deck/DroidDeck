@@ -68,20 +68,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("animations", on).apply()
     }
 
-    /** The Flathub Store (beta): its rail item. Off by default. */
-    fun storeEnabled(context: Context): Boolean = prefs(context).getBoolean("storeEnabled", false)
-
-    fun setStoreEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("storeEnabled", on).apply()
-    }
-
-    /** The Stores section (GOG, Epic Games, Amazon Games): its rail item. Off by default. */
-    fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", false)
-
-    fun setGameStoresEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
-    }
-
     /** The store download engine's speed tier (stores/download/StoreDownloadTier ids); Fast unless chosen otherwise. */
     fun gameStoresSpeedTier(context: Context): String = prefs(context).getString("gameStoresSpeedTier", "fast") ?: "fast"
 

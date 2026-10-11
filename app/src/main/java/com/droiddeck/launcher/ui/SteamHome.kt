@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import coil.compose.rememberAsyncImagePainter
@@ -82,41 +83,52 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     // came out differently from one read of the library to the next moved every capsule.
     val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
-    val colors = MaterialTheme.colorScheme
     // Where the words and buttons sit, for the empty library's wandering mark to keep off.
     var words by remember { mutableStateOf<Rect?>(null) }
-    Box(modifier = modifier.fillMaxSize().clipToBounds()) {
-        when {
-            games.isEmpty() -> EmptyLibrary(avoid = words) { WallFade() }
-            games.size < WALL_MIN_GAMES -> CapsuleFan(games)
-            else -> {
-                CapsuleWall(games)
-                WallFade()
+    val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
+    val tabs = modeSheetTabs(steam = true).map { it to sheetTabLabel(it) }
+    val back = stringResource(R.string.hop_from_play)
+    val extras = SheetExtras(
+        frameGen = { FrameGenGroup(s, a) },
+        performance = { PerformanceLink(a, "steam", SheetTab.SESSION) },
+        drivers = { summary -> DriversLink(a, summary, "steam", back) },
+    )
+    LiftHero(
+        key = "steam", tabs = tabs,
+        onOpen = a.onSteamSettings, onPrimary = a.onPlay,
+        modifier = modifier.clipToBounds(),
+        start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
+        background = {
+            when {
+                // The mark wanders over this fade, so it sinks with the wall: drawn a little oversized,
+                // it still reaches the pane's edges at the sink's 0.95.
+                games.isEmpty() -> EmptyLibrary(avoid = words) { Box(Modifier.fillMaxSize().graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }) { WallFade() } }
+                games.size < WALL_MIN_GAMES -> CapsuleFan(games)
+                else -> CapsuleWall(games)
             }
-        }
-        Column(
-            modifier = Modifier.align(Alignment.BottomStart)
-                .padding(start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp, end = 20.dp)
-                .onPlaced { words = it.boundsInParent() },
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        },
+        scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
+        words = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.onPlaced { words = it.boundsInParent() },
+            ) {
                 Wordmark(if (narrow) 30.dp else 40.dp)
                 // Said only when something stands between Play and Steam; a ready runtime needs no words.
                 if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
             }
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Enabled without a runtime: the session's loading screen installs it first.
-                PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = a.onPlay)
-                Cog(size = 54.dp, onClick = a.onSteamSettings)
-            }
-        }
-    }
+        },
+        button = { click ->
+            // Enabled without a runtime: the session's loading screen installs it first.
+            PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
+        },
+        rows = { tab -> a.modeSheet(mode, tab, extras) },
+    )
 }
 
 /** The wall fades out behind the words, and toward the bottom where the buttons sit. */
 @Composable
-private fun WallFade() {
+internal fun WallFade() {
     val colors = MaterialTheme.colorScheme
     Box(
         Modifier.fillMaxSize().background(
@@ -147,8 +159,12 @@ internal fun CapsuleWall(
     TiltedWall(games.size, driftMs, modifier) { i -> if (games.isEmpty()) blank else WallCapsule(artBrush(hueOf(games[i].name)), games[i].art) }
 }
 
-/** One capsule of a [TiltedWall]: its ground, the art laid over it once loaded, and an outline. */
-internal class WallCapsule(val ground: Brush, val art: Any? = null, val edge: Color? = null)
+/**
+ * One capsule of a [TiltedWall]: its ground, the art laid over it once loaded, and an outline. A
+ * tile that is an app rather than a cover carries an [icon] instead (a drawable id or an image),
+ * drawn whole at the tile's centre, and a window's [bar] along its foot.
+ */
+internal class WallCapsule(val ground: Brush, val art: Any? = null, val edge: Color? = null, val icon: Any? = null, val bar: Color? = null)
 
 /**
  * [CapsuleWall]'s tilted, drifting columns for any [count] of capsules; [capsule] describes number i
@@ -161,25 +177,28 @@ internal fun TiltedWall(
     count: Int,
     driftMs: Int,
     modifier: Modifier = Modifier,
+    /** One tile's size, the gap between tiles and their corner: portrait capsules unless a wall says otherwise. */
+    capW: androidx.compose.ui.unit.Dp = 112.dp,
+    capH: androidx.compose.ui.unit.Dp = 168.dp,
+    gap: androidx.compose.ui.unit.Dp = 14.dp,
+    corner: androidx.compose.ui.unit.Dp = 10.dp,
     capsule: (index: Int) -> WallCapsule,
 ) {
-    val capW = 112.dp
-    val capH = 168.dp
-    val gap = 14.dp
     // Animations off in the system settings: a still wall.
     val still = Motion.scale == 0f
     // The wall moves a few pixels a step. Stepped on frames at most every 15 ms it looks the same as
-    // stepped on every frame, which on a 120 Hz screen drew it twice as often.
+    // stepped on every frame, which on a 120 Hz screen drew it twice as often. The phase advances by
+    // the time since the last step over the period now, so a period that changes (Flathub's wall
+    // slowing while it sets up) changes the speed without the wall jumping.
     val drift = remember { mutableFloatStateOf(0f) }
-    if (!still) LaunchedEffect(driftMs) {
-        val period = driftMs * 1_000_000.0 * Motion.scale
-        var start = 0L
+    val period = androidx.compose.runtime.rememberUpdatedState(driftMs)
+    if (!still) LaunchedEffect(Unit) {
         var shown = 0L
         while (true) withFrameNanos { now ->
-            if (start == 0L) start = now
-            if (shown == 0L || now - shown >= DRIFT_STEP_NS) {
+            if (shown == 0L) shown = now
+            else if (now - shown >= DRIFT_STEP_NS) {
+                drift.floatValue = ((drift.floatValue + (now - shown) / (period.value * 1_000_000.0 * Motion.scale)) % 1.0).toFloat()
                 shown = now
-                drift.floatValue = ((now - start) % period / period).toFloat()
             }
         }
     }
@@ -196,14 +215,15 @@ internal fun TiltedWall(
         val run = (capH + gap) * perRun
         val cap = with(density) { Size(capW.toPx(), capH.toPx()) }
         val step = with(density) { (capH + gap).toPx() }
-        val radius = with(density) { 10.dp.toPx() }
+        val radius = with(density) { corner.toPx() }
         val line = with(density) { 1.dp.toPx() }
+        val barH = with(density) { 12.dp.toPx() }
         val indexOf = { c: Int, i: Int -> if (count == 0) 0 else (c * 5 + (i % perRun) * 3) % count }
         val shown = remember(count, columns, perRun) { (0 until columns).flatMap { c -> (0 until perRun).map { indexOf(c, it) } }.distinct() }
         val looks = HashMap<Int, Pair<WallCapsule, Painter?>>(shown.size * 2)
         for (index in shown) key(index) {
             val look = capsule(index)
-            looks[index] = look to look.art?.let { rememberCapsuleArt(it, cap, radius) }
+            looks[index] = look to (look.art?.let { rememberCapsuleArt(it, cap, radius) } ?: look.icon?.let { rememberIcon(it) })
         }
         Row(
             horizontalArrangement = Arrangement.spacedBy(gap),
@@ -224,7 +244,7 @@ internal fun TiltedWall(
                             for (i in 0 until perRun * 2) {
                                 val (look, art) = looks[indexOf(c, i)] ?: continue
                                 val top = i * step
-                                inset(0f, top, 0f, size.height - top - cap.height) { drawCapsule(look, art, radius, line) }
+                                inset(0f, top, 0f, size.height - top - cap.height) { drawCapsule(look, art, radius, line, barH) }
                             }
                         },
                 )
@@ -247,9 +267,20 @@ private fun rememberCapsuleArt(model: Any, size: Size, radius: Float): Painter {
     )
 }
 
-private fun DrawScope.drawCapsule(look: WallCapsule, art: Painter?, radius: Float, line: Float) {
+/** An app's icon for a wall tile: a bundled drawable, or an image Coil loads. */
+@Composable
+private fun rememberIcon(model: Any): Painter =
+    if (model is Int) androidx.compose.ui.res.painterResource(model) else rememberAsyncImagePainter(model)
+
+private fun DrawScope.drawCapsule(look: WallCapsule, art: Painter?, radius: Float, line: Float, barH: Float = 0f) {
     drawRoundRect(look.ground, size = size, cornerRadius = CornerRadius(radius))
-    if (art != null) with(art) { draw(size) }
+    look.bar?.let { drawRect(it, Offset(0f, size.height - barH), Size(size.width, barH)) }
+    if (art != null && look.icon != null) {
+        // An app's icon whole at the tile's centre (above a window's bar), not cropped over it.
+        val side = minOf(size.width, size.height - (if (look.bar != null) barH else 0f)) * 0.5f
+        val cy = (size.height - (if (look.bar != null) barH else 0f)) / 2f
+        translate((size.width - side) / 2f, cy - side / 2f) { with(art) { draw(Size(side, side)) } }
+    } else if (art != null) with(art) { draw(size) }
     look.edge?.let {
         drawRoundRect(it, Offset(line / 2, line / 2), Size(size.width - line, size.height - line), CornerRadius(radius - line / 2), style = Stroke(line))
     }
