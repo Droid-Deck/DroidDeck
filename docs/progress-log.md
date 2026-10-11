@@ -7,6 +7,42 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-11 - #588: DroidDeck-Proton as a Proton source, update checks for every source
+
+- **Third source** in Setup > Proton versions and the Components Proton list: DroidDeck-Proton
+  (`The412Banner/DroidDeck-Proton`, asset `DroidDeck-Proton-<ver>-aarch64.tar.gz`, sha512 file like
+  GE). Shows as "DroidDeck-Proton 11-7.5 (Compatible)", the same adopt/label path as GE and CachyOS.
+  Its top folder has a space (`DroidDeck-Proton 11-7.5`); install, wrappers and tests cover it.
+  esync is built into the layer, so `droiddeck-esync` reports "has esync built in" and needs no pack.
+- **Update checks** for GE, CachyOS and DroidDeck-Proton: at app start and when the Proton screen
+  opens, cached 6 h (`files/proton-latest.json`), drafts and prereleases skipped. A newer release
+  shows "Update available -> <tag>"; Update installs beside the old build and never deletes it.
+  Any installed build can be removed; "Remove old <name> versions" appears when there are several.
+  The installed tag is recorded in `files/proton-extras.json`.
+- **Bug fixed:** the installed build was picked by a lexicographic sort, so `GE-Proton11-10`
+  ranked below `GE-Proton11-9`; versions now compare numerically.
+- **Device-proven (Pocket FIT, 2026-10-11):** after removing a hand install, Components showed
+  "Available 1: DroidDeck-Proton - Get"; Get downloaded, verified and installed 11-7.5 in under a
+  minute (8801/8801 files, adopted in place); Steam listed it; DOOMBLADE ran on it with esync and
+  FEX unixlibs. The check correctly reported nothing newer. The Update button awaits a real new
+  release.
+- Merged as `78fcb60` after merging main (#585) into the branch; PR CI and the main build green;
+  signed main APK staged as `DroidDeck-main-78fcb60f.apk`.
+
+## 2026-10-11 - SD library: install and launch measurements (Half-Life 2 + episodes)
+
+- **Install** to the SD library: 11 min 03 s for 6.13 GB download / 11.13 GB on disk. Preallocation
+  fails on the exFAT/FUSE path and is retried without (83 s); download+stage 341 s with the card
+  99% busy (card-bound, ~30-44 MB/s writes); commit (move into `common/`) 117 s = ~55 ms per file
+  of metadata overhead.
+- **Launch** from SD: 8 m 45 s to the menu background on the first launch, 6 m 04 s warm. About
+  4 minutes of that is the game's main thread in `newfstatat`/`openat`, blocked in
+  `fuse_simple_request` (MediaProvider round trips) through PRoot. GE-Proton11-7 behaves the
+  same, so the Proton layer is not the cause.
+- **Lead:** Steam keeps every installed depot's manifest in `depotcache/` with plain file names,
+  so a per-game file index (keyed to the installed manifest IDs) could answer "does this file
+  exist" without FUSE. Not started.
+
 ## 2026-10-10 - `feat/wincomp-auto-sources`: Windows components picked by the game's source
 
 - **Per source** (`WinCompSources`): Steam - Steamworks Shared depots from the appmanifest or the
