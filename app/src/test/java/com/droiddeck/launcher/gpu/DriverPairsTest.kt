@@ -29,6 +29,8 @@ class DriverPairsTest {
     fun onlyTestedHardwareCountsAsSupported() {
         assertEquals(GpuInfo.Support.TESTED, gpu(650).support)
         assertEquals("Supported", gpu(650).supportText)
+        assertEquals(GpuInfo.Support.TESTED, gpu(618).support)
+        assertEquals("Supported", gpu(618).supportText)
         assertEquals(
             GpuInfo.Support.UNTESTED,
             GpuInfo("Adreno 650", 650, Family.ADRENO_UNKNOWN, "", false).support,
@@ -37,7 +39,7 @@ class DriverPairsTest {
         assertEquals(GpuInfo.Support.TESTED, gpu(825).support)
         assertEquals(GpuInfo.Support.UNTESTED, gpu(610).support)
         assertEquals(GpuInfo.Support.UNTESTED, gpu(660).support)
-        assertEquals("Outside tested hardware (Adreno 650, 725 and newer): it may not run", gpu(660).supportText)
+        assertEquals("Outside tested hardware (Adreno 618, 650, 725 and newer): it may not run", gpu(660).supportText)
         assertEquals(GpuInfo.Support.UNTESTED, gpu(720).support)
         assertEquals(GpuInfo.Support.UNSUPPORTED, gpu(0, adreno = false).support)
     }
@@ -51,6 +53,7 @@ class DriverPairsTest {
         assertEquals(DriverPairs.BANNER_ONEUI, DriverPairs.recommendedKey(gpu(740, oneUi = true), emptyList()))
         assertEquals(DriverPairs.BANNER_710, DriverPairs.recommendedKey(gpu(720), emptyList()))
         assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(650), emptyList()))
+        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(618), emptyList()))
         assertNull(DriverPairs.recommendedKey(gpu(0, adreno = false), emptyList()))
     }
 

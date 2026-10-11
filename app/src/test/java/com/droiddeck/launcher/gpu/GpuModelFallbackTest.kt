@@ -9,6 +9,9 @@ class GpuModelFallbackTest {
         assertEquals(750, GpuInfo.platformModel("pineapple"))
         assertEquals(740, GpuInfo.platformModel("KALAMA"))
         assertEquals(830, GpuInfo.platformModel("sun"))
+        // Xiaomi Mi Note 10 (tucana): Snapdragon 730G, Adreno 618, platform sm6150.
+        assertEquals(618, GpuInfo.platformModel("sm6150"))
+        assertEquals(618, GpuInfo.platformModel("SM7150"))
         assertEquals(0, GpuInfo.platformModel("somethingelse"))
         assertEquals(GpuInfo.Family.A7XX, GpuInfo.familyOf(true, GpuInfo.platformModel("pineapple")))
     }
