@@ -59,6 +59,13 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    /** The Accessibility tab: whether sessions start the Orca screen reader (OrcaManager). */
+    fun orcaEnabled(context: Context): Boolean = prefs(context).getBoolean("orcaEnabled", false)
+
+    fun setOrcaEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("orcaEnabled", on).apply()
+    }
+
     fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
 
     fun setAnimationsEnabled(context: Context, on: Boolean) {

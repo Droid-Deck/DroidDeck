@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Accessibility
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
@@ -103,7 +104,7 @@ internal fun SideRail(
         modifier = modifier.width(if (iconOnly) 64.dp else 92.dp).background(colors.surface).padding(vertical = if (compact) 8.dp else 12.dp),
     ) {
         // Every section on screen at once: items shrink (to 44dp, still a touch target) before the rail scrolls.
-        val count = 6 + (if (s.storeEnabled) 1 else 0) + (if (s.gameStoresEnabled) 1 else 0) + (if (s.isHomeApp) 1 else 0)
+        val count = 7 + (if (s.storeEnabled) 1 else 0) + (if (s.gameStoresEnabled) 1 else 0) + (if (s.isHomeApp) 1 else 0)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
         val fit = (maxHeight / count - 4.dp).coerceIn(44.dp, if (iconOnly) 48.dp else if (compact) 52.dp else 60.dp)
         Column(
@@ -120,6 +121,7 @@ internal fun SideRail(
             RailItem(stringResource(R.string.rail_desktop), Icons.Outlined.DesktopWindows, "desktop", selected == "desktop", compact, iconOnly, fit, onFocus = { onFocusSelect("desktop") }) { onSelect("desktop") }
             if (s.storeEnabled) RailItem(stringResource(R.string.rail_store), Icons.Outlined.Storefront, "store", selected == "store", compact, iconOnly, fit, onFocus = { onFocusSelect("store") }) { onSelect("store") }
             RailItem(stringResource(R.string.rail_components), Icons.Outlined.Layers, "components", selected == "components", compact, iconOnly, fit, onFocus = { onFocusSelect("components") }) { onSelect("components") }
+            RailItem(stringResource(R.string.rail_accessibility), Icons.Outlined.Accessibility, "accessibility", selected == "accessibility", compact, iconOnly, fit, onFocus = { onFocusSelect("accessibility") }) { onSelect("accessibility") }
             // Home mode's extra section goes last, so it shifts nothing above it.
             if (s.isHomeApp) RailItem(stringResource(R.string.rail_apps), Icons.Outlined.Apps, "android-apps", selected == "android-apps", compact, iconOnly, fit, onFocus = { onFocusSelect("android-apps") }) { onSelect("android-apps") }
             RailItem(stringResource(R.string.rail_setup), Icons.Outlined.Tune, "setup", selected == "setup", compact, iconOnly, fit, badge = setupNeedsAttention, onFocus = { onFocusSelect("setup") }) { onSelect("setup") }

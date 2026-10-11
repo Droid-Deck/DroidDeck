@@ -1,0 +1,45 @@
+#!/bin/bash
+# Starts the Orca screen reader in the current session, when the app has installed it and enabled
+# it (BL_ORCA=1, from the app's Accessibility tab). Called by droiddeck-session for the Steam and
+# program modes and by droiddeck-desktop for the Plasma desktop, so every session that enters the
+# Linux runtime - whichever way the user lands in it - reads the screen.
+#
+# Orca is a session-long background program: this script waits for the display the session is
+# drawing on, then runs orca under it for the life of the session. It also watches for the app's
+# "Open Orca settings" request (root/.config/droiddeck/orca-settings) and answers it on the
+# session's own display.
+set -u
+[ "${BL_ORCA:-0}" = 1 ] || exit 0
+command -v orca >/dev/null 2>&1 || exit 0
+settings_file=$HOME/.config/droiddeck/orca-settings
+
+# Orca keeps its preferences in dconf, which talks over a session bus. Steam sessions have no
+# session bus of their own (the Plasma desktop brings one through dbus-run-session); start one
+# and keep its address for everything this script starts.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-daemon >/dev/null 2>&1; then
+  export DBUS_SESSION_BUS_ADDRESS=$(dbus-daemon --session --fork --print-address 2>/dev/null) || true
+fi
+
+# Wait for the display: Steam's gamescope brings Xwayland up as the client starts, and the Plasma
+# desktop's KWin comes up after this script is called from its session. Orca starting before any
+# display exists exits at once, so wait rather than race it.
+for _ in $(seq 1 60); do
+  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then break; fi
+  if [ -n "${DISPLAY:-}" ] && [ -S "/tmp/.X11-unix/X${DISPLAY#:}" ]; then break; fi
+  sleep 0.5
+done
+
+orca --replace >/dev/null 2>&1 &
+
+# The app's "Open Orca settings" button writes the request file into the runtime; bring the
+# preferences dialog up on this session's display and take the request down whether or not the
+# dialog can be shown.
+(
+  while :; do
+    if [ -f "$settings_file" ]; then
+      rm -f "$settings_file"
+      orca --setup >/dev/null 2>&1 &
+    fi
+    sleep 1
+  done
+) &

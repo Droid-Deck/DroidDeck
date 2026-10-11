@@ -1,0 +1,108 @@
+#!/bin/bash
+# Puts Orca (the GNOME screen reader) into the Linux runtime, the same offline way Flatpak is
+# (droiddeck-flatpak-setup): the runtime's pacman database lists only the base image, so the
+# packages are fetched into a database of our own and unpacked without hooks or scripts, leaving
+# the image's database exactly as it was built.
+#
+# Run by the app under proot's fake root (pacman and pacman-key refuse any other uid), outside a
+# session. Prints "== STEP ..." milestones and "== FAIL ..." on error.
+set -u
+export LANG=C.UTF-8
+step() { echo "== STEP $*"; }
+fail() { echo "== FAIL $*"; exit 1; }
+
+# orca plus everything it needs at runtime. gstreamer and gst-plugins are for Orca's "sonar"
+# pointer sounds; speech-dispatcher with the espeak-ng backend is what makes it speak.
+PACKAGES="orca"
+# Packages whose files the image already has are skipped: a probe glob, checked with compgen.
+while read -r pkg probe; do
+  [ -n "$pkg" ] || continue
+  compgen -G "$probe" >/dev/null || PACKAGES="$PACKAGES $pkg"
+done <<'NEEDS'
+at-spi2-core /usr/lib/libatspi.so.0
+dconf /usr/lib/libdconf.so.1
+gobject-introspection-runtime /usr/lib/girepository-1.0/Gio-2.0.typelib
+gsettings-desktop-schemas /usr/share/glib-2.0/schemas/org.gnome.desktop.interface.gschema.xml
+gstreamer /usr/lib/libgstreamer-1.0.so.0
+gst-plugins-base /usr/lib/gstreamer-1.0/libgstcoreelements.so
+gst-plugins-good /usr/lib/gstreamer-1.0/libgstautodetect.so
+gtk3 /usr/lib/libgtk-3.so.0
+hicolor-icon-theme /usr/share/icons/hicolor/index.theme
+liblouis /usr/lib/liblouis.so.*
+libwnck3 /usr/lib/libwnck-3.so.0
+pango /usr/lib/libpango-1.0.so.0
+python /usr/bin/python3
+python-brltty /usr/lib/python3*/site-packages/brlapi
+python-cairo /usr/lib/python3*/site-packages/cairo
+python-dasbus /usr/lib/python3*/site-packages/dasbus
+python-dbus /usr/lib/python3*/site-packages/dbus
+python-gobject /usr/lib/python3*/site-packages/gi/__init__.py
+python-psutil /usr/lib/python3*/site-packages/psutil
+python-setproctitle /usr/lib/python3*/site-packages/setproctitle
+speech-dispatcher /usr/bin/spd-say
+xorg-xkbcomp /usr/bin/xkbcomp
+xorg-xmodmap /usr/bin/xmodmap
+espeak-ng /usr/lib/libespeak-ng.so.*
+NEEDS
+
+WORK=/var/cache/droiddeck-orca
+CONF=$WORK/pacman.conf
+mkdir -p "$WORK/pkg" "$WORK/db" || fail "cannot create $WORK"
+
+# The image's pacman.conf names a download user this rootfs does not have (only root exists) and a
+# sandbox proot cannot set up. Its one mirror is plain HTTP; these serve the same repos over TLS.
+{ for m in https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org \
+           https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org; do
+    echo "Server = $m/\$arch/\$repo"; done
+  grep '^Server' /etc/pacman.d/mirrorlist 2>/dev/null; } > "$WORK/mirrorlist"
+sed -e 's/^DownloadUser/#DownloadUser/' \
+    -e 's/^\[options\]/[options]\nDisableSandbox/' \
+    -e "s#^Include *= */etc/pacman.d/mirrorlist#Include = $WORK/mirrorlist#" \
+    /etc/pacman.conf > "$CONF" || fail "no /etc/pacman.conf"
+
+if [ ! -f /etc/pacman.d/gnupg/pubring.gpg ] && [ ! -f /etc/pacman.d/gnupg/pubring.kbx ]; then
+  step "Preparing the package keyring"
+  pacman-key --init >/dev/null 2>&1 || fail "pacman-key --init failed"
+  pacman-key --populate archlinuxarm >/dev/null 2>&1 || fail "pacman-key --populate failed"
+fi
+
+# A database of our own, so the image's stays exactly as it was built: -Sy on it would leave the
+# rest of the image a partial upgrade behind the repos.
+step "Reading the package lists"
+pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy >/dev/null 2>&1 \
+  || pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1 | tail -3 \
+  || fail "could not reach the Arch Linux ARM mirrors"
+[ -f "$WORK/db/sync/extra.db" ] || fail "could not reach the Arch Linux ARM mirrors"
+
+step "Downloading Orca"
+# -w only downloads; pacman still checks each package's signature against the keyring. -dd: the
+# dependencies are already handled above by what the image lacks, so nothing extra is pulled.
+out=$(pacman --config "$CONF" --dbpath "$WORK/db" --cachedir "$WORK/pkg" --noconfirm -Sw -dd $PACKAGES 2>&1)
+rc=$?
+echo "$out" | grep -vE '^\s*$' | tail -4
+[ $rc -eq 0 ] || fail "download failed"
+
+step "Installing Orca"
+for name in $PACKAGES; do
+  ver=$(pacman --config "$CONF" --dbpath "$WORK/db" -Sp --print-format '%v' -dd "$name" 2>/dev/null | tail -1)
+  file=$(ls "$WORK/pkg/$name-$ver-"*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | head -1)
+  [ -n "$file" ] || fail "no package file for $name $ver"
+  bsdtar -xpf "$file" -C / --exclude .PKGINFO --exclude .BUILDINFO --exclude .MTREE --exclude .INSTALL \
+    || fail "could not unpack $name"
+  echo "$name $ver" >> "$WORK/installed.new"
+done
+mv -f "$WORK/installed.new" "$WORK/installed"
+# Only the newest file of each package is worth keeping for a repair.
+find "$WORK/pkg" -type f -mtime +1 -delete 2>/dev/null
+
+step "Checking Orca"
+command -v orca >/dev/null 2>&1 || fail "orca is not on PATH"
+# The Python side of the accessibility stack must load against the image's Python. When the image
+# is newer than the runtime's own Python the C extensions refuse to import; that needs a runtime
+# update rather than a retry here.
+python3 -c 'import gi, dasbus, dbus, psutil, setproctitle; gi.require_version("Atspi", "2.0"); from gi.repository import Atspi' 2>&1 \
+  || fail "the Python accessibility modules do not load (is the runtime's Python older than the image's?)"
+[ -x /usr/bin/spd-say ] || fail "speech-dispatcher is missing"
+compgen -G '/usr/lib/libespeak-ng.so.*' >/dev/null || fail "the espeak-ng speech backend is missing"
+orca --help >/dev/null 2>&1 || fail "orca does not start"
+echo "== DONE $(orca --version 2>/dev/null | head -1)"
