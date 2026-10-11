@@ -1674,7 +1674,10 @@ static constexpr uint32_t TRITON_A = 0x00000001, TRITON_B = 0x00000002, TRITON_X
                           TRITON_LSTICK_TOUCH = 0x01000000, TRITON_LPAD_TOUCH = 0x02000000,
                           TRITON_LPAD_CLICK = 0x04000000, TRITON_LTRIGGER_CLICK = 0x08000000,
                           TRITON_RGRIP_TOUCH = 0x10000000, TRITON_LGRIP_TOUCH = 0x20000000;
-static constexpr uint8_t TRITON_STATE_BLE = 0x45;
+// The pad is built in, so it is the wired controller: 28de:1302 on USB, state report 0x42 (the
+// same layout as the Bluetooth 0x45), where the paired one is 28de:1303 on Bluetooth.
+static constexpr uint8_t TRITON_STATE_WIRED = 0x42;
+static constexpr int16_t TRITON_WIRED_PRODUCT = 0x1302;
 // A stick counts as touched once it leaves its centre: the pad has no capacitive caps to ask.
 static constexpr int32_t TRITON_STICK_TOUCH = 2000;
 
@@ -1749,7 +1752,7 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
     }
     read_deck_extras(*self, extras);
     uint8_t report[TRITON_REPORT_ID_BYTES + TRITON_STATE_BYTES];
-    report[0] = TRITON_STATE_BLE;
+    report[0] = TRITON_STATE_WIRED;
     build_triton_report(report + 1, ++packet, buttons, axes, extras);
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
@@ -1825,8 +1828,8 @@ __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
     return -1;
   }
   pthread_detach(thread);
-  Logger::log("triton: %s opened as fd %d (28de:1303%s)\n", TRITON_HIDRAW_PATH, pair[0],
-              triton->emulated ? ", the app's pad" : "");
+  Logger::log("triton: %s opened as fd %d (%s)\n", TRITON_HIDRAW_PATH, pair[0],
+              triton->emulated ? "28de:1302, the app's pad" : "28de:1303");
   return pair[0];
 }
 
@@ -2451,7 +2454,7 @@ __attribute__((visibility("hidden"))) static int triton_pad_feature(DeckHidraw &
   case DECK_GET_ATTRIBUTES_VALUES: {
     // (attribute, 32-bit value) pairs: product id, capabilities, firmware timestamp, hardware id.
     static const uint8_t kIds[] = {0x01, 0x02, 0x04, 0x09, 0x0a, 0x0b};
-    const uint32_t values[] = {0x1303, 0, TRITON_FW_TIMESTAMP, TRITON_HWID, 0, 4000};
+    const uint32_t values[] = {static_cast<uint32_t>(TRITON_WIRED_PRODUCT), 0, TRITON_FW_TIMESTAMP, TRITON_HWID, 0, 4000};
     reply[2] = sizeof(kIds) * 5;
     for (size_t i = 0; i < sizeof(kIds); i++) {
       reply[3 + i * 5] = kIds[i];
@@ -2517,6 +2520,8 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
     uint32_t size;
     memcpy(&size, descriptor, sizeof(size));
     memcpy(descriptor + 4, kTritonReportDescriptor, std::min<size_t>(size, sizeof(kTritonReportDescriptor)));
+    // The wired controller's state report (SteamDeckPad's TRITON_WIRED_REPORT_DESCRIPTOR).
+    if (triton.emulated && size > 15) descriptor[4 + 15] = TRITON_STATE_WIRED;
     return 0;
   }
   case 0x03: {
@@ -2524,12 +2529,13 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
       uint32_t bustype;
       int16_t vendor;
       int16_t product;
-    } info = {BUS_BLUETOOTH, static_cast<int16_t>(0x28de), static_cast<int16_t>(0x1303)};
+    } info = {triton.emulated ? static_cast<uint32_t>(BUS_USB) : static_cast<uint32_t>(BUS_BLUETOOTH),
+              static_cast<int16_t>(0x28de), triton.emulated ? TRITON_WIRED_PRODUCT : static_cast<int16_t>(0x1303)};
     memcpy(argp, &info, sizeof(info));
     return 0;
   }
   case 0x04: return copy_ioctl_string(op, argp, TRITON_NAME);
-  case 0x05: return copy_ioctl_string(op, argp, "bluetooth-droiddeck-1");
+  case 0x05: return copy_ioctl_string(op, argp, triton.emulated ? "usb-droiddeck-3/input0" : "bluetooth-droiddeck-1");
   case 0x08: return copy_ioctl_string(op, argp, TRITON_SERIAL);
   case 0x06: {
     // The client's feature reports are the report ID and 64 bytes; the last is padding the BLE
