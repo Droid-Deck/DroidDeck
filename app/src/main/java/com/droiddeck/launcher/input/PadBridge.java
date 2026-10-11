@@ -329,12 +329,20 @@ public final class PadBridge {
         statAxes++;
         scheduleStats();
         float deadZone = ControllerProfiles.resolve(event.getDevice()).getDeadZone();
-        pad.leftX = axis(event, MotionEvent.AXIS_X, deadZone);
+        // Each stick's dead zone is a circle round its centre, so a stick held well over to one
+        // side still answers small movements on the other axis.
+        float lx = event.getAxisValue(MotionEvent.AXIS_X);
         // Android's Y axis grows downwards and evdev's ABS_Y does too, so no flip here: what the
         // pad reports as "down" is what the client is told.
-        pad.leftY = axis(event, MotionEvent.AXIS_Y, deadZone);
-        pad.rightX = axis(event, MotionEvent.AXIS_Z, deadZone);
-        pad.rightY = axis(event, MotionEvent.AXIS_RZ, deadZone);
+        float ly = event.getAxisValue(MotionEvent.AXIS_Y);
+        float rx = event.getAxisValue(MotionEvent.AXIS_Z);
+        float ry = event.getAxisValue(MotionEvent.AXIS_RZ);
+        boolean leftCentred = ControllerProfiles.inDeadZone(lx, ly, deadZone);
+        boolean rightCentred = ControllerProfiles.inDeadZone(rx, ry, deadZone);
+        pad.leftX = leftCentred ? 0f : lx;
+        pad.leftY = leftCentred ? 0f : ly;
+        pad.rightX = rightCentred ? 0f : rx;
+        pad.rightY = rightCentred ? 0f : ry;
         float lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
         float rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
         // Some pads only report the triggers on BRAKE/GAS.
@@ -578,10 +586,5 @@ public final class PadBridge {
         if (qam) effectiveState.press(PadState.QAM, true);
         if (qamSyntheticAPressed) effectiveState.press(PadState.A, true);
         writer.writePad(effectiveState);
-    }
-
-    private static float axis(MotionEvent event, int axis, float deadZone) {
-        float value = event.getAxisValue(axis);
-        return Math.abs(value) < deadZone ? 0f : value;
     }
 }

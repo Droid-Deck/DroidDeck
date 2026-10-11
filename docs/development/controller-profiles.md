@@ -6,8 +6,10 @@ Android reports about it, so the same settings follow it onto any phone.
 ## Global dead zone
 
 **Setup › Controller › Stick dead zone** (0, 5, 8, 12, 15, 20 or 25 %, default 12 as before).
-It applies to every physical pad that has no profile. Stick travel below it reads as centred;
-above it the value passes through unchanged, so the feel past the dead zone does not change.
+It applies to every physical pad that has no profile. The dead zone is a circle round each stick's
+centre: inside it the stick reads as centred, outside it the value passes through unchanged. (It used
+to be a separate 12 % on each axis, which held back small movements on one axis while the stick was
+pushed over on the other; 0 % now means no dead zone at all.)
 
 ## Profiles
 
