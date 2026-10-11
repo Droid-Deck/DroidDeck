@@ -31,7 +31,8 @@ object GameEnvironment {
         "VKD3D_SHADER_MODEL" to "6_9",
         // .NET 7 and later reserve 256 GB of address space for the GC heap at startup, more than an
         // Android process has free, and the runtime fails to start. 32 GB is plenty for a game.
-        "DOTNET_GCRegionRange" to "0x800000000",
+        // Older NativeAOT runtimes require bare hex digits. CoreCLR accepts this form too.
+        "DOTNET_GCRegionRange" to "800000000",
         // .NET's W^X writes JIT code through a second mapping that FEX does not watch, so FEX keeps
         // running the stale translation and the game hangs at startup.
         "DOTNET_EnableWriteXorExecute" to "0",

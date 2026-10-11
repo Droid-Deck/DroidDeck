@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- DroidDeck's desktop wallpaper: the mark (artwork/droiddeck-mark.svg) on deep navy. -->
+  <defs>
+    <radialGradient id="bg" cx="960" cy="540" r="1150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14213a"/>
+      <stop offset="0.5" stop-color="#0a1120"/>
+      <stop offset="1" stop-color="#04060b"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="947.21" cy="540.00" r="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1A9FFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#1A9FFF" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="negative-space" maskUnits="userSpaceOnUse" x="-31.98" y="0" width="207.92" height="223.72">
+      <rect x="-31.98" y="0" width="207.92" height="223.72" fill="#fff"/>
+      <circle cx="63.98" cy="111.86" r="71.81" fill="#000"/>
+      <rect x="56.055" y="0" width="15.83" height="45" fill="#000"/>
+      <rect x="56.055" y="178.72" width="15.83" height="45" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <circle cx="947.21" cy="540.00" r="420" fill="url(#glow)"/>
+  <g transform="translate(844.84 361.02) scale(1.6)">
+    <path fill="#FFFFFF" mask="url(#negative-space)" d="M-31.98 0H63.97c61.84 0 111.96 50.08 111.96 111.86S125.81 223.72 63.97 223.72H-31.98V0Z"/>
+    <circle cx="63.98" cy="111.86" r="55.98" fill="#1A9FFF"/>
+  </g>
+</svg>

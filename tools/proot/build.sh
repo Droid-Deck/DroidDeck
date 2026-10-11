@@ -49,6 +49,7 @@ PATH="$WORK/bin:$PATH" make -C "$WORK/proot/src" -j"$(getconf _NPROCESSORS_ONLN)
 install -m755 "$WORK/proot/src/proot" "$OUTDIR/libproot.so"
 install -m755 "$WORK/proot/src/loader/loader" "$OUTDIR/libproot-loader.so"
 "$TOOLCHAIN/llvm-strip" --strip-unneeded "$OUTDIR/libproot.so"
+"$TOOLCHAIN/llvm-strip" --strip-unneeded "$OUTDIR/libproot-loader.so"
 grep -q '^#define HAVE_SECCOMP_FILTER' "$WORK/proot/src/build.h" || { echo "ERROR: proot was built without seccomp acceleration"; exit 1; }
 grep -q '^#define HAVE_PROCESS_VM' "$WORK/proot/src/build.h" || { echo "ERROR: proot was built without process_vm"; exit 1; }
 NEEDED=$("$TOOLCHAIN/llvm-readelf" -d "$OUTDIR/libproot.so" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p' | tr '\n' ' ')

@@ -46,8 +46,24 @@ class GameEnvironmentTest {
 
     @Test fun dotnetRuntimeFitsAndroidAddressSpaceForEveryGame() {
         val values = GameEnvironment.effective(GameEnvironment.Config(), "PERFORMANCE", "43")
-        assertEquals("0x800000000", values["DOTNET_GCRegionRange"])
+        assertEquals("800000000", values["DOTNET_GCRegionRange"])
         assertEquals("0", values["DOTNET_EnableWriteXorExecute"])
+    }
+
+    @Test fun dotnetHeapRangeIsBareHexForNativeAot() {
+        for (preset in FexPreset.all) {
+            val values = GameEnvironment.effective(GameEnvironment.Config(), preset.id, "3478050")
+            assertEquals(32L * 1024 * 1024 * 1024, values.getValue("DOTNET_GCRegionRange")!!.toLong(16))
+        }
+    }
+
+    @Test fun dotnetHeapRangeRespectsSharedAndGameOverrides() {
+        val config = GameEnvironment.Config(
+            shared = mapOf("DOTNET_GCRegionRange" to "400000000"),
+            games = mapOf("3478050" to mapOf("DOTNET_GCRegionRange" to "800000000")),
+        )
+        assertEquals("800000000", GameEnvironment.effective(config, "", "3478050")["DOTNET_GCRegionRange"])
+        assertEquals("400000000", GameEnvironment.effective(config, "", "43")["DOTNET_GCRegionRange"])
     }
 
     @Test fun multiSelectionPreservesCustomTokensAndRemovesToggledValues() {

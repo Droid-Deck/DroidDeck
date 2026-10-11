@@ -32,6 +32,10 @@ from pathlib import Path
 
 STORE = Path("/opt/droiddeck/wincomponents")
 SELECTION = Path.home() / ".config/droiddeck/wincomponents.json"
+# Components the app is still downloading for a game Steam installed during this session:
+# {"games": {"<appid>": ["vcredist2019_dll", ...]}}. A launch waits a little for them.
+PENDING = Path.home() / ".config/droiddeck/wincomponents-pending.json"
+PENDING_WAIT = 10.0
 # What this prefix holds from us, so a component the user turns off is taken out again.
 STATE = ".droiddeck-wincomponents.json"
 # A file ours replaced that was not Proton's (a real installer's, the user's own), put back when the
@@ -518,15 +522,47 @@ def save_state(compat, state):
     os.replace(temp, compat / STATE)
 
 
-def apply(compat_path, app_id, selection=SELECTION, store=STORE):
+def pending_for(app_id, pending=PENDING):
+    """The component ids the app is still getting ready for app_id; empty when none (or no file)."""
+    try:
+        with open(pending, encoding="utf-8") as source:
+            ids = json.load(source).get("games", {}).get(str(app_id), [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [i for i in ids if valid_id(i)] if isinstance(ids, list) else []
+
+
+def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT, sleep=time.sleep, clock=time.monotonic):
+    """Waits (at most timeout seconds) for the components still being got ready for app_id to be in
+    the store or dropped from the pending list. No wait at all when nothing is pending. Returns a
+    note for the log, or None."""
+    def missing():
+        return [cid for cid in pending_for(app_id, pending) if component(store, cid) is None]
+    left = missing()
+    if not left:
+        return None
+    asked = list(left)
+    start = clock()
+    while left and clock() - start < timeout:
+        sleep(0.5)
+        left = missing()
+    waited = int((clock() - start) * 1000)
+    if left:
+        return "wincomp: %s launched without %s (not ready)" % (app_id, ",".join(left))
+    return "wincomp: %s waited %dms for %s" % (app_id, waited, ",".join(asked))
+
+
+def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending):
     """Brings the prefix in line with the game's picks. Returns (overrides, notes)."""
     compat = Path(compat_path)
     pfx = compat / "pfx"
+    # A game Steam installed during this session may have components still on their way.
+    waited = wait(app_id, pending, store) if wait else None
     ids = wanted(app_id, selection)
     state = load_state(compat)
     if not ids and not state["files"] and not state.get("registry"):
         return [], []
-    notes, overrides, keep = [], [], {}
+    notes, overrides, keep = ([waited] if waited else []), [], {}
     copied = 0
     installed = []
     values = []

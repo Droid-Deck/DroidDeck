@@ -8,6 +8,7 @@ import select
 import signal
 import socket
 import struct
+import subprocess
 import sys
 import time
 
@@ -125,6 +126,37 @@ INSTALL_JS = r"""
   return "installed";
 })()
 """.replace("__BINDING__", BINDING)
+# Big Picture's "Switch to Desktop" asks the client's SteamOS manager, which the client has only when it
+# runs as SteamOS (-steamos3, Deck mode); otherwise the request fails and the screen stays on "Switching
+# to Desktop..." for good. The request is caught on its way to the client and answered as SteamOS's
+# own path does, with steamos-session-select.
+SWITCH_BINDING = "droiddeckSwitchToDesktop"
+SWITCH_JS = r"""
+(() => {
+  if (window.__droiddeckSwitch) return "present";
+  const name = new TextEncoder().encode("SteamOSManager.SwitchToDesktop#");
+  const send = WebSocket.prototype.send;
+  const asks = (data) => {
+    const bytes = data instanceof ArrayBuffer ? new Uint8Array(data)
+      : ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : null;
+    if (!bytes) return false;
+    const end = Math.min(bytes.length, 256) - name.length;
+    for (let i = 8; i <= end; i++) {
+      let j = 0;
+      while (j < name.length && bytes[i + j] === name[j]) j++;
+      if (j === name.length) return true;
+    }
+    return false;
+  };
+  WebSocket.prototype.send = function (data) {
+    if (typeof window.__BINDING__ === "function" && asks(data)) window.__BINDING__("");
+    return send.call(this, data);
+  };
+  window.__droiddeckSwitch = true;
+  return "installed";
+})()
+""".replace("__BINDING__", SWITCH_BINDING)
+SESSION_SELECT = "/usr/bin/steamos-session-select"
 
 
 class Closed(Exception):
@@ -133,6 +165,18 @@ class Closed(Exception):
 
 def say(message):
     print("droiddeck-steam-compat: %s" % message, flush=True)
+
+
+def called(event, name):
+    return event.get("method") == "Runtime.bindingCalled" and event.get("params", {}).get("name") == name
+
+
+def switch_to_desktop():
+    say("Switch to Desktop: asking for the desktop")
+    try:
+        subprocess.call([SESSION_SELECT, "plasma"])
+    except OSError as e:
+        say("Switch to Desktop failed: %s" % e)
 
 
 def connect(port, timeout=5):
@@ -357,9 +401,10 @@ class Watcher:
 
 
 class Helper:
-    def __init__(self, steam_root, port):
+    def __init__(self, steam_root, port, steamos=False):
         self.steam_root = steam_root
         self.port = port
+        self.steamos = steamos
         self.page = None
         self.known = set()
         self.installed = None
@@ -374,6 +419,9 @@ class Helper:
             if page.evaluate("typeof SteamClient === 'object' && typeof SteamClient.WebUITransport === 'object'") is not True:
                 raise LookupError("SteamClient is not ready")
             page.call("Runtime.addBinding", {"name": BINDING})
+            if not self.steamos:
+                page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
+                page.evaluate(SWITCH_JS)
             page.compat("get(0)")
         except Exception:
             page.ws.close()
@@ -422,6 +470,13 @@ class Helper:
         state = COMPAT["read_json"](COMPAT["state_path"]("state.json"))
         return isinstance(request.get("seq"), int) and request["seq"] > int(state.get("applied", 0) or 0)
 
+    def drain(self):
+        """The page's events; a switch to the desktop is acted on as it comes."""
+        events = self.page.drain()
+        if any(called(e, SWITCH_BINDING) for e in events):
+            switch_to_desktop()
+        return events
+
     def serve(self, watcher):
         with open(COMPAT["state_path"]("live.pid"), "w") as f:
             f.write("%d\n" % os.getpid())
@@ -432,15 +487,14 @@ class Helper:
             ready = [self.page.ws] if self.page.ws.pending() else select.select(sources, [], [], 30 if watcher.fileno() >= 0 else 2)[0]
             due = False
             if self.page.ws in ready:
-                due = any(e.get("method") == "Runtime.bindingCalled" and e.get("params", {}).get("name") == BINDING
-                          for e in self.page.drain())
+                due = any(called(e, BINDING) for e in self.drain())
             if (watcher in ready or watcher.fileno() < 0) and watcher.changed():
                 due = self.installed != COMPAT["installed_apps"](self.steam_root) or self.request_waiting()
             if due:
                 time.sleep(0.3)
                 if watcher.fileno() >= 0 and select.select([watcher], [], [], 0)[0]:
                     watcher.changed()
-                self.page.drain()
+                self.drain()
                 self.reconcile()
 
 
@@ -466,7 +520,9 @@ def main():
         return 0
     os.makedirs(COMPAT["COMPAT_DIR"], exist_ok=True)
     watcher = Watcher([COMPAT["state_path"]("request.json")] + [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
-    helper = Helper(steam_root, port)
+    # The client has its own SteamOS manager when started as SteamOS (droiddeck-session's Deck mode).
+    steamos = os.environ.get("BL_STEAMDECK") == "1" and os.environ.get("BL_STEAM_UI") != "desktop"
+    helper = Helper(steam_root, port, steamos)
     failures = 0
     last = None
     while True:

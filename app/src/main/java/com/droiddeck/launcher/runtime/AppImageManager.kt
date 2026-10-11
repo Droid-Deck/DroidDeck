@@ -242,7 +242,7 @@ object AppImageManager {
 
     private fun menuEntry(context: Context, id: String) =
         // A system directory, not ~/.local/share/applications: the desktop copies game entries from
-        // here into the user's with a GPU launcher (droiddeck-desktop-gpu) while it runs on pixman.
+        // here into the user's with a GPU launcher (droiddeck-desktop-gpu), since it composites in software.
         File(LinuxRuntime.rootDir(context), "usr/local/share/applications/droiddeck-appimage-$id.desktop")
 
     /** The Linux desktop's menu entry: the desktop's own Exec rules (and droiddeck-gpu) apply to it. */
@@ -254,6 +254,20 @@ object AppImageManager {
         FileUtils.writeString(menuEntry(context, id),
             "[Desktop Entry]\nType=Application\nName=$name\nExec=$LAUNCHER $GUEST_DIR/$id %U\nIcon=$icon\n" +
             "Terminal=false\nCategories=$categories\nX-DroidDeck-AppImage=$id\n")
+    }
+
+    /** The desktop's import of [key]; older ones of the image at [path], since replaced, are removed. */
+    fun desktopImport(context: Context, key: String, path: String): String? {
+        var found: String? = null
+        root(context).listFiles()?.forEach { dir ->
+            val asked = FileUtils.readString(File(dir, UserApps.DESKTOP_IMPORT))?.lines() ?: return@forEach
+            if (asked.firstOrNull() == key) {
+                if (File(dir, "app").isDirectory) found = dir.name
+            } else if (asked.getOrNull(1) == path) {
+                remove(context, dir.name)
+            }
+        }
+        return found
     }
 
     fun remove(context: Context, id: String) {

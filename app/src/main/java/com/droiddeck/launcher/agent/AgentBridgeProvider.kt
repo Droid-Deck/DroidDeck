@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.agent
 
+import com.droiddeck.launcher.session.SessionPaths
 import android.Manifest
 import android.content.ContentProvider
 import android.content.ContentValues
@@ -107,7 +108,7 @@ class AgentBridgeProvider : ContentProvider() {
 
     private fun state(context: Context): JSONObject {
         val runtimeVersion = LinuxRuntimeInstaller.installedVersion(context)
-        val dir = SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: latestSessionDirectory()
+        val dir = SessionState.logDirectory ?: SessionState.logFile?.parentFile ?: SessionPaths.sessionFolders(context).lastOrNull()
         val session = JSONObject()
             .put("id", SessionState.sessionId ?: dir?.name ?: JSONObject.NULL)
             .put("phase", SessionState.phase.name)
@@ -161,12 +162,6 @@ class AgentBridgeProvider : ContentProvider() {
                 .put("guestFocus", hello?.optBoolean("focus") ?: false)
                 .put("commands", AgentAccess.commandsAllowed(context)))
             .put("session", session)
-    }
-
-    private fun latestSessionDirectory(): File? {
-        val parent = LinuxRuntime.debugLogDir()
-        return parent.listFiles { file -> file.isDirectory && file.name.startsWith("session-") }
-            ?.maxWithOrNull(compareBy<File> { it.lastModified() }.thenBy { it.name })
     }
 
     private fun stop(context: Context): JSONObject {

@@ -30,6 +30,7 @@ extern int  droiddeck_cursor_serial(void);
 extern void droiddeck_wayland_send_key(int evdev, int state);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
+extern void droiddeck_wayland_output_resized(void);
 extern volatile int g_fps_limit;
 extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
@@ -399,6 +400,17 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetOutputSize(JNIEnv *env, jclass clazz, jint w, jint h) {
     g_output_w = w > 0 ? w : 0;
     g_output_h = h > 0 ? h : 0;
+}
+
+/* The output's size changed while the compositor runs (a foldable opening or closing with the
+ * session following the screen): store it and have the compositor thread tell the clients. */
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeResizeOutput(JNIEnv *env, jclass clazz, jint w, jint h) {
+    (void)env; (void)clazz;
+    if (w <= 0 || h <= 0) return;
+    g_output_w = w;
+    g_output_h = h;
+    droiddeck_wayland_output_resized();
 }
 
 /* Fullscreen mode + screen alignment (Container.FULLSCREEN_* / ALIGN_* values): how the scene is

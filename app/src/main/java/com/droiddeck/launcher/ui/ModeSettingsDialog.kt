@@ -76,7 +76,6 @@ class ModeSettings(
     val backActionsInverted: Boolean = false,
     val directAudio: Boolean?,
     val mic: Boolean?,
-    val renderer: String?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
     /** Steam only: record allocation and sampled storage timings in the next session's Share logs. */
@@ -87,15 +86,13 @@ class ModeSettings(
     /** Steam only: SessionPrefs.SYNC_* chosen for Proton games; null outside Steam. */
     val syncBackend: String? = null,
     val stretch16x9: Boolean? = null,
-    /** Steam only: the client branch forced on the command line. */
-    val steamChannel: String? = null,
-    /** Steam only: enable the SteamOS client interface and its performance controls. */
-    val steamDeckMode: Boolean = false,
     val steamRepairQueued: Boolean = false,
-    /** Steam, Deck mode: the QAM's performance overlay (mangoapp) is started. */
+    /** Steam: the QAM's performance overlay (mangoapp) is started. */
     val mangoapp: Boolean = true,
     /** Steam only: what the pad is to the client (SessionPrefs.CONTROLLER_*); null outside Steam. */
     val steamController: String? = null,
+    /** Unfolded controls (Steam only; null hides the row). */
+    val unfoldedControls: Boolean? = null,
     /** Steam only: start a Steam session when DroidDeck opens. */
     val runSteamAtStartup: Boolean = false,
     /** Null outside Steam; the saved choice is separate from Android's access and device switch. */
@@ -104,10 +101,6 @@ class ModeSettings(
     val wifiDiscoveryLocation: Boolean = false,
     val wifiDiscoveryAsked: Boolean = false,
     val wifiDiscoveryBlocked: Boolean = false,
-    /** Steam only: the user's chosen Games folders; null outside Steam. */
-    val addedGamesDirs: List<String>? = null,
-    val addedGames: List<AddedGameRow> = emptyList(),
-    val addedGamesArt: Boolean = true,
     /** Latest Banners-Turnip release: what each driver menu offers to download, and the refresh line. */
     /** Steam only: Decky Loader is managed from the Steam session settings. */
     val deckyInstalled: String? = null,
@@ -120,9 +113,6 @@ class ModeSettings(
     val deckyEnabled: Boolean = false,
     val deckySessionRunning: Boolean = false,
 )
-
-/** One added game as the settings page shows it: its folder, the chosen .exe, the other .exe files it could be. */
-class AddedGameRow(val folderPath: String, val folderName: String, val exePath: String, val exeName: String, val candidates: List<Pair<String, String>>)
 
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
@@ -140,7 +130,6 @@ class ModeSettingsActions(
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
     val onMic: (Boolean) -> Unit,
-    val onRenderer: (String) -> Unit,
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
@@ -148,19 +137,13 @@ class ModeSettingsActions(
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
-    val onSteamChannel: (String) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
-    val onSteamDeckMode: (Boolean) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
+    val onUnfoldedControls: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onWifiDiscovery: (Boolean) -> Unit = {},
     val onWifiDiscoverySettings: () -> Unit = {},
-    val onPickAddedGamesDir: () -> Unit = {},
-    val onForgetAddedGamesDir: (path: String) -> Unit = {},
-    val onAddedGamesArt: (Boolean) -> Unit = {},
-    val onAddedGameExe: (folderPath: String, path: String) -> Unit = { _, _ -> },
-    val onPickAddedGameExe: (folderPath: String) -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
     val onDeckyCheck: () -> Unit = {},
     val onDeckyEnabled: (Boolean) -> Unit = {},
@@ -270,6 +253,7 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     listOf(
                         SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto),
                         SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
+                        SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch),
                         SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam),
                         SessionPrefs.OSC_NEVER to stringResource(R.string.common_never),
                     ), s.oscMode,
@@ -279,10 +263,18 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                     host, "controller", stringResource(R.string.mode_controller), stringResource(R.string.mode_controller_hint),
                     listOf(
                         SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
+                        SessionPrefs.CONTROLLER_STEAM to stringResource(R.string.mode_controller_steam),
+                        SessionPrefs.CONTROLLER_DS4 to stringResource(R.string.mode_controller_ds4),
+                        SessionPrefs.CONTROLLER_DUALSENSE to stringResource(R.string.mode_controller_dualsense),
                         SessionPrefs.CONTROLLER_XBOX360 to stringResource(R.string.mode_controller_x360),
                     ), s.steamController,
                     note = stringResource(R.string.mode_controller_note),
                     onPick = a.onSteamController,
+                )
+                if (steam && s.unfoldedControls != null) ToggleRow(
+                    host, "unfolded-controls", stringResource(R.string.unfolded_controls),
+                    stringResource(R.string.unfolded_controls_hint),
+                    s.unfoldedControls, onChange = a.onUnfoldedControls,
                 )
                 if (steam) ChoiceRow(
                     host, "back-actions", stringResource(R.string.mode_back), stringResource(SessionPrefs.backActionsOrder(s.backActionsInverted)),
@@ -386,24 +378,11 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 )
             }
         }
-        if (steam && tab == ModeSettingsTab.STEAM && s.steamChannel != null) SettingsGroup(stringResource(R.string.mode_client)) {
+        if (steam && tab == ModeSettingsTab.STEAM) SettingsGroup(stringResource(R.string.mode_client)) {
             ToggleRow(
-                host, "steamdeck", stringResource(R.string.mode_deck_mode),
-                stringResource(R.string.mode_deck_mode_hint),
-                s.steamDeckMode, onChange = a.onSteamDeckMode,
-            )
-            if (s.steamDeckMode) ToggleRow(
                 host, "mangoapp", stringResource(R.string.mode_mangoapp),
                 stringResource(R.string.mode_mangoapp_hint),
                 s.mangoapp, onChange = a.onMangoapp,
-            )
-            // Deck mode fixes the branch (SessionPrefs.steamChannel); the choice is for Deck mode off.
-            if (s.steamDeckMode) SettingsRow(stringResource(R.string.mode_branch), stringResource(R.string.mode_branch_deck)) {}
-            else ChoiceRow(
-                host, "channel", stringResource(R.string.mode_branch), stringResource(R.string.mode_branch_hint),
-                listOf("publicbeta" to stringResource(R.string.mode_branch_public), "steamdeck_publicbeta" to stringResource(R.string.mode_branch_deck_beta)), s.steamChannel,
-                note = stringResource(R.string.mode_branch_note),
-                onPick = a.onSteamChannel,
             )
             SettingsRow(
                 stringResource(R.string.mode_steam_repair),
@@ -429,33 +408,6 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                         if (on) explainWifiDiscovery = true else a.onWifiDiscovery(false)
                     }
                 }
-            }
-        }
-        if (steam && tab == ModeSettingsTab.GAMES && s.addedGamesDirs != null) SettingsGroup(stringResource(R.string.mode_added_games)) {
-            for (dir in s.addedGamesDirs) {
-                val n = s.addedGames.count { it.folderPath.startsWith("$dir/") }
-                ActionRow(
-                    dir.substringAfterLast('/').ifEmpty { dir }, dir + " · " + (if (n == 0) stringResource(R.string.mode_added_none) else pluralStringResource(R.plurals.mode_added_count, n, n)) + ". " + stringResource(R.string.added_games_forget_hint),
-                    stringResource(R.string.common_forget), onClick = { a.onForgetAddedGamesDir(dir) },
-                )
-            }
-            ActionRow(
-                if (s.addedGamesDirs.isEmpty()) stringResource(R.string.mode_games_folder) else stringResource(R.string.mode_games_folder_another),
-                stringResource(R.string.added_games_import_hint),
-                stringResource(R.string.common_add_ellipsis), onClick = a.onPickAddedGamesDir,
-            )
-            ToggleRow(
-                host, "addedArt", stringResource(R.string.mode_added_art),
-                stringResource(R.string.mode_added_art_hint),
-                s.addedGamesArt, onChange = a.onAddedGamesArt,
-            )
-            for (g in s.addedGames) {
-                ChoiceRow(
-                    host, "added:" + g.folderPath, g.folderName, if (s.addedGamesDirs.size > 1) stringResource(R.string.mode_added_launches_in, g.exeName, g.folderPath.substringBeforeLast('/').substringAfterLast('/')) else stringResource(R.string.mode_added_launches, g.exeName),
-                    g.candidates + ("__pick__" to stringResource(R.string.mode_added_choose)), g.exePath,
-                    note = stringResource(R.string.mode_added_exe_note),
-                    onPick = { path -> if (path == "__pick__") a.onPickAddedGameExe(g.folderPath) else a.onAddedGameExe(g.folderPath, path) },
-                )
             }
         }
         if (steam && tab == ModeSettingsTab.GAMES && s.fexPreset != null) SettingsGroup(stringResource(R.string.game_settings_title)) {
@@ -528,14 +480,6 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
                 onChange = a.onStorageDiagnostics,
             )
         }
-        if (!steam && tab == ModeSettingsTab.DISPLAY && s.renderer != null) SettingsGroup(stringResource(R.string.mode_renderer)) {
-            ChoiceRow(
-                host, "renderer", stringResource(R.string.mode_desktop_renderer), stringResource(R.string.mode_renderer_hint),
-                listOf("vulkan" to stringResource(R.string.mode_renderer_vulkan), "gles2" to stringResource(R.string.mode_renderer_gles2), "pixman" to stringResource(R.string.mode_renderer_pixman)), s.renderer,
-                note = stringResource(R.string.mode_renderer_note),
-                onPick = a.onRenderer,
-            )
-        }
     }
     if (explainWifiDiscovery) AlertDialog(
         onDismissRequest = { explainWifiDiscovery = false },
@@ -562,6 +506,31 @@ fun ModeSettingsPage(s: ModeSettings, a: ModeSettingsActions) {
 }
 
 /** Width × height for the session, with the common handheld shapes one tap away. */
+/** Entry for the user's SteamGridDB API key; the saved key is never shown back. */
+@Composable
+internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var key by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.mode_sgdb_key)) },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                key, { v -> key = v.trim() }, label = { Text(stringResource(R.string.mode_sgdb_key)) },
+                singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onSave(key) }, enabled = key.isNotEmpty()) { Text(stringResource(R.string.common_ok)) } },
+        dismissButton = {
+            androidx.compose.foundation.layout.Row {
+                if (hasKey) androidx.compose.material3.TextButton(onClick = { onSave("") }) { Text(stringResource(R.string.common_delete)) }
+                androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            }
+        },
+    )
+}
+
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit) {

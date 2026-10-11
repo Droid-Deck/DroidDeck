@@ -288,7 +288,7 @@ def main_commit(release: dict) -> str | None:
 
 
 def stable_app_release(releases: list[dict]) -> dict | None:
-    """The newest published app release. The repo also publishes gamescope and wlroots
+    """The newest published app release. The repo also publishes gamescope and desktop-package
     releases that GitHub may mark latest, so an app release is one shipping DroidDeck-<tag>.apk."""
     apps = [
         r for r in releases

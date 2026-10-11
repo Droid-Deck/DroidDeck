@@ -10,6 +10,8 @@ import android.view.MotionEvent;
 import com.droiddeck.launcher.session.SessionState;
 
 import java.io.File;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 
 /**
  * A physical controller, republished as a synthetic evdev device the Steam client can see.
@@ -25,12 +27,27 @@ import java.io.File;
  * to the client instead ({@link com.droiddeck.launcher.session.SteamDeckPad}), which has a Quick
  * Access button of its own; an Xbox pad has none, so there the client's menu is reached with the
  * Guide-then-A chord the client itself answers.
+ *
+ * <p>Each further controller is another player: slots 1 to 3, an Xbox 360 pad each, which in a
+ * Steam session only the client reads (libfakeinput) and hands games through Steam Input.
  */
 public final class PadBridge {
     private static final String TAG = "PadBridge";
-    /** Slot 0 is the one the session exports; extra slots would each show as another pad. */
-    private static final int SLOT = 0;
+    /** Player slots: the session prepares a ring for each (SessionService). */
+    public static final int SLOTS = 4;
     private static final float DEAD_ZONE = 0.12f;
+    private static final int[] JOYSTICK_AXES = {
+            MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
+            MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y, MotionEvent.AXIS_LTRIGGER,
+            MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS
+    };
+    private static final int[] CONTROLLER_BUTTONS = {
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_X,
+            KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1,
+            KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BUTTON_START,
+            KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR,
+            KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2
+    };
     // The client takes A as part of the chord only once it has had Guide held for a while, and a
     // client starved of CPU needs longer. Too short, and it acts on A as well, selecting whatever it
     // had focused before opening QAM: with 80 ms of lead that was 3 times in 20 at rest, and 250 ms
@@ -50,11 +67,17 @@ public final class PadBridge {
         chordHandler = new Handler(thread.getLooper());
     }
 
+    private final File fakeInputDir;
     private final FakeInputWriter writer;
     private final PadState state = new PadState();
+    /** The input device id holding each slot, or {@link #NO_CONTROLLER}. */
+    private final int[] owners = new int[SLOTS];
+    private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
+    private final PadState[] playerStates = new PadState[SLOTS];
     private final PadState effectiveState = new PadState();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean open;
+    private volatile boolean selectSteam;
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
     private boolean qamChordActive;
@@ -79,29 +102,55 @@ public final class PadBridge {
     /** No physical controller is driving the pad: nothing yet, or the on-screen controls were last. */
     public static final int NO_CONTROLLER = -1;
     /**
-     * The Android input device id of the physical controller that last drove the pad, or
-     * {@link #NO_CONTROLLER}. Every pad feeds the one exported slot, so this is how a game's rumble
-     * on that slot finds the motors in the player's hands (RumbleComponent).
+     * The Android input device id of the physical controller that last drove any slot, or
+     * {@link #NO_CONTROLLER}: where rumble goes when it names no slot of ours (RumbleComponent).
      */
     private static volatile int activeControllerId = NO_CONTROLLER;
+    /** Per slot, the controller its rumble belongs to; slot 0's is none while the on-screen controls lead. */
+    private static final AtomicIntegerArray slotControllers = new AtomicIntegerArray(SLOTS);
+    static {
+        for (int slot = 0; slot < SLOTS; slot++) slotControllers.set(slot, NO_CONTROLLER);
+    }
 
     public static int activeControllerId() { return activeControllerId; }
 
+    /** The controller playing in this ring slot, or the last one used for any other slot. */
+    public static int controllerForSlot(int slot) {
+        return slot >= 0 && slot < SLOTS ? slotControllers.get(slot) : activeControllerId;
+    }
+
     public PadBridge(File fakeInputDir) {
-        writer = new FakeInputWriter(fakeInputDir.getAbsolutePath(), SLOT);
+        this.fakeInputDir = fakeInputDir;
+        writer = new FakeInputWriter(fakeInputDir.getAbsolutePath(), 0);
+        Arrays.fill(owners, NO_CONTROLLER);
+        for (int slot = 1; slot < SLOTS; slot++) playerStates[slot] = new PadState();
+    }
+
+    /** The physical Select button opens the Steam menu instead of View/Select (Setup → Controller). */
+    public void setSelectSteam(boolean on) {
+        selectSteam = on;
     }
 
     /** Opens the ring; safe to call more than once. */
     public synchronized boolean start() {
         if (!open) {
             open = writer.open();
-            Log.i(TAG, "ring slot " + SLOT + (open ? " open" : " NOT open"));
+            Log.i(TAG, "ring slot 0" + (open ? " open" : " NOT open"));
         }
         return open;
     }
 
     public synchronized void stop() {
         activeControllerId = NO_CONTROLLER;
+        for (int slot = 0; slot < SLOTS; slot++) {
+            owners[slot] = NO_CONTROLLER;
+            slotControllers.set(slot, NO_CONTROLLER);
+            if (playerWriters[slot] != null) {
+                playerWriters[slot].destroy();
+                playerWriters[slot] = null;
+            }
+            if (playerStates[slot] != null) playerStates[slot].clear();
+        }
         systemGuidePressed = false;
         systemQamPressed = false;
         qamChordActive = false;
@@ -123,8 +172,81 @@ public final class PadBridge {
         // counting it would hide the on-screen controls with nothing to replace them.
         if (device.isVirtual()) return false;
         int sources = device.getSources();
-        return (sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
-                || (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
+        if ((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) return true;
+        if ((sources & InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK) return false;
+        if (device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC) return true;
+        // Some composite keyboards advertise joystick input without any sticks or pad buttons.
+        // A keyboard's mouse ranges do not establish a joystick; a real hybrid's joystick ranges
+        // or physical controller buttons do. GAMEPAD above remains authoritative even with keys.
+        for (int axis : JOYSTICK_AXES) {
+            InputDevice.MotionRange range = device.getMotionRange(axis, InputDevice.SOURCE_JOYSTICK);
+            if (range != null && range.getMax() > range.getMin()) return true;
+        }
+        for (boolean present : device.hasKeys(CONTROLLER_BUTTONS)) {
+            if (present) return true;
+        }
+        return false;
+    }
+
+    /** Whether this key belongs to the pad, rather than a keyboard on the same input device. */
+    public static boolean isControllerKeyEvent(KeyEvent event) {
+        InputDevice device = event.getDevice();
+        if (device == null || device.isVirtual()) return false;
+        // An explicit pad button is unambiguous even when a hybrid omits its capabilities.
+        if (KeyEvent.isGamepadButton(event.getKeyCode())) {
+            return device.supportsSource(InputDevice.SOURCE_GAMEPAD)
+                    || device.supportsSource(InputDevice.SOURCE_JOYSTICK);
+        }
+        switch (event.getKeyCode()) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_MENU:
+            case KeyEvent.KEYCODE_HOME:
+                if (!isFromController(device)) return false;
+                // Without GAMEPAD, an alphabetic hybrid's keyboard arrows remain keyboard keys.
+                // Its ambiguous navigation keys need explicit pad/joystick event provenance;
+                // DPAD alone also describes ordinary keyboard arrows.
+                return device.supportsSource(InputDevice.SOURCE_GAMEPAD)
+                        || device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC
+                        || event.isFromSource(InputDevice.SOURCE_GAMEPAD)
+                        || event.isFromSource(InputDevice.SOURCE_JOYSTICK);
+            default: return false;
+        }
+    }
+
+    /** Mouse motion on a composite controller still belongs to the pointer, not its sticks. */
+    public static boolean isControllerMotionEvent(MotionEvent event) {
+        InputDevice device = event.getDevice();
+        // An actual joystick event, like a pad button, survives a hybrid's missing capabilities.
+        return event.isFromSource(InputDevice.SOURCE_JOYSTICK) && device != null && !device.isVirtual()
+                && (device.supportsSource(InputDevice.SOURCE_GAMEPAD)
+                || device.supportsSource(InputDevice.SOURCE_JOYSTICK));
+    }
+
+    /** A Bluetooth keyboard can share a device with a joystick. Classify the key, not just
+     * the device, so its letters and modifiers still reach the desktop keyboard. */
+    public static boolean isControllerKey(KeyEvent event) {
+        return isFromController(event.getDevice())
+                && isPadKey(event.getKeyCode(), event.getDevice().getKeyboardType());
+    }
+
+    public static boolean isPadKey(int keyCode, int keyboardType) {
+        if ((keyCode >= KeyEvent.KEYCODE_BUTTON_A && keyCode <= KeyEvent.KEYCODE_BUTTON_MODE)
+                || (keyCode >= KeyEvent.KEYCODE_BUTTON_1 && keyCode <= KeyEvent.KEYCODE_BUTTON_16)) return true;
+        if (keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC) return false;
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_HOME:
+            case KeyEvent.KEYCODE_MENU: return true;
+            default: return false;
+        }
     }
 
     /** Whether any real controller is attached right now. */
@@ -155,72 +277,81 @@ public final class PadBridge {
 
     /** @return true when the event was a pad button and has been consumed. */
     public synchronized boolean onKeyEvent(KeyEvent event) {
-        if (!isFromController(event.getDevice())) return false;
-        noteDevice(event.getDevice());
+        if (!isControllerKeyEvent(event)) return false;
+        int slot = slotFor(event.getDevice());
+        PadState pad = stateFor(slot);
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         switch (event.getKeyCode()) {
-            case KeyEvent.KEYCODE_BUTTON_A: state.press(0, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_B: state.press(1, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_X: state.press(2, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_Y: state.press(3, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_L1: state.press(4, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_R1: state.press(5, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_A: pad.press(0, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_B: pad.press(1, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_X: pad.press(2, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_Y: pad.press(3, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_L1: pad.press(4, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_R1: pad.press(5, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_SELECT:
-            case KeyEvent.KEYCODE_BACK: state.press(6, pressed); break;
+                // Optionally (Setup → Controller) the physical Select button opens the Steam menu
+                // instead of View/Select: on some handhelds it sits next to the Steam button.
+                if (selectSteam) pad.press(PadState.GUIDE, pressed);
+                else pad.press(6, pressed);
+                break;
+            case KeyEvent.KEYCODE_BACK: pad.press(6, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_START:
-            case KeyEvent.KEYCODE_MENU: state.press(7, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_THUMBL: state.press(8, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_THUMBR: state.press(9, pressed); break;
+            case KeyEvent.KEYCODE_MENU: pad.press(7, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_THUMBL: pad.press(8, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_THUMBR: pad.press(9, pressed); break;
             // The client's own in-game menu is opened by this one; the interposer publishes it as
             // BTN_MODE, which SDL reports as the "guide" button.
             case KeyEvent.KEYCODE_BUTTON_MODE:
-            case KeyEvent.KEYCODE_HOME: state.press(PadState.GUIDE, pressed); break;
-            case KeyEvent.KEYCODE_BUTTON_L2: state.leftTrigger = pressed ? 1f : 0f; break;
-            case KeyEvent.KEYCODE_BUTTON_R2: state.rightTrigger = pressed ? 1f : 0f; break;
-            case KeyEvent.KEYCODE_DPAD_UP: state.up = pressed; break;
-            case KeyEvent.KEYCODE_DPAD_RIGHT: state.right = pressed; break;
-            case KeyEvent.KEYCODE_DPAD_DOWN: state.down = pressed; break;
-            case KeyEvent.KEYCODE_DPAD_LEFT: state.left = pressed; break;
+            case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
+            case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
+            case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
+            case KeyEvent.KEYCODE_DPAD_UP: pad.up = pressed; break;
+            case KeyEvent.KEYCODE_DPAD_RIGHT: pad.right = pressed; break;
+            case KeyEvent.KEYCODE_DPAD_DOWN: pad.down = pressed; break;
+            case KeyEvent.KEYCODE_DPAD_LEFT: pad.left = pressed; break;
             default: return false;
         }
+        noteDevice(event.getDevice(), slot);
         if (pressed) notePlayerInput();
         statButtons++;
         scheduleStats();
-        publish();
+        publish(slot);
         return true;
     }
 
     /** @return true when the event was a pad's sticks/triggers and has been consumed. */
     public synchronized boolean onMotionEvent(MotionEvent event) {
-        if (!isFromController(event.getDevice())) return false;
+        if (!isControllerMotionEvent(event)) return false;
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
-        noteDevice(event.getDevice());
+        int slot = slotFor(event.getDevice());
+        PadState pad = stateFor(slot);
+        noteDevice(event.getDevice(), slot);
         statAxes++;
         scheduleStats();
-        state.leftX = axis(event, MotionEvent.AXIS_X);
+        pad.leftX = axis(event, MotionEvent.AXIS_X);
         // Android's Y axis grows downwards and evdev's ABS_Y does too, so no flip here: what the
         // pad reports as "down" is what the client is told.
-        state.leftY = axis(event, MotionEvent.AXIS_Y);
-        state.rightX = axis(event, MotionEvent.AXIS_Z);
-        state.rightY = axis(event, MotionEvent.AXIS_RZ);
+        pad.leftY = axis(event, MotionEvent.AXIS_Y);
+        pad.rightX = axis(event, MotionEvent.AXIS_Z);
+        pad.rightY = axis(event, MotionEvent.AXIS_RZ);
         float lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
         float rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
         // Some pads only report the triggers on BRAKE/GAS.
         if (lt == 0f) lt = event.getAxisValue(MotionEvent.AXIS_BRAKE);
         if (rt == 0f) rt = event.getAxisValue(MotionEvent.AXIS_GAS);
-        state.leftTrigger = lt;
-        state.rightTrigger = rt;
+        pad.leftTrigger = lt;
+        pad.rightTrigger = rt;
         float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
         float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
-        state.up = hatY < -0.5f;
-        state.right = hatX > 0.5f;
-        state.down = hatY > 0.5f;
-        state.left = hatX < -0.5f;
-        if (Math.max(Math.max(Math.abs(state.leftX), Math.abs(state.leftY)), Math.max(Math.abs(state.rightX), Math.abs(state.rightY))) > 0.5f
-                || lt > 0.5f || rt > 0.5f || state.up || state.right || state.down || state.left) {
+        pad.up = hatY < -0.5f;
+        pad.right = hatX > 0.5f;
+        pad.down = hatY > 0.5f;
+        pad.left = hatX < -0.5f;
+        if (Math.max(Math.max(Math.abs(pad.leftX), Math.abs(pad.leftY)), Math.max(Math.abs(pad.rightX), Math.abs(pad.rightY))) > 0.5f
+                || lt > 0.5f || rt > 0.5f || pad.up || pad.right || pad.down || pad.left) {
             notePlayerInput();
         }
-        publish();
+        publish(slot);
         return true;
     }
 
@@ -231,9 +362,27 @@ public final class PadBridge {
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
         mutation.accept(state);
         activeControllerId = NO_CONTROLLER;
+        slotControllers.set(0, NO_CONTROLLER);
         notePlayerInput();
         statOnScreen++;
         scheduleStats();
+        publish();
+    }
+
+    /**
+     * A controller the app reads itself rather than through Android's input (the Steam Controller
+     * over Bluetooth, SteamControllerBle): its whole state, merged into the one exported slot as a
+     * physical pad's events are. Android has no device for it, so a game's rumble cannot reach it.
+     * It streams its state whether or not anything moved; {@code changed} is whether this one did.
+     */
+    public synchronized void applyExternal(java.util.function.Consumer<PadState> mutation, boolean changed) {
+        mutation.accept(state);
+        if (changed) {
+            activeControllerId = NO_CONTROLLER;
+            notePlayerInput();
+            statButtons++;
+            scheduleStats();
+        }
         publish();
     }
 
@@ -255,6 +404,18 @@ public final class PadBridge {
     public synchronized void releaseAll() {
         state.clear();
         publish();
+        for (int slot = 1; slot < SLOTS; slot++) {
+            if (playerWriters[slot] == null) continue;
+            playerStates[slot].clear();
+            publish(slot);
+        }
+    }
+
+    /** A controller went away: its player's buttons are let go, and a further player's pad is unplugged. */
+    public synchronized void onDeviceRemoved(int deviceId) {
+        for (int slot = 0; slot < SLOTS; slot++) {
+            if (owners[slot] == deviceId) free(slot);
+        }
     }
 
     /** Opens the client's Quick Access menu: a tap of the Deck's button, or the Guide-then-A chord. */
@@ -310,16 +471,56 @@ public final class PadBridge {
         publish();
     }
 
+    /** The slot this controller plays in: the one it has, else the first free one, else player 1's. */
+    private int slotFor(InputDevice device) {
+        int id = device.getId();
+        if (owners[0] == id) return 0;
+        for (int slot = 1; slot < SLOTS; slot++) {
+            if (owners[slot] == id) return slot;
+        }
+        for (int slot = 0; slot < SLOTS; slot++) {
+            if (owners[slot] != NO_CONTROLLER && InputDevice.getDevice(owners[slot]) == null) free(slot);
+        }
+        for (int slot = 0; slot < SLOTS; slot++) {
+            if (owners[slot] != NO_CONTROLLER) continue;
+            owners[slot] = id;
+            Log.i(TAG, "\"" + device.getName() + "\" (id " + id + ") is player " + (slot + 1));
+            return slot;
+        }
+        return 0;
+    }
+
+    private PadState stateFor(int slot) {
+        return slot == 0 ? state : playerStates[slot];
+    }
+
+    private void free(int slot) {
+        Log.i(TAG, "player " + (slot + 1) + " (id " + owners[slot] + ") left");
+        owners[slot] = NO_CONTROLLER;
+        slotControllers.set(slot, NO_CONTROLLER);
+        if (slot == 0) {
+            state.clear();
+            publish();
+            return;
+        }
+        playerStates[slot].clear();
+        if (playerWriters[slot] != null) {
+            playerWriters[slot].destroy();
+            playerWriters[slot] = null;
+        }
+    }
+
     /** Per event, so the common case - the same pad as last time - is a single compare. */
-    private void noteDevice(InputDevice device) {
+    private void noteDevice(InputDevice device, int slot) {
         activeControllerId = device.getId();
+        slotControllers.set(slot, device.getId());
         if (device.getId() == lastDeviceId) return;
         lastDeviceId = device.getId();
         statDevice = device.getName();
         if (seenDevices.add(device.getId())) {
-            Log.i(TAG, String.format(java.util.Locale.ROOT, "first input from \"%s\" (%04x:%04x, id %d, sources 0x%x); ring %s, deck pad %b",
+            Log.i(TAG, String.format(java.util.Locale.ROOT, "first input from \"%s\" (%04x:%04x, id %d, sources 0x%x); slot %d, ring %s, deck pad %b",
                     device.getName(), device.getVendorId(), device.getProductId(), device.getId(), device.getSources(),
-                    open ? "open" : "not open yet", SessionState.getDeckPad()));
+                    slot, open ? "open" : "not open yet", SessionState.getDeckPad()));
         }
     }
 
@@ -337,6 +538,23 @@ public final class PadBridge {
                 + (statDropped > 0 ? ", " + statDropped + " NOT delivered (ring closed)" : "")
                 + "; ring " + (open ? "open" : "closed") + ", deck pad " + SessionState.getDeckPad());
         statButtons = statAxes = statOnScreen = statDropped = 0;
+    }
+
+    private void publish(int slot) {
+        if (slot == 0) {
+            publish();
+            return;
+        }
+        FakeInputWriter player = playerWriters[slot];
+        if (player == null) {
+            player = new FakeInputWriter(fakeInputDir.getAbsolutePath(), slot);
+            if (!player.open()) {
+                statDropped++;
+                return;
+            }
+            playerWriters[slot] = player;
+        }
+        player.writePad(playerStates[slot]);
     }
 
     private void publish() {

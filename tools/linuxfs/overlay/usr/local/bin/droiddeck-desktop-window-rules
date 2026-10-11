@@ -1,0 +1,30 @@
+#!/bin/bash
+# Port the old desktop's melonDS window rule once; later window rules belong to the user.
+set -euo pipefail
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+marker=$config/droiddeck-window-rules-v1
+[ ! -e "$marker" ] || exit 0
+rules=$(kreadconfig6 --file kwinrulesrc --group General --key rules)
+IFS=, read -ra groups <<< "$rules"
+for group in "${groups[@]}"; do
+    title=$(kreadconfig6 --file kwinrulesrc --group "$group" --key title)
+    wmclass=$(kreadconfig6 --file kwinrulesrc --group "$group" --key wmclass)
+    case ${title,,}${wmclass,,} in
+        *melonds*) mkdir -p "$config"; touch "$marker"; exit 0 ;;
+    esac
+done
+write() { kwriteconfig6 --file kwinrulesrc --group droiddeck-melonds --key "$1" "$2"; }
+write Description 'melonDS desktop window'
+write title '^melonDS.*'
+write titlematch 3
+write types 1
+write size 800,600
+write sizerule 3
+write placement Centered
+write placementrule 2
+write ignoregeometry true
+write ignoregeometryrule 3
+kwriteconfig6 --file kwinrulesrc --group General --key rules "${rules:+$rules,}droiddeck-melonds"
+kwriteconfig6 --file kwinrulesrc --group General --key count "$(( ${#groups[@]} + 1 ))"
+mkdir -p "$config"
+touch "$marker"

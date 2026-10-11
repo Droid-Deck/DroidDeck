@@ -1,0 +1,16 @@
+# Native build tools and KWin's Arch makedepends; dependencies are resolved and signature-checked.
+kwin
+base-devel
+cmake
+ninja
+gcc
+make
+pkgconf
+extra-cmake-modules
+kdoctools
+krunner
+plasma-wayland-protocols
+python
+vulkan-headers
+wayland-protocols
+xorg-xwayland

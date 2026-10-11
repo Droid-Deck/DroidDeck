@@ -22,12 +22,15 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashHandler.install(this)
-        // Before anything else touches the session prefs, so the first session already runs in Deck mode.
-        com.droiddeck.launcher.session.SessionPrefs.settleDeckModeDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
         GpuClockPin.clearLeftover(this)
         BwrapSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
+        // The game stores the Stores section can talk to; the native engine loads only when one needs it.
+        com.droiddeck.launcher.stores.StoresState.init(this)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gog.GogBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.epic.EpicBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
     }
 }

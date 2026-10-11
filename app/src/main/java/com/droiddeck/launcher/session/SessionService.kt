@@ -29,6 +29,7 @@ import com.droiddeck.launcher.audio.PulseAudioComponent
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.DeviceReport
 import com.droiddeck.launcher.core.HostEnvironment
+import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.SessionLogCapture
 import com.droiddeck.launcher.core.NetworkReport
 import com.droiddeck.launcher.core.SessionPart
@@ -36,9 +37,12 @@ import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.frontend.GameLaunchLink
 import com.droiddeck.launcher.input.FakeInputWriter
+import com.droiddeck.launcher.input.SteamControllerBle
+import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
+import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.text.SimpleDateFormat
@@ -205,6 +209,10 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
         }
+        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         startForeground(NOTIFICATION_ID, buildNotification())
         if (SessionState.running) return START_NOT_STICKY
         if (SessionState.stopRequested) {
@@ -325,6 +333,8 @@ class SessionService : Service() {
         killStragglers()
         SessionFiles.stage(this, root)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
+        // The compat tool asks for an Epic game's sign-in code at every launch, the client's Play button included.
+        com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
@@ -352,6 +362,9 @@ class SessionService : Service() {
 
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
+        // Follow screen: the output is resized under gamescope when a foldable opens or closes,
+        // and the session script asks gamescope to resize Steam's X screen along with it.
+        if (SessionState.followScreen) guest.add("BL_FOLLOW_OUTPUT=1")
         if (SessionState.hdr) {
             // The activity opened the compositor's HDR gate: gamescope offers HDR to its clients
             // and DXVK takes the HDR10 swapchain when a game asks for one.
@@ -369,16 +382,6 @@ class SessionService : Service() {
         SessionState.deckPad = false
         deckBinds = emptyList()
         if (controllersOn) addControllerEnvironment(guest, fakeInputDir, sessionDir)
-        // The desktop is wlroots (labwc). Stock wlroots allocates through gbm on a real DRM render
-        // node, and ours is a KGSL stand-in - labwc died at "unable to create allocator" - so the
-        // default is pixman (software, shm), where a Vulkan program cannot draw at all; those run
-        // through droiddeck-gpu instead. vulkan / gles2 use the app's patched wlroots and fall back
-        // to pixman by themselves. droiddeck-wlr-renderer in Downloads overrides the choice.
-        if (SessionState.mode == MODE_DESKTOP) {
-            val override = File(Environment.getExternalStorageDirectory(), "Download/droiddeck-wlr-renderer")
-                .takeIf { it.isFile }?.let { FileUtils.readString(it)?.trim() }
-            guest.add("BL_WLR_RENDERER=" + (override?.takeIf { it.isNotEmpty() } ?: SessionPrefs.desktopRenderer(this)))
-        }
         // The user's own games, for the runtime's shortcuts writer to put in the client's library
         // before the client starts (see frontend/AddedGames and droiddeck-steam-shortcuts).
         if (steamHere) {
@@ -394,9 +397,6 @@ class SessionService : Service() {
         // The second library's name, for droiddeck-steam-library; the bind itself is made below.
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
-        // The desktop asked for with Steam in it (the front end's "Steam Desktop UI", Big Picture's
-        // "Switch to Desktop"): the desktop's autostart opens the client's desktop UI there.
-        if (SessionState.mode == MODE_DESKTOP && SessionState.steamUi == "desktop") guest.add("BL_DESKTOP_STEAM=1")
         val shellGuest = ArrayList(guest).apply {
             add("SHELL=/bin/bash")
             add("TERM=xterm-256color")
@@ -410,9 +410,11 @@ class SessionService : Service() {
             guest.add(it)
             Log.i(TAG, "steam: handing the client $it")
         }
+        // A game whose download finishes in this session gets its Windows components readied in it.
+        if (SessionState.mode == MODE_STEAM) com.droiddeck.launcher.frontend.SessionInstalls.watch(this)
         // A program under gamescope: the script's run mode takes the path (an AppImage, a script
         // or a binary inside the runtime). This is how an emulator gets the GPU - the desktop's
-        // labwc composites in software and offers no dma-buf, so a Vulkan swapchain cannot exist
+        // KWin composites in software and offers no dma-buf, so a Vulkan swapchain cannot exist
         // there (RPCS3 died with VK_ERROR_SURFACE_LOST); gamescope's Xwayland is the path the
         // Steam games already render through.
         if (SessionState.mode == MODE_RUN) {
@@ -623,8 +625,7 @@ class SessionService : Service() {
             guest.add("ZINK_DEBUG=compact")
         }
         // The rest of the client-interface switches (SessionPrefs): GL marshalled off the calling
-        // thread, no GL error checks, and the client run as SteamOS runs it (the script reads
-        // BL_STEAMDECK; it is the one that builds the command line).
+        // thread and no GL error checks.
         if (SessionPrefs.glThread(this)) guest.add("mesa_glthread=true")
         if (SessionPrefs.noGlError(this)) guest.add("MESA_NO_ERROR=1")
         // Mesa's shader cache as one database instead of a file per entry. Every lookup in the
@@ -637,9 +638,7 @@ class SessionService : Service() {
         // every thread start paid a SIGSYS that proot answers; the malloc top pad grows the heap
         // 16 MB at a time instead of 128 KB, and every brk(2) is a proot stop too.
         guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
-        if (SessionState.mode == MODE_STEAM) guest.add("BL_STEAMDECK=" + (if (SessionPrefs.steamDeckMode(this)) "1" else "0"))
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
-        if (steamHere) guest.add("BL_STEAM_CHANNEL=" + SessionPrefs.steamChannel(this))
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
         }
@@ -683,7 +682,9 @@ class SessionService : Service() {
         // changes what games do and leaves the client alone. The microphone is its own opt-in on
         // top, and the helper only opens an input stream when asked - so a user who wants game
         // sound but no recording gets exactly that, and Android's recording indicator stays off.
-        val wantsDirectAudio = SessionState.mode == MODE_STEAM && SessionPrefs.directAudio(this)
+        // The desktop starts Windows programs through the same Proton wrappers (droiddeck-proton-run).
+        val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) &&
+            SessionPrefs.directAudio(this)
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         // Both paths sit under the app's files directory, which the session binds at its own path,
@@ -741,10 +742,18 @@ class SessionService : Service() {
         // hidraw (SteamDeckPad), which only works with Steam Input's virtual pad for games to read.
         // Decided only once its sysfs is in place: without it the client would find no Deck, and
         // with the Deck asked for the pad's own nodes are withdrawn - no controller at all.
+        // Set up whatever the pad is to be, so the drawer can switch it between a Deck, a Steam
+        // Controller and an Xbox 360 pad while the session runs (FakeInputWriter.setPadType).
         val wantsDeck = uinput && SessionState.mode == MODE_STEAM &&
-            SessionPrefs.steamController(this) == SessionPrefs.CONTROLLER_DECK &&
+            SessionState.steamUi != "desktop" &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
-        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!) else emptyList()
+        // Steam's touch controller rides on the Deck's sysfs and is offered only beside it.
+        val wantsTouch = wantsDeck && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()
+        // A paired Triton is exposed as a second native Steam Controller HID, with its original
+        // report IDs and output path, beside whatever the handheld's own pad is.
+        val wantsTriton = wantsDeck && SteamControllerBle.hasPairedController(this)
+        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch, wantsTriton,
+            SessionPrefs.padType(SessionPrefs.steamController(this))) else emptyList()
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
@@ -754,6 +763,15 @@ class SessionService : Service() {
             guest.add("FAKE_EVDEV_UINPUT=1")
             if (SessionState.deckPad) {
                 guest.add("FAKE_EVDEV_DECK=1")
+                if (wantsTriton) guest.add("FAKE_EVDEV_TRITON=1")
+                // What the pad starts as; the drawer's changes reach libfakeinput through the ring.
+                val padType = SessionPrefs.steamController(this)
+                guest.add("FAKE_EVDEV_PAD_TYPE=$padType")
+                com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(padType))
+                // Steam's touch controller (SteamTouchDevice): the file the app and libfakeinput share.
+                if (wantsTouch) com.droiddeck.launcher.input.SteamTouchDevice.prepare(fakeInputDir)?.let {
+                    guest.add("FAKE_TOUCHCTL_RING=" + it.path)
+                }
                 guest.add("FAKE_DECK_SYSFS_LISTING=" + SteamDeckPad.listingDir(fakeInputDir.parentFile!!.parentFile!!).path)
             }
         } else if (SessionState.mode == MODE_STEAM) {
@@ -892,6 +910,15 @@ class SessionService : Service() {
                 Log.i(TAG, "added games: ${root.host} -> ${root.guest}")
             } else {
                 Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
+            }
+        }
+        // Store games installed on a card: each card's Games root at its own fixed place, so the
+        // shortcuts point somewhere whether or not the card is also the Steam library.
+        for ((host, guest) in com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(this)) {
+            if (host.isDirectory && host.canRead()) {
+                File(LinuxRuntime.rootDir(this), guest.removePrefix("/")).mkdirs()
+                binds.add(host.path + ":" + guest)
+                Log.i(TAG, "store games: $host -> $guest")
             }
         }
         // Folders of added scripts outside internal storage, where their links point.
@@ -1201,6 +1228,13 @@ class SessionService : Service() {
                     }
                     return
                 }
+                if (path != null && path.startsWith("desktop-import-") && path.endsWith(".request")) {
+                    val request = File(dir, path)
+                    val text = runCatching { request.readText() }.getOrNull() ?: return
+                    request.delete()
+                    importForDesktop(dir, text)
+                    return
+                }
                 if (path != "steam-launch") return
                 val file = File(dir, path)
                 val text = try { file.readText() } catch (e: Exception) { return }
@@ -1228,6 +1262,48 @@ class SessionService : Service() {
         }
         watcher.startWatching()
         launchWatcher = watcher
+    }
+
+    private val desktopImports = java.util.concurrent.ConcurrentHashMap<String, Any>()
+
+    /**
+     * What the desktop cannot run where it lies (droiddeck-open), added as Add an app adds it, menu entry
+     * included: an AppImage of sharun's, whose hard links Android denies apps and only the app's own proot
+     * (link2symlink) makes, or a script or program whose folder of Linux programs is on noexec shared
+     * storage, copied in. The answer goes beside the request, "ok <folder>" or "error <why>".
+     */
+    private fun importForDesktop(dir: File, text: String) {
+        val fields = text.lineSequence().mapNotNull { line ->
+            line.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1].trim() }
+        }.toMap()
+        val key = fields["id"]?.takeIf { it.matches(Regex("[0-9a-f]{16}")) } ?: return
+        val guestPath = fields["path"]?.takeIf { it.startsWith("/") && !it.contains("/../") } ?: return
+        val folder = fields["kind"] == "folder"
+        val binds = LinuxRuntime.lastBinds(this).map { BwrapSpawner.Bind.parse(it) }
+        val file = File(BwrapSpawner.hostPath(binds, LinuxRuntime.rootDir(this).path, guestPath))
+        val context = applicationContext
+        // A request for what is already being added waits for that, then finds it.
+        val lock = desktopImports.computeIfAbsent(key) { Any() }
+        Thread({
+            fun imported() = UserApps.desktopImport(context, key, guestPath)?.let { "ok $it" }
+            val request = UserApps.Request(
+                if (folder) UserApps.Source.Script(file) else UserApps.Source.AppImage(file),
+                if (folder) file.parentFile?.name else null, null, mapOf(UserApps.DESKTOP_IMPORT to "$key\n$guestPath"),
+            )
+            val answer = synchronized(lock) {
+                try {
+                    imported() ?: UserApps.add(context, request) { _, _ -> }?.let { "error $it" }
+                        ?: imported() ?: "error " + context.getString(R.string.user_apps_failed)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Desktop import of $guestPath", e)
+                    "error " + (e.message ?: context.getString(R.string.user_apps_failed))
+                }
+            }
+            Log.i(TAG, "Desktop import of $guestPath: $answer")
+            val result = File(dir, "desktop-import-$key.result")
+            val partial = File(dir, result.name + ".tmp")
+            runCatching { partial.writeText(answer.replace('\n', ' ') + "\n"); partial.renameTo(result) }
+        }, "desktop-import").start()
     }
 
     @Volatile private var syncWatcher: android.os.FileObserver? = null
@@ -1405,6 +1481,10 @@ class SessionService : Service() {
             pipTask = false
             SessionState.guestPid = -1
             com.droiddeck.launcher.agent.AgentGuest.stop()
+            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
+            // Cloud saves of a store game played this session, if the compat tool's exit request did
+            // not upload them (a session closed from the drawer never reaches it).
+            Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
@@ -1496,6 +1576,7 @@ class SessionService : Service() {
         }
         components.clear()
         FakeInputWriter.releaseAllRingSlots()
+        com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
         val finishAfterTeardown: () -> Unit = {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
@@ -1558,8 +1639,10 @@ class SessionService : Service() {
         }
         try {
             val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            val allowed = DeviceSupport.lowLatencyWifiSafe()
+            if (!allowed) Log.i(TAG, "wifi lock skipped: its low-latency mode resets this device")
             @Suppress("DEPRECATION") // deprecated from API 29, still honoured; targetSdk is 28
-            if (wifiLock?.isHeld != true) {
+            if (allowed && wifiLock?.isHeld != true) {
                 wifiLock = wifi?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "DroidDeck:session-wifi")
                     ?.apply {
                         setReferenceCounted(false)
@@ -1699,7 +1782,7 @@ class SessionService : Service() {
             pads.add(String.format(java.util.Locale.ROOT, "\"%s\" (%04x:%04x)", d.name, d.vendorId, d.productId))
         }
         Log.i(TAG, "controllers at start: " + (if (pads.isEmpty()) "none" else pads.joinToString(", ")) +
-            "; presented to the guest as " + if (SessionState.deckPad) "a Steam Deck controller" else "an Xbox 360 controller")
+            "; presented to the guest as " + if (SessionState.deckPad) "switchable, starting as " + SessionPrefs.steamController(this) else "an Xbox 360 controller")
     }
 
     companion object {
@@ -1756,6 +1839,7 @@ class SessionService : Service() {
         private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
         private const val NO_UINPUT_SWITCH = "Download/droiddeck-no-uinput"
         private const val NO_DECK_PAD_SWITCH = "Download/droiddeck-no-deck-pad"
+        private const val NO_STEAM_TOUCH_SWITCH = "Download/droiddeck-no-steam-touch"
         /** libfakeinput numbers the pads made through its /dev/uinput stand-in from here. */
         private const val FIRST_VIRTUAL_PAD = 16
 

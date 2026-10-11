@@ -53,7 +53,7 @@ object DeviceReport {
         b.append("DroidDeck session report\n")
         b.append("========================\n")
         k("Written", SimpleDateFormat("yyyy-MM-dd HH:mm:ss zzz", Locale.US).format(Date()))
-        k("Session mode", when (mode) { SessionService.MODE_DESKTOP -> "desktop (labwc/LXQt)"; SessionService.MODE_RUN -> "a program under gamescope"; else -> "Steam client (gamescope)" })
+        k("Session mode", when (mode) { SessionService.MODE_DESKTOP -> "desktop (KDE Plasma)"; SessionService.MODE_RUN -> "a program under gamescope"; else -> "Steam client (gamescope)" })
 
         h("App")
         runCatching {
@@ -152,7 +152,6 @@ object DeviceReport {
         k("Zink lazy descriptors", SessionPrefs.zinkLazy(context))
         k("Threaded GL (glthread)", SessionPrefs.glThread(context))
         k("No GL error checks", SessionPrefs.noGlError(context))
-        k("Steam Deck mode", SessionPrefs.steamDeckMode(context))
         k("Steam controller", SessionPrefs.steamController(context))
         k("Upscaler", (SessionPrefs.upscalerChoices.firstOrNull { it.first == SessionPrefs.upscaler(context) }?.second ?: "Off") +
             " (sharpness ${SessionPrefs.upscaleSharpness(context)}%)")
@@ -189,7 +188,7 @@ object DeviceReport {
         }
         for (name in listOf("droiddeck-tu-debug", "droiddeck-driver",
                             "droiddeck-osc", "droiddeck-no-pad",
-                            "droiddeck-no-hud", "droiddeck-wlr-renderer")) {
+                            "droiddeck-no-hud")) {
             val f = File(Environment.getExternalStorageDirectory(), "Download/$name")
             if (f.isFile) k(name, FileUtils.readString(f)?.trim()?.replace('\n', ' ')?.ifEmpty { "(present, empty)" } ?: "(present)")
         }

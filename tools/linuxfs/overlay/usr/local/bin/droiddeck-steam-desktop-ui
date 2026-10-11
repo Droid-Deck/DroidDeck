@@ -1,0 +1,33 @@
+#!/usr/bin/python3
+"""Honor a desktop launch even when Steam remembers Big Picture from its last session."""
+import os
+from pathlib import Path
+import runpy
+import time
+
+
+def select_desktop(evaluate, timeout=90):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            result = evaluate("typeof SteamClient !== 'undefined' && "
+                              "typeof SteamClient.UI.ExitBigPictureMode === 'function' && "
+                              "(SteamClient.UI.ExitBigPictureMode(), true)")
+            if result.get('value') is True:
+                return True
+        except Exception:
+            # CEF and SharedJSContext are not ready during the client's initial startup/update.
+            pass
+        time.sleep(1)
+    return False
+
+
+if __name__ == '__main__':
+    base = os.environ.get('BL_LAUNCH_DIR')
+    if not base:
+        raise SystemExit('BL_LAUNCH_DIR is not set')
+    agent = runpy.run_path('/usr/local/bin/droiddeck-agent')
+    selected = select_desktop(lambda expression: agent['cdp_eval'](
+        Path(base) / 'agent', expression, timeout=2))
+    print('== steam: desktop UI selected' if selected else
+          '== steam: desktop UI was not ready within 90 seconds', flush=True)

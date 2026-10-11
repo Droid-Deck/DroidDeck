@@ -28,6 +28,7 @@ class ControllerActions(
     val onSteamButton: (Boolean) -> Unit,
     val onQamButton: (Boolean) -> Unit,
     val onKeyboardButton: (Boolean) -> Unit,
+    val onSelectSteam: (Boolean) -> Unit,
     val onEditLayout: () -> Unit,
     val onResetLayout: () -> Unit,
     val onMapping: () -> Unit,
@@ -43,7 +44,7 @@ private fun Swatch(color: Int) {
 fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPrefs.Settings, a: ControllerActions) {
     ChoiceRow(
         host, "controller-osc", stringResource(R.string.mode_osc), stringResource(R.string.ctrl_osc_hint),
-        listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
+        listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
         oscMode, note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,
     )
     val tintOpen = host.open == "controller-tint"
@@ -70,6 +71,7 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
     ToggleRow(host, "controller-steam", stringResource(R.string.ctrl_steam_button), null, c.steamButton, onChange = a.onSteamButton)
     ToggleRow(host, "controller-qam", stringResource(R.string.ctrl_qam_button), null, c.qamButton, onChange = a.onQamButton)
     ToggleRow(host, "controller-keyboard", stringResource(R.string.ctrl_keyboard_button), null, c.keyboardButton, onChange = a.onKeyboardButton)
+    ToggleRow(host, "controller-select-steam", stringResource(R.string.ctrl_select_steam), stringResource(R.string.ctrl_select_steam_hint), c.selectSteam, onChange = a.onSelectSteam)
     SettingsRow(stringResource(R.string.ctrl_layout), if (c.customLayout) stringResource(R.string.ctrl_layout_custom) else stringResource(R.string.ctrl_layout_default)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SecondaryButton(stringResource(R.string.ctrl_edit)) { a.onEditLayout() }

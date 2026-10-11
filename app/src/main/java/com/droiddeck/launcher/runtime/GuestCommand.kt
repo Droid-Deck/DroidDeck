@@ -17,7 +17,7 @@ object GuestCommand {
     /**
      * Runs [argv] and hands each output line to [onLine]; returns the exit status. [fakeRoot] is
      * for the package tools, which refuse any uid but 0. With [logName], everything the command
-     * says also goes to Download/DroidDeck/tools/<logName>.log beside the session logs, so a problem can
+     * says also goes to files/logs/tools/<logName>.log beside the session logs, so a problem can
      * be handed over like a session's. With [linkDir], hard links (which Android denies apps)
      * become symlinks to files proot keeps there (its link2symlink).
      */
@@ -25,7 +25,7 @@ object GuestCommand {
             linkDir: File? = null, onLine: (String) -> Unit): Int {
         val log = logName?.let {
             try {
-                File(File(LinuxRuntime.debugLogDir(), SessionPaths.TOOLS_DIR).apply { mkdirs() }, "$it.log").printWriter()
+                File(File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR).apply { mkdirs() }, "$it.log").printWriter()
             } catch (e: Exception) { null }
         }
         log?.println("== ${java.util.Date()} ${argv.joinToString(" ")}")

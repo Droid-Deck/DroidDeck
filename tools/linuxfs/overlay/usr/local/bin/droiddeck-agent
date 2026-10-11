@@ -287,6 +287,9 @@ class FocusWatcher(threading.Thread):
                 x = X(os.environ["DISPLAY"])
                 wanted = {x.atom(name) for name in FOCUS_PROPS}
                 x.select(x.root, 0x400000)  # PropertyChangeMask
+                # Waits for events as long as there are none: the connect timeout left in place
+                # here dropped and remade the connection, and took a snapshot, every few seconds.
+                x.s.settimeout(None)
                 self.changed.set()
                 while True:
                     event = x.next_event()

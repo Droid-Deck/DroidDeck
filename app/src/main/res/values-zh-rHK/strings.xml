@@ -41,9 +41,7 @@
     <string name="hud_fg_failed">%1$s：引擎故障</string>
     <string name="hud_fg_needs_lossless">%1$s：需要 Lossless Scaling</string>
     <string name="hud_fg_starting">%1$s  %2$s · 正在啟動</string>
-    <string name="added_games_import_hint">一個資料夾，每個 Windows 遊戲各佔一個子資料夾。你在 Steam 上擁有的遊戲會在 Steam 重新啟動後使用其 Steam 項目，其餘遊戲則成為非 Steam 捷徑。第二個收藏庫設為自動時，Steam 亦可以將遊戲安裝到此資料夾。</string>
     <string name="second_library_import_hint">新增一個 Steam 收藏庫並掃描其中的 Windows 遊戲。已擁有的遊戲會使用其 Steam 項目，其餘遊戲則成為非 Steam 捷徑。</string>
-    <string name="added_games_forget_hint">「忘記」會在下次會話移除這些捷徑，檔案仍會保留在磁碟上。</string>
     <string name="game_env_title">遊戲環境</string>
     <string name="game_env_hint">Proton 遊戲的環境變數。</string>
     <string name="game_env_edit">編輯</string>
@@ -256,6 +254,9 @@
     <string name="mode_controller">控制器</string>
     <string name="mode_controller_hint">Steam 如何識別你的控制器。下次會話生效。</string>
     <string name="mode_controller_deck">Steam Deck 控制器</string>
+    <string name="mode_controller_steam">Steam Controller</string>
+    <string name="mode_controller_ds4">DualShock 4</string>
+    <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 控制器</string>
     <string name="mode_controller_note">Deck：提供快速存取按鈕和陀螺儀。Xbox 360：按 Guide+A 開啟快速存取。</string>
     <string name="mode_back">返回</string>
@@ -285,39 +286,49 @@
     <string name="mode_decky_remove_title">解除安裝 Decky Loader？</string>
     <string name="mode_decky_remove_text">移除載入器，你的插件和設定會保留。</string>
     <string name="mode_client">用戶端</string>
-    <string name="mode_deck_mode">Steam Deck 模式</string>
-    <string name="mode_deck_mode_hint">Steam 的 Deck 介面及快速存取效能控制。下次會話生效。</string>
     <string name="mode_mangoapp">效能疊加層</string>
     <string name="mode_mangoapp_hint">如果在 Deck 模式下遊戲當機或黑畫面，請關閉此項。下次會話生效。</string>
-    <string name="mode_branch">用戶端分支</string>
-    <string name="mode_branch_deck">Steam Deck 公開測試版（Deck 模式需要）。</string>
-    <string name="mode_branch_hint">下次會話生效。Steam 可能會自行更新一次。</string>
-    <string name="mode_branch_public">公開測試版</string>
-    <string name="mode_branch_deck_beta">Steam Deck 公開測試版</string>
-    <string name="mode_branch_note">Deck 模式一律使用 Steam Deck 公開測試版。</string>
     <string name="mode_steam_repair">修復 Steam 用戶端</string>
     <string name="mode_steam_repair_hint">下次啟動 Steam 時重新下載 Steam 用戶端。如果 Steam 一直停留在載入畫面，請使用此功能。遊戲、登入資料和設定都會保留。</string>
     <string name="mode_steam_repair_queued">下次啟動 Steam 時會重新下載 Steam 用戶端。</string>
     <string name="mode_steam_repair_button">修復</string>
-    <string name="mode_added_games">已新增的遊戲</string>
-    <string name="mode_added_none">找不到含有 .exe 的遊戲資料夾</string>
-    <string name="mode_games_folder">遊戲資料夾</string>
-    <string name="mode_games_folder_another">另一個遊戲資料夾</string>
-    <string name="mode_added_art">取自 Steam 的圖片</string>
+    <string name="mode_added_art">圖片</string>
+    <string name="mode_sgdb_key">SteamGridDB API 密鑰</string>
+    <string name="mode_sgdb_key_yours">你的密鑰</string>
+    <string name="mode_sgdb_edit">編輯…</string>
     <string name="mode_added_art_hint">按資料夾名稱補上缺少的圖片。遊戲資料夾中你自己的 cover.jpg、hero.jpg、logo.png 或 icon.png 會優先使用。</string>
-    <string name="mode_added_launches">啟動 %1$s</string>
-    <string name="mode_added_launches_in">啟動 %1$s · 位於 %2$s</string>
-    <string name="mode_added_choose">選擇其他檔案…</string>
-    <string name="mode_added_exe_note">預設使用與資料夾同名的 .exe，否則使用最大的 .exe。</string>
+    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_remove_confirm">移除？</string>
+    <string name="games_add">加入遊戲</string>
+    <string name="games_add_title">加入遊戲：</string>
+    <string name="games_pick_exe_title">選擇 exe：</string>
+    <string name="games_add_unreachable">工作階段無法存取此位置</string>
+    <string name="mode_added_exe_check">請檢查此 exe</string>
     <string name="wincomp_title">Windows 組件</string>
     <string name="wincomp_pad_hint">按 LB / RB 在各部分之間切換。</string>
     <string name="wincomp_card_none">無</string>
-    <string name="wincomp_applies">Proton 未有包含的 Windows DLL，取自 Bannerlator 的組件清單。開啟這款遊戲需要的組件：它們會放進遊戲自己的 Windows 資料夾，絕不改動遊戲檔案，而且無論遊戲用哪個 Proton 都會保留。</string>
+    <string name="wincomp_applies">Proton 未有包含的 Windows DLL，取自組件清單。開啟這款遊戲需要的組件：它們會放進遊戲自己的 Windows 資料夾，絕不改動遊戲檔案，而且無論遊戲用哪個 Proton 都會保留。</string>
     <string name="wincomp_offline">無法連接組件清單。已下載的組件仍可開啟或關閉。</string>
     <string name="wincomp_recommended">建議用於這款遊戲</string>
+    <string name="wincomp_checking">正在檢查這款遊戲需要什麼…</string>
+    <string name="wincomp_when_online">連線後可用</string>
+    <plurals name="wincomp_turning_on">
+        <item quantity="other">正在開啟 %1$d 個元件…</item>
+    </plurals>
+    <string name="wincomp_auto_section">這款遊戲已開啟</string>
+    <string name="wincomp_auto_steam">Steam 會隨 %2$s（應用程式 %3$s）安裝 %1$s</string>
+    <string name="wincomp_auto_gog">來自這款遊戲的 GOG 清單</string>
+    <string name="wincomp_auto_epic">來自這款遊戲的 Epic 必要元件</string>
+    <string name="wincomp_auto_amazon">來自這款遊戲的 Amazon 安裝步驟</string>
+    <string name="wincomp_steam_by_name">Steam 會隨應用程式 %2$s 安裝 %1$s（依名稱比對）</string>
+    <string name="wincomp_suggestions">清單中的其他項目</string>
+    <string name="wincomp_suggestion_reason">%1$s 列出；這裡不是元件</string>
+    <string name="wincomp_src_steam">Steam</string>
+    <string name="wincomp_src_gog">GOG</string>
+    <string name="wincomp_src_epic">Epic Games</string>
+    <string name="wincomp_src_amazon">Amazon Games</string>
     <string name="wincomp_found_bundled">遊戲附帶 %1$s</string>
     <string name="wincomp_found_shipped">遊戲含有 %1$s（通常可直接使用）</string>
-    <string name="wincomp_found_steam">Steam 會隨這款遊戲安裝 %1$s</string>
     <string name="wincomp_already_here">這款遊戲中已有</string>
     <string name="wincomp_no_recommendation">遊戲資料夾內沒有指向任何組件的內容。</string>
     <string name="wincomp_all">所有組件（%1$d）</string>
@@ -358,13 +369,6 @@
     <string name="mode_storage_diagnostics">儲存空間診斷</string>
     <string name="mode_storage_diagnostics_hint">在分享的記錄中加入空間分配結果和抽樣的儲存時間數據。啟用時可能會減慢安裝速度。下次會話生效。</string>
     <string name="mode_choose_folder">選擇資料夾…</string>
-    <string name="mode_renderer">渲染器</string>
-    <string name="mode_desktop_renderer">桌面渲染器</string>
-    <string name="mode_renderer_hint">負責繪製桌面。</string>
-    <string name="mode_renderer_vulkan">vulkan - GPU</string>
-    <string name="mode_renderer_gles2">gles2 - GPU（實驗性）</string>
-    <string name="mode_renderer_pixman">pixman - 軟件</string>
-    <string name="mode_renderer_note">Vulkan 會用 GPU 執行桌面程式，失敗時改用 pixman。使用 pixman 時，遊戲仍會以全螢幕在 GPU 上執行。</string>
     <string name="mode_custom_res_title">自訂解像度</string>
     <string name="mode_custom_res_text">取代解像度上限和螢幕比例。尺寸與螢幕不符時會顯示黑邊。</string>
     <string name="mode_width">寬度</string>
@@ -838,6 +842,8 @@
     <string name="ctrl_steam_button">Steam 按鈕</string>
     <string name="ctrl_qam_button">QAM 按鈕</string>
     <string name="ctrl_keyboard_button">鍵盤按鈕</string>
+    <string name="ctrl_select_steam">按 Select 開啟 Steam 選單</string>
+    <string name="ctrl_select_steam_hint">代替 View/Select。</string>
     <string name="setup_animations">動畫</string>
     <string name="ctrl_adaptive_hint">搖桿會在你觸控的位置出現，放開後隱藏</string>
     <string name="ctrl_layout">佈局</string>
@@ -886,7 +892,7 @@
     <string name="content_open_desktop">開啟桌面</string>
     <string name="content_install_open_desktop">安裝並開啟桌面</string>
     <string name="content_linux_desktop">Linux 桌面</string>
-    <string name="content_linux_desktop_hint">LXQt、Firefox 和你的模擬器</string>
+    <string name="content_linux_desktop_hint">KDE Plasma、Firefox 和你的模擬器</string>
     <string name="games_empty">你在 Steam 安裝的遊戲會在會話結束後顯示在這裡。</string>
     <string name="games_play_steam">開啟 Steam</string>
     <string name="games_launch_settings">啟動設定</string>
@@ -901,11 +907,8 @@
     <string name="games_manage_saves">管理存檔</string>
     <string name="games_saves">遊戲存檔</string>
     <string name="games_import_saves">匯入存檔…</string>
-    <string name="games_import_saves_hint">GameHub 或 Winlator zip。會先備份目前的存檔。</string>
     <string name="games_export_gamehub">匯出為 GameHub zip…</string>
-    <string name="games_export_gamehub_hint">適用於 GameHub 和 BannerHub</string>
     <string name="games_export_winlator">匯出為 Winlator zip…</string>
-    <string name="games_export_winlator_hint">適用於 Winlator、WinNative 和 Bannerlator</string>
     <string name="games_open_save_folder">開啟存檔資料夾</string>
     <string name="games_never_played">從未玩過</string>
     <string name="games_runtime_busy_percent">運行環境繁忙 · %1$d%%</string>
@@ -1133,8 +1136,6 @@
     <string name="main_removing_named">正在移除 %1$s…</string>
     <string name="main_forgetting_named">正在忘記 %1$s…</string>
     <string name="main_pick_game_storage">選擇遊戲儲存資料夾</string>
-    <string name="main_pick_added_games">選擇存放你自己遊戲的資料夾</string>
-    <string name="main_pick_game_exe">選擇遊戲的 .exe</string>
     <string name="main_pick_decky_zip">選擇 Decky 插件 ZIP</string>
     <string name="main_storage_not_usable">無法使用：%1$s</string>
 
@@ -1237,7 +1238,6 @@
     <!-- %1$s is the program's name -->
     <string name="session_named_paused">%1$s 已暫停</string>
     <string name="session_program_paused">程式已暫停</string>
-    <string name="session_starting_steam_desktop">正在桌面上啟動 Steam</string>
     <string name="session_starting_desktop">正在啟動桌面</string>
 
     <!-- %1$s is the program's name -->
@@ -1263,7 +1263,6 @@
     <string name="session_proton_unpacking">正在解壓 Proton Experimental (ARM64)</string>
     <string name="session_runtime_catalog_unreachable">無法連接運行環境目錄。請檢查網絡連線，然後再按「開啟 Steam」。</string>
     <string name="session_runtime_install_failed">Linux 運行環境未能安裝。請在「設定」中檢查運行環境，然後再按「開啟 Steam」。</string>
-    <string name="session_desktop_catalog_unreachable">無法連接桌面目錄。請檢查網絡連線，然後再按「桌面」。</string>
 
     <!-- %1$s says what went wrong -->
     <string name="session_desktop_install_failed">桌面未能安裝（%1$s）。請檢查網絡連線，然後再按「桌面」。</string>
@@ -1570,6 +1569,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">隱藏</string>
     <string name="ctrl_editor_drag">拖曳以移動</string>
+    <string name="ctrl_editor_snap">對齊</string>
     <string name="ctrl_editor_save">儲存</string>
 
     <!-- What the second screen shows during a session -->
@@ -2060,4 +2060,35 @@
     <string name="device_info_copied">已複製。</string>
     <string name="force_ssbs_title">強制 SSBS</string>
     <string name="force_ssbs_hint">讓一項 Wine 會不斷關閉的 CPU 速度設定保持開啟。在 Snapdragon 8 Elite 上可能令 Windows 遊戲更快；在較舊的晶片上變化不大。下次啟動遊戲時生效。</string>
+    <string name="common_close">關閉</string>
+    <string name="common_back">返回</string>
+    <string name="common_edit">編輯</string>
+    <string name="games_add_all">加入此資料夾中的所有遊戲</string>
+    <string name="games_added_none">此資料夾中沒有新遊戲</string>
+    <string name="edit_name">名稱</string>
+    <string name="edit_target">目標</string>
+    <string name="edit_start_in">開始位置</string>
+    <string name="edit_launch_options">啟動選項</string>
+    <string name="edit_artwork">圖片</string>
+    <string name="edit_other_exe">其他 exe…</string>
+    <string name="edit_remove">移除</string>
+    <string name="art_cover">封面</string>
+    <string name="art_background">背景</string>
+    <string name="art_logo">標誌</string>
+    <string name="art_icon">圖示</string>
+    <string name="art_src_folder">遊戲資料夾</string>
+    <string name="art_src_steam">Steam</string>
+    <string name="art_src_sgdb">SteamGridDB</string>
+    <string name="art_src_file">你的檔案</string>
+    <string name="art_src_exe">來自 exe</string>
+    <string name="art_src_auto">自動</string>
+    <string name="art_pick_image">選擇圖片…</string>
+    <string name="art_pick_title">選擇圖片：%1$s</string>
+    <string name="art_reset">重設為自動</string>
+    <plurals name="games_added_n">
+        <item quantity="other">已加入 %1$d 個遊戲</item>
+    </plurals>
+    <plurals name="games_already_n">
+        <item quantity="other">%1$d 個已在遊戲中</item>
+    </plurals>
 </resources>

@@ -1,0 +1,61 @@
+#!/usr/bin/python3
+"""A game's web links to Android: Wine's winebrowser starts this (named as the browser in the
+prefix's HKCU\\Software\\Wine\\WineBrowser, and as xdg-open first on a game's PATH), and an
+http(s) address goes to the app, which opens it in Android's browser - so an EOS sign-in step or a
+store page can be finished on the phone. Anything else goes on to the system's own xdg-open.
+
+The session channel is $BL_LAUNCH_DIR/stores; Wine may not pass that variable on to what it
+starts, so droiddeck-proton also leaves it in LAUNCH_DIR_FILE."""
+
+import json
+import os
+LAUNCH_DIR_FILE = "/tmp/droiddeck-browser/launch-dir"
+import sys
+import time
+from pathlib import Path
+
+
+def hand_over(url, launch_dir):
+    req = Path(launch_dir) / "stores" / "req"
+    req.mkdir(parents=True, exist_ok=True)
+    rid = "url-%d-%d" % (os.getpid(), int(time.time() * 1000))
+    tmp = req / (rid + ".json.tmp")
+    tmp.write_text(json.dumps({"op": "open-url", "url": url}))
+    os.rename(tmp, req / (rid + ".json"))
+
+
+def where(url):
+    """scheme://host only, for the log: no path, no query."""
+    from urllib.parse import urlsplit
+    try:
+        u = urlsplit(url)
+        return "%s://%s" % (u.scheme, u.hostname or "")
+    except ValueError:
+        return "?"
+
+
+def main(argv):
+    url = argv[0] if argv else ""
+    # The Steam client's own form (steam://openurl/<address>), in case a launcher passes it on.
+    if url.startswith("steam://openurl/"):
+        url = url[len("steam://openurl/"):]
+    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if not launch_dir:
+        try:
+            launch_dir = open(LAUNCH_DIR_FILE).read().strip()
+        except OSError:
+            launch_dir = ""
+    print("droiddeck xdg-open: %s" % where(url), file=sys.stderr, flush=True)
+    if url.startswith(("https://", "http://")) and launch_dir:
+        hand_over(url, launch_dir)
+        return 0
+    here = os.path.dirname(os.path.realpath(sys.argv[0]))
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        candidate = os.path.join(d, "xdg-open")
+        if os.access(candidate, os.X_OK) and os.path.realpath(candidate) != os.path.realpath(__file__) and os.path.abspath(d) != here:
+            os.execv(candidate, [candidate] + argv)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

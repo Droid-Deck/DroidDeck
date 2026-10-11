@@ -745,6 +745,21 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
     if (ci && ci->asked_feedback) ci->shm_frames++;  /* since it asked for GPU buffers */
 }
 
+/* A single-pixel buffer (wl_single_pixel.c) as a 1x1 image, which the surface's viewport stretches. */
+static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
+    if (s->shm_img && (vkp_image_width(s->shm_img) != 1 || vkp_image_height(s->shm_img) != 1)) {
+        vkp_image_destroy(s->shm_img);
+        s->shm_img = NULL;
+    }
+    if (!s->shm_img) s->shm_img = vkp_image_create_shm(1, 1);
+    if (s->shm_img) vkp_image_upload_shm(s->shm_img, bgra, 4);
+    wl_buffer_send_release(buffer);
+    s->buf_w = 1;
+    s->buf_h = 1;
+    s->buf_alpha = bgra[3] != 0xff;
+    s->has_content = s->shm_img != NULL;
+}
+
 /* The window the app's performance HUD follows: the latest one at least as big as the last to
  * start presenting GPU frames (take_dmabuf) (X11 binds the HUD to the _MESA_DRV window and counts X presents instead). JNI upcalls. */
 static struct surface *g_hud_surface;
@@ -1084,6 +1099,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         struct wl_resource *buffer = s->pending_buffer;
         struct dmabuf_buffer *db = get_dmabuf(buffer);
         struct wl_shm_buffer *shm = buffer && !db ? wl_shm_buffer_get(buffer) : NULL;
+        uint8_t pixel[4];
 
         /* The previous content is replaced before reaching the screen. */
         feedback_discard_all(&s->feedback);
@@ -1113,6 +1129,9 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         } else if (shm) {
             drop_dmabuf(s, 1);
             take_shm(s, shm, buffer);
+        } else if (single_pixel_buffer_get(buffer, pixel)) {
+            drop_dmabuf(s, 1);
+            take_pixel(s, pixel, buffer);
         } else {
             drop_dmabuf(s, 1);
             s->has_content = 0;
@@ -1661,15 +1680,24 @@ static void bind_desktop(struct wl_client *c, void *data, uint32_t ver, uint32_t
 static void output_release(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static const struct wl_output_interface output_impl = { .release = output_release };
 
-static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t id) {
-    struct wl_resource *r = wl_resource_create(c, &wl_output_interface, ver, id);
-    if (!r) { wl_client_post_no_memory(c); return; }
-    wl_resource_set_implementation(r, &output_impl, NULL, NULL);
-    wl_output_send_geometry(r, 0, 0, 340, 190, WL_OUTPUT_SUBPIXEL_UNKNOWN,
-                            "DroidDeck", "Wayland", WL_OUTPUT_TRANSFORM_NORMAL);
+/* Every bound wl_output, so a resized output (a foldable opening) can send its new mode. */
+static struct wl_list g_outputs;
+static void output_resource_destroy(struct wl_resource *r) { wl_list_remove(wl_resource_get_link(r)); }
+
+static void output_send_mode(struct wl_resource *r) {
     wl_output_send_mode(r, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
                         g_output_w > 0 ? g_output_w : 1920, g_output_h > 0 ? g_output_h : 1080,
                         g_output_refresh_mhz > 0 ? g_output_refresh_mhz : 60000);
+}
+
+static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t id) {
+    struct wl_resource *r = wl_resource_create(c, &wl_output_interface, ver, id);
+    if (!r) { wl_client_post_no_memory(c); return; }
+    wl_resource_set_implementation(r, &output_impl, NULL, output_resource_destroy);
+    wl_list_insert(&g_outputs, wl_resource_get_link(r));
+    wl_output_send_geometry(r, 0, 0, 340, 190, WL_OUTPUT_SUBPIXEL_UNKNOWN,
+                            "DroidDeck", "Wayland", WL_OUTPUT_TRANSFORM_NORMAL);
+    output_send_mode(r);
     if (ver >= WL_OUTPUT_NAME_SINCE_VERSION) {
         wl_output_send_name(r, "DroidDeck-1");
         wl_output_send_description(r, "DroidDeck display");
@@ -3200,6 +3228,23 @@ static void key_event(uint32_t evdev, int pressed) {
     wl_display_flush_clients(g_display);
 }
 
+/* The output changed size under a running session (a foldable opened or closed, with the
+ * session following the screen). Every client that has had its first configure is told the new
+ * size: gamescope's Wayland backend and the desktop's KWin both resize their output to it, and
+ * the next buffers they commit fill the new panel instead of being letterboxed onto it. */
+static void output_resized(void) {
+    struct surface *s;
+    struct wl_resource *r;
+    wl_resource_for_each(r, &g_outputs) {
+        output_send_mode(r);
+        if (wl_resource_get_version(r) >= 2) wl_output_send_done(r);
+    }
+    wl_list_for_each(s, &g_surfaces, link)
+        if (s->xdg_toplevel && s->toplevel_committed) send_toplevel_configure(s);
+    droiddeck_log("display", "output resized to %dx%d", g_output_w, g_output_h);
+    wl_display_flush_clients(g_display);
+}
+
 /* wl event-loop callback: drain queued input events written by the Android UI thread. */
 static int on_input_readable(int fd, uint32_t mask, void *data) {
     struct input_msg m;
@@ -3212,6 +3257,7 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 5: on_vsync(((int64_t)m.p1 << 32) | (uint32_t)m.p2); break;
         case 6: pointer_delta(m.p1 / 256.0, m.p2 / 256.0); break; /* relative motion, 1/256 px */
         case 7: deliver_touch(&m); break;
+        case 8: output_resized(); break;
         default: deliver_pointer(&m); break;
         }
     }
@@ -3238,6 +3284,14 @@ void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y) {
 void droiddeck_wayland_send_key(int evdev, int state) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { 1, evdev, state, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+/* Called from JNI after g_output_w/h changed: the compositor thread re-sends the size. */
+void droiddeck_wayland_output_resized(void) {
+    if (g_input_pipe[1] < 0) return;
+    struct input_msg m = { 8, 0, 0, 0, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
     (void)n;
 }
@@ -3439,6 +3493,7 @@ static struct wl_listener g_client_created = { .notify = on_client_created };
 int droiddeck_wayland_run(void) {
     wl_list_init(&g_surfaces);
     wl_list_init(&g_toplevels);
+    wl_list_init(&g_outputs);
     wl_list_init(&g_constraints);
     wl_list_init(&g_relative_pointers);
     open_session_log();

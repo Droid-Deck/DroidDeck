@@ -48,3 +48,6 @@ void text_input_host_commit(const char *utf8, size_t len);
 void text_input_host_preedit(const char *utf8, size_t len, int cursor_begin, int cursor_end);
 void text_input_host_delete(int before, int after);
 void toplevel_icon_init(struct wl_display *display);
+void single_pixel_init(struct wl_display *display);
+/* A wp_single_pixel_buffer_manager_v1 buffer: 1 and its pixel (B, G, R, A, premultiplied), else 0. */
+int single_pixel_buffer_get(struct wl_resource *buffer, uint8_t bgra[4]);

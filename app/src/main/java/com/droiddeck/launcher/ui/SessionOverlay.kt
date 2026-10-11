@@ -194,6 +194,9 @@ class DrawerActions(
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
     val backActionsInverted: Boolean,
+    /** What the pad is to Steam (SessionPrefs.CONTROLLER_*), switched live; null hides the row. */
+    val padType: String? = null,
+    val onPadType: (String) -> Unit = {},
     val touchMode: String,
     val touchAuto: String,
     val fexPreset: String,
@@ -217,6 +220,8 @@ class DrawerActions(
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
     val onOsc: (String) -> Unit,
+    /** Edits the Steam touch layout of the game in front, when Steam's controls are up. */
+    val onEditSteamTouch: (() -> Unit)? = null,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
     val onRumble: (Boolean) -> Unit = {},
     val onSteamButton: (Boolean) -> Unit = {},
@@ -240,6 +245,9 @@ class DrawerActions(
     val pipAutoEnter: Boolean = false,
     val onPip: () -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
+    /** Unfolded controls (on a foldable; null hides the row). */
+    val unfoldedControls: Boolean? = null,
+    val onUnfoldedControls: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     /** Stop with the dialog's button's bounds on screen, for the flood to grow out of; null falls back to [onStop]. */
@@ -414,13 +422,27 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
+                                a.padType?.let { type ->
+                                    ChoiceRow(host, "pad-type", stringResource(R.string.mode_controller), null,
+                                        listOf(SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
+                                            SessionPrefs.CONTROLLER_STEAM to stringResource(R.string.mode_controller_steam),
+                                            SessionPrefs.CONTROLLER_DS4 to stringResource(R.string.mode_controller_ds4),
+                                            SessionPrefs.CONTROLLER_DUALSENSE to stringResource(R.string.mode_controller_dualsense),
+                                            SessionPrefs.CONTROLLER_XBOX360 to stringResource(R.string.mode_controller_x360)),
+                                        type, chipModifier = focus.track(page, "pad-type"), onPick = a.onPadType)
+                                }
                                 ChoiceRow(host, "touch", stringResource(R.string.mode_touch), null,
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)),
                                     a.touchMode, chipModifier = focus.track(page, "touch"), onPick = a.onTouch)
                                 ChoiceRow(host, "osc", stringResource(R.string.mode_osc), null,
-                                    if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
+                                    if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
                                     else listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
-                                    a.oscMode, chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
+                                    // Steam's touch controller is Steam's alone; elsewhere that choice behaves as Auto.
+                                    if (!a.steam && a.oscMode == SessionPrefs.OSC_STEAM_TOUCH) SessionPrefs.OSC_AUTO else a.oscMode,
+                                    chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
+                                a.onEditSteamTouch?.let { edit ->
+                                    ActionRow(stringResource(R.string.osc_steam_layout), stringResource(R.string.osc_steam_layout_hint), stringResource(R.string.ctrl_edit), edit)
+                                }
                                 a.controller?.let { c ->
                                     ToggleRow(host, "rumble", stringResource(R.string.ctrl_rumble), null, c.rumble,
                                         chipModifier = focus.track(page, "rumble"), onChange = a.onRumble)
@@ -438,6 +460,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
+                                if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
+                                    stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
+                                    chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
@@ -1002,45 +1027,6 @@ private val StepPull = 6.dp
 private val StepBoxCorner = 16.dp
 private val StepFillet = 10.dp
 private val StepBoxMaxWidth = 264.dp
-
-/**
- * The stair-step outline: the pill [p] on top, a box under it from [left] to the pill's right edge
- * and down to [bottom], the pull between them [pullTop] (the box's top). Right edges are flush and
- * the inside corner where the pull meets the box is rounded the other way. While the box is still
- * no wider than the pill it is just the pill, stretched down.
- */
-private fun stepPath(path: Path, p: Rect, left: Float, bottom: Float, pullTop: Float, box: Float, fillet: Float) {
-    path.reset()
-    val r = p.right; val tl = p.left; val tt = p.top
-    val pb = maxOf(bottom, p.bottom)
-    val l = minOf(left, tl)
-    val pt = minOf(pullTop, pb)
-    val sw = tl - l
-    val h = (pb - pt).coerceAtLeast(0f)
-    val rt = minOf(p.height / 2f, p.width / 2f)
-    val rbr = minOf(box, (pb - tt) / 2f)
-    val rbl = minOf(lerp(minOf(box, (pb - tt) / 2f), minOf(box, h / 2f), (sw / box).coerceIn(0f, 1f)), (r - l) / 2f)
-    val rpl = minOf(box, sw / 2f, h / 2f)
-    val f = minOf(fillet, sw / 2f)
-    val yl = minOf(pt + rpl, pb - rbl)
-    fun corner(rect: Rect, start: Float, sweep: Float, endX: Float, endY: Float) {
-        if (rect.width < 0.5f) path.lineTo(endX, endY) else path.arcTo(rect, start, sweep, false)
-    }
-    path.moveTo(tl + rt, tt)
-    path.lineTo(r - rt, tt)
-    corner(Rect(r - 2 * rt, tt, r, tt + 2 * rt), -90f, 90f, r, tt + rt)
-    path.lineTo(r, pb - rbr)
-    corner(Rect(r - 2 * rbr, pb - 2 * rbr, r, pb), 0f, 90f, r - rbr, pb)
-    path.lineTo(l + rbl, pb)
-    corner(Rect(l, pb - 2 * rbl, l + 2 * rbl, pb), 90f, 90f, l, pb - rbl)
-    path.lineTo(l, yl)
-    corner(Rect(l, pt, l + 2 * rpl, pt + 2 * rpl), 180f, 90f, l + rpl, pt)
-    path.lineTo(tl - f, pt)
-    corner(Rect(tl - 2 * f, pt - 2 * f, tl, pt), 90f, -90f, tl, pt - f)
-    path.lineTo(tl, tt + rt)
-    corner(Rect(tl, tt, tl + 2 * rt, tt + 2 * rt), 180f, 90f, tl + rt, tt)
-    path.close()
-}
 
 /**
  * Stop's confirm, grown out of the Stop pill at [pill] (px, in the sheet): a pull the pill's width

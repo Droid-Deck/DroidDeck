@@ -27,13 +27,31 @@ class SessionDisplayTest {
 
     @Test fun optionsListTheHeightsThePanelCanShowThenThePanel() {
         val thor = SessionDisplay.resolutionOptions(1920 to 1080)
-        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN), thor)
-        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN), SessionDisplay.resolutionOptions(2400 to 1080))
-        assertEquals(listOf("720p", "900p", "1080p", SessionDisplay.MATCH_SCREEN), SessionDisplay.resolutionOptions(3120 to 1440))
+        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN), thor)
+        assertEquals(listOf("720p", "900p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN),
+            SessionDisplay.resolutionOptions(2400 to 1080))
+        assertEquals(listOf("720p", "900p", "1080p", SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN),
+            SessionDisplay.resolutionOptions(3120 to 1440))
         val small = SessionDisplay.resolutionOptions(1280 to 720)
-        assertEquals(listOf(SessionDisplay.MATCH_SCREEN), small)
+        assertEquals(listOf(SessionDisplay.MATCH_SCREEN, SessionDisplay.FOLLOW_SCREEN), small)
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1280 to 720, SessionDisplay.MATCH_SCREEN))
         assertEquals(2560 to 1440, SessionDisplay.resolveChoice(2560 to 1440, SessionDisplay.MATCH_SCREEN))
+    }
+
+    @Test fun unfoldedControlsKeepTheGameSixteenByNineAcrossTheWidth() {
+        // Fold inner screen held as a tablet, and upright: 16:9 either way, the controls the rest.
+        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
+        assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
+        // A window near 16:9 itself still leaves the controls a fifth of it.
+        assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
+    }
+
+
+    @Test fun followScreenKeepsTheWindowShapeAndSkipsTinyWindows() {
+        assertEquals(2520 to 1080, SessionDisplay.resolveChoice(1080 to 2520, SessionDisplay.FOLLOW_SCREEN))
+        assertEquals(1968 to 2184, SessionDisplay.followSize(1968, 2184))
+        assertEquals(2184 to 1968, SessionDisplay.followSize(2185, 1969))
+        assertNull(SessionDisplay.followSize(640, 360))
     }
 
     @Test fun resolutionCapsPreserveTheSelectedShapeWithoutExceedingPanelHeight() {

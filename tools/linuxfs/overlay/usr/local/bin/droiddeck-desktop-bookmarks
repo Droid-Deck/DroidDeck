@@ -1,13 +1,114 @@
 #!/usr/bin/env python3
-"""Expose the selected secondary library in PCManFM's Places sidebar."""
+"""Expose available Steam libraries in Dolphin, retaining the old PCManFM bookmark."""
+import hashlib
+import json
 import os
 from pathlib import Path
+import re
+import runpy
 import sys
 import tempfile
+from urllib.parse import unquote, urlsplit
+import xml.etree.ElementTree as ET
 
 
 LIBRARY = Path("/mnt/droiddeck-sd")
 URI = "file:///mnt/droiddeck-sd"
+KDE_OWNER = "http://www.kde.org"
+MARK = "DroidDeckSteamLibrary"
+ICON_NS = "http://www.freedesktop.org/standards/desktop-bookmarks"
+ET.register_namespace("bookmark", ICON_NS)
+
+
+def steam_libraries(home, data):
+    steam = data / "Steam"
+    libraries = {steam: "Internal Storage"}
+    listing = os.environ.get("BL_STEAM_LIBRARIES")
+    selected = None
+    if listing:
+        try:
+            selected = {Path(e["path"]): str(e["label"]) for e in json.loads(Path(listing).read_text())}
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # Fall back to the client's registered libraries if the app's list is unreadable.
+    vdf = steam / "steamapps/libraryfolders.vdf"
+    if vdf.is_file():
+        parser = runpy.run_path(str(Path(__file__).with_name("droiddeck-steam-ui-scale")))
+        folders = parser["parse"](vdf.read_text()).get("libraryfolders")
+        if not isinstance(folders, parser["Block"]):
+            raise ValueError("missing libraryfolders")
+        for _, entry in folders.pairs:
+            if not isinstance(entry, parser["Block"]):
+                continue
+            path = entry.get("path")
+            if not isinstance(path, str):
+                continue
+            path = Path(re.sub(r'\\(["\\])', r'\1', path))
+            managed = path == LIBRARY or path.is_relative_to(home / "Games")
+            if selected is not None and managed and path not in selected:
+                continue
+            if path == LIBRARY and selected is None and not os.environ.get("BL_LIBRARY_LABEL"):
+                continue
+            label = entry.get("label")
+            label = re.sub(r'\\(["\\])', r'\1', label) if isinstance(label, str) else ""
+            libraries[path] = label or path.name
+    if selected is not None:
+        libraries.update(selected)
+    elif os.environ.get("BL_LIBRARY_LABEL"):
+        libraries[LIBRARY] = os.environ["BL_LIBRARY_LABEL"]
+    libraries[steam] = "Internal Storage"
+    return {path.as_uri(): "Steam (" + (" ".join(label.split()) or path.name) + ")"
+            for path, label in libraries.items() if path.is_absolute() and (path / "steamapps").is_dir()}
+
+
+def place_uri(uri):
+    url = urlsplit(uri or "")
+    if url.scheme == "file" and url.netloc in ("", "localhost") and url.path.startswith("/"):
+        return Path(unquote(url.path)).as_uri()
+    return uri
+
+
+def update_places(path, libraries):
+    if path.is_file():
+        parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True, insert_pis=True))
+        root = ET.fromstring(path.read_bytes(), parser=parser)
+        if root.tag != "xbel":
+            raise ValueError("invalid Dolphin places file")
+    else:
+        if not libraries:
+            return
+        # Leave KDE's file version unset so it still adds its normal Home/Downloads/etc. places.
+        root = ET.Element("xbel", {"version": "1.0"})
+    before = ET.tostring(root)
+    seen = set()
+    personal = {place_uri(b.get("href")) for b in root.findall("bookmark")
+                if b.find("info/metadata[@owner='" + KDE_OWNER + "']/" + MARK) is None}
+    for bookmark in root.findall("bookmark"):
+        metadata = bookmark.find("info/metadata[@owner='" + KDE_OWNER + "']")
+        if metadata is None or metadata.find(MARK) is None:
+            continue
+        uri = place_uri(bookmark.get("href"))
+        if uri not in libraries or uri in seen or uri in personal:
+            root.remove(bookmark)
+            continue
+        seen.add(uri)
+        title = bookmark.find("title")
+        if title is None:
+            title = ET.SubElement(bookmark, "title")
+        title.text = libraries[uri]
+    for uri, label in libraries.items():
+        if uri in seen or uri in personal:
+            continue
+        bookmark = ET.SubElement(root, "bookmark", {"href": uri})
+        ET.SubElement(bookmark, "title").text = label
+        info = ET.SubElement(bookmark, "info")
+        icon = ET.SubElement(info, "metadata", {"owner": "http://freedesktop.org"})
+        ET.SubElement(icon, "{" + ICON_NS + "}icon", {"name": "steam"})
+        metadata = ET.SubElement(info, "metadata", {"owner": KDE_OWNER})
+        ET.SubElement(metadata, "ID").text = "droiddeck-steam-" + hashlib.sha256(uri.encode()).hexdigest()[:16]
+        ET.SubElement(metadata, MARK).text = "true"
+        ET.SubElement(metadata, "isSystemItem").text = "false"
+    if ET.tostring(root) != before:
+        atomic_write(path, ET.tostring(root, encoding="unicode", xml_declaration=True))
 
 
 def bookmarks_file(home, config):
@@ -31,6 +132,10 @@ def update_bookmark(path, label):
         content += URI + " " + label + "\n"
     if content == original:
         return
+    atomic_write(path, content)
+
+
+def atomic_write(path, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
@@ -51,10 +156,12 @@ def main():
     # An unbound mount-point directory may remain from a previous session.
     available = bool(label) and (LIBRARY / "steamapps").is_dir()
     update_bookmark(bookmarks_file(home, config), label if available else None)
+    data = Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
+    update_places(data / "user-places.xbel", steam_libraries(home, data))
 
 
 if __name__ == "__main__":
     try:
         main()
-    except OSError as error:
+    except (OSError, ValueError, ET.ParseError) as error:
         print("== desktop library bookmark: " + str(error), file=sys.stderr)

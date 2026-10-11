@@ -1,0 +1,60 @@
+#!/usr/bin/python3
+"""Let GTK draw close buttons inside gamescope, which supplies no window decorations."""
+import ctypes as c
+import os
+import signal
+import subprocess
+import sys
+
+
+def advertise_compositing():
+    # This is gamescope's private X server: it composites alpha buffers already, but GTK also
+    # requires the compositing-manager selection and frame-extents hint before enabling CSD.
+    x = c.CDLL('libX11.so.6')
+    display_type, window_type = c.c_void_p, c.c_ulong
+    x.XOpenDisplay.argtypes = [c.c_char_p]
+    x.XOpenDisplay.restype = display_type
+    display = x.XOpenDisplay(None)
+    if not display:
+        raise RuntimeError('no X display')
+    x.XDefaultRootWindow.argtypes = [display_type]
+    x.XDefaultRootWindow.restype = window_type
+    x.XDefaultScreen.argtypes = [display_type]
+    x.XDefaultScreen.restype = c.c_int
+    root = x.XDefaultRootWindow(display)
+    x.XInternAtom.argtypes = [display_type, c.c_char_p, c.c_int]
+    x.XInternAtom.restype = window_type
+    atom = lambda name: x.XInternAtom(display, name.encode(), False)
+    manager = atom('_NET_WM_CM_S%d' % x.XDefaultScreen(display))
+    x.XGetSelectionOwner.argtypes = [display_type, window_type]
+    x.XGetSelectionOwner.restype = window_type
+    if not x.XGetSelectionOwner(display, manager):
+        x.XCreateSimpleWindow.argtypes = [display_type, window_type, c.c_int, c.c_int,
+                                         c.c_uint, c.c_uint, c.c_uint, window_type, window_type]
+        x.XCreateSimpleWindow.restype = window_type
+        owner = x.XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0)
+        x.XSetSelectionOwner.argtypes = [display_type, window_type, window_type, window_type]
+        x.XSetSelectionOwner(display, manager, owner, 0)
+    x.XChangeProperty.argtypes = [display_type, window_type, window_type, window_type,
+                                  c.c_int, c.c_int, c.c_void_p, c.c_int]
+    extents = window_type(atom('_GTK_FRAME_EXTENTS'))
+    x.XChangeProperty(display, root, atom('_NET_SUPPORTED'), atom('ATOM'), 32, 2, c.byref(extents), 1)
+    x.XSync.argtypes = [display_type, c.c_int]
+    x.XSync(display, False)
+    # Keep the selection's connection alive until the program exits.
+    return x, display
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        raise SystemExit('usage: droiddeck-gpu-window <program> [args...]')
+    os.environ.setdefault('GTK_CSD', '1')
+    try:
+        connection = advertise_compositing()
+    except (OSError, RuntimeError):
+        os.execvp(sys.argv[1], sys.argv[1:])
+    child = subprocess.Popen(sys.argv[1:])
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda number, frame: child.send_signal(number))
+    status = child.wait()
+    raise SystemExit(status if status >= 0 else 128 - status)

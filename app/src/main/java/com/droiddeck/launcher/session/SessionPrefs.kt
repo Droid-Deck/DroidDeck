@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.TextureFiltering
@@ -18,10 +19,15 @@ object SessionPrefs {
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
+    const val CONTROLLER_STEAM = "steamcontroller"
+    const val CONTROLLER_DS4 = "dualshock4"
+    const val CONTROLLER_DUALSENSE = "dualsense"
     const val OSC_AUTO = "auto"
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
     const val OSC_NEVER = "never"
+    /** Steam's touch controller (SteamTouchControls) in place of the app's pad; Steam sessions only. */
+    const val OSC_STEAM_TOUCH = "steam-touch"
 
     /** What Back does in a Steam session, first press then second: the labels of the two orders. */
     val BACK_MENU_THEN_QAM = R.string.back_menu_then_qam
@@ -32,6 +38,22 @@ object SessionPrefs {
         if (inverted) BACK_QAM_THEN_MENU else BACK_MENU_THEN_QAM
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+
+    val orientationOptions = listOf(
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE to R.string.setup_orientation_auto,
+        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE to R.string.setup_orientation_landscape,
+        ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE to R.string.setup_orientation_reverse,
+    )
+
+    fun orientation(context: Context): Int =
+        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            .takeIf { value -> orientationOptions.any { it.first == value } }
+            ?: ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+    fun setOrientation(context: Context, orientation: Int) {
+        require(orientationOptions.any { it.first == orientation })
+        prefs(context).edit().putInt("orientation", orientation).apply()
+    }
 
     /** Whether the launcher hides Android's status and navigation bars. */
     fun launcherFullscreen(context: Context): Boolean = prefs(context).getBoolean("launcherFullscreen", true)
@@ -53,6 +75,52 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storeEnabled", on).apply()
     }
 
+    /** The Stores section (GOG, Epic Games, Amazon Games): its rail item. Off by default. */
+    fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", false)
+
+    fun setGameStoresEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
+    }
+
+    /** The store download engine's speed tier (stores/download/StoreDownloadTier ids); Fast unless chosen otherwise. */
+    fun gameStoresSpeedTier(context: Context): String = prefs(context).getString("gameStoresSpeedTier", "fast") ?: "fast"
+
+    fun setGameStoresSpeedTier(context: Context, tier: String) {
+        prefs(context).edit().putString("gameStoresSpeedTier", tier).apply()
+    }
+
+    /** Which tab a signed-in store opens on when its chip is picked: [STORES_OPEN_LIBRARY] or [STORES_OPEN_STORE]. */
+    fun storesOpenTab(context: Context): String =
+        prefs(context).getString("storesOpenTab", STORES_OPEN_LIBRARY)?.takeIf { it == STORES_OPEN_STORE } ?: STORES_OPEN_LIBRARY
+
+    fun setStoresOpenTab(context: Context, tab: String) {
+        prefs(context).edit().putString("storesOpenTab", if (tab == STORES_OPEN_STORE) STORES_OPEN_STORE else STORES_OPEN_LIBRARY).apply()
+    }
+
+    /** Mature titles (the stores' own 17+/18 ratings or adult tags) in the storefront's shelves and search; off by default. Owned games always show. */
+    fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
+
+    fun setStoresShowMature(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("storesShowMature", show).apply()
+    }
+
+    const val STORES_OPEN_LIBRARY = "library"
+    const val STORES_OPEN_STORE = "store"
+
+    /** The install root picked last time the Stores asked where (a StoreInstallRoot target's path); only the dialog's default, never a silent choice. */
+    fun storesInstallTarget(context: Context): String = prefs(context).getString("storesInstallTarget", "") ?: ""
+
+    fun setStoresInstallTarget(context: Context, path: String) {
+        prefs(context).edit().putString("storesInstallTarget", path).apply()
+    }
+
+    /** How many store downloads run at once, 1..3; one by default (a single download already fills the link). */
+    fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
+
+    fun setGameStoresParallel(context: Context, count: Int) {
+        prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
+    }
+
     /**
      * The session's performance HUD (the fps box). A Deck-mode Steam session with the performance
      * overlay has Steam's own (mangoapp, from the QAM), so there the HUD is off unless turned on
@@ -66,9 +134,9 @@ object SessionPrefs {
 
     private fun hudKey(context: Context) = if (mangoappSession(context)) "hudDeck" else "hud"
 
-    /** A Steam session that runs Deck mode with its performance overlay (mangoapp). */
+    /** A Steam session with Deck mode's performance overlay (mangoapp). */
     private fun mangoappSession(context: Context) =
-        SessionState.mode == SessionService.MODE_STEAM && steamDeckMode(context) && mangoapp(context)
+        SessionState.mode == SessionService.MODE_STEAM && mangoapp(context)
 
     /** When enabled, a single Back opens Steam QAM and a double Back opens the session menu. */
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
@@ -384,27 +452,21 @@ object SessionPrefs {
 
     /**
      * What the pad is to the Steam client: [CONTROLLER_DECK], a Steam Deck controller (Quick Access
-     * button, gyro, Steam Input's full treatment - SteamDeckPad), or [CONTROLLER_XBOX360], the plain
-     * Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
+     * button, gyro, Steam Input's full treatment - SteamDeckPad), [CONTROLLER_STEAM], a 2025 Steam
+     * Controller (the same, plus grip sense and its own haptics), [CONTROLLER_DS4] or
+     * [CONTROLLER_DUALSENSE], a PlayStation pad with its touchpad fed by the trackpads, or
+     * [CONTROLLER_XBOX360], the plain Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
      */
     fun steamController(context: Context): String =
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
-
-    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On by default (settleDeckModeDefault). */
-    fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", true)
-    fun setSteamDeckMode(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamDeckMode", on).apply() }
-
-    /**
-     * Deck mode is the default: every install, new or from before, is moved to it once. An install
-     * from before 0.3.0 had off written down for it whether or not anyone chose it, so the move
-     * can't tell a choice from that default and moves everyone; turning it off afterwards sticks.
-     * Run once at process start, before anything reads or writes these prefs.
-     */
-    fun settleDeckModeDefault(context: Context) {
-        val p = prefs(context)
-        if (p.getBoolean("deckModeMoved", false)) return
-        p.edit().putBoolean("steamDeckMode", true).putBoolean("deckModeMoved", true).apply()
+    /** [steamController]'s choice as libfakeinput's pad type (FakeInputWriter.PAD_TYPE_*). */
+    fun padType(id: String): Int = when (id) {
+        CONTROLLER_STEAM -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM
+        CONTROLLER_XBOX360 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_XBOX
+        CONTROLLER_DS4 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DS4
+        CONTROLLER_DUALSENSE -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DUALSENSE
+        else -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DECK
     }
 
     /**
@@ -447,7 +509,7 @@ object SessionPrefs {
     }
 
     /**
-     * Whether a session writes its folder under Download/DroidDeck. Off, the same logs are kept in
+     * Whether a session keeps its folder under files/logs. Off, the same logs are kept in
      * the app's cache for the session's lifetime (the scripts need somewhere to write) and thrown
      * away at the end, so nothing accumulates in Downloads.
      */
@@ -487,7 +549,8 @@ object SessionPrefs {
     fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
         saved.getString("displayResolution.$mode", null)?.let { value ->
-            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(value) != null) return value
+            if (value == SessionDisplay.MATCH_SCREEN || value == SessionDisplay.FOLLOW_SCREEN ||
+                SessionDisplay.presetHeight(value) != null) return value
             parseResolution(value)?.let { return "${it.first}x${it.second}" }
         }
         if (!resolutionChosen(context, mode) && !saved.contains("shape")) return SessionDisplay.DEFAULT_RESOLUTION
@@ -497,7 +560,8 @@ object SessionPrefs {
     }
 
     fun setResolutionChoice(context: Context, mode: String, choice: String) {
-        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.presetHeight(choice) != null) choice else {
+        val value = if (choice == SessionDisplay.MATCH_SCREEN || choice == SessionDisplay.FOLLOW_SCREEN ||
+                SessionDisplay.presetHeight(choice) != null) choice else {
             val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
         }
@@ -536,24 +600,6 @@ object SessionPrefs {
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
 
-    /**
-     * The Steam client branch used for the first download and forced on the command line:
-     * "steamdeck_publicbeta" by default, or "publicbeta" when chosen with Deck mode off.
-     * Deck mode always takes the Deck branch, whatever was chosen:
-     * with -steamos3 the client picks its own branch as SteamOS does, and on publicbeta it settled
-     * on steamdeck_stable - an older client it then offered as a "Software Update" in every session,
-     * which applying turns into the exit-42 restart loop (seen on device 2026-09-30). Earlier, Deck
-     * mode on publicbeta also reinstalled the same client at every start (2026-09-23). On
-     * steamdeck_publicbeta the client finds no update. The choice applies with Deck mode off.
-     */
-    fun steamChannel(context: Context): String =
-        if (steamDeckMode(context)) "steamdeck_publicbeta"
-        else prefs(context).getString("steamChannel", null) ?: "steamdeck_publicbeta"
-
-    fun setSteamChannel(context: Context, id: String) {
-        prefs(context).edit().putString("steamChannel", id).apply()
-    }
-
     /** Whether opening DroidDeck starts a Steam session instead of showing the front end. */
     fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
 
@@ -562,8 +608,9 @@ object SessionPrefs {
     }
 
     /**
-     * The folders of the user's own Windows games (one game per subfolder), any number of them
-     * from anywhere on the device. The single folder an earlier build kept is carried in.
+     * The Games folders earlier builds let the user add (one game per subfolder); read only by
+     * GamesFolderMigration, which turns them into entries and clears them. The single folder an
+     * even earlier build kept is carried in.
      */
     fun addedGamesDirs(context: Context): List<String> {
         val p = prefs(context)
@@ -575,6 +622,80 @@ object SessionPrefs {
 
     fun setAddedGamesDirs(context: Context, dirs: List<String>) {
         prefs(context).edit().putString("addedGamesDirs", dirs.distinct().joinToString("\n")).remove("addedGamesDir").apply()
+    }
+
+    /**
+     * The Games folders earlier builds had (host path, guest path), still bound into the session so
+     * their games keep their paths; written once by GamesFolderMigration.
+     */
+    fun gameFolderBinds(context: Context): List<Pair<String, String>> =
+        (prefs(context).getString("gameFolderBinds", "") ?: "").split('\n').mapNotNull { line ->
+            line.split('\t').takeIf { it.size == 2 && it[0].isNotEmpty() && it[1].isNotEmpty() }?.let { it[0] to it[1] }
+        }
+
+    fun setGameFolderBinds(context: Context, binds: List<Pair<String, String>>) {
+        prefs(context).edit().putString("gameFolderBinds", binds.distinctBy { it.first }.joinToString("\n") { "${it.first}\t${it.second}" }).apply()
+    }
+
+    /** The Games folders were turned into entries (GamesFolderMigration); a record, not a gate. */
+    fun gamesFoldersMigrated(context: Context): Boolean = prefs(context).getBoolean("gamesFoldersMigrated", false)
+
+    fun setGamesFoldersMigrated(context: Context) {
+        prefs(context).edit().putBoolean("gamesFoldersMigrated", true).apply()
+    }
+
+    /**
+     * Game folders (by path) the user removed from the added games: a scan skips them, so they
+     * stay off the Games tab and out of Steam until restored. Nothing on disk is touched.
+     */
+    fun removedAddedGames(context: Context): List<String> =
+        (prefs(context).getString("removedAddedGames", "") ?: "").split('\n').filter { it.isNotEmpty() }
+
+    fun setAddedGameRemoved(context: Context, folderPath: String, removed: Boolean) {
+        synchronized(addedGameLock) {
+            val now = removedAddedGames(context).filter { it != folderPath } + listOfNotNull(folderPath.takeIf { removed })
+            prefs(context).edit().putString("removedAddedGames", now.joinToString("\n")).apply()
+        }
+    }
+
+    /** An added game's name as the user set it (in the app, or in Steam's Properties); "" = automatic. */
+    fun addedGameName(context: Context, folderPath: String): String = prefs(context).getString("addedName:$folderPath", "") ?: ""
+
+    fun setAddedGameName(context: Context, folderPath: String, name: String) {
+        prefs(context).edit().putString("addedName:$folderPath", name.trim()).apply()
+    }
+
+    /** An added game's Start in, as the session sees it; "" = the exe's own folder. */
+    fun addedGameStartIn(context: Context, folderPath: String): String = prefs(context).getString("addedStartIn:$folderPath", "") ?: ""
+
+    fun setAddedGameStartIn(context: Context, folderPath: String, guestDir: String) {
+        prefs(context).edit().putString("addedStartIn:$folderPath", guestDir.trim()).apply()
+    }
+
+    /** An added game's launch options, as Steam takes them ("-dx11", "VAR=1 %command%"). */
+    fun addedGameLaunch(context: Context, folderPath: String): String = prefs(context).getString("addedLaunch:$folderPath", "") ?: ""
+
+    fun setAddedGameLaunch(context: Context, folderPath: String, options: String) {
+        prefs(context).edit().putString("addedLaunch:$folderPath", options.trim()).apply()
+    }
+
+    /**
+     * The last value of [field] (AppName, StartDir, LaunchOptions) taken over from Steam's own
+     * Properties for this game, so the same Steam edit is not taken again over a later app edit.
+     */
+    fun addedGameAdopted(context: Context, folderPath: String, field: String): String? =
+        prefs(context).getString("addedAdopted:$field:$folderPath", null)
+
+    fun setAddedGameAdopted(context: Context, folderPath: String, field: String, value: String) {
+        prefs(context).edit().putString("addedAdopted:$field:$folderPath", value).apply()
+    }
+
+    /** Where an added game's art for [slot] comes from when the user chose it ("folder", "steam", "sgdb", "file"); "" = automatic. */
+    fun addedGameArtSource(context: Context, folderPath: String, slot: String): String =
+        prefs(context).getString("addedArt:$slot:$folderPath", "") ?: ""
+
+    fun setAddedGameArtSource(context: Context, folderPath: String, slot: String, source: String) {
+        prefs(context).edit().putString("addedArt:$slot:$folderPath", source).apply()
     }
 
     /** Whether added games without art of their own get Steam's store art fetched for them. */
@@ -601,6 +722,10 @@ object SessionPrefs {
             if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
             unchanged
         }
+
+    /** The shortcut appid stored for the folder, or null before its first scan. */
+    fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
+        prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
 
     fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
         val p = prefs(context)
@@ -630,21 +755,6 @@ object SessionPrefs {
         val h = parts[1].toIntOrNull() ?: return null
         if (w !in 320..3840 || h !in 240..2160) return null
         return Pair(w and 1.inv(), h and 1.inv())
-    }
-
-    /**
-     * What the desktop shell composites with: vulkan (the default) or gles2 on the GPU, through the
-     * app's patched wlroots (tools/wlroots) - the Adreno stand-in is not a DRM device and stock
-     * wlroots cannot allocate on it - or pixman in software. A GPU renderer a device cannot start
-     * falls back to pixman by itself (droiddeck-desktop). `Download/droiddeck-wlr-renderer` still
-     * overrides it.
-     */
-    fun desktopRenderer(context: Context): String = prefs(context).getString("desktopRenderer", "vulkan") ?: "vulkan"
-
-    fun setDesktopRenderer(context: Context, renderer: String) {
-        prefs(context).edit().putString("desktopRenderer", renderer).apply()
-        // A choice made again is a retry: forget that a renderer failed to start here before.
-        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.droiddeck-renderer-failed").delete()
     }
 
     /**
@@ -788,6 +898,26 @@ object SessionPrefs {
 
     fun setPipAutoEnter(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
+    }
+
+    /** A foldable's unfolded panel shows the game above the Deck controls (SessionDisplay.unfoldedGameHeight). */
+    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", false)
+
+    fun setUnfoldedControls(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
+    }
+
+    const val SURFACE_STICK = "stick"
+    const val SURFACE_TRACKPAD = "trackpad"
+
+    /** The Deck controls' gamepad tab: what each side is - an analog stick or a Steam trackpad.
+     *  Left a stick and right a trackpad until changed, as a Deck is mostly played. */
+    fun gamepadSurface(context: Context, right: Boolean): String =
+        prefs(context).getString(if (right) "gamepadRight" else "gamepadLeft", null)
+            ?: if (right) SURFACE_TRACKPAD else SURFACE_STICK
+
+    fun setGamepadSurface(context: Context, right: Boolean, surface: String) {
+        prefs(context).edit().putString(if (right) "gamepadRight" else "gamepadLeft", surface).apply()
     }
 
     fun suspendPolicy(context: Context, mode: String): String =

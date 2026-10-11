@@ -59,6 +59,19 @@ def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'tr
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 // When the source was committed, for "built 3 hours ago": fixed per commit, so it costs no rebuilds.
 def commitTime = (gitValue(['show', '-s', '--format=%ct', 'HEAD']) ?: '0').with { it.isLong() ? it : '0' }
+// The desktop package this apk installs (tools/desktop-kde/release.env): published once per tag in
+// DroidDeck-Components, pinned here with its checksum like gamescope and the esync packs, so the
+// desktop scripts in the apk always get the package they were made for.
+def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
+    .findAll { it.contains('=') && !it.startsWith('#') }
+    .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
+def desktopRemovalSources = new groovy.json.JsonSlurper().parse(file('src/main/assets/desktop-removal/sources.json'))
+if (desktopRemovalSources.archives[desktopKde.DESKTOP_KDE_TAG] != desktopKde.DESKTOP_KDE_SHA256) {
+    throw new GradleException('Desktop removal inventories do not match the pinned archive')
+}
+if (!file('src/main/assets/desktop-removal/versions.txt').readLines().contains(desktopKde.DESKTOP_KDE_TAG)) {
+    throw new GradleException('Regenerate desktop removal inventories for ' + desktopKde.DESKTOP_KDE_TAG)
+}
 // tools/release/variants.txt as "package=suffix;...", so the updater picks the apk of the package it runs as.
 def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
     .findAll { it.trim() && !it.startsWith('#') }
@@ -88,6 +101,11 @@ android {
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
+        buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
+        buildConfigField "String", "DESKTOP_KDE_TAG", "\"${desktopKde.DESKTOP_KDE_TAG}\""
+        buildConfigField "String", "DESKTOP_KDE_URL", "\"https://github.com/${desktopKde.DESKTOP_KDE_REPO}/releases/download/${desktopKde.DESKTOP_KDE_TAG}/desktop-kde.tar.zst\""
+        buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
+        buildConfigField "long", "DESKTOP_KDE_SIZE", "${desktopKde.DESKTOP_KDE_SIZE}L"
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -187,6 +205,76 @@ def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
     into(layout.projectDirectory.dir('src/main/assets/linuxfs'))
 }
 tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
+
+// Prepared audio lives under build/, so native builds never rewrite the tracked base bundle.
+// Copying into one asset root also prevents an old base bundle winning a duplicate asset merge.
+def runtimeAssetsDir = layout.buildDirectory.dir('runtimeAssets')
+def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
+    dependsOn(stageSessionScripts)
+    from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
+    from(layout.buildDirectory.dir('prepared-assets'))
+    into(runtimeAssetsDir)
+}
+android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
+tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
+
+// Unit tests and previews remain usable without Docker. Packaging an APK requires the complete
+// runtime payload prepared by the local helper or CI, with matching sources and output hashes.
+def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
+    // The session scripts are re-copied into the asset tree by stageSessionScripts; with parallel
+    // task execution this check once hashed a file mid-copy and failed a main build. Hash only
+    // once the staging has finished.
+    mustRunAfter(stageSessionScripts, stageRuntimeAssets)
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
+}
+tasks.configureEach { task ->
+    if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
+}
+
+// The GOG / Epic / Amazon download engines are Rust (app/src/main/rust/stores, ported from
+// Bannerlator's bl-steam-client crate). cargo-ndk cross-compiles them for arm64-v8a into the build
+// directory, which is one more jniLibs source below: nothing compiled is committed, the same rule
+// the preloads, proot and the DirectAudio relay follow. cargo-ndk exports the NDK clang/llvm-ar as
+// the C compiler for the one C-compiling crate (ring, under rustls) - the step Bannerlator's CI
+// does by hand - and reads the NDK from ANDROID_NDK_HOME, which is set to the NDK this build pins.
+// -PskipRust=true builds without the library, for a checkout with no Rust toolchain: the stores
+// then report themselves unavailable instead of the build failing.
+def rustCrateDir = layout.projectDirectory.dir('src/main/rust/stores')
+def rustJniLibsDir = layout.buildDirectory.dir('rustJniLibs')
+def skipRust = (project.findProperty('skipRust') ?: 'false').toString().toBoolean()
+def buildRustStores = tasks.register('buildRustStores', Exec) {
+    description = 'Cross-compiles the store download engines (libdroiddeckstores.so) with cargo-ndk.'
+    onlyIf { !skipRust }
+    inputs.dir(rustCrateDir.dir('src'))
+    inputs.files(rustCrateDir.file('Cargo.toml'), rustCrateDir.file('Cargo.lock'))
+    inputs.property('ndkVersion', android.ndkVersion)
+    if (!skipRust) inputs.property('rustToolchain', providers.exec {
+        environment 'PATH', "${System.getProperty('user.home')}/.cargo/bin${File.pathSeparator}${System.getenv('PATH')}"
+        commandLine 'rustup', 'run', 'stable', 'rustc', '-Vv'
+    }.standardOutput.asText)
+    outputs.dir(rustJniLibsDir)
+    workingDir rustCrateDir
+    // The configuration cache serialises the task, so everything it needs is resolved here, not
+    // in doFirst. ~/.cargo/bin is where rustup puts cargo and cargo-ndk; an IDE-launched Gradle
+    // does not always have it on PATH.
+    def cargoBin = "${System.getProperty('user.home')}/.cargo/bin"
+    environment 'PATH', "${cargoBin}${File.pathSeparator}${System.getenv('PATH')}"
+    environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
+    environment 'CARGO_TERM_COLOR', 'never'
+    if (!skipRust) environment 'RUSTC', providers.exec {
+        commandLine 'rustup', 'which', '--toolchain', 'stable', 'rustc'
+    }.standardOutput.asText.get().trim()
+    // --platform 26 = minSdkVersion: the engines link against the API 26 libc, like the C++ code.
+    // Homebrew's cargo/rustc can precede rustup on macOS and use a different sysroot, despite
+    // rustup reporting the Android target installed. Run both through the selected toolchain.
+    commandLine 'rustup', 'run', 'stable', 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '26',
+        '--output-dir', rustJniLibsDir.get().asFile.absolutePath,
+        'build', '--release', '--locked'
+}
+// Skipping Rust must omit its library even if another build left a cached .so behind.
+if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
+tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {
     // The runtime tarball is a zstd-compressed tar.
