@@ -218,6 +218,157 @@ class ForcedPackageTest {
         assertEquals("custom-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
     }
 
+    @Test fun aFailedStateCommitIsRecoveredBeforeSelectionsCanBeRead() {
+        proton("proton-exp")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        val state = File(context.filesDir, "components/state.json")
+        val saved = state.readText()
+        val blocked = File(context.filesDir, "components/state.json.tmp")
+        blocked.mkdir()
+        val blocker = File(blocked, "blocker").apply { writeText("keep directory nonempty") }
+        val oldSource = File(launchState().parentFile, "store/old/files/old.dll").apply {
+            parentFile!!.mkdirs()
+            writeText("old component")
+        }
+
+        assertThrows(java.io.IOException::class.java) {
+            ComponentsManager.clearGameComponents(context, "42")
+        }
+
+        assertEquals(saved, state.readText())
+        assertTrue(pendingState().isFile)
+        assertTrue(launchState().isFile)
+        assertEquals(Hashes.sha256(launchState()), JSONObject(pendingState().readText()).getString("launchSha256"))
+        assertEquals("old component", oldSource.readText())
+        assertThrows(java.io.IOException::class.java) {
+            ComponentsManager.gameComponents(context, "42")
+        }
+        assertTrue(pendingState().isFile)
+
+        assertTrue(blocker.delete())
+        assertTrue(blocked.delete())
+        assertTrue(ComponentsManager.gameComponents(context, "42").isEmpty())
+        assertFalse(pendingState().exists())
+        assertDefaultDxvkRestoreRow("proton-exp")
+        assertTrue(ComponentsManager.gameComponents(context, "42").isEmpty())
+        ComponentsManager.snapshotAll(context)
+        assertFalse(oldSource.exists())
+        assertDefaultDxvkRestoreRow("proton-exp")
+    }
+
+    @Test fun aFailedLaunchPublicationRetainsTheOldSelectionsAndStore() {
+        proton("proton-exp")
+        writeGameProfile("42", "dxvk", "custom-dxvk.wcp")
+        val state = File(context.filesDir, "components/state.json")
+        val saved = state.readText()
+        launchState().mkdirs()
+        val blocker = File(launchState(), "blocker").apply { writeText("block rename") }
+        val oldSource = File(launchState().parentFile, "store/old/files/old.dll").apply {
+            parentFile!!.mkdirs()
+            writeText("old component")
+        }
+
+        assertThrows(IllegalStateException::class.java) {
+            ComponentsManager.clearGameComponents(context, "42")
+        }
+
+        assertEquals(saved, state.readText())
+        assertTrue(pendingState().isFile)
+        assertEquals("custom-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
+        assertFalse(pendingState().exists())
+        assertEquals("old component", oldSource.readText())
+        assertTrue(blocker.delete())
+        assertTrue(launchState().delete())
+
+        ComponentsManager.clearGameComponents(context, "42")
+
+        assertTrue(ComponentsManager.gameComponents(context, "42").isEmpty())
+        assertFalse(oldSource.exists())
+        assertDefaultDxvkRestoreRow("proton-exp")
+    }
+
+    @Test fun interruptionBeforePublicationDiscardsOnlyThePendingSelections() {
+        writeGameProfile("42", "dxvk", "old-dxvk.wcp")
+        val state = File(context.filesDir, "components/state.json")
+        val saved = state.readText()
+        val next = JSONObject(saved).apply {
+            getJSONObject("profiles").getJSONObject("42").put("dxvk", "new-dxvk.wcp")
+        }
+        val staged = File(launchState().parentFile, "desired.tsv.tmp").apply {
+            parentFile!!.mkdirs()
+            writeText("new launch table")
+        }
+        launchState().writeText("old launch table")
+        writePendingState(next, staged)
+
+        assertEquals("old-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
+        assertEquals(saved, state.readText())
+        assertEquals("old launch table", launchState().readText())
+        assertFalse(pendingState().exists())
+        assertFalse(staged.exists())
+    }
+
+    @Test fun identicalLaunchTablesDoNotCommitUnpublishedSettings() {
+        writeGameProfile("42", "dxvk", "old-dxvk.wcp")
+        val state = File(context.filesDir, "components/state.json")
+        val saved = state.readText()
+        val next = JSONObject(saved).put("queued", JSONObject().put("proton-exp", JSONObject()))
+        val staged = File(launchState().parentFile, "desired.tsv.tmp").apply {
+            parentFile!!.mkdirs()
+            writeText("unchanged launch table")
+        }
+        launchState().writeText(staged.readText())
+        writePendingState(next, staged)
+
+        assertEquals("old-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
+        assertEquals(saved, state.readText())
+        assertFalse(pendingState().exists())
+        assertFalse(staged.exists())
+    }
+
+    @Test fun interruptionAfterPublicationRecoversAllSelectionsAndIsIdempotent() {
+        writeGameProfile("42", "dxvk", "old-dxvk.wcp")
+        val next = JSONObject()
+            .put("active", JSONObject().put("proton-exp", JSONObject().put("dxvk", JSONObject().put("file", dxvk2))))
+            .put("queued", JSONObject().put("proton-exp", JSONObject().put("fex", JSONObject().put("file", "fex.wcp"))))
+            .put("profiles", JSONObject()
+                .put("42", JSONObject().put("dxvk", "new-dxvk.wcp"))
+                .put("43", JSONObject().put("fex", "fex.wcp")))
+            .put("profiledComponents", JSONArray(listOf("dxvk", "fex")))
+        launchState().apply { parentFile!!.mkdirs(); writeText("published launch table") }
+        writePendingState(next, launchState())
+
+        assertEquals("new-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
+        assertEquals("fex.wcp", ComponentsManager.gameComponents(context, "43")["fex"])
+        assertEquals(next.toString(2), File(context.filesDir, "components/state.json").readText())
+        assertFalse(pendingState().exists())
+        assertEquals("published launch table", launchState().readText())
+        assertEquals("new-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
+    }
+
+    @Test fun aPendingTransactionAfterTheStateCommitCanBeRecoveredAgain() {
+        writeGameProfile("42", "dxvk", "new-dxvk.wcp")
+        val state = File(context.filesDir, "components/state.json")
+        val next = JSONObject(state.readText())
+        launchState().apply { parentFile!!.mkdirs(); writeText("published launch table") }
+        writePendingState(next, launchState())
+
+        assertEquals("new-dxvk.wcp", ComponentsManager.gameComponents(context, "42")["dxvk"])
+        assertEquals(next.toString(2), state.readText())
+        assertFalse(pendingState().exists())
+    }
+
+    @Test fun anUnreadableRecoveryRecordDoesNotSilentlyReturnStaleSelections() {
+        writeGameProfile("42", "dxvk", "old-dxvk.wcp")
+        pendingState().writeText("incomplete recovery record")
+
+        assertThrows(org.json.JSONException::class.java) {
+            ComponentsManager.gameComponents(context, "42")
+        }
+
+        assertTrue(pendingState().isFile)
+    }
+
     @Test fun theSamePackageOnThisProtonBuildIsNotFetchedAgain() {
         proton("proton-exp")
         writeState("proton-exp", dxvk2, "experimental-11")
@@ -346,6 +497,15 @@ class ForcedPackageTest {
     }
 
     private fun launchState() = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components/desired.tsv")
+
+    private fun pendingState() = File(context.filesDir, "components/state.pending.json")
+
+    private fun writePendingState(state: JSONObject, launch: File) {
+        pendingState().writeText(JSONObject()
+            .put("state", state)
+            .put("launchSha256", Hashes.sha256(launch))
+            .toString())
+    }
 
     private fun original(protonName: String, version: String = "experimental-11") =
         File(context.filesDir, "components/originals/$protonName/$version/dxvk.wcp")

@@ -137,23 +137,71 @@ object ComponentsManager {
 
     // ------------------------------------------------------------------ state
 
-    private fun loadState(context: Context): JSONObject =
-        runCatching { JSONObject(stateFile(context).readText()) }.getOrElse { JSONObject() }.apply {
+    private fun pendingStateFile(context: Context) = File(dataDir(context), "state.pending.json")
+
+    private fun loadState(context: Context): JSONObject {
+        recoverState(context)
+        return runCatching { JSONObject(stateFile(context).readText()) }.getOrElse { JSONObject() }.apply {
             if (!has("active")) put("active", JSONObject())
             if (!has("queued")) put("queued", JSONObject())
             if (!has("profiles")) put("profiles", JSONObject())
         }
+    }
 
-    private fun saveState(context: Context, state: JSONObject) {
-        val f = stateFile(context)
-        val tmp = File(f.parentFile, f.name + ".tmp")
-        tmp.writeText(state.toString(2))
+    private fun writeStateFile(file: File, text: String) {
+        val tmp = File(file.parentFile, file.name + ".tmp")
         try {
-            syncLaunchState(context, state)
-            check(tmp.renameTo(f)) { "Could not save component selections" }
+            writeSynced(tmp, text)
+            check(tmp.renameTo(file)) { "Could not save component selections: ${file.name}" }
         } finally {
             tmp.delete()
         }
+    }
+
+    private fun writeSynced(file: File, text: String) {
+        FileOutputStream(file).use {
+            it.write(text.toByteArray(Charsets.UTF_8))
+            it.fd.sync()
+        }
+    }
+
+    private fun recoverState(context: Context) {
+        val pending = pendingStateFile(context)
+        if (!pending.exists()) return
+        val transaction = JSONObject(pending.readText())
+        val state = transaction.getJSONObject("state")
+        val expected = transaction.getString("launchSha256")
+        val published = File(launchDir(context), "desired.tsv")
+        val staged = File(launchDir(context), "desired.tsv.tmp")
+        // The launch-table rename is the commit point. Never read stale app selections after it.
+        if (!staged.exists() && published.isFile && Hashes.sha256(published) == expected) {
+            writeStateFile(stateFile(context), state.toString(2))
+            Log.i(TAG, "recovered published component selections")
+        } else {
+            Log.i(TAG, "discarded unpublished component selections")
+        }
+        check(pending.delete()) { "Could not finish component selection recovery" }
+        if (staged.exists()) check(staged.delete()) { "Could not remove unpublished component selections" }
+    }
+
+    private fun saveState(context: Context, state: JSONObject) {
+        val prepared = prepareLaunchState(context, state)
+        val dir = launchDir(context)
+        val tmp = File(dir, "desired.tsv.tmp")
+        try {
+            writeSynced(tmp, prepared.text)
+            writeStateFile(pendingStateFile(context), JSONObject()
+                .put("state", state)
+                .put("launchSha256", Hashes.sha256(tmp))
+                .toString())
+            check(tmp.renameTo(File(dir, "desired.tsv"))) { "Could not publish component selections" }
+            writeStateFile(stateFile(context), state.toString(2))
+            check(pendingStateFile(context).delete()) { "Could not finish saving component selections" }
+        } finally {
+            if (!pendingStateFile(context).exists()) tmp.delete()
+        }
+        File(dir, "store").listFiles()?.filter { it.isDirectory && it.name !in prepared.keep }
+            ?.forEach { it.deleteRecursively() }
     }
 
     private fun JSONObject.sub(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }
@@ -477,7 +525,7 @@ object ComponentsManager {
         for (p in protons(context)) for (comp in COMPONENTS) {
             runCatching { ensureOriginal(context, p, comp, state) }.onFailure { Log.w(TAG, "original $comp of ${p.name}", it) }
         }
-        runCatching { syncLaunchState(context, state) }.onFailure { Log.w(TAG, "launch state", it) }
+        runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "launch state", it) }
     }
 
     // ------------------------------------------------------------------ view
@@ -537,13 +585,15 @@ object ComponentsManager {
 
     // ------------------------------------------------------------------ launch-time enforcement
 
+    private data class PreparedLaunchState(val text: String, val keep: Set<String>)
+
     /**
-     * Writes what each Proton should use for the launch wrappers. General rows use scope `*`;
+     * Stages what each Proton should use for the launch wrappers. General rows use scope `*`;
      * per-game rows use the game's compatdata id and replace General for that component. Deletion
      * rows remove managed DLLs absent from the chosen package, so switching games cannot leave files
      * from the previous game's component set behind.
      */
-    private fun syncLaunchState(context: Context, state: JSONObject) {
+    private fun prepareLaunchState(context: Context, state: JSONObject): PreparedLaunchState {
         val dir = launchDir(context)
         val store = File(dir, "store").apply { mkdirs() }
         val all = protons(context)
@@ -639,15 +689,7 @@ object ComponentsManager {
                 for (p in all) append(scope, p, comp, key, wcp)
             }
         }
-        val list = File(dir, "desired.tsv")
-        val tmp = File(dir, "desired.tsv.tmp")
-        try {
-            tmp.writeText(lines.toString())
-            check(tmp.renameTo(list)) { "Could not publish component selections" }
-        } finally {
-            tmp.delete()
-        }
-        store.listFiles()?.filter { it.isDirectory && it.name !in keep }?.forEach { it.deleteRecursively() }
+        return PreparedLaunchState(lines.toString(), keep)
     }
 
     // ------------------------------------------------------------------ actions

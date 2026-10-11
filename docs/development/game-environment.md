@@ -31,6 +31,12 @@ or unreadable original is an error, not permission to delete the component's fil
 If an original is missing after a build may already have used a game override,
 DroidDeck refuses to capture those potentially modified files as originals.
 
+Component selections and the launch table are saved with a recovery record.
+Publishing the launch table commits the selection: if the app stops before its
+settings file is updated, the next component read recovers the matching settings.
+An interruption before publication leaves the previous selections in place.
+Unused staged packages are removed only after both files have been saved.
+
 **Reset game profile** removes all overrides owned by the selected game: Proton,
 FEX preset, component packages, environment variables, texture filtering and
 Windows components. The game then inherits the Default profile again.
