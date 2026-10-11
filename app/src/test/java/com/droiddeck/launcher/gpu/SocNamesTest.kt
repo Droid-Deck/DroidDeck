@@ -17,9 +17,15 @@ class SocNamesTest {
     @Test fun knownModelsAndPlatformsGetTheirNames() {
         assertEquals("Snapdragon 8 Gen 2", SocNames.name("QCS8550", ""))
         assertEquals("Snapdragon 8 Gen 3 family", SocNames.name("SG8350P", "pineapple"))
+        assertEquals("Snapdragon X Elite", SocNames.name("SC8380XP", ""))
+        assertEquals("Snapdragon X Elite", SocNames.name("X1E80100", ""))
+        assertEquals("Snapdragon X Elite family", SocNames.name("other", "hamoa"))
+        assertEquals("Snapdragon X Plus family", SocNames.name("other", "purwa"))
         assertNull(SocNames.name("XYZ123", "nowhere"))
         assertEquals("Snapdragon 8 Gen 2 (QCS8550)", SocNames.label("QCS8550", ""))
         assertEquals("Snapdragon 8 Gen 3 family (SG8350P)", SocNames.label("SG8350P", "pineapple"))
+        assertEquals("Snapdragon X Elite (SC8380XP)", SocNames.label("SC8380XP", "hamoa"))
+        assertEquals("Snapdragon X Elite family (other)", SocNames.label("other", "hamoa"))
         assertEquals("XYZ123", SocNames.label("XYZ123", ""))
     }
 }

@@ -16,7 +16,10 @@ import java.io.File
  */
 object DeviceSupport {
     fun adreno(): Boolean =
-        File("/sys/class/kgsl/kgsl-3d0").exists() || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
+        File("/sys/class/kgsl/kgsl-3d0").exists()
+            || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
+            || File("/sys/bus/platform/drivers/msm_drm").exists()
+            || File("/sys/class/drm/renderD128").exists()
 
     /** The chip as the device names it, for the card that explains the refusal. */
     fun gpuName(context: Context): String {
