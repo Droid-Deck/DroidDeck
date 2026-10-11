@@ -135,7 +135,8 @@ object SteamPics {
     /** An app's KeyValues text ("appinfo" { "common" {...} "depots" {...} }) to its name and shared depots. */
     @VisibleForTesting
     internal fun infoFromKeyValues(text: String): SteamAppInfo.Info? {
-        val tree = runCatching { KeyValues(text).read() }.getOrNull() ?: return null
+        // The buffer ends in a NUL, kept or not by whoever handed it over.
+        val tree = runCatching { KeyValues(text.trimEnd('\u0000', ' ', '\n', '\r', '\t')).read() }.getOrNull() ?: return null
         @Suppress("UNCHECKED_CAST")
         val app = tree["appinfo"] as? Map<String, Any> ?: return null
         return SteamAppInfo.infoOf(app)
@@ -158,7 +159,7 @@ object SteamPics {
         }
         private fun skip() {
             while (i < s.length) {
-                if (s[i].isWhitespace()) i++
+                if (s[i].isWhitespace() || s[i] == '\u0000') i++
                 else if (s.startsWith("//", i)) { while (i < s.length && s[i] != '\n') i++ }
                 else break
             }
