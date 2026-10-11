@@ -255,8 +255,9 @@ EVALUATOR_SCRIPT = re.compile(r"(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$", re.IGN
 
 def mark_install_scripts(command, env):
     """The client is about to run a game's install scripts (iscriptevaluator.exe): mark every process
-    in them as already run first, so no redistributable installer starts - on first launch the
-    shared ones may still be downloading, and on ARM64 Proton the VC++ ones stop with an error."""
+    in them but a Vulkan runtime installer as already run first, so no redistributable installer
+    starts - on first launch the shared ones may still be downloading, and on ARM64 Proton the VC++
+    ones stop with an error."""
     if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
         return
     root = env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
