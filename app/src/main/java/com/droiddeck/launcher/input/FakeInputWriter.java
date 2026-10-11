@@ -107,8 +107,20 @@ public class FakeInputWriter {
     private static final int DECK_PADS_OFFSET = IMU_OFFSET + 28; // short[4]: left X, Y, right X, Y
     private static final int DECK_PRESSURE_OFFSET = IMU_OFFSET + 36; // short[2]: left, right
     private static final int DECK_CONTROLS_OFFSET = IMU_OFFSET + 40; // int: DeckControls bits
+    // Slot 0 only: what the pad is to the Steam client (libfakeinput's PAD_TYPE_*), | PAD_TYPE_SET.
+    private static final int PAD_TYPE_OFFSET = IMU_OFFSET + 44;
+    private static final int PAD_TYPE_SET = 0x80000000;
+    public static final int PAD_TYPE_DECK = 0;
+    public static final int PAD_TYPE_STEAM = 1;
+    public static final int PAD_TYPE_XBOX = 2;
+    /** The type chosen this process, written into a ring made after the choice too; -1 for none. */
+    private static volatile int padType = -1;
+    /** The paired controller's state, likewise written into a ring made after it connected. */
+    private static volatile boolean tritonConnected = false;
     private static final int TRITON_OFFSET = RING_SIZE + 64;
     private static final int TRITON_MAGIC = 0x4e525454; // TTRN
+    // Whether the paired controller is connected: libfakeinput offers its device only then.
+    private static final int TRITON_CONNECTED_OFFSET = TRITON_OFFSET + 4;
     private static final int TRITON_INPUT_SEQ_OFFSET = TRITON_OFFSET + 8;
     private static final int TRITON_REPORT_ID_OFFSET = TRITON_OFFSET + 16;
     private static final int TRITON_REPORT_LENGTH_OFFSET = TRITON_OFFSET + 20;
@@ -241,7 +253,10 @@ public class FakeInputWriter {
             data.putShort(IMU_ACCEL_OFFSET + (i * 2), (short) 0);
         }
         data.putInt(DECK_CONTROLS_OFFSET, 0);
+        int type = padType;
+        data.putInt(PAD_TYPE_OFFSET, type >= 0 ? PAD_TYPE_SET | type : 0);
         data.putInt(TRITON_OFFSET, TRITON_MAGIC);
+        data.putInt(TRITON_CONNECTED_OFFSET, tritonConnected ? 1 : 0);
         data.putLong(TRITON_INPUT_SEQ_OFFSET, 0L);
         data.putInt(TRITON_REPORT_ID_OFFSET, 0);
         data.putInt(TRITON_REPORT_LENGTH_OFFSET, 0);
@@ -546,6 +561,38 @@ public class FakeInputWriter {
             ring.putInt(IMU_OFFSET, IMU_MAGIC);
             nativeStoreFence();
             ring.putLong(IMU_SEQ_OFFSET, seq + 2);
+        }
+    }
+
+    /**
+     * Switches what the pad is to the Steam client while the session runs ([PAD_TYPE_DECK],
+     * [PAD_TYPE_STEAM] or [PAD_TYPE_XBOX]); libfakeinput unplugs the old device and plugs in the new.
+     */
+    public static void setPadType(int type) {
+        padType = type;
+        RingSlot ringSlot;
+        synchronized (RING_LOCK) {
+            ringSlot = RING_SLOTS[0];
+        }
+        if (ringSlot == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null) return;
+            nativeStoreFence();
+            ring.putInt(PAD_TYPE_OFFSET, PAD_TYPE_SET | type);
+        }
+    }
+
+    /** The paired Steam Controller came or went (SteamControllerBle): its device is plugged in or out. */
+    public static void setTritonConnected(int slot, boolean connected) {
+        tritonConnected = connected;
+        RingSlot ringSlot = tritonSlot(slot);
+        if (ringSlot == null) return;
+        synchronized (ringSlot) {
+            ByteBuffer ring = ringSlot.data;
+            if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return;
+            nativeStoreFence();
+            ring.putInt(TRITON_CONNECTED_OFFSET, connected ? 1 : 0);
         }
     }
 

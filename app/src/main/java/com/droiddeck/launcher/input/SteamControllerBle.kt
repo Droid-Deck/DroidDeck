@@ -92,6 +92,7 @@ class SteamControllerBle(private val context: Context) {
         queuedWrites.clear()
         outputReports.clear()
         connected = false
+        FakeInputWriter.setTritonConnected(SLOT, false)
         g.disconnect()
         g.close()
         release()
@@ -129,6 +130,7 @@ class SteamControllerBle(private val context: Context) {
             if (g !== gatt || descriptor.characteristic.uuid != input) return
             Log.i(TAG, "subscribed to report 0x%02x (status %d)".format(reportId, status))
             connected = status == BluetoothGatt.GATT_SUCCESS
+            FakeInputWriter.setTritonConnected(SLOT, connected)
             listener?.invoke()
             if (connected) {
                 refreshLizardMode()

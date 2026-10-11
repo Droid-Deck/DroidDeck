@@ -250,6 +250,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
     private var backActionsInverted by mutableStateOf(false)
+    /** What the pad is to the Steam client (SessionPrefs.CONTROLLER_*), switched from the drawer. */
+    private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     /** The on-screen PC keyboard (ui/PcKeyboard): real key presses, Esc and F1 included. */
     private var pcKeyboardOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
@@ -395,9 +397,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.padBridge = bridge
         // A paired Steam Controller is read over Bluetooth LE, out of lizard mode, as Steam Link reads it.
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); updateOnScreenControls() } }
-        // Not when the pad itself is the Steam Controller: that device is then the pad's.
-        if (SessionPrefs.steamController(this) != SessionPrefs.CONTROLLER_STEAM)
-            steamController = SteamControllerBle(this).also { it.start() }
+        steamController = SteamControllerBle(this).also { it.start() }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -589,6 +589,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onKeyboardButton = { on -> updateControllerPrefs { ControllerPrefs.setKeyboardButton(this@SessionActivity, on) } },
                     onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
                     onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
+                    // Only where the session set the pad up to be switched (SessionService: deckPad).
+                    padType = if (SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad) padType else null,
+                    onPadType = { id ->
+                        SessionPrefs.setSteamController(this@SessionActivity, id)
+                        com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
+                        padType = id
+                    },
                     backActionsInverted = backActionsInverted,
                     onBackActionsInverted = { inverted ->
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
@@ -849,6 +856,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
+        padType = SessionPrefs.steamController(this)
     }
 
     // ── Compositor ──────────────────────────────────────────────────────────────────────────

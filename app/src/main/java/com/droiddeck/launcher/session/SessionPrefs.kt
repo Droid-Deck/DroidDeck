@@ -457,6 +457,12 @@ object SessionPrefs {
     fun steamController(context: Context): String =
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
+    /** [steamController]'s choice as libfakeinput's pad type (FakeInputWriter.PAD_TYPE_*). */
+    fun padType(id: String): Int = when (id) {
+        CONTROLLER_STEAM -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM
+        CONTROLLER_XBOX360 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_XBOX
+        else -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DECK
+    }
 
     /**
      * Deck mode's performance overlay (mangoapp, beside gamescope): the QAM's Overlay Level draws

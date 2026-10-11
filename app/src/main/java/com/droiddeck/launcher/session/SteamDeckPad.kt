@@ -47,14 +47,15 @@ object SteamDeckPad {
     // The paired Bluetooth Steam Controller is a separate Triton HID device. It must not inherit
     // the Deck's identity or report format. Must match fakeinput_steam.cpp (TRITON_HIDRAW_*).
     private const val TRITON_MINOR = 18
-    private const val TRITON_NODE = "hidraw$TRITON_MINOR"
     private const val TRITON_HID = "$GUEST_DEVICES/bluetooth/0005:28DE:1303.0003"
     private const val TRITON_SERIAL = "DROIDDECKSC01"
-    // The handheld's own pad as the Steam Controller (SessionPrefs.CONTROLLER_STEAM): the same node,
-    // as the wired controller (28de:1302) on a USB device of its own, since it is built in.
+    // The handheld's own pad as the Steam Controller (SessionPrefs.CONTROLLER_STEAM): the wired
+    // controller (28de:1302) on a USB device of its own, since it is built in.
     private const val TRITON_USB = "$GUEST_DEVICES/usb3"
     private const val TRITON_INTERFACE = "$TRITON_USB/3-1:1.0"
     private const val TRITON_WIRED_HID = "$TRITON_INTERFACE/0003:28DE:1302.0004"
+    /** Must match libfakeinput (TRITON_PAD_HIDRAW_*): its own node, so a paired controller keeps 18. */
+    private const val TRITON_PAD_MINOR = 19
 
     // Steam's touch controller (SteamTouchDevice), a second device beside the Deck's: 0000:11fb,
     // "Mobile Touch Control", on a USB device of its own. Must match libfakeinput (TOUCH_*).
@@ -104,7 +105,7 @@ object SteamDeckPad {
     fun listingDir(sessionRoot: File) = File(sessionRoot, "sys/deck/listing")
 
     /** Writes the tree and returns the `host:guest` binds for it, or none if it could not be made. */
-    fun prepare(context: Context, sessionRoot: File, touch: Boolean = false, triton: Boolean = false, deck: Boolean = true): List<String> {
+    fun prepare(context: Context, sessionRoot: File, touch: Boolean = false, triton: Boolean = false): List<String> {
         val base = File(sessionRoot, "sys/deck")
         val devices = File(base, "devices")
         val hidrawClass = File(base, "class-hidraw")
@@ -144,8 +145,7 @@ object SteamDeckPad {
             link(File(dir(HIDRAW), "device"), HID)
 
             hidrawClass.mkdirs()
-            // Without the Deck (the pad is the Steam Controller), its device is never listed.
-            if (deck) link(File(hidrawClass, NODE), HIDRAW)
+            link(File(hidrawClass, NODE), HIDRAW)
 
             // Only the names matter: libudev reads a listing for the subsystems to descend into and
             // then opens /sys/class/hidraw itself, which is the bind above.
@@ -155,9 +155,7 @@ object SteamDeckPad {
             link(File(context.cacheDir, "drm/sys/$MAJOR:$MINOR"), HIDRAW)
 
             val udevData = File(LinuxRuntime.rootDir(context), "run/udev/data").apply { mkdirs() }
-            File(udevData, "c$MAJOR:$MINOR").apply {
-                if (deck) writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n") else delete()
-            }
+            File(udevData, "c$MAJOR:$MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
 
             if (touch) {
                 write(TOUCH_USB, "uevent", "DEVTYPE=usb_device\nPRODUCT=0/11fb/0\nTYPE=0/0/0\nBUSNUM=002\nDEVNUM=002\n")
@@ -187,12 +185,14 @@ object SteamDeckPad {
                 Log.i(TAG, "deck pad: /dev/$TOUCH_NODE described as Steam's touch controller (0000:11fb)")
             }
 
-            if (triton) {
-                // Without the Deck the node is the pad's own, so the wired controller; else the paired one.
-                val wired = !deck
+            // A Steam Controller's HID device: the handheld's own pad as the wired one, or the paired
+            // one on Bluetooth. Both are always described; libfakeinput offers whichever is in use.
+            fun describeTriton(wired: Boolean) {
                 val hid = if (wired) TRITON_WIRED_HID else TRITON_HID
                 val product = if (wired) "1302" else "1303"
                 val bus = if (wired) "0003" else "0005"
+                val minor = if (wired) TRITON_PAD_MINOR else TRITON_MINOR
+                val node = "hidraw$minor"
                 if (wired) {
                     write(TRITON_USB, "uevent", "DEVTYPE=usb_device\nPRODUCT=28de/1302/100\nTYPE=0/0/0\nBUSNUM=003\nDEVNUM=002\n")
                     write(TRITON_USB, "idVendor", "28de\n")
@@ -213,16 +213,18 @@ object SteamDeckPad {
                     "HID_UNIQ=$TRITON_SERIAL\nMODALIAS=hid:b${bus}g0001v000028DEp0000$product\n")
                 File(dir(hid), "report_descriptor").writeBytes(if (wired) TRITON_WIRED_REPORT_DESCRIPTOR else TRITON_REPORT_DESCRIPTOR)
                 link(File(dir(hid), "subsystem"), "/sys/bus/hid")
-                val hidraw = "$hid/hidraw/$TRITON_NODE"
-                write(hidraw, "uevent", "MAJOR=$MAJOR\nMINOR=$TRITON_MINOR\nDEVNAME=$TRITON_NODE\n")
-                write(hidraw, "dev", "$MAJOR:$TRITON_MINOR\n")
+                val hidraw = "$hid/hidraw/$node"
+                write(hidraw, "uevent", "MAJOR=$MAJOR\nMINOR=$minor\nDEVNAME=$node\n")
+                write(hidraw, "dev", "$MAJOR:$minor\n")
                 link(File(dir(hidraw), "subsystem"), "/sys/class/hidraw")
                 link(File(dir(hidraw), "device"), hid)
-                link(File(hidrawClass, TRITON_NODE), hidraw)
-                link(File(context.cacheDir, "drm/sys/$MAJOR:$TRITON_MINOR"), hidraw)
-                File(udevData, "c$MAJOR:$TRITON_MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
-                Log.i(TAG, "steam controller: /dev/$TRITON_NODE described as Triton (28de:$product)")
+                link(File(hidrawClass, node), hidraw)
+                link(File(context.cacheDir, "drm/sys/$MAJOR:$minor"), hidraw)
+                File(udevData, "c$MAJOR:$minor").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
+                Log.i(TAG, "steam controller: /dev/$node described as Triton (28de:$product)")
             }
+            describeTriton(wired = true)
+            if (triton) describeTriton(wired = false)
 
             Log.i(TAG, "deck pad: /dev/$NODE described as a Steam Deck controller (28de:1205)")
             listOf(devices.path + ":" + GUEST_DEVICES, hidrawClass.path + ":/sys/class/hidraw")

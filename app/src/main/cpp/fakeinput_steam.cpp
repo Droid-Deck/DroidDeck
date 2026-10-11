@@ -805,17 +805,24 @@ __attribute__((visibility("hidden"))) static bool is_fake_input_fd(int fd) {
   return controller_map().find(fd) != controller_map().end();
 }
 
+static bool fake_pad_withdrawn(const FakeController &fake);
+
+// A node whose pad is gone: the app republished its ring, or the pad was switched to a type that
+// is not this node (it became the Deck or the Steam Controller again, fake_pad_withdrawn).
+static bool controller_gone(const FakeController &fake) {
+  return ring_generation(fake.ring) != fake.generation || fake_pad_withdrawn(fake);
+}
+
 __attribute__((visibility("hidden"))) static bool fake_fd_is_stale(int fd) {
   if (!watched(fd)) return false;
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   auto controller = controller_map().find(fd);
-  return controller != controller_map().end() &&
-         ring_generation(controller->second->ring) != controller->second->generation;
+  return controller != controller_map().end() && controller_gone(*controller->second);
 }
 
 // Caller holds controller_mutex().
 static bool fake_has_unread_data(const FakeController &fake) {
-  if (ring_generation(fake.ring) != fake.generation)
+  if (controller_gone(fake))
     return false;
   // Readiness never consumes resync requests or changes the read cursor.
   // Do not spin a nonblocking guest on a producer's unfinished publication.
@@ -838,7 +845,7 @@ static bool fake_fd_has_unread_data(int fd) {
 static short fake_poll_revents(const std::shared_ptr<FakeController> &fake, short events) {
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   if (fake->closed) return POLLNVAL;
-  if (ring_generation(fake->ring) != fake->generation) return POLLHUP;
+  if (controller_gone(*fake)) return POLLHUP;
   short ready = events & (POLLOUT | POLLWRNORM);
   if ((events & (POLLIN | POLLRDNORM)) && fake_has_unread_data(*fake))
     ready |= events & (POLLIN | POLLRDNORM);
@@ -1284,7 +1291,9 @@ struct DeckImu {
   int16_t pads[4];         // left X, Y, right X, Y: -32768..32767, Y up
   uint16_t pressure[2];    // left, right: 0..32767
   uint32_t controls;       // DECK_EXTRA_* bits
+  uint32_t pad_type;       // PAD_TYPE_* | 0x80000000, written by the app; 0 until it does
 };
+static_assert(offsetof(DeckImu, pad_type) == 44, "DeckImu::pad_type matches FakeInputWriter");
 // DeckImu::controls (DeckControls.kt).
 static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 4,
                           DECK_EXTRA_R5 = 8, DECK_EXTRA_LPAD_TOUCH = 16,
@@ -1308,7 +1317,7 @@ static_assert(sizeof(DeckImu) <= DECK_IMU_BLOCK_SIZE, "the IMU block is 64 bytes
 // report characteristic and answers with get_reply set to the same number.
 struct TritonSharedData {
   uint32_t magic;
-  uint32_t reserved;
+  uint32_t connected;  // written by the app: the paired controller is connected and streaming
   uint64_t input_seq;
   uint32_t report_id;
   uint32_t input_length;
@@ -1326,6 +1335,7 @@ struct TritonSharedData {
 static constexpr uint32_t TRITON_SHARED_MAGIC = 0x4e525454;
 static constexpr size_t TRITON_SHARED_BLOCK_SIZE = 256;
 static constexpr size_t TRITON_SHARED_OFFSET = FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE;
+static_assert(offsetof(TritonSharedData, connected) == 4, "Triton connected offset");
 static_assert(offsetof(TritonSharedData, input_seq) == 8, "Triton input sequence offset");
 static_assert(offsetof(TritonSharedData, report_id) == 16, "Triton report ID offset");
 static_assert(offsetof(TritonSharedData, input) == 24, "Triton input offset");
@@ -1342,6 +1352,9 @@ static_assert(sizeof(TritonSharedData) <= TRITON_SHARED_BLOCK_SIZE, "Triton ring
 static constexpr const char *TRITON_HIDRAW_PATH = "/dev/hidraw18";
 static constexpr unsigned int TRITON_HIDRAW_MAJOR = 240;
 static constexpr unsigned int TRITON_HIDRAW_MINOR = 18;
+// The app's own pad as the wired Steam Controller: a node of its own, so a paired one keeps 18.
+static constexpr const char *TRITON_PAD_HIDRAW_PATH = "/dev/hidraw19";
+static constexpr unsigned int TRITON_PAD_HIDRAW_MINOR = 19;
 static constexpr int TRITON_REPORT_ID_BYTES = 1;
 static constexpr int TRITON_STATE_BYTES = 45;
 static constexpr int TRITON_REPORT_INTERVAL_US = 4000;
@@ -1393,12 +1406,66 @@ static bool fake_deck_enabled() {
   return enabled == 1;
 }
 
-// The app's own pad as the Steam Controller, in the Deck's place: hidraw18 then streams reports
-// built from ring slot 0 as the Deck's are, and answers its feature reports itself.
-static bool fake_triton_pad() {
-  static int enabled = -1;
-  if (enabled < 0) enabled = getenv("FAKE_EVDEV_TRITON_PAD") && atoi(getenv("FAKE_EVDEV_TRITON_PAD")) ? 1 : 0;
-  return enabled == 1;
+// What the app's own pad is to the client, switchable while the session runs (the drawer's
+// Controller page): the Deck (/dev/hidraw16), the wired Steam Controller (/dev/hidraw19, built from
+// ring slot 0 as the Deck's reports are), or an Xbox 360 pad (its own evdev node, no HID device).
+// The app writes the choice into the slot's Deck block (DeckImu::pad_type); until it has,
+// FAKE_EVDEV_PAD_TYPE says what the session started with. Only the chosen device can be opened;
+// the others end their streams, and the client is told through udev (pad_type_thread).
+static constexpr uint32_t PAD_TYPE_DECK = 0, PAD_TYPE_STEAM = 1, PAD_TYPE_XBOX = 2;
+static constexpr uint32_t PAD_TYPE_SET = 0x80000000u;
+
+__attribute__((visibility("hidden"))) static uint32_t session_pad_type() {
+  static int type = -1;
+  if (type < 0) {
+    const char *env = getenv("FAKE_EVDEV_PAD_TYPE");
+    type = env && !strcmp(env, "steamcontroller") ? PAD_TYPE_STEAM
+         : env && !strcmp(env, "xbox360") ? PAD_TYPE_XBOX : PAD_TYPE_DECK;
+  }
+  return static_cast<uint32_t>(type);
+}
+
+// Slot 0's Deck and Triton blocks, mapped once, read-only; null until the ring file has them.
+__attribute__((visibility("hidden"))) static const uint8_t *ring_blocks() {
+  static std::atomic<const uint8_t *> block{nullptr};
+  static std::atomic<int> tries{0};
+  const uint8_t *mapped = block.load(std::memory_order_acquire);
+  if (mapped || tries.load(std::memory_order_relaxed) > 200) return mapped;
+  static std::mutex lock;
+  std::lock_guard<std::mutex> guard(lock);
+  if ((mapped = block.load(std::memory_order_acquire))) return mapped;
+  tries.fetch_add(1, std::memory_order_relaxed);
+  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  std::string path = get_ring_path_for_slot(0);
+  int fd = path.empty() ? -1 : my_open(path.c_str(), O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return nullptr;
+  struct stat st;
+  void *mapping = MAP_FAILED;
+  const size_t size = TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE;
+  if (fstat(fd, &st) == 0 && static_cast<size_t>(st.st_size) >= size)
+    mapping = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
+  syscall(SYS_close, fd);
+  if (mapping == MAP_FAILED) return nullptr;
+  mapped = static_cast<const uint8_t *>(mapping);
+  block.store(mapped, std::memory_order_release);
+  return mapped;
+}
+
+// The paired Bluetooth controller is offered only while the app has it connected: Steam asks a
+// device it is offered for its info, and one that never answers holds up every other controller.
+__attribute__((visibility("hidden"))) static bool triton_connected() {
+  const uint8_t *blocks = ring_blocks();
+  if (!blocks) return false;
+  const auto *shared = reinterpret_cast<const TritonSharedData *>(blocks + TRITON_SHARED_OFFSET);
+  return __atomic_load_n(&shared->magic, __ATOMIC_ACQUIRE) == TRITON_SHARED_MAGIC &&
+         __atomic_load_n(&shared->connected, __ATOMIC_ACQUIRE) != 0;
+}
+
+__attribute__((visibility("hidden"))) static uint32_t live_pad_type() {
+  const uint8_t *blocks = ring_blocks();
+  const DeckImu *imu = blocks ? reinterpret_cast<const DeckImu *>(blocks + FAKE_INPUT_RING_SIZE) : nullptr;
+  uint32_t value = imu ? __atomic_load_n(&imu->pad_type, __ATOMIC_ACQUIRE) : 0;
+  return value & PAD_TYPE_SET ? value & 0xff : session_pad_type();
 }
 
 static bool fake_triton_enabled() {
@@ -1435,22 +1502,36 @@ __attribute__((constructor)) static void log_client_start() {
 }
 
 __attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char *pathname) {
-  return pathname && fake_deck_enabled() && !fake_triton_pad() && !strcmp(pathname, DECK_HIDRAW_PATH);
+  return pathname && fake_deck_enabled() && !strcmp(pathname, DECK_HIDRAW_PATH) && live_pad_type() == PAD_TYPE_DECK;
+}
+
+__attribute__((visibility("hidden"))) static bool is_triton_pad_path(const char *pathname) {
+  return pathname && fake_deck_enabled() && !strcmp(pathname, TRITON_PAD_HIDRAW_PATH) &&
+         live_pad_type() == PAD_TYPE_STEAM;
 }
 
 __attribute__((visibility("hidden"))) static bool is_triton_hidraw_path(const char *pathname) {
-  return pathname && fake_triton_enabled() && !strcmp(pathname, TRITON_HIDRAW_PATH);
+  return pathname && fake_triton_enabled() && !strcmp(pathname, TRITON_HIDRAW_PATH) && triton_connected();
 }
 
 // The app's first pad is the Deck now: its evdev node is withdrawn from everyone. Further players'
 // pads are left to the client alone, which hands them to games through Steam Input.
 __attribute__((visibility("hidden"))) static bool is_withdrawn_pad_path(const char *pathname) {
   if (!fake_deck_enabled() || !pathname || strncmp(pathname, "/dev/input/", 11)) return false;
+  // As an Xbox 360 pad it is its own evdev node again, for the client and games alike.
+  if (live_pad_type() == PAD_TYPE_XBOX) return false;
   const char *event = strrchr(pathname, '/') + 1;
   if (strncmp(event, "event", 5) && strncmp(event, "js", 2)) return false;
   int number = get_event_number(event);
   if (number < 0 || number >= UINPUT_EVENT_BASE) return false;
   return number == 0 || !process_is_steam_client();
+}
+
+static bool fake_pad_withdrawn(const FakeController &fake) {
+  if (fake.uinput || !fake.event) return false;
+  char path[64];
+  snprintf(path, sizeof(path), "/dev/input/%s", fake.event);
+  return is_withdrawn_pad_path(path);
 }
 
 static inline void put16(uint8_t *at, int value) {
@@ -1524,7 +1605,8 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
   uint32_t buttons = 0;
   int32_t axes[8] = {};
   DeckExtras extras;
-  for (;;) {
+  // Switched to another type, the stream ends: the client's read fails and it lets the Deck go.
+  while (live_pad_type() == PAD_TYPE_DECK) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
       memcpy(axes, snap.axes, sizeof(axes));
@@ -1645,7 +1727,8 @@ __attribute__((visibility("hidden"))) static void *triton_report_thread(void *ar
   uint8_t report[TRITON_REPORT_ID_BYTES + 64] = {};
   uint8_t report_id = 0x45;
   size_t length = TRITON_STATE_BYTES;
-  for (;;) {
+  // A disconnect ends the stream, as unplugging the controller would.
+  while (triton_connected()) {
     if (read_triton_state(*self, report_id, report + 1, length)) {
       report[0] = report_id;
       if (send(self->peer, report, length + 1, MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
@@ -1745,7 +1828,7 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
   uint32_t buttons = 0;
   int32_t axes[8] = {};
   DeckExtras extras;
-  for (;;) {
+  while (live_pad_type() == PAD_TYPE_STEAM) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
       memcpy(axes, snap.axes, sizeof(axes));
@@ -1765,7 +1848,7 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
   return nullptr;
 }
 
-__attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
+__attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags, bool emulated) {
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
   if (!process_is_steam_client()) {
     errno = ENOENT;
@@ -1808,7 +1891,7 @@ __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
   triton->ring = static_cast<FakeInputRingHeader *>(mapping);
   triton->mapping_size = mapping_size;
   triton->triton = true;
-  triton->emulated = fake_triton_pad();
+  triton->emulated = emulated;
   {
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map()[pair[0]] = triton;
@@ -1828,8 +1911,8 @@ __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
     return -1;
   }
   pthread_detach(thread);
-  Logger::log("triton: %s opened as fd %d (%s)\n", TRITON_HIDRAW_PATH, pair[0],
-              triton->emulated ? "28de:1302, the app's pad" : "28de:1303");
+  Logger::log("triton: %s opened as fd %d (%s)\n", emulated ? TRITON_PAD_HIDRAW_PATH : TRITON_HIDRAW_PATH, pair[0],
+              emulated ? "28de:1302, the app's pad" : "28de:1303");
   return pair[0];
 }
 
@@ -2122,11 +2205,84 @@ __attribute__((visibility("hidden"))) static int ioctl_touch(DeckHidraw &touch, 
 
 // Plugging in and out: the app flips `plugged`; this tells the client's HID discovery, which
 // otherwise never looks again (the sandbox gives it no kernel uevents).
-__attribute__((visibility("hidden"))) static void touch_uevent(const char *action) {
+__attribute__((visibility("hidden"))) static int inject_uevent(const char *action, const char *devpath,
+                                                               const char *subsystem, const char *devname,
+                                                               unsigned major, unsigned minor) {
   using inject_fn = int (*)(const char *, const char *, const char *, const char *, unsigned, unsigned);
   static auto inject = reinterpret_cast<inject_fn>(dlsym(RTLD_DEFAULT, "bl_udevmon_inject"));
-  int sent = inject ? inject(action, TOUCH_DEVPATH, "hidraw", TOUCH_HIDRAW_PATH, DECK_HIDRAW_MAJOR, TOUCH_HIDRAW_MINOR) : -1;
+  return inject ? inject(action, devpath, subsystem, devname, major, minor) : -1;
+}
+
+__attribute__((visibility("hidden"))) static void touch_uevent(const char *action) {
+  int sent = inject_uevent(action, TOUCH_DEVPATH, "hidraw", TOUCH_HIDRAW_PATH, DECK_HIDRAW_MAJOR, TOUCH_HIDRAW_MINOR);
   Logger::log("touch: %s (udev event to %d monitor%s)\n", action, sent, sent == 1 ? "" : "s");
+}
+
+// The devices each pad type is, as SteamDeckPad.kt describes them and inputudev.c the evdev node.
+static constexpr const char *DECK_DEVPATH = "/devices/droiddeck/usb1/1-1:1.2/0003:28DE:1205.0001/hidraw/hidraw16";
+static constexpr const char *TRITON_PAD_DEVPATH = "/devices/droiddeck/usb3/3-1:1.0/0003:28DE:1302.0004/hidraw/hidraw19";
+static constexpr const char *PAD_EVDEV_DEVPATH = "/devices/virtual/input/droiddeck0/event0";
+static constexpr const char *TRITON_DEVPATH = "/devices/droiddeck/bluetooth/0005:28DE:1303.0003/hidraw/hidraw18";
+
+__attribute__((visibility("hidden"))) static int pad_type_uevent(uint32_t type, const char *action) {
+  if (type == PAD_TYPE_DECK)
+    return inject_uevent(action, DECK_DEVPATH, "hidraw", DECK_HIDRAW_PATH, DECK_HIDRAW_MAJOR, DECK_HIDRAW_MINOR);
+  if (type == PAD_TYPE_STEAM)
+    return inject_uevent(action, TRITON_PAD_DEVPATH, "hidraw", TRITON_PAD_HIDRAW_PATH, TRITON_HIDRAW_MAJOR,
+                         TRITON_PAD_HIDRAW_MINOR);
+  dev_t rdev = get_fake_input_rdev("event0");
+  return inject_uevent(action, PAD_EVDEV_DEVPATH, "input", "/dev/input/event0", major(rdev), minor(rdev));
+}
+
+// A switch, as the client sees one: the old device unplugged, then the new one plugged in.
+__attribute__((visibility("hidden"))) static void *pad_type_thread(void *) {
+  static const char *kNames[] = {"Steam Deck controller", "Steam Controller", "Xbox 360 controller"};
+  uint32_t was = live_pad_type();
+  bool paired = fake_triton_enabled() && triton_connected();
+  Logger::log("pad: a %s at start%s\n", kNames[was % 3], paired ? ", the paired Steam Controller connected" : "");
+  for (;;) {
+    struct timespec interval = {0, 50 * 1000 * 1000};
+    nanosleep(&interval, nullptr);
+    bool connected = fake_triton_enabled() && triton_connected();
+    if (connected != paired) {
+      paired = connected;
+      int sent = inject_uevent(connected ? "add" : "remove", TRITON_DEVPATH, "hidraw", TRITON_HIDRAW_PATH,
+                               TRITON_HIDRAW_MAJOR, TRITON_HIDRAW_MINOR);
+      Logger::log("pad: the paired Steam Controller %s (udev event to %d monitors)\n",
+                  connected ? "connected" : "disconnected", sent);
+    }
+    uint32_t now = live_pad_type();
+    if (now == was || now > PAD_TYPE_XBOX) continue;
+    int removed = pad_type_uevent(was, "remove");
+    // Time for the client to let the old device go before the new one appears.
+    struct timespec settle = {0, 300 * 1000 * 1000};
+    nanosleep(&settle, nullptr);
+    int added = pad_type_uevent(now, "add");
+    // The pad's evdev node comes or goes with the Xbox 360 type. Its hotplug is watched with
+    // inotify on /dev/input (SDL's, with udev off), so it is moved out and back in: everyone
+    // watching sees it removed and added, and opens it again only if it is the pad now.
+    if (was == PAD_TYPE_XBOX || now == PAD_TYPE_XBOX) {
+      std::string node = std::string(fake_hook_dir()) + "/event0";
+      std::string aside = std::string(fake_hook_dir()) + "/.event0-switching";
+      if (rename(node.c_str(), aside.c_str()) == 0) {
+        nanosleep(&settle, nullptr);
+        if (rename(aside.c_str(), node.c_str()) != 0)
+          Logger::log("pad: event0 not put back (%s)\n", strerror(errno));
+      } else {
+        Logger::log("pad: event0 not moved (%s)\n", strerror(errno));
+      }
+    }
+    Logger::log("pad: now a %s (udev events to %d/%d monitors)\n", kNames[now], removed, added);
+    was = now;
+  }
+  return nullptr;
+}
+
+__attribute__((constructor)) static void start_pad_type_watch() {
+  config();
+  if (!process_is_steam_client() || !fake_deck_enabled()) return;
+  pthread_t thread;
+  if (pthread_create(&thread, nullptr, pad_type_thread, nullptr) == 0) pthread_detach(thread);
 }
 
 __attribute__((visibility("hidden"))) static void *touch_plug_thread(void *) {
@@ -2727,7 +2883,8 @@ EXPORT int open(const char *pathname, int flags, ...) {
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
-  if (is_triton_hidraw_path(pathname)) return open_triton_hidraw(flags);
+  if (is_triton_hidraw_path(pathname)) return open_triton_hidraw(flags, false);
+  if (is_triton_pad_path(pathname)) return open_triton_hidraw(flags, true);
   if (is_touch_hidraw_path(pathname)) return open_touch_hidraw(flags);
   if (is_withdrawn_pad_path(pathname)) {
     errno = ENOENT;
@@ -2803,7 +2960,8 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
-  if (is_triton_hidraw_path(pathname)) return open_triton_hidraw(flags);
+  if (is_triton_hidraw_path(pathname)) return open_triton_hidraw(flags, false);
+  if (is_triton_pad_path(pathname)) return open_triton_hidraw(flags, true);
   if (is_touch_hidraw_path(pathname)) return open_touch_hidraw(flags);
   if (is_withdrawn_pad_path(pathname)) {
     errno = ENOENT;
@@ -2862,7 +3020,8 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 template <typename S, typename Real>
 static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
   if (is_withdrawn_pad_path(pathname) ||
-      ((is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname)) && !process_is_steam_client())) {
+      ((is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) &&
+       !process_is_steam_client())) {
     errno = ENOENT;
     return -1;
   }
@@ -2878,10 +3037,10 @@ static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
     statbuf->st_rdev = makedev(DECK_HIDRAW_MAJOR, DECK_HIDRAW_MINOR);
     return 0;
   }
-  if (is_triton_hidraw_path(pathname)) {
+  if (is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) {
     memset(statbuf, 0, sizeof(*statbuf));
     statbuf->st_mode = S_IFCHR | 0666;
-    statbuf->st_rdev = makedev(TRITON_HIDRAW_MAJOR, TRITON_HIDRAW_MINOR);
+    statbuf->st_rdev = makedev(TRITON_HIDRAW_MAJOR, is_triton_pad_path(pathname) ? TRITON_PAD_HIDRAW_MINOR : TRITON_HIDRAW_MINOR);
     return 0;
   }
 
@@ -2931,7 +3090,9 @@ static int fake_stat_fd(int fd, S *buf, Real real) {
   if (ret == 0 && deck_map().count(fd)) {
     buf->st_mode = (buf->st_mode & ~S_IFMT) | S_IFCHR;
     const auto &device = *deck_map()[fd];
-    unsigned int minor = device.touch ? TOUCH_HIDRAW_MINOR : (device.triton ? TRITON_HIDRAW_MINOR : DECK_HIDRAW_MINOR);
+    unsigned int minor = device.touch ? TOUCH_HIDRAW_MINOR
+                       : device.emulated ? TRITON_PAD_HIDRAW_MINOR
+                       : device.triton ? TRITON_HIDRAW_MINOR : DECK_HIDRAW_MINOR;
     buf->st_rdev = makedev(DECK_HIDRAW_MAJOR, minor);
     return ret;
   }
@@ -2978,9 +3139,10 @@ EXPORT int access(const char *pathname, int mode) {
   static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
-  if (is_triton_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) && process_is_steam_client()) return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
-  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname)) {
+  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) ||
+      is_triton_pad_path(pathname)) {
     errno = ENOENT;
     return -1;
   }
@@ -3016,9 +3178,10 @@ EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
   static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
-  if (is_triton_hidraw_path(pathname) && process_is_steam_client()) return 0;
+  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) && process_is_steam_client()) return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
-  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname)) {
+  if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) ||
+      is_triton_pad_path(pathname)) {
     errno = ENOENT;
     return -1;
   }
@@ -3105,7 +3268,7 @@ static bool wait_snapshot(std::shared_ptr<FakeController> fake,
       errno = EBADF;
       return false;
     }
-    if (ring_generation(fake->ring) != fake->generation) {
+    if (controller_gone(*fake)) {
       errno = ENODEV;
       return false;
     }
@@ -3399,7 +3562,7 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
       errno = EBADF;
       return -1;
     }
-    if (ring_generation(fake.ring) != fake.generation) {
+    if (controller_gone(fake)) {
       errno = ENODEV;
       return -1;
     }

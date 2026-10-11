@@ -194,6 +194,9 @@ class DrawerActions(
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
     val backActionsInverted: Boolean,
+    /** What the pad is to Steam (SessionPrefs.CONTROLLER_*), switched live; null hides the row. */
+    val padType: String? = null,
+    val onPadType: (String) -> Unit = {},
     val touchMode: String,
     val touchAuto: String,
     val fexPreset: String,
@@ -419,6 +422,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
+                                a.padType?.let { type ->
+                                    ChoiceRow(host, "pad-type", stringResource(R.string.mode_controller), null,
+                                        listOf(SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
+                                            SessionPrefs.CONTROLLER_STEAM to stringResource(R.string.mode_controller_steam),
+                                            SessionPrefs.CONTROLLER_XBOX360 to stringResource(R.string.mode_controller_x360)),
+                                        type, chipModifier = focus.track(page, "pad-type"), onPick = a.onPadType)
+                                }
                                 ChoiceRow(host, "touch", stringResource(R.string.mode_touch), null,
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)),
                                     a.touchMode, chipModifier = focus.track(page, "touch"), onPick = a.onTouch)
