@@ -1697,6 +1697,7 @@ __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
   {
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map()[pair[0]] = triton;
+    watch_fd(pair[0]);
   }
   pthread_t thread;
   auto *thread_arg = new std::shared_ptr<DeckHidraw>(triton);
@@ -1704,6 +1705,7 @@ __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags) {
     delete thread_arg;
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map().erase(pair[0]);
+    unwatch_fd(pair[0]);
     syscall(SYS_close, pair[0]);
     syscall(SYS_close, pair[1]);
     munmap(mapping, mapping_size);
