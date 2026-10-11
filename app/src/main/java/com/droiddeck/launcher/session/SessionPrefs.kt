@@ -20,6 +20,8 @@ object SessionPrefs {
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
     const val CONTROLLER_STEAM = "steamcontroller"
+    const val CONTROLLER_DS4 = "dualshock4"
+    const val CONTROLLER_DUALSENSE = "dualsense"
     const val OSC_AUTO = "auto"
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
@@ -451,8 +453,9 @@ object SessionPrefs {
     /**
      * What the pad is to the Steam client: [CONTROLLER_DECK], a Steam Deck controller (Quick Access
      * button, gyro, Steam Input's full treatment - SteamDeckPad), [CONTROLLER_STEAM], a 2025 Steam
-     * Controller (the same, plus grip sense and its own haptics), or [CONTROLLER_XBOX360], the plain
-     * Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
+     * Controller (the same, plus grip sense and its own haptics), [CONTROLLER_DS4] or
+     * [CONTROLLER_DUALSENSE], a PlayStation pad with its touchpad fed by the trackpads, or
+     * [CONTROLLER_XBOX360], the plain Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
      */
     fun steamController(context: Context): String =
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
@@ -461,6 +464,8 @@ object SessionPrefs {
     fun padType(id: String): Int = when (id) {
         CONTROLLER_STEAM -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM
         CONTROLLER_XBOX360 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_XBOX
+        CONTROLLER_DS4 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DS4
+        CONTROLLER_DUALSENSE -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DUALSENSE
         else -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DECK
     }
 

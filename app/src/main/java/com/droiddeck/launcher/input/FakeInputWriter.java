@@ -113,6 +113,8 @@ public class FakeInputWriter {
     public static final int PAD_TYPE_DECK = 0;
     public static final int PAD_TYPE_STEAM = 1;
     public static final int PAD_TYPE_XBOX = 2;
+    public static final int PAD_TYPE_DS4 = 3;
+    public static final int PAD_TYPE_DUALSENSE = 4;
     /** The type chosen this process, written into a ring made after the choice too; -1 for none. */
     private static volatile int padType = -1;
     /** The paired controller's state, likewise written into a ring made after it connected. */

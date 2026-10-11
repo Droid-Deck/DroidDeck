@@ -426,6 +426,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ChoiceRow(host, "pad-type", stringResource(R.string.mode_controller), null,
                                         listOf(SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
                                             SessionPrefs.CONTROLLER_STEAM to stringResource(R.string.mode_controller_steam),
+                                            SessionPrefs.CONTROLLER_DS4 to stringResource(R.string.mode_controller_ds4),
+                                            SessionPrefs.CONTROLLER_DUALSENSE to stringResource(R.string.mode_controller_dualsense),
                                             SessionPrefs.CONTROLLER_XBOX360 to stringResource(R.string.mode_controller_x360)),
                                         type, chipModifier = focus.track(page, "pad-type"), onPick = a.onPadType)
                                 }

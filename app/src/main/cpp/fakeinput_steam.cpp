@@ -1276,6 +1276,7 @@ struct DeckHidraw {
   bool touch = false;  // Steam's touch controller (below), not the Deck
   bool triton = false; // The paired 2025 Steam Controller, with native BLE report IDs
   bool emulated = false; // That Steam Controller made from the app's own pad (FAKE_EVDEV_TRITON_PAD)
+  uint8_t sony = 0;      // The app's own pad as a DualShock 4 (4) or DualSense (5), else 0
 };
 
 // What the Deck has and an Xbox pad does not, after the ring's events: motion (PadMotion) and the
@@ -1412,7 +1413,8 @@ static bool fake_deck_enabled() {
 // The app writes the choice into the slot's Deck block (DeckImu::pad_type); until it has,
 // FAKE_EVDEV_PAD_TYPE says what the session started with. Only the chosen device can be opened;
 // the others end their streams, and the client is told through udev (pad_type_thread).
-static constexpr uint32_t PAD_TYPE_DECK = 0, PAD_TYPE_STEAM = 1, PAD_TYPE_XBOX = 2;
+static constexpr uint32_t PAD_TYPE_DECK = 0, PAD_TYPE_STEAM = 1, PAD_TYPE_XBOX = 2, PAD_TYPE_DS4 = 3,
+                          PAD_TYPE_DUALSENSE = 4, PAD_TYPE_LAST = PAD_TYPE_DUALSENSE;
 static constexpr uint32_t PAD_TYPE_SET = 0x80000000u;
 
 __attribute__((visibility("hidden"))) static uint32_t session_pad_type() {
@@ -1420,7 +1422,9 @@ __attribute__((visibility("hidden"))) static uint32_t session_pad_type() {
   if (type < 0) {
     const char *env = getenv("FAKE_EVDEV_PAD_TYPE");
     type = env && !strcmp(env, "steamcontroller") ? PAD_TYPE_STEAM
-         : env && !strcmp(env, "xbox360") ? PAD_TYPE_XBOX : PAD_TYPE_DECK;
+         : env && !strcmp(env, "xbox360") ? PAD_TYPE_XBOX
+         : env && !strcmp(env, "dualshock4") ? PAD_TYPE_DS4
+         : env && !strcmp(env, "dualsense") ? PAD_TYPE_DUALSENSE : PAD_TYPE_DECK;
   }
   return static_cast<uint32_t>(type);
 }
@@ -1503,6 +1507,19 @@ __attribute__((constructor)) static void log_client_start() {
 
 __attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char *pathname) {
   return pathname && fake_deck_enabled() && !strcmp(pathname, DECK_HIDRAW_PATH) && live_pad_type() == PAD_TYPE_DECK;
+}
+
+// The app's own pad as a PlayStation controller: /dev/hidraw20 (DualShock 4) or /dev/hidraw21
+// (DualSense), USB devices of their own in SteamDeckPad's sysfs. Returns 4 or 5, or 0.
+static constexpr const char *DS4_HIDRAW_PATH = "/dev/hidraw20";
+static constexpr const char *DUALSENSE_HIDRAW_PATH = "/dev/hidraw21";
+static constexpr unsigned int DS4_HIDRAW_MINOR = 20, DUALSENSE_HIDRAW_MINOR = 21;
+
+__attribute__((visibility("hidden"))) static int sony_pad_path(const char *pathname) {
+  if (!pathname || !fake_deck_enabled() || strncmp(pathname, "/dev/hidraw2", 12)) return 0;
+  if (!strcmp(pathname, DS4_HIDRAW_PATH)) return live_pad_type() == PAD_TYPE_DS4 ? 4 : 0;
+  if (!strcmp(pathname, DUALSENSE_HIDRAW_PATH)) return live_pad_type() == PAD_TYPE_DUALSENSE ? 5 : 0;
+  return 0;
 }
 
 __attribute__((visibility("hidden"))) static bool is_triton_pad_path(const char *pathname) {
@@ -1627,18 +1644,151 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
   return nullptr;
 }
 
-__attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
+// ---- The pad as a PlayStation controller ----
+//
+// The DualShock 4 (054c:09cc) and DualSense (054c:0ce6) as they are on USB, read by the client's
+// own PlayStation drivers (SDL's hidapi ps4/ps5 are the reference): input report 1 every 4 ms,
+// the feature reports a driver reads at start answered here (calibration, serial, firmware), and
+// output reports' rumble on the handheld's motor. Built from the same ring as the Deck's report:
+// sticks, triggers, buttons, motion (in the units the calibration below declares), and the
+// touchpad from the Deck controls' two trackpads, the left one on its left half and the right one
+// on its right half, either's click as the touchpad's.
+static constexpr int SONY_REPORT_BYTES = 64;
+static constexpr int SONY_TOUCH_WIDTH = 1920;
+static constexpr int SONY_TOUCH_HEIGHT_DS4 = 942, SONY_TOUCH_HEIGHT_DUALSENSE = 1080;
+static constexpr const uint8_t SONY_MAC[6] = {0x5e, 0x43, 0x4b, 0x44, 0x44, 0x02};
+
+struct SonyTouch {
+  bool down[2] = {};
+  uint8_t id[2] = {};
+  uint8_t next_id = 0;
+};
+
+// One finger per trackpad: Deck pads are -32768..32767 with Y up; the touchpad counts from its top
+// left, 12 bits per axis.
+__attribute__((visibility("hidden"))) static void put_sony_touch(uint8_t *at, SonyTouch &touch, int side,
+                                                                    bool down, int16_t x, int16_t y, int height) {
+  if (down && !touch.down[side]) touch.id[side] = touch.next_id++ & 0x7f;
+  touch.down[side] = down;
+  int half = SONY_TOUCH_WIDTH / 2;
+  int px = side * half + (static_cast<int>(x) + 32768) * (half - 1) / 65535;
+  int py = (32767 - static_cast<int>(y)) * (height - 1) / 65535;
+  at[0] = static_cast<uint8_t>(touch.id[side] | (down ? 0 : 0x80));
+  at[1] = static_cast<uint8_t>(px & 0xff);
+  at[2] = static_cast<uint8_t>(((px >> 8) & 0x0f) | ((py & 0x0f) << 4));
+  at[3] = static_cast<uint8_t>(py >> 4);
+}
+
+__attribute__((visibility("hidden"))) static void
+build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t buttons, const int32_t *axes,
+                  const DeckExtras &extras, SonyTouch &touch) {
+  memset(report, 0, SONY_REPORT_BYTES);
+  report[0] = 0x01;
+  uint8_t *p = report + 1;
+  auto stick = [](int32_t value) { return static_cast<uint8_t>(std::max(0, std::min(255, (value + 32768) >> 8))); };
+  p[0] = stick(axes[0]);
+  p[1] = stick(axes[1]);  // evdev and the PlayStation pads both count Y downwards
+  p[2] = stick(axes[2]);
+  p[3] = stick(axes[3]);
+  int32_t hat_x = axes[6], hat_y = axes[7];
+  static const uint8_t kHat[3][3] = {{7, 0, 1}, {6, 8, 2}, {5, 4, 3}};  // [y+1][x+1]
+  uint8_t hat = kHat[(hat_y > 0) - (hat_y < 0) + 1][(hat_x > 0) - (hat_x < 0) + 1];
+  // Snapshot order (kButtonBits): A B X Y L1 R1 View Menu L3 R3 Steam.
+  uint8_t face = (buttons & 4 ? 0x10 : 0) | (buttons & 1 ? 0x20 : 0) | (buttons & 2 ? 0x40 : 0) | (buttons & 8 ? 0x80 : 0);
+  uint8_t shoulders = (buttons & 16 ? 0x01 : 0) | (buttons & 32 ? 0x02 : 0) | (axes[5] > 0 ? 0x04 : 0) |
+                      (axes[4] > 0 ? 0x08 : 0) | (buttons & 64 ? 0x10 : 0) | (buttons & 128 ? 0x20 : 0) |
+                      (buttons & 256 ? 0x40 : 0) | (buttons & 512 ? 0x80 : 0);
+  bool click = extras.controls & (DECK_EXTRA_LPAD_CLICK | DECK_EXTRA_RPAD_CLICK);
+  uint8_t system = (buttons & 1024 ? 0x01 : 0) | (click ? 0x02 : 0);
+  uint8_t left_trigger = static_cast<uint8_t>(std::max(0, std::min(255, axes[5])));
+  uint8_t right_trigger = static_cast<uint8_t>(std::max(0, std::min(255, axes[4])));
+  // Motion: the Deck block's gyro is 2000 dps and its accel 2 g over 16 bits; the calibration
+  // reports declare 16 units per degree/s and 8192 per g, and the axes are the Deck's reordered as
+  // SDL reads both (Deck X, Z, -Y).
+  int16_t gyro[3] = {extras.gyro[0], extras.gyro[2], static_cast<int16_t>(-extras.gyro[1])};
+  int16_t accel[3] = {static_cast<int16_t>(extras.accel[0] / 2), static_cast<int16_t>(extras.accel[2] / 2),
+                      static_cast<int16_t>(-extras.accel[1] / 2)};
+  bool left = extras.controls & DECK_EXTRA_LPAD_TOUCH, right = extras.controls & DECK_EXTRA_RPAD_TOUCH;
+  if (model == 4) {
+    p[4] = static_cast<uint8_t>(hat | face);
+    p[5] = shoulders;
+    p[6] = static_cast<uint8_t>(system | ((packet & 0x3f) << 2));
+    p[7] = left_trigger;
+    p[8] = right_trigger;
+    put16(p + 9, static_cast<int>(packet * 750));  // 5.33 us ticks: 4 ms
+    for (int i = 0; i < 3; i++) {
+      put16(p + 12 + i * 2, gyro[i]);
+      put16(p + 18 + i * 2, accel[i]);
+    }
+    p[29] = 0x1b;  // on the cable, full
+    p[32] = 1;     // one touch packet
+    p[33] = static_cast<uint8_t>(packet);
+    put_sony_touch(p + 34, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DS4);
+    put_sony_touch(p + 38, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DS4);
+  } else {
+    p[4] = left_trigger;
+    p[5] = right_trigger;
+    p[6] = static_cast<uint8_t>(packet);
+    p[7] = static_cast<uint8_t>(hat | face);
+    p[8] = shoulders;
+    p[9] = system;
+    put32(p + 11, packet);
+    for (int i = 0; i < 3; i++) {
+      put16(p + 15 + i * 2, gyro[i]);
+      put16(p + 21 + i * 2, accel[i]);
+    }
+    put32(p + 27, packet * 12000);  // 0.33 us ticks: 4 ms
+    put_sony_touch(p + 32, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DUALSENSE);
+    put_sony_touch(p + 36, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DUALSENSE);
+    p[52] = 0x2a;  // charging, full
+    p[53] = 0x08;  // USB
+  }
+}
+
+__attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg) {
+  auto *holder = static_cast<std::shared_ptr<DeckHidraw> *>(arg);
+  std::shared_ptr<DeckHidraw> self = *holder;
+  delete holder;
+  uint32_t type = self->sony == 4 ? PAD_TYPE_DS4 : PAD_TYPE_DUALSENSE;
+  uint32_t packet = 0;
+  SnapshotState snap;
+  uint32_t buttons = 0;
+  int32_t axes[8] = {};
+  DeckExtras extras;
+  SonyTouch touch;
+  // Switched to another type, the stream ends, as unplugging the controller would.
+  while (live_pad_type() == type) {
+    if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
+      buttons = snap.buttons;
+      memcpy(axes, snap.axes, sizeof(axes));
+    }
+    read_deck_extras(*self, extras);
+    uint8_t report[SONY_REPORT_BYTES];
+    build_sony_report(report, self->sony, ++packet, buttons, axes, extras, touch);
+    if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
+        errno != EAGAIN && errno != EWOULDBLOCK)
+      break;
+    struct timespec interval = {0, DECK_REPORT_INTERVAL_US * 1000L};
+    nanosleep(&interval, nullptr);
+  }
+  syscall(SYS_close, self->peer);
+  munmap(self->ring, self->mapping_size);
+  return nullptr;
+}
+
+__attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags, uint8_t sony = 0) {
+  const char *path = sony == 4 ? DS4_HIDRAW_PATH : sony == 5 ? DUALSENSE_HIDRAW_PATH : DECK_HIDRAW_PATH;
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
   if (!process_is_steam_client()) {
     // Only the client reads the Deck; a game sees Steam Input's virtual pad instead.
-    Logger::log("deck: %s refused: not the Steam client\n", DECK_HIDRAW_PATH);
+    Logger::log("deck: %s refused: not the Steam client\n", path);
     errno = ENOENT;
     return -1;
   }
   std::string ring_path = get_ring_path_for_slot(0);
   int ring_fd = ring_path.empty() ? -1 : my_open(ring_path.c_str(), O_RDONLY | O_CLOEXEC);
   if (ring_fd < 0) {
-    Logger::log("deck: %s refused: ring %s not openable (%s)\n", DECK_HIDRAW_PATH,
+    Logger::log("deck: %s refused: ring %s not openable (%s)\n", path,
                 ring_path.empty() ? "(none configured)" : ring_path.c_str(), strerror(errno));
     errno = ENODEV;
     return -1;
@@ -1652,7 +1802,7 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   void *mapping = mmap(nullptr, mapping_size, PROT_READ, MAP_SHARED, ring_fd, 0);
   syscall(SYS_close, ring_fd);
   if (mapping == MAP_FAILED || !ring_header_is_valid(static_cast<FakeInputRingHeader *>(mapping))) {
-    Logger::log("deck: %s refused: ring %s %s\n", DECK_HIDRAW_PATH, ring_path.c_str(),
+    Logger::log("deck: %s refused: ring %s %s\n", path, ring_path.c_str(),
                 mapping == MAP_FAILED ? "could not be mapped" : "has no valid header");
     if (mapping != MAP_FAILED) munmap(mapping, mapping_size);
     errno = ENODEV;
@@ -1660,7 +1810,7 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   }
   int pair[2];
   if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) < 0) {
-    Logger::log("deck: %s refused: socketpair failed (%s)\n", DECK_HIDRAW_PATH, strerror(errno));
+    Logger::log("deck: %s refused: socketpair failed (%s)\n", path, strerror(errno));
     munmap(mapping, mapping_size);
     return -1;
   }
@@ -1673,6 +1823,7 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   deck->peer = pair[1];
   deck->ring = static_cast<FakeInputRingHeader *>(mapping);
   deck->mapping_size = mapping_size;
+  deck->sony = sony;
   {
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map()[pair[0]] = deck;
@@ -1680,7 +1831,7 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
   }
   pthread_t thread;
   auto *arg = new std::shared_ptr<DeckHidraw>(deck);
-  if (pthread_create(&thread, nullptr, deck_report_thread, arg) != 0) {
+  if (pthread_create(&thread, nullptr, sony ? sony_report_thread : deck_report_thread, arg) != 0) {
     delete arg;
     std::lock_guard<std::recursive_mutex> guard(controller_mutex());
     deck_map().erase(pair[0]);
@@ -1692,7 +1843,8 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags) {
     return -1;
   }
   pthread_detach(thread);
-  Logger::log("deck: %s opened as fd %d\n", DECK_HIDRAW_PATH, pair[0]);
+  Logger::log("deck: %s opened as fd %d%s\n", path, pair[0],
+              sony == 4 ? " (a DualShock 4)" : sony == 5 ? " (a DualSense)" : "");
   return pair[0];
 }
 
@@ -2222,11 +2374,18 @@ __attribute__((visibility("hidden"))) static void touch_uevent(const char *actio
 static constexpr const char *DECK_DEVPATH = "/devices/droiddeck/usb1/1-1:1.2/0003:28DE:1205.0001/hidraw/hidraw16";
 static constexpr const char *TRITON_PAD_DEVPATH = "/devices/droiddeck/usb3/3-1:1.0/0003:28DE:1302.0004/hidraw/hidraw19";
 static constexpr const char *PAD_EVDEV_DEVPATH = "/devices/virtual/input/droiddeck0/event0";
+static constexpr const char *DS4_DEVPATH = "/devices/droiddeck/usb4/4-1:1.3/0003:054C:09CC.0005/hidraw/hidraw20";
+static constexpr const char *DUALSENSE_DEVPATH = "/devices/droiddeck/usb5/5-1:1.3/0003:054C:0CE6.0006/hidraw/hidraw21";
 static constexpr const char *TRITON_DEVPATH = "/devices/droiddeck/bluetooth/0005:28DE:1303.0003/hidraw/hidraw18";
 
 __attribute__((visibility("hidden"))) static int pad_type_uevent(uint32_t type, const char *action) {
   if (type == PAD_TYPE_DECK)
     return inject_uevent(action, DECK_DEVPATH, "hidraw", DECK_HIDRAW_PATH, DECK_HIDRAW_MAJOR, DECK_HIDRAW_MINOR);
+  if (type == PAD_TYPE_DS4)
+    return inject_uevent(action, DS4_DEVPATH, "hidraw", DS4_HIDRAW_PATH, DECK_HIDRAW_MAJOR, DS4_HIDRAW_MINOR);
+  if (type == PAD_TYPE_DUALSENSE)
+    return inject_uevent(action, DUALSENSE_DEVPATH, "hidraw", DUALSENSE_HIDRAW_PATH, DECK_HIDRAW_MAJOR,
+                         DUALSENSE_HIDRAW_MINOR);
   if (type == PAD_TYPE_STEAM)
     return inject_uevent(action, TRITON_PAD_DEVPATH, "hidraw", TRITON_PAD_HIDRAW_PATH, TRITON_HIDRAW_MAJOR,
                          TRITON_PAD_HIDRAW_MINOR);
@@ -2234,12 +2393,34 @@ __attribute__((visibility("hidden"))) static int pad_type_uevent(uint32_t type, 
   return inject_uevent(action, PAD_EVDEV_DEVPATH, "input", "/dev/input/event0", major(rdev), minor(rdev));
 }
 
+// SDL's HIDAPI in the client (the PlayStation pads' driver) finds hidraw devices by watching /dev
+// with inotify, with udev off, and looks again on any entry named hidraw<N>. The guest cannot
+// create one in /dev, so the client's watch of /dev also covers this directory (inotify_add_watch
+// below), where a switch makes and removes one.
+__attribute__((visibility("hidden"))) static std::string hidraw_event_dir() {
+  return std::string(fake_hook_dir()) + "/.hidraw-events";
+}
+
+__attribute__((visibility("hidden"))) static void poke_hidraw_watchers(unsigned minor) {
+  std::string path = hidraw_event_dir() + "/hidraw" + std::to_string(minor);
+  int fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, path.c_str(), O_CREAT | O_WRONLY | O_CLOEXEC, 0600));
+  if (fd >= 0) syscall(SYS_close, fd);
+  unlink(path.c_str());
+}
+
+__attribute__((visibility("hidden"))) static unsigned pad_type_minor(uint32_t type) {
+  return type == PAD_TYPE_DS4 ? DS4_HIDRAW_MINOR
+       : type == PAD_TYPE_DUALSENSE ? DUALSENSE_HIDRAW_MINOR
+       : type == PAD_TYPE_STEAM ? TRITON_PAD_HIDRAW_MINOR : DECK_HIDRAW_MINOR;
+}
+
 // A switch, as the client sees one: the old device unplugged, then the new one plugged in.
 __attribute__((visibility("hidden"))) static void *pad_type_thread(void *) {
-  static const char *kNames[] = {"Steam Deck controller", "Steam Controller", "Xbox 360 controller"};
+  static const char *kNames[] = {"Steam Deck controller", "Steam Controller", "Xbox 360 controller",
+                                 "DualShock 4", "DualSense"};
   uint32_t was = live_pad_type();
   bool paired = fake_triton_enabled() && triton_connected();
-  Logger::log("pad: a %s at start%s\n", kNames[was % 3], paired ? ", the paired Steam Controller connected" : "");
+  Logger::log("pad: a %s at start%s\n", kNames[was % 5], paired ? ", the paired Steam Controller connected" : "");
   for (;;) {
     struct timespec interval = {0, 50 * 1000 * 1000};
     nanosleep(&interval, nullptr);
@@ -2252,12 +2433,14 @@ __attribute__((visibility("hidden"))) static void *pad_type_thread(void *) {
                   connected ? "connected" : "disconnected", sent);
     }
     uint32_t now = live_pad_type();
-    if (now == was || now > PAD_TYPE_XBOX) continue;
+    if (now == was || now > PAD_TYPE_LAST) continue;
     int removed = pad_type_uevent(was, "remove");
     // Time for the client to let the old device go before the new one appears.
     struct timespec settle = {0, 300 * 1000 * 1000};
     nanosleep(&settle, nullptr);
     int added = pad_type_uevent(now, "add");
+    if (was != PAD_TYPE_XBOX) poke_hidraw_watchers(pad_type_minor(was));
+    if (now != PAD_TYPE_XBOX) poke_hidraw_watchers(pad_type_minor(now));
     // The pad's evdev node comes or goes with the Xbox 360 type. Its hotplug is watched with
     // inotify on /dev/input (SDL's, with udev off), so it is moved out and back in: everyone
     // watching sees it removed and added, and opens it again only if it is the pad now.
@@ -2476,6 +2659,117 @@ deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
   size_t length = std::min(size, sizeof(reply));
   memcpy(buf, reply, length);
   return static_cast<int>(length);
+}
+
+// The PlayStation pads' report descriptor: a gamepad with input report 1, the output report the
+// model takes (5 on a DualShock 4, 2 on a DualSense) and the feature reports a driver reads.
+static const uint8_t kDs4ReportDescriptor[] = {
+    0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, 0x06, 0x00, 0xff, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08,
+    0x85, 0x01, 0x09, 0x20, 0x95, 0x3f, 0x81, 0x02, 0x85, 0x05, 0x09, 0x21, 0x95, 0x1f, 0x91, 0x02,
+    0x85, 0x02, 0x09, 0x24, 0x95, 0x24, 0xb1, 0x02, 0x85, 0x12, 0x09, 0x25, 0x95, 0x0f, 0xb1, 0x02,
+    0x85, 0xa3, 0x09, 0x26, 0x95, 0x30, 0xb1, 0x02, 0x85, 0x81, 0x09, 0x27, 0x95, 0x3f, 0xb1, 0x02,
+    0xc0};
+static const uint8_t kDualSenseReportDescriptor[] = {
+    0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, 0x06, 0x00, 0xff, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08,
+    0x85, 0x01, 0x09, 0x20, 0x95, 0x3f, 0x81, 0x02, 0x85, 0x02, 0x09, 0x21, 0x95, 0x2f, 0x91, 0x02,
+    0x85, 0x05, 0x09, 0x22, 0x95, 0x28, 0xb1, 0x02, 0x85, 0x09, 0x09, 0x23, 0x95, 0x13, 0xb1, 0x02,
+    0x85, 0x20, 0x09, 0x24, 0x95, 0x3f, 0xb1, 0x02, 0xc0};
+
+// Calibration both models report the same way (SDL: LoadCalibrationData): no bias, and the
+// ranges that make a unit 1/16 degree/s and 1/8192 g, the scale build_sony_report writes in.
+__attribute__((visibility("hidden"))) static void put_sony_calibration(uint8_t *reply) {
+  for (int axis = 0; axis < 3; axis++) {
+    put16(reply + 7 + axis * 4, 8640);
+    put16(reply + 9 + axis * 4, -8640);
+    put16(reply + 23 + axis * 4, 8192);
+    put16(reply + 25 + axis * 4, -8192);
+  }
+  put16(reply + 19, 540);
+  put16(reply + 21, 540);
+}
+
+__attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &pad, uint8_t *buf, size_t size) {
+  if (!buf || size < 1) {
+    errno = EINVAL;
+    return -1;
+  }
+  uint8_t id = buf[0];
+  uint8_t reply[64] = {};
+  reply[0] = id;
+  size_t length = size;
+  if ((pad.sony == 4 && id == 0x02) || (pad.sony == 5 && id == 0x05)) {
+    put_sony_calibration(reply);
+  } else if ((pad.sony == 4 && (id == 0x12 || id == 0x81)) || (pad.sony == 5 && id == 0x09)) {
+    for (int i = 0; i < 6; i++) reply[1 + i] = SONY_MAC[5 - i];  // the address, last byte first
+  } else if (pad.sony == 5 && id == 0x20) {
+    reply[44] = 0x30;  // firmware 0x0430: past the versions SDL treats as old
+    reply[45] = 0x04;
+  }
+  log_deck_feature("read", id);
+  length = std::min(length, sizeof(reply));
+  memcpy(buf, reply, length);
+  return static_cast<int>(length);
+}
+
+// Rumble from the output report, when its flags say it carries rumble: a DualShock 4's report 5
+// (right/weak, then left/strong at 4 and 5), a DualSense's report 2 (at 3 and 4).
+__attribute__((visibility("hidden"))) static void sony_output(const DeckHidraw &pad, const uint8_t *data, size_t size) {
+  if (!data || size < 6) return;
+  int weak, strong;
+  if (pad.sony == 4 && data[0] == 0x05) {
+    if (!(data[1] & 0x01)) return;
+    weak = data[4];
+    strong = data[5];
+  } else if (pad.sony == 5 && data[0] == 0x02) {
+    if (!(data[1] & 0x03)) return;
+    weak = data[3];
+    strong = data[4];
+  } else {
+    return;
+  }
+  // The drivers send a new report when the rumble changes and a zero one to stop it.
+  send_vibration(strong * 257, weak * 257, strong || weak ? 2000 : 0, 0);
+}
+
+__attribute__((visibility("hidden"))) static int ioctl_sony(DeckHidraw &pad, ioctl_request_t op, void *argp) {
+  if (_IOC_TYPE(op) != 'H') {
+    errno = ENOTTY;
+    return -1;
+  }
+  const uint8_t *descriptor = pad.sony == 4 ? kDs4ReportDescriptor : kDualSenseReportDescriptor;
+  size_t descriptor_size = pad.sony == 4 ? sizeof(kDs4ReportDescriptor) : sizeof(kDualSenseReportDescriptor);
+  switch (_IOC_NR(op)) {
+  case 0x01:
+    *static_cast<int *>(argp) = static_cast<int>(descriptor_size);
+    return 0;
+  case 0x02: {
+    auto *out = static_cast<uint8_t *>(argp);
+    uint32_t size;
+    memcpy(&size, out, sizeof(size));
+    memcpy(out + 4, descriptor, std::min<size_t>(size, descriptor_size));
+    return 0;
+  }
+  case 0x03: {
+    struct {
+      uint32_t bustype;
+      int16_t vendor;
+      int16_t product;
+    } info = {BUS_USB, static_cast<int16_t>(0x054c), static_cast<int16_t>(pad.sony == 4 ? 0x09cc : 0x0ce6)};
+    memcpy(argp, &info, sizeof(info));
+    return 0;
+  }
+  case 0x04:
+    return copy_ioctl_string(op, argp, pad.sony == 4 ? "Sony Interactive Entertainment Wireless Controller"
+                                                     : "Sony Interactive Entertainment DualSense Wireless Controller");
+  case 0x05: return copy_ioctl_string(op, argp, pad.sony == 4 ? "usb-droiddeck-4/input3" : "usb-droiddeck-5/input3");
+  case 0x08: return copy_ioctl_string(op, argp, "5e:43:4b:44:44:02");
+  case 0x06:  // HIDIOCSFEATURE: nothing the pads need is set this way
+    return static_cast<int>(_IOC_SIZE(op));
+  case 0x07: return sony_feature(pad, static_cast<uint8_t *>(argp), _IOC_SIZE(op));
+  default:
+    errno = EINVAL;
+    return -1;
+  }
 }
 
 __attribute__((visibility("hidden"))) static int
@@ -2885,6 +3179,7 @@ EXPORT int open(const char *pathname, int flags, ...) {
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
   if (is_triton_hidraw_path(pathname)) return open_triton_hidraw(flags, false);
   if (is_triton_pad_path(pathname)) return open_triton_hidraw(flags, true);
+  if (int sony = sony_pad_path(pathname)) return open_deck_hidraw(flags, static_cast<uint8_t>(sony));
   if (is_touch_hidraw_path(pathname)) return open_touch_hidraw(flags);
   if (is_withdrawn_pad_path(pathname)) {
     errno = ENOENT;
@@ -2962,6 +3257,7 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
   if (is_triton_hidraw_path(pathname)) return open_triton_hidraw(flags, false);
   if (is_triton_pad_path(pathname)) return open_triton_hidraw(flags, true);
+  if (int sony = sony_pad_path(pathname)) return open_deck_hidraw(flags, static_cast<uint8_t>(sony));
   if (is_touch_hidraw_path(pathname)) return open_touch_hidraw(flags);
   if (is_withdrawn_pad_path(pathname)) {
     errno = ENOENT;
@@ -3020,8 +3316,8 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 template <typename S, typename Real>
 static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
   if (is_withdrawn_pad_path(pathname) ||
-      ((is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) &&
-       !process_is_steam_client())) {
+      ((is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) ||
+        sony_pad_path(pathname)) && !process_is_steam_client())) {
     errno = ENOENT;
     return -1;
   }
@@ -3035,6 +3331,12 @@ static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
     memset(statbuf, 0, sizeof(*statbuf));
     statbuf->st_mode = S_IFCHR | 0666;
     statbuf->st_rdev = makedev(DECK_HIDRAW_MAJOR, DECK_HIDRAW_MINOR);
+    return 0;
+  }
+  if (int sony = sony_pad_path(pathname)) {
+    memset(statbuf, 0, sizeof(*statbuf));
+    statbuf->st_mode = S_IFCHR | 0666;
+    statbuf->st_rdev = makedev(DECK_HIDRAW_MAJOR, sony == 4 ? DS4_HIDRAW_MINOR : DUALSENSE_HIDRAW_MINOR);
     return 0;
   }
   if (is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) {
@@ -3091,6 +3393,8 @@ static int fake_stat_fd(int fd, S *buf, Real real) {
     buf->st_mode = (buf->st_mode & ~S_IFMT) | S_IFCHR;
     const auto &device = *deck_map()[fd];
     unsigned int minor = device.touch ? TOUCH_HIDRAW_MINOR
+                       : device.sony == 4 ? DS4_HIDRAW_MINOR
+                       : device.sony == 5 ? DUALSENSE_HIDRAW_MINOR
                        : device.emulated ? TRITON_PAD_HIDRAW_MINOR
                        : device.triton ? TRITON_HIDRAW_MINOR : DECK_HIDRAW_MINOR;
     buf->st_rdev = makedev(DECK_HIDRAW_MAJOR, minor);
@@ -3139,10 +3443,12 @@ EXPORT int access(const char *pathname, int mode) {
   static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
-  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) && process_is_steam_client()) return 0;
+  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) || sony_pad_path(pathname)) &&
+      process_is_steam_client())
+    return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
   if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) ||
-      is_triton_pad_path(pathname)) {
+      is_triton_pad_path(pathname) || sony_pad_path(pathname)) {
     errno = ENOENT;
     return -1;
   }
@@ -3178,10 +3484,12 @@ EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
   static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
-  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) && process_is_steam_client()) return 0;
+  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) || sony_pad_path(pathname)) &&
+      process_is_steam_client())
+    return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
   if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) ||
-      is_triton_pad_path(pathname)) {
+      is_triton_pad_path(pathname) || sony_pad_path(pathname)) {
     errno = ENOENT;
     return -1;
   }
@@ -3244,6 +3552,11 @@ EXPORT int inotify_add_watch(int fd, const char *pathname, uint32_t mask) {
       pathname = fake_path;
     } else if (!strcmp(pathname, "/dev/input")) {
       pathname = fake_hook_dir();
+    } else if (!strcmp(pathname, "/dev") && fake_deck_enabled() && process_is_steam_client()) {
+      // Beside /dev itself, not instead: the same descriptor gets both directories' events.
+      std::string events = hidraw_event_dir();
+      mkdir(events.c_str(), 0700);
+      my_inotify_add_watch(fd, events.c_str(), mask);
     }
   }
 
@@ -3305,6 +3618,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   auto deck = deck_map().find(fd);
   if (deck != deck_map().end()) {
     if (deck->second->touch) return ioctl_touch(*deck->second, op, argp);
+    if (deck->second->sony) return ioctl_sony(*deck->second, op, argp);
     if (deck->second->triton) {
       std::shared_ptr<DeckHidraw> triton = deck->second;
       guard.unlock();
@@ -3643,6 +3957,7 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   if (made != uinput_map().end()) return write_uinput(*made->second, buf, count);
   if (deck_map().count(fd)) {
     if (deck_map()[fd]->touch) touch_output(static_cast<const uint8_t *>(buf), count);
+    else if (deck_map()[fd]->sony) sony_output(*deck_map()[fd], static_cast<const uint8_t *>(buf), count);
     else if (deck_map()[fd]->emulated) triton_pad_output(static_cast<const uint8_t *>(buf), count);
     else if (deck_map()[fd]->triton) triton_queue_output(*deck_map()[fd], static_cast<const uint8_t *>(buf), count, false);
     return static_cast<ssize_t>(count);
@@ -3675,6 +3990,7 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
     auto device = deck_map()[fd];
     for (int i = 0; i < iovcnt; i++) {
       if (device->touch) touch_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      else if (device->sony) sony_output(*device, static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       else if (device->emulated) triton_pad_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       else if (device->triton) triton_queue_output(*device, static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len, false);
       total += static_cast<ssize_t>(iov[i].iov_len);

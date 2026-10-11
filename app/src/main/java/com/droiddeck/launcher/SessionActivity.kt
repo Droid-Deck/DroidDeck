@@ -593,6 +593,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     padType = if (SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad) padType else null,
                     onPadType = { id ->
                         SessionPrefs.setSteamController(this@SessionActivity, id)
+                        com.droiddeck.launcher.session.SteamDeckPad.showPad(SessionPrefs.padType(id))
                         com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
                         padType = id
                     },

@@ -752,7 +752,8 @@ class SessionService : Service() {
         // A paired Triton is exposed as a second native Steam Controller HID, with its original
         // report IDs and output path, beside whatever the handheld's own pad is.
         val wantsTriton = wantsDeck && SteamControllerBle.hasPairedController(this)
-        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch, wantsTriton) else emptyList()
+        deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch, wantsTriton,
+            SessionPrefs.padType(SessionPrefs.steamController(this))) else emptyList()
         SessionState.deckPad = deckBinds.isNotEmpty()
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
