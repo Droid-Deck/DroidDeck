@@ -1,0 +1,329 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * vkbridge server entry point.
+ *
+ *   libvkbridge_server.so --socket <path> [--log <file>] [--vulkan <libvulkan>] [--cache-dir <dir>] [--selftest]
+ *
+ * Packaged as a "library" so Android extracts it into the native library directory, from where
+ * the app executes it like proot. It loads the system Vulkan loader (on the device: the vendor's
+ * Mali driver behind /system/lib64/libvulkan.so), runs a self-test that decides how mapped memory
+ * is shared with the Linux side, then serves the session's Vulkan calls until it is killed or its
+ * parent dies.
+ */
+#define _GNU_SOURCE
+#include "vkb_server.h"
+
+#include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/prctl.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <time.h>
+#include <unistd.h>
+
+#ifdef __ANDROID__
+#include <android/log.h>
+#elif defined(__GLIBC__)
+#include <execinfo.h>
+#endif
+
+PFN_vkGetInstanceProcAddr vkb_gipa;
+vkb_dispatch vkb_global_dt;
+int vkb_verbose;
+
+static FILE *log_file;
+static int log_level = VKB_LOG_INFO;
+static pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+
+int vkb_log_level(void) { return log_level; }
+
+void vkb_log(int level, const char *fmt, ...)
+{
+    if (level > log_level) return;
+    char msg[2048];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+    static const char *const tags[] = {"E", "W", "I", "D"};
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    struct tm tm;
+    localtime_r(&ts.tv_sec, &tm);
+    pthread_mutex_lock(&log_lock);
+    FILE *f = log_file ? log_file : stderr;
+    fprintf(f, "%02d:%02d:%02d.%03ld vkbridge-server %s %s\n", tm.tm_hour, tm.tm_min, tm.tm_sec,
+            ts.tv_nsec / 1000000, tags[level & 3], msg);
+    fflush(f);
+    pthread_mutex_unlock(&log_lock);
+#ifdef __ANDROID__
+    static const int prio[] = {ANDROID_LOG_ERROR, ANDROID_LOG_WARN, ANDROID_LOG_INFO, ANDROID_LOG_DEBUG};
+    __android_log_write(prio[level & 3], "vkbridge", msg);
+#endif
+}
+
+extern __thread const char *vkb_srv_current_cmd;
+
+/* A crash is almost always the driver's: say in which call, then die as we would have. */
+__attribute__((unused)) static void on_crash(int sig)
+{
+    char buf[256];
+    const char *cmd = vkb_srv_current_cmd ? vkb_srv_current_cmd : "(no Vulkan call)";
+    int n = snprintf(buf, sizeof(buf), "vkbridge-server E crashed with signal %d in %s\n", sig, cmd);
+    if (log_file) {
+        if (write(fileno(log_file), buf, (size_t)n) < 0) {}
+    }
+    if (write(2, buf, (size_t)n) < 0) {}
+#ifdef __ANDROID__
+    __android_log_write(ANDROID_LOG_FATAL, "vkbridge", buf);
+#elif defined(__GLIBC__)
+    void *frames[32];
+    int nf = backtrace(frames, 32);
+    backtrace_symbols_fd(frames, nf, 2);
+    if (log_file) backtrace_symbols_fd(frames, nf, fileno(log_file));
+#endif
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+static void *load_vulkan(const char *override)
+{
+    const char *names[] = {
+        override,
+#ifdef __ANDROID__
+        "libvulkan.so",
+#else
+        "libvulkan.so.1",
+        "libvulkan.so",
+#endif
+    };
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        if (!names[i]) continue;
+        void *h = dlopen(names[i], RTLD_NOW | RTLD_LOCAL);
+        if (h) {
+            VKB_INFO("Vulkan loader: %s", names[i]);
+            return h;
+        }
+        VKB_WARN("cannot open %s: %s", names[i], dlerror());
+    }
+    return NULL;
+}
+
+static int listen_on(const char *path)
+{
+    struct sockaddr_un a;
+    if (strlen(path) >= sizeof(a.sun_path)) {
+        VKB_ERR("socket path too long (%zu bytes): %s", strlen(path), path);
+        return -1;
+    }
+    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd < 0) {
+        VKB_ERR("socket: %s", strerror(errno));
+        return -1;
+    }
+    memset(&a, 0, sizeof(a));
+    a.sun_family = AF_UNIX;
+    strcpy(a.sun_path, path);
+    unlink(path);
+    if (bind(fd, (struct sockaddr *)&a, sizeof(a)) < 0) {
+        VKB_ERR("bind %s: %s", path, strerror(errno));
+        close(fd);
+        return -1;
+    }
+    chmod(path, 0600);
+    if (listen(fd, 128) < 0) {
+        VKB_ERR("listen: %s", strerror(errno));
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+/* Opens (or switches to) the log file; NULL keeps logging to stderr/logcat only. */
+static void open_log(const char *path)
+{
+    FILE *f = path ? fopen(path, "ae") : NULL;
+    if (path && !f) fprintf(stderr, "vkbridge-server: cannot open log %s: %s\n", path, strerror(errno));
+    pthread_mutex_lock(&log_lock);
+    FILE *old = log_file;
+    log_file = f;
+    pthread_mutex_unlock(&log_lock);
+    if (old) fclose(old);
+}
+
+/* Loads the Vulkan loader and runs the self-test; 0 when there is nothing to serve. */
+static int server_init(const char *vk_lib, const char *cache_dir)
+{
+    VKB_INFO("starting (pid %d, protocol %016llx)", getpid(), (unsigned long long)VKB_PROTOCOL_HASH);
+    void *lib = load_vulkan(vk_lib);
+    if (!lib) {
+        VKB_ERR("no Vulkan loader; nothing to serve");
+        return 0;
+    }
+    vkb_gipa = (PFN_vkGetInstanceProcAddr)dlsym(lib, "vkGetInstanceProcAddr");
+    if (!vkb_gipa) {
+        VKB_ERR("the Vulkan loader exports no vkGetInstanceProcAddr");
+        return 0;
+    }
+    vkb_dispatch_load_instance(&vkb_global_dt, vkb_gipa, VK_NULL_HANDLE);
+    vkb_pcache_set_dir(cache_dir);
+    vkb_selftest_all();
+    return 1;
+}
+
+#ifdef VKB_JNI
+/*
+ * In the app's own process (the default on the device): Android chooses the GPU driver, Samsung's
+ * updatable one included, while the app starts up, and only for the app's process - a separate
+ * executable gets the plain /vendor driver, which on the Tab S10+ lacked VK_EXT_robustness2 and
+ * more that the app itself sees. Winlator's Vortek runs its server in-process for the same reason.
+ * Started once and kept for the app's life; each session only points the log at its own folder.
+ */
+#include <jni.h>
+
+static pthread_mutex_t jni_lock = PTHREAD_MUTEX_INITIALIZER;
+static char jni_socket[256];
+static int jni_state; /* 0 not started, 1 serving, -1 failed */
+
+static void *serve_thread(void *arg)
+{
+    vkb_srv_serve((int)(intptr_t)arg);
+    VKB_ERR("in-app server stopped serving");
+    return NULL;
+}
+
+static char *jstr(JNIEnv *env, jstring s)
+{
+    if (!s) return NULL;
+    const char *c = (*env)->GetStringUTFChars(env, s, NULL);
+    char *r = c ? strdup(c) : NULL;
+    if (c) (*env)->ReleaseStringUTFChars(env, s, c);
+    return r;
+}
+
+JNIEXPORT jint JNICALL Java_com_droiddeck_launcher_gpu_VkBridgeNative_nativeStart(JNIEnv *env, jclass cls, jstring jsocket,
+                                                                                jstring jlog, jstring jcache)
+{
+    (void)cls;
+    char *sock = jstr(env, jsocket), *logp = jstr(env, jlog), *cache = jstr(env, jcache);
+    pthread_mutex_lock(&jni_lock);
+    open_log(logp);
+    if (getenv("VKBRIDGE_DEBUG")) {
+        vkb_verbose = 1;
+        log_level = VKB_LOG_DEBUG;
+    }
+    int ok = 0;
+    if (jni_state == 1 && sock && !strcmp(sock, jni_socket) && access(sock, F_OK) == 0) {
+        VKB_INFO("in-app server already serving at %s (pid %d); this session's log continues here", sock, getpid());
+        vkb_log_summary();
+        ok = 1;
+    } else if (jni_state == 1) {
+        VKB_ERR("in-app server serves %s, asked for %s (or its socket is gone)", jni_socket, sock ? sock : "(none)");
+    } else if (jni_state == 0 && sock) {
+        jni_state = -1;
+        if (server_init(NULL, cache)) {
+            int lfd = listen_on(sock);
+            pthread_t t;
+            if (lfd >= 0 && pthread_create(&t, NULL, serve_thread, (void *)(intptr_t)lfd) == 0) {
+                pthread_detach(t);
+                snprintf(jni_socket, sizeof(jni_socket), "%s", sock);
+                jni_state = 1;
+                ok = 1;
+                VKB_INFO("listening on %s (in the app's process)", sock);
+            }
+        }
+    }
+    pthread_mutex_unlock(&jni_lock);
+    free(sock);
+    free(logp);
+    free(cache);
+    return ok;
+}
+#else
+static void usage(void)
+{
+    fprintf(stderr, "usage: vkbridge-server --socket PATH [--log FILE] [--vulkan LIB] [--cache-dir DIR] [--selftest] [--verbose]\n");
+}
+
+static pid_t parent_pid;
+
+static void *parent_watch(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        sleep(1);
+        if (getppid() != parent_pid) {
+            VKB_INFO("the app (pid %d) is gone; exiting", (int)parent_pid);
+            _exit(0);
+        }
+    }
+    return NULL;
+}
+
+static void start_parent_watch(void)
+{
+    parent_pid = getppid();
+    if (parent_pid <= 1) return; /* started by init or a shell that already left: nothing to watch */
+    pthread_t t;
+    pthread_attr_t a;
+    pthread_attr_init(&a);
+    pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
+    pthread_create(&t, &a, parent_watch, NULL);
+    pthread_attr_destroy(&a);
+}
+
+int main(int argc, char **argv)
+{
+    const char *sock_path = getenv("VKBRIDGE_SOCKET");
+    const char *log_path = getenv("VKBRIDGE_SERVER_LOG");
+    const char *vk_lib = getenv("VKBRIDGE_SERVER_VULKAN");
+    const char *cache_dir = getenv("VKBRIDGE_CACHE_DIR");
+    int selftest_only = 0;
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--socket") && i + 1 < argc) sock_path = argv[++i];
+        else if (!strcmp(argv[i], "--log") && i + 1 < argc) log_path = argv[++i];
+        else if (!strcmp(argv[i], "--vulkan") && i + 1 < argc) vk_lib = argv[++i];
+        else if (!strcmp(argv[i], "--cache-dir") && i + 1 < argc) cache_dir = argv[++i];
+        else if (!strcmp(argv[i], "--selftest")) selftest_only = 1;
+        else if (!strcmp(argv[i], "--verbose")) vkb_verbose = 1;
+        else {
+            usage();
+            return 2;
+        }
+    }
+    if (getenv("VKBRIDGE_DEBUG")) vkb_verbose = 1;
+    if (vkb_verbose) log_level = VKB_LOG_DEBUG;
+    open_log(log_path);
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGSEGV, on_crash);
+    signal(SIGBUS, on_crash);
+    signal(SIGABRT, on_crash);
+    signal(SIGILL, on_crash);
+    signal(SIGFPE, on_crash);
+    /* The server is the app's child: when the app dies, so does the session's GPU. Not with
+     * PR_SET_PDEATHSIG: that fires when the parent THREAD exits, and Android's ProcessBuilder forks
+     * from the session's start-up thread, which ends right after starting the guest (the server
+     * was killed 6 ms into the first device run). The parent process is watched instead. */
+    start_parent_watch();
+
+    if (!server_init(vk_lib, cache_dir)) return 1;
+    if (selftest_only) return vkb_npds > 0 ? 0 : 1;
+
+    if (!sock_path) {
+        usage();
+        return 2;
+    }
+    int lfd = listen_on(sock_path);
+    if (lfd < 0) return 1;
+    VKB_INFO("listening on %s", sock_path);
+    vkb_srv_serve(lfd);
+    return 0;
+}
+#endif

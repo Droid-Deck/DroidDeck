@@ -128,6 +128,10 @@ class FrontEndState(
     val oscMode: String = SessionPrefs.OSC_AUTO,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
+    /** The GPU is an Adreno (Turnip); otherwise Setup offers the experimental Mali bridge. */
+    val adreno: Boolean = true,
+    /** Setup's "Mali bridge (experimental)" (SessionPrefs.vkBridge). */
+    val vkBridge: Boolean = false,
     val showPhantomGate: Boolean = false,
     val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
     val launcherFullscreen: Boolean = true,
@@ -184,6 +188,7 @@ class FrontEndActions(
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
     val onRuntime: () -> Unit,
+    val onVkBridge: (Boolean) -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onProtons: () -> Unit,
