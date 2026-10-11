@@ -340,6 +340,40 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIn('"$here/proton"', (extra / COMPAT["EXTRA_WRAPPER"]).read_text())
             self.assertIn("GE-Proton11-7", [entry["name"] for entry in COMPAT["tool_catalog"](str(home), None)])
 
+    def test_droiddeck_proton_is_adopted_and_labelled_like_any_other_extra(self):
+        # Its folder has a space ("DroidDeck-Proton 11-7.5") and its internal name starts with
+        # "DroidDeck-Proton-", which lower-cases to our own tools' prefix: neither may matter.
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            (home / "label").write_text("Compatible\n")
+            COMPAT["display_name"].__globals__["LABEL_FILE"] = str(home / "label")
+            tools = home / "compatibilitytools.d"
+            extra = tools / "DroidDeck-Proton 11-7.5"
+            extra.mkdir(parents=True)
+            (extra / "proton").write_text("")
+            (extra / "toolmanifest.vdf").write_text('"manifest" { "version" "2" "commandline" "/proton %verb%" "require_tool_appid" "4185400" }')
+            (extra / "compatibilitytool.vdf").write_text(
+                '"compatibilitytools" { "compat_tools" { "DroidDeck-Proton-11-7.5" { "install_path" "." '
+                '"display_name" "DroidDeck-Proton 11-7.5" "from_oslist" "windows" "to_oslist" "linux" } } }')
+            COMPAT["build_tool"](str(tools / COMPAT["TOOL"]), None)
+            protect = COMPAT["adopt_extras"](str(tools))
+            self.assertEqual(protect, {"DroidDeck-Proton-11-7.5": "DroidDeck-Proton 11-7.5"})
+            compat = (extra / "compatibilitytool.vdf").read_text()
+            self.assertIn('"DroidDeck-Proton-11-7.5"', compat)
+            self.assertIn('"display_name" "DroidDeck-Proton 11-7.5 (Compatible)"', compat)
+            self.assertNotIn("require_tool_appid", (extra / "toolmanifest.vdf").read_text())
+            self.assertIn('"$here/proton"', (extra / COMPAT["EXTRA_WRAPPER"]).read_text())
+            catalog = COMPAT["tool_catalog"](str(home), None)
+            self.assertIn({"name": "DroidDeck-Proton-11-7.5", "display": "DroidDeck-Proton 11-7.5 (Compatible)",
+                           "dir": "DroidDeck-Proton 11-7.5", "valve": False}, catalog)
+            config = home / "config.vdf"
+            config.write_text(config_text([("0", COMPAT["TOOL"]), ("42", "DroidDeck-Proton-11-7.5")]))
+            COMPAT["register_default"](str(config), ["42", "43"], protect=protect)
+            self.assertEqual(mapping_of(config.read_text()), {"0": COMPAT["TOOL"], "42": "DroidDeck-Proton-11-7.5", "43": COMPAT["TOOL"]})
+            # Once removed it is no longer runnable, and its games go back to the default.
+            changes, _ = COMPAT["plan_mapping"]({"0": COMPAT["TOOL"], "42": "DroidDeck-Proton-11-7.5"}, ["42"], [COMPAT["TOOL"]], COMPAT["TOOL"], {})
+            self.assertEqual(changes, {"42": COMPAT["TOOL"]})
+
     def test_both_proton_wrappers_call_environment_launcher(self):
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)

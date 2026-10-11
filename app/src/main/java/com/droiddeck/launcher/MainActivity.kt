@@ -994,6 +994,8 @@ class MainActivity : ComponentActivity() {
         updates.onResume()
         // Auto keeps this GPU's recommended driver pair installed and set: once per app start.
         drivers.ensureAuto(force = false)
+        // Newer GE-Proton / proton-cachyos / DroidDeck-Proton releases: looked up every few hours at most.
+        protons.checkUpdates()
         // Swaps queued while a game ran on that Proton go in once nothing uses it (usually the
         // session has just ended). Cheap when nothing is queued.
         if (!SessionState.running) Thread({
@@ -1145,6 +1147,7 @@ class MainActivity : ComponentActivity() {
         components.refreshComponents(snapshotFirst = true)
         drivers.refreshDrivers()
         protons.refreshProtons()
+        protons.checkUpdates()
     }
 
     private fun importComponent(uri: Uri) {
@@ -1206,7 +1209,8 @@ class MainActivity : ComponentActivity() {
             protonActions = com.droiddeck.launcher.ui.ProtonsActions(
                 onInstall = { id -> protons.installProton(id) },
                 onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
-                onRemove = { id -> protons.removeProton(id) },
+                onRemove = { id, dir -> protons.removeProton(id, dir) },
+                onRemoveOlder = { id -> protons.removeProton(id, older = true) },
             ),
             protonOptions = {
                 com.droiddeck.launcher.ui.ProtonOptions(

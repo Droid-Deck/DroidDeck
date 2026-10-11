@@ -50,6 +50,37 @@ prepare_locale() {
 }
 [ -z "${BL_INSIDE:-}" ] && prepare_locale
 
+# What earlier sessions left in /tmp. The guest's /tmp is a directory in the rootfs, never emptied
+# by a boot, and Android ends sessions by killing them: each left its mangoapp config, the client's
+# temporary directories and shared-memory sockets, Chromium's singleton directory (the web
+# helper's, an Electron app's), a session bus socket per run and a run's start stamp - 1,400
+# entries on a device after a few weeks. Each kind is swept while nothing that could own one runs,
+# with one find for the lot.
+clear_stale_tmp() {
+  local running names=() n
+  running=$(pgrep -af 'steamwebhelper|steamrtarm64/steam|--type=|droiddeck-appimage-run|dbus-run-session|dbus-daemon.*--session|dbus-launch|kwin|plasmashell' 2>/dev/null)
+  case $running in
+    *steamwebhelper* | *steamrtarm64/steam*) ;;
+    *) names+=(-o -name 'mangohud.????????' -o -name '.com.valvesoftware.Steam.??????'
+               -o -name 'steam_chrome_shmem_uid*' -o \( -type d -empty -name 'steam??????' \)) ;;
+  esac
+  case $running in *--type=*) ;; *) names+=(-o \( -type d -name 'scoped_dir??????' \)) ;; esac
+  case $running in *droiddeck-appimage-run*) ;; *) names+=(-o -name 'droiddeck-appimage.??????') ;; esac
+  case $running in
+    *dbus-run-session* | *dbus-daemon*--session* | *dbus-launch*) ;;
+    *) names+=(-o \( -type s -name 'dbus-??????????' \)) ;;
+  esac
+  case $running in
+    *kwin* | *plasmashell*) ;;
+    *) names+=(-o \( -type d -empty -name 'plasma-csd-generator.??????' \)) ;;
+  esac
+  [ ${#names[@]} -gt 0 ] || return 0
+  n=$(find /tmp -mindepth 1 -maxdepth 1 \( "${names[@]:1}" \) -print -exec rm -rf {} + 2>/dev/null | wc -l)
+  [ "$n" -gt 0 ] && echo "== /tmp: cleared $n entries earlier sessions left"
+  return 0
+}
+[ -z "${BL_INSIDE:-}" ] && clear_stale_tmp
+
 # Until the runtime is stable, Steam's own logs are copied beside the session log at exit so a
 # failed launch can be handed over as one folder.
 collect_steam_logs() {
@@ -271,7 +302,8 @@ if [ -z "${BL_INSIDE:-}" ]; then
   # BL_MANGOAPP=0 turns it off (one community build found Valve's mangoapp crashing on Turnip).
   if [ "$mode" = steam ] && [ "${BL_MANGOAPP:-1}" = 1 ] \
      && [ "${BL_STEAM_UI:-}" != desktop ] && command -v mangoapp >/dev/null 2>&1; then
-    MANGOHUD_CONFIGFILE=$(mktemp /tmp/mangohud.XXXXXXXX)
+    # One fixed file, rewritten each session: a mktemp name per session was never removed.
+    MANGOHUD_CONFIGFILE=/tmp/droiddeck-mangohud.conf
     echo no_display > "$MANGOHUD_CONFIGFILE"
     export MANGOHUD_CONFIGFILE STEAM_USE_MANGOAPP=1 STEAM_MANGOAPP_PRESETS_SUPPORTED=1 STEAM_MANGOAPP_HORIZONTAL_SUPPORTED=1
     args+=(--mangoapp)
@@ -376,9 +408,9 @@ case $mode in
     # its main library already - and the ARM64 Proton that lets it launch the Windows ones.
     # A request left in ~/.bl-proton-extra installs a third-party Proton before the client starts,
     # so it is in the Compatibility dropdown the first time the user looks. One per line, each the
-    # arguments to droiddeck-proton-extra: "ge", "cachyos", "ge --tag GE-Proton11-7", or a URL.
-    # Hundreds of megabytes each, so it is only ever done on request, and the line is dropped once
-    # it has succeeded - a failed download stays and is retried next session.
+    # arguments to droiddeck-proton-extra: "ge", "cachyos", "droiddeck", "ge --tag GE-Proton11-7",
+    # or a URL. Hundreds of megabytes each, so it is only ever done on request, and the line is
+    # dropped once it has succeeded - a failed download stays and is retried next session.
     if [ -s "$HOME/.bl-proton-extra" ]; then
       _bl_left=$HOME/.bl-proton-extra.left
       : > "$_bl_left"
@@ -433,6 +465,13 @@ case $mode in
           nap 5
         done
       ) &
+    fi
+    # Rockstar's launcher keeps drawing its hidden web interface for as long as a game of theirs
+    # runs; droiddeck-launcher-cores holds it on one slow core while it is out of sight, from
+    # gamescope's focus as the agent publishes it. BL_LAUNCHER_CORES=0 leaves launchers alone.
+    if [ "${BL_LAUNCHER_CORES:-1}" != 0 ] && [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ] \
+       && [ "${BL_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
+      /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
 
     step "registering the app's game library with Steam"

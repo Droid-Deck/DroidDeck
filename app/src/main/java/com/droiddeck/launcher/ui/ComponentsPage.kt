@@ -543,7 +543,7 @@ fun ComponentsPage(
     val availableTitle: @Composable (String) -> String = { l ->
         when (l) {
             GPU_TAB -> stringResource(R.string.comp_available_count, gpu.pairs.count { !it.installed && it.complete && (it.suits || showAllPairs) })
-            PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count { it.installed == null })
+            PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count { it.installed == null || it.update != null })
             else -> stringResource(R.string.comp_nightlies_count, availableFor(l, catalog, snapshot).size)
         }
     }
@@ -582,7 +582,7 @@ fun ComponentsPage(
                 views.forEachIndexed { i, v ->
                     val key = "proton:${v.proton.id}"
                     val swaps = v.components.values.count { it.activeFile != null }
-                    val extra = protons.rows.firstOrNull { it.installed == v.proton.dir.name }
+                    val extra = protons.rows.firstOrNull { v.proton.dir.name in it.installedAll }
                     val removable = extra != null && protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
                     ChoiceLine(
                         v.proton.name,
@@ -592,8 +592,8 @@ fun ComponentsPage(
                         modifier = (if (i == 0) Modifier.focusRequester(firstRow) else Modifier).trackRow(key, rowsAt),
                         onSelect = { if (v.proton.id != view?.proton?.id) { onProton(v.proton.id); flyHome(key, PROTON_TAB) } },
                         onDelete = {
-                            if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), "", ctx.getString(R.string.store_remove), true, v.proton.name) {
-                                protonActions.onRemove(extra.id)
+                            if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
+                                protonActions.onRemove(extra.id, v.proton.dir.name)
                             }
                         },
                     )
@@ -643,14 +643,22 @@ fun ComponentsPage(
                 }
             }
             PROTON_TAB -> {
-                val rows = protons.rows.filter { it.installed == null }
+                // Not installed, and installed with a newer release out: an update goes in beside the
+                // build it replaces, which stays until it is removed (games are mapped to it by name).
+                val rows = protons.rows.filter { it.installed == null || it.update != null }
                 if (rows.isEmpty()) EmptyLine(stringResource(R.string.comp_nothing_new))
                 for (row in rows) GetLine(
-                    row.name, if (row.queued) stringResource(R.string.proton_queued) else stringResource(R.string.proton_not_installed),
+                    row.name,
+                    when {
+                        row.update != null -> stringResource(R.string.proton_update_available, row.update)
+                        row.queued -> stringResource(R.string.proton_queued)
+                        else -> stringResource(R.string.proton_not_installed)
+                    },
                     progress = if (protons.busyId == row.id) protons.percent else null,
                     stage = if (protons.busyId == row.id) protons.stage else null,
                     enabled = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning,
                     onCancel = if (row.queued && protons.busyId == null && !protons.sessionRunning) ({ protonActions.onCancel(row.id) }) else null,
+                    action = if (row.update != null) stringResource(R.string.common_update) else null,
                 ) { protonActions.onInstall(row.id) }
             }
             else -> {
@@ -688,7 +696,21 @@ fun ComponentsPage(
                         }
                     }
                 }
-                PROTON_TAB -> {}
+                PROTON_TAB -> {
+                    val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
+                    for (row in protons.rows.filter { it.installedAll.size > 1 }) {
+                        val key = "older:${row.id}"
+                        val older = row.installedAll.dropLast(1)
+                        Box(Modifier.trackRow(key, rowsAt)) {
+                            FocusText(stringResource(R.string.proton_remove_older, row.name), if (idle) pal.signal else colors.onSurfaceVariant) {
+                                if (!idle) return@FocusText
+                                ask(key, false, ctx.getString(R.string.proton_remove_older, row.name) + "?",
+                                    ctx.getString(R.string.proton_remove_older_body, older.joinToString(", ")),
+                                    ctx.getString(R.string.store_remove), true, row.name) { protonActions.onRemoveOlder(row.id) }
+                            }
+                        }
+                    }
+                }
                 else -> {
                     SmallButton(stringResource(R.string.comp_import_wcp), onClick = onImport)
                     val st = compState(l)
@@ -1524,7 +1546,7 @@ private fun ChoiceLine(
 @Composable
 private fun GetLine(
     name: String, detail: String, progress: Int?, enabled: Boolean,
-    badge: String? = null, stage: String? = null, onCancel: (() -> Unit)? = null, onGet: () -> Unit,
+    badge: String? = null, stage: String? = null, onCancel: (() -> Unit)? = null, action: String? = null, onGet: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1539,7 +1561,7 @@ private fun GetLine(
         if (progress != null) ProgressBit(progress)
         else {
             if (onCancel != null) FocusText(stringResource(R.string.proton_cancel_queued), pal.signal, onClick = onCancel)
-            SmallButton(stringResource(R.string.comp_get), enabled = enabled, accent = true, onClick = onGet)
+            SmallButton(action ?: stringResource(R.string.comp_get), enabled = enabled, accent = true, onClick = onGet)
         }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
@@ -1630,8 +1652,17 @@ class ProtonsState(
 class ProtonsActions(
     val onInstall: (String) -> Unit = {},
     val onCancel: (String) -> Unit = {},
-    val onRemove: (String) -> Unit = {},
+    /** The source's id and the installed folder to delete. */
+    val onRemove: (String, String) -> Unit = { _, _ -> },
+    /** Deletes every build of the source but the newest. */
+    val onRemoveOlder: (String) -> Unit = {},
 )
 
-/** A Proton DroidDeck can install, and the folder it is installed as (null when it is not). */
-class ProtonRow(val id: String, val name: String, val installed: String?, val queued: Boolean)
+/**
+ * A Proton DroidDeck can install: the folder its newest build is installed as (null when it is
+ * not), every installed build oldest first, and a newer release's tag when one is out.
+ */
+class ProtonRow(
+    val id: String, val name: String, val installed: String?, val queued: Boolean,
+    val installedAll: List<String> = listOfNotNull(installed), val update: String? = null,
+)

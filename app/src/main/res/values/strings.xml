@@ -466,7 +466,7 @@
     <string name="comp_applies_next_game">Applies the next time a game starts</string>
     <string name="comp_import_zip">Import .zip</string>
     <string name="comp_reading">Reading Protons…</string>
-    <string name="comp_no_proton">No Proton installed yet. Start Steam once to download its ARM64 Proton, or add GE-Proton or CachyOS from Setup.</string>
+    <string name="comp_no_proton">No Proton installed yet. Start Steam once to download its ARM64 Proton, or add GE-Proton, CachyOS or DroidDeck-Proton from Setup.</string>
     <string name="comp_original">Original · %1$s</string>
     <string name="comp_this_build">%1$s · this build</string>
     <string name="comp_earlier_build">%1$s · earlier build</string>
@@ -1077,6 +1077,13 @@
     <string name="proton_installed">Installed %1$s</string>
     <string name="proton_queued">Pending from an earlier request</string>
     <string name="proton_not_installed">Not installed</string>
+    <!-- %1$s is the newer release's tag -->
+    <string name="proton_update_available">Update available → %1$s</string>
+    <!-- %1$s is the Proton's name (GE-Proton, proton-cachyos, DroidDeck-Proton) -->
+    <string name="proton_remove_older">Remove old %1$s versions</string>
+    <!-- %1$s lists the folders that are removed -->
+    <string name="proton_remove_older_body">Removes %1$s. Games set to these versions must be switched to another Proton.</string>
+    <string name="proton_remove_body">Games set to this version must be switched to another Proton.</string>
     <string name="proton_install_now">Install now</string>
     <string name="proton_cancel_queued">Cancel queued</string>
     <string name="pckb_android">Android keyboard</string>
@@ -1807,7 +1814,7 @@
     <!-- %1$s is the client's own download progress, as it prints it -->
     <string name="loadstate_steam_client">Downloading the Steam client · %1$s</string>
 
-    <!-- Installing GE-Proton / proton-cachyos (%1$s is the tool's name, %2$s its release tag) -->
+    <!-- Installing GE-Proton / proton-cachyos / DroidDeck-Proton (%1$s is the tool's name, %2$s its release tag) -->
     <string name="pextra_busy">A compatibility tool install is already running</string>
     <string name="pextra_stop_session">Stop the active session before installing compatibility tools</string>
     <string name="pextra_no_release">Could not find an ARM64 release for %1$s</string>

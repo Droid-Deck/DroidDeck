@@ -17,6 +17,11 @@
 # 2015-2022 runtime is recorded as installed the way Microsoft's installers look for it: on ARM64
 # Proton the x64 bundle otherwise stops with "Microsoft Visual C++ 2015-2022 Redistributable (arm64)
 # is required", while Proton's own msvcp140/vcruntime140 already serve the game.
+#
+# A Vulkan runtime installer is the one left to run. Proton has no stand-in for it: for a game whose
+# Steam compat config says nativevulkanloader (Red Dead Redemption 2) it loads vulkan-1.dll native
+# only, and Khronos' loader is in the prefix only once that installer has run - without it the game
+# exits with STATUS_DLL_NOT_FOUND before it opens a window. The installer finishes in a second.
 set -u
 steam_root=${1:?steam root}
 LIBRARIES=${DROIDDECK_LIBRARIES-/mnt/droiddeck /mnt/droiddeck-sd}
@@ -25,14 +30,15 @@ redist="$steam_root/steamapps/common/Steamworks Shared/_CommonRedist"
 
 # Every process an install script would run, as the registry key and value the client writes once
 # it has run it. Names sit one level inside "Run Process", the key they share a level further in.
-read_scripts() { xargs -0 -r awk '
+# "read_scripts vulkan" lists only the Vulkan runtime installers, which the plain call leaves out.
+read_scripts() { xargs -0 -r awk -v want="${1:-redists}" '
   # A block whose HasRunKey is set is one process; its name is the key the block opened under, at
   # whatever depth - an install script nests it under "Run Process", the client'"'"'s evaluator script
   # for a game wraps the same blocks once more.
   FNR == 1 { depth = 0; pending = "" }
-  /^[[:space:]]*\{/ { depth++; name[depth] = pending; key[depth] = ""; pending = ""; next }
+  /^[[:space:]]*\{/ { depth++; name[depth] = pending; key[depth] = ""; vulkan[depth] = 0; pending = ""; next }
   /^[[:space:]]*\}/ {
-    if (depth > 0 && key[depth] != "" && name[depth] != "")
+    if (depth > 0 && key[depth] != "" && name[depth] != "" && vulkan[depth] == (want == "vulkan"))
       printf "%s\t%s\n", key[depth], name[depth]
     if (depth > 0) depth--
     next
@@ -40,6 +46,12 @@ read_scripts() { xargs -0 -r awk '
   {
     n = split($0, part, "\"")
     if (n >= 5 && tolower(part[2]) == "hasrunkey") { key[depth] = part[4]; next }
+    if (n >= 5 && tolower(part[2]) ~ /^process [0-9]+$/) {
+      program = tolower(part[4])
+      sub(/.*[\\\/]/, "", program)
+      if (program ~ /vulkan/) vulkan[depth] = 1
+      next
+    }
     if (n == 3) pending = part[2]
   }
 '; }
@@ -84,13 +96,17 @@ if [ "$(head -n 1 "$cache" 2>/dev/null)" != "$sig" ]; then
     done <<<"$libraries" | sort -u
   } >"$cache.tmp" && mv -f "$cache.tmp" "$cache"
 fi
-game_pairs=$(tail -n +2 "$cache" 2>/dev/null | tr '\n' '\0' | read_scripts)
 # DROIDDECK_SEED_SCRIPTS: more scripts, one path a line - droiddeck-game-env passes the client's
 # evaluator script for the game about to run its installers, read before the client looks.
-if [ -n "${DROIDDECK_SEED_SCRIPTS:-}" ]; then
-  game_pairs=$(printf '%s\n%s\n' "$game_pairs" "$(printf '%s\n' "$DROIDDECK_SEED_SCRIPTS" | tr '\n' '\0' | read_scripts)")
-fi
+game_scripts() { { tail -n +2 "$cache" 2>/dev/null; printf '%s\n' "${DROIDDECK_SEED_SCRIPTS:-}"; } | sed '/^$/d' | tr '\n' '\0'; }
+game_pairs=$(game_scripts | read_scripts)
 [ -n "$(printf '%s' "$game_pairs" | tr -d '[:space:]')" ] && pairs=$(printf '%s\n%s\n' "$pairs" "$game_pairs" | sort -u | sed '/^$/d')
+# A Vulkan runtime installer marked as run by an earlier seeding still has its marker: those come out
+# again below, so the client runs the installer on the game's next launch.
+declare -A vulkan=()
+while IFS= read -r line; do
+  [[ $line == *$'\t'* ]] && vulkan[$line]=1
+done < <(game_scripts | read_scripts vulkan)
 
 # The VC++ 2015-2022 runtime as its installers check for it, for each architecture and both registry
 # views. The version is the newest the scripts above know, so any 2015-2022 bundle finds itself
@@ -138,6 +154,38 @@ block_for() { printf '%s\n' "$@" | awk -F'\t' -v now="$now" '
   for line; do [[ $line == vcrt$'\t'* ]] && vcrt "$now"; done
 }
 
+# Takes the given markers out of a registry file again, in both views, keeping its date.
+unseed() {
+  local reg=$1 out
+  shift
+  out=$(mktemp "${reg%/*}/.system.reg.XXXXXX") || return 1
+  if printf '%s\n' "$@" | awk -F'\t' '
+    NR == FNR {
+      path = $1
+      sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
+      if (path == $1)
+        next
+      path = tolower(path)
+      drop["[" path "]" SUBSEP tolower($2)] = 1
+      if (substr(path, 1, 10) == "software\\\\")
+        drop["[software\\\\wow6432node\\\\" substr(path, 11) "]" SUBSEP tolower($2)] = 1
+      next
+    }
+    /^\[/ { section = tolower(substr($0, 1, index($0, "]"))) }
+    /^"/ {
+      value = substr($0, 2)
+      value = tolower(substr(value, 1, index(value, "\"=") - 1))
+      if ((section SUBSEP value) in drop)
+        next
+    }
+    { print }
+  ' - "$reg" >"$out" && touch -r "$reg" "$out" && mv -f "$out" "$reg"; then
+    return 0
+  fi
+  rm -f "$out"
+  return 1
+}
+
 # Proton builds a new prefix from its template, and the client runs the install scripts in that
 # prefix moments later, so the template carries the markers too. Its date is kept: Proton reads a
 # changed one as a new template and upgrades every prefix made from the old.
@@ -157,6 +205,16 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
   declare -A had=()
   if [ -f "$seeded" ]; then
     while IFS= read -r line; do [[ $line == *$'\t'* ]] && had[$line]=1; done <"$seeded"
+  fi
+  stale=() kept=()
+  for line in "${!had[@]}"; do
+    if [ -n "${vulkan[$line]:-}" ]; then stale+=("$line"); else kept+=("$line"); fi
+  done
+  if [ ${#stale[@]} -gt 0 ] && unseed "$reg" "${stale[@]}"; then
+    had=()
+    for line in "${kept[@]}"; do had[$line]=1; done
+    printf '%s\n' "${kept[@]}" >"$seeded"
+    echo "== took Vulkan runtime markers out of $reg"
   fi
   missing=()
   for line in "${want[@]}"; do [ -n "${had[$line]:-}" ] || missing+=("$line"); done
