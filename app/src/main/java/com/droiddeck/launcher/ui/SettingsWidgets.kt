@@ -443,7 +443,7 @@ fun SettingsGroup(title: String, compact: Boolean = false, content: @Composable 
  * under it stay put.
  */
 @Composable
-fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hintLines: Int? = null, control: @Composable () -> Unit) {
+fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hintLines: Int? = null, stacked: Boolean = false, control: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val bg by animateColorAsState(if (highlighted) pal.signal.copy(alpha = 0.10f) else Color.Transparent, Motion.tw(200), label = "rowBg")
@@ -452,7 +452,7 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hint
             minLines = hintLines ?: 1, maxLines = hintLines ?: Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
     }
     // A narrow page stacks the control under its label, so neither squeezes the other.
-    if (LocalNarrowPane.current) Column(
+    if (stacked || LocalNarrowPane.current) Column(
         modifier = Modifier.fillMaxWidth().background(bg).padding(start = 14.dp, end = 14.dp, top = 11.dp, bottom = 12.dp),
     ) {
         Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)

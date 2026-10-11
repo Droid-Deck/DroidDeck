@@ -505,11 +505,11 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
     ) {
         StepTitle(stringResource(R.string.stores_settings_eyebrow))
         Column(
-            Modifier.stepItem(1).fillMaxWidth().heightIn(max = 340.dp).verticalScroll(rememberScrollState()),
+            Modifier.stepItem(1).fillMaxWidth().heightIn(max = minOf(340.dp, (maxHeight - 64.dp).coerceAtLeast(44.dp))).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             val st = s.value
-            SettingsRow(stringResource(R.string.setup_stores_open_on), null) {
+            SettingsRow(stringResource(R.string.setup_stores_open_on), null, stacked = true) {
                 SegmentedTabs(
                     listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
                     st.storesOpenTab,

@@ -7,6 +7,8 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -133,7 +135,7 @@ internal enum class StepSide {
 }
 
 /** The choices' side of a [StepOut]: each piece fades in on its own beat, and [first] takes focus. */
-internal class StepOutScope(private val items: List<Animatable<Float, AnimationVector1D>>, val first: FocusRequester, val open: Boolean) {
+internal class StepOutScope(private val items: List<Animatable<Float, AnimationVector1D>>, val first: FocusRequester, val open: Boolean, val maxHeight: Dp) {
     /** Piece [i] (0 first) of the box: it fades and rises in after the box has stepped out. */
     fun Modifier.stepItem(i: Int): Modifier = graphicsLayer {
         val v = items[i.coerceIn(0, items.lastIndex)].value
@@ -185,6 +187,9 @@ internal fun StepOut(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val hostWidth = constraints.maxWidth.toFloat()
         val hostHeight = constraints.maxHeight.toFloat()
+        val availableHeight = with(density) {
+            maxOf(hostHeight - pill.bottom - pull, pill.top - pull).coerceAtLeast(44.dp.toPx()).toDp()
+        }
         // No room under the control (a row near the foot of the screen): it steps out upward
         // instead, the same outline mirrored about the control.
         val up = measured?.let { pill.bottom + pull + it.height > hostHeight && pill.top - pull - it.height >= 0f } ?: false
@@ -265,13 +270,15 @@ internal fun StepOut(
             modifier = Modifier
                 .offset { IntOffset(x.roundToInt(), (if (up) pill.top - pull - (measured?.height ?: 0) else pill.bottom + pull).roundToInt()) }
                 .widthIn(min = with(density) { pill.width.toDp() }, max = with(density) { maxW.toDp() })
+                .heightIn(max = availableHeight)
                 .onSizeChanged { if (measured != it) measured = it }
                 .controllerBack(onDismiss)
                 // A pad stays in the box until it is answered or folded, as it did in Stop's dialog.
                 .focusProperties { exit = { FocusRequester.Cancel } }
                 .focusGroup()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
-        ) { StepOutScope(pieces, first, open).content() }
+        ) { StepOutScope(pieces, first, open, availableHeight).content() }
     }
 }
 

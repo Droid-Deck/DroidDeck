@@ -366,6 +366,7 @@ internal fun SetupPanel(
                                 ToggleRow(host, "launcher-animations", stringResource(R.string.setup_animations), null,
                                     s.animationsEnabled, onChange = a.onAnimationsEnabled)
                                 LanguageRow(host, s.language, a.onLanguage)
+                                ToggleRow(host, "show-stores", stringResource(R.string.setup_stores), null, s.gameStoresEnabled, onChange = a.onGameStoresEnabled)
                             }
                         }
                         val device: @Composable () -> Unit = {

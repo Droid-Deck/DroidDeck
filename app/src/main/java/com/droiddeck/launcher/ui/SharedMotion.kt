@@ -67,7 +67,7 @@ internal fun BoxScope.ChipGlide(
     val crossEnd = remember { mutableStateOf(0f) }
     val was = remember { intArrayOf(-1) }
     val vertical = axis == GlideAxis.Vertical
-    LaunchedEffect(index, at) {
+    LaunchedEffect(index, at, Motion.scale) {
         val b = at ?: return@LaunchedEffect
         val s = if (vertical) b.top else b.left
         val e = if (vertical) b.bottom else b.right
@@ -88,6 +88,8 @@ internal fun BoxScope.ChipGlide(
                 l.join(); r.join()
                 pinch.animateTo(0f, Motion.sp(0.6f, 500f))
             } else {
+                // An adjacent move can interrupt a long hop while it is still pinched.
+                launch { pinch.animateTo(0f, Motion.sp(0.6f, 500f)) }
                 val forward = index > from
                 val (lead, trail) = if (forward) end to start else start to end
                 val leadTo = if (forward) e else s

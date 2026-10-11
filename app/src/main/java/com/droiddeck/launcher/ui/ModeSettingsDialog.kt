@@ -474,7 +474,7 @@ internal fun ProtonOptions(
     onSyncBackend: (String) -> Unit, onFexPreset: (String) -> Unit, onForceSsbs: (Boolean) -> Unit,
 ) {
     val host = rememberMenuHost()
-    SettingsRow(stringResource(R.string.sync_backend_title), stringResource(R.string.sync_backend_hint)) {
+    SettingsRow(stringResource(R.string.sync_backend_title), stringResource(R.string.sync_backend_hint), stacked = true) {
         SegmentedTabs(
             listOf(
                 SessionPrefs.SYNC_NTSYNC to stringResource(R.string.sync_backend_ntsync),

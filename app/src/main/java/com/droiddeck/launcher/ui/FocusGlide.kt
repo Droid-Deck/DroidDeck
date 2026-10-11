@@ -175,7 +175,7 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
     val alpha = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     // An edge each, the corner, and a droplet carrying all of them.
-    val jobs = remember { arrayOfNulls<Job>(6) }
+    val jobs = remember { arrayOfNulls<Job>(7) }
     val cur = glide.current
     var lastColor by remember { mutableStateOf(Color.Transparent) }
     if (cur != null) lastColor = cur.color
@@ -191,8 +191,11 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
         var lastMove = 0L
         fun go(i: Int, v: Float, spec: AnimationSpec<Float>, wait: Long) {
             // A drop cut short by another move turns back into an outline on the way.
-            if (jobs[5]?.isActive == true || solid.targetValue > 0f) scope.launch { solid.animateTo(0f, Motion.tw(120)) }
-            jobs[5]?.cancel()
+            if (jobs[5]?.isActive == true || solid.targetValue > 0f) {
+                jobs[5]?.cancel()
+                jobs[6]?.cancel()
+                jobs[6] = scope.launch { solid.animateTo(0f, Motion.tw(120)) }
+            }
             // Picks up the speed it is going at: restarting from rest on every step of a held
             // direction is what made it stutter.
             val speed = edges[i].velocity
@@ -270,6 +273,8 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                 // Focus passing between two controls can let go of one a moment before the next
                 // takes it: wait a beat, so that reads as a move and not a fade out and back in.
                 delay(60)
+                jobs.forEach { it?.cancel() }
+                solid.snapTo(0f)
                 scope.launch { alpha.animateTo(0f, Motion.tw(140)) }
                 shown = null
                 return@collectLatest

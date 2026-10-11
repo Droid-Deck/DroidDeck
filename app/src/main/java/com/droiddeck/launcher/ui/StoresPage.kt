@@ -32,6 +32,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import android.view.KeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
@@ -823,13 +827,46 @@ private fun Storefront(
     // A lazy item can be recomposed or prefetched out of order; the first grid card is identified
     // by its key, rather than whichever happens to compose first.
     var firstPlaced = false
+    var columns by remember { mutableIntStateOf(1) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val focus = LocalFrontFocus.current
+    val scope = rememberCoroutineScope()
+    val headerItems = 1 + (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (showGrid) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
-        GameCard(item, store, s, a, installedKeys, onOpen, first)
+        val navigation = if (!showGrid || focus == null) Modifier else Modifier.onPreviewKeyEvent { event ->
+            val key = event.nativeKeyEvent
+            val direction = when (key.keyCode) {
+                KeyEvent.KEYCODE_DPAD_DOWN -> 1
+                KeyEvent.KEYCODE_DPAD_UP -> -1
+                else -> 0
+            }
+            val index = visible.indexOfFirst { it.key == item.key }
+            val next = storeGridNeighbor(index, visible.size, columns, direction)
+            when {
+                direction == 0 || index < 0 -> false
+                next == null -> direction > 0 // The last row stays in its column; Up can reach the header.
+                else -> {
+                    if (key.action == KeyEvent.ACTION_DOWN) {
+                        val target = "card:${visible[next].key}"
+                        if ((focus.attached[target] ?: 0) == 0 || runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
+                            grid.scrollToItem(headerItems + next)
+                            focusWithinFrames({ focus.last == target }) { focus.items[target] ?: androidx.compose.ui.focus.FocusRequester.Default }
+                        }
+                    }
+                    true
+                }
+            }
+        }
+        GameCard(item, store, s, a, installedKeys, onOpen, first, navigation)
     }
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(CardWidth), state = grid, modifier = Modifier.fillMaxSize(),
+        columns = GridCells.Adaptive(CardWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
+            val gap = with(density) { 10.dp.roundToPx() }
+            val minimum = with(density) { CardWidth.roundToPx() }
+            columns = ((it.width + gap) / (minimum + gap)).toInt().coerceAtLeast(1)
+        },
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
@@ -1066,7 +1103,7 @@ private val CardWidth = 112.dp
  * on the store. Tapping the card itself opens the game's page.
  */
 @Composable
-private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: FrontEndActions, installedKeys: Set<String>, onOpen: (String) -> Unit, first: Boolean = false) {
+private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: FrontEndActions, installedKeys: Set<String>, onOpen: (String) -> Unit, first: Boolean = false, navigation: Modifier = Modifier) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1095,7 +1132,7 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
                     if (b.bottom > -ahead && b.top < screen + ahead && b.width > 0f) com.droiddeck.launcher.stores.StoreSizes.request(ctx, item)
                 }
             }
-            .paneItem("card:${item.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
+            .then(navigation).paneItem("card:${item.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {

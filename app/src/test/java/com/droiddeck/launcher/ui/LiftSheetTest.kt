@@ -4,9 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LiftSheetTest {
-    @Test fun theSheetTopIs82dpDownA360dpPane() {
-        assertEquals(82f, sheetTop(360f, 56f, 16f, 3f), 0.01f)
-        assertEquals(164f, sheetTop(720f, 56f, 16f, 3f), 0.01f)
+    @Test fun theSheetTopIs60dpDownA360dpPane() {
+        assertEquals(60f, sheetTop(360f, 56f, 16f, 3f), 0.01f)
+        assertEquals(120f, sheetTop(720f, 56f, 16f, 3f), 0.01f)
     }
 
     @Test fun theButtonKeeps16dpAboveIt() {

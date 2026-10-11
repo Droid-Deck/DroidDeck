@@ -37,10 +37,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.ui.platform.testTag
+import kotlinx.coroutines.Job
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -126,12 +130,12 @@ internal object SheetTab {
 
 /**
  * Where the open sheet's top edge sits in a pane [paneH] tall (px), for a button [buttonH] tall
- * riding it: 82dp down a 360dp pane, the same share of any other, and never so high that the
+ * riding it: 60dp down a 360dp pane, the same share of any other, and never so high that the
  * button's top comes closer than [minAbove] to the pane's. [ride] is how far below the edge the
  * button's centre sits.
  */
 internal fun sheetTop(paneH: Float, buttonH: Float, minAbove: Float, ride: Float): Float =
-    maxOf(paneH * 82f / 360f, minAbove + buttonH / 2f - ride)
+    maxOf(paneH * 60f / 360f, minAbove + buttonH / 2f - ride)
 
 /** A finger's hold on the sheet: where it started (0 rest, 1 open), where it is, whether it has it. */
 private class SheetDrag {
@@ -228,6 +232,7 @@ internal fun LiftHero(
     // Set as a finger's drag lets go: the sheet is already where it is going.
     var dragSettled by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var dragJob by remember { mutableStateOf<Job?>(null) }
     val onOpenNow = rememberUpdatedState(onOpen)
     val pull = remember { Animatable(0f) }
     val sink = remember { Animatable(0f) }
@@ -273,6 +278,7 @@ internal fun LiftHero(
         onDispose { lifecycle.removeObserver(obs) }
     }
     LaunchedEffect(open, launching) {
+        if (!dragSettled) { dragJob?.cancel(); dragJob = null }
         if (dragSettled) {
             // A finger brought it here and has already animated it: only what opening needs.
             dragSettled = false
@@ -378,6 +384,8 @@ internal fun LiftHero(
     }
     /** A finger takes the sheet where it is: up from rest, or down from open. */
     fun beginDrag() {
+        dragJob?.cancel(); dragJob = null
+        dragSettled = false
         drag.engaged = true
         drag.from = if (open) 1f else 0f
         drag.progress = drag.from
@@ -401,7 +409,8 @@ internal fun LiftHero(
             else -> drag.progress > 0.3f
         }
         dragSettled = true
-        scope.launch {
+        dragJob?.cancel()
+        dragJob = scope.launch {
             val to = if (opens) 1f else 0f
             coroutineScope {
                 launch { lift.animateTo(to, Motion.sp(if (opens) 0.7f else 1f, 380f)) }
@@ -554,7 +563,7 @@ internal fun LiftHero(
                         .offset { IntOffset(chipsX.roundToInt(), chipsY.roundToInt()) }
                         // Over the rows, whatever they scroll under them.
                         .zIndex(1f)
-                        .width(with(density) { (sheetW - chipsX - 16.dp.toPx()).coerceAtLeast(0f).toDp() })
+                        .width(with(density) { (sheetW - chipsX - 64.dp.toPx()).coerceAtLeast(0f).toDp() })
                         .graphicsLayer { val v = pieces[0].value; alpha = v; translationY = (1f - v) * 6.dp.toPx() }
                         // Up from the chips folds the sheet (a finger drags it down, see the hero's drag).
                         .onPreviewKeyEvent { e ->
@@ -596,6 +605,18 @@ internal fun LiftHero(
                         }
                     }
                 }
+                val closeSource = remember { MutableInteractionSource() }
+                val closeHot = rememberHot(closeSource)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .offset { IntOffset((sheetW - 52.dp.toPx()).roundToInt(), chipsY.roundToInt()) }
+                        .zIndex(1f).size(44.dp).testTag("sheet-close")
+                        .clip(CircleShape).glideBorder(closeHot, CircleShape, pal.signal)
+                        .hoverable(closeSource)
+                        .clickable(interactionSource = closeSource, indication = LocalIndication.current, enabled = open && !launching, role = Role.Button) { close() }
+                        .controllerConfirm(enabled = open && !launching) { close() },
+                ) { Icon(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
             }
         }
 
@@ -643,15 +664,15 @@ internal fun LiftHero(
         // A lip a pad can reach stays composed (unseen at rest) so Down always has it to land on.
         if (r0 != null && (lipShow.value > 0.01f || pull.value > 0.5f || (!downOpens && !open && !shown))) {
             var handleW by remember { mutableStateOf(0f) }
-            val lipH = 22.dp + pull.value.dp
+            val lipH = 32.dp + pull.value.dp
             val lift = { if (!open) open = true }
             Box(
                 Modifier
                     .offset { IntOffset((r0.center.x - handleW / 2f).roundToInt(), (r0.bottom + raise * ride.value + (lipShow.value - 1f) * 8.dp.toPx()).roundToInt()) }
                     .onSizeChanged { handleW = it.width.toFloat() }
                     .graphicsLayer { alpha = lipShow.value * (1f - lipGone.value) }
-                    // 44dp to touch; the tab itself is the top 22.
-                    .heightIn(min = 44.dp)
+                    // 44dp to touch, with a 32dp visible handle.
+                    .heightIn(min = 44.dp).testTag("sheet-open")
                     .semantics { contentDescription = settingsLabel }
                     .then(
                         if (downOpens) Modifier.focusProperties { canFocus = false }
@@ -698,7 +719,7 @@ private fun Handle(height: Dp) {
             .drawBorderSidesAndFoot(pal.line, 12.dp)
             .padding(start = 14.dp, end = 10.dp),
     ) {
-        Text(stringResource(R.string.drawer_page_settings), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
+        Text(stringResource(R.string.drawer_page_settings), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
         Icon(
             Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
             modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else -3.dp.toPx() * lift },
