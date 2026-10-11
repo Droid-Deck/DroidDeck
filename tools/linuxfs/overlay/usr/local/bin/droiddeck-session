@@ -434,6 +434,13 @@ case $mode in
         done
       ) &
     fi
+    # Rockstar's launcher keeps drawing its hidden web interface for as long as a game of theirs
+    # runs; droiddeck-launcher-cores holds it on one slow core while it is out of sight, from
+    # gamescope's focus as the agent publishes it. BL_LAUNCHER_CORES=0 leaves launchers alone.
+    if [ "${BL_LAUNCHER_CORES:-1}" != 0 ] && [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ] \
+       && [ "${BL_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
+      /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
+    fi
 
     step "registering the app's game library with Steam"
     droiddeck-steam-library "$steam_root" || true
