@@ -722,23 +722,23 @@ private fun SignInCard(store: Store, height: Dp) {
     val shape = RoundedCornerShape(20.dp)
     val blank = WallCapsule(Brush.linearGradient(listOf(c.fill, colors.background)), edge = c.dot.copy(alpha = 0.22f))
     val ground = SolidColor(c.fill)
-    Box(Modifier.fillMaxWidth().height(height.coerceAtLeast(320.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
+    Box(Modifier.fillMaxWidth().heightIn(min = height.coerceAtLeast(0.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
         // The storefront arrives a moment after the page: its wall fades in over the blank one.
-        androidx.compose.animation.Crossfade(art, animationSpec = Motion.tw(600), label = "signInWall") { tiles ->
+        androidx.compose.animation.Crossfade(art, animationSpec = Motion.tw(600), label = "signInWall", modifier = Modifier.matchParentSize()) { tiles ->
             TiltedWall(tiles.size, if (tiles.isEmpty()) 75_000 else 50_000) { i -> if (tiles.isEmpty()) blank else WallCapsule(ground, tiles[i]) }
         }
         // The wall gives way to the words: dark at the left and the foot, and the store's glow under them.
         Box(
-            Modifier.fillMaxSize().background(
+            Modifier.matchParentSize().background(
                 Brush.horizontalGradient(
                     0f to colors.background.copy(alpha = 0.97f), 0.45f to colors.background.copy(alpha = 0.9f),
                     0.78f to colors.background.copy(alpha = 0.35f), 1f to colors.background.copy(alpha = 0.15f),
                 ),
             ),
         )
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to colors.background.copy(alpha = 0.92f))))
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to colors.background.copy(alpha = 0.92f))))
         Box(
-            Modifier.fillMaxSize().drawBehind {
+            Modifier.matchParentSize().drawBehind {
                 drawRect(Brush.radialGradient(listOf(c.dot.copy(alpha = 0.22f), Color.Transparent), center = Offset(size.width * 0.16f, size.height * 0.9f), radius = size.height * 0.75f))
             },
         )
@@ -850,8 +850,12 @@ private fun Storefront(
                 else -> {
                     if (key.action == KeyEvent.ACTION_DOWN) {
                         val target = "card:${visible[next].key}"
-                        if ((focus.attached[target] ?: 0) == 0 || runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
-                            grid.scrollToItem(headerItems + next)
+                        val targetIndex = headerItems + next
+                        // Prefetched cards can accept focus without being on screen.
+                        val visibleTarget = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
+                        if (!visibleTarget || (focus.attached[target] ?: 0) == 0 ||
+                            runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
+                            grid.scrollToItem(targetIndex)
                             focusWithinFrames({ focus.last == target }) { focus.items[target] ?: androidx.compose.ui.focus.FocusRequester.Default }
                         }
                     }

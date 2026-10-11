@@ -739,7 +739,15 @@ fun ComponentsPage(
         Column(Modifier.fillMaxSize()) {
             // The in-use bar keeps its place; only its words change.
             AnimatedContent(l, transitionSpec = { fadeIn(Motion.tw(240)) togetherWith fadeOut(Motion.tw(160)) }, label = "inUse") { k -> bar(k) }
-            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 16.dp)) {
+            val detailScroll = androidx.compose.runtime.key(l) { rememberScrollState() }
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(detailScroll).padding(top = 12.dp, bottom = 16.dp)) {
+                // Shared performance settings stay visible before the downloadable catalog.
+                if (l == PROTON_TAB) {
+                    if (!protons.runtimeReady) EmptyLine(stringResource(R.string.content_needs_runtime))
+                    if (protons.sessionRunning) EmptyLine(stringResource(R.string.proton_stop_first))
+                    SettingsGroup(stringResource(R.string.comp_for_every_proton)) { protonOptions() }
+                    Spacer(Modifier.height(12.dp))
+                }
                 val slide: @Composable (@Composable (String) -> Unit) -> Unit = { body ->
                     AnimatedContent(
                         l,
@@ -777,10 +785,6 @@ fun ComponentsPage(
                     }
                 }
                 if (l == PROTON_TAB) {
-                    Spacer(Modifier.height(10.dp))
-                    if (!protons.runtimeReady) EmptyLine(stringResource(R.string.content_needs_runtime))
-                    if (protons.sessionRunning) EmptyLine(stringResource(R.string.proton_stop_first))
-                    SettingsGroup(stringResource(R.string.comp_for_every_proton)) { protonOptions() }
                     Spacer(Modifier.height(12.dp))
                     Note(stringResource(R.string.comp_about_text))
                 }
