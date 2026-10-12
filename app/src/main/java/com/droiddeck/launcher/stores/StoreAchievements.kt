@@ -2,6 +2,8 @@ package com.droiddeck.launcher.stores
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.stores.epic.EpicAchievements
 import com.droiddeck.launcher.stores.gog.GogAchievements
 import org.json.JSONArray
@@ -94,6 +96,9 @@ abstract class StoreAchievements(val source: String, val label: String) {
 
     companion object {
         private const val TAG = "StoreAchievements"
+        var revision by androidx.compose.runtime.mutableIntStateOf(0)
+            private set
+        fun invalidate() { revision++ }
 
         private val all: List<StoreAchievements> by lazy { listOf(GogAchievements, EpicAchievements) }
 

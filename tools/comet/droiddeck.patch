@@ -95,11 +95,18 @@ index c1bed3b..1dda644 100644
      let openid = request_data.openid();
      let pid = request_data.game_pid();
  
-@@ -551,6 +555,7 @@ async fn unlock_user_achievement(
+@@ -551,6 +555,14 @@ async fn unlock_user_achievement(
              .await
              .expect("Failed to write achievement to database");
          context.set_updated_achievements(true).await;
-+        eprintln!("DROIDDECK_COMET_UNLOCKED");
++        eprintln!("DROIDDECK_COMET_UNLOCKED:{}", serde_json::json!({
++            "client_id": context.client_id().await,
++            "id": achievement.achievement_key(),
++            "name": achievement.name(),
++            "description": achievement.description(),
++            "icon": achievement.image_url_unlocked(),
++            "unlocked_at": timestamp,
++        }));
          achievement.date_unlocked = timestamp_string;
          let pid = context.get_pid().await;
          let _ = context

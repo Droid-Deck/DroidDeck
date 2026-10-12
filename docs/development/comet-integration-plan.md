@@ -1,13 +1,13 @@
 # Comet integration research and implementation plan
 
 Researched 2026-10-12 against DroidDeck `10ef8c4bd62b21872fc13382a808cb0f2f117b26` (0.4.0).
-The research below informed the implementation on `feat/gog-comet-achievements`, rebased onto refreshed main `a2a9586b`. Real achievement unlock/upload remains an acceptance test for users.
+The research below informed the implementation on `feat/gog-comet-achievements`, rebased onto refreshed main `a2a9586b`. Controlled SDK unlock/upload has now been verified on Thor; wider gameplay coverage remains an acceptance test for users.
 
 ## Implementation and testing status
 
-Implemented an opt-in GOG companion built from pinned Comet v0.3.2, credential transfer through stdin, one owned daemon per session/account, private persistent databases, per-game settings, and first-launch Galaxy service provisioning using the selected Proton. Local unlocks, pending uploads and successful uploads produce sanitized session events. The game settings card shows pending/uploaded/unavailable status for the companion in the current session; it is not a per-game achievement history. No in-game toast, Galaxy overlay or achievement browser is included. Epic remains a separate investigation.
+Implemented an opt-in GOG companion built from pinned Comet v0.3.2, credential transfer through stdin, one owned daemon per session/account, private persistent databases, per-game settings, and first-launch Galaxy service provisioning using the selected Proton. Local unlocks, pending uploads and successful uploads produce sanitized session events. The game settings card shows pending/uploaded/unavailable status for the companion in the current session; it is not a per-game achievement history. Local unlocks now show an animated DroidDeck notification with the achievement icon, name and game title. The achievement reader comes from main; upload acknowledgements refresh its progress. No Galaxy overlay is installed. The session-menu reader is available only for a live supported GOG/Epic game window with a nonempty achievement list, including while Steam's overlay is open; GOG browsing does not require Comet syncing to be enabled. Epic syncing remains a separate investigation.
 
-Comet's patch also uses an unconditional periodic sync tick during SDK traffic, preserves retries after failed achievement PUTs, and limits SDK clients to enabled installed GOG games. Credential errors and raw upstream protocol output are not forwarded to Android/session logs.
+Comet's patch also uses an unconditional periodic sync tick during SDK traffic, preserves retries after failed achievement POSTs, and limits SDK clients to enabled installed GOG games. Credential errors and raw upstream protocol output are not forwarded to Android/session logs.
 
 Validation on AYN Thor (`192.168.0.8:38029`, Linux runtime r9):
 
@@ -15,17 +15,17 @@ Validation on AYN Thor (`192.168.0.8:38029`, Linux runtime r9):
 - A fresh disposable prefix installs the x64 dummy service through ARM64 Proton/FEX before its first launch.
 - ELDERBORN (GOG product `1732383191`) launches through the normal managed Steam shortcut. Its Galaxy SDK authentication and 27 achievement definitions can be read through Comet, and independently from GOG's gameplay API.
 - Normal session stop removes the owned companion and preserves its database.
-- Release APK builds; 678 JVM tests pass and all 20 store-launch tests pass.
+- Release APK builds; 694 JVM tests pass and all 20 store-launch tests pass.
 - Linux Docker suite: 548 tests, 518 pass, 29 skipped, one failure in the unchanged x86 SIGILL fault-report test (Docker reports `si_code 01`, assertion expects `02`). This is an environment-dependent mismatch, not a green full-suite result.
 
-No real achievement unlock/upload has been demonstrated. Offline unlock/reconnection, failed-upload recovery, account changes with pending data, 32-bit titles, and wider game/Proton compatibility still need user testing. A current Steam live-shortcut API mismatch required restarting Steam after installing the test game; the normal startup shortcut worked. That existing issue is outside this change.
+The reader updated from 0/27 to 1/27 and back after upload/reset without reopening. A temporary protocol probe unlocked locked ELDERBORN achievements after twenty seconds, repeated the SDK request, confirmed the new unlock independently through the GOG gameplay API, and cleared each tested achievement afterward. The notification appeared once over the focused game and dismissed after five seconds. A temporary per-app HTTPS rejection confirmed a local popup, pending upload, and successful retry after the rule was removed; the account records and network rule were restored. Account changes with pending data, first-ever offline launches, 32-bit titles, and wider game/Proton compatibility still need user testing. A current Steam live-shortcut API mismatch required restarting Steam after installing the test game; the normal startup shortcut worked. That existing issue is outside this change.
 
 ## User test guide
 
 1. Sign into GOG and enable **GOG achievements** in Stores settings. It is off by default. Keep the game's own achievement switch enabled in its launch settings; cloud saves may be on or off.
 2. Start a supported GOG game using a DroidDeck managed compatibility tool. Obtain a genuinely unearned achievement through normal gameplay.
-3. Check the game's GOG profile independently. Allow at least ten seconds online and a normal game exit. A missing popup is expected: this version does not install an overlay or show Android achievement notifications.
-4. Include the game/product ID, device, Proton choice, whether the prefix was new, and online/offline sequence with the session report. The `gog.achievements` events distinguish `unlocked-locally`, `pending-upload` and `uploaded`; `uploaded` is emitted only after a successful GOG PUT. Do not include credentials.
+3. Check the game's GOG profile independently. Allow at least ten seconds online and a normal game exit. A local unlock should show a five-second notification over the game. The popup confirms the local unlock; check the GOG profile or the uploaded event for server delivery.
+4. Include the game/product ID, device, Proton choice, whether the prefix was new, and online/offline sequence with the session report. The `gog.achievements` events distinguish `unlocked-locally`, `pending-upload` and `uploaded`; `uploaded` is emitted only after a successful GOG POST. Do not include credentials.
 5. If the game has trouble with the companion, disable its achievement switch and relaunch. Changes to these switches apply on the next game launch.
 
 ## Recommendation and scope
@@ -154,6 +154,6 @@ Current `droiddeck-store-launch` deliberately removes an old `HKCU\Software\Epic
 
 ## Remaining uncertainties
 
-The original research was static. The implementation validation and remaining device acceptance tests are recorded above; achievement unlock/upload and Epic EOS behavior remain unverified. Upload retries/reconciliation and forced Android process teardown need additional real-game coverage.
+The original research was static. The implementation validation and remaining device acceptance tests are recorded above; controlled GOG SDK unlock/upload and failed-upload retry are verified; Epic EOS behavior remains unverified. Forced Android process teardown, account replacement with pending data, and wider real-game coverage remain acceptance tests.
 
 Additional source: [Heroic GOG launch integration](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher/blob/db5272043e74336b72bc60caad14ca74701082d8/src/backend/storeManagers/gog/games.ts), [Comet v0.3.2 release](https://github.com/imLinguin/comet/releases/tag/v0.3.2).

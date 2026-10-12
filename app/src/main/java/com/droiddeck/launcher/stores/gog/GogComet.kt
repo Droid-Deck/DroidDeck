@@ -11,6 +11,8 @@ import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.AchievementNotifications
+import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoreAccounts
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
@@ -32,6 +34,7 @@ object GogComet {
     private var session: String? = null
     private var accepting = false
     private var generation: String? = null
+    @Volatile private var gamesByClient: Map<String, StoreGameSidecar> = emptyMap()
     var status by mutableStateOf("off")
         private set
 
@@ -46,11 +49,13 @@ object GogComet {
         stopLocked()
         accepting = true
         generation = SessionState.sessionId
+        AchievementNotifications.begin(generation)
     }
 
     /** Account replacement and launch preparation use the same lock, preventing stale restarts. */
     fun replaceAccount(change: () -> Unit) = synchronized(lock) {
         stopLocked()
+        AchievementNotifications.begin(generation)
         change()
     }
 
@@ -62,6 +67,7 @@ object GogComet {
         if (generation == expected) {
             accepting = false
             stopLocked()
+            AchievementNotifications.end(expected)
             generation = null
         }
     }
@@ -74,15 +80,17 @@ object GogComet {
 
     private fun publishPolicy(context: Context): File {
         val dir = File(context.filesDir, "gog-achievements").apply { mkdirs() }
-        val clients = if (!enabled(context)) emptyList() else StoreInstallRoot.gameFolders(context).mapNotNull { folder ->
+        val games = if (!enabled(context)) emptyMap() else StoreInstallRoot.gameFolders(context).mapNotNull { folder ->
             val game = StoreGameSidecar.read(folder) ?: return@mapNotNull null
             if (game.store != Store.GOG || !game.achievements) return@mapNotNull null
-            GogPrefs.get(context).getString("client_id_${game.id}", null)
+            val client = GogPrefs.get(context).getString("client_id_${game.id}", null)
                 ?: runCatching { JSONObject(File(folder, "goggame-${game.id}.info").readText()).optString("clientId") }.getOrNull()
-        }.filter { it.matches(Regex("[0-9]+")) }.distinct()
+            client?.takeIf { it.matches(Regex("[0-9]+")) }?.let { it to game }
+        }.toMap()
+        gamesByClient = games
         val file = File(dir, "clients.json")
         val tmp = File(dir, "clients.json.tmp")
-        tmp.writeText(org.json.JSONArray(clients).toString())
+        tmp.writeText(org.json.JSONArray(games.keys.toList()).toString())
         check(tmp.renameTo(file))
         return file
     }
@@ -134,9 +142,19 @@ object GogComet {
                                 pid = childPid; started = identity(childPid); ready.countDown()
                             }
                         }
-                        line == "DROIDDECK_COMET_UNLOCKED" -> if (process === child) report("unlocked-locally")
+                        line.startsWith("DROIDDECK_COMET_UNLOCKED:") -> if (process === child) {
+                            val event = runCatching { JSONObject(line.substringAfter(':')) }.getOrNull()
+                            val game = event?.optString("client_id")?.let { gamesByClient[it] }
+                            val unlock = event?.let { AchievementNotifications.parse(it, game?.title.orEmpty()) }
+                            val owner = session
+                            if (game != null && unlock != null && owner != null && owner == SessionState.sessionId && SessionState.running) {
+                                report("unlocked-locally")
+                                AchievementNotifications.unlock(owner, unlock)
+                                SessionEvents.record("achievement.unlocked", mapOf("store" to "gog", "gameId" to game.id, "achievementId" to unlock.id))
+                            }
+                        }
                         line == "DROIDDECK_COMET_PENDING" -> if (process === child) report("pending-upload")
-                        line.startsWith("DROIDDECK_COMET_UPLOADED:") -> if (process === child && line.substringAfter(':').toIntOrNull()?.let { it > 0 } == true) report("uploaded")
+                        line.startsWith("DROIDDECK_COMET_UPLOADED:") -> if (process === child && line.substringAfter(':').toIntOrNull()?.let { it > 0 } == true) { report("uploaded"); StoresState.post { StoreAchievements.invalidate() } }
                     }
                 } } }
                 if (process === child) report("service-unavailable")

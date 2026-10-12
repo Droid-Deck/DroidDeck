@@ -2315,4 +2315,5 @@
     <string name="gog_achievements_pending">Achievement upload pending</string>
     <string name="gog_achievements_enable_store">Enable GOG achievements in Stores settings</string>
     <string name="gog_achievements_unavailable">Achievements unavailable; check session logs</string>
+    <string name="achievement_unlocked">Achievement unlocked</string>
 </resources>

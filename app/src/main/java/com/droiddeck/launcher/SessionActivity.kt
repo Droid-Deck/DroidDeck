@@ -562,7 +562,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 androidx.compose.runtime.LaunchedEffect(drawerOpen) {
                     if (drawerOpen) {
                         syncLossless()
-                        refreshAchievementsInFront()
                         padBridge?.releaseAll()
                         androidx.compose.runtime.withFrameNanos { }
                         val requested = sessionOverlay.requestFocus()
@@ -570,6 +569,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     } else {
                         releaseDrawerDirection()
                     }
+                }
+                LaunchedEffect(drawerOpen, achievementsOpen, AgentGuest.focusRevision, StoreAchievements.revision) {
+                    if (!drawerOpen && !achievementsOpen) return@LaunchedEffect
+                    val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { resolveAchievementsInFront() }
+                            .onFailure { Log.w(TAG, "achievements in front: ${it.javaClass.simpleName}") }.getOrNull()
+                    }
+                    achievementsInFront = found
+                    if (found == null) achievementsOpen = false
                 }
                 // The PC keyboard takes it too, for moving over the keys; the drawer opens over it.
                 androidx.compose.runtime.LaunchedEffect(pcKeyboardOpen) { if (pcKeyboardOpen) padBridge?.releaseAll() }
@@ -758,6 +766,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 achievementsInFront?.takeIf { achievementsOpen }?.let { inFront ->
                     SessionAchievements(inFront.game, inFront.title, onClose = ::closeAchievements)
                 }
+                com.droiddeck.launcher.ui.AchievementNotificationOverlay()
                 if (SessionState.suspended) SessionPausedOverlay(
                     title = pausedTitle(),
                     onResume = { SessionService.resume(this@SessionActivity) },
@@ -798,35 +807,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         padBridge?.triggerQam()
     }
 
-    /** Re-reads so the drawer's count picks up the panel's fresh list. */
-    private fun closeAchievements() {
-        achievementsOpen = false
-        refreshAchievementsInFront()
-    }
+    private fun closeAchievements() { achievementsOpen = false }
 
-    private fun refreshAchievementsInFront() {
-        if (SessionState.mode != SessionService.MODE_STEAM) { achievementsInFront = null; return }
-        Thread({
-            val found = runCatching { resolveAchievementsInFront() }.onFailure { Log.w(TAG, "achievements in front: ${it.javaClass.simpleName}") }.getOrNull()
-            uiHandler.post { achievementsInFront = found }
-        }, "achievements-in-front").start()
-    }
-
-    /** Steam's focused game (a Steam title means none), else the last store launch, else the session's own game. */
+    /** A live game window only; Steam's overlay may be in front of that window. */
     private fun resolveAchievementsInFront(): AchievementsInFront? {
+        if (!SessionState.running || SessionState.mode != SessionService.MODE_STEAM) return null
+        val snapshot = AgentGuest.focus(this) ?: return null
         val games = LibraryCache.load(this)
-        fun storeOf(g: Library.SteamGame) = Store.byId(g.source)?.let { st -> g.storeId?.let { st to it } }
         val byKey = games.mapNotNull { g -> g.profileKey.toLongOrNull()?.let { it to g } }.toMap()
-        val focused = runCatching { AgentGuest.activeSteamAppId(this, byKey.keys) }.getOrNull()?.let(byKey::get)
-        val url = SessionState.steamUrl?.substringAfter("rungameid/", "")?.takeIf { it.isNotEmpty() }
-        val (store, id) = (if (focused != null) storeOf(focused)
-            else StoreLaunchRequests.lastLaunched ?: games.firstOrNull { it.gameIdString == url }?.let(::storeOf))
-            ?: return null
+        val windows = snapshot.optJSONArray("focusableApps")?.let { list -> List(list.length()) { list.optLong(it) } }.orEmpty()
+        val focusedId = snapshot.optLong("focusedApp").takeUnless { snapshot.isNull("focusedApp") }
+        val appId = com.droiddeck.launcher.session.SessionAchievementGame.activeAppId(focusedId, windows, byKey.keys) ?: return null
+        val focused = byKey[appId] ?: return null
+        val store = Store.byId(focused.source) ?: return null
+        val id = focused.storeId ?: return null
         val source = StoreAchievements.forSource(store.id) ?: return null
         val sidecar = StoreGameSidecar.find(this, store, id) ?: return null
         val game = StoreAchievements.Game.of(sidecar)
-        val saved = source.cached(this, game)?.takeIf { it.isNotEmpty() }
-        return AchievementsInFront(game, sidecar.title, saved?.let { l -> l.count { it.unlocked } to l.size })
+        val list = source.cached(this, game) ?: (source.fetch(this, game) as? StoreAchievements.Result.Found)?.list ?: return null
+        if (list.isEmpty()) return null
+        return AchievementsInFront(game, sidecar.title, list.count { it.unlocked } to list.size)
     }
 
     private fun togglePcKeyboard() {

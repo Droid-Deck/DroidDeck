@@ -9,7 +9,7 @@ Build with Rust 1.90, the `aarch64-unknown-linux-gnu` target and
 The APK's runtime-input manifest records the prepared binary and Windows tools.
 
 The patch accepts credentials on stdin, announces readiness and accepted uploads
-without secrets, uses a periodic sync tick even during SDK traffic, and retains the retry flag
+without secrets, emits named local unlocks for the session notification, uses a periodic sync tick even during SDK traffic, and retains the retry flag
 when an achievement upload fails.
 The Android supervisor discards other upstream output instead of exporting
 HTTP errors or protocol payloads containing game credentials.
@@ -17,3 +17,8 @@ HTTP errors or protocol payloads containing game credentials.
 The dummy service tools are the hash-checked upstream v0.3.2 release. They are
 registered through the game's selected Proton in its own prefix. GOG overlays
 are not installed. Pending databases survive session resets and sign-out.
+
+Local unlocks show a five-second DroidDeck notification without taking input focus.
+The notification queue belongs to the session, ignores duplicate SDK unlocks, and clears
+on account replacement or session stop. Upload acknowledgements refresh the achievement
+reader without replaying notifications.

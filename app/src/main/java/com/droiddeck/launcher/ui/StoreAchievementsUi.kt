@@ -78,7 +78,7 @@ internal class AchievementsState(val list: List<Achievement>?, val reason: Reaso
 internal fun rememberAchievements(game: StoreAchievements.Game?): AchievementsState? {
     val ctx = LocalContext.current.applicationContext
     var state by remember(game) { mutableStateOf(if (game == null) null else AchievementsState.READING) }
-    LaunchedEffect(game) {
+    LaunchedEffect(game, StoreAchievements.revision) {
         if (game == null) return@LaunchedEffect
         val source = StoreAchievements.forSource(game.source) ?: return@LaunchedEffect
         val cached = withContext(Dispatchers.IO) { source.cached(ctx, game) }
@@ -101,8 +101,8 @@ internal fun achievementsNote(state: AchievementsState, label: String): String? 
 }
 
 @Composable
-internal fun Trophy(size: Dp = 18.dp, modifier: Modifier = Modifier) {
-    Icon(Icons.Filled.EmojiEvents, stringResource(R.string.achievements_all), modifier.size(size), tint = TrophyGold)
+internal fun Trophy(size: Dp = 18.dp, modifier: Modifier = Modifier, description: String? = stringResource(R.string.achievements_all)) {
+    Icon(Icons.Filled.EmojiEvents, description, modifier.size(size), tint = TrophyGold)
 }
 
 @Composable
