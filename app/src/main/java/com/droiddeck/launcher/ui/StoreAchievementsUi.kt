@@ -191,56 +191,26 @@ internal fun AchievementRow(a: Achievement, compact: Boolean, modifier: Modifier
 }
 
 @Composable
-internal fun StoreAchievementsSection(game: StoreAchievements.Game, title: String) {
+internal fun StoreAchievementsSection(game: StoreAchievements.Game) {
     val label = StoreAchievements.forSource(game.source)?.label ?: return
-    StoreAchievementsSectionContent(label, rememberAchievements(game) ?: return, title)
+    StoreAchievementsSectionContent(label, rememberAchievements(game) ?: return)
 }
 
 @Composable
-internal fun StoreAchievementsSectionContent(label: String, state: AchievementsState, title: String) {
+internal fun StoreAchievementsSectionContent(label: String, state: AchievementsState) {
     val colors = MaterialTheme.colorScheme
     val list = state.list
     // Hidden for games without achievements.
     if (list.isNullOrEmpty() && !state.reading && state.reason != Reason.SIGNED_OUT && state.reason != Reason.UNREACHABLE) return
     val narrow = LocalNarrowPane.current
-    var showAll by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
         Text(stringResource(R.string.achievements_title), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
         achievementsNote(state, label)?.let { Text(it, fontSize = 13.sp, color = colors.onSurfaceVariant) }
         if (!list.isNullOrEmpty()) {
             AchievementsProgress(state)
-            for (a in groups(list).flatMap { it.second }.take(PREVIEW_COUNT)) AchievementRow(a, compact = narrow)
-            if (list.size > PREVIEW_COUNT) SecondaryButton(stringResource(R.string.achievements_show_all, list.size)) { showAll = true }
-        }
-    }
-    if (showAll && !list.isNullOrEmpty()) AchievementsDialog(state, title, onDismiss = { showAll = false })
-}
-
-private const val PREVIEW_COUNT = 3
-
-/** Every achievement, split into unlocked and locked. */
-@Composable
-private fun AchievementsDialog(state: AchievementsState, title: String, onDismiss: () -> Unit) {
-    val shown = rememberShown(onDismiss)
-    val close = { shown.targetState = false }
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
-    AppDialog(shown, close, "achievements", wide = false, maxWidth = 600.dp) {
-        DialogTitleRow(stringResource(R.string.achievements_dialog_title, title), onClose = close)
-        AchievementsDialogContent(state, first)
-    }
-}
-
-@Composable
-private fun AchievementsDialogContent(state: AchievementsState, first: FocusRequester) {
-    val list = state.list ?: return
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AchievementsProgress(state)
-        var index = 0
-        for ((label, group) in groups(list)) {
-            AchievementGroupLabel(stringResource(label, group.size))
-            for (a in group) {
-                AchievementRow(a, compact = LocalNarrowPane.current, modifier = if (index++ == 0) Modifier.focusRequester(first) else Modifier)
+            for ((label, group) in groups(list)) {
+                AchievementGroupLabel(stringResource(label, group.size))
+                for (a in group) AchievementRow(a, compact = narrow)
             }
         }
     }
@@ -361,19 +331,13 @@ private fun PreviewSurface(content: @Composable () -> Unit) {
 @Preview(name = "Store page section", widthDp = 800, heightDp = 600)
 @Composable
 private fun StoreAchievementsSectionPreview() = PreviewSurface {
-    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("GOG", AchievementsState(previewList, null, false), "Hollow Valley") }
-}
-
-@Preview(name = "All achievements dialog", widthDp = 800, heightDp = 600)
-@Composable
-private fun AchievementsDialogPreview() = PreviewSurface {
-    Column(Modifier.width(560.dp)) { AchievementsDialogContent(AchievementsState(previewList, null, false), remember { FocusRequester() }) }
+    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("GOG", AchievementsState(previewList, null, false)) }
 }
 
 @Preview(name = "Store page section, signed out", widthDp = 800, heightDp = 200)
 @Composable
 private fun StoreAchievementsSectionSignedOutPreview() = PreviewSurface {
-    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("Epic", AchievementsState(null, Reason.SIGNED_OUT, false), "Hollow Valley") }
+    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("Epic", AchievementsState(null, Reason.SIGNED_OUT, false)) }
 }
 
 @Preview(name = "Session panel", widthDp = 800, heightDp = 500)
