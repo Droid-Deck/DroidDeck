@@ -23,6 +23,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -58,6 +59,8 @@ internal class GlideSource {
     var shape: Shape by mutableStateOf<Shape>(androidx.compose.ui.graphics.RectangleShape)
     var color by mutableStateOf(Color.Transparent)
     var width by mutableStateOf(2.dp)
+    /** Focuses the control again: a step-out hands focus back to the control it came out of. */
+    val requester = androidx.compose.ui.focus.FocusRequester()
 }
 
 internal class FocusGlide(val view: View) {
@@ -135,7 +138,7 @@ internal fun Modifier.glideBorder(
         onDispose { glide.release(src) }
     }
     val base = if (restColor.alpha > 0f) border(restWidth, restColor, shape) else this
-    return base.onGloballyPositioned { src.coords = it; glide.moved(src) }
+    return base.focusRequester(src.requester).onGloballyPositioned { src.coords = it; glide.moved(src) }
 }
 
 /** Leading edge on a focus move: quick and a little loose. */
