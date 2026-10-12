@@ -13,6 +13,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -46,7 +47,8 @@ internal enum class GlideAxis { Horizontal, Vertical }
  * next chip stretches it - the leading edge on the focus ring's lead spring, the trailing one a
  * beat later on its trail spring - and a hop past a chip fades it out where it was and in where it
  * lands (carried over as a drop, it sat on chips the pad had already left). [axis] runs it down a column instead (the rail, a stack of layers). [corner] is the
- * chips' own corner; null draws a capsule. [fill] and [outline] are the resting alphas.
+ * chips' own corner; null draws a capsule. [fill] and [outline] are the resting alphas. Not
+ * [visible], it fades away, and comes back on whichever chip it is on by then.
  */
 @Composable
 internal fun BoxScope.ChipGlide(
@@ -57,13 +59,16 @@ internal fun BoxScope.ChipGlide(
     corner: Dp? = null,
     fill: Float = 0.16f,
     outline: Float = 0.7f,
+    visible: Boolean = true,
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     // The two edges along the axis (left and right, or top and bottom), and the two across it.
     val start = remember { Animatable(Float.NaN) }
     val end = remember { Animatable(0f) }
     val pinch = remember { Animatable(0f) }
-    val shown = remember { Animatable(1f) }
+    val shown = remember { Animatable(if (visible) 1f else 0f) }
+    val visibleNow = rememberUpdatedState(visible)
+    LaunchedEffect(visible) { shown.animateTo(if (visible) 1f else 0f, Motion.tw(if (visible) 160 else 120)) }
     val crossStart = remember { mutableStateOf(0f) }
     val crossEnd = remember { mutableStateOf(0f) }
     val was = remember { intArrayOf(-1) }
@@ -77,7 +82,13 @@ internal fun BoxScope.ChipGlide(
         val from = was[0]
         was[0] = index
         if (start.value.isNaN() || from == index || from < 0 || Motion.scale == 0f) {
-            start.snapTo(s); end.snapTo(e); pinch.snapTo(0f); shown.snapTo(1f)
+            start.snapTo(s); end.snapTo(e); pinch.snapTo(0f)
+            if (visibleNow.value) shown.snapTo(1f)
+            return@LaunchedEffect
+        }
+        // Away or on its way back: it goes straight to the chip, unseen.
+        if (!visibleNow.value || shown.value < 0.5f) {
+            start.snapTo(s); end.snapTo(e); pinch.snapTo(0f)
             return@LaunchedEffect
         }
         coroutineScope {

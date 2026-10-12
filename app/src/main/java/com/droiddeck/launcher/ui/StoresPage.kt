@@ -585,6 +585,10 @@ private fun StoreChips(
     val rootBounds = remember { HashMap<String, Rect>() }
     // The fill travels with focus; only the expensive pane change waits for the debounce.
     val highlighted = focused ?: selected
+    // With a pad the fill is only where focus is: on a chip that does not have it (the row first
+    // drawn with focus on the rail, or focus on the cog or the page) it read as focus.
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
+    val fillShown = focused != null || inputMode != androidx.compose.ui.input.InputMode.Keyboard
     val tint = androidx.compose.animation.animateColorAsState(
         Store.byId(highlighted)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
     )
@@ -593,7 +597,7 @@ private fun StoreChips(
             for (store in Store.entries) {
                 val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
                 StoreChip(
-                    label = store.shortLabel, on = selected == store.id, key = store.id,
+                    label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id,
                     modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
                     lead = {
                         val c = sourceColours(store.id)
@@ -616,7 +620,7 @@ private fun StoreChips(
                 ) { onStore(store, rootBounds[store.id]) }
             }
             StoreChip(
-                label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, key = DOWNLOADS,
+                label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS,
                 modifier = Modifier.weight(1f).onGloballyPositioned {
                     bounds[DOWNLOADS] = it.boundsInParent()
                     StoresMotion.downloadsChip = it.boundsInRoot()
@@ -631,13 +635,13 @@ private fun StoreChips(
             }
         }
         // Over the chips: the fill is translucent, and the other chips' rest fill would hide it in flight.
-        ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint)
+        ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
     }
 }
 
 @Composable
 private fun StoreChip(
-    label: String, on: Boolean, key: String, modifier: Modifier, lead: @Composable () -> Unit,
+    label: String, on: Boolean, under: Boolean, key: String, modifier: Modifier, lead: @Composable () -> Unit,
     trail: (@Composable () -> Unit)? = null, description: String? = null,
     onFocused: (String?) -> Unit = {}, onClick: () -> Unit,
 ) {
@@ -650,7 +654,7 @@ private fun StoreChip(
     val scale by animateFloatAsState(if (pressed) 0.95f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "chipScale")
     val shape = RoundedCornerShape(99.dp)
     val ink = if (on) colors.onBackground else if (hot) colors.onBackground else colors.onSurfaceVariant
-    // The selected look is the row's glide under the chip, so a chip here draws only its rest state.
+    // The row's glide draws the look of the chip [under] it, so that one draws no rest state of its own.
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         modifier = modifier.paneItem("storechip:$key")
@@ -659,8 +663,8 @@ private fun StoreChip(
                 else if (!f.isFocused) onFocused(null)
             }
             .heightIn(min = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
-            .background(if (on) Color.Transparent else colors.surface)
-            .glideBorder(hot, shape, pal.signal, if (on) Color.Transparent else pal.line)
+            .background(if (under) Color.Transparent else colors.surface)
+            .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
