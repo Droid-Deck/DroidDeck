@@ -436,6 +436,14 @@ send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
   syscall(SYS_close, sock);
 }
 
+// FF_PERIODIC's magnitude is a signed 16-bit level (-32768..32767), FF_RUMBLE's an unsigned one
+// (0..65535): scale the former to the latter's full range, so a full-strength periodic effect is
+// a full-strength rumble (not half, and a negative one not a near-full uint16 wrap).
+__attribute__((visibility("hidden"))) static int periodic_level(int16_t magnitude) {
+  long m = magnitude < 0 ? -static_cast<long>(magnitude) : magnitude;
+  return static_cast<int>(std::min<long>(65535, (m * 65535 + 16383) / 32767));
+}
+
 __attribute__((visibility("hidden"))) static void
 check_ff_event(const struct input_event *ev, uint16_t slot) {
   if (ev->type != EV_FF)
@@ -452,8 +460,8 @@ check_ff_event(const struct input_event *ev, uint16_t slot) {
       send_vibration(it->second.u.rumble.strong_magnitude,
                      it->second.u.rumble.weak_magnitude, duration, slot);
     } else if (it->second.type == FF_PERIODIC) {
-      send_vibration(it->second.u.periodic.magnitude,
-                     it->second.u.periodic.magnitude, duration, slot);
+      int level = periodic_level(it->second.u.periodic.magnitude);
+      send_vibration(level, level, duration, slot);
     }
   } else {
     send_vibration(0, 0, 0, slot);
@@ -1250,6 +1258,10 @@ static constexpr uint8_t DECK_GET_ATTRIBUTES_VALUES = 0x83;
 static constexpr uint8_t DECK_GET_STRING_ATTRIBUTE = 0xAE;
 static constexpr uint8_t DECK_GET_CHIP_ID = 0xBA;
 static constexpr uint8_t DECK_TRIGGER_RUMBLE_CMD = 0xEB;
+// Steam's haptics for the Deck's trackpads: a pulse train (MsgFireHapticPulse) and a typed effect
+// (MsgTriggerHaptic). They go to the phone's own vibrator, never to the pad's rumble motors.
+static constexpr uint8_t DECK_TRIGGER_HAPTIC_PULSE = 0x8F;
+static constexpr uint8_t DECK_TRIGGER_HAPTIC_CMD = 0xEA;
 
 // Button bits of the state report (SDL, SDL_hidapi_steamdeck.c): the low word, then the high.
 static constexpr uint32_t DECK_L_R2 = 0x00000001, DECK_L_L2 = 0x00000002, DECK_L_R1 = 0x00000004,
@@ -2573,6 +2585,81 @@ __attribute__((visibility("hidden"))) static void log_deck_feature(const char *w
   if ((n & (n - 1)) == 0) Logger::log("deck: feature 0x%02x %s (x%u)\n", feature, what, n);
 }
 
+// A real Deck plays its trackpad haptics on the trackpads' own actuators, not on the grip rumble
+// motors, so they never go to the pad's motors here either: they go to the app as packets marked
+// DECK_HAPTIC in the slot word, and the app (RumbleComponent / DeckHaptics) plays them on the
+// phone's built-in vibrator, the stand-in for the trackpad actuators. Such a packet carries the
+// report's gain in dB (s16) where the strong magnitude goes, the trackpad in the low bits of the
+// slot word (0 left, 1 right, 2 both) and a duration in ms; 0 ms is a stop. The app keeps the
+// latest gain per trackpad and plays every tick at the higher of the two, as a phone has one motor.
+static constexpr uint16_t DECK_HAPTIC = 0x8000;
+static constexpr int DECK_HAPTIC_LEFT = 0, DECK_HAPTIC_RIGHT = 1, DECK_HAPTIC_BOTH = 2;
+
+// Logs each new gain a haptic report type carries for a trackpad, so Steam's slider values show in pad.log.
+__attribute__((visibility("hidden"))) static void deck_haptic_log_gain(uint8_t type, int side, int db) {
+  static std::atomic<int> last[2][3] = {{{INT_MIN}, {INT_MIN}, {INT_MIN}}, {{INT_MIN}, {INT_MIN}, {INT_MIN}}};
+  std::atomic<int> &prev = last[type == DECK_TRIGGER_HAPTIC_CMD][side];
+  if (prev.exchange(db) == db) return;
+  Logger::log("deck: haptic 0x%02x side %d gain %d dB\n", type, side, db);
+}
+
+// Trackpad haptics can arrive many times a second; one tick every 40 ms keeps them distinct.
+__attribute__((visibility("hidden"))) static bool deck_haptic_due() {
+  static std::atomic<long long> last_ms{0};
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  long long now = static_cast<long long>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+  if (now - last_ms.load() < 40) return false;
+  last_ms.store(now);
+  return true;
+}
+
+__attribute__((visibility("hidden"))) static void deck_haptic_send(int side, int db, int ms) {
+  send_vibration(static_cast<int16_t>(std::max(-32768, std::min(32767, db))), 0, static_cast<uint16_t>(ms),
+                 static_cast<uint16_t>(DECK_HAPTIC | side));
+}
+
+// 0x8F MsgFireHapticPulse after [0]=report id, [1]=type, [2]=length:
+// [3] which_pad, [4..5] pulse_duration us, [6..7] pulse_interval us, [8..9] pulse_count,
+// [10..11] dBgain (s16), [12] priority. On a Deck these are microsecond ticks; a vibrator needs
+// ~10-15 ms to be felt, so the train's total length is played clamped to 12..50 ms: a tick, never
+// a buzz. A pulse of 0 us is nothing.
+__attribute__((visibility("hidden"))) static void deck_haptic_pulse(const uint8_t *buf) {
+  unsigned on_us = buf[4] | buf[5] << 8, off_us = buf[6] | buf[7] << 8, count = buf[8] | buf[9] << 8;
+  int db = static_cast<int16_t>(buf[10] | buf[11] << 8);
+  if (on_us == 0) return;
+  // which_pad is swapped on this legacy report (Linux hid-steam): 0 = right, 1 = left, 2 = both.
+  int side = buf[3] == 0 ? DECK_HAPTIC_RIGHT : buf[3] == 1 ? DECK_HAPTIC_LEFT : DECK_HAPTIC_BOTH;
+  deck_haptic_log_gain(DECK_TRIGGER_HAPTIC_PULSE, side, db);
+  if (!deck_haptic_due()) return;
+  unsigned long total_us = count ? static_cast<unsigned long>(count) * (on_us + off_us) : on_us;
+  int ms = static_cast<int>(std::min<unsigned long>(50, std::max<unsigned long>(12, total_us / 1000)));
+  deck_haptic_send(side, db, ms);
+}
+
+// 0xEA MsgTriggerHaptic: [3] side (0 left, 1 right, 2 both), [4] cmd (0 off, 1 tick, 2 click,
+// 3 tone, 4 rumble, 5 noise, 6 script, 7 sweep), [5] ui_intensity, [6] dBgain (s8), [7..8] freq,
+// [9..10] dur_ms (s16, negative = until stopped). Ticks and clicks become 15 / 25 ms, a script
+// 40 ms; timed effects (tone, rumble, noise, sweep) use their own duration (an endless one 1 s,
+// renewed while Steam keeps sending it), capped at 2 s.
+__attribute__((visibility("hidden"))) static void deck_haptic_cmd(const uint8_t *buf) {
+  int side = buf[3] <= DECK_HAPTIC_BOTH ? buf[3] : DECK_HAPTIC_BOTH;
+  int cmd = buf[4], db = static_cast<int8_t>(buf[6]);
+  int dur = static_cast<int16_t>(buf[9] | buf[10] << 8);
+  int ms;
+  switch (cmd) {
+  case 0: deck_haptic_send(side, 0, 0); return;
+  case 1: ms = 15; break;
+  case 2: ms = 25; break;
+  case 3: case 4: case 5: case 7: ms = dur > 0 ? std::min(dur, 2000) : dur < 0 ? 1000 : 60; break;
+  case 6: ms = 40; break;
+  default: return;
+  }
+  deck_haptic_log_gain(DECK_TRIGGER_HAPTIC_CMD, side, db);
+  if (cmd <= 2 && !deck_haptic_due()) return;
+  deck_haptic_send(side, db, ms);
+}
+
 // A settings report (ID_SET_SETTINGS_VALUES) is a list of (setting id, 16-bit value) triples after
 // the length byte. Returns SETTING_IMU_MODE (48, a SETTING_GYRO_MODE_* bitmask from SDL's
 // controller_constants.h) when the report changes it, logged, else -1: the client repeats its
@@ -2618,8 +2705,20 @@ deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
   if (set) {
     deck.pending_feature = buf[1];
     if (buf[1] == DECK_TRIGGER_RUMBLE_CMD && size >= 10) {
+      // MsgSimpleRumbleCmd: [3] type, [4..5] intensity, [6..7] left speed, [8..9] right speed,
+      // [10] left gain, [11] right gain. The speeds go out unchanged (0..65535, full scale); the
+      // other fields are only logged, now and then.
       int left = buf[6] | buf[7] << 8, right = buf[8] | buf[9] << 8;
+      static std::atomic<unsigned> rumble_logs{0};
+      unsigned n = ++rumble_logs;
+      if ((n & (n - 1)) == 0 && size >= 12)
+        Logger::log("deck: rumble 0xEB type %u intensity %u left %d right %d gain %d/%d (x%u)\n", buf[3],
+                    buf[4] | buf[5] << 8, left, right, static_cast<int8_t>(buf[10]), static_cast<int8_t>(buf[11]), n);
       send_vibration(left, right, left || right ? 1000 : 0, 0);
+    } else if (buf[1] == DECK_TRIGGER_HAPTIC_PULSE && size >= 12) {
+      deck_haptic_pulse(buf);
+    } else if (buf[1] == DECK_TRIGGER_HAPTIC_CMD && size >= 11) {
+      deck_haptic_cmd(buf);
     }
     if (buf[1] == DECK_SET_SETTINGS_VALUES && size >= 3) {
       int imu_mode = deck_imu_mode_change(buf, size);
@@ -3759,8 +3858,8 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
       send_vibration(effect->u.rumble.strong_magnitude,
                      effect->u.rumble.weak_magnitude, duration, slot);
     } else if (effect->type == FF_PERIODIC) {
-      send_vibration(effect->u.periodic.magnitude, effect->u.periodic.magnitude,
-                     duration, slot);
+      send_vibration(periodic_level(effect->u.periodic.magnitude),
+                     periodic_level(effect->u.periodic.magnitude), duration, slot);
     }
     return 0;
   } else if (type == 0x45 && number == 0x81) {

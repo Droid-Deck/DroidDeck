@@ -22,6 +22,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashHandler.install(this)
+        // Optional: rumble for Razer Kishi pads over USB. Drop this line (and session/razer) to leave it out.
+        com.droiddeck.launcher.session.RumbleProviders.register(com.droiddeck.launcher.session.razer.RazerKishiRumble)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
         GpuClockPin.clearLeftover(this)
