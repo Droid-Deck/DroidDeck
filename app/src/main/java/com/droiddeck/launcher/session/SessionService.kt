@@ -869,6 +869,7 @@ class SessionService : Service() {
         // A second Steam library: the storage chosen in the Steam cog, at the path the runtime's
         // droiddeck-steam-library registers with the client. Nothing bound = the script removes
         // the entry, so the client never offers a place that is not there.
+        if (SessionPrefs.usbRootEnabled(this)) UsbRootMount.mount(this)?.let { Log.w(TAG, "USB drive: $it") }
         val library = GameStorage.effective(this)
         var storageDiagnosticLibrary: File? = null
         if (library != null) {
@@ -1497,6 +1498,7 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
+            if (SessionPrefs.usbRootEnabled(this)) Thread({ UsbRootMount.unmount(applicationContext) }, "usb-root").start()
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
             } else {

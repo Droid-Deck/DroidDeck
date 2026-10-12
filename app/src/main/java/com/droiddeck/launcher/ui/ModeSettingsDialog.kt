@@ -118,6 +118,20 @@ class ModeSettings(
     val deckyDownloadingBinary: Boolean = false,
     val deckyEnabled: Boolean = false,
     val deckySessionRunning: Boolean = false,
+    /** Steam only, and only when su exists: the USB-via-root setting. */
+    val usbRoot: UsbRootUi? = null,
+)
+
+class UsbRootUi(
+    val enabled: Boolean,
+    val drives: List<com.droiddeck.launcher.session.UsbRootMount.Drive>,
+    val drive: String,
+    /** Where the drive mounts: the second-library path that means "the USB drive". */
+    val path: String,
+    val mounted: Boolean,
+    /** The last mount/eject error, or null. */
+    val status: String?,
+    val sessionRunning: Boolean,
 )
 
 class ModeSettingsActions(
@@ -140,6 +154,11 @@ class ModeSettingsActions(
     val onGameStorage: (path: String, label: String) -> Unit = { _, _ -> },
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
+    val onUsbRoot: (Boolean) -> Unit = {},
+    val onUsbDrive: (String) -> Unit = {},
+    val onUsbMount: () -> Unit = {},
+    val onUsbEject: () -> Unit = {},
+    val onUsbPrepare: () -> Unit = {},
     val onFexPreset: (String) -> Unit = {},
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
@@ -330,7 +349,9 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     }
     if (tab == SheetTab.LIBRARY && steam) {
         if (s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
-            val custom = s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
+            // The USB drive's folder while it is unplugged: named, not shown as its long path.
+            val usbAway = s.usbRoot != null && s.gameStorage == s.usbRoot.path && s.storageOptions.none { it.path == s.gameStorage }
+            val custom = !usbAway && s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
             // Each choice: its path, its menu line, the chip's shorter line, and the label it is saved with.
             class StorageChoice(val path: String, val label: String, val chip: String, val saved: String)
             val internal = stringResource(R.string.mode_storage_internal)
@@ -342,6 +363,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 add(StorageChoice("off", internal, internal, ""))
                 for (o in s.storageOptions) add(StorageChoice(o.path, o.label, o.label, o.name))
                 if (custom) stringResource(R.string.mode_storage_folder, s.gameStorage).let { add(StorageChoice(s.gameStorage, it, it, it)) }
+                if (usbAway) stringResource(R.string.usb_root_away).let { add(StorageChoice(s.gameStorage, it, it, stringResource(R.string.usb_root_volume))) }
             }
             val open = host.open == "storage"
             SettingsRow(
@@ -362,6 +384,49 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                             }
                         }
                         MenuItem(stringResource(R.string.mode_choose_folder), checked = false) { host.open = null; a.onPickGameStorageFolder() }
+                    }
+                }
+            }
+            s.usbRoot?.let { usb ->
+                ToggleRow(
+                    host, "usb-root", stringResource(R.string.usb_root_title),
+                    usb.status ?: stringResource(R.string.usb_root_hint), usb.enabled, onChange = a.onUsbRoot,
+                )
+                if (usb.enabled) {
+                    val chosen = usb.drives.firstOrNull { it.uuid == usb.drive }
+                    val unnamed = stringResource(R.string.usb_root_unnamed)
+                    val name: (com.droiddeck.launcher.session.UsbRootMount.Drive) -> String = {
+                        val label = it.label.ifEmpty { if (it.size > 0) String.format(unnamed, com.droiddeck.launcher.core.FileUtils.sizeToString(it.size)) else it.uuid }
+                        "$label (${it.type})"
+                    }
+                    val driveOpen = host.open == "usb-drive"
+                    SettingsRow(stringResource(R.string.usb_root_drive), null, highlighted = driveOpen) {
+                        androidx.compose.foundation.layout.Box {
+                            ValueChip(chosen?.let(name) ?: stringResource(R.string.usb_root_no_drive), driveOpen, enabled = usb.drives.isNotEmpty()) {
+                                host.open = if (driveOpen) null else "usb-drive"
+                            }
+                            AnchoredMenu(driveOpen, onDismiss = { if (host.open == "usb-drive") host.open = null }, title = stringResource(R.string.usb_root_drive)) { firstItemFocus ->
+                                usb.drives.forEachIndexed { index, d ->
+                                    MenuItem(name(d), checked = d.uuid == usb.drive, focusRequester = if (index == 0) firstItemFocus else null) {
+                                        a.onUsbDrive(d.uuid)
+                                        host.open = null
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (chosen != null) SettingsRow(
+                        stringResource(if (usb.mounted) R.string.usb_root_mounted else R.string.usb_root_unmounted),
+                        if (usb.mounted && usb.sessionRunning) stringResource(R.string.usb_root_eject_running)
+                        else if (!usb.mounted && chosen.type == "ext4") stringResource(R.string.usb_root_prepare_hint) else null,
+                    ) {
+                        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                            if (usb.mounted) SecondaryButton(stringResource(R.string.usb_root_eject), enabled = !usb.sessionRunning, onClick = a.onUsbEject)
+                            else {
+                                SecondaryButton(stringResource(R.string.usb_root_mount), onClick = a.onUsbMount)
+                                if (chosen.type == "ext4") ConfirmButton(stringResource(R.string.usb_root_prepare), stringResource(R.string.usb_root_prepare_confirm), onConfirm = a.onUsbPrepare)
+                            }
+                        }
                     }
                 }
             }

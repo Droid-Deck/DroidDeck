@@ -25,7 +25,11 @@ object GameStorage {
     /** Every removable volume, as its app folder, with the free space it has. */
     fun options(context: Context): List<Option> {
         val sm = context.getSystemService(StorageManager::class.java)
-        return context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
+        val usb = if (SessionPrefs.usbRootEnabled(context) && UsbRootMount.mounted(context)) UsbRootMount.path(context).let { dir ->
+            val name = UsbRootMount.label ?: context.getString(R.string.usb_root_volume)
+            listOf(Option(context.getString(R.string.gstore_volume_free, name, free(dir)), dir.absolutePath, name))
+        } else emptyList()
+        return usb + context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
             val removable = try { Environment.isExternalStorageRemovable(dir) } catch (e: Exception) { false }
             if (!removable) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(dir) } catch (e: Exception) { null }
@@ -62,6 +66,8 @@ object GameStorage {
         return when {
             pref == SessionPrefs.GAME_STORAGE_OFF -> null
             pref.isEmpty() -> options(context).firstOrNull()?.let { Option(it.name, it.path) }
+            // Unmounted, the folder is on internal storage: never hand Steam that.
+            pref == UsbRootMount.path(context).absolutePath && !UsbRootMount.mounted(context) -> null
             else -> Option(SessionPrefs.gameStorageLabel(context), pref)
         }
     }

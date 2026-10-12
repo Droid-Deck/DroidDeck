@@ -150,6 +150,12 @@ android {
             minifyEnabled false
             signingConfig signingConfigs.testkey
         }
+        // A debug build that installs beside the official app.
+        sidebyside {
+            initWith debug
+            applicationIdSuffix '.sidebyside'
+            matchingFallbacks = ['debug']
+        }
     }
 
     lint {
@@ -229,7 +235,7 @@ def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
 }
 tasks.configureEach { task ->
-    if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
+    if (task.name in ['packageDebug', 'packageRelease', 'packageSidebyside']) task.dependsOn(verifyRuntimeInputs)
 }
 
 // The GOG / Epic / Amazon download engines are Rust (app/src/main/rust/stores, ported from
@@ -302,6 +308,8 @@ dependencies {
     implementation 'com.flyfishxu:kadb-android:1.2.1'
     // Android terminal view/emulator used by the in-session secondary-display Linux shell.
     implementation 'com.termux.termux-app:terminal-view:0.118.0'
+    // Root shell for the optional USB-drive mount (UsbRootMount).
+    implementation 'com.github.topjohnwu.libsu:core:6.0.0'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
