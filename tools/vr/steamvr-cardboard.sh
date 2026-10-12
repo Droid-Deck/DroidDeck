@@ -39,6 +39,15 @@ export VK_LAYER_PATH="$layer${VK_LAYER_PATH:+:$VK_LAYER_PATH}"
 export VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vr${VK_INSTANCE_LAYERS:+:$VK_INSTANCE_LAYERS}"
 export VK_LOADER_LAYERS_DISABLE="${VK_LOADER_LAYERS_DISABLE:-~implicit~}"
 
+# SteamVR's web helper (the dashboard) checks the X server with xset, which the runtime lacks.
+shims=/tmp/droiddeck-vr-shims
+mkdir -p "$shims"
+if ! command -v xset >/dev/null 2>&1; then
+    printf '#!/bin/sh\n# xset stand-in for vrwebhelper.sh: "q" only checks the display answers.\nexec xprop -root -display "${DISPLAY:-:0}" _NET_SUPPORTED >/dev/null 2>&1\n' > "$shims/xset"
+    chmod +x "$shims/xset"
+    export PATH="$shims:$PATH"
+fi
+
 cd "$steamvr/bin/linuxarm64" || exit 1
 setsid ./vrstartup > /tmp/vrstartup.log 2>&1 &
 echo "SteamVR starting; logs in $logs (vrserver.txt, vrcompositor.txt) and /tmp/vrstartup.log"

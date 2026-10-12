@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 #include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
+#include "presenter.h"
 
 #define DD_EXPORT extern "C" __attribute__((visibility("default")))
 
@@ -127,6 +128,49 @@ private:
     std::chrono::steady_clock::time_point last_;
 };
 
+// The vsync grid SteamVR paces against in driver-direct mode (Prop_DriverDirectModeSendsVsyncEvents):
+// a free-running 60 Hz tick, declared a little ahead of time (ALVR's announcer, alvr/server_openvr/src/vsync.rs).
+class Vsync {
+public:
+    static constexpr std::chrono::nanoseconds kInterval{16666667};
+    static constexpr std::chrono::microseconds kLead{2000};
+
+    static void Start() {
+        if (running_.exchange(true)) return;
+        thread_ = std::thread([] {
+            auto next = std::chrono::steady_clock::now() + kInterval;
+            while (running_) {
+                auto announce = next - kLead;
+                std::this_thread::sleep_until(announce);
+                auto now = std::chrono::steady_clock::now();
+                double offset = std::chrono::duration<double>(announce - now).count();
+                VRServerDriverHost()->VsyncEvent(offset);
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    last_ = next;
+                }
+                next += kInterval;
+                now = std::chrono::steady_clock::now();
+                while (next <= now) next += kInterval;
+            }
+        });
+    }
+    static void Stop() {
+        running_ = false;
+        if (thread_.joinable()) thread_.join();
+    }
+    static std::chrono::steady_clock::time_point LastTick() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return last_;
+    }
+
+private:
+    static inline std::atomic<bool> running_{false};
+    static inline std::thread thread_;
+    static inline std::mutex mutex_;
+    static inline std::chrono::steady_clock::time_point last_{};
+};
+
 // IVRDriverDirectModeComponent: SteamVR renders each eye into textures this driver allocates
 // (shared Vulkan images from SteamVR's IPC resource manager, dmabufs on Linux) and hands them
 // over per frame. This is how ALVR gets frames on Linux; it avoids the compositor's own direct mode,
@@ -165,6 +209,7 @@ public:
         out->unTextureFlags = 0;
         Log("  -> handles 0x%llx 0x%llx 0x%llx, fds %d %d %d", (unsigned long long)set.handles[0],
             (unsigned long long)set.handles[1], (unsigned long long)set.handles[2], set.fds[0], set.fds[1], set.fds[2]);
+        droiddeck::Presenter::AddTextures(set.handles, set.fds, d->nFormat, d->nWidth, d->nHeight);
         std::lock_guard<std::mutex> lock(mutex_);
         sets_.push_back(set);
     }
@@ -199,6 +244,14 @@ public:
 
     void SubmitLayer(const SubmitLayerPerEye_t (&eyes)[2]) override {
         layers_++;
+        // The first layer of a frame is the compositor's own picture; overlays after it are not drawn yet.
+        if (layerInFrame_++ == 0) {
+            for (int e = 0; e < 2; e++) {
+                frame_.texture[e] = eyes[e].hTexture;
+                frame_.bounds[e][0] = eyes[e].bounds.uMin; frame_.bounds[e][1] = eyes[e].bounds.vMin;
+                frame_.bounds[e][2] = eyes[e].bounds.uMax; frame_.bounds[e][3] = eyes[e].bounds.vMax;
+            }
+        }
         if (frames_ < 3)
             Log("SubmitLayer: textures 0x%llx / 0x%llx, bounds %.2f,%.2f-%.2f,%.2f",
                 (unsigned long long)eyes[0].hTexture, (unsigned long long)eyes[1].hTexture,
@@ -207,17 +260,18 @@ public:
 
     void Present(SharedTextureHandle_t sync) override {
         frames_++;
+        if (layerInFrame_) droiddeck::Presenter::Submit(frame_);
+        layerInFrame_ = 0;
         if (frames_ <= 3 || frames_ % 600 == 0)
             Log("Present #%llu (%llu layers so far), sync 0x%llx", (unsigned long long)frames_,
                 (unsigned long long)layers_, (unsigned long long)sync);
     }
 
-    void PostPresent(const Throttling_t *) override {
-        // A 60 Hz display: wait for the next vsync and tell SteamVR it happened.
-        std::this_thread::sleep_until(next_);
-        auto now = std::chrono::steady_clock::now();
-        next_ = std::max(next_ + std::chrono::microseconds(16667), now);
-        VRServerDriverHost()->VsyncEvent(0.0);
+    void PostPresent(const Throttling_t *t) override {
+        // Hold until the tick after the last one declared (ALVR's pacing): a slow frame costs one frame.
+        auto last = Vsync::LastTick();
+        auto until = last + Vsync::kInterval * (1 + (t ? t->nFramesToThrottle : 0));
+        if (until > std::chrono::steady_clock::now()) std::this_thread::sleep_until(until);
     }
 
     void GetFrameTiming(DriverDirectMode_FrameTiming *t) override { t->m_nReprojectionFlags = 0; }
@@ -231,6 +285,7 @@ private:
     }
     static void Release(Set &s) {
         for (int i = 0; i < 3; i++) {
+            if (s.handles[i]) droiddeck::Presenter::RemoveTexture(s.handles[i]);
             if (s.fds[i] >= 0) close(s.fds[i]);
             if (s.handles[i]) VRIPCResourceManager()->UnrefResource(s.handles[i]);
         }
@@ -239,7 +294,8 @@ private:
     std::mutex mutex_;
     std::vector<Set> sets_;
     uint64_t frames_ = 0, layers_ = 0;
-    std::chrono::steady_clock::time_point next_ = std::chrono::steady_clock::now();
+    int layerInFrame_ = 0;
+    droiddeck::EyeFrame frame_{};
 };
 
 class CardboardHmd : public ITrackedDeviceServerDriver, public IVRDisplayComponent {
@@ -286,10 +342,13 @@ public:
 
         running_ = true;
         thread_ = std::thread([this] { PoseLoop(); });
+        if (directMode_) Vsync::Start();
         return VRInitError_None;
     }
 
     void Deactivate() override {
+        Vsync::Stop();
+        droiddeck::Presenter::Shutdown();
         running_ = false;
         if (thread_.joinable()) thread_.join();
         id_ = k_unTrackedDeviceIndexInvalid;
