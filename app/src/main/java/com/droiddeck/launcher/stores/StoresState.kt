@@ -223,12 +223,26 @@ object StoresState {
         backends[item.store]?.install(app, item, target) ?: logLine("${item.store.label}: this build cannot install yet")
     }
 
-    /** Removes the game's folder and its shortcut, then [onDone] on the main thread. */
+    /** Games being removed, by key ("store:id"), and how far along (0..1): their page shows it. */
+    val uninstalling = mutableStateMapOf<String, Float>()
+
+    /**
+     * Removes the game's folder and its shortcut, then [onDone] on the main thread. The game reads
+     * as removed the moment it is gone (its page shows Install, its card its size), not once the
+     * whole library has been read again.
+     */
     fun uninstall(context: Context, game: InstalledStoreGame, onDone: () -> Unit = {}) {
         val app = context.applicationContext
+        val key = "${game.sidecar.store.id}:${game.sidecar.id}"
+        uninstalling[key] = 0f
         Thread({
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
-            StoreInstalls.uninstall(app, game)
+            StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
+                main.post {
+                    installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }
+                    uninstalling.remove(key)
+                }
+            })
             main.post(onDone)
         }, "stores-uninstall").start()
     }

@@ -2124,7 +2124,11 @@
     <string name="stores_eyebrow_store">store</string>
     <string name="stores_in_steam">✓ In Steam</string>
     <string name="stores_uninstall">Uninstall</string>
-    <string name="stores_uninstall_confirm">Press again to uninstall</string>
+    <string name="stores_uninstalling">Uninstalling…</string>
+    <!-- The heading of the confirm that steps out of a store game's Uninstall; %1$s is the game -->
+    <string name="stores_uninstall_title">Uninstall %1$s?</string>
+    <string name="stores_uninstall_body_size">Frees %1$s and removes it from Steam.</string>
+    <string name="stores_uninstall_body">Removes its files and its Steam shortcut.</string>
     <string name="stores_launch_not_registered">Steam picks the game up when it next starts; launch it from there, or start Steam now.</string>
     <string name="stores_card_proton">Proton</string>
     <string name="stores_card_proton_value">Steam\'s choice per game</string>

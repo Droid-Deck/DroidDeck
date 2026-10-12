@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.background
@@ -52,8 +53,6 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val installed = StoresState.installedGame(store, id)
     val download = StoresState.download("${store.id}:$id")?.takeIf { it.isActive }
     // Removal asks twice: one stray press of A should not cost a download.
-    var confirmRemove by remember(key) { mutableStateOf(false) }
-    LaunchedEffect(confirmRemove) { if (confirmRemove) { kotlinx.coroutines.delay(4000); confirmRemove = false } }
     val title = item?.title ?: installed?.sidecar?.title ?: id
     Rise(0) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 12.dp)) {
@@ -91,10 +90,13 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                             // Launching, the prefix and the files belong to the Games tab, where every
                             // installed game has them; here an install only says it is in Steam and
                             // offers the one thing Games does not: removing it.
+                            // The row keeps its shape: the chip stays, and Uninstall becomes its own
+                            // progress in place while the files go; then the page reads Install again.
                             ActionChip(stringResource(R.string.stores_in_steam), ok = true)
-                            SecondaryButton(if (confirmRemove) stringResource(R.string.stores_uninstall_confirm) else stringResource(R.string.stores_uninstall), enabled = download == null) {
-                                if (!confirmRemove) confirmRemove = true
-                                else { confirmRemove = false; StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }; onBack() }
+                            val gone = StoresState.uninstalling["${store.id}:$id"]
+                            if (gone != null) SecondaryButton(stringResource(R.string.stores_uninstalling), enabled = false, progress = gone) {}
+                            else UninstallButton(title, installed, enabled = download == null) {
+                                StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }
                             }
                         }
                         download != null -> {
@@ -125,6 +127,40 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
     if (description.isNotBlank()) Rise(2) {
         Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+/**
+ * Uninstall that asks the way Cancel does: a confirm steps out of it, naming the game and what
+ * goes (its size on disk), with Keep first so a stray A does nothing.
+ */
+@Composable
+private fun UninstallButton(title: String, game: com.droiddeck.launcher.stores.InstalledStoreGame, enabled: Boolean, onUninstall: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val heading = stringResource(R.string.stores_uninstall_title, title)
+    val size = com.droiddeck.launcher.stores.StoreSizes.onDisk["${game.sidecar.store.id}:${game.sidecar.id}"]
+    val body = if (size != null && size > 0) stringResource(R.string.stores_uninstall_body_size, formatBytes(size)) else stringResource(R.string.stores_uninstall_body)
+    val keep = stringResource(R.string.stores_notification_keep)
+    val remove = stringResource(R.string.stores_uninstall)
+    Box(Modifier.onGloballyPositioned { placed[0] = it }) {
+        SecondaryButton(remove, enabled = enabled) {
+            val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot() ?: return@SecondaryButton
+            // It starts once the confirm has folded back into the button: started at once, the button
+            // turned into the progress under the fold and it drew back into a control that had gone.
+            var confirmed = false
+            StoresMotion.ask(StepAsk(anchor = at, side = StepSide.Right, accent = colors.error, items = 3, pillCorner = 12.dp, maxWidth = 340.dp,
+                onDismiss = { if (confirmed) onUninstall() }, handle = {
+                Text(remove, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.error, maxLines = 1)
+            }) {
+                StepTitle(heading)
+                Text(body, fontSize = 13.sp, lineHeight = 18.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth().stepItem(2)) {
+                    StepChoice(keep, enabled = open, modifier = Modifier.focusRequester(first)) { StoresMotion.fold() }
+                    StepChoice(remove, danger = true, enabled = open) { confirmed = true; StoresMotion.fold() }
+                }
+            })
+        }
     }
 }
 

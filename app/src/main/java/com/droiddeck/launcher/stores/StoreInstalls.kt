@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores
 
+import com.droiddeck.launcher.session.SessionPrefs
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.frontend.AddedGames
@@ -76,14 +77,26 @@ object StoreInstalls {
 
     /**
      * Removes a store game: its folder with the sidecar, then the shortcut (the listing without
-     * it makes the writer drop the entry; the live client is asked too). Blocking.
+     * it makes the writer drop the entry; the live client is asked too). Blocking. [removed] runs
+     * once the files are gone, before the shortcut list is rebuilt (which reads every added game).
      */
-    fun uninstall(context: Context, game: InstalledStoreGame) {
+    fun uninstall(context: Context, game: InstalledStoreGame, progress: (Float) -> Unit = {}, removed: () -> Unit = {}) {
         val app = context.applicationContext
-        val appId = AddedGames.scan(app).firstOrNull { it.folder.absolutePath == game.folder.absolutePath }?.appId
+        // The shortcut's id as stored for the folder: scanning every added game for it first held
+        // the bar at 0% for seconds before a file went.
+        val appId = SessionPrefs.addedGameStoredAppId(app, game.folder.path)
+        // File by file, deepest first, saying how far it has got: a big game takes a while to go.
+        val files = game.folder.walkBottomUp().toList()
+        val step = (files.size / 100).coerceAtLeast(1)
+        files.forEachIndexed { i, f ->
+            f.delete()
+            if (i % step == 0) progress((i + 1).toFloat() / files.size)
+        }
         deleteTree(game.folder)
+        progress(1f)
         // The scratch cache an install on a card may have left in the app's cache.
         deleteTree(StoreInstallRoot.scratchDir(app, game.sidecar.store, game.sidecar.id))
+        removed()
         register(app)
         if (appId != null) SteamLiveShortcuts.remove(app, appId)
         StoresState.logLine("uninstalled \"${game.sidecar.title}\"")
