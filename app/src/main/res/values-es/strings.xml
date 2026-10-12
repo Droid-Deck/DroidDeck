@@ -2137,6 +2137,7 @@
     <string name="achievements_count_short">%1$d / %2$d</string>
     <string name="achievements_group_unlocked">Desbloqueados · %1$d</string>
     <string name="achievements_group_locked">Bloqueados · %1$d</string>
+    <string name="achievements_group_hidden">Ocultos · %1$d</string>
     <string name="achievements_hidden">Logro oculto</string>
     <string name="achievements_hidden_detail">Los detalles se muestran al desbloquearlo.</string>
     <string name="achievements_all">Todos los logros desbloqueados</string>

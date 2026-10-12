@@ -134,10 +134,11 @@ private fun AchievementGroupLabel(label: String) {
     }
 }
 
-/** Unlocked (newest first), then locked. */
+/** Unlocked (newest first), locked, then hidden ones not yet unlocked. */
 private fun groups(list: List<Achievement>): List<Pair<Int, List<Achievement>>> = listOf(
     R.string.achievements_group_unlocked to list.filter { it.unlocked }.sortedByDescending { it.unlockedAt },
-    R.string.achievements_group_locked to list.filterNot { it.unlocked },
+    R.string.achievements_group_locked to list.filter { !it.unlocked && !it.hidden },
+    R.string.achievements_group_hidden to list.filter { !it.unlocked && it.hidden },
 ).filter { it.second.isNotEmpty() }
 
 /** Focusable so the pad can scroll the list. */

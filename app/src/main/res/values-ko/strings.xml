@@ -2093,6 +2093,7 @@
     <string name="achievements_count_short">%1$d / %2$d</string>
     <string name="achievements_group_unlocked">달성 · %1$d</string>
     <string name="achievements_group_locked">미달성 · %1$d</string>
+    <string name="achievements_group_hidden">숨겨짐 · %1$d</string>
     <string name="achievements_hidden">숨겨진 도전 과제</string>
     <string name="achievements_hidden_detail">달성하면 세부 정보가 표시됩니다.</string>
     <string name="achievements_all">모든 도전 과제 달성</string>
