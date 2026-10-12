@@ -2287,4 +2287,13 @@
     <string name="desktop_size">Size on disk</string>
     <string name="desktop_uninstall_title">Uninstall the desktop?</string>
     <string name="desktop_all_systems">All</string>
+    <string name="gog_achievements">GOG achievements</string>
+    <string name="gog_achievements_hint">Sync achievements for supported GOG games. Applies on the next launch.</string>
+    <string name="gog_achievements_off">Achievements off</string>
+    <string name="gog_achievements_on">Achievements enabled</string>
+    <string name="gog_achievements_signin">Sign in to GOG again</string>
+    <string name="gog_achievements_uploaded">Achievements uploaded</string>
+    <string name="gog_achievements_pending">Achievement upload pending</string>
+    <string name="gog_achievements_enable_store">Enable GOG achievements in Stores settings</string>
+    <string name="gog_achievements_unavailable">Achievements unavailable; check session logs</string>
 </resources>

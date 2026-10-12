@@ -320,6 +320,7 @@ else
 fi
 
 cd "${repo_root}"
+bash tools/comet/build-local.sh
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"

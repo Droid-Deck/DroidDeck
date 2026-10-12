@@ -15,7 +15,7 @@ MANIFEST = Path('app/build/runtime-inputs.json')
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
-                'tools/mangoapp', 'tools/msitools', 'tools/build_local.sh',
+                'tools/mangoapp', 'tools/msitools', 'tools/comet', 'tools/build_local.sh',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal']
 
 
@@ -64,6 +64,8 @@ def required():
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
     paths += ['assets/linuxfs/usr/local/lib/mangoapp/' + name for name in
               ['mangoapp', 'libfmt.so.10', 'libspdlog.so.1.13', 'libglfw.so.3', 'libtraceevent.so.1', 'libtracefs.so.1']]
+    paths += ['assets/linuxfs/usr/local/lib/droiddeck-comet/' + name for name in
+              ['comet', 'GalaxyCommunication.exe', 'update-permissions.exe', 'LICENSE', 'version']]
     for driver in ['linux-wine11', 'linux-wine11-systhread']:
         paths += ['assets/directaudio/' + driver + '/' + name for name in
                   ['aarch64-unix/winedirectaudio.so', 'aarch64-windows/winedirectaudio.drv',

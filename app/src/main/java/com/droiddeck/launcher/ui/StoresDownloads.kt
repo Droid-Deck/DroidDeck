@@ -553,6 +553,14 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
             }
             // The queue's two knobs as one compact row, the same control the Downloads page has.
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var gogAchievements by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.droiddeck.launcher.stores.gog.GogComet.enabled(context)) }
+            SettingsRow(stringResource(R.string.gog_achievements), stringResource(R.string.gog_achievements_hint)) {
+                ToggleSwitch(gogAchievements, label = stringResource(R.string.gog_achievements)) {
+                    gogAchievements = it
+                    com.droiddeck.launcher.stores.gog.GogComet.setEnabled(context, it)
+                }
+            }
             StoresEngineRow()
         }
     }

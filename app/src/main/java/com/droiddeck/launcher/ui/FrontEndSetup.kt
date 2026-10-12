@@ -495,8 +495,8 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
         if (controller != null) add { m -> SettingCard(stringResource(R.string.setup_card_controls), stringResource(R.string.setup_card_controls_hint), "card:controls", m, controller.onMapping) }
         // An Epic game's own launch choices, kept in its sidecar so a launch from the Steam client
         // honours them too (droiddeck-store-launch reads the same file).
-        // Epic's launch choices; cloud saves live in the game's Cloud saves view, so a GOG game has no card.
-        val cardStore = com.droiddeck.launcher.stores.Store.byId(game?.source.orEmpty())?.takeIf { it == com.droiddeck.launcher.stores.Store.EPIC }
+        // Store launch choices; cloud saves have their own view.
+        val cardStore = com.droiddeck.launcher.stores.Store.byId(game?.source.orEmpty())?.takeIf { it == com.droiddeck.launcher.stores.Store.EPIC || it == com.droiddeck.launcher.stores.Store.GOG }
         if (cardStore != null && game?.gameFiles != null) add { m ->
             Box(m) {
                 StoreLaunchCard(host, game.gameFiles!!, cardStore)
@@ -537,7 +537,14 @@ private fun StoreLaunchCard(host: MenuHost, folder: java.io.File, store: com.dro
     val options = sidecar?.epic ?: com.droiddeck.launcher.stores.EpicOptions()
     val epic = store == com.droiddeck.launcher.stores.Store.EPIC
     val key = "store-" + store.id
-    val value = buildList {
+    val value = if (!epic) stringResource(when {
+        !com.droiddeck.launcher.stores.gog.GogComet.enabled(appContext) || sidecar?.achievements == false -> R.string.gog_achievements_off
+        com.droiddeck.launcher.stores.gog.GogComet.status == "sign-in-needed" -> R.string.gog_achievements_signin
+        com.droiddeck.launcher.stores.gog.GogComet.status in listOf("service-unavailable", "credentials-unavailable", "not-installed") -> R.string.gog_achievements_unavailable
+        com.droiddeck.launcher.stores.gog.GogComet.status == "uploaded" -> R.string.gog_achievements_uploaded
+        com.droiddeck.launcher.stores.gog.GogComet.status == "pending-upload" || com.droiddeck.launcher.stores.gog.GogComet.status == "unlocked-locally" -> R.string.gog_achievements_pending
+        else -> R.string.gog_achievements_on
+    }) else buildList {
         if (epic && options.offline) add(stringResource(R.string.epic_card_offline))
         else if (epic && options.eos) add(stringResource(R.string.epic_card_eos))
     }.ifEmpty { listOf(stringResource(R.string.epic_card_none)) }.joinToString(" · ")
@@ -556,6 +563,16 @@ private fun StoreLaunchCard(host: MenuHost, folder: java.io.File, store: com.dro
         host.open = if (host.open == key) null else key
     }
     AnchoredMenu(host.open == key, onDismiss = { if (host.open == key) host.open = null }, title = store.shortLabel) { first ->
+        if (!epic) {
+            MenuItem(stringResource(R.string.gog_achievements), checked = sidecar?.achievements != false, focusRequester = first,
+                detail = if (!com.droiddeck.launcher.stores.gog.GogComet.enabled(appContext)) stringResource(R.string.gog_achievements_enable_store) else null) {
+                val on = sidecar?.achievements == false
+                Thread({
+                    val written = runCatching { com.droiddeck.launcher.stores.StoreGameSidecar.updateAchievements(folder, on) }.getOrNull()
+                    com.droiddeck.launcher.stores.StoresState.post { sidecar = written ?: sidecar }
+                }, "gog-game-achievements").start()
+            }
+        }
         if (epic) {
             MenuItem(stringResource(R.string.epic_eos), checked = options.eos, focusRequester = first) { set { it.copy(eos = !it.eos) } }
             MenuItem(stringResource(R.string.epic_offline), checked = options.offline) { set { it.copy(offline = !it.offline) } }

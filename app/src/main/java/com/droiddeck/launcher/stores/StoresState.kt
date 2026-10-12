@@ -174,7 +174,8 @@ object StoresState {
         val app = context.applicationContext
         Thread({
             backends[store]?.signOut(app)
-            StoreAccounts.clear(app, store)
+            if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
+            else StoreAccounts.clear(app, store)
             main.post {
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store)
                 logLine("${store.label}: signed out")

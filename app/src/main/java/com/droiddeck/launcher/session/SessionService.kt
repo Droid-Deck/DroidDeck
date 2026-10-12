@@ -334,6 +334,7 @@ class SessionService : Service() {
         SessionFiles.stage(this, root)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         // The compat tool asks for an Epic game's sign-in code at every launch, the client's Play button included.
+        com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
@@ -1541,6 +1542,7 @@ class SessionService : Service() {
         }
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
+        val stoppedSession = SessionState.sessionId
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)
@@ -1587,13 +1589,14 @@ class SessionService : Service() {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
                 Thread({
                     if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
+                    com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
                     finishSessionStop(status, stoppedGen)
                 }, "session-teardown").start()
             } else {
-                finishSessionStop(status, stoppedGen)
+                Thread({ com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession); finishSessionStop(status, stoppedGen) }, "gog-session-stop").start()
             }
         }
         if (prootPid > 1) acquireLocks()

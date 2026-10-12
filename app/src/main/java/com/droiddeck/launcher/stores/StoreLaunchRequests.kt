@@ -55,6 +55,8 @@ object StoreLaunchRequests {
             return  // withdrawn already, or not complete yet (the rename brings it again)
         }
         val reply = when (request.optString("op")) {
+            "gog-achievements" -> runCatching { com.droiddeck.launcher.stores.gog.GogComet.prepare(app, request.optString("id")) }
+                .getOrElse { JSONObject().put("ok", false).put("ready", false).put("reason", "service-unavailable") }
             "epic-code" -> {
                 val id = request.optString("id")
                 if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")

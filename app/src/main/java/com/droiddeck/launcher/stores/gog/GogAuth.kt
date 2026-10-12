@@ -33,7 +33,12 @@ object GogAuth {
     fun isSignedIn(context: Context): Boolean = StoreAccounts.read(context, Store.GOG)?.optString("access_token", "")?.isNotEmpty() == true
 
     /** Saves a fresh sign-in and looks the account's name up for the chip. Blocking. */
-    fun saveLogin(context: Context, accessToken: String, refreshToken: String?, userId: String?) {
+    fun saveLogin(context: Context, accessToken: String, refreshToken: String?, userId: String?) = GogComet.replaceAccount {
+        saveAccount(context, accessToken, refreshToken, userId)
+    }
+
+    @Synchronized
+    private fun saveAccount(context: Context, accessToken: String, refreshToken: String?, userId: String?) {
         var username = ""
         runCatching {
             val body = StoreNet.get("https://embed.gog.com/userData.json", bearer = accessToken, userAgent = GALAXY_UA)
@@ -52,6 +57,7 @@ object GogAuth {
 
     /** A usable access token, refreshed when the recorded login time says it has expired; null when signed out or the refresh failed. */
     @JvmStatic
+    @Synchronized
     fun validToken(context: Context): String? {
         val json = StoreAccounts.read(context, Store.GOG) ?: return null
         val token = json.optString("access_token", "").ifEmpty { return null }
@@ -63,6 +69,7 @@ object GogAuth {
 
     /** Refreshes the access token; the new one, or null on any failure. Blocking. */
     @JvmStatic
+    @Synchronized
     fun refresh(context: Context): String? {
         val json = StoreAccounts.read(context, Store.GOG) ?: return null
         val refreshToken = json.optString("refresh_token", "").ifEmpty { return null }
@@ -85,6 +92,27 @@ object GogAuth {
         } finally {
             runCatching { conn?.disconnect() }
         }
+    }
+
+    /** A complete companion snapshot. Never exported through the guest request channel. */
+    @Synchronized
+    fun cometCredentials(context: Context): JSONObject? {
+        val access = validToken(context) ?: return null
+        val saved = StoreAccounts.read(context, Store.GOG) ?: return null
+        val refresh = saved.optString("refresh_token").ifEmpty { return null }
+        var user = saved.optString("user_id")
+        var username = saved.optString("username")
+        if (!user.matches(Regex("[0-9]+")) || username.isEmpty()) {
+            val body = StoreNet.get("https://embed.gog.com/userData.json", bearer = access, userAgent = GALAXY_UA, timeoutMs = 5_000) ?: return null
+            val info = runCatching { JSONObject(body) }.getOrNull() ?: return null
+            user = info.optString("galaxyUserId", info.optString("userId", user))
+            username = info.optString("username", username)
+            if (!user.matches(Regex("[0-9]+")) || username.isEmpty()) return null
+            saved.put("user_id", user).put("username", username)
+            StoreAccounts.write(context, Store.GOG, saved)
+        }
+        return JSONObject().put("access_token", access).put("refresh_token", refresh)
+            .put("user_id", user).put("username", username)
     }
 
     /** Hosts the GOG login page hands off to for a social sign-in; they refuse an embedded browser's identity. */

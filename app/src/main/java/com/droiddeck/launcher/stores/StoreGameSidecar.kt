@@ -42,6 +42,7 @@ class StoreGameSidecar(
     val epic: EpicOptions = EpicOptions(),
     /** GOG / Epic cloud saves for this game: down before a launch, up after it (the game card's switch). */
     val cloud: Boolean = true,
+    val achievements: Boolean = true,
 ) {
     val isInstalled: Boolean get() = state == STATE_INSTALLED
 
@@ -52,8 +53,8 @@ class StoreGameSidecar(
         exe: String = this.exe, launcher: String? = this.launcher, args: List<String> = this.args,
         env: Map<String, String> = this.env, installVersion: String = this.installVersion,
         installedAt: Long = this.installedAt, cover: String? = this.cover, hero: String? = this.hero,
-        extra: Map<String, String> = this.extra, state: String = this.state, epic: EpicOptions = this.epic, cloud: Boolean = this.cloud,
-    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra, state, epic, cloud)
+        extra: Map<String, String> = this.extra, state: String = this.state, epic: EpicOptions = this.epic, cloud: Boolean = this.cloud, achievements: Boolean = this.achievements,
+    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra, state, epic, cloud, achievements)
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", VERSION)
@@ -64,6 +65,7 @@ class StoreGameSidecar(
         if (state != STATE_INSTALLED) put("state", state)
         if (store == Store.EPIC) put("epic", JSONObject().put("eos", epic.eos).put("offline", epic.offline))
         if (store != Store.AMAZON) put("cloud", cloud)
+        if (store == Store.GOG) put("achievements", achievements)
         if (!launcher.isNullOrEmpty()) put("launcher", launcher)
         if (args.isNotEmpty()) put("args", JSONArray(args))
         if (env.isNotEmpty()) put("env", JSONObject(env as Map<*, *>))
@@ -109,6 +111,12 @@ class StoreGameSidecar(
             return read(folder)?.takeIf { it.cloud == on }
         }
 
+        fun updateAchievements(folder: File, on: Boolean): StoreGameSidecar? {
+            val current = read(folder) ?: return null
+            current.copy(achievements = on).write(folder)
+            return read(folder)?.takeIf { it.achievements == on }
+        }
+
         /** The sidecar in [folder], or null when there is none or it cannot be read. */
         fun read(folder: File): StoreGameSidecar? {
             val f = file(folder)
@@ -146,6 +154,7 @@ class StoreGameSidecar(
                 // An "overlay" (or "v") field from an earlier build is read past: there is no overlay.
                 epic = o.optJSONObject("epic")?.let { e -> EpicOptions(eos = e.optBoolean("eos", true), offline = e.optBoolean("offline", false)) } ?: EpicOptions(),
                 cloud = o.optBoolean("cloud", true),
+                achievements = o.optBoolean("achievements", true),
             )
         }
 
