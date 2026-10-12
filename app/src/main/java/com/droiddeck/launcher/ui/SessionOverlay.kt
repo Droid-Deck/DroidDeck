@@ -295,7 +295,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     var sheetCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var stopCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val pageScroll = remember { SessionDrawerPage.entries.associateWith { ScrollState(0) } }
-    val veil by animateFloatAsState(if (open) 1f else 0f, Motion.tw(260), label = "veil")
+    val veil by animateFloatAsState(if (open) 1f else 0f, Motion.tw(160), label = "veil")
     val focus = remember { DrawerFocus() }
     val inputModeManager = LocalInputModeManager.current
     val focusManager = LocalFocusManager.current
@@ -356,8 +356,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         val sheetWidth = minOf(360.dp, maxWidth * 0.92f)
         AnimatedVisibility(
             open,
-            enter = slideInHorizontally(Motion.sp(0.8f, Spring.StiffnessLow)) { it } + fadeIn(Motion.tw(220)),
-            exit = slideOutHorizontally(Motion.tw(240)) { it } + fadeOut(Motion.tw(200)),
+            enter = slideInHorizontally(Motion.sp(0.9f, Spring.StiffnessMedium)) { it } + fadeIn(Motion.tw(120)),
+            exit = slideOutHorizontally(Motion.tw(180)) { it } + fadeOut(Motion.tw(150)),
         ) {
             FocusGlideHost(Modifier.fillMaxHeight().width(sheetWidth)) { Box(Modifier.fillMaxSize().onGloballyPositioned { sheetCoords = it }) {
             Column(

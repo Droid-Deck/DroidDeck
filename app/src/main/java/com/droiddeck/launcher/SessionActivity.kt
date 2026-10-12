@@ -790,13 +790,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             performBackAction(double = true)
             return
         }
+        if (SessionState.mode != SessionService.MODE_STEAM) {
+            performBackAction(double = false)
+            return
+        }
         val pending = Runnable {
             pendingBackAction = null
             performBackAction(double = false)
         }
         pendingBackAction = pending
-        // Wait 500 ms for a second Back press before performing the single-press action.
-        uiHandler.postDelayed(pending, 500L)
+        uiHandler.postDelayed(pending, ViewConfiguration.getDoubleTapTimeout().toLong())
     }
 
     private fun performBackAction(double: Boolean) {
