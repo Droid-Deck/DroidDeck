@@ -355,11 +355,12 @@ reap_orphans() {
 
 # Gamescope's Wayland backend does not forward the outer clipboard into Xwayland.
 # This helper owns only Android text selections and exits with this guest session.
-if [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
+if [ "${BL_DESKTOP:-}" != 1 ] && [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
   /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
 fi
 
-start_agent
+# KDE already has a session agent; starting another would race its request files.
+[ "${BL_DESKTOP:-}" = 1 ] || start_agent
 
 case $mode in
   desktop)
@@ -857,9 +858,16 @@ BUSCONF
     droiddeck-steam-compat "$steam_root" 2>&1 &
     # The client exits 42 when it has updated itself and wants a fresh start (steam.sh does this).
     # BL_STEAM_UI=desktop = the client's desktop UI (a window, the library as a list), which the
-    # desktop's launchers ask for; gamescope shows one window at a time and the game takes over.
+    # desktop's launchers ask for. KDE owns its windows when BL_DESKTOP=1.
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
+    _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
+    if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
+      # KDE uses QPainter/shm on Android. CEF's Vulkan buffers cannot be
+      # presented there; its software path keeps the library and dialogs on KDE.
+      _bl_cef=(-cef-disable-gpu)
+      _bl_ui=(-nobigpicture)
+    fi
     # Deck mode, always outside the desktop UI: -steamdeck is the flag that puts
     # the Quick Access Menu and the Deck settings pages on screen; the QAM's performance overlay
     # controls stay greyed out without -steamos3, as SteamOS and Armada launch it. -steamos3 makes
@@ -929,7 +937,7 @@ BUSCONF
         done
       ) &
     fi
-    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan $*"
+    echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-ozone-platform=x11 ${_bl_cef[*]} $*"
     # An update that cannot install asks for a restart (rc=42) every time; the count is capped so a
     # session can never again loop in silence, which reads as a menu opening and closing by itself.
     steam_updates=0
@@ -1020,8 +1028,7 @@ BUSCONF
         desktop_ui_pid=$!
       fi
       "$steam_root/steamrtarm64/steam" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
-        -no-cef-sandbox -cef-force-gpu -cef-ozone-platform=x11 \
-        -cef-use-gl=angle -cef-use-angle=vulkan "$@"
+        -no-cef-sandbox -cef-ozone-platform=x11 "${_bl_cef[@]}" "$@"
       rc=$?
       if [ -n "$desktop_ui_pid" ]; then
         kill "$desktop_ui_pid" 2>/dev/null || true

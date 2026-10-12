@@ -4,10 +4,8 @@
 #   droiddeck-steam-launch desktop [appid|steam-url]     Steam's desktop UI, optionally a game
 #   droiddeck-steam-launch bigpicture [appid|steam-url]  Big Picture
 #
-# The desktop (KDE Plasma) composites in software and has no dma-buf, so the client's own Vulkan
-# window - and any game it starts - would die at its first frame there. The request goes to the app
-# instead, which ends the desktop and starts a Steam session under gamescope in its place, as
-# SteamOS's desktop hands Steam back to Gaming Mode.
+# The desktop client stays on KDE's Xwayland. Big Picture is the explicit handoff
+# to the app's gaming session.
 set -u
 ui=${1:-desktop}
 target=${2:-}
@@ -19,6 +17,31 @@ case $target in
   *[!0-9]*) echo "not an app id or steam:// URL: $target" >&2; exit 64 ;;
   *) url=steam://rungameid/$target ;;
 esac
+
+if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
+  steam_root=${XDG_DATA_HOME:-${HOME:-/root}/.local/share}/Steam
+  export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+  # A second menu click forwards its URL to Steam's existing instance. Keep only
+  # one session supervisor, including while the client restarts for an update.
+  mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck"
+  exec 9>"${XDG_CACHE_HOME:-$HOME/.cache}/droiddeck/steam-desktop.lock"
+  if ! flock -n 9; then
+    # The supervisor may still be preparing Proton or updating Steam. Invoking
+    # the binary before its IPC pipe exists would start a competing client.
+    for ((attempt = 0; attempt < 180; attempt++)); do
+      pid=$(cat "$HOME/.steam/steam.pid" 2>/dev/null || true)
+      if [ -p "$HOME/.steam/steam.pipe" ] && [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+        exec "$steam_root/steamrtarm64/steam" -nobigpicture -no-cef-sandbox \
+          -cef-ozone-platform=x11 -cef-disable-gpu "${url:-steam://open/library}"
+      fi
+      sleep 0.5
+    done
+    echo "droiddeck-steam-launch: the desktop client did not become ready" >&2
+    exit 69
+  fi
+  export BL_INSIDE=1 BL_STEAM_UI=desktop
+  exec /usr/local/bin/droiddeck-session steam "${url:-steam://open/library}"
+fi
 
 # Ask the app for a Steam session.
 dir=${BL_LAUNCH_DIR:-}
