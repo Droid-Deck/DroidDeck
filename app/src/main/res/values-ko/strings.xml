@@ -296,8 +296,8 @@
     <string name="mode_sgdb_key">SteamGridDB API 키</string>
     <string name="mode_sgdb_key_yours">내 키</string>
     <string name="mode_sgdb_edit">편집…</string>
-    <string name="mode_added_art_hint">폴더 이름을 기준으로 누락된 이미지를 채웁니다. 게임 폴더의 cover.jpg, hero.jpg, logo.png 또는 icon.png가 우선적으로 사용됩니다.</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">Steam에서 먼저, 그다음 SteamGridDB에서 누락된 아트를 채웁니다. 게임 폴더의 cover.jpg, hero.jpg, logo.png 또는 icon.png가 우선적으로 사용됩니다.</string>
+    <string name="summary_remove_game">%1$s 제거</string>
     <string name="mode_added_remove_confirm">제거?</string>
     <string name="games_add">게임 추가</string>
     <string name="games_add_title">게임 추가:</string>
@@ -333,10 +333,10 @@
     <string name="wincomp_no_recommendation">게임 폴더에서 필요한 구성 요소를 가리키는 것이 없습니다.</string>
     <string name="wincomp_all">모든 구성 요소 (%1$d)</string>
     <string name="wincomp_installers">Windows 설치 프로그램 필요 (%1$d)</string>
-    <string name="wincomp_installers_note">이 항목들은 프리픽스 안에서 실제 설치 프로그램을 실행합니다(.NET, PhysX, XNA, 전체 Visual C++ 설치 프로그램 등). DroidDeck은 아직 지원하지 않으며 다음에 지원할 예정입니다.</string>
+    <string name="wincomp_installers_note">분해할 패키지가 들어 있지 않은 자체 설치 프로그램이며, 무엇을 설치하는지에 대한 기록이 아직 없습니다. 대부분은 Proton의 Mono가 이미 대신하는 오래된 런타임이며, 기록은 만들어지는 대로 추가됩니다.</string>
     <string name="wincomp_show">표시</string>
     <string name="wincomp_hide">숨기기</string>
-    <string name="wincomp_needs_installer">Windows 설치 프로그램 필요 (예정)</string>
+    <string name="wincomp_needs_installer">자체 설치 프로그램을 실행함 (아직 기록 없음)</string>
     <string name="wincomp_unsupported">아직 여기서 지원되지 않음</string>
     <string name="wincomp_loading">구성 요소를 불러오는 중…</string>
     <string name="wincomp_failed">설치할 수 없습니다: %1$s</string>

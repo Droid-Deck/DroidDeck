@@ -296,8 +296,8 @@
     <string name="mode_sgdb_key">Clave API de SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Tu clave</string>
     <string name="mode_sgdb_edit">Editar…</string>
-    <string name="mode_added_art_hint">Completa las imágenes que faltan según el nombre de la carpeta. Tus propios cover.jpg, hero.jpg, logo.png o icon.png en la carpeta del juego tienen prioridad.</string>
-    <string name="summary_remove_game">Remove %1$s</string>
+    <string name="mode_added_art_hint">Completa las imágenes que faltan desde Steam y luego SteamGridDB. Tus propios cover.jpg, hero.jpg, logo.png o icon.png en la carpeta del juego tienen prioridad.</string>
+    <string name="summary_remove_game">Quitar %1$s</string>
     <string name="mode_added_remove_confirm">¿Quitar?</string>
     <string name="games_add">Añadir juego</string>
     <string name="games_add_title">Añadir un juego:</string>
@@ -335,10 +335,10 @@
     <string name="wincomp_no_recommendation">Nada en la carpeta del juego apunta a un componente.</string>
     <string name="wincomp_all">Todos los componentes (%1$d)</string>
     <string name="wincomp_installers">Necesitan un instalador de Windows (%1$d)</string>
-    <string name="wincomp_installers_note">Estos ejecutan un instalador real dentro del prefijo (.NET, PhysX, XNA, los instaladores completos de Visual C++…). DroidDeck aún no puede hacerlo; es lo siguiente.</string>
+    <string name="wincomp_installers_note">Son instaladores propios, sin un paquete dentro que se pueda desmontar, y aún no hay grabación de lo que instalan. La mayoría son runtimes antiguos que el Mono de Proton ya cubre; las grabaciones se añaden a medida que se hacen.</string>
     <string name="wincomp_show">Mostrar</string>
     <string name="wincomp_hide">Ocultar</string>
-    <string name="wincomp_needs_installer">Necesita un instalador de Windows (próximamente)</string>
+    <string name="wincomp_needs_installer">Ejecuta su propio instalador (aún sin grabación)</string>
     <string name="wincomp_unsupported">Aún no compatible aquí</string>
     <string name="wincomp_loading">Cargando los componentes…</string>
     <string name="wincomp_failed">No se pudo instalar: %1$s</string>
