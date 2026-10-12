@@ -169,25 +169,6 @@ class RumbleComponentTest {
         assertFalse(shadowOf(vibrator).isVibrating)
     }
 
-    @Test fun deckHapticTicksPlayAloneButNeverCutAGameRumble() {
-        val pad = FakeMotors()
-        rumble.controllerMotors = { pad }
-        activeController(PAD_ID)
-        effect(strong = 0x5800, weak = 0x5800, ms = 15, slot = RumbleComponent.PULSE)
-        assertEquals(listOf(Triple(0x5800, 0x5800, 15L)), pad.played)
-        effect(strong = 0, weak = 0, ms = 0, slot = RumbleComponent.PULSE)
-        assertFalse(pad.vibrating)
-        effect(strong = 60000, weak = 60000, ms = 5000)  // a game's 0xEB rumble
-        effect(strong = 0x5800, weak = 0x5800, ms = 15, slot = RumbleComponent.PULSE)
-        effect(strong = 0, weak = 0, ms = 0, slot = RumbleComponent.PULSE)
-        assertEquals("a tick replaced the rumble", Triple(60000, 60000, 5000L), pad.played.last())
-        assertTrue("a haptic stop ended the rumble", pad.vibrating)
-        effect(strong = 0, weak = 0, ms = 0)
-        assertFalse(pad.vibrating)
-        effect(strong = 0x5800, weak = 0x5800, ms = 15, slot = RumbleComponent.PULSE)
-        assertEquals(Triple(0x5800, 0x5800, 15L), pad.played.last())
-    }
-
     @Test fun aFullStrengthEffectReachesTheMotorsUnscaled() {
         val pad = FakeMotors()
         rumble.controllerMotors = { pad }
@@ -216,6 +197,42 @@ class RumbleComponentTest {
         assertFalse(shadowOf(vibrator).isVibrating)
     }
 
+    @Test fun deckHapticsPlayOnThePhoneNeverOnTheController() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) pad else null }
+        activeController(PAD_ID)
+        haptic(db = 7, ms = 15)
+        assertTrue("a haptic tick did not play on the phone", shadowOf(vibrator).isVibrating)
+        assertTrue("a haptic tick reached the controller's motors", pad.played.isEmpty())
+        effect(strong = 40000, weak = 1000)
+        assertEquals(listOf(Triple(40000, 1000, 5000L)), pad.played)
+    }
+
+    @Test fun deckHapticsIgnoreThePhoneFallbackSetting() {
+        ControllerPrefs.setRumblePhoneFallback(context, false)
+        shadowOf(Looper.getMainLooper()).idle()
+        haptic(db = 0, ms = 15)
+        assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun deckHapticsPlayAtTheHigherSlidersStrength() {
+        val phone = FakeMotors()
+        RumbleComponent::class.java.getDeclaredField("phone").apply { isAccessible = true }.set(rumble, phone)
+        haptic(db = -5, ms = 15, side = DeckHaptics.LEFT)
+        haptic(db = 7, ms = 15, side = DeckHaptics.RIGHT)
+        haptic(db = -5, ms = 25, side = DeckHaptics.LEFT)
+        assertEquals(listOf(Triple(DeckHaptics.LOW_AMPLITUDE * 257, 0, 15L), Triple(255 * 257, 0, 15L), Triple(255 * 257, 0, 25L)), phone.played)
+    }
+
+    @Test fun aDeckHapticStopNeverEndsAGameRumble() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) pad else null }
+        activeController(PAD_ID)
+        effect()
+        haptic(db = 0, ms = 0)
+        assertTrue(pad.vibrating)
+    }
+
     @After fun clearActiveController() {
         for (slot in 0 until PadBridge.SLOTS) activeController(PadBridge.NO_CONTROLLER, slot)
     }
@@ -232,6 +249,9 @@ class RumbleComponentTest {
         RumbleComponent::class.java.getDeclaredMethod("buzz", i, i, i, i)
             .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot)
     }
+
+    private fun haptic(db: Int, ms: Int, side: Int = DeckHaptics.BOTH) =
+        effect(strong = db and 0xFFFF, weak = 0, ms = ms, slot = RumbleComponent.HAPTIC or side)
 
     private class FakeMotors : RumbleComponent.Motors {
         override val name = "fake pad"
