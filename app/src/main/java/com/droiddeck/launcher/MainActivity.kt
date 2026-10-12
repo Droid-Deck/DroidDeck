@@ -360,6 +360,7 @@ class MainActivity : ComponentActivity() {
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private var usbRoot by mutableStateOf<com.droiddeck.launcher.ui.UsbRootUi?>(null)
+    private var usbNeedsAccess by mutableStateOf(false)
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
     }
@@ -1340,6 +1341,7 @@ class MainActivity : ComponentActivity() {
                 deckyDownloadingBinary = decky.deckyDownloadingBinary,
                 deckyEnabled = decky.deckySupervisor, deckySessionRunning = SessionState.running,
                 usbRoot = if (mode == SessionService.MODE_STEAM) usbRoot else null,
+                usbNeedsAccess = mode == SessionService.MODE_STEAM && usbNeedsAccess,
             ),
             ModeSettingsActions(
                 onWifiDiscovery = { on ->
@@ -1391,6 +1393,9 @@ class MainActivity : ComponentActivity() {
                 onGameStorage = { path, label -> setGameStorage(path, label) },
                 onPickGameStorageFolder = {
                     pickGameStorage.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_game_storage), gameStorage.ifEmpty { null }))
+                },
+                onUsbAccess = {
+                    if (Build.VERSION.SDK_INT >= 30) startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
                 },
                 onUsbRoot = { on ->
                     SessionPrefs.setUsbRootEnabled(this, on)
@@ -1579,11 +1584,13 @@ class MainActivity : ComponentActivity() {
             ui.post { zramSupported = zram; zramCompression = zramOn }
             drivers.refreshDrivers()
             if (mode == SessionService.MODE_STEAM) refreshUsbRoot()
+            val needsAccess = GameStorage.usbNeedsAccess(this)
             val storage = GameStorage.options(this)
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
             val deckySupervisor = mode == SessionService.MODE_STEAM && DeckyManager.supervisorEnabled(this)
             ui.post {
                 storageOptions = storage
+                usbNeedsAccess = needsAccess
                 if (mode == SessionService.MODE_STEAM) {
                     decky.deckyInstalled = deckyInstalled
                     decky.deckySupervisor = deckySupervisor

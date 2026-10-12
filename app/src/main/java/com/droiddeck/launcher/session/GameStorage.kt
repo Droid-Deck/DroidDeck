@@ -29,7 +29,11 @@ object GameStorage {
             val name = UsbRootMount.label ?: context.getString(R.string.usb_root_volume)
             listOf(Option(context.getString(R.string.gstore_volume_free, name, free(dir)), dir.absolutePath, name))
         } else emptyList()
-        return usb + context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
+        val hidden = hiddenUsb(context).filter { it.canWrite() }.map { dir ->
+            val name = context.getString(R.string.usb_root_volume)
+            Option(context.getString(R.string.gstore_volume_free, name, free(dir)), File(dir, "steam").absolutePath, name)
+        }
+        return usb + hidden + context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
             val removable = try { Environment.isExternalStorageRemovable(dir) } catch (e: Exception) { false }
             if (!removable) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(dir) } catch (e: Exception) { null }
@@ -37,6 +41,25 @@ object GameStorage {
             Option(context.getString(R.string.gstore_volume_free, name, free(dir)), File(dir, "steam").absolutePath, name)
         }
     }
+
+    /**
+     * USB drives vold mounted at /mnt/media_rw but hides from apps (not SD cards, which are visible).
+     * Usable without root once All files access gives the app the external_storage group.
+     */
+    fun hiddenUsb(context: Context): List<File> {
+        // Volumes the app already has a /storage/<uuid> path for (SD cards) are offered through that.
+        val visible = context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { it.path.removePrefix("/storage/").substringBefore('/').takeIf { u -> u != "emulated" } }.toSet()
+        return try {
+            File("/proc/self/mountinfo").readLines().mapNotNull { it.split(' ').getOrNull(4) }
+                .filter { it.startsWith("/mnt/media_rw/") && it.count { c -> c == '/' } == 3 && it.substringAfterLast('/') !in visible }
+                .distinct().map(::File)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** A hidden USB drive is plugged in but the app may not use it yet. */
+    fun usbNeedsAccess(context: Context): Boolean = hiddenUsb(context).any { !it.canWrite() }
 
     fun free(dir: File): String = try {
         FileUtils.sizeToString(StatFs(dir.path).availableBytes)
