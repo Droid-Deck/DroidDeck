@@ -101,6 +101,7 @@ static int (*fs_real_shm_unlink)(const char *);
 static void *(*fs_real_mmap)(void *, size_t, int, int, int, off_t);
 static void *(*fs_real_mmap64)(void *, size_t, int, int, int, off64_t);
 static int (*fs_real_munmap)(void *, size_t);
+__attribute__((visibility("hidden"))) int bl_noexec_retry(int prot, int flags, int fd);
 
 static int fs_on(void) {
   if (fs_state < 0) {
@@ -623,6 +624,7 @@ void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off) {
   void *p;
   if (!fs_real_mmap) fs_real_mmap = (void *(*)(void *, size_t, int, int, int, off_t))dlsym(RTLD_NEXT, "mmap");
   p = fs_real_mmap(addr, len, prot, flags, fd, off);
+  if (p == MAP_FAILED && bl_noexec_retry(prot, flags, fd)) p = fs_real_mmap(addr, len, prot & ~PROT_EXEC, flags, fd, off);
   if (p != MAP_FAILED && __builtin_expect(fs_fd >= 0, 0)) fs_track(p, len, flags, fd, off);
   return p;
 }
@@ -631,6 +633,7 @@ void *mmap64(void *addr, size_t len, int prot, int flags, int fd, off64_t off) {
   void *p;
   if (!fs_real_mmap64) fs_real_mmap64 = (void *(*)(void *, size_t, int, int, int, off64_t))dlsym(RTLD_NEXT, "mmap64");
   p = fs_real_mmap64(addr, len, prot, flags, fd, off);
+  if (p == MAP_FAILED && bl_noexec_retry(prot, flags, fd)) p = fs_real_mmap64(addr, len, prot & ~PROT_EXEC, flags, fd, off);
   if (p != MAP_FAILED && __builtin_expect(fs_fd >= 0, 0)) fs_track(p, len, flags, fd, off);
   return p;
 }

@@ -92,8 +92,8 @@ android {
         // file out of its own data directory, and this app's entire job is to exec a rootfs:
         // proot, gamescope, the Steam client and everything it launches all live under files/.
         targetSdkVersion 28
-        versionCode 12
-        versionName "0.3.2"
+        versionCode 13
+        versionName "0.4.0"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -302,4 +302,7 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
+    testImplementation 'androidx.compose.ui:ui-test-junit4'
+    // The Android archive does not include the host natives used by JVM archive tests.
+    testRuntimeOnly 'com.github.luben:zstd-jni:1.5.2-3@jar'
 }

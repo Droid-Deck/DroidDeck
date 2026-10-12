@@ -24,8 +24,6 @@ class App : Application() {
         CrashHandler.install(this)
         // Optional: rumble for Razer Kishi pads over USB. Drop this line (and session/razer) to leave it out.
         com.droiddeck.launcher.session.RumbleProviders.register(com.droiddeck.launcher.session.razer.RazerKishiRumble)
-        // Before anything else touches the session prefs, so the first session already runs in Deck mode.
-        com.droiddeck.launcher.session.SessionPrefs.settleDeckModeDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
         GpuClockPin.clearLeftover(this)

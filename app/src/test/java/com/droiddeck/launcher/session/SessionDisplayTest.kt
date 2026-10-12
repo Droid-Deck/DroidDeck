@@ -38,6 +38,15 @@ class SessionDisplayTest {
         assertEquals(2560 to 1440, SessionDisplay.resolveChoice(2560 to 1440, SessionDisplay.MATCH_SCREEN))
     }
 
+    @Test fun unfoldedControlsKeepTheGameSixteenByNineAcrossTheWidth() {
+        // Fold inner screen held as a tablet, and upright: 16:9 either way, the controls the rest.
+        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
+        assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
+        // A window near 16:9 itself still leaves the controls a fifth of it.
+        assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
+    }
+
+
     @Test fun followScreenKeepsTheWindowShapeAndSkipsTinyWindows() {
         assertEquals(2520 to 1080, SessionDisplay.resolveChoice(1080 to 2520, SessionDisplay.FOLLOW_SCREEN))
         assertEquals(1968 to 2184, SessionDisplay.followSize(1968, 2184))

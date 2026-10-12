@@ -59,6 +59,7 @@ def required():
         paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libblsession.so']]
     paths += ['assets/linuxfs/x86_64/' + lib for lib in
               ['libfaultreport.so', 'libthunkaudit.so', 'libvulkan-thunk.so']]
+    paths += ['assets/linuxfs/i386/libfaultreport.so']
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-msitools/' + name for name in
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
     paths += ['assets/linuxfs/usr/local/lib/mangoapp/' + name for name in

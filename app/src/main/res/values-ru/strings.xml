@@ -254,6 +254,9 @@
     <string name="mode_controller">Контроллер</string>
     <string name="mode_controller_hint">Как Steam распознает ваш контроллер. Вступит в силу в следующей сессии.</string>
     <string name="mode_controller_deck">Контроллер Steam Deck</string>
+    <string name="mode_controller_steam">Steam Controller</string>
+    <string name="mode_controller_ds4">DualShock 4</string>
+    <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Контроллер Xbox 360</string>
     <string name="mode_controller_note">Deck: кнопка быстрого доступа и гироскоп. Xbox 360: используйте Guide+A для быстрого доступа.</string>
     <string name="mode_back">Назад</string>
@@ -281,16 +284,8 @@
     <string name="mode_decky_remove_title">Удалить Decky Loader?</string>
     <string name="mode_decky_remove_text">Удаляет загрузчик. Ваши плагины и настройки сохранятся.</string>
     <string name="mode_client">Клиент</string>
-    <string name="mode_deck_mode">Режим Steam Deck</string>
-    <string name="mode_deck_mode_hint">Интерфейс Steam Deck и управление производительностью через быстрый доступ. Вступит в силу в следующей сессии.</string>
     <string name="mode_mangoapp">Оверлей производительности</string>
     <string name="mode_mangoapp_hint">Отключите, если игры вылетают или показывают черный экран в режиме Deck. Вступит в силу в следующей сессии.</string>
-    <string name="mode_branch">Ветка клиента</string>
-    <string name="mode_branch_deck">Публичная бета Steam Deck (требуется для режима Deck).</string>
-    <string name="mode_branch_hint">Вступит в силу в следующей сессии. Steam может обновиться самостоятельно один раз.</string>
-    <string name="mode_branch_public">Публичная бета</string>
-    <string name="mode_branch_deck_beta">Публичная бета Steam Deck</string>
-    <string name="mode_branch_note">Режим Deck всегда использует публичную бету Steam Deck.</string>
     <string name="mode_steam_repair">Восстановить клиент Steam</string>
     <string name="mode_steam_repair_hint">При следующем запуске Steam клиент будет скачан заново. Используйте, если Steam зависает на экране загрузки. Игры, вход и настройки сохраняются.</string>
     <string name="mode_steam_repair_queued">Клиент Steam будет скачан заново при следующем запуске Steam.</string>
@@ -601,9 +596,6 @@
     <string name="setup_choose_home">Выбрать главный экран</string>
     <string name="setup_choose">Выбрать</string>
     <string name="setup_linux_apps">Приложения Linux (бета)</string>
-    <string name="setup_store">Магазин Flathub</string>
-    <string name="setup_store_on">Показывается в меню. Некоторые приложения могут не запускаться; журналы в Download/DroidDeck.</string>
-    <string name="setup_store_off">Устанавливать приложения и игры Linux из Flathub</string>
     <string name="setup_tool_files">Файлы</string>
     <string name="setup_tool_files_hint">Просмотр и управление файлами</string>
     <string name="setup_tool_protons">Версии Proton</string>
@@ -814,6 +806,8 @@
     <string name="ctrl_steam_button">Кнопка Steam</string>
     <string name="ctrl_qam_button">Кнопка QAM</string>
     <string name="ctrl_keyboard_button">Кнопка клавиатуры</string>
+    <string name="ctrl_select_steam">Нажмите Select, чтобы открыть меню Steam</string>
+    <string name="ctrl_select_steam_hint">Вместо View/Select.</string>
     <string name="setup_animations">Анимации</string>
     <string name="ctrl_adaptive_hint">Стики появляются в месте касания и исчезают после отпускания</string>
     <string name="ctrl_layout">Раскладка</string>

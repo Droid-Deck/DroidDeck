@@ -41,7 +41,7 @@ public final class LinuxRuntimeInstaller {
 
     /** Catalog row, beside the other component catalogs in winlator-contents. */
     public static final String CATALOG_URL =
-            "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/linuxfs.json";
+            "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/linuxfs.json";
 
     private static final String VERSION_FILE = ".version";
 

@@ -137,6 +137,11 @@ object DownloadQueue {
 
     private val lock = Any()
     private val items = LinkedHashMap<String, Item>()
+    /** Keys a restart brings back paused: queued as paused, not started. */
+    private val heldPaused = HashSet<String>()
+
+    /** [key]'s next [enqueue] comes in paused (a paused download restored after a restart). */
+    fun holdPaused(key: String) = synchronized(lock) { heldPaused.add(key) }
     private var running = 0
 
     fun parallel(context: Context): Int = SessionPrefs.gameStoresParallel(context)
@@ -171,7 +176,8 @@ object DownloadQueue {
         synchronized(lock) {
             items[entry.key]?.let { if (it.entry.isActive) { Log.i(TAG, "${entry.key}: already queued"); return } }
             items.remove(entry.key)
-            items[entry.key] = Item(entry.copy(state = DownloadState.QUEUED, stage = DownloadStage.MANIFEST, startedAt = System.currentTimeMillis()), factory)
+            val state = if (heldPaused.remove(entry.key)) DownloadState.PAUSED else DownloadState.QUEUED
+            items[entry.key] = Item(entry.copy(state = state, stage = DownloadStage.MANIFEST, startedAt = System.currentTimeMillis()), factory)
             renumber()
         }
         StoresState.logLine("${entry.store.label}: queued \"${entry.name}\"" + if (entry.bytesTotal > 0) " (${com.droiddeck.launcher.stores.formatBytes(entry.bytesTotal)})" else "")
@@ -306,6 +312,8 @@ object DownloadQueue {
             }
         }
         lastPublishAt = now
+        // A state change (not progress) is written down, so the queue outlives the app.
+        if (!progressOnly) SavedQueue.save(items.values.map { it.entry })
         val list = items.values.map { it.entry }.sortedByDescending { it.startedAt }
         StoresState.post { StoresState.publishDownloads(list) }
     }

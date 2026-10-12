@@ -48,6 +48,9 @@ object StoreState {
         private set
     var searching by mutableStateOf(false)
         private set
+
+    /** An app whose Flathub page was asked for from outside the store (its card on Desktop), once. */
+    var openRequest by mutableStateOf<String?>(null)
     private var searchSeq = 0
 
     val SECTIONS = listOf("popular" to R.string.store_section_popular, "trending" to R.string.store_section_trending, "recently-added" to R.string.store_section_new, "recently-updated" to R.string.store_section_updated)

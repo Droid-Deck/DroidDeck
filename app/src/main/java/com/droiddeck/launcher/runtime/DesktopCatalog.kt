@@ -20,12 +20,12 @@ import java.io.File
  */
 object DesktopCatalog {
     private const val TAG = "DesktopCatalog"
-    const val CATALOG_URL = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/desktop.json"
+    const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/desktop.json"
     /**
      * Valve's Proton Experimental (ARM64) with its appmanifest, laid out as the client keeps it.
      * In a catalog of its own so it never shows among the packages a user picks from.
      */
-    const val STEAM_SEED_URL = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/steam-seed.json"
+    const val STEAM_SEED_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/steam-seed.json"
     const val PROTON_SEED_ID = "proton-arm64"
 
     class Entry(
@@ -109,6 +109,9 @@ object DesktopCatalog {
         val root = LinuxRuntime.rootDir(context)
         return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists()
     }
+
+    /** The installed desktop's size on disk; off the main thread. */
+    fun desktopSize(context: Context): Long = DesktopRemoval.installedSize(context)
 
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) =
         DesktopRemoval.cleanLegacy(context, listener)

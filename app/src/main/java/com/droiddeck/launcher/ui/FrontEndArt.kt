@@ -56,8 +56,20 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import java.io.File
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 
 // Cover art: posters, the art grid and its tiles.
+
+/** Where each art tile sits, root px, by its key: a page opened from one floods out of it. */
+internal object TileBounds {
+    val at = HashMap<String, androidx.compose.ui.geometry.Rect>()
+
+    /** The page about to open came from tile [key] (its art or icon for the flood), if it is on screen. */
+    fun mark(key: String, art: Any?, corner: Float) {
+        at[key]?.let { PageOrigin.mark(Origin(it, corner, art = art)) }
+    }
+}
 
 internal class Tile(
     val title: String, val sub: String?, val art: File?, val key: String,
@@ -102,6 +114,7 @@ internal fun ArtGrid(tiles: List<Tile>, wide: Boolean = false) {
                         val src = remember { MutableInteractionSource() }
                         val hot = rememberHot(src)
                         val track = Modifier.paneItem("tile:" + t.key).then(if (t === tiles.first()) Modifier.firstTile() else Modifier)
+                            .onGloballyPositioned { TileBounds.at[t.key] = it.boundsInRoot() }
                         Box(modifier = Modifier.width(tileWidth).zIndex(if (hot) 1f else 0f)) { GameTile(t, wide, square, src, hot, track) }
                     }
                 }

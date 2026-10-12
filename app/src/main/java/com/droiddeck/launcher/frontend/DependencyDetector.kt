@@ -134,6 +134,9 @@ object DependencyDetector {
                 val lower = f.name.lowercase(Locale.US)
                 if (f.isDirectory) {
                     if (SKIP_DIR_RE.matches(lower)) continue
+                    // Unity's <Game>_Data/Managed holds the game's own Mono assemblies, not a .NET
+                    // Framework to install.
+                    if (lower == "managed" && dir.name.endsWith("_Data", ignoreCase = true)) continue
                     val isRedistDir = insideRedist || REDIST_DIR_RE.matches(lower)
                     if (isRedistDir) consider(f, isDir = true, insideRedist = true)
                     // Aggressive coverage: descend redist containers fully, and otherwise sweep the game
@@ -156,6 +159,19 @@ object DependencyDetector {
             emptyList()
         }
     }
+
+    /**
+     * The catalog components one installer stands for, by its path ("_CommonRedist/vcredist/2015/
+     * vc_redist.x64.exe", "DXSETUP.exe"): what a store's install list names. A VC++ installer
+     * with no year is the latest; empty for one that is none of ours.
+     */
+    fun componentsFor(path: String): List<String> {
+        val p = path.replace('\\', '/').lowercase(Locale.US)
+        return classify(p, p.substringAfterLast('/'), isDir = false).map { if (it == VCREDIST_LOOSE) "vcredist2022" else it }
+    }
+
+    /** The name the catalog component [name] goes by, for a reason line. */
+    fun label(name: String): String = LABELS[name] ?: name
 
     /** A loose VC++ installer resolves to the latest 14.x only if no specific vcredistYYYY was found. */
     private fun resolveLooseVcredist(hits: LinkedHashMap<String, Recommendation>) {

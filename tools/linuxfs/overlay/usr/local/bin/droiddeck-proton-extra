@@ -4,14 +4,15 @@
 #
 #   droiddeck-proton-extra <steam root> ge [--tag GE-Proton11-7]
 #   droiddeck-proton-extra <steam root> cachyos [--tag cachyos-11.0-20260703-slr]
+#   droiddeck-proton-extra <steam root> droiddeck [--tag DroidDeck-Proton-11-7.5]
 #   droiddeck-proton-extra <steam root> <url of an aarch64 tarball>
 #   droiddeck-proton-extra <steam root> /path/to/an/aarch64/tarball
 #   droiddeck-proton-extra <steam root> --list          what is installed now
 #
-# Both projects publish native ARM64 builds - GloriousEggroll as "*-aarch64.tar.gz", CachyOS as
-# "*-arm64.tar.xz" - and both are ordinary Proton trees: a python entry point beside a files/
-# directory holding Wine, DXVK and VKD3D. That is the same shape as the depot the Steam client
-# downloads, so the runtime can run them the same way.
+# All three projects publish native ARM64 builds - GloriousEggroll and DroidDeck-Proton as
+# "*-aarch64.tar.gz", CachyOS as "*-arm64.tar.xz" - and all are ordinary Proton trees: a python
+# entry point beside a files/ directory holding Wine, DXVK and VKD3D. That is the same shape as the
+# depot the Steam client downloads, so the runtime can run them the same way.
 #
 # What it cannot use is their toolmanifest. Like Valve's ARM64 depot they declare
 # require_tool_appid, which makes Steam stack pressure-vessel underneath - and pressure-vessel
@@ -30,11 +31,12 @@ import urllib.request
 
 RELEASES = "https://api.github.com/repos/%s/releases"
 # Each source: the GitHub repo, and how its ARM64 asset is named. Ordered newest-release-first by
-# the API, so "latest usable" is the first release that actually carries an ARM64 asset - the
+# the API, so "latest usable" is the first full release that actually carries an ARM64 asset - the
 # projects do not build one for every tag.
 SOURCES = {
     "ge": ("GloriousEggroll/proton-ge-custom", re.compile(r"aarch64\.tar\.(gz|xz)$")),
     "cachyos": ("CachyOS/proton-cachyos", re.compile(r"arm64\.tar\.(gz|xz)$")),
+    "droiddeck": ("The412Banner/DroidDeck-Proton", re.compile(r"aarch64\.tar\.(gz|xz)$")),
 }
 USER_AGENT = "droiddeck-proton-extra"
 # Room for the tarball and the tree it unpacks to. GE-Proton's aarch64 build is ~650 MB packed and
@@ -54,10 +56,10 @@ def fetch_json(url):
 
 
 def pick_asset(source):
-    """(release tag, asset url, sha512 url or None) for the newest release with an ARM64 build."""
+    """(release tag, asset url, sha512 url or None) for the newest full release with an ARM64 build."""
     repo, pattern = SOURCES[source]
     for release in fetch_json(RELEASES % repo + "?per_page=15"):
-        if release.get("draft"):
+        if release.get("draft") or release.get("prerelease"):
             continue
         assets = {a["name"]: a["browser_download_url"] for a in release.get("assets", ())}
         for name in sorted(assets):
@@ -144,7 +146,7 @@ def installed(tools):
 def main():
     argv = sys.argv[1:]
     if not argv:
-        raise SystemExit(__doc__ or "usage: droiddeck-proton-extra <steam root> ge|cachyos|<url>")
+        raise SystemExit(__doc__ or "usage: droiddeck-proton-extra <steam root> ge|cachyos|droiddeck|<url>")
     steam_root = argv.pop(0)
     tools = os.path.join(steam_root, "compatibilitytools.d")
     os.makedirs(tools, exist_ok=True)
@@ -176,7 +178,7 @@ def main():
         log("using %s" % what)
     else:
         raise SystemExit(
-            "droiddeck-proton-extra: expected ge, cachyos, a URL or a tarball path, got %r" % what)
+            "droiddeck-proton-extra: expected ge, cachyos, droiddeck, a URL or a tarball path, got %r" % what)
 
     free = shutil.disk_usage(tools).free
     if free < NEED_BYTES:

@@ -3,11 +3,9 @@
 # The client is not redistributable, so the runtime ships this script instead of the client.
 set -eu
 cdn=https://client-update.fastly.steamstatic.com
-steam_channel=${BL_STEAM_CHANNEL:-steamdeck_publicbeta}
-case "$steam_channel" in
-  publicbeta|steamdeck_publicbeta) ;;
-  *) echo "droiddeck-steam-install: unsupported Steam channel: $steam_channel" >&2; exit 1 ;;
-esac
+# The Deck's beta branch, which droiddeck-session forces on the command line too. A client already
+# on disk from another branch is left for the client to move (droiddeck-session's package/beta).
+steam_channel=steamdeck_publicbeta
 manifest=steam_client_${steam_channel}_linuxarm64
 steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
 stamp=$steam_root/package/droiddeck-installed
