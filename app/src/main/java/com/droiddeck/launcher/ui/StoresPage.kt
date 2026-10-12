@@ -311,6 +311,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             val mark = StoresMotion.takeCard(g)
             detailFrom = mark?.let { Origin(it.bounds.translate(-viewportAt), it.corner) }
             detailArt = mark?.art
+            StoresMotion.heroLands = mark != null
             leaving = false
             detail = g
         } else if (detail != null) {
@@ -450,7 +451,9 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                 },
                             )
                         }
-                        PageFlood(from, leaving, art) { body() }
+                        // Onto the page's own hero art, not the whole pane: grown to the pane, the art
+                        // then cut down to the hero's banner (and back out to the pane to close).
+                        PageFlood(from, leaving, art, onto = { StoresMotion.heroAt }, ontoCorner = 16.dp) { body() }
                     }
                 }
             }

@@ -30,7 +30,9 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.coroutineScope
@@ -109,6 +111,14 @@ internal fun PageFlood(
     /** What the tile shows instead of the control's fill: a game card's art, cropped to the tile as it grows. */
     art: Painter? = null,
     sinks: Boolean = false,
+    /**
+     * Where on the page the control's tile lands (root px), when the page has its own picture of
+     * the control - a game page's hero art: the tile grows onto it instead of over the whole pane,
+     * corner to corner ([ontoCorner] there), and the page comes in around it. Back leaves from it.
+     * Null, or off screen: the pane, as any page.
+     */
+    onto: (() -> Rect?)? = null,
+    ontoCorner: androidx.compose.ui.unit.Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -118,6 +128,10 @@ internal fun PageFlood(
     val shown = remember { Animatable(0f) }
     val tile = remember { Animatable(1f) }
     var size by remember { mutableStateOf(Size.Zero) }
+    var at by remember { mutableStateOf(Offset.Zero) }
+    // Where this flood lands (in its own space), read as it opens and again as it leaves.
+    var target by remember { mutableStateOf<Rect?>(null) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
     LaunchedEffect(size != Size.Zero, leaving, sinks) {
         if (sinks) {
             // Whatever the flood in was doing, the page is shown whole and leaves with the pane.
@@ -128,6 +142,30 @@ internal fun PageFlood(
         }
         if (size == Size.Zero) return@LaunchedEffect
         glide?.hidden = true
+        // The page lays out under the tile at once, so its picture is there within a frame or two.
+        target = onto?.let { get ->
+            kotlinx.coroutines.withTimeoutOrNull(300) { snapshotFlow { get() }.first { it != null } }
+        }?.translate(-at)?.takeIf { it.height > 1f && it.overlaps(Rect(Offset.Zero, size)) }
+        if (target != null) {
+            coroutineScope {
+                if (!leaving) {
+                    // Onto the page's picture, every edge together on one firm spring: no blob, and
+                    // nowhere to go past it.
+                    val runs = edges.map { launch { it.animateTo(1f, Motion.sp(0.85f, 320f)) } }
+                    snapshotFlow { edges.all { it.value >= 0.9f } }.first { it }
+                    launch { shown.animateTo(1f, Motion.tw(240)) }
+                    launch { delay(Motion.ms(140).toLong()); tile.animateTo(0f, Motion.tw(220)) }
+                    runs.forEach { it.join() }
+                } else {
+                    launch { shown.animateTo(0f, Motion.tw(160)) }
+                    tile.animateTo(1f, Motion.tw(120))
+                    edges.map { launch { it.animateTo(0f, Motion.sp(0.9f, 320f)) } }.forEach { it.join() }
+                    tile.animateTo(0f, Motion.tw(120))
+                }
+            }
+            glide?.hidden = false
+            return@LaunchedEffect
+        }
         val b = from.bounds
         val travel = listOf(b.left, b.top, size.width - b.right, size.height - b.bottom).map { it.coerceAtLeast(0f) }
         val far = travel.max().coerceAtLeast(1f)
@@ -160,10 +198,16 @@ internal fun PageFlood(
         glide?.hidden = false
     }
     DisposableEffect(Unit) { onDispose { glide?.hidden = false } }
-    Box(Modifier.fillMaxSize().clipToBounds().onSizeChanged { size = Size(it.width.toFloat(), it.height.toFloat()) }) {
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = shown.value; translationY = (1f - shown.value) * 14.dp.toPx() }) { content() }
+    Box(
+        Modifier.fillMaxSize().clipToBounds().onSizeChanged { size = Size(it.width.toFloat(), it.height.toFloat()) }
+            .onGloballyPositioned { at = it.positionInRoot() },
+    ) {
+        // Landing on the page's picture, the page must not rise: its picture would move off the tile.
+        val rise = if (onto != null) 0f else 1f
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = shown.value; translationY = (1f - shown.value) * 14.dp.toPx() * rise }) { content() }
+        val onCorner = with(density) { ontoCorner.toPx() }
         Canvas(Modifier.fillMaxSize()) {
-            if (tile.value > 0.01f) drawTile(from, edges.map { it.value }, pal.surface, pal.line2, tile.value, art)
+            if (tile.value > 0.01f) drawTile(from, edges.map { it.value }, pal.surface, pal.line2, tile.value, art, target, onCorner)
         }
     }
 }
@@ -172,22 +216,33 @@ internal fun PageFlood(
  * The control's tile with its edges [v] of the way to the pane's (left, top, right, bottom):
  * sinking with the page behind, blobby in flight, square once it fills the pane.
  */
-private fun DrawScope.drawTile(from: Origin, v: List<Float>, fill: Color, line: Color, alpha: Float, art: Painter? = null) {
+private fun DrawScope.drawTile(
+    from: Origin, v: List<Float>, fill: Color, line: Color, alpha: Float, art: Painter? = null,
+    /** Lands on this instead of the pane (a page's picture of the control), corner [toCorner]. */
+    to: Rect? = null, toCorner: Float = 0f,
+) {
     val (l, t, r, b) = v
     val mean = v.sumOf { it.coerceIn(0f, 1f).toDouble() }.toFloat() / 4f
-    // The control sinks with the page behind it (scaled to 0.95 about the pane's centre).
-    val k = 1f - 0.05f * mean
-    val cx = size.width / 2f
-    val cy = size.height / 2f
     val f = from.bounds
-    val left = lerp(cx + (f.left - cx) * k, 0f, l)
-    val top = lerp(cy + (f.top - cy) * k, 0f, t)
-    val right = lerp(cx + (f.right - cx) * k, size.width, r)
-    val bottom = lerp(cy + (f.bottom - cy) * k, size.height, b)
+    val left: Float; val top: Float; val right: Float; val bottom: Float
+    if (to != null) {
+        left = lerp(f.left, to.left, l); top = lerp(f.top, to.top, t)
+        right = lerp(f.right, to.right, r); bottom = lerp(f.bottom, to.bottom, b)
+    } else {
+        // The control sinks with the page behind it (scaled to 0.95 about the pane's centre).
+        val k = 1f - 0.05f * mean
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        left = lerp(cx + (f.left - cx) * k, 0f, l)
+        top = lerp(cy + (f.top - cy) * k, 0f, t)
+        right = lerp(cx + (f.right - cx) * k, size.width, r)
+        bottom = lerp(cy + (f.bottom - cy) * k, size.height, b)
+    }
     val w = (right - left).coerceAtLeast(0f)
     val h = (bottom - top).coerceAtLeast(0f)
-    val blob = sin(PI * mean).toFloat().coerceAtLeast(0f)
-    val corner = lerp(from.corner * (1f - mean), minOf(w, h) * 0.42f, blob)
+    // Onto a picture it keeps a card's shape, corner to corner; over the pane it blobs in flight.
+    val corner = if (to != null) lerp(from.corner, toCorner, mean).coerceAtMost(minOf(w, h) / 2f)
+    else lerp(from.corner * (1f - mean), minOf(w, h) * 0.42f, sin(PI * mean).toFloat().coerceAtLeast(0f))
     drawRoundRect(fill, Offset(left, top), Size(w, h), CornerRadius(corner), alpha = alpha)
     val pic = art?.intrinsicSize?.takeIf { it.isSpecified && it.width > 0f && it.height > 0f }
     if (art != null && pic != null && w > 0f && h > 0f) {
