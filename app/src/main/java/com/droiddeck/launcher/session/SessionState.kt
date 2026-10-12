@@ -43,6 +43,30 @@ object SessionState {
     var running = false
     @Volatile
     var runtimeDriver: String? = null
+    @Volatile
+    var stopping = false
+        private set
+
+    @Synchronized
+    fun tryStart(): Boolean {
+        if (running || stopping) return false
+        running = true
+        return true
+    }
+
+    @Synchronized
+    fun beginStop(): Boolean {
+        if (!running || stopping) return false
+        stopping = true
+        running = false
+        return true
+    }
+
+    @Synchronized
+    fun finishStop() {
+        stopping = false
+    }
+
     var suspended by mutableStateOf(false)
     @Volatile var pipActive = false
     @Volatile

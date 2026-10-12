@@ -156,7 +156,9 @@ public final class LinuxRuntimeInstaller {
     }
 
     public static Maintenance beginMaintenance(Context context, String stage) {
-        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning()) return null;
+        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning() ||
+                com.droiddeck.launcher.session.SessionState.INSTANCE.getStopping() ||
+                com.droiddeck.launcher.session.OrphanReaper.hasSessionProcesses()) return null;
         com.droiddeck.launcher.session.SessionPhase phase = com.droiddeck.launcher.session.SessionState.INSTANCE.getPhase();
         if (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED) return null;
         synchronized (JOB_LOCK) {
@@ -367,7 +369,9 @@ public final class LinuxRuntimeInstaller {
     }
 
     public static Removal beginUninstall(Context context) {
-        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning()) return null;
+        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning() ||
+                com.droiddeck.launcher.session.SessionState.INSTANCE.getStopping() ||
+                com.droiddeck.launcher.session.OrphanReaper.hasSessionProcesses()) return null;
         com.droiddeck.launcher.session.SessionPhase phase = com.droiddeck.launcher.session.SessionState.INSTANCE.getPhase();
         if (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED) return null;
         return beginUninstall(context.getApplicationContext(), LinuxRuntime.rootDir(context));
