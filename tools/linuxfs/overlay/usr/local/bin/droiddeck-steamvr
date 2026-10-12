@@ -51,7 +51,7 @@ install)
     mkdir -p "$cache"
     pkg=$cache/steamvr.pkg.tar.zst
     echo "downloading SteamVR (571 MB) from Valve's package server"
-    curl -fL --retry 5 -C - -o "$pkg" "$PKG_URL" || { echo "download failed"; exit 1; }
+    curl -fsSL --retry 5 -C - -o "$pkg" "$PKG_URL" || { echo "download failed"; exit 1; }
     echo "$PKG_SHA256  $pkg" | sha256sum -c - >/dev/null 2>&1 || { echo "checksum mismatch: removing the download"; rm -f "$pkg"; exit 1; }
     tmp=$cache/extract
     rm -rf "$tmp" && mkdir -p "$tmp"
