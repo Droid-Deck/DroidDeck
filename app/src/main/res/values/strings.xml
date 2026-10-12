@@ -2087,6 +2087,8 @@
     <string name="stores_play">Play</string>
     <string name="stores_install">Install</string>
     <string name="stores_resume_install">Resume install</string>
+    <!-- A Downloads row for an install that stopped when the app closed: it can be resumed -->
+    <string name="stores_dl_interrupted">Interrupted</string>
     <string name="stores_install_size">Install · %1$s</string>
     <string name="stores_get_free">Get for free</string>
     <string name="stores_view_on">View on %1$s</string>

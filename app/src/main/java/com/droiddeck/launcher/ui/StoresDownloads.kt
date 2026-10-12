@@ -113,8 +113,16 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
     // download's kept files stay until its game page's Clear).
     val (active, finished) = entries.partition { it.isActive }
     val finishedShown = if (clearing) emptyList() else finished
+    // Installs that stopped without the queue knowing (the app closed or was killed): the queue
+    // lives in memory, so after a restart they were only on their game's page. They resume here too.
+    val queued = entries.mapTo(HashSet()) { it.key }
+    val interrupted = StoresState.unfinished.mapNotNull { u ->
+        StoresState.library[u.store]?.firstOrNull {
+            u.id == it.id || (u.id == null && u.folder.name == com.droiddeck.launcher.stores.StoreInstallRoot.folderName(it.title, it.id))
+        }
+    }.filter { "${it.store.id}:${it.id}" !in queued }.distinctBy { "${it.store.id}:${it.id}" }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        AnimatedVisibility(entries.isEmpty(), enter = fadeIn(Motion.tw(300, 300)), exit = fadeOut(Motion.tw(120))) {
+        AnimatedVisibility(entries.isEmpty() && interrupted.isEmpty(), enter = fadeIn(Motion.tw(300, 300)), exit = fadeOut(Motion.tw(120))) {
             Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.stores_downloads_empty), fontSize = 13.sp, color = colors.onSurfaceVariant)
             }
@@ -135,6 +143,11 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
                 else shrinkHorizontally(Motion.tw(260), shrinkTowards = Alignment.End) + shrinkVertically(Motion.tw(300, 120)) + fadeOut(Motion.tw(200, 80))
             },
         ) { row, _ -> DownloadCard(StoresState.download(row.key) ?: row, s, a) }
+        AnimatedRows(
+            interrupted, key = { "${it.store.id}:${it.id}" },
+            enter = { i, _ -> fadeIn(Motion.tw(300, 60 * i.coerceAtMost(5))) + expandVertically(Motion.tw(260)) },
+            exit = { _, _, _ -> fadeOut(Motion.tw(160)) + shrinkVertically(Motion.tw(220, 60)) },
+        ) { item, _ -> InterruptedRow(item) }
         AnimatedVisibility(
             finishedShown.isNotEmpty(),
             enter = expandVertically(Motion.tw(260)) + fadeIn(Motion.tw(220)),
@@ -169,6 +182,24 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
             val d = StoresState.download(row.key) ?: row
             if (d.state == DownloadState.FAILED) DownloadCard(d, s, a) else FinishedRow(d, s, a, bloom = later)
         }
+    }
+}
+
+/** An install that stopped before it finished, from an earlier run: Resume picks it up, Clear deletes what it had. */
+@Composable
+private fun InterruptedRow(item: com.droiddeck.launcher.stores.CatalogItem) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        SourceChip(item.store.id, small = true)
+        Text(stringResource(R.string.stores_dl_interrupted), fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1)
+        Spacer(Modifier.weight(1f))
+        ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
+        SecondaryButton(stringResource(R.string.stores_resume), compact = true) { StoresState.requestInstall(ctx, item) }
     }
 }
 
