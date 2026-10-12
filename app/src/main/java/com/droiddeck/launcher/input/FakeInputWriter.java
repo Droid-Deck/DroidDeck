@@ -567,6 +567,16 @@ public class FakeInputWriter {
     }
 
     /**
+     * Whether the pad, as the Steam client now sees it, has a Quick Access button: a Deck's or a
+     * Steam Controller's does, an Xbox or PlayStation pad's does not (libfakeinput drops the bit).
+     * Unset is the Deck, libfakeinput's default.
+     */
+    public static boolean padHasQam() {
+        int type = padType;
+        return type < 0 || type == PAD_TYPE_DECK || type == PAD_TYPE_STEAM;
+    }
+
+    /**
      * Switches what the pad is to the Steam client while the session runs ([PAD_TYPE_DECK],
      * [PAD_TYPE_STEAM] or [PAD_TYPE_XBOX]); libfakeinput unplugs the old device and plugs in the new.
      */
