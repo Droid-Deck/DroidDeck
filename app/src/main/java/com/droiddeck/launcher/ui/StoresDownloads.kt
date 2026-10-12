@@ -48,6 +48,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -93,17 +94,10 @@ import com.droiddeck.launcher.stores.formatSpeed
 
 // The Downloads chip: one queue for the three stores, its settings and the engine log.
 
+/** The queue. Its settings (speed tier, downloads at a time) live in the chip row's cog only. */
 @Composable
 internal fun StoresDownloadsPane(s: FrontEndState, a: FrontEndActions) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val wide = maxWidth >= 700.dp
-        val list: @Composable () -> Unit = { DownloadList(s, a) }
-        val side: @Composable () -> Unit = { DownloadSettings(s, a) }
-        if (wide) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Box(Modifier.weight(3f)) { list() }
-            Box(Modifier.weight(2f)) { side() }
-        } else Column { list(); side() }
-    }
+    DownloadList(s, a)
 }
 
 @Composable
@@ -453,21 +447,9 @@ private fun eta(seconds: Long): String = when {
     else -> "~${seconds / 3600} h ${(seconds % 3600) / 60} m"
 }
 
-/** The queue's settings beside it: speed tier, downloads at a time, and the engine log. */
-@Composable
-private fun DownloadSettings(s: FrontEndState, a: FrontEndActions) {
-    val ctx = LocalContext.current
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    SectionTitle(stringResource(R.string.stores_download_manager), null)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface).border(1.dp, pal.line, Shape12).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        DownloadControls(s, a)
-    }
-}
-
 /**
  * The queue's two knobs on one line - the speed tier on the left, downloads at a time on the
- * right; the same control sits in the cog's popup. A narrow page puts them on two tight lines.
+ * right; it sits in the cog's popup. A narrow page puts them on two tight lines.
  */
 @Composable
 internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
@@ -500,7 +482,7 @@ internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
  */
 internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color): StepAsk =
     StepAsk(
-        anchor = at, side = StepSide.Left, accent = accent, items = 3, maxWidth = 440.dp,
+        anchor = at, side = StepSide.Left, accent = accent, items = 2, maxWidth = 440.dp,
         handle = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Settings, null, tint = accent, modifier = Modifier.size(20.dp)) },
     ) {
         StepTitle(stringResource(R.string.stores_settings_eyebrow))
@@ -509,11 +491,12 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             val st = s.value
+            // No OK: B or a tap outside folds it, and a pad starts on the first choice.
             SettingsRow(stringResource(R.string.setup_stores_open_on), null, stacked = true) {
-                SegmentedTabs(
+                Box(Modifier.focusRequester(first).focusGroup()) { SegmentedTabs(
                     listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
                     st.storesOpenTab,
-                ) { a.onStoresOpenTab(it) }
+                ) { a.onStoresOpenTab(it) } }
             }
             SettingsRow(stringResource(R.string.stores_show_mature), null) {
                 ToggleSwitch(st.storesShowMature, label = stringResource(R.string.stores_show_mature)) { a.onStoresShowMature(it) }
@@ -521,8 +504,5 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
             // The queue's two knobs as one compact row, the same control the Downloads page has.
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
             StoresEngineRow()
-        }
-        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth().stepItem(2).padding(top = 8.dp)) {
-            StepChoice(stringResource(R.string.common_ok), enabled = open, modifier = Modifier.focusRequester(first)) { StoresMotion.fold() }
         }
     }

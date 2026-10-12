@@ -597,22 +597,15 @@ private fun StoreChips(
             for (store in Store.entries) {
                 val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
                 StoreChip(
-                    label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id,
+                    label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
                     modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
                     lead = {
                         val c = sourceColours(store.id)
-                        // A store's dot pulses once when it is picked signed in, and when a sign-in lands.
-                        var picked by remember { mutableStateOf(0) }
-                        val on = selected == store.id
-                        val wasOn = remember { booleanArrayOf(on) }
-                        LaunchedEffect(on) {
-                            if (on && !wasOn[0] && signedIn) picked++
-                            wasOn[0] = on
-                        }
+                        // A store's dot pulses when a sign-in lands (and, with the chip's lead, when picked).
                         Box(
                             Modifier.size(12.dp)
                                 .onGloballyPositioned { StoresMotion.dots[store] = it.boundsInRoot() }
-                                .pulseRing(picked + (StoresMotion.pulses[store] ?: 0), c.dot),
+                                .pulseRing(StoresMotion.pulses[store] ?: 0, c.dot),
                         ) { Box(Modifier.matchParentSize().clip(CircleShape).background(c.dot).alpha(if (signedIn) 1f else 0.35f)) }
                     },
                     description = store.label + if (signedIn) "" else " " + stringResource(R.string.stores_chip_signed_out),
@@ -620,7 +613,7 @@ private fun StoreChips(
                 ) { onStore(store, rootBounds[store.id]) }
             }
             StoreChip(
-                label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS,
+                label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
                 modifier = Modifier.weight(1f).onGloballyPositioned {
                     bounds[DOWNLOADS] = it.boundsInParent()
                     StoresMotion.downloadsChip = it.boundsInRoot()
@@ -641,7 +634,7 @@ private fun StoreChips(
 
 @Composable
 private fun StoreChip(
-    label: String, on: Boolean, under: Boolean, key: String, modifier: Modifier, lead: @Composable () -> Unit,
+    label: String, on: Boolean, under: Boolean, key: String, mark: Color, modifier: Modifier, lead: @Composable () -> Unit,
     trail: (@Composable () -> Unit)? = null, description: String? = null,
     onFocused: (String?) -> Unit = {}, onClick: () -> Unit,
 ) {
@@ -654,6 +647,15 @@ private fun StoreChip(
     val scale by animateFloatAsState(if (pressed) 0.95f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "chipScale")
     val shape = RoundedCornerShape(99.dp)
     val ink = if (on) colors.onBackground else if (hot) colors.onBackground else colors.onSurfaceVariant
+    // The chip whose page shows: a bar of its colour along the pill's foot, not an outline or a
+    // fill, so it never reads as focus. Picking it pulses its lead (a store's dot, Downloads' icon).
+    val shown by animateFloatAsState(if (on) 1f else 0f, Motion.tw(if (on) 140 else 100), label = "chipShown")
+    var picked by remember { mutableStateOf(0) }
+    val wasOn = remember { booleanArrayOf(on) }
+    LaunchedEffect(on) {
+        if (on && !wasOn[0]) picked++
+        wasOn[0] = on
+    }
     // The row's glide draws the look of the chip [under] it, so that one draws no rest state of its own.
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
@@ -664,13 +666,23 @@ private fun StoreChip(
             }
             .heightIn(min = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
             .background(if (under) Color.Transparent else colors.surface)
+            .drawWithContent {
+                drawContent()
+                if (shown > 0.01f) {
+                    val h = 3.dp.toPx()
+                    val w = size.width * 0.36f
+                    drawRect(mark, Offset((size.width - w) / 2f, size.height - h), androidx.compose.ui.geometry.Size(w, h), alpha = shown)
+                }
+            }
             .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides ink) { lead() }
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides ink) {
+            Box(Modifier.pulseRing(picked, mark), contentAlignment = Alignment.Center) { lead() }
+        }
         Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         trail?.invoke()
     }
