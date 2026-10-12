@@ -159,7 +159,7 @@ class ModeSettingsActions(
  * Session (its Files chip is the Desktop page's own).
  */
 internal fun modeSheetTabs(steam: Boolean): List<String> =
-    if (steam) listOf(SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY, SheetTab.STEAM)
+    if (steam) listOf(SheetTab.STEAM, SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY)
     else listOf(SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.SESSION)
 
 /** A sheet tab's chip label. */
@@ -182,6 +182,8 @@ class SheetExtras(
     val frameGen: @Composable () -> Unit = {},
     val performance: @Composable () -> Unit = {},
     val drivers: @Composable (summary: String?) -> Unit = {},
+    /** The Steam tab's account rows (offline mode), from the front end's own state. */
+    val account: @Composable (host: MenuHost) -> Unit = {},
 )
 
 /** One tab of a mode's lifted sheet: the rows the settings page had, grouped by what they are for. */
@@ -360,6 +362,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         }
     }
     if (tab == SheetTab.STEAM && steam) {
+        extras.account(host)
         SettingsGroup(stringResource(R.string.mode_decky)) {
             val updateAvailable = s.deckyInstalled != null && s.deckyLatestRelease != null &&
                 s.deckyInstalled != s.deckyLatestRelease.tag
