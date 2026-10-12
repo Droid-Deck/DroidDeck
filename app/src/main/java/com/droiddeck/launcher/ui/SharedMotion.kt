@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -66,6 +67,10 @@ internal fun BoxScope.ChipGlide(
     val start = remember { Animatable(Float.NaN) }
     val end = remember { Animatable(0f) }
     val pinch = remember { Animatable(0f) }
+    // With a pad the focus ring fills what it holds, and is the only fill: a selection of the
+    // row's own, sliding on its own beat, trailed the ring and sat on items the pad had left.
+    val pad = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard
+    @Suppress("NAME_SHADOWING") val visible = visible && !pad
     val shown = remember { Animatable(if (visible) 1f else 0f) }
     val visibleNow = rememberUpdatedState(visible)
     LaunchedEffect(visible) { shown.animateTo(if (visible) 1f else 0f, Motion.tw(if (visible) 160 else 120)) }
@@ -129,6 +134,28 @@ internal fun BoxScope.ChipGlide(
                 tint.value.copy(alpha = outline * (1f - p) * a), at0 + Offset(inset, inset), Size(size.width - w, size.height - w),
                 CornerRadius((r.x - inset).coerceAtLeast(0f)), style = Stroke(w),
             )
+        }
+    }
+}
+
+/**
+ * The chosen one of a row of chips (or a column, [vertical]): a short bar of [color] along its foot
+ * (or its start edge). Not a fill or an outline, so it never reads as focus; with a pad the ring's
+ * own infill is the only fill. Goes inside the chip's clip.
+ */
+@Composable
+internal fun Modifier.shownBar(on: Boolean, color: Color, vertical: Boolean = false): Modifier {
+    val shown = androidx.compose.animation.core.animateFloatAsState(if (on) 1f else 0f, Motion.tw(if (on) 140 else 100), label = "shownBar").value
+    return drawWithContent {
+        drawContent()
+        if (shown <= 0.01f) return@drawWithContent
+        val t = 3.dp.toPx()
+        if (vertical) {
+            val l = size.height * 0.5f
+            drawRect(color, Offset(0f, (size.height - l) / 2f), Size(t, l), alpha = shown)
+        } else {
+            val w = size.width * 0.36f
+            drawRect(color, Offset((size.width - w) / 2f, size.height - t), Size(w, t), alpha = shown)
         }
     }
 }

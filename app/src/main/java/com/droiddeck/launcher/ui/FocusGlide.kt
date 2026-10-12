@@ -155,6 +155,9 @@ private const val STILL_MS = 120L
 /** The longest the ring keeps checking after a move, for a control that never stands still. */
 private const val TRACK_MAX_MS = 2_000L
 
+/** How strongly the ring tints what it holds. */
+private const val RING_FILL = 0.14f
+
 /** Moves closer together than this are a held direction: the ring runs along as one, no stretch. */
 private const val REPEAT_MS = 180L
 
@@ -367,10 +370,18 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                     color, topLeft = Offset(l, t), size = Size(r - l, b - t),
                     cornerRadius = CornerRadius(corner.value), alpha = a * f,
                 )
-                if (f < 0.99f) drawRoundRect(
-                    color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
-                    cornerRadius = CornerRadius(rad), style = Stroke(w), alpha = a,
-                )
+                if (f < 0.99f) {
+                    // The ring's own infill: the only fill a pad sees, so it is always exactly what
+                    // the ring holds and moves with it (a row's own sliding fill trailed it).
+                    drawRoundRect(
+                        color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
+                        cornerRadius = CornerRadius(rad), alpha = a * (1f - f) * RING_FILL,
+                    )
+                    drawRoundRect(
+                        color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
+                        cornerRadius = CornerRadius(rad), style = Stroke(w), alpha = a,
+                    )
+                }
             },
     ) {
         CompositionLocalProvider(LocalFocusGlide provides glide) { content() }

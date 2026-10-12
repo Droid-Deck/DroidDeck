@@ -1105,14 +1105,17 @@ private fun LayerCard(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
+    // The stack's glide draws the picked card's look by touch only; with a pad, its rest look and the bar.
+    val under = selected && androidx.compose.ui.platform.LocalInputModeManager.current.inputMode != androidx.compose.ui.input.InputMode.Keyboard
     Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = modifier.fillMaxWidth().height(40.dp)
                 .landingPop(landed).pulseRing(ring, pal.signal)
                 .clip(LAYER_SHAPE)
-                .background(if (selected) Color.Transparent else colors.surface)
-                .glideBorder(hot, LAYER_SHAPE, pal.signal, if (selected) Color.Transparent else pal.line)
+                .background(if (under) Color.Transparent else colors.surface)
+                .shownBar(selected, pal.signal, vertical = true)
+                .glideBorder(hot, LAYER_SHAPE, pal.signal, if (under) Color.Transparent else pal.line)
                 .onFocusChanged { if (it.isFocused) onFocus() }
                 .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = onClick)
                 .controllerConfirm(onClick = onClick)

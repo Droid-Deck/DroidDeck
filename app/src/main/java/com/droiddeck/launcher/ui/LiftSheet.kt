@@ -801,11 +801,15 @@ private fun SheetChip(label: String, on: Boolean, modifier: Modifier, onClick: (
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     val shape = RoundedCornerShape(99.dp)
+    // The row's glide draws the picked chip's look by touch only; with a pad it draws its own rest
+    // look, and the bar says which is picked.
+    val under = on && LocalInputModeManager.current.inputMode != InputMode.Keyboard
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier.heightIn(min = 44.dp).clip(shape)
-            .background(if (on) Color.Transparent else colors.surfaceVariant.copy(alpha = 0.5f))
-            .glideBorder(hot, shape, pal.signal, if (on) Color.Transparent else pal.line)
+            .background(if (under) Color.Transparent else colors.surfaceVariant.copy(alpha = 0.5f))
+            .shownBar(on, pal.signal)
+            .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),

@@ -585,10 +585,9 @@ private fun StoreChips(
     val rootBounds = remember { HashMap<String, Rect>() }
     // The fill travels with focus; only the expensive pane change waits for the debounce.
     val highlighted = focused ?: selected
-    // With a pad the fill is only where focus is: on a chip that does not have it (the row first
-    // drawn with focus on the rail, or focus on the cog or the page) it read as focus.
+    // With a pad the row has no fill of its own: the focus ring's infill is the only one.
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
-    val fillShown = focused != null || inputMode != androidx.compose.ui.input.InputMode.Keyboard
+    val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard
     val tint = androidx.compose.animation.animateColorAsState(
         Store.byId(highlighted)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
     )
@@ -647,9 +646,8 @@ private fun StoreChip(
     val scale by animateFloatAsState(if (pressed) 0.95f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "chipScale")
     val shape = RoundedCornerShape(99.dp)
     val ink = if (on) colors.onBackground else if (hot) colors.onBackground else colors.onSurfaceVariant
-    // The chip whose page shows: a bar of its colour along the pill's foot, not an outline or a
-    // fill, so it never reads as focus. Picking it pulses its lead (a store's dot, Downloads' icon).
-    val shown by animateFloatAsState(if (on) 1f else 0f, Motion.tw(if (on) 140 else 100), label = "chipShown")
+    // The chip whose page shows has a bar of its colour along its foot. Picking it pulses its
+    // lead (a store's dot, Downloads' icon).
     var picked by remember { mutableStateOf(0) }
     val wasOn = remember { booleanArrayOf(on) }
     LaunchedEffect(on) {
@@ -666,14 +664,7 @@ private fun StoreChip(
             }
             .heightIn(min = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
             .background(if (under) Color.Transparent else colors.surface)
-            .drawWithContent {
-                drawContent()
-                if (shown > 0.01f) {
-                    val h = 3.dp.toPx()
-                    val w = size.width * 0.36f
-                    drawRect(mark, Offset((size.width - w) / 2f, size.height - h), androidx.compose.ui.geometry.Size(w, h), alpha = shown)
-                }
-            }
+            .shownBar(on, mark)
             .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
