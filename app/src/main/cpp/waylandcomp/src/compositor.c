@@ -50,6 +50,7 @@
 #include "framegen_bridge.h"
 #include <pthread.h>
 #include "effects_chain.h"
+#include "cardboard.h"
 #include "droiddeck_ext.h"
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
@@ -2071,6 +2072,8 @@ static void render_scene(void) {
     int rendered = 0;
     int fx_on = vkp_effects_active();
     int framegen = vkp_framegen_active();
+    /* Cardboard mode draws the whole panel itself, so the game never gets a display layer of its own. */
+    const int cardboard = vkp_cardboard_active();
     /* HDR (see hdr_plan): route 0 = the old paths below; 1 / 2 = composed; 3 = layer only, effects and
      * frame generation skipped. Always 0 while the HDR gate is closed: nothing changes for that session. */
     struct hdr_scene hs;
@@ -2117,7 +2120,7 @@ static void render_scene(void) {
      *   - screen effects DO when a window is drawn above the game: the chain has to see the whole
      *     scene to look the way it does on the copy path, and here the game is only part of it. */
     const int pass_on = fx_on || framegen;
-    int li = (g_zero_copy && !framegen) ? layer_candidate(&dl, w, h) : -1;
+    int li = (g_zero_copy && !framegen && !cardboard) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0; /* draws above the fullscreen game (0 or 1) */
     const int fx_blocks = (li >= 0 && fx_on && over > 0);
     if (fx_blocks) { li = -1; over = 0; }
@@ -2147,6 +2150,7 @@ static void render_scene(void) {
     /* HDR: the same, for a game's SUBSURFACE swapchain whose 10-bit frame the compositor could not
      * import (NULL whenever the HDR gate is closed - nothing is ever noted then). */
     if (li < 0 && !ls) ls = hdr_unimported_fullscreen(&dl, w, h);
+    if (cardboard) ls = NULL;
     if (ls && pass_on && li < 0 && !g_zero_copy_fx_skip_said) {
         g_zero_copy_fx_skip_said = 1;
         droiddeck_log(framegen ? "framegen" : "effects",
@@ -2289,6 +2293,8 @@ static void on_vsync(int64_t frame_time_ns) {
     if (vkp_apply_window_request()) g_dirty = 1;
     /* A screen-effect setting changed (JNI, any thread): redraw so it shows on a static scene too. */
     if (vkp_effects_sync()) g_dirty = 1;
+    /* Cardboard mode: a new head pose (or setting) moves the virtual screen, static scene or not. */
+    if (vkp_cardboard_pose_changed()) g_dirty = 1;
     if (g_dirty && !scene_waits_for_game(now)) render_scene();
 }
 

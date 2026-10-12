@@ -49,7 +49,9 @@ import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunchRequests
 import com.droiddeck.launcher.ui.SessionAchievements
+import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.gpu.HeadTracker
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
@@ -296,6 +298,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var effects by mutableStateOf(ScreenEffects.OFF)
+    /** Cardboard mode (gpu/Cardboard) and the sensor that turns the virtual screen with the head. */
+    private var cardboard by mutableStateOf(Cardboard.OFF)
+    private var headTracker: HeadTracker? = null
+    private val hasRotationSensor by lazy {
+        (getSystemService(SENSOR_SERVICE) as android.hardware.SensorManager).let {
+            it.getDefaultSensor(android.hardware.Sensor.TYPE_GAME_ROTATION_VECTOR)
+                ?: it.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR)
+        } != null
+    }
+    // Held in a field: SharedPreferences keeps its listeners weakly. A change from anywhere (the
+    // drawer, tools/droiddeckctl prefs set) applies live.
+    private val cardboardPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SessionPrefs.CARDBOARD_KEY) uiHandler.post { applyCardboard(SessionPrefs.cardboard(this)) }
+    }
     private var textureAnisotropy by mutableStateOf(0)
     private var textureLodBias by mutableStateOf(TextureFiltering.LOD_BIAS_OFF)
     private var drawerTextureAnisotropy by mutableStateOf<Int?>(null)
@@ -595,6 +611,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     hudOn = hudOn,
                     upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                     effects = effects,
+                    cardboard = cardboard,
+                    cardboardSensor = hasRotationSensor,
+                    onCardboard = { c -> SessionPrefs.setCardboard(this@SessionActivity, c); applyCardboard(c) },
+                    onCardboardRecenter = { headTracker?.recenter() },
                     textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
                     textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
                     frameGen = frameGen,
@@ -1115,6 +1135,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         effects = SessionPrefs.screenEffects(this)
+        applyCardboard(SessionPrefs.cardboard(this))
         textureAnisotropy = SessionPrefs.textureAnisotropy(this)
         textureLodBias = SessionPrefs.textureLodBias(this)
         val nextTouchMode = SessionPrefs.touchMode(this)
@@ -1320,6 +1341,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
+        SessionPrefs.cardboard(this).push(panelWidthMm())
         // The session's folder, claimed here because the compositor starts before the service and
         // opens its log once. The compositor reads the path from its environment; setting it after
         // it has started changes nothing, which is why the service copies the file in at teardown.
@@ -2501,6 +2523,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         readPrefs()
         if (::pip.isInitialized) pip.resumed()
         if (CompositorHost.isStarted) applyFrameGen()
+        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(cardboardPrefListener)
     }
 
     override fun onPause() {
@@ -2519,7 +2542,39 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updatePointerCapture()
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
+        SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
+        updateHeadTracker()
         super.onPause()
+    }
+
+    /** Cardboard mode: hand the settings to the compositor and run the head tracker while it needs one. */
+    private fun applyCardboard(c: Cardboard) {
+        val was = cardboard
+        cardboard = c
+        if (CompositorHost.isStarted) c.push(panelWidthMm())
+        if (c.enabled && !was.enabled) headTracker?.recenter()
+        updateHeadTracker()
+    }
+
+    private fun updateHeadTracker() {
+        val want = resumed && cardboard.enabled && cardboard.headTracking && cardboard.source == Cardboard.SOURCE_SCREEN
+        if (want) {
+            val t = headTracker ?: HeadTracker(this) {
+                @Suppress("DEPRECATION")
+                (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
+            }.also { headTracker = it }
+            t.start()
+        } else {
+            headTracker?.stop()
+        }
+    }
+
+    /** The panel's physical width in millimetres (its long side), for lining the eyes up with the lenses. */
+    private fun panelWidthMm(): Float {
+        val dm = resources.displayMetrics
+        val px = maxOf(dm.widthPixels, dm.heightPixels).toFloat()
+        val dpi = if (dm.widthPixels >= dm.heightPixels) dm.xdpi else dm.ydpi
+        return if (dpi > 0f) px / dpi * 25.4f else 0f
     }
 
     override fun onAttachedToWindow() {
