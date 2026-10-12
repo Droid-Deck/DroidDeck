@@ -31,6 +31,8 @@ object Library {
     ) {
         /** Decimal form used by Steam links and Android shortcuts, including unsigned shortcut ids. */
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
+        /** Key used by per-game environment and Windows-component profiles. */
+        val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
     }
     /** The [SteamGame.library] of a game added to the library rather than installed by Steam, and the [SteamGame.source] of a plain added folder. */
     const val ADDED = "added"

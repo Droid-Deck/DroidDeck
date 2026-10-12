@@ -107,6 +107,11 @@ public final class EpicDownloadManager {
         public String launchExe = "";
         public String launchCommand = "";
         public String buildVersion = "";
+        /** The prerequisite the launcher runs first (UE4PrereqSetup_x64.exe...): what it is called and its path in the install. */
+        public String prereqName = "";
+        public String prereqPath = "";
+        /** The prerequisite fields were read (an empty name and path then mean the build names none). */
+        public boolean prereqRead = false;
         public List<CdnUrl> cdnUrls = new ArrayList<>();
     }
 
@@ -115,7 +120,12 @@ public final class EpicDownloadManager {
         public final String launchExe;
         public final String buildVersion;
         public final long bytes;
+        /** The manifest's prerequisite, for Windows components; "" when it names none. */
+        public String prereqName = "";
+        public String prereqPath = "";
         Result(String launchExe, String buildVersion, long bytes) { this.launchExe = launchExe; this.buildVersion = buildVersion; this.bytes = bytes; }
+        public boolean prereqRead = false;
+        Result withPrereq(Manifest m) { prereqName = m.prereqName; prereqPath = m.prereqPath; prereqRead = m.prereqRead; return this; }
     }
 
     public static final class InstallException extends Exception {
@@ -178,7 +188,7 @@ public final class EpicDownloadManager {
             if (pending.isEmpty()) {
                 deleteDir(chunkCacheDir);
                 cb.onProgress("Complete", 100);
-                return new Result(manifest.launchExe, manifest.buildVersion, planned);
+                return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
             }
             List<ChunkInfo> needed = uniqueChunksForFiles(manifest, pending);
             // The cache holds whole chunk windows (~1 MiB each), and a window is shared with files
@@ -265,7 +275,7 @@ public final class EpicDownloadManager {
                     if (r.cancelled) return null;
                     if (!r.success) throw new InstallException(r.error.isEmpty() ? "assembly failed" : r.error);
                     cb.onProgress("Complete", 100);
-                    return new Result(manifest.launchExe, manifest.buildVersion, planned);
+                    return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
                 }
                 cb.onLog("epic: assembler not started (" + r.error + "); writing the files here");
             }
@@ -293,7 +303,7 @@ public final class EpicDownloadManager {
             }
             deleteDir(chunkCacheDir);
             cb.onProgress("Complete", 100);
-            return new Result(manifest.launchExe, manifest.buildVersion, planned);
+            return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
         } catch (InstallException e) {
             throw e;
         } catch (Exception e) {
@@ -470,6 +480,13 @@ public final class EpicDownloadManager {
                 m.buildVersion = readFString(b);
                 m.launchExe = readFString(b).replace('\\', '/');
                 m.launchCommand = readFString(b);
+                // PrereqIds (an array), PrereqName, PrereqPath, PrereqArgs.
+                int prereqIds = b.getInt();
+                for (int i = 0; i < prereqIds && i < 64; i++) readFString(b);
+                m.prereqName = readFString(b);
+                m.prereqPath = readFString(b).replace('\\', '/');
+                readFString(b); // PrereqArgs
+                m.prereqRead = true;
             } catch (Exception e) {
                 Log.w(TAG, "manifest meta: " + e.getClass().getSimpleName());
             }
@@ -531,12 +548,15 @@ public final class EpicDownloadManager {
         try {
             JSONObject root = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
             int manifestVersion = 0;
-            try { manifestVersion = Integer.parseInt(root.optString("ManifestFileVersion", "0")); } catch (NumberFormatException ignored) {}
+            try { manifestVersion = (int) blobToNum(root.optString("ManifestFileVersion", "0")); } catch (NumberFormatException ignored) {}
             Manifest m = new Manifest();
             m.chunkDir = manifestVersion >= 15 ? "ChunksV4" : manifestVersion >= 6 ? "ChunksV3" : manifestVersion >= 3 ? "ChunksV2" : "ChunksV4";
-            m.launchExe = root.optString("LaunchExe", "").replace('\\', '/');
+            m.launchExe = root.optString("LaunchExeString", root.optString("LaunchExe", "")).replace('\\', '/');
             m.launchCommand = root.optString("LaunchCommand", "");
             m.buildVersion = root.optString("BuildVersionString", "");
+            m.prereqName = root.optString("PrereqName", "");
+            m.prereqPath = root.optString("PrereqPath", "").replace('\\', '/');
+            m.prereqRead = true;
             JSONObject chunkHashList = root.optJSONObject("ChunkHashList");
             JSONObject dataGroupList = root.optJSONObject("DataGroupList");
             JSONObject chunkFilesizeList = root.optJSONObject("ChunkFilesizeList");
@@ -548,10 +568,9 @@ public final class EpicDownloadManager {
                 if (guidHex.length() < 32) continue;
                 ChunkInfo c = new ChunkInfo();
                 for (int k = 0; k < 4; k++) c.guid[k] = (int) Long.parseLong(guidHex.substring(k * 8, k * 8 + 8), 16);
-                String hashHex = chunkHashList.getString(guidHex);
-                if (hashHex != null && hashHex.length() >= 16) { try { c.hash = Long.parseUnsignedLong(hashHex.substring(0, 16), 16); } catch (Exception ignored) {} }
-                if (dataGroupList != null) { try { c.groupNum = Integer.parseInt(dataGroupList.optString(guidHex, "0")); } catch (NumberFormatException ignored) {} }
-                if (chunkFilesizeList != null) { try { c.fileSize = Long.parseLong(chunkFilesizeList.optString(guidHex, "0"), 16); } catch (NumberFormatException ignored) {} }
+                try { c.hash = blobToNum(chunkHashList.getString(guidHex)); } catch (NumberFormatException ignored) {}
+                if (dataGroupList != null) { try { c.groupNum = (int) blobToNum(dataGroupList.optString(guidHex, "0")); } catch (NumberFormatException ignored) {} }
+                if (chunkFilesizeList != null) { try { c.fileSize = blobToNum(chunkFilesizeList.optString(guidHex, "0")); } catch (NumberFormatException ignored) {} }
                 chunkMap.put(guidHex, c);
             }
             JSONArray fileList = root.optJSONArray("FileManifestList");
@@ -569,8 +588,8 @@ public final class EpicDownloadManager {
                     ChunkPart part = new ChunkPart();
                     String g = po.optString("Guid", "");
                     if (g.length() >= 32) for (int k = 0; k < 4; k++) part.guid[k] = (int) Long.parseLong(g.substring(k * 8, k * 8 + 8), 16);
-                    try { part.offset = Integer.parseInt(po.optString("Offset", "0")); } catch (NumberFormatException ignored) {}
-                    try { part.size = Integer.parseInt(po.optString("Size", "0")); } catch (NumberFormatException ignored) {}
+                    try { part.offset = (int) blobToNum(po.optString("Offset", "0")); } catch (NumberFormatException ignored) {}
+                    try { part.size = (int) blobToNum(po.optString("Size", "0")); } catch (NumberFormatException ignored) {}
                     fi.parts.add(part);
                 }
                 files.add(fi);
@@ -582,6 +601,24 @@ public final class EpicDownloadManager {
             Log.e(TAG, "json manifest parse: " + e.getClass().getSimpleName());
             return null;
         }
+    }
+
+    /**
+     * A JSON manifest writes every number as a "blob": each byte as three decimal digits, least
+     * significant first ("013000000000" = 13), as Legendary's blob_to_num reads it. Bits past 64
+     * are dropped; a group that is not digits throws.
+     */
+    static long blobToNum(String blob) {
+        long num = 0;
+        for (int i = 0, shift = 0; i < blob.length(); i += 3, shift += 8) {
+            String group = blob.substring(i, Math.min(i + 3, blob.length()));
+            for (int k = 0; k < group.length(); k++) {
+                char ch = group.charAt(k);
+                if (ch < '0' || ch > '9') throw new NumberFormatException("not a blob: " + blob);
+            }
+            if (shift < 64) num += Long.parseLong(group) << shift;
+        }
+        return num;
     }
 
     public static String readFString(ByteBuffer buf) {
@@ -750,6 +787,22 @@ public final class EpicDownloadManager {
             return MessageDigest.isEqual(digest.digest(), expectedHash);
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    /** The manifest's prerequisite as {name, path}, from the manifest alone; null on failure. Blocking. */
+    public static String[] fetchPrereq(String manifestApiJson) {
+        try {
+            List<CdnUrl> cdnUrls = parseCdnUrls(manifestApiJson);
+            if (cdnUrls.isEmpty()) return null;
+            byte[] bytes = downloadManifest(manifestApiJson, cdnUrls);
+            if (bytes == null) return null;
+            Manifest m = parseManifest(bytes);
+            if (m == null || !m.prereqRead) { Log.w(TAG, "manifest prerequisite not read"); return null; }
+            Log.i(TAG, "manifest " + m.buildVersion + ": " + m.files.size() + " files, prerequisite " + (m.prereqName.isEmpty() && m.prereqPath.isEmpty() ? "none" : m.prereqName + " (" + m.prereqPath + ")"));
+            return new String[] { m.prereqName, m.prereqPath };
+        } catch (Exception e) {
+            return null;
         }
     }
 

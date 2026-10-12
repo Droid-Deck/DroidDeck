@@ -59,6 +59,8 @@ class RumbleComponent : SessionPart() {
     /** Last effect destinations and resolved targets, keyed by game slot. */
     private val playing = HashMap<Int, Motors>()
     private val controllerIds = HashMap<Int, Int>()
+    /** Per slot, the last effect handed to the motors and when, to drop the repeats games stream. */
+    private val sent = HashMap<Int, Sent>()
     private val controllers = HashMap<Int, Motors?>()
     private val fallbackSince = HashMap<Int, Long>()
     /** vendor:product of the last physical pad seen driving the pad, for finding it again under a new id. */
@@ -203,12 +205,14 @@ class RumbleComponent : SessionPart() {
         if ((strong == 0 && weak == 0) || ms == 0) {
             // Stops are scoped to the player's slot.
             playing.remove(key)?.cancel()
+            sent.remove(key)
             return
         }
         val target = target(key)
         val previous = playing[key]
         if (target !== previous) {
             previous?.cancel()
+            sent.remove(key)
             if (target == null) playing.remove(key) else playing[key] = target
             target?.let { Log.i(TAG, "rumble: slot $key playing on ${it.name}") }
         }
@@ -216,8 +220,15 @@ class RumbleComponent : SessionPart() {
             logLimited("none:$key", "rumble: dropped (strong $strong, weak $weak, $ms ms): no controller motors and phone fallback is off")
             return
         }
+        // Games re-send their effect every frame; restarting the motor that often floods the haptics
+        // driver. ponytail: a change inside MIN_GAP_MS is dropped, the game's next packet brings it.
+        val now = SystemClock.uptimeMillis()
+        val last = sent[key]
+        if (last != null && (now - last.at < MIN_GAP_MS || (last.strong == strong && last.weak == weak && now < last.until))) return
+        val duration = ms.toLong().coerceIn(1L, 5000L)
         try {
-            target.play(strong, weak, ms.toLong().coerceIn(1L, 5000L))
+            target.play(strong, weak, duration)
+            sent[key] = Sent(strong, weak, now, now + duration)
         } catch (e: Exception) {
             Log.w(TAG, "rumble: ${target.name}: $e")
             controllerIds.remove(key)
@@ -263,6 +274,7 @@ class RumbleComponent : SessionPart() {
     private fun cancelAll() {
         playing.values.toSet().forEach { it.cancel() }
         playing.clear()
+        sent.clear()
     }
 
     private fun resolve(id: Int): Motors? {
@@ -421,6 +433,8 @@ class RumbleComponent : SessionPart() {
         Log.i(TAG, message)
     }
 
+    private data class Sent(val strong: Int, val weak: Int, val at: Long, val until: Long)
+
     /** One place an effect can play. Strengths are the evdev 0..65535 magnitudes. */
     interface Motors {
         val name: String
@@ -463,6 +477,8 @@ class RumbleComponent : SessionPart() {
         const val NAME = "droiddeck-rumble"
         /** Slot-word flag of a Deck trackpad haptic packet (fakeinput_steam.cpp DECK_HAPTIC): strong = gain in dB (s16), low bits = trackpad. */
         const val HAPTIC = 0x8000
+        /** The shortest time between two effects started on one slot's motors. */
+        const val MIN_GAP_MS = 50L
         private const val UNRESOLVED = Int.MIN_VALUE
         private const val BIND_RETRIES = 20
         private const val BIND_RETRY_MS = 250L

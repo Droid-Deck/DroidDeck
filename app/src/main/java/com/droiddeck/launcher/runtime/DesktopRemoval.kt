@@ -19,6 +19,14 @@ internal object DesktopRemoval {
     private fun protected(context: Context, root: File) =
         DesktopFileRemoval.runtimeFiles(root) + lines(context, "emulators-keep.txt.gzip")
 
+    /**
+     * What the desktop's own files take on disk, from the same inventory its removal uses (each
+     * file's size); the bundled apps' and emulators' shared files are not counted. Reads an asset:
+     * call it off the main thread.
+     */
+    fun installedSize(context: Context): Long =
+        lines(context, "kde-remove.tsv.gzip").sumOf { line -> line.split('\t').getOrNull(1)?.toLongOrNull() ?: 0L }
+
     /** Called before a guest starts or just after KDE extraction; retries after a process death. */
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) {
         val root = LinuxRuntime.rootDir(context)

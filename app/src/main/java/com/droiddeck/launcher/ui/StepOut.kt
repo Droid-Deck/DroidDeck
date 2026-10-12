@@ -7,6 +7,8 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -133,7 +135,7 @@ internal enum class StepSide {
 }
 
 /** The choices' side of a [StepOut]: each piece fades in on its own beat, and [first] takes focus. */
-internal class StepOutScope(private val items: List<Animatable<Float, AnimationVector1D>>, val first: FocusRequester, val open: Boolean) {
+internal class StepOutScope(private val items: List<Animatable<Float, AnimationVector1D>>, val first: FocusRequester, val open: Boolean, val maxHeight: Dp) {
     /** Piece [i] (0 first) of the box: it fades and rises in after the box has stepped out. */
     fun Modifier.stepItem(i: Int): Modifier = graphicsLayer {
         val v = items[i.coerceIn(0, items.lastIndex)].value
@@ -179,11 +181,27 @@ internal fun StepOut(
     var grown by remember { mutableStateOf(false) }
     var measured by remember { mutableStateOf<IntSize?>(null) }
     val first = remember { FocusRequester() }
+    // The control focus was on as it opened: focus goes back to it as it folds, not to wherever
+    // the screen puts a pad with nothing focused (the rail).
+    val glide = LocalFocusGlide.current
+    val opener = remember { arrayOfNulls<GlideSource>(1) }
+    val openNow = androidx.compose.runtime.rememberUpdatedState(open)
+    // While the box grows or folds the ring keeps out (it flew across the moving shape) and comes
+    // back on whatever has focus once it has settled: the first choice, or the control again.
+    var moving by remember { mutableStateOf(false) }
+    if (moving) VeilRing()
     val pull = with(density) { OutPull.toPx() }
     val corner = pillCorner?.let { with(density) { it.toPx() } } ?: minOf(pill.height, pill.width) / 2f
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val hostWidth = constraints.maxWidth.toFloat()
+        val hostHeight = constraints.maxHeight.toFloat()
+        val availableHeight = with(density) {
+            maxOf(hostHeight - pill.bottom - pull, pill.top - pull).coerceAtLeast(44.dp.toPx()).toDp()
+        }
+        // No room under the control (a row near the foot of the screen): it steps out upward
+        // instead, the same outline mirrored about the control.
+        val up = measured?.let { pill.bottom + pull + it.height > hostHeight && pill.top - pull - it.height >= 0f } ?: false
         val room = if (side == StepSide.Left) pill.right else hostWidth - pill.left
         val maxW = with(density) { maxWidth.toPx() }.coerceAtMost(room).coerceAtLeast(pill.width)
         LaunchedEffect(open, measured) {
@@ -195,6 +213,7 @@ internal fun StepOut(
             val boxBottom = pill.bottom + pull + c.height
             if (open) {
                 if (!grown) {
+                    opener[0] = glide?.current
                     edge.snapTo(rest); bottom.snapTo(pill.bottom); tint.snapTo(0f)
                     pieces.forEach { it.snapTo(0f) }
                     grown = true
@@ -202,8 +221,12 @@ internal fun StepOut(
                 coroutineScope {
                     launch { dim.animateTo(1f, Motion.tw(260)) }
                     launch { tint.animateTo(1f, Motion.tw(200)) }
-                    launch { bottom.animateTo(boxBottom, Motion.sp(0.7f, 380f)) }
-                    launch { delay(Motion.ms(110).toLong()); edge.animateTo(out, Motion.sp(0.55f, 300f)) }
+                    // Down and out together, on one spring: down first drew the control as a stick
+                    // that then snapped out sideways.
+                    moving = true
+                    val down = launch { bottom.animateTo(boxBottom, Motion.sp(0.8f, 380f)) }
+                    val across = launch { edge.animateTo(out, Motion.sp(0.8f, 380f)) }
+                    launch { down.join(); across.join(); moving = false }
                     pieces.forEachIndexed { i, a ->
                         launch { delay(Motion.ms(260 + i * 55).toLong()); a.animateTo(1f, Motion.tw(220)) }
                     }
@@ -214,14 +237,20 @@ internal fun StepOut(
                     }
                 }
             } else {
+                opener[0]?.let { o -> if (inputMode.inputMode == InputMode.Keyboard) runCatching { o.requester.requestFocus() } }
+                opener[0] = null
                 coroutineScope {
                     pieces.forEach { launch { it.animateTo(0f, Motion.tw(90)) } }
                     launch { delay(Motion.ms(60).toLong()); dim.animateTo(0f, Motion.tw(300)) }
-                    launch { delay(Motion.ms(60).toLong()); edge.animateTo(rest, Motion.sp(1f, 420f)) }
-                    launch { delay(Motion.ms(160).toLong()); bottom.animateTo(pill.bottom, Motion.sp(1f, 380f)) }
+                    // In and up together on a timed ease: width first left a tall tail under the
+                    // control, and a damped spring's tail kept a nub of it on screen.
+                    moving = true
+                    launch { delay(Motion.ms(60).toLong()); edge.animateTo(rest, Motion.tw(240)) }
+                    launch { delay(Motion.ms(60).toLong()); bottom.animateTo(pill.bottom, Motion.tw(240)) }
                     launch { delay(Motion.ms(200).toLong()); tint.animateTo(0f, Motion.tw(200)) }
                 }
                 grown = false
+                moving = false
                 onClosed()
             }
         }
@@ -246,8 +275,24 @@ internal fun StepOut(
             if (!grown) return@Canvas
             if (side == StepSide.Left) stepPath(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
             else stepPathRight(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
-            drawPath(path, lerp(hotFill, restFill, tint.value))
-            drawPath(path, accent.copy(alpha = lerpF(0.9f, 0.55f, tint.value)), style = Stroke(rim))
+            if (up) path.transform(Matrix().apply { this[1, 1] = -1f; this[3, 1] = pill.top + pill.bottom })
+            // Barely out of the control, the pull and its fillet drew a hook off the control's foot:
+            // the outline comes in over the first part of the way out (and goes over the last part
+            // of the way back), by how far along it is. A share of the way, not a distance: a box
+            // no wider than its control (a confirm under a full-width row) never got 24dp out, and
+            // was never drawn at all.
+            val a = measured?.let { c ->
+                val rest = if (side == StepSide.Left) pill.left else pill.right
+                val out = if (side == StepSide.Left) (pill.right - c.width).coerceAtLeast(0f) else (pill.left + c.width).coerceAtMost(hostWidth)
+                val down = pill.bottom + pull + c.height - pill.bottom
+                val across = kotlin.math.abs(out - rest)
+                val fd = if (down < 1f) 1f else (bottom.value - pill.bottom) / down
+                val fa = if (across < 1f) 1f else kotlin.math.abs(edge.value - rest) / across
+                ((minOf(fd, fa) - 0.1f) / 0.3f).coerceIn(0f, 1f)
+            } ?: 0f
+            if (a <= 0.01f) return@Canvas
+            drawPath(path, lerp(hotFill, restFill, tint.value), alpha = a)
+            drawPath(path, accent.copy(alpha = lerpF(0.9f, 0.55f, tint.value) * a), style = Stroke(rim))
         }
         // The control's label rides on top, as the pull's handle.
         if (grown) Box(
@@ -258,15 +303,17 @@ internal fun StepOut(
         val x = if (side == StepSide.Left) pill.right - (measured?.width?.toFloat() ?: maxW) else pill.left
         Column(
             modifier = Modifier
-                .offset { IntOffset(x.roundToInt(), (pill.bottom + pull).roundToInt()) }
+                .offset { IntOffset(x.roundToInt(), (if (up) pill.top - pull - (measured?.height ?: 0) else pill.bottom + pull).roundToInt()) }
                 .widthIn(min = with(density) { pill.width.toDp() }, max = with(density) { maxW.toDp() })
+                .heightIn(max = availableHeight)
                 .onSizeChanged { if (measured != it) measured = it }
                 .controllerBack(onDismiss)
                 // A pad stays in the box until it is answered or folded, as it did in Stop's dialog.
-                .focusProperties { exit = { FocusRequester.Cancel } }
+                .focusProperties { exit = { if (openNow.value) FocusRequester.Cancel else FocusRequester.Default } }
                 .focusGroup()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
-        ) { StepOutScope(pieces, first, open).content() }
+        ) { StepOutScope(pieces, first, open, availableHeight).content() }
     }
 }
 

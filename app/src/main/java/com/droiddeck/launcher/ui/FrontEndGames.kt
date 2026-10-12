@@ -322,8 +322,18 @@ private fun GameList(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(start = 12.dp, end = 10.dp, top = 16.dp, bottom = 16.dp),
     ) {
         GamesHeader(games.size, onAdd, Modifier.padding(start = 6.dp, bottom = 10.dp))
+        // A game that arrives while the list is up (Steam installed it in the session that just
+        // ended, or it was added) eases in; the ones there when the page opened are simply there.
+        val seen = remember { HashSet<Int>() }
+        var settled by remember { androidx.compose.runtime.mutableStateOf(false) }
         for (g in games) key(g.appId) {
-            GameRow(g, g.appId == current.appId, onSelect = { onSelect(g) }, onLaunch = { onLaunch(g) })
+            Box(Modifier.arriveIn(settled && g.appId !in seen)) {
+                GameRow(g, g.appId == current.appId, onSelect = { onSelect(g) }, onLaunch = { onLaunch(g) })
+            }
+        }
+        androidx.compose.runtime.SideEffect {
+            seen.addAll(games.map { it.appId })
+            if (games.isNotEmpty()) settled = true
         }
     }
 }
@@ -440,6 +450,14 @@ private fun AddGameButton(onClick: () -> Unit) {
     ) {
         androidx.compose.material3.Icon(Icons.Filled.Add, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(20.dp))
     }
+}
+
+/** Fades and slides a row in once when [arriving]; nothing for one already there (or with animations off). */
+@Composable
+internal fun Modifier.arriveIn(arriving: Boolean): Modifier {
+    val t = remember { androidx.compose.animation.core.Animatable(if (arriving) 0f else 1f) }
+    LaunchedEffect(Unit) { if (t.value < 1f) t.animateTo(1f, Motion.tw(280)) }
+    return graphicsLayer { alpha = t.value; translationY = (1f - t.value) * 12.dp.toPx() }
 }
 
 /** One game in the list. Moving onto it with the pad shows it; A launches it, a tap only shows it. */

@@ -30,6 +30,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Installs DroidDeck's own updates (Updates page) over itself, after the user allows it. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- A paired Steam Controller, read over Bluetooth LE out of lizard mode (SteamControllerBle).
+         Granted at install below targetSdk 31; no scan, so no location. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
 
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />

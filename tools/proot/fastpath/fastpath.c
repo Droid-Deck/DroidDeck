@@ -467,6 +467,19 @@ static void remember(const char *literal, unsigned h, const char *guest) {
   pthread_mutex_unlock(&cache_lock);
 }
 
+/*
+ * A binding below a symlink: proot canonicalised its guest path when it set it up
+ * (initialize_binding), so -b X:/sys/class/thermal/thermal_zone1/type binds the link's target,
+ * /sys/devices/virtual/thermal/thermal_zone1/type, and a path through the link meets it there.
+ * Known here by its literal text only, it would be missed; such a path is left to proot.
+ */
+static int binding_below(const char *g) {
+  size_t len = strlen(g);
+  for (int i = 0; i < nbinds; i++)
+    if (binds[i].glen > len && under(binds[i].guest, g, len)) return 1;
+  return 0;
+}
+
 /* ---------------------------------------------------------------- resolution */
 
 /*
@@ -650,7 +663,7 @@ static long walk(struct res *r, const char *text, int follow, int last) {
     if (S_ISLNK(r->st.st_mode) && (!final || follow)) {
       char target[PATH_MAX];
       long t;
-      if (++links > MAX_LINKS) return FP_SLOW;
+      if (++links > MAX_LINKS || binding_below(r->guest)) return FP_SLOW;
       if (under(r->guest, "/proc", 5)) {
         t = proc_link(r, target, final && last);
         if (t == FP_SLOW) return FP_SLOW;
@@ -1636,6 +1649,19 @@ int isatty(int fd) {
   long r = sc(SYS_ioctl, fd, TCGETS, (long)&k, 0, 0);
   if (r < 0) { errno = (int)-r; return 0; }
   return r == 0;
+}
+
+/* proot reads a memfd's name only to refuse the few that are then executed or locked; the rest are
+ * made here. The session's /proc/net and status copies, wineserver and Xwayland make them often.
+ * Without memfd in the kernel, proot's ashmem stands in. */
+int memfd_create(const char *name, unsigned flags) {
+  REAL(memfd_create, int (*)(const char *, unsigned));
+  if (!name || !strncmp(name, "JITCode:", 8) || !strcmp(name, "opcache_lock") || !strncmp(name, "lib/apk/exec/", 13)
+      || !fp_ready()) return real_memfd_create(name, flags);
+  long r = sc(SYS_memfd_create, (long)name, flags, 0, 0, 0);
+  if (r == -ENOSYS) return real_memfd_create(name, flags);
+  hits++;
+  return ret(r);
 }
 
 /* ---------------------------------------------------------------- passwd */
