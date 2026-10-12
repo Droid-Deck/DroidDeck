@@ -177,6 +177,23 @@ export XDG_DATA_DIRS=$XDG_DATA_HOME/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/
 # program from the rail): the user's game cores when set (BL_GAME_CPUS), else every core but the
 # slowest cluster - Android is free to park an emulator's threads on the little cores, and those
 # are what compile shaders and recompile PPU/SPU code. BL_PIN_CORES=0 leaves the scheduler alone.
+# A prime-only client mask can be reset without a thread-count change (Steam or Android).
+# Read status with shell builtins; only invoke taskset when a single-core mask has drifted.
+client_single_core_matches() {
+  local wanted=$1 task key cpus
+  shift
+  [[ $wanted =~ ^[0-9]+$ ]] || return 0
+  for task in "$@"; do
+    [ -r "$task/status" ] || continue
+    while read -r key cpus; do
+      [ "$key" = Cpus_allowed_list: ] || continue
+      [ "$cpus" = "$wanted" ] || return 1
+      break
+    done < "$task/status" 2>/dev/null
+  done
+  return 0
+}
+
 program_cores() {
   [ "${BL_PIN_CORES:-1}" = 0 ] && return 0
   command -v taskset >/dev/null 2>&1 || return 0
@@ -445,8 +462,8 @@ case $mode in
     # reasonable thing to do while a game is running and the wrong thing when the client is all
     # there is. BL_CLIENT_CPUS overrides it. Re-applied on a beat because steamwebhelper spawns
     # children continuously and each one inherits Steam's choice, not ours. The beat reads /proc
-    # itself instead of running pgrep, and only runs taskset for a process that is new or has
-    # grown threads since it was last pinned: every fork is a round of traced syscalls, and a
+    # itself instead of running pgrep, and runs taskset for new threads or a single-core mask
+    # that has drifted since it was last pinned: every fork is a round of traced syscalls, and a
     # beat that forked a taskset per process every 5 s did that for an hour. taskset -a, because
     # without it only a process's main thread moves and the renderer's workers stay where they were.
     if [ -n "${BL_CLIENT_CPUS:-}" ]; then
@@ -459,7 +476,9 @@ case $mode in
             case $_c in *steamwebhelper*|*steamrtarm64/steam|*gamescope*) ;; *) continue ;; esac
             _t=("$_d"/task/*)
             _p=${_d#/proc/}
-            [ "${_bl_pinned[$_p]:-}" = "${#_t[@]}" ] && continue
+            if [ "${_bl_pinned[$_p]:-}" = "${#_t[@]}" ] && client_single_core_matches "$BL_CLIENT_CPUS" "${_t[@]}"; then
+              continue
+            fi
             taskset -a -cp "$BL_CLIENT_CPUS" "$_p" >/dev/null 2>&1 || true
             _bl_pinned[$_p]=${#_t[@]}
           done

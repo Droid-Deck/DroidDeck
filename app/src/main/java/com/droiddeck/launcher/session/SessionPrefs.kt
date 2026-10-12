@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.CpuAllocationDefaults
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.ScreenEffects
@@ -271,26 +272,34 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("wifiDiscoveryAsked", true).apply()
     }
 
-    /**
-     * Whether the client's own core pick is overridden. When on, BL_CLIENT_CPUS is sent even when
-     * it names every core - unlike a game mask, the point here is to undo a pin Steam applies to
-     * itself, and the scheduler's default is exactly what Steam's choice takes away.
-     */
-    fun clientCpusOverride(context: Context): Boolean = prefs(context).getBoolean("clientCpusOverride", false)
+    internal data class CoreAllocation(val clientOverride: Boolean, val clientCpus: String, val gameCpus: String)
+
+    /** Defaults are read only for absent keys; even a saved empty/all-core choice wins. */
+    internal fun coreAllocation(context: Context, defaults: CpuAllocationDefaults.Allocation? = CpuAllocationDefaults.device): CoreAllocation {
+        val saved = prefs(context)
+        return CoreAllocation(
+            saved.getBoolean("clientCpusOverride", defaults != null && !saved.contains("clientCpus")),
+            saved.getString("clientCpus", defaults?.client.orEmpty()).orEmpty(),
+            saved.getString("gameCpus", defaults?.game.orEmpty()).orEmpty(),
+        )
+    }
+
+    /** Use the device default until the user saves an override or a client mask. */
+    fun clientCpusOverride(context: Context): Boolean = coreAllocation(context).clientOverride
 
     fun setClientCpusOverride(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("clientCpusOverride", on).apply()
     }
 
     /** Comma-separated core list for the client (taskset -c syntax); "" = every core. */
-    fun clientCpus(context: Context): String = prefs(context).getString("clientCpus", "") ?: ""
+    fun clientCpus(context: Context): String = coreAllocation(context).clientCpus
 
     fun setClientCpus(context: Context, list: String) {
         prefs(context).edit().putString("clientCpus", list).apply()
     }
 
-    /** Comma-separated core list for games (taskset -c syntax); "" = every core = nothing sent. */
-    fun gameCpus(context: Context): String = prefs(context).getString("gameCpus", "") ?: ""
+    /** Comma-separated core list for games (taskset -c syntax); "" = every core (explicitly restored when the client is pinned). */
+    fun gameCpus(context: Context): String = coreAllocation(context).gameCpus
 
     fun setGameCpus(context: Context, list: String) {
         prefs(context).edit().putString("gameCpus", list).apply()

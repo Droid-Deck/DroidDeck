@@ -666,16 +666,15 @@ class SessionService : Service() {
         extraEnv().forEach { guest.add(it) }
         // The agent bridge's experiment lines (AgentEnv), after the user's so an agent's win.
         com.droiddeck.launcher.agent.AgentEnv.beginSession(this).forEach { guest.add(it) }
-        // Core masks, Bannerlator's two (cfca3912). The client's is sent whenever the override is
-        // on, even naming every core: it exists to undo the pin Steam applies to its own interface
-        // renderer, and the scheduler's default is exactly what that pin takes away. A game's is
-        // sent only when it is a real restriction - a game has no pin of its own to undo.
-        if (steamHere && SessionPrefs.clientCpusOverride(this)) {
+        // A game launched by pinned Steam inherits its mask. Explicitly restore all game cores
+        // when requested, as well as applying restricted game choices in the Proton wrapper.
+        val clientPinned = steamHere && SessionPrefs.clientCpusOverride(this)
+        if (clientPinned) {
             guest.add("BL_CLIENT_CPUS=" + CpuCores.listOrAll(SessionPrefs.clientCpus(this)))
         }
         // The game cores also pin the desktop and a program from the rail; without a choice the
         // session script picks every core but the slowest cluster for those (program_cores).
-        CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(this))
+        CpuCores.gameLaunchList(SessionPrefs.gameCpus(this), clientPinned)
             .takeIf { it.isNotEmpty() }?.let { guest.add("BL_GAME_CPUS=$it") }
     }
 
