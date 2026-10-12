@@ -36,8 +36,10 @@ class QuestExperimentalTest {
 
     @Test fun questDefaultsSelectBothCompatibilityPathsAndAreAppliedOnlyOnce() {
         ShadowBuild.setModel("Quest 3")
-        assertEquals("com.droiddeck.launcher", context.packageName)
-        QuestExperimental.initialize(context)
+        val standard = object : ContextWrapper(context) {
+            override fun getPackageName() = "com.droiddeck.launcher"
+        }
+        QuestExperimental.initialize(standard)
         assertEquals(SessionPrefs.GPU_DRIVERS_MANUAL, SessionPrefs.gpuDriverMode(context))
         assertEquals(QuestExperimental.DRIVER, SessionPrefs.androidDriver(context))
         assertEquals("", SessionPrefs.linuxDriver(context))
