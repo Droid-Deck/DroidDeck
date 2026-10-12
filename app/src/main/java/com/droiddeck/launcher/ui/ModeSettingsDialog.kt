@@ -120,6 +120,8 @@ class ModeSettings(
     val deckySessionRunning: Boolean = false,
     /** Steam only, and only when su exists: the USB-via-root setting. */
     val usbRoot: UsbRootUi? = null,
+    /** A hidden USB drive is plugged in and needs All files access. */
+    val usbNeedsAccess: Boolean = false,
 )
 
 class UsbRootUi(
@@ -155,6 +157,7 @@ class ModeSettingsActions(
     val onPickGameStorageFolder: () -> Unit = {},
     val onStorageDiagnostics: (Boolean) -> Unit = {},
     val onUsbRoot: (Boolean) -> Unit = {},
+    val onUsbAccess: () -> Unit = {},
     val onUsbDrive: (String) -> Unit = {},
     val onUsbMount: () -> Unit = {},
     val onUsbEject: () -> Unit = {},
@@ -350,7 +353,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     if (tab == SheetTab.LIBRARY && steam) {
         if (s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
             // The USB drive's folder while it is unplugged: named, not shown as its long path.
-            val usbAway = s.usbRoot != null && s.gameStorage == s.usbRoot.path && s.storageOptions.none { it.path == s.gameStorage }
+            val usbAway = (s.usbRoot != null && s.gameStorage == s.usbRoot.path || s.gameStorage.startsWith("/mnt/media_rw/")) &&
+                s.storageOptions.none { it.path == s.gameStorage }
             val custom = !usbAway && s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
             // Each choice: its path, its menu line, the chip's shorter line, and the label it is saved with.
             class StorageChoice(val path: String, val label: String, val chip: String, val saved: String)
@@ -386,6 +390,9 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                         MenuItem(stringResource(R.string.mode_choose_folder), checked = false) { host.open = null; a.onPickGameStorageFolder() }
                     }
                 }
+            }
+            if (s.usbNeedsAccess) SettingsRow(stringResource(R.string.usb_access_title), stringResource(R.string.usb_access_hint)) {
+                SecondaryButton(stringResource(R.string.usb_access_allow), onClick = a.onUsbAccess)
             }
             s.usbRoot?.let { usb ->
                 ToggleRow(

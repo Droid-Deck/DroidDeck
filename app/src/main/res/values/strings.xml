@@ -386,6 +386,9 @@
     <string name="mode_storage_note">Games that stream assets from SD or shared storage may stutter.</string>
     <string name="mode_storage_diagnostics">Storage diagnostics</string>
     <string name="mode_storage_diagnostics_hint">Record allocation results and sampled storage timings in Share logs. May slow installs while enabled. Applies next session.</string>
+    <string name="usb_access_title">USB drive found</string>
+    <string name="usb_access_hint">Android hides this drive from apps. Allow All files access, then restart DroidDeck, to use it as game storage (exFAT or FAT).</string>
+    <string name="usb_access_allow">Allow</string>
     <string name="usb_root_title">Use USB drive via root (experimental)</string>
     <string name="usb_root_hint">Mounts a USB drive Android hides from apps, then offers it as game storage. Needs root.</string>
     <string name="usb_root_drive">USB drive</string>
