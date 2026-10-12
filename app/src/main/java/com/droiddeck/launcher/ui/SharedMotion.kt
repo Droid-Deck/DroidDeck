@@ -44,8 +44,8 @@ internal enum class GlideAxis { Horizontal, Vertical }
 /**
  * The selection under a row of chips: [at] (in the row) of chip [index], in [tint]. A move to the
  * next chip stretches it - the leading edge on the focus ring's lead spring, the trailing one a
- * beat later on its trail spring - and a hop past a chip pinches it to a drop, carries it and
- * opens it. [axis] runs it down a column instead (the rail, a stack of layers). [corner] is the
+ * beat later on its trail spring - and a hop past a chip fades it out where it was and in where it
+ * lands (carried over as a drop, it sat on chips the pad had already left). [axis] runs it down a column instead (the rail, a stack of layers). [corner] is the
  * chips' own corner; null draws a capsule. [fill] and [outline] are the resting alphas.
  */
 @Composable
@@ -63,6 +63,7 @@ internal fun BoxScope.ChipGlide(
     val start = remember { Animatable(Float.NaN) }
     val end = remember { Animatable(0f) }
     val pinch = remember { Animatable(0f) }
+    val shown = remember { Animatable(1f) }
     val crossStart = remember { mutableStateOf(0f) }
     val crossEnd = remember { mutableStateOf(0f) }
     val was = remember { intArrayOf(-1) }
@@ -76,20 +77,19 @@ internal fun BoxScope.ChipGlide(
         val from = was[0]
         was[0] = index
         if (start.value.isNaN() || from == index || from < 0 || Motion.scale == 0f) {
-            start.snapTo(s); end.snapTo(e); pinch.snapTo(0f)
+            start.snapTo(s); end.snapTo(e); pinch.snapTo(0f); shown.snapTo(1f)
             return@LaunchedEffect
         }
         coroutineScope {
             if (abs(index - from) > 1) {
-                // Too far to stretch: pinch into a drop where it is, carry it over, open it there.
-                pinch.animateTo(1f, Motion.tw(90))
-                val l = launch { start.animateTo(s, Motion.sp(0.7f, 380f)) }
-                val r = launch { end.animateTo(e, Motion.sp(0.7f, 380f)) }
-                l.join(); r.join()
-                pinch.animateTo(0f, Motion.sp(0.6f, 500f))
+                // Too far to stretch: out where it is, in where it lands.
+                shown.animateTo(0f, Motion.tw(90))
+                pinch.snapTo(0f); start.snapTo(s); end.snapTo(e)
+                shown.animateTo(1f, Motion.tw(160))
             } else {
-                // An adjacent move can interrupt a long hop while it is still pinched.
+                // An adjacent move can interrupt a long hop while it is still faded.
                 launch { pinch.animateTo(0f, Motion.sp(0.6f, 500f)) }
+                launch { shown.animateTo(1f, Motion.tw(120)) }
                 val forward = index > from
                 val (lead, trail) = if (forward) end to start else start to end
                 val leadTo = if (forward) e else s
@@ -108,13 +108,14 @@ internal fun BoxScope.ChipGlide(
         val round = minOf(size.width, size.height) / 2f
         val r = CornerRadius(corner?.let { lerp(minOf(with(density) { it.toPx() }, round), round, p) } ?: round)
         // A drop in flight is solid; on a chip it is the chip's tinted fill and outline.
-        drawRoundRect(tint.value.copy(alpha = lerp(fill, 0.9f, p)), at0, size, r)
+        val a = shown.value
+        drawRoundRect(tint.value.copy(alpha = lerp(fill, 0.9f, p) * a), at0, size, r)
         if (outline > 0f) {
             // Inside the chip's edge: a stroke on it would lose its outer half to a scrolling row's clip.
             val w = with(density) { 1.dp.toPx() }
             val inset = w / 2f
             drawRoundRect(
-                tint.value.copy(alpha = outline * (1f - p)), at0 + Offset(inset, inset), Size(size.width - w, size.height - w),
+                tint.value.copy(alpha = outline * (1f - p) * a), at0 + Offset(inset, inset), Size(size.width - w, size.height - w),
                 CornerRadius((r.x - inset).coerceAtLeast(0f)), style = Stroke(w),
             )
         }
