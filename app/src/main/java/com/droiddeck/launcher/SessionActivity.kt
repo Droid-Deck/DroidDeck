@@ -1342,6 +1342,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
         panelSizeMm().let { (w, h) -> SessionPrefs.cardboard(this).push(w, h) }
+        WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
         // The session's folder, claimed here because the compositor starts before the service and
         // opens its log once. The compositor reads the path from its environment; setting it after
         // it has started changes nothing, which is why the service copies the file in at teardown.
@@ -2557,7 +2558,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun updateHeadTracker() {
-        val want = resumed && cardboard.enabled && cardboard.headTracking && cardboard.source == Cardboard.SOURCE_SCREEN
+        // Side-by-side sources track too: the compositor leaves their picture alone, but whoever renders
+        // it (the SteamVR driver, tools/vr) reads the pose from the shared file.
+        val want = resumed && cardboard.enabled && cardboard.headTracking
         if (want) {
             val t = headTracker ?: HeadTracker(this) {
                 @Suppress("DEPRECATION")

@@ -476,11 +476,22 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv 
 
 /* The head pose (row-major 3x3, head -> world), from the sensor thread. */
 JNIEXPORT void JNICALL
-Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPose(JNIEnv *env, jclass clazz, jfloatArray rot) {
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPose(JNIEnv *env, jclass clazz, jfloatArray rot,
+        jboolean live) {
     float m[9];
     if (!rot || (*env)->GetArrayLength(env, rot) < 9) return;
     (*env)->GetFloatArrayRegion(env, rot, 0, 9, m);
-    vkp_cardboard_set_pose(m);
+    vkp_cardboard_set_pose(m, live ? 1 : 0);
+}
+
+/* Where the head pose is shared with the guest - WaylandCompositor.nativeSetCardboardPoseFile. */
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPoseFile(JNIEnv *env, jclass clazz, jstring path) {
+    if (!path) return;
+    const char *p = (*env)->GetStringUTFChars(env, path, NULL);
+    if (!p) return;
+    vkp_cardboard_set_pose_file(p);
+    (*env)->ReleaseStringUTFChars(env, path, p);
 }
 
 /* One "display" line in the session log, written from Java: facts that live in the Android

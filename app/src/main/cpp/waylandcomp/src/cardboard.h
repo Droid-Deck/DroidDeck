@@ -34,8 +34,11 @@ struct cardboard_params {
 
 /* Any thread. Values are clamped to sane ranges. */
 void vkp_cardboard_set(const struct cardboard_params *p);
-/* Any thread: the head -> world rotation, row-major 3x3. Identity = looking straight at the screen. */
-void vkp_cardboard_set_pose(const float m[9]);
+/* Any thread: the head -> world rotation, row-major 3x3. Identity = looking straight at the screen.
+ * live = a sensor produced it. Also published to the guest (headpose_shm.h) once a file is set. */
+void vkp_cardboard_set_pose(const float m[9], int live);
+/* Any thread, once: where the guest's copy of the pose lives (<files>/.wayland-rt/droiddeck-headpose). */
+void vkp_cardboard_set_pose_file(const char *path);
 
 /* Compositor thread. */
 void vkp_cardboard_bind_device(VkDevice dev, const VkPhysicalDeviceMemoryProperties *memprops);

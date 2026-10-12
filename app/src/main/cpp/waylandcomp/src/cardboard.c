@@ -10,6 +10,15 @@
 #include <string.h>
 
 #ifndef CARDBOARD_HOST_TEST
+#include <fcntl.h>
+#include <stdatomic.h>
+#include <sys/mman.h>
+#include <time.h>
+#include <unistd.h>
+#include "headpose_shm.h"
+#endif
+
+#ifndef CARDBOARD_HOST_TEST
 #include "vk_loader.h"
 #include "vk_present.h" /* droiddeck_log */
 /* upscale_vert.h defines its array non-static, and effects_chain.c includes it too: a private name here. */
@@ -69,6 +78,9 @@ static struct cardboard_params g_set = {
 static float g_pose[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 static volatile int g_changed = 1;
 
+static int g_live;                   /* the last pose came from a sensor */
+static void shm_publish(int live);   /* below: the guest's copy of the pose */
+
 void vkp_cardboard_set(const struct cardboard_params *p) {
     struct cardboard_params c = *p;
     cardboard_clamp(&c);
@@ -76,6 +88,7 @@ void vkp_cardboard_set(const struct cardboard_params *p) {
     int was = g_set.enabled;
     g_set = c;
     g_changed = 1;
+    shm_publish(g_live);
     pthread_mutex_unlock(&g_lock);
     if (was != c.enabled || c.enabled)
         droiddeck_log("cardboard", "%s: %s, ipd %.0f mm, screen %.1f m wide at %.1f m, lens k1 %.2f k2 %.2f, fov %.0f, inset %.3f, chroma %.3f",
@@ -83,10 +96,58 @@ void vkp_cardboard_set(const struct cardboard_params *p) {
                       c.ipd_m * 1000.0f, c.screen_width_m, c.screen_dist_m, c.k1, c.k2, c.fov_deg, c.lens_inset, c.chroma);
 }
 
-void vkp_cardboard_set_pose(const float m[9]) {
+/* The guest's copy of the pose (headpose_shm.h), mapped once a path is known. */
+static struct droiddeck_headpose *g_shm;
+static int g_eye_w, g_eye_h; /* the last eye viewport drawn, for the guest */
+
+void vkp_cardboard_set_pose_file(const char *path) {
+    pthread_mutex_lock(&g_lock);
+    if (!g_shm && path && *path) {
+        int fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+        if (fd >= 0 && ftruncate(fd, sizeof(struct droiddeck_headpose)) == 0) {
+            void *p = mmap(NULL, sizeof(struct droiddeck_headpose), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            if (p != MAP_FAILED) {
+                g_shm = p;
+                memset(g_shm, 0, sizeof(*g_shm));
+                g_shm->magic = DROIDDECK_HEADPOSE_MAGIC;
+                g_shm->version = DROIDDECK_HEADPOSE_VERSION;
+                memcpy(g_shm->rot, g_pose, sizeof(g_shm->rot));
+            }
+        }
+        if (fd >= 0) close(fd);
+        droiddeck_log("cardboard", g_shm ? "head pose shared with the guest at %s" : "could not share the head pose at %s", path);
+    }
+    pthread_mutex_unlock(&g_lock);
+}
+
+/* Under g_lock. */
+static void shm_publish(int live) {
+    if (!g_shm) return;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    atomic_uint *seq = (atomic_uint *)&g_shm->seq;
+    unsigned s = atomic_load_explicit(seq, memory_order_relaxed);
+    atomic_store_explicit(seq, s | 1u, memory_order_relaxed);
+    atomic_thread_fence(memory_order_release);
+    memcpy(g_shm->rot, g_pose, sizeof(g_shm->rot));
+    g_shm->ipd_m = g_set.ipd_m;
+    g_shm->flags = (live ? DROIDDECK_HEADPOSE_LIVE : 0u) | (g_set.enabled ? DROIDDECK_HEADPOSE_ENABLED : 0u);
+    g_shm->time_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+    g_shm->tan_half_fov = tanf(g_set.fov_deg * 0.5f * (float)M_PI / 180.0f);
+    g_shm->eye_w = (uint32_t)(g_eye_w > 0 ? g_eye_w : 0);
+    g_shm->eye_h = (uint32_t)(g_eye_h > 0 ? g_eye_h : 0);
+    g_shm->eye_aspect = g_eye_h > 0 ? (float)g_eye_w / (float)g_eye_h : 1.0f;
+    atomic_thread_fence(memory_order_release);
+    atomic_store_explicit(seq, (s | 1u) + 1u, memory_order_relaxed);
+}
+
+
+void vkp_cardboard_set_pose(const float m[9], int live) {
     pthread_mutex_lock(&g_lock);
     memcpy(g_pose, m, sizeof(g_pose));
+    g_live = live;
     if (g_set.enabled && g_set.source == CARDBOARD_SOURCE_SCREEN) g_changed = 1;
+    shm_publish(live);
     pthread_mutex_unlock(&g_lock);
 }
 
@@ -356,6 +417,13 @@ VkImage vkp_cardboard_run(VkCommandBuffer cmd, VkImage src, int src_w, int src_h
         static int said;
         if (!said) { said = 1; droiddeck_log("error", "cardboard: no descriptor for the frame; shown flat"); }
         return VK_NULL_HANDLE;
+    }
+    if (g_eye_w != out_w / 2 || g_eye_h != out_h) {
+        pthread_mutex_lock(&g_lock);
+        g_eye_w = out_w / 2;
+        g_eye_h = out_h;
+        shm_publish(g_live);
+        pthread_mutex_unlock(&g_lock);
     }
     snapshot();
     struct { float ndc[4]; float rest[24]; } pc = {{-1.0f, -1.0f, 1.0f, 1.0f}, {0}};

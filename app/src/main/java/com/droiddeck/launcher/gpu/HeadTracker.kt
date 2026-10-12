@@ -35,7 +35,7 @@ class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEve
     fun start() {
         val s = sensor ?: run {
             WaylandCompositor.nativeLog("cardboard", "no rotation sensor: the virtual screen stays head-locked")
-            WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY)
+            WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY, false)
             return
         }
         if (thread != null) return
@@ -51,7 +51,7 @@ class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEve
         sensors.unregisterListener(this)
         t.quitSafely()
         thread = null
-        WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY)
+        WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY, false)
     }
 
     /** Make where the viewer looks now straight ahead (heading only; the horizon stays level). */
@@ -72,7 +72,7 @@ class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEve
             basis = HeadPose.recenterBasis(screenToWorld)
             recenterPending = false
         }
-        WaylandCompositor.nativeSetCardboardPose(HeadPose.relative(basis!!, screenToWorld))
+        WaylandCompositor.nativeSetCardboardPose(HeadPose.relative(basis!!, screenToWorld), true)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {

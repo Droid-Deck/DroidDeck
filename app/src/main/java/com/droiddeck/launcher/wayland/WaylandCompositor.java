@@ -457,8 +457,12 @@ public final class WaylandCompositor {
                                                  float screenWidthM, float k1, float k2, float fovDeg,
                                                  float lensInset, float chroma);
 
-    /** The head pose for Cardboard mode: head -> world rotation, row-major 3x3 (any thread). */
-    public static native void nativeSetCardboardPose(float[] rotation);
+    /** The head pose for Cardboard mode: head -> world rotation, row-major 3x3 (any thread). {@code live}
+     *  = a sensor produced it. */
+    public static native void nativeSetCardboardPose(float[] rotation, boolean live);
+
+    /** Where the head pose is shared with the guest (waylandcomp/src/headpose_shm.h); set once. */
+    public static native void nativeSetCardboardPoseFile(String path);
 
     /** The in-game FPS limiter: frames per second, 0 = unlimited. Paces when replaced buffers go
      *  back to the game, like the X11 IdleNotify pacer, so the game itself slows to the cap. */

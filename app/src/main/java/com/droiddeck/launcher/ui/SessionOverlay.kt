@@ -916,14 +916,14 @@ private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> 
                 format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("cardboard-width")) { a.onCardboard(c.copy(screenWidthDm = it)) }
             SliderRow(stringResource(R.string.cardboard_screen_distance), null, c.screenDistanceDm, 5..200, step = 5,
                 format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("cardboard-distance")) { a.onCardboard(c.copy(screenDistanceDm = it)) }
-            ToggleRow(host, "cardboard-tracking", stringResource(R.string.cardboard_head_tracking),
-                if (a.cardboardSensor) null else stringResource(R.string.cardboard_no_sensor),
-                c.headTracking && a.cardboardSensor, enabled = a.cardboardSensor, chipModifier = track("cardboard-tracking")) {
-                a.onCardboard(c.copy(headTracking = it))
-            }
-            if (c.headTracking && a.cardboardSensor)
-                ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
         }
+        ToggleRow(host, "cardboard-tracking", stringResource(R.string.cardboard_head_tracking),
+            if (a.cardboardSensor) null else stringResource(R.string.cardboard_no_sensor),
+            c.headTracking && a.cardboardSensor, enabled = a.cardboardSensor, chipModifier = track("cardboard-tracking")) {
+            a.onCardboard(c.copy(headTracking = it))
+        }
+        if (c.headTracking && a.cardboardSensor)
+            ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
     }
 }
 
