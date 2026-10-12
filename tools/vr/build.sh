@@ -12,4 +12,14 @@ docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "$repo:/src
     aarch64-linux-gnu-g++ -std=c++17 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter \
     -fvisibility=hidden -static-libstdc++ -static-libgcc -pthread \
     -o tools/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so tools/vr/src/driver_droiddeck.cpp
-echo "built $out"
+# The Vulkan layer for vrcompositor; Vulkan headers from the pinned NDK (the cross image has none).
+sdk=${ANDROID_HOME:-$HOME/Library/Android/sdk}
+vkinc=$(ls -d "$sdk"/ndk/*/toolchains/llvm/prebuilt/*/sysroot/usr/include 2>/dev/null | head -1)
+[ -n "$vkinc" ] || { echo "no NDK Vulkan headers under $sdk/ndk" >&2; exit 1; }
+rm -rf "$here/out/vkinclude" && mkdir -p "$here/out/vkinclude" && cp -R "$vkinc/vulkan" "$vkinc/vk_video" "$here/out/vkinclude/" 2>/dev/null || cp -R "$vkinc/vulkan" "$here/out/vkinclude/"
+mkdir -p "$here/out/layer"
+cp "$here/layer/VK_LAYER_DROIDDECK_vr.json" "$here/out/layer/"
+docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "$repo:/src" -w /src "$image" \
+    aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+    -Itools/vr/out/vkinclude -o tools/vr/out/layer/libVkLayer_droiddeck_vr.so tools/vr/src/vk_layer_droiddeck_vr.c
+echo "built $out and $here/out/layer"
