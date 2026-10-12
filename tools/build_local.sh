@@ -18,7 +18,8 @@ build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
     debug) gradle_task=assembleDebug ;;
     release) gradle_task=assembleRelease ;;
-    *) echo "DROIDDECK_BUILD_VARIANT must be debug or release" >&2; exit 1 ;;
+    sidebyside) gradle_task=assembleSidebyside ;;
+    *) echo "DROIDDECK_BUILD_VARIANT must be debug, release or sidebyside" >&2; exit 1 ;;
 esac
 
 if [[ ! -x "${sdk_dir}/platform-tools/adb" ]]; then

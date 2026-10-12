@@ -33,5 +33,9 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gog.GogBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.epic.EpicBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
+        if (com.droiddeck.launcher.session.SessionPrefs.usbRootEnabled(this)) {
+            com.droiddeck.launcher.session.UsbRootMount.watch(this)
+            Thread({ com.droiddeck.launcher.session.UsbRootMount.mount(this) }, "usb-root").start()
+        }
     }
 }
