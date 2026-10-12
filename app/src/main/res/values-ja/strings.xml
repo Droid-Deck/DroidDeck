@@ -2100,4 +2100,6 @@
     <string name="achievements_signed_out">実績を表示するには %1$s にサインインしてください。</string>
     <string name="achievements_unreachable">%1$s に接続できませんでした。オンラインになってから再度確認してください。</string>
     <string name="achievements_none">%1$s にはこのゲームの実績がありません。</string>
+    <string name="achievements_show_all">すべて表示（%1$d）</string>
+    <string name="achievements_show_fewer">表示を減らす</string>
 </resources>

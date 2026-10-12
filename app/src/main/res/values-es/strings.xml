@@ -2144,4 +2144,6 @@
     <string name="achievements_signed_out">Inicia sesión en %1$s para ver tus logros.</string>
     <string name="achievements_unreachable">No se pudo conectar con %1$s. Vuelve a intentarlo cuando tengas conexión.</string>
     <string name="achievements_none">%1$s no indica logros para este juego.</string>
+    <string name="achievements_show_all">Ver los %1$d</string>
+    <string name="achievements_show_fewer">Ver menos</string>
 </resources>

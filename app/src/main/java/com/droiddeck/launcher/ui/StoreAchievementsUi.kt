@@ -196,24 +196,47 @@ internal fun StoreAchievementsSection(game: StoreAchievements.Game) {
 }
 
 @Composable
-internal fun StoreAchievementsSectionContent(label: String, state: AchievementsState) {
+internal fun StoreAchievementsSectionContent(label: String, state: AchievementsState, startExpanded: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val list = state.list
     // Hidden for games without achievements.
     if (list.isNullOrEmpty() && !state.reading && state.reason != Reason.SIGNED_OUT && state.reason != Reason.UNREACHABLE) return
     val narrow = LocalNarrowPane.current
+    var expanded by remember { mutableStateOf(startExpanded) }
+    val firstRevealed = remember { FocusRequester() }
+    val showAll = remember { FocusRequester() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
         Text(stringResource(R.string.achievements_title), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
         achievementsNote(state, label)?.let { Text(it, fontSize = 13.sp, color = colors.onSurfaceVariant) }
         if (!list.isNullOrEmpty()) {
             AchievementsProgress(state)
-            for ((label, group) in groups(list)) {
-                AchievementGroupLabel(stringResource(label, group.size))
-                for (a in group) AchievementRow(a, compact = narrow)
+            val collapsible = list.size > PREVIEW_COUNT
+            if (collapsible && !expanded) {
+                for (a in groups(list).flatMap { it.second }.take(PREVIEW_COUNT)) AchievementRow(a, compact = narrow)
+                SecondaryButton(stringResource(R.string.achievements_show_all, list.size), modifier = Modifier.focusRequester(showAll)) { expanded = true }
+            } else {
+                var index = 0
+                for ((label, group) in groups(list)) {
+                    AchievementGroupLabel(stringResource(label, group.size))
+                    for (a in group) {
+                        AchievementRow(a, compact = narrow, modifier = if (index == PREVIEW_COUNT) Modifier.focusRequester(firstRevealed) else Modifier)
+                        index++
+                    }
+                }
+                if (collapsible) SecondaryButton(stringResource(R.string.achievements_show_fewer)) { expanded = false }
             }
         }
     }
+    // The pressed button leaves the page, so focus moves to where the list changed.
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(expanded) {
+        if (!settled) { settled = true; return@LaunchedEffect }
+        withFrameNanos {}
+        runCatching { (if (expanded) firstRevealed else showAll).requestFocus() }
+    }
 }
+
+private const val PREVIEW_COUNT = 3
 
 private fun LazyListScope.achievementItems(list: List<Achievement>, compact: Boolean, first: FocusRequester) {
     var index = 0
@@ -331,6 +354,12 @@ private fun PreviewSurface(content: @Composable () -> Unit) {
 @Composable
 private fun StoreAchievementsSectionPreview() = PreviewSurface {
     Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("GOG", AchievementsState(previewList, null, false)) }
+}
+
+@Preview(name = "Store page section, expanded", widthDp = 800, heightDp = 700)
+@Composable
+private fun StoreAchievementsSectionExpandedPreview() = PreviewSurface {
+    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("GOG", AchievementsState(previewList, null, false), startExpanded = true) }
 }
 
 @Preview(name = "Store page section, signed out", widthDp = 800, heightDp = 200)
