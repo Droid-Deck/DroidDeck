@@ -287,14 +287,7 @@ object BwrapSpawner {
         try { Os.chmod(f.path, mode) } catch (e: Exception) {   }
     }
 
-    private fun run(
-        context: Context,
-        plan: Plan,
-        client: LocalSocket,
-        out: DataOutputStream,
-        id: Int,
-        sessionOwned: Boolean,
-    ) {
+    private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int, sessionOwned: Boolean) {
         val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
@@ -323,10 +316,13 @@ object BwrapSpawner {
             com.droiddeck.launcher.session.OrphanReaper.keepSession(identity)
             identity
         } else {
+            // A sandbox lives exactly as long as its bwrap stand-in, which ends it; a session starting
+            // meanwhile (OrphanReaper) must not take it - an install's extra-data step, say.
             com.droiddeck.launcher.session.OrphanReaper.keep(pid)
             null
         }
         Log.i(TAG, "sandbox $id pid $pid: ${plan.argv.joinToString(" ")} (${plan.binds.size} binds)")
+        // The stand-in going away (Flatpak killed, the session over) ends the sandbox.
         Thread({
             try { while (client.inputStream.read() >= 0) {   } }
             catch (e: IOException) {   }
@@ -337,9 +333,9 @@ object BwrapSpawner {
         }, "bwrap-$id-watch").apply { isDaemon = true; start() }
         try {
             synchronized(out) { frame(out, 'P', pid.toString().toByteArray()) }
-            // The stand-in going away (Flatpak killed, the session over) ends the sandbox.
             val buffer = ByteArray(16384)
-            // A sandbox that dies without a word still says why in logcat.
+            // The start of what the sandbox says goes to logcat too: a sandbox that fails at once
+            // (proot refusing a bind, a missing library) says why there even when nothing reads it.
             var logged = 0
             process.inputStream.use { stream ->
                 while (true) {

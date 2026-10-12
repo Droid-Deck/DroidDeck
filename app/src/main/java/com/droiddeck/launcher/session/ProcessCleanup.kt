@@ -1,5 +1,14 @@
 package com.droiddeck.launcher.session
 
+/**
+ * proot's --kill-on-exit takes the guest tree down only if proot gets to run it, and
+ * SIGKILL never lets it. A SIGKILLed proot left its tracees alive with no tracer: every
+ * seccomp-trapped syscall then failed with ENOSYS, they spun on retries at a full core
+ * for over an hour, and the reaper could not even open /proc to kill them. So: SIGTERM,
+ * a grace for proot's own cleanup, SIGKILL only if it will not go, then verify the exits.
+ * Each pid is checked against its start time before signalling so a number reused by a
+ * new process is never touched; repeated snapshots also catch children created during cleanup.
+ */
 internal class ProcessCleanup(
     private val snapshot: () -> List<Entry>,
     private val current: (Int) -> Entry?,
@@ -66,6 +75,7 @@ internal class ProcessCleanup(
     }
 
     companion object {
+        /** How long proot gets to run its own cleanup before it is killed outright. */
         const val GRACE_MS = 1200L
         const val KILL_WAIT_MS = 1200L
         private const val POLL_MS = 50L
@@ -73,6 +83,7 @@ internal class ProcessCleanup(
         private const val SIGTERM = 15
         private const val SIGKILL = 9
 
+        /** [roots] and every process below them, by each process's parent in a single /proc snapshot. */
         fun descendants(processes: List<Entry>, roots: Set<Identity>): Set<Identity> {
             val found = processes.filter { it.identity in roots }.mapTo(HashSet()) { it.identity }
             val children = processes.groupBy { it.parent }
