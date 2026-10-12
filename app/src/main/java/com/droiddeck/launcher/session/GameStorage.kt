@@ -29,7 +29,8 @@ object GameStorage {
             val name = UsbRootMount.label ?: context.getString(R.string.usb_root_volume)
             listOf(Option(context.getString(R.string.gstore_volume_free, name, free(dir)), dir.absolutePath, name))
         } else emptyList()
-        val hidden = hiddenUsb(context).filter { it.canWrite() }.map { dir ->
+        // One USB route at a time: the root mount when that setting is on, vold's own mount otherwise.
+        val hidden = if (SessionPrefs.usbRootEnabled(context)) emptyList() else hiddenUsb(context).filter { it.canWrite() }.map { dir ->
             val name = context.getString(R.string.usb_root_volume)
             Option(context.getString(R.string.gstore_volume_free, name, free(dir)), File(dir, "steam").absolutePath, name)
         }
