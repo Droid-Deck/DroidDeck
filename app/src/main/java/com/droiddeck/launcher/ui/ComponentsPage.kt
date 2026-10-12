@@ -739,7 +739,15 @@ fun ComponentsPage(
         Column(Modifier.fillMaxSize()) {
             // The in-use bar keeps its place; only its words change.
             AnimatedContent(l, transitionSpec = { fadeIn(Motion.tw(240)) togetherWith fadeOut(Motion.tw(160)) }, label = "inUse") { k -> bar(k) }
-            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 16.dp)) {
+            val detailScroll = androidx.compose.runtime.key(l) { rememberScrollState() }
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(detailScroll).padding(top = 12.dp, bottom = 16.dp)) {
+                // Shared performance settings stay visible before the downloadable catalog.
+                if (l == PROTON_TAB) {
+                    if (!protons.runtimeReady) EmptyLine(stringResource(R.string.content_needs_runtime))
+                    if (protons.sessionRunning) EmptyLine(stringResource(R.string.proton_stop_first))
+                    SettingsGroup(stringResource(R.string.comp_for_every_proton)) { protonOptions() }
+                    Spacer(Modifier.height(12.dp))
+                }
                 val slide: @Composable (@Composable (String) -> Unit) -> Unit = { body ->
                     AnimatedContent(
                         l,
@@ -777,10 +785,6 @@ fun ComponentsPage(
                     }
                 }
                 if (l == PROTON_TAB) {
-                    Spacer(Modifier.height(10.dp))
-                    if (!protons.runtimeReady) EmptyLine(stringResource(R.string.content_needs_runtime))
-                    if (protons.sessionRunning) EmptyLine(stringResource(R.string.proton_stop_first))
-                    SettingsGroup(stringResource(R.string.comp_for_every_proton)) { protonOptions() }
                     Spacer(Modifier.height(12.dp))
                     Note(stringResource(R.string.comp_about_text))
                 }
@@ -815,40 +819,36 @@ fun ComponentsPage(
             if (narrow) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) { DeviceChip(gpu) }
             Spacer(Modifier.height(14.dp))
             if (games.isNotEmpty()) {
-                SettingsGroup(stringResource(R.string.comp_profile_configure)) {
-                    SettingsRow(
-                        stringResource(R.string.comp_profile),
-                        if (selectedGame == null) {
-                            stringResource(R.string.comp_scope_general_detail)
-                        } else {
-                            stringResource(R.string.comp_profile_game_detail, selectedGame.name)
-                        },
-                    ) {
-                        Box {
-                            ValueChip(
-                                selectedGame?.name ?: stringResource(R.string.comp_scope_general),
-                                scopeMenu,
-                                modifier = Modifier.widthIn(max = 320.dp).heightIn(min = 44.dp),
-                            ) { scopeMenu = !scopeMenu }
-                            AnchoredMenu(
-                                scopeMenu,
-                                onDismiss = { scopeMenu = false },
-                                title = stringResource(R.string.comp_profile_configure),
-                            ) { first ->
-                                MenuItem(
-                                    stringResource(R.string.comp_scope_general),
-                                    checked = selectedGame == null,
-                                    detail = stringResource(R.string.comp_scope_general_detail),
-                                    focusRequester = first,
-                                ) {
-                                    selectedGameKey = null
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                ) {
+                    Text(stringResource(R.string.comp_profile), fontSize = 14.sp, color = colors.onSurfaceVariant)
+                    Box(Modifier.weight(1f, fill = false)) {
+                        ValueChip(
+                            selectedGame?.name ?: stringResource(R.string.comp_scope_general),
+                            scopeMenu,
+                            modifier = Modifier.widthIn(max = 320.dp).heightIn(min = 44.dp),
+                        ) { scopeMenu = !scopeMenu }
+                        AnchoredMenu(
+                            scopeMenu,
+                            onDismiss = { scopeMenu = false },
+                            title = stringResource(R.string.comp_profile_configure),
+                        ) { first ->
+                            MenuItem(
+                                stringResource(R.string.comp_scope_general),
+                                checked = selectedGame == null,
+                                detail = stringResource(R.string.comp_scope_general_detail),
+                                focusRequester = first,
+                            ) {
+                                selectedGameKey = null
+                                scopeMenu = false
+                            }
+                            games.sortedBy { it.name.lowercase() }.forEach { game ->
+                                MenuItem(game.name, checked = selectedGameKey == game.profileKey) {
+                                    selectedGameKey = game.profileKey
                                     scopeMenu = false
-                                }
-                                games.sortedBy { it.name.lowercase() }.forEach { game ->
-                                    MenuItem(game.name, checked = selectedGameKey == game.profileKey) {
-                                        selectedGameKey = game.profileKey
-                                        scopeMenu = false
-                                    }
                                 }
                             }
                         }
@@ -901,7 +901,6 @@ fun ComponentsPage(
                     ) {
                         val tint = rememberUpdatedState(pal.signal)
                         val local = cardsAt[layer]?.translate(-stackAt)
-                        ChipGlide(LAYERS.indexOf(layer), local, tint, GlideAxis.Vertical, corner = 12.dp)
                         Stack(
                             layer, view, gpu, focus = layerFocus, landed = landed, rings = rings,
                             onPlaced = { l, r -> cardsAt[l] = r },
@@ -912,6 +911,8 @@ fun ComponentsPage(
                                 else runCatching { firstRow.requestFocus() }
                             },
                         )
+                        // Over the cards: under them, their rest fill hid it as it crossed them.
+                        ChipGlide(LAYERS.indexOf(layer), local, tint, GlideAxis.Vertical, corner = 12.dp)
                     }
                     if (!narrow) {
                         Spacer(Modifier.width(16.dp))
@@ -1105,14 +1106,17 @@ private fun LayerCard(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
+    // The stack's glide draws the picked card's look by touch only; with a pad, its rest look and the bar.
+    val under = selected && androidx.compose.ui.platform.LocalInputModeManager.current.inputMode != androidx.compose.ui.input.InputMode.Keyboard
     Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = modifier.fillMaxWidth().height(40.dp)
                 .landingPop(landed).pulseRing(ring, pal.signal)
                 .clip(LAYER_SHAPE)
-                .background(if (selected) Color.Transparent else colors.surface)
-                .glideBorder(hot, LAYER_SHAPE, pal.signal, if (selected) Color.Transparent else pal.line)
+                .background(if (under) Color.Transparent else colors.surface)
+                .shownBar(selected, pal.signal, vertical = true)
+                .glideBorder(hot, LAYER_SHAPE, pal.signal, if (under) Color.Transparent else pal.line)
                 .onFocusChanged { if (it.isFocused) onFocus() }
                 .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = onClick)
                 .controllerConfirm(onClick = onClick)

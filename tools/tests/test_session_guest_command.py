@@ -14,6 +14,10 @@ import unittest
 SERVICE = Path(__file__).resolve().parents[2] / (
     "app/src/main/java/com/droiddeck/launcher/session/SessionService.kt")
 
+VARIANTS = Path(__file__).resolve().parents[1] / "release/variants.txt"
+PACKAGES = [line.split()[1] for line in VARIANTS.read_text().splitlines()
+            if line.strip() and not line.startswith("#")]
+
 
 def guest_prefix(package):
     source = SERVICE.read_text()
@@ -41,13 +45,13 @@ def guest_prefix(package):
 
 class SessionGuestCommandTest(unittest.TestCase):
     def test_env_is_the_executable_for_every_package(self):
-        for package in ("com.droiddeck.launcher", "com.droiddeck.quest"):
+        for package in PACKAGES:
             with self.subTest(package=package):
                 self.assertEqual(["/usr/bin/env", "-i"], guest_prefix(package)[:2])
 
     @unittest.skipUnless(Path("/usr/bin/env").is_file(), "needs /usr/bin/env")
     def test_child_receives_its_package_socket_after_environment_is_cleared(self):
-        for package in ("com.droiddeck.launcher", "com.droiddeck.quest"):
+        for package in PACKAGES:
             with self.subTest(package=package):
                 # env with no command prints the environment it would pass to the
                 # session. A misplaced assignment fails at exec, before it runs.

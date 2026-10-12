@@ -223,6 +223,10 @@ class DrawerActions(
     val onHardwareKeyboard: () -> Unit,
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
+    /** Null hides the achievements row. */
+    val onAchievements: (() -> Unit)? = null,
+    /** (unlocked, total), or null when unknown. */
+    val achievementsProgress: Pair<Int, Int>? = null,
     val onOsc: (String) -> Unit,
     /** Edits the Steam touch layout of the game in front, when Steam's controls are up. */
     val onEditSteamTouch: (() -> Unit)? = null,
@@ -273,6 +277,9 @@ class DrawerActions(
     val onSelectedGameProfileRefresh: () -> Unit = {},
     val gameFexPresetSaving: Boolean = false,
     val onGameFexPreset: (Long, String?) -> Unit = { _, _ -> },
+    /** Saves the selected game's Start without Steam (GameEnvironment.NO_STEAM). */
+    val gameNoSteamSaving: Boolean = false,
+    val onGameNoSteam: (Long, Boolean) -> Unit = { _, _ -> },
     /** Swaps [value] ("orig:<build>" or a stored package file) into a Proton's component. */
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
     /** Saves a stored package for a game, or null to inherit that component from the Default profile. */
@@ -406,6 +413,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     }
                     StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
+                a.onAchievements?.let { show ->
+                    DrawerAchievementsRow(a.achievementsProgress, Modifier.padding(top = if (short) 6.dp else 10.dp).then(focus.track(page, "achievements"))) {
+                        host.open = null; show()
+                    }
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -515,6 +527,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             TextureFilteringGroup(host, a) { key -> focus.track(page, key) }
                             if (a.steam) SettingsGroup(stringResource(R.string.game_settings_title)) {
                                 DrawerFexPresetRow(host, a, focus.track(page, "fex"))
+                                DrawerNoSteamRow(host, a, focus.track(page, "no-steam"))
                                 GameEnvironmentRow(
                                     modifier = focus.track(page, "game-env"),
                                     showHint = false,
@@ -940,6 +953,17 @@ private fun DrawerFexPresetRow(host: MenuHost, a: DrawerActions, modifier: Modif
     }
 }
 
+/** A game's Start without Steam; only with a game selected - the Default profile has no such switch. */
+@Composable
+private fun DrawerNoSteamRow(host: MenuHost, a: DrawerActions, modifier: Modifier) {
+    val appId = a.selectedGameProfileId ?: return
+    val profile = a.selectedGameProfile?.takeIf { it.appId == appId } ?: return
+    ToggleRow(
+        host, "no-steam", stringResource(R.string.game_no_steam_title), stringResource(R.string.game_no_steam_detail),
+        profile.startWithoutSteam, enabled = !a.gameNoSteamSaving, chipModifier = modifier,
+    ) { on -> a.onGameNoSteam(appId, on) }
+}
+
 /** Texture filtering on the Games page: DXVK options for the next DirectX 9-11 launch. */
 @Composable
 private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
@@ -1027,6 +1051,9 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
                 if (!value.inherited) {
                     ProfileSummaryRow(ComponentsManager.LABEL.getValue(component), profileValueLabel(value))
                 }
+            }
+            if (profile.startWithoutSteam) {
+                ProfileSummaryRow(stringResource(R.string.game_no_steam_title), stringResource(R.string.game_no_steam_on))
             }
             if (profile.environmentOverrides > 0) {
                 ProfileSummaryRow(

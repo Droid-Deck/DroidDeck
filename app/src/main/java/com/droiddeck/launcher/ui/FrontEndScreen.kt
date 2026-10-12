@@ -134,6 +134,7 @@ class FrontEndState(
     val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
     val launcherFullscreen: Boolean = true,
     val animationsEnabled: Boolean = true,
+    val gameStoresEnabled: Boolean = true,
     /** Setup › Stores: the download engine's speed tier (stores/download/StoreDownloadTier ids). */
     val gameStoresSpeedTier: String = "fast",
     /** Setup › Stores: the tab a signed-in store opens on (SessionPrefs.STORES_OPEN_LIBRARY / STORE). */
@@ -212,6 +213,7 @@ class FrontEndActions(
     val onOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
+    val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onStoresOpenTab: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
@@ -339,6 +341,8 @@ internal class FrontFocus {
 /** Down from this button goes to the first tile of the page's grid, when there is one. */
 @Composable
 internal fun Modifier.downToFirstTile(): Modifier {
+    // Sheet rows walk their settings; Desktop's dock stays composed behind the sheet.
+    if (LocalSheetBeat.current != null) return this
     val ff = LocalFrontFocus.current ?: return this
     return this.focusProperties { down = if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
 }
@@ -499,6 +503,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     val inputModeManager = LocalInputModeManager.current
     val window = LocalWindowInfo.current
+    val androidContext = androidx.compose.ui.platform.LocalContext.current
     var anyFocused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
@@ -530,7 +535,15 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             if (processSettingsPageVisible) return@LaunchedEffect
             // Past the old page's exit (170ms), then the first frame the new page takes focus.
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
-            if (anyFocused || inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
+            if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
+            if (s.pageKey == "performance") {
+                val back = "back:${androidContext.getString(R.string.mode_back)}"
+                focusWithinFrames({ frontFocus.last == back && anyFocused && frontFocus.focusedRail == null }) {
+                    frontFocus.items[back] ?: FocusRequester.Default
+                }
+                return@LaunchedEffect
+            }
+            if (anyFocused) return@LaunchedEffect
             focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         // A rail item picked with a controller moves on into its page, once the page is in.

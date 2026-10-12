@@ -125,6 +125,12 @@ internal object StoresMotion {
     /** Where each store's dot sits on its chip, for a sign-in to come home to. */
     val dots = HashMap<Store, Rect>()
 
+    /** Where the open game page's hero art sits (root px): what a card's flood lands on, and leaves from. */
+    var heroAt by mutableStateOf<Rect?>(null)
+
+    /** The open game page came out of a card: its hero holds still, for the card's flood to land on. */
+    var heroLands by mutableStateOf(false)
+
     /** The card a game page is about to open from. */
     private var card: CardMark? = null
     private var cardAt = 0L

@@ -688,6 +688,33 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class StartWithoutSteamTest(unittest.TestCase):
+    def test_start_without_steam_uses_umu_or_runinprefix_and_only_when_asked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ge = Path(tmp) / "ge/proton"
+            ge.parent.mkdir()
+            ge.write_text('if "UMU_ID" in os.environ:\n    argv = [wine, "c:\\\\windows\\\\system32\\\\umu.exe"]\n')
+            valve = Path(tmp) / "valve/proton"
+            valve.parent.mkdir()
+            valve.write_text('argv = [wine, "c:\\\\windows\\\\system32\\\\steam.exe"]\n')
+            start = MODULE["start_without_steam"]
+            game = [str(ge), "waitforexitandrun", "/games/Game.exe", "-windowed"]
+            self.assertEqual(start(game, {}, "3384071994"), (game, {}))
+            on = {"DROIDDECK_NO_STEAM": "1"}
+            # An added game (a shortcut id) has no Steam fixes: UMU_ID 0. The command is unchanged.
+            self.assertEqual(start(game, on, "3384071994"), (game, dict(on, UMU_ID="0")))
+            # A Steam game keeps its protonfixes under its own id.
+            self.assertEqual(start(game, on, "570940")[1]["UMU_ID"], "570940")
+            # A UMU_ID the user set wins.
+            self.assertEqual(start(game, dict(on, UMU_ID="umu-1"), "570940")[1]["UMU_ID"], "umu-1")
+            # Valve's Proton has no umu launch: the game runs straight in the prefix.
+            plain = [str(valve)] + game[1:]
+            self.assertEqual(start(plain, on, "570940"), ([str(valve), "runinprefix", "/games/Game.exe", "-windowed"], on))
+            # Only a game launch: the client's own runs and other verbs are left alone.
+            for other in ([str(ge), "run", "/x.exe"], [str(ge), "waitforexitandrun"], [str(valve), "getcompatpath", "/x"]):
+                self.assertEqual(start(other, on, "570940"), (other, on))
+
+
 class ForceSsbsTest(unittest.TestCase):
     def test_libssbs_is_preloaded_only_when_asked_and_only_into_arm64_proton(self):
         with tempfile.TemporaryDirectory() as tmp:

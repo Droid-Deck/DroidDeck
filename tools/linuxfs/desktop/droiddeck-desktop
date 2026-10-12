@@ -34,9 +34,9 @@ export MOZ_SHM_NO_SEALS=1
 # and the KGSL stand-in is not one. Its windows get shm buffers only, so GL programs on it draw with
 # Mesa's software rasterizer, Plasma's own Qt Quick draws with Qt's software renderer (plasmashell
 # crashes on llvmpipe here), and a Vulkan program cannot draw at all: games and emulators from the
-# menu run through droiddeck-gpu (their own gamescope on the app's compositor), and Steam goes back
-# to the app as a Steam session - SteamOS's "Return to Gaming Mode". The session's own GL choice
-# (zink on Turnip, for the Steam client) is put back by droiddeck-gpu.
+# menu run through droiddeck-gpu (their own gamescope on the app's compositor), and Steam's desktop
+# client uses software CEF on KDE. The session's own GL choice (zink on Turnip)
+# is put back by droiddeck-gpu.
 export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
 # mpv refuses that software GL and then fails its X11 fallback (an assertion): allowed it, it plays.
 [ -e /etc/mpv/mpv.conf ] || { mkdir -p /etc/mpv && echo gpu-sw=yes >/etc/mpv/mpv.conf; } 2>/dev/null
@@ -61,8 +61,7 @@ chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
 mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
 # Fontconfig defaults and Android language fallbacks are set up by droiddeck-session before this
 # script or any desktop program starts.
-# The menu's "Steam" / "Steam Big Picture" entries and one entry per installed game: all of them
-# hand off to the app (droiddeck-steam-launch), since the client cannot draw on this desktop.
+# Steam opens on KDE; Steam Big Picture explicitly hands off to the gaming session.
 export BL_DESKTOP=1
 ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
 ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null

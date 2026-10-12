@@ -257,6 +257,14 @@ public final class PadBridge {
         return false;
     }
 
+    /** Publishes every currently connected controller so the client can enumerate all players. */
+    public synchronized void syncConnectedControllers() {
+        for (int deviceId : InputDevice.getDeviceIds()) {
+            InputDevice device = InputDevice.getDevice(deviceId);
+            if (isFromController(device)) publish(slotFor(device));
+        }
+    }
+
     /**
      * Called (main thread) when a player presses a button, pushes a stick, trigger or d-pad past
      * halfway, or uses the on-screen controls - the session hides its mouse cursor then. Resting
@@ -392,8 +400,8 @@ public final class PadBridge {
         boolean qamStarted = qamPressed && !systemQamPressed;
         systemGuidePressed = guidePressed;
         systemQamPressed = qamPressed;
-        // A Deck controller's QAM button is held for as long as the touch one is.
-        if (qamStarted && !SessionState.getDeckPad()) startQamChord();
+        // A Deck or Steam Controller's QAM button is held for as long as the touch one is.
+        if (qamStarted && !nativeQam()) startQamChord();
         else publish();
     }
 
@@ -418,9 +426,18 @@ public final class PadBridge {
         }
     }
 
-    /** Opens the client's Quick Access menu: a tap of the Deck's button, or the Guide-then-A chord. */
+    /**
+     * Whether the client's pad has its own QAM button to press. The Deck's sysfs being up is not
+     * enough: the drawer can make the pad an Xbox or PlayStation one, which has none, and a press
+     * of it never reaches the client.
+     */
+    private static boolean nativeQam() {
+        return SessionState.getDeckPad() && FakeInputWriter.padHasQam();
+    }
+
+    /** Opens the client's Quick Access menu: a tap of the pad's button, or the Guide-then-A chord. */
     public synchronized void triggerQam() {
-        if (!SessionState.getDeckPad()) {
+        if (!nativeQam()) {
             startQamChord();
             return;
         }
@@ -563,7 +580,7 @@ public final class PadBridge {
             return;
         }
         boolean guide = systemGuidePressed || qamChordActive;
-        boolean qam = SessionState.getDeckPad() && (systemQamPressed || qamTapPressed);
+        boolean qam = nativeQam() && (systemQamPressed || qamTapPressed);
         if (!guide && !qam) {
             writer.writePad(state);
             return;

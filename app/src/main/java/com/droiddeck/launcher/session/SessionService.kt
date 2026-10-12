@@ -334,6 +334,7 @@ class SessionService : Service() {
         SessionFiles.stage(this, root)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         // The compat tool asks for an Epic game's sign-in code at every launch, the client's Play button included.
+        com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
@@ -381,7 +382,12 @@ class SessionService : Service() {
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
         deckBinds = emptyList()
-        if (controllersOn) addControllerEnvironment(guest, fakeInputDir, sessionDir)
+        if (controllersOn) {
+            addControllerEnvironment(guest, fakeInputDir, sessionDir)
+            // Steam enumerates /dev/input while it starts. Make every attached controller's
+            // discovery node exist after the rings and guest environment are ready.
+            SessionState.padBridge?.syncConnectedControllers()
+        }
         // The user's own games, for the runtime's shortcuts writer to put in the client's library
         // before the client starts (see frontend/AddedGames and droiddeck-steam-shortcuts).
         if (steamHere) {
@@ -663,16 +669,15 @@ class SessionService : Service() {
         extraEnv().forEach { guest.add(it) }
         // The agent bridge's experiment lines (AgentEnv), after the user's so an agent's win.
         com.droiddeck.launcher.agent.AgentEnv.beginSession(this).forEach { guest.add(it) }
-        // Core masks, Bannerlator's two (cfca3912). The client's is sent whenever the override is
-        // on, even naming every core: it exists to undo the pin Steam applies to its own interface
-        // renderer, and the scheduler's default is exactly what that pin takes away. A game's is
-        // sent only when it is a real restriction - a game has no pin of its own to undo.
-        if (steamHere && SessionPrefs.clientCpusOverride(this)) {
+        // A game launched by pinned Steam inherits its mask. Explicitly restore all game cores
+        // when requested, as well as applying restricted game choices in the Proton wrapper.
+        val clientPinned = steamHere && SessionPrefs.clientCpusOverride(this)
+        if (clientPinned) {
             guest.add("BL_CLIENT_CPUS=" + CpuCores.listOrAll(SessionPrefs.clientCpus(this)))
         }
         // The game cores also pin the desktop and a program from the rail; without a choice the
         // session script picks every core but the slowest cluster for those (program_cores).
-        CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(this))
+        CpuCores.gameLaunchList(SessionPrefs.gameCpus(this), clientPinned)
             .takeIf { it.isNotEmpty() }?.let { guest.add("BL_GAME_CPUS=$it") }
     }
 
@@ -1538,6 +1543,7 @@ class SessionService : Service() {
         }
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
+        val stoppedSession = SessionState.sessionId
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)
@@ -1584,13 +1590,14 @@ class SessionService : Service() {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
                 Thread({
                     if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
+                    com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
                     finishSessionStop(status, stoppedGen)
                 }, "session-teardown").start()
             } else {
-                finishSessionStop(status, stoppedGen)
+                Thread({ com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession); finishSessionStop(status, stoppedGen) }, "gog-session-stop").start()
             }
         }
         if (prootPid > 1) acquireLocks()

@@ -1073,4 +1073,19 @@
         <item quantity="many">%1$d уже в «Играх»</item>
         <item quantity="other">%1$d уже в «Играх»</item>
     </plurals>
+    <string name="achievements_title">Достижения</string>
+    <string name="achievements_count">Получено %1$d из %2$d</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">Получены · %1$d</string>
+    <string name="achievements_group_locked">Не получены · %1$d</string>
+    <string name="achievements_group_hidden">Скрытые · %1$d</string>
+    <string name="achievements_hidden">Скрытое достижение</string>
+    <string name="achievements_hidden_detail">Подробности появятся после получения.</string>
+    <string name="achievements_all">Все достижения получены</string>
+    <string name="achievements_reading">Загрузка…</string>
+    <string name="achievements_signed_out">Войдите в %1$s, чтобы увидеть свои достижения.</string>
+    <string name="achievements_unreachable">Не удалось связаться с %1$s. Проверьте снова, когда будете в сети.</string>
+    <string name="achievements_none">В %1$s нет достижений для этой игры.</string>
+    <string name="achievements_show_all">Показать все (%1$d)</string>
+    <string name="achievements_dialog_title">Достижения · %1$s</string>
 </resources>

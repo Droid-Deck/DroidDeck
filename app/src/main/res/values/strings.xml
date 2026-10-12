@@ -438,6 +438,9 @@
     <string name="comp_game_runtime_options">Runtime options</string>
     <string name="comp_game_environment_other_hint">Other per-game Proton, DXVK, VKD3D-Proton and synchronization environment options.</string>
     <string name="comp_game_saved_next">%1$s\'s profile is saved for the next game launch.</string>
+    <string name="game_no_steam_title">Start without Steam</string>
+    <string name="game_no_steam_detail">For a game that closes right away: starts it without Proton\'s Steam setup. Steam features such as the overlay are off for it.</string>
+    <string name="game_no_steam_on">On</string>
     <string name="comp_game_proton_live">%1$s\'s Proton choice is saved and available in Steam now.</string>
     <string name="comp_game_proton_next">%1$s\'s Proton choice is saved. Restart Steam before launching the game.</string>
     <string name="comp_game_proton_not_runnable">%1$s cannot use the selected Proton on this device.</string>
@@ -2087,6 +2090,8 @@
     <string name="stores_play">Play</string>
     <string name="stores_install">Install</string>
     <string name="stores_resume_install">Resume install</string>
+    <!-- A Downloads row for an install that stopped when the app closed: it can be resumed -->
+    <string name="stores_dl_interrupted">Interrupted</string>
     <string name="stores_install_size">Install · %1$s</string>
     <string name="stores_get_free">Get for free</string>
     <string name="stores_view_on">View on %1$s</string>
@@ -2120,9 +2125,29 @@
     <string name="stores_eyebrow_installed">installed</string>
     <string name="stores_eyebrow_library">in your library</string>
     <string name="stores_eyebrow_store">store</string>
+    <!-- A GOG or Epic game's achievements: the store page's section and the session panel. -->
+    <string name="achievements_title">Achievements</string>
+    <string name="achievements_count">%1$d of %2$d unlocked</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">Unlocked · %1$d</string>
+    <string name="achievements_group_locked">Locked · %1$d</string>
+    <string name="achievements_group_hidden">Hidden · %1$d</string>
+    <string name="achievements_hidden">Hidden achievement</string>
+    <string name="achievements_hidden_detail">Details are shown once it is unlocked.</string>
+    <string name="achievements_all">Every achievement unlocked</string>
+    <string name="achievements_reading">Reading…</string>
+    <string name="achievements_signed_out">Sign in to %1$s to see your achievements.</string>
+    <string name="achievements_unreachable">Could not reach %1$s. Check back once you are online.</string>
+    <string name="achievements_none">%1$s lists no achievements for this game.</string>
+    <string name="achievements_show_all">Show all %1$d</string>
+    <string name="achievements_dialog_title">Achievements · %1$s</string>
     <string name="stores_in_steam">✓ In Steam</string>
     <string name="stores_uninstall">Uninstall</string>
-    <string name="stores_uninstall_confirm">Press again to uninstall</string>
+    <string name="stores_uninstalling">Uninstalling…</string>
+    <!-- The heading of the confirm that steps out of a store game's Uninstall; %1$s is the game -->
+    <string name="stores_uninstall_title">Uninstall %1$s?</string>
+    <string name="stores_uninstall_body_size">Frees %1$s and removes it from Steam.</string>
+    <string name="stores_uninstall_body">Removes its files and its Steam shortcut.</string>
     <string name="stores_launch_not_registered">Steam picks the game up when it next starts; launch it from there, or start Steam now.</string>
     <string name="stores_card_proton">Proton</string>
     <string name="stores_card_proton_value">Steam\'s choice per game</string>
@@ -2281,4 +2306,14 @@
     <string name="desktop_size">Size on disk</string>
     <string name="desktop_uninstall_title">Uninstall the desktop?</string>
     <string name="desktop_all_systems">All</string>
+    <string name="gog_achievements">GOG achievements</string>
+    <string name="gog_achievements_hint">Sync achievements for supported GOG games. Applies on the next launch.</string>
+    <string name="gog_achievements_off">Achievements off</string>
+    <string name="gog_achievements_on">Achievements enabled</string>
+    <string name="gog_achievements_signin">Sign in to GOG again</string>
+    <string name="gog_achievements_uploaded">Achievements uploaded</string>
+    <string name="gog_achievements_pending">Achievement upload pending</string>
+    <string name="gog_achievements_enable_store">Enable GOG achievements in Stores settings</string>
+    <string name="gog_achievements_unavailable">Achievements unavailable; check session logs</string>
+    <string name="achievement_unlocked">Achievement unlocked</string>
 </resources>

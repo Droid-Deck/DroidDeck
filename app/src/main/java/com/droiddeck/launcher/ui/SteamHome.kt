@@ -92,6 +92,16 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         frameGen = { FrameGenGroup(s, a) },
         performance = { PerformanceLink(a, "steam", SheetTab.SESSION) },
         drivers = { summary -> DriversLink(a, summary, "steam", back) },
+        // Offline mode lives with Steam's other settings; Setup only checks the account.
+        account = { host ->
+            SettingsGroup(stringResource(R.string.setup_account)) {
+                ToggleRow(
+                    host, "offline", stringResource(R.string.setup_offline),
+                    s.offlineAccount?.let { if (it.isEmpty()) stringResource(R.string.setup_signed_in_unnamed) else stringResource(R.string.setup_signed_in, it) } ?: stringResource(R.string.setup_sign_in_first),
+                    s.offline, enabled = s.offlineAccount != null,
+                ) { a.onOffline() }
+            }
+        },
     )
     LiftHero(
         key = "steam", tabs = tabs,

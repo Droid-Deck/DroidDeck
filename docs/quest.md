@@ -3,7 +3,8 @@
 Quest 3/3S runs DroidDeck as a 2D panel. This does not add immersive VR or
 OpenXR support. Quest 2 is outside the bundled Adreno 7xx driver path.
 
-The first launch on Quest 3/3S selects manual drivers, the bundled
+Install the standard DroidDeck APK on Quest 3/3S. Device detection on the
+first launch selects manual drivers, the bundled
 `turnip25.1.0-quest1` Android driver and the default Linux driver. It enables
 `hdr.steam` to use the existing SurfaceControl presentation workaround from
 [the Quest report](https://github.com/Droid-Deck/DroidDeck/issues/245).
@@ -27,9 +28,11 @@ Android driver archive:
 python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/27.3.13750724"
 ```
 
-The release variant `quest` produces a separate `com.droiddeck.quest` APK
-with its own app data. All installed packages use their own bwrap socket.
-The standard APK also applies Quest defaults when running on Quest 3/3S.
+Quest compatibility is included in the standard APK; no separate Quest
+package is needed. Other devices retain their existing defaults. The remaining
+performance-name APK variants continue to use separate app data and bwrap sockets.
+
+Quest 3 testers have successfully launched games.
 
 On a headset, check the Steam login panel, sign-in, game installation and
 then an owned game's rendering/input. Capture the device/OS, session logs,

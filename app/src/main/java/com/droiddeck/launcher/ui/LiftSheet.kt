@@ -37,10 +37,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.ui.platform.testTag
+import kotlinx.coroutines.Job
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -126,12 +130,12 @@ internal object SheetTab {
 
 /**
  * Where the open sheet's top edge sits in a pane [paneH] tall (px), for a button [buttonH] tall
- * riding it: 82dp down a 360dp pane, the same share of any other, and never so high that the
+ * riding it: 60dp down a 360dp pane, the same share of any other, and never so high that the
  * button's top comes closer than [minAbove] to the pane's. [ride] is how far below the edge the
  * button's centre sits.
  */
 internal fun sheetTop(paneH: Float, buttonH: Float, minAbove: Float, ride: Float): Float =
-    maxOf(paneH * 82f / 360f, minAbove + buttonH / 2f - ride)
+    maxOf(paneH * 60f / 360f, minAbove + buttonH / 2f - ride)
 
 /** A finger's hold on the sheet: where it started (0 rest, 1 open), where it is, whether it has it. */
 private class SheetDrag {
@@ -228,6 +232,7 @@ internal fun LiftHero(
     // Set as a finger's drag lets go: the sheet is already where it is going.
     var dragSettled by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var dragJob by remember { mutableStateOf<Job?>(null) }
     val onOpenNow = rememberUpdatedState(onOpen)
     val pull = remember { Animatable(0f) }
     val sink = remember { Animatable(0f) }
@@ -243,6 +248,8 @@ internal fun LiftHero(
     val playSrc = remember { MutableInteractionSource() }
     val playHovered by playSrc.collectIsHoveredAsState()
     var playFocused by remember { mutableStateOf(false) }
+    // Set as a pad leaves the sheet to the left for Play, which folds it once Play has focus.
+    val leftForPlay = remember { booleanArrayOf(false) }
     var heroAt by remember { mutableStateOf(Offset.Zero) }
     var rest by remember { mutableStateOf<Rect?>(null) }
     fun focusPlay() { if (ff != null && inputMode.inputMode == InputMode.Keyboard) runCatching { ff.primary.requestFocus() } }
@@ -273,6 +280,7 @@ internal fun LiftHero(
         onDispose { lifecycle.removeObserver(obs) }
     }
     LaunchedEffect(open, launching) {
+        if (!dragSettled) { dragJob?.cancel(); dragJob = null }
         if (dragSettled) {
             // A finger brought it here and has already animated it: only what opening needs.
             dragSettled = false
@@ -344,6 +352,9 @@ internal fun LiftHero(
         }
     }
     BackHandler(enabled = open && !launching) { close() }
+    // The ring keeps out of the lift and the fold, and comes back on whatever has focus once
+    // they are done: Play rides the sheet on a layer, and the ring hung where Play had been.
+    if (ride.isRunning || (shown && !open)) VeilRing()
     val openNow = open || shown
     LaunchedEffect(openNow) { onOpenChange(openNow) }
 
@@ -378,6 +389,8 @@ internal fun LiftHero(
     }
     /** A finger takes the sheet where it is: up from rest, or down from open. */
     fun beginDrag() {
+        dragJob?.cancel(); dragJob = null
+        dragSettled = false
         drag.engaged = true
         drag.from = if (open) 1f else 0f
         drag.progress = drag.from
@@ -401,7 +414,8 @@ internal fun LiftHero(
             else -> drag.progress > 0.3f
         }
         dragSettled = true
-        scope.launch {
+        dragJob?.cancel()
+        dragJob = scope.launch {
             val to = if (opens) 1f else 0f
             coroutineScope {
                 launch { lift.animateTo(to, Motion.sp(if (opens) 0.7f else 1f, 380f)) }
@@ -545,8 +559,8 @@ internal fun LiftHero(
                         onPrevious = { if (tab > 0) { travel = -1; tab--; runCatching { chipFocus[tab].requestFocus() } } },
                         onNext = { if (tab < tabs.lastIndex) { travel = 1; tab++; runCatching { chipFocus[tab].requestFocus() } } },
                     )
-                    // A pad stays in the sheet until it folds; Left from it reaches Play, the handle.
-                    .focusProperties { exit = { dir -> if (!openState.value || launchingState.value) FocusRequester.Default else if (dir == FocusDirection.Left && ff != null) ff.primary else FocusRequester.Cancel } }
+                    // A pad stays in the sheet until it folds; Left from it reaches Play, the handle, and folds it.
+                    .focusProperties { exit = { dir -> if (!openState.value || launchingState.value) FocusRequester.Default else if (dir == FocusDirection.Left && ff != null) { leftForPlay[0] = true; ff.primary } else FocusRequester.Cancel } }
                     .focusGroup(),
             ) {
                 Box(
@@ -554,7 +568,7 @@ internal fun LiftHero(
                         .offset { IntOffset(chipsX.roundToInt(), chipsY.roundToInt()) }
                         // Over the rows, whatever they scroll under them.
                         .zIndex(1f)
-                        .width(with(density) { (sheetW - chipsX - 16.dp.toPx()).coerceAtLeast(0f).toDp() })
+                        .width(with(density) { (sheetW - chipsX - 64.dp.toPx()).coerceAtLeast(0f).toDp() })
                         .graphicsLayer { val v = pieces[0].value; alpha = v; translationY = (1f - v) * 6.dp.toPx() }
                         // Up from the chips folds the sheet (a finger drags it down, see the hero's drag).
                         .onPreviewKeyEvent { e ->
@@ -596,6 +610,18 @@ internal fun LiftHero(
                         }
                     }
                 }
+                val closeSource = remember { MutableInteractionSource() }
+                val closeHot = rememberHot(closeSource)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .offset { IntOffset((sheetW - 52.dp.toPx()).roundToInt(), chipsY.roundToInt()) }
+                        .zIndex(1f).size(44.dp).testTag("sheet-close")
+                        .clip(CircleShape).glideBorder(closeHot, CircleShape, pal.signal)
+                        .hoverable(closeSource)
+                        .clickable(interactionSource = closeSource, indication = LocalIndication.current, enabled = open && !launching, role = Role.Button) { close() }
+                        .controllerConfirm(enabled = open && !launching) { close() },
+                ) { Icon(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
             }
         }
 
@@ -608,7 +634,11 @@ internal fun LiftHero(
                 Modifier
                     .onGloballyPositioned { rest = it.boundsInRoot() }
                     .graphicsLayer { translationY = raise * ride.value }
-                    .onFocusChanged { playFocused = it.hasFocus }
+                    .onFocusChanged {
+                        // Left out of the sheet (from the chips or a row) folds it, as Up from the chips does.
+                        if (it.hasFocus && leftForPlay[0]) { leftForPlay[0] = false; if (openState.value && !launchingState.value) close() }
+                        playFocused = it.hasFocus
+                    }
                     .hoverable(playSrc)
                     .onPreviewKeyEvent { e ->
                         val k = e.nativeKeyEvent
@@ -643,15 +673,15 @@ internal fun LiftHero(
         // A lip a pad can reach stays composed (unseen at rest) so Down always has it to land on.
         if (r0 != null && (lipShow.value > 0.01f || pull.value > 0.5f || (!downOpens && !open && !shown))) {
             var handleW by remember { mutableStateOf(0f) }
-            val lipH = 22.dp + pull.value.dp
+            val lipH = 32.dp + pull.value.dp
             val lift = { if (!open) open = true }
             Box(
                 Modifier
                     .offset { IntOffset((r0.center.x - handleW / 2f).roundToInt(), (r0.bottom + raise * ride.value + (lipShow.value - 1f) * 8.dp.toPx()).roundToInt()) }
                     .onSizeChanged { handleW = it.width.toFloat() }
                     .graphicsLayer { alpha = lipShow.value * (1f - lipGone.value) }
-                    // 44dp to touch; the tab itself is the top 22.
-                    .heightIn(min = 44.dp)
+                    // 44dp to touch, with a 32dp visible handle.
+                    .heightIn(min = 44.dp).testTag("sheet-open")
                     .semantics { contentDescription = settingsLabel }
                     .then(
                         if (downOpens) Modifier.focusProperties { canFocus = false }
@@ -698,7 +728,7 @@ private fun Handle(height: Dp) {
             .drawBorderSidesAndFoot(pal.line, 12.dp)
             .padding(start = 14.dp, end = 10.dp),
     ) {
-        Text(stringResource(R.string.drawer_page_settings), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
+        Text(stringResource(R.string.drawer_page_settings), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
         Icon(
             Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
             modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else -3.dp.toPx() * lift },
@@ -725,9 +755,11 @@ private fun Modifier.drawBorderSidesAndFoot(color: Color, corner: Dp): Modifier 
 
 /**
  * The sheet's chips: equal capsules with one selection gliding under them (the stores' chip row),
- * LB and RB a chip at a time, a tap or A on a far one a hop as a drop. [first] takes focus as the
- * sheet opens. Too narrow for equal chips, the row scrolls.
+ * LB and RB a chip at a time, a tap or A on a far one a hop as a drop. A pad picks a chip by
+ * moving onto it, and comes into the row on the picked one. [first] takes focus as the sheet
+ * opens. Too narrow for equal chips, the row scrolls.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun SheetChips(labels: List<String>, selected: Int, focus: List<FocusRequester>? = null, onPick: (Int) -> Unit) {
     val pal = LocalPalette.current
@@ -743,15 +775,22 @@ internal fun SheetChips(labels: List<String>, selected: Int, focus: List<FocusRe
         val scroll = rememberScrollState()
         // Room inside the scroll for the focus ring, which the scroll's clip would otherwise cut.
         Box(if (equal) Modifier.fillMaxWidth() else Modifier.edgeFade(scroll).horizontalScroll(scroll).padding(3.dp)) {
-            ChipGlide(selected, bounds[selected], tint)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = if (equal) Modifier.fillMaxWidth() else Modifier) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                // Up from the rows lands on the picked chip, not whichever sits above: landing picks.
+                modifier = (if (equal) Modifier.fillMaxWidth() else Modifier)
+                    .focusProperties { enter = { chips.getOrNull(selected) ?: FocusRequester.Default } }
+                    .focusGroup(),
+            ) {
                 labels.forEachIndexed { i, label ->
                     val m = (if (equal) Modifier.weight(1f) else Modifier.widthIn(min = 64.dp))
                         .onGloballyPositioned { bounds[i] = it.boundsInParent() }
                         .focusRequester(chips[i])
-                    SheetChip(label, i == selected, m) { onPick(i) }
+                    SheetChip(label, i == selected, m.onFocusChanged { if (it.isFocused && i != selected) onPick(i) }) { onPick(i) }
                 }
             }
+            // Over the chips: under them, their rest fill hid it as it crossed them.
+            ChipGlide(selected, bounds[selected], tint)
         }
     }
 }
@@ -763,11 +802,15 @@ private fun SheetChip(label: String, on: Boolean, modifier: Modifier, onClick: (
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     val shape = RoundedCornerShape(99.dp)
+    // The row's glide draws the picked chip's look by touch only; with a pad it draws its own rest
+    // look, and the bar says which is picked.
+    val under = on && LocalInputModeManager.current.inputMode != InputMode.Keyboard
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier.heightIn(min = 44.dp).clip(shape)
-            .background(if (on) Color.Transparent else colors.surfaceVariant.copy(alpha = 0.5f))
-            .glideBorder(hot, shape, pal.signal, if (on) Color.Transparent else pal.line)
+            .background(if (under) Color.Transparent else colors.surfaceVariant.copy(alpha = 0.5f))
+            .shownBar(on, pal.signal)
+            .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),

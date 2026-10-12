@@ -962,4 +962,19 @@
         <item quantity="one">%1$d déjà dans Jeux</item>
         <item quantity="other">%1$d déjà dans Jeux</item>
     </plurals>
+    <string name="achievements_title">Succès</string>
+    <string name="achievements_count">%1$d sur %2$d débloqués</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">Débloqués · %1$d</string>
+    <string name="achievements_group_locked">Verrouillés · %1$d</string>
+    <string name="achievements_group_hidden">Cachés · %1$d</string>
+    <string name="achievements_hidden">Succès caché</string>
+    <string name="achievements_hidden_detail">Les détails s\'affichent une fois débloqué.</string>
+    <string name="achievements_all">Tous les succès débloqués</string>
+    <string name="achievements_reading">Lecture…</string>
+    <string name="achievements_signed_out">Connectez-vous à %1$s pour voir vos succès.</string>
+    <string name="achievements_unreachable">Impossible de joindre %1$s. Réessayez une fois en ligne.</string>
+    <string name="achievements_none">%1$s n\'indique aucun succès pour ce jeu.</string>
+    <string name="achievements_show_all">Tout afficher (%1$d)</string>
+    <string name="achievements_dialog_title">Succès · %1$s</string>
 </resources>

@@ -147,7 +147,7 @@ object DeviceReport {
         h("Settings in effect")
         k("Client core override", SessionPrefs.clientCpusOverride(context))
         k("  client cores", CpuCores.listOrAll(SessionPrefs.clientCpus(context)))
-        k("  game cores", CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(context)).ifEmpty { "every core (nothing sent)" })
+        k("  game cores", CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(context)).ifEmpty { "every core" })
         k("Turnip sysmem", SessionPrefs.tuSysmem(context))
         k("Zink lazy descriptors", SessionPrefs.zinkLazy(context))
         k("Threaded GL (glthread)", SessionPrefs.glThread(context))

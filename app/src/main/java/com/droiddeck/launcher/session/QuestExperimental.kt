@@ -6,7 +6,7 @@ import android.util.Log
 import com.droiddeck.launcher.BuildConfig
 import java.io.File
 
-/** Defaults and launch evidence for this explicitly experimental Quest build. */
+/** Device-detected defaults and launch evidence for experimental Quest compatibility. */
 object QuestExperimental {
     private const val TAG = "QuestExperimental"
     const val DRIVER = "turnip25.1.0-quest1"

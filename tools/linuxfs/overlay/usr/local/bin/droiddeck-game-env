@@ -253,6 +253,36 @@ def force_ssbs(command, env):
     return env
 
 
+def umu_capable(proton):
+    """Whether this Proton's script has umu's launch without Steam: GE-Proton, Proton-CachyOS and
+    DroidDeck-Proton run umu.exe in place of steam.exe when UMU_ID is set; Valve's Proton does not."""
+    try:
+        with open(proton, encoding="utf-8", errors="replace") as source:
+            text = source.read()
+    except OSError:
+        return False
+    return "UMU_ID" in text and "umu.exe" in text
+
+
+def start_without_steam(command, env, app_id):
+    """DROIDDECK_NO_STEAM=1 (a game's Start without Steam): launch the game without Proton's
+    steam.exe, for games that close right away because of what it sets up. A Proton with umu's
+    launch gets UMU_ID - Proton still sets up the prefix, and a Steam game keeps its protonfixes
+    under its own id; any other Proton runs the game straight in the prefix (runinprefix)."""
+    if env.get("DROIDDECK_NO_STEAM", "").lower() not in ("1", "on", "true", "yes"):
+        return command, env
+    if len(command) < 3 or command[1] != "waitforexitandrun":
+        return command, env
+    if umu_capable(command[0]):
+        if not env.get("UMU_ID"):
+            steam_game = app_id is not None and int(app_id) < 2**31
+            env = dict(env, UMU_ID=app_id if steam_game else "0")
+        print("droiddeck-game-env: starting without Steam (umu.exe in place of steam.exe, UMU_ID=%s)" % env["UMU_ID"], file=sys.stderr)
+        return command, env
+    print("droiddeck-game-env: starting without Steam (this Proton has no umu launch: runinprefix)", file=sys.stderr)
+    return [command[0], "runinprefix"] + command[2:], env
+
+
 EVALUATOR_SCRIPT = re.compile(r"(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$", re.IGNORECASE)
 
 
@@ -309,6 +339,7 @@ def main():
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
     env = force_ssbs(command, env)
+    command, env = start_without_steam(command, env, app_id)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:

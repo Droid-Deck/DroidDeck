@@ -406,9 +406,11 @@ object ComponentsManager {
         return Package(f.name, comp, prof.optString("versionName", f.nameWithoutExtension), prof.optString("description"), f.length())
     }
 
+    /** The stored packages, newest version first. */
     fun packages(context: Context): List<Package> = packagesDir(context).listFiles()
-        ?.filter { it.isFile && it.name.endsWith(".wcp") }?.sortedBy { it.name }
+        ?.filter { it.isFile && it.name.endsWith(".wcp") }
         ?.mapNotNull { f -> runCatching { packageInfo(context, f) }.onFailure { Log.w(TAG, "skipping ${f.name}", it) }.getOrNull() }
+        ?.sortedWith(newestFirst { it.version.ifEmpty { it.file } })
         ?: emptyList()
 
     /** Unpacks a package's files/ into a Proton; for DXVK/VKD3D the component's own DLLs are replaced as a set. */
@@ -852,9 +854,13 @@ object ComponentsManager {
         val arr = o.optJSONArray("items") ?: JSONArray()
         val items = (0 until arr.length()).map { arr.getJSONObject(it) }.map {
             CatalogItem(it.optString("file"), it.optString("comp"), it.optString("release"), it.optString("url"), it.optLong("size"), it.optString("digest"))
-        }.sortedWith(compareBy({ it.comp }, { it.release }, { it.file }))
+        }.sortedWith(compareBy<CatalogItem> { it.comp }.then(newestFirst { it.file }))
         return Catalog(items, o.optLong("fetchedAt"))
     }
+
+    /** By the version in [of], highest first: the newest builds lead a list, as they are what is picked. */
+    private fun <T> newestFirst(of: (T) -> String): Comparator<T> =
+        Comparator { a, b -> ProtonExtras.compareVersions(of(b), of(a)) }
 
     /**
      * A package Proton does not ship, required on the GPUs listed here. An empty [models] set

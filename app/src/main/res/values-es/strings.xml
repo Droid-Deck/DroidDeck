@@ -2132,4 +2132,19 @@
         <item quantity="many">%1$d ya en Juegos</item>
         <item quantity="other">%1$d ya en Juegos</item>
     </plurals>
+    <string name="achievements_title">Logros</string>
+    <string name="achievements_count">%1$d de %2$d desbloqueados</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">Desbloqueados · %1$d</string>
+    <string name="achievements_group_locked">Bloqueados · %1$d</string>
+    <string name="achievements_group_hidden">Ocultos · %1$d</string>
+    <string name="achievements_hidden">Logro oculto</string>
+    <string name="achievements_hidden_detail">Los detalles se muestran al desbloquearlo.</string>
+    <string name="achievements_all">Todos los logros desbloqueados</string>
+    <string name="achievements_reading">Leyendo…</string>
+    <string name="achievements_signed_out">Inicia sesión en %1$s para ver tus logros.</string>
+    <string name="achievements_unreachable">No se pudo conectar con %1$s. Vuelve a intentarlo cuando tengas conexión.</string>
+    <string name="achievements_none">%1$s no indica logros para este juego.</string>
+    <string name="achievements_show_all">Ver los %1$d</string>
+    <string name="achievements_dialog_title">Logros · %1$s</string>
 </resources>

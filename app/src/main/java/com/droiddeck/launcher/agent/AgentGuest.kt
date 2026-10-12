@@ -1,6 +1,11 @@
 package com.droiddeck.launcher.agent
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import android.os.FileObserver
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -16,6 +21,9 @@ import java.util.UUID
  * whatever runs does so inside the live session with its own environment.
  */
 object AgentGuest {
+    private val main by lazy { Handler(Looper.getMainLooper()) }
+    var focusRevision by mutableIntStateOf(0)
+        private set
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
     private val lock = Any()
@@ -70,6 +78,7 @@ object AgentGuest {
             if (key == lastFocusKey) return
             lastFocusKey = key
         }
+        main.post { focusRevision++ }
         SessionEvents.record("focus.changed", fields + ("seq" to snapshot.optInt("seq")))
     }
 

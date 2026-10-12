@@ -66,6 +66,13 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
+    fun setGameNoSteam(context: Context, scope: String, on: Boolean): GameEnvironment.Config {
+        val config = GameEnvironment.withGameNoSteam(read(context), scope, on)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
     fun publish(context: Context, config: GameEnvironment.Config = read(context)) {
         val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
         val json = encode(resolved)

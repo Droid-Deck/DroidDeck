@@ -2088,4 +2088,19 @@
     <plurals name="games_already_n">
         <item quantity="other">%1$d 本はすでにゲームにあります</item>
     </plurals>
+    <string name="achievements_title">実績</string>
+    <string name="achievements_count">%2$d 個中 %1$d 個を解除</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">解除済み · %1$d</string>
+    <string name="achievements_group_locked">未解除 · %1$d</string>
+    <string name="achievements_group_hidden">隠し実績 · %1$d</string>
+    <string name="achievements_hidden">隠し実績</string>
+    <string name="achievements_hidden_detail">解除すると詳細が表示されます。</string>
+    <string name="achievements_all">すべての実績を解除</string>
+    <string name="achievements_reading">読み込み中…</string>
+    <string name="achievements_signed_out">実績を表示するには %1$s にサインインしてください。</string>
+    <string name="achievements_unreachable">%1$s に接続できませんでした。オンラインになってから再度確認してください。</string>
+    <string name="achievements_none">%1$s にはこのゲームの実績がありません。</string>
+    <string name="achievements_show_all">すべて表示（%1$d）</string>
+    <string name="achievements_dialog_title">実績 · %1$s</string>
 </resources>

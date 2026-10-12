@@ -2088,4 +2088,19 @@
     <plurals name="games_already_n">
         <item quantity="other">%1$d 個已在遊戲中</item>
     </plurals>
+    <string name="achievements_title">成就</string>
+    <string name="achievements_count">已解鎖 %1$d / %2$d</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">已解鎖 · %1$d</string>
+    <string name="achievements_group_locked">未解鎖 · %1$d</string>
+    <string name="achievements_group_hidden">隱藏 · %1$d</string>
+    <string name="achievements_hidden">隱藏成就</string>
+    <string name="achievements_hidden_detail">解鎖後會顯示詳情。</string>
+    <string name="achievements_all">已解鎖全部成就</string>
+    <string name="achievements_reading">正在讀取…</string>
+    <string name="achievements_signed_out">登入 %1$s 以查看你的成就。</string>
+    <string name="achievements_unreachable">無法連接 %1$s。請在連線後再查看。</string>
+    <string name="achievements_none">%1$s 未列出此遊戲的成就。</string>
+    <string name="achievements_show_all">顯示全部 %1$d 項</string>
+    <string name="achievements_dialog_title">成就 · %1$s</string>
 </resources>
