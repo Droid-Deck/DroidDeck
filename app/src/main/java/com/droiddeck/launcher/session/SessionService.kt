@@ -373,7 +373,12 @@ class SessionService : Service() {
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
         deckBinds = emptyList()
-        if (controllersOn) addControllerEnvironment(guest, fakeInputDir, sessionDir)
+        if (controllersOn) {
+            addControllerEnvironment(guest, fakeInputDir, sessionDir)
+            // Steam enumerates /dev/input while it starts. Make every attached controller's
+            // discovery node exist after the rings and guest environment are ready.
+            SessionState.padBridge?.syncConnectedControllers()
+        }
         // The user's own games, for the runtime's shortcuts writer to put in the client's library
         // before the client starts (see frontend/AddedGames and droiddeck-steam-shortcuts).
         if (steamHere) {

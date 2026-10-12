@@ -299,6 +299,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
             logInputDevice("connected", deviceId)
+            padBridge?.syncConnectedControllers()
             updateOnScreenControls()
             updatePointerCapture()
         }
@@ -2120,6 +2121,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
+        if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         updateOnScreenControls()

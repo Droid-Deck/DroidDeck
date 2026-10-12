@@ -189,6 +189,14 @@ public final class PadBridge {
         return false;
     }
 
+    /** Publishes every currently connected controller so the client can enumerate all players. */
+    public synchronized void syncConnectedControllers() {
+        for (int deviceId : InputDevice.getDeviceIds()) {
+            InputDevice device = InputDevice.getDevice(deviceId);
+            if (isFromController(device)) publish(slotFor(device));
+        }
+    }
+
     /**
      * Called (main thread) when a player presses a button, pushes a stick, trigger or d-pad past
      * halfway, or uses the on-screen controls - the session hides its mouse cursor then. Resting
