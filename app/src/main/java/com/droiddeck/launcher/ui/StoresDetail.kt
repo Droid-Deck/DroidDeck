@@ -137,7 +137,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             else -> null
         }
     }
-    if (achievements != null) Rise(3) { StoreAchievementsSection(achievements) }
+    if (achievements != null) Rise(3) { StoreAchievementsSection(achievements, title) }
 }
 
 /**

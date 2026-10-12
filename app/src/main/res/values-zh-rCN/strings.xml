@@ -2101,5 +2101,5 @@
     <string name="achievements_unreachable">无法连接到 %1$s。请在联网后再查看。</string>
     <string name="achievements_none">%1$s 未列出此游戏的成就。</string>
     <string name="achievements_show_all">显示全部 %1$d 项</string>
-    <string name="achievements_show_fewer">收起</string>
+    <string name="achievements_dialog_title">成就 · %1$s</string>
 </resources>

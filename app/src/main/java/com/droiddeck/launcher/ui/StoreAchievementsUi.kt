@@ -190,53 +190,60 @@ internal fun AchievementRow(a: Achievement, compact: Boolean, modifier: Modifier
 }
 
 @Composable
-internal fun StoreAchievementsSection(game: StoreAchievements.Game) {
+internal fun StoreAchievementsSection(game: StoreAchievements.Game, title: String) {
     val label = StoreAchievements.forSource(game.source)?.label ?: return
-    StoreAchievementsSectionContent(label, rememberAchievements(game) ?: return)
+    StoreAchievementsSectionContent(label, rememberAchievements(game) ?: return, title)
 }
 
 @Composable
-internal fun StoreAchievementsSectionContent(label: String, state: AchievementsState, startExpanded: Boolean = false) {
+internal fun StoreAchievementsSectionContent(label: String, state: AchievementsState, title: String) {
     val colors = MaterialTheme.colorScheme
     val list = state.list
     // Hidden for games without achievements.
     if (list.isNullOrEmpty() && !state.reading && state.reason != Reason.SIGNED_OUT && state.reason != Reason.UNREACHABLE) return
     val narrow = LocalNarrowPane.current
-    var expanded by remember { mutableStateOf(startExpanded) }
-    val firstRevealed = remember { FocusRequester() }
-    val showAll = remember { FocusRequester() }
+    var showAll by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) {
         Text(stringResource(R.string.achievements_title), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
         achievementsNote(state, label)?.let { Text(it, fontSize = 13.sp, color = colors.onSurfaceVariant) }
         if (!list.isNullOrEmpty()) {
             AchievementsProgress(state)
-            val collapsible = list.size > PREVIEW_COUNT
-            if (collapsible && !expanded) {
-                for (a in groups(list).flatMap { it.second }.take(PREVIEW_COUNT)) AchievementRow(a, compact = narrow)
-                SecondaryButton(stringResource(R.string.achievements_show_all, list.size), modifier = Modifier.focusRequester(showAll)) { expanded = true }
-            } else {
-                var index = 0
-                for ((label, group) in groups(list)) {
-                    AchievementGroupLabel(stringResource(label, group.size))
-                    for (a in group) {
-                        AchievementRow(a, compact = narrow, modifier = if (index == PREVIEW_COUNT) Modifier.focusRequester(firstRevealed) else Modifier)
-                        index++
-                    }
-                }
-                if (collapsible) SecondaryButton(stringResource(R.string.achievements_show_fewer)) { expanded = false }
-            }
+            for (a in groups(list).flatMap { it.second }.take(PREVIEW_COUNT)) AchievementRow(a, compact = narrow)
+            if (list.size > PREVIEW_COUNT) SecondaryButton(stringResource(R.string.achievements_show_all, list.size)) { showAll = true }
         }
     }
-    // The pressed button leaves the page, so focus moves to where the list changed.
-    var settled by remember { mutableStateOf(false) }
-    LaunchedEffect(expanded) {
-        if (!settled) { settled = true; return@LaunchedEffect }
-        withFrameNanos {}
-        runCatching { (if (expanded) firstRevealed else showAll).requestFocus() }
-    }
+    if (showAll && !list.isNullOrEmpty()) AchievementsDialog(state, title, onDismiss = { showAll = false })
 }
 
 private const val PREVIEW_COUNT = 3
+
+/** Every achievement, split into unlocked and locked. */
+@Composable
+private fun AchievementsDialog(state: AchievementsState, title: String, onDismiss: () -> Unit) {
+    val shown = rememberShown(onDismiss)
+    val close = { shown.targetState = false }
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusWithinFrames({ false }) { first } }
+    AppDialog(shown, close, "achievements", wide = false, maxWidth = 600.dp) {
+        DialogTitleRow(stringResource(R.string.achievements_dialog_title, title), onClose = close)
+        AchievementsDialogContent(state, first)
+    }
+}
+
+@Composable
+private fun AchievementsDialogContent(state: AchievementsState, first: FocusRequester) {
+    val list = state.list ?: return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AchievementsProgress(state)
+        var index = 0
+        for ((label, group) in groups(list)) {
+            AchievementGroupLabel(stringResource(label, group.size))
+            for (a in group) {
+                AchievementRow(a, compact = LocalNarrowPane.current, modifier = if (index++ == 0) Modifier.focusRequester(first) else Modifier)
+            }
+        }
+    }
+}
 
 private fun LazyListScope.achievementItems(list: List<Achievement>, compact: Boolean, first: FocusRequester) {
     var index = 0
@@ -353,19 +360,19 @@ private fun PreviewSurface(content: @Composable () -> Unit) {
 @Preview(name = "Store page section", widthDp = 800, heightDp = 600)
 @Composable
 private fun StoreAchievementsSectionPreview() = PreviewSurface {
-    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("GOG", AchievementsState(previewList, null, false)) }
+    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("GOG", AchievementsState(previewList, null, false), "Hollow Valley") }
 }
 
-@Preview(name = "Store page section, expanded", widthDp = 800, heightDp = 700)
+@Preview(name = "All achievements dialog", widthDp = 800, heightDp = 600)
 @Composable
-private fun StoreAchievementsSectionExpandedPreview() = PreviewSurface {
-    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("GOG", AchievementsState(previewList, null, false), startExpanded = true) }
+private fun AchievementsDialogPreview() = PreviewSurface {
+    Column(Modifier.width(560.dp)) { AchievementsDialogContent(AchievementsState(previewList, null, false), remember { FocusRequester() }) }
 }
 
 @Preview(name = "Store page section, signed out", widthDp = 800, heightDp = 200)
 @Composable
 private fun StoreAchievementsSectionSignedOutPreview() = PreviewSurface {
-    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("Epic", AchievementsState(null, Reason.SIGNED_OUT, false)) }
+    Column(Modifier.width(560.dp)) { StoreAchievementsSectionContent("Epic", AchievementsState(null, Reason.SIGNED_OUT, false), "Hollow Valley") }
 }
 
 @Preview(name = "Session panel", widthDp = 800, heightDp = 500)
