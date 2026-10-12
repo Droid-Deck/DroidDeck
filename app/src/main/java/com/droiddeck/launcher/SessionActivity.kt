@@ -355,7 +355,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestedOrientation = SessionPrefs.orientation(this)
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
@@ -1346,12 +1345,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     /**
      * Follow screen on a large panel (a Fold's inner screen) may turn with the device: a window
      * locked to landscape on a squarer panel is letterboxed by the system itself, which no output
-     * size can undo. A phone-sized panel (the cover screen) stays landscape as before.
+     * size can undo. Every other case keeps the landscape orientation picked in Setup.
      */
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
-        if (!SessionState.followScreen) return
-        val wanted = if (config.smallestScreenWidthDp >= 600) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
-            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        val wanted = if (SessionState.followScreen && config.smallestScreenWidthDp >= 600) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
+        } else {
+            SessionPrefs.orientation(this)
+        }
         if (requestedOrientation != wanted) requestedOrientation = wanted
     }
 
@@ -2398,7 +2399,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
-        requestedOrientation = SessionPrefs.orientation(this)
+        applyFollowOrientation(resources.configuration)
         if (runtimeRemovalBlocked) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()
