@@ -276,11 +276,20 @@ internal fun StepOut(
             if (side == StepSide.Left) stepPath(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
             else stepPathRight(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
             if (up) path.transform(Matrix().apply { this[1, 1] = -1f; this[3, 1] = pill.top + pill.bottom })
-            // Barely bigger than the control, the pull and its fillet drew a hook off the control's
-            // foot: the outline is only seen once it is well out of the control, by how far.
-            val rest = if (side == StepSide.Left) pill.left else pill.right
-            val a = (((bottom.value - pill.bottom - pull) / 40.dp.toPx()).coerceIn(0f, 1f) *
-                (kotlin.math.abs(edge.value - rest) / 24.dp.toPx()).coerceIn(0f, 1f))
+            // Barely out of the control, the pull and its fillet drew a hook off the control's foot:
+            // the outline comes in over the first part of the way out (and goes over the last part
+            // of the way back), by how far along it is. A share of the way, not a distance: a box
+            // no wider than its control (a confirm under a full-width row) never got 24dp out, and
+            // was never drawn at all.
+            val a = measured?.let { c ->
+                val rest = if (side == StepSide.Left) pill.left else pill.right
+                val out = if (side == StepSide.Left) (pill.right - c.width).coerceAtLeast(0f) else (pill.left + c.width).coerceAtMost(hostWidth)
+                val down = pill.bottom + pull + c.height - pill.bottom
+                val across = kotlin.math.abs(out - rest)
+                val fd = if (down < 1f) 1f else (bottom.value - pill.bottom) / down
+                val fa = if (across < 1f) 1f else kotlin.math.abs(edge.value - rest) / across
+                ((minOf(fd, fa) - 0.1f) / 0.3f).coerceIn(0f, 1f)
+            } ?: 0f
             if (a <= 0.01f) return@Canvas
             drawPath(path, lerp(hotFill, restFill, tint.value), alpha = a)
             drawPath(path, accent.copy(alpha = lerpF(0.9f, 0.55f, tint.value) * a), style = Stroke(rim))
