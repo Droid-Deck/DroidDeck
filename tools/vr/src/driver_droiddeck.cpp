@@ -13,6 +13,7 @@
 #include "openvr_driver.h"
 
 #include <algorithm>
+#include <string>
 #include <atomic>
 #include <cstdarg>
 #include <chrono>
@@ -261,6 +262,11 @@ public:
     void Present(SharedTextureHandle_t sync) override {
         frames_++;
         if (layerInFrame_) droiddeck::Presenter::Submit(frame_);
+        if (layerInFrame_ != lastLayerCount_) {
+            static int said;
+            if (said++ < 20) Log("frame %llu: %d layer(s) (was %d)", (unsigned long long)frames_, layerInFrame_, lastLayerCount_);
+            lastLayerCount_ = layerInFrame_;
+        }
         layerInFrame_ = 0;
         if (frames_ <= 3 || frames_ % 600 == 0)
             Log("Present #%llu (%llu layers so far), sync 0x%llx", (unsigned long long)frames_,
@@ -294,8 +300,153 @@ private:
     std::mutex mutex_;
     std::vector<Set> sets_;
     uint64_t frames_ = 0, layers_ = 0;
-    int layerInFrame_ = 0;
+    int layerInFrame_ = 0, lastLayerCount_ = -1;
     droiddeck::EyeFrame frame_{};
+};
+
+// The session's game pad, as the app publishes it for the guest: the absolute-state snapshot at the
+// head of fake input ring 0 (app/src/main/cpp/fakeinput_steam.cpp, FakeInputRingHeader), under a
+// seqlock. FAKE_EVDEV_MEMFD_PATHS names the rings in every session process's environment.
+struct PadState {
+    uint32_t buttons = 0;  // bit order of FakeInputWriter.BUTTON_MAP; bit 11 = the QAM button
+    int16_t axes[8] = {};  // X, Y, RX, RY (+-32767), GAS = right trigger, BRAKE = left (0..255), HAT0X, HAT0Y
+};
+enum : uint32_t {
+    PAD_A = 1u << 0, PAD_B = 1u << 1, PAD_X = 1u << 2, PAD_Y = 1u << 3, PAD_LB = 1u << 4, PAD_RB = 1u << 5,
+    PAD_SELECT = 1u << 6, PAD_START = 1u << 7, PAD_L3 = 1u << 8, PAD_R3 = 1u << 9, PAD_GUIDE = 1u << 10,
+};
+
+class PadRing {
+public:
+    bool Read(PadState *out) {
+        if (!map_ && !Open()) return false;
+        for (int tries = 0; tries < 8; tries++) {
+            uint64_t a = __atomic_load_n((const uint64_t *)(map_ + 32), __ATOMIC_ACQUIRE);
+            if (a & 1u) continue;
+            memcpy(&out->buttons, (const void *)(map_ + 40), 4);
+            memcpy(out->axes, (const void *)(map_ + 44), 16);
+            __atomic_thread_fence(__ATOMIC_ACQUIRE);
+            if (__atomic_load_n((const uint64_t *)(map_ + 32), __ATOMIC_RELAXED) == a) return true;
+        }
+        return false;
+    }
+    ~PadRing() { if (map_) munmap((void *)map_, 64); }
+
+private:
+    bool Open() {
+        auto now = std::chrono::steady_clock::now();
+        if (now < retry_) return false;
+        retry_ = now + std::chrono::seconds(2);
+        std::string path;
+        if (const char *env = getenv("DROIDDECK_VR_PAD_RING")) path = env;
+        if (path.empty()) {
+            const char *paths = getenv("FAKE_EVDEV_MEMFD_PATHS"); // "0=/path;1=/path;..."
+            if (paths && !strncmp(paths, "0=", 2)) path.assign(paths + 2, strcspn(paths + 2, ";"));
+        }
+        if (path.empty()) {
+            if (const char *dir = getenv("BL_LAUNCH_DIR")) path = std::string(dir) + "/dev/fakeinput-rings/ring0";
+        }
+        if (path.empty()) return false;
+        int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+        if (fd < 0) return false;
+        void *p = mmap(nullptr, 64, PROT_READ, MAP_SHARED, fd, 0);
+        close(fd);
+        if (p == MAP_FAILED) return false;
+        uint32_t magic;
+        memcpy(&magic, p, 4);
+        if (magic != 0x46494252u) { munmap(p, 64); return false; }
+        map_ = (const volatile uint8_t *)p;
+        Log("game pad ring mapped: %s", path.c_str());
+        return true;
+    }
+    const volatile uint8_t *map_ = nullptr;
+    std::chrono::steady_clock::time_point retry_{};
+};
+
+// One hand: a Vive-profile controller driven by the game pad. 3DoF, so it is a gaze pointer: it sits
+// low in front of its side of the body and points where the head looks, and SteamVR's laser follows the
+// view. Right hand: right stick = trackpad, A = trackpad click, RT = trigger, RB = grip, Start = menu,
+// the Steam/guide button = system. Left: left stick, X, LT, LB, Select.
+class CardboardController : public ITrackedDeviceServerDriver {
+public:
+    explicit CardboardController(bool right) : right_(right) {}
+
+    EVRInitError Activate(uint32_t id) override {
+        id_ = id;
+        PropertyContainerHandle_t c = VRProperties()->TrackedDeviceToPropertyContainer(id_);
+        VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, "DroidDeck Pad Hand");
+        VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, "DroidDeck");
+        VRProperties()->SetStringProperty(c, Prop_TrackingSystemName_String, "droiddeck");
+        VRProperties()->SetStringProperty(c, Prop_RenderModelName_String, "generic_controller");
+        VRProperties()->SetStringProperty(c, Prop_ControllerType_String, "vive_controller");
+        VRProperties()->SetStringProperty(c, Prop_InputProfilePath_String, "{htc}/input/vive_controller_profile.json");
+        VRProperties()->SetInt32Property(c, Prop_ControllerRoleHint_Int32,
+                                         right_ ? TrackedControllerRole_RightHand : TrackedControllerRole_LeftHand);
+        VRProperties()->SetInt32Property(c, Prop_DeviceClass_Int32, TrackedDeviceClass_Controller);
+        auto in = VRDriverInput();
+        in->CreateBooleanComponent(c, "/input/system/click", &system_);
+        in->CreateBooleanComponent(c, "/input/application_menu/click", &menu_);
+        in->CreateBooleanComponent(c, "/input/grip/click", &grip_);
+        in->CreateBooleanComponent(c, "/input/trigger/click", &triggerClick_);
+        in->CreateScalarComponent(c, "/input/trigger/value", &trigger_, VRScalarType_Absolute, VRScalarUnits_NormalizedOneSided);
+        in->CreateScalarComponent(c, "/input/trackpad/x", &padX_, VRScalarType_Absolute, VRScalarUnits_NormalizedTwoSided);
+        in->CreateScalarComponent(c, "/input/trackpad/y", &padY_, VRScalarType_Absolute, VRScalarUnits_NormalizedTwoSided);
+        in->CreateBooleanComponent(c, "/input/trackpad/click", &padClick_);
+        in->CreateBooleanComponent(c, "/input/trackpad/touch", &padTouch_);
+        in->CreateHapticComponent(c, "/output/haptic", &haptic_);
+        Log("%s hand activated (game pad)", right_ ? "right" : "left");
+        return VRInitError_None;
+    }
+    void Deactivate() override { id_ = k_unTrackedDeviceIndexInvalid; }
+    void EnterStandby() override {}
+    void *GetComponent(const char *) override { return nullptr; }
+    void DebugRequest(const char *, char *resp, uint32_t size) override { if (size) resp[0] = 0; }
+
+    DriverPose_t GetPose() override { return pose_; }
+
+    // From the driver's pose thread: the head's orientation and the pad.
+    void Update(const HmdQuaternion_t &head, const PadState *pad) {
+        if (id_ == k_unTrackedDeviceIndexInvalid) return;
+        DriverPose_t p = {};
+        p.qWorldFromDriverRotation.w = 1;
+        p.qDriverFromHeadRotation.w = 1;
+        p.qRotation = head;
+        // Low and in front of its side, in head space, then into the room with the head's rotation.
+        const double off[3] = {right_ ? 0.18 : -0.18, -0.35, -0.30};
+        double m[3][3];
+        const double w = head.w, x = head.x, y = head.y, z = head.z;
+        m[0][0] = 1 - 2 * (y * y + z * z); m[0][1] = 2 * (x * y - z * w); m[0][2] = 2 * (x * z + y * w);
+        m[1][0] = 2 * (x * y + z * w); m[1][1] = 1 - 2 * (x * x + z * z); m[1][2] = 2 * (y * z - x * w);
+        m[2][0] = 2 * (x * z - y * w); m[2][1] = 2 * (y * z + x * w); m[2][2] = 1 - 2 * (x * x + y * y);
+        for (int i = 0; i < 3; i++) p.vecPosition[i] = (i == 1 ? 1.6 : 0.0) + m[i][0] * off[0] + m[i][1] * off[1] + m[i][2] * off[2];
+        p.poseIsValid = true;
+        p.result = TrackingResult_Running_OK;
+        p.deviceIsConnected = true;
+        pose_ = p;
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, p, sizeof(p));
+        if (!pad) return;
+        auto in = VRDriverInput();
+        const uint32_t b = pad->buttons;
+        const float stickX = pad->axes[right_ ? 2 : 0] / 32767.0f, stickY = -pad->axes[right_ ? 3 : 1] / 32767.0f;
+        const float trig = pad->axes[right_ ? 4 : 5] / 255.0f;
+        const bool touch = stickX * stickX + stickY * stickY > 0.01f;
+        in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
+        in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
+        in->UpdateBooleanComponent(grip_, (b & (right_ ? PAD_RB : PAD_LB)) != 0, 0);
+        in->UpdateScalarComponent(trigger_, trig, 0);
+        in->UpdateBooleanComponent(triggerClick_, trig > 0.6f, 0);
+        in->UpdateScalarComponent(padX_, touch ? stickX : 0.0f, 0);
+        in->UpdateScalarComponent(padY_, touch ? stickY : 0.0f, 0);
+        in->UpdateBooleanComponent(padTouch_, touch || (b & (right_ ? PAD_A : PAD_X)), 0);
+        in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : (PAD_X | PAD_L3))) != 0, 0);
+    }
+
+private:
+    bool right_;
+    uint32_t id_ = k_unTrackedDeviceIndexInvalid;
+    DriverPose_t pose_ = {};
+    VRInputComponentHandle_t system_ = 0, menu_ = 0, grip_ = 0, triggerClick_ = 0, trigger_ = 0, padX_ = 0, padY_ = 0,
+                             padClick_ = 0, padTouch_ = 0, haptic_ = 0;
 };
 
 class CardboardHmd : public ITrackedDeviceServerDriver, public IVRDisplayComponent {
@@ -338,6 +489,12 @@ public:
         VRProperties()->SetBoolProperty(c, Prop_HasDisplayComponent_Bool, true);
         virtualDisplay_ = VRSettings()->GetBool(kSettingsSection, "virtualDisplay");
         VRProperties()->SetBoolProperty(c, Prop_HasVirtualDisplayComponent_Bool, virtualDisplay_);
+        // A proximity sensor that reads "worn" while Cardboard mode is on: otherwise SteamVR sees a headset
+        // lying still (a phone on a table between sessions) and puts the display in standby, after which
+        // the compositor submits no layers at all.
+        VRProperties()->SetBoolProperty(c, Prop_ContainsProximitySensor_Bool, true);
+        VRDriverInput()->CreateBooleanComponent(c, "/proximity", &proximity_);
+        VRDriverInput()->UpdateBooleanComponent(proximity_, true, 0);
         Log("HMD activated: %dx%d at %.0f Hz, eye tan(half fov) %.3f, eye aspect %.3f", width_, height_, hz, tanHalf_, eyeAspect_);
 
         running_ = true;
@@ -426,9 +583,23 @@ private:
             bool fresh = pose_.Read(&hp) && hp.seq != lastSeq;
             auto now = std::chrono::steady_clock::now();
             // A new sample, or a heartbeat so SteamVR never thinks the HMD went away.
-            if ((fresh || now - lastSent > std::chrono::milliseconds(100)) && id_ != k_unTrackedDeviceIndexInvalid) {
-                if (fresh) lastSeq = hp.seq;
-                VRServerDriverHost()->TrackedDevicePoseUpdated(id_, GetPose(), sizeof(DriverPose_t));
+            PadState pad;
+            const bool havePad = pad_.Read(&pad);
+            const bool padChanged = havePad && (pad.buttons != lastPad_.buttons || memcmp(pad.axes, lastPad_.axes, sizeof(pad.axes)));
+            if ((fresh || padChanged || now - lastSent > std::chrono::milliseconds(100)) && id_ != k_unTrackedDeviceIndexInvalid) {
+                if (fresh) {
+                    lastSeq = hp.seq;
+                    const bool worn = (hp.flags & DROIDDECK_HEADPOSE_ENABLED) != 0;
+                    if (worn != worn_) {
+                        worn_ = worn;
+                        VRDriverInput()->UpdateBooleanComponent(proximity_, worn, 0);
+                        Log("headset %s (Cardboard mode %s)", worn ? "worn" : "taken off", worn ? "on" : "off");
+                    }
+                }
+                DriverPose_t head = GetPose();
+                VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(DriverPose_t));
+                for (CardboardController *hand : hands_) if (hand) hand->Update(head.qRotation, havePad ? &pad : nullptr);
+                if (havePad) lastPad_ = pad;
                 lastSent = now;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -438,7 +609,16 @@ private:
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     int32_t width_ = 1920, height_ = 1080;
     float tanHalf_ = 1.0f, eyeAspect_ = 0.889f;
+public:
+    void SetHands(CardboardController *left, CardboardController *right) { hands_[0] = left; hands_[1] = right; }
+
+private:
     PoseFile pose_;
+    PadRing pad_;
+    PadState lastPad_;
+    VRInputComponentHandle_t proximity_ = 0;
+    bool worn_ = true;
+    CardboardController *hands_[2] = {nullptr, nullptr};
     bool virtualDisplay_ = false, directMode_ = false;
     VirtualDisplay vd_;
     DirectMode dm_;
@@ -453,6 +633,11 @@ public:
         Log("DroidDeck Cardboard driver loaded");
         if (!VRServerDriverHost()->TrackedDeviceAdded("droiddeck-cardboard-hmd", TrackedDeviceClass_HMD, &hmd_))
             Log("TrackedDeviceAdded failed");
+        if (VRSettings()->GetBool(kSettingsSection, "gamepadControllers")) {
+            VRServerDriverHost()->TrackedDeviceAdded("droiddeck-pad-left", TrackedDeviceClass_Controller, &left_);
+            VRServerDriverHost()->TrackedDeviceAdded("droiddeck-pad-right", TrackedDeviceClass_Controller, &right_);
+            hmd_.SetHands(&left_, &right_);
+        }
         return VRInitError_None;
     }
     void Cleanup() override { VR_CLEANUP_SERVER_DRIVER_CONTEXT(); }
@@ -467,6 +652,7 @@ public:
 
 private:
     CardboardHmd hmd_;
+    CardboardController left_{false}, right_{true};
 };
 
 Provider g_provider;

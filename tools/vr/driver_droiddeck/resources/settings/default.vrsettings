@@ -5,6 +5,7 @@
 		"windowHeight": 1080,
 		"displayFrequency": 60.0,
 		"virtualDisplay": false,
-		"directMode": true
+		"directMode": true,
+		"gamepadControllers": true
 	}
 }

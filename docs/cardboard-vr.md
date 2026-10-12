@@ -62,6 +62,9 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
    - pose: the shared head pose file (3DoF, standing height);
    - projection: exactly the frustum the Cardboard pass samples, with identity distortion (the app does
      the lens);
+   - a proximity sensor that reads "worn" while Cardboard mode is on. Without it SteamVR takes a still
+     headset (a phone on a table) for an unused one, enters standby after a few seconds, and the
+     compositor stops submitting frames;
    - frames: `IVRDriverDirectModeComponent` with a free-running 60 Hz vsync announcer, as ALVR does on
      Linux. SteamVR renders each eye into textures the driver allocates through its IPC resource
      manager (dmabufs);
@@ -95,8 +98,14 @@ button through the agent.
 
 ### Not done yet
 
-- **Controllers**: no VR controllers, so SteamVR apps that need them won't get far. A gamepad-as-
-  controller (or gaze pointer) driver device is the next step.
+- **Controllers**: the driver adds two Vive-profile hands driven by the session's game pad. It reads
+  the absolute-state snapshot the app already publishes in fake input ring 0
+  (`FAKE_EVDEV_MEMFD_PATHS`), so the app needs no new plumbing. They are a gaze pointer: low in front
+  of each hand, pointing where the head looks. Mapping, right hand: right stick = trackpad, A/R3 =
+  trackpad click, RT = trigger, RB = grip, Start = menu, guide = system. Left hand: left stick, X/L3,
+  LT, LB, Select. The pad's state is verified in the ring and both hands activate in SteamVR, but the
+  dashboard has not been seen yet: either the guide press is taken before it reaches the ring as a
+  plain button (Deck mode), or the dashboard's web helper does not render here. Next to chase.
 - **Layers**: only the first layer of each frame is drawn (the compositor's scene). Overlays submitted
   separately (some dashboard states) are not composited yet.
 - **Timing**: no reprojection, and the presenter blits whatever was submitted last. The chain
