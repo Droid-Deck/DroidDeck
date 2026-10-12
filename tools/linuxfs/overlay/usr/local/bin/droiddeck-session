@@ -884,6 +884,12 @@ BUSCONF
       export STEAM_GAMESCOPE_FANCY_SCALING_SUPPORT=1
       echo "== steam: Deck mode on (-steamdeck -steamos3)"
     fi
+    # The power menu's Shut Down and Restart. Without these the client blanks its interface and
+    # stays up (device, 2026-10-12: System.ShutdownPC and nothing after it). With them it does what
+    # SteamOS's gamescope session expects: writes the sentinel and exits. The loop below ends the
+    # session for one and starts the client again for the other.
+    export STEAMOS_STEAM_SHUTDOWN_SENTINEL="$HOME/.bl-steam-shutdown"
+    export STEAMOS_STEAM_REBOOT_SENTINEL="$HOME/.bl-steam-reboot"
     # What a killed session leaves behind. Android ends sessions without warning (backgrounding, the
     # low-memory killer), and the client then finds .crash - opening its update UI on the spinner -
     # and the web helper's Singleton* locks in htmlcache, owned by a process that is gone, which can
@@ -941,7 +947,7 @@ BUSCONF
     # An update that cannot install asks for a restart (rc=42) every time; the count is capped so a
     # session can never again loop in silence, which reads as a menu opening and closing by itself.
     steam_updates=0
-    rm -f "$HOME/.bl-stop-requested"
+    rm -f "$HOME/.bl-stop-requested" "$STEAMOS_STEAM_SHUTDOWN_SENTINEL" "$STEAMOS_STEAM_REBOOT_SENTINEL"
     # The client brings a game it launched to the front only while it counts someone as present,
     # which it reads from gamescope's input counter. A game the app launches after a few minutes
     # with no touch starts behind the library page and stays there until the next input (device,
@@ -1045,6 +1051,18 @@ BUSCONF
       if [ -f "$HOME/.bl-stop-requested" ]; then
         rm -f "$HOME/.bl-stop-requested" "$HOME/.bl-restart-once"
         break
+      fi
+      if [ -e "$STEAMOS_STEAM_SHUTDOWN_SENTINEL" ]; then
+        rm -f "$STEAMOS_STEAM_SHUTDOWN_SENTINEL" "$STEAMOS_STEAM_REBOOT_SENTINEL"
+        echo "== steam: Shut Down from the power menu; ending the session"
+        rc=0
+        break
+      fi
+      if [ -e "$STEAMOS_STEAM_REBOOT_SENTINEL" ]; then
+        rm -f "$STEAMOS_STEAM_REBOOT_SENTINEL"
+        echo "== steam: Restart from the power menu; starting the client again"
+        set --
+        continue
       fi
       # The session asked for this exit (the ARM64 Proton landed): start again, without the URL
       # arguments, which were acted on. Not counted against the update cap.

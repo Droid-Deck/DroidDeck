@@ -400,8 +400,8 @@ public final class PadBridge {
         boolean qamStarted = qamPressed && !systemQamPressed;
         systemGuidePressed = guidePressed;
         systemQamPressed = qamPressed;
-        // A Deck controller's QAM button is held for as long as the touch one is.
-        if (qamStarted && !SessionState.getDeckPad()) startQamChord();
+        // A Deck or Steam Controller's QAM button is held for as long as the touch one is.
+        if (qamStarted && !nativeQam()) startQamChord();
         else publish();
     }
 
@@ -426,9 +426,18 @@ public final class PadBridge {
         }
     }
 
-    /** Opens the client's Quick Access menu: a tap of the Deck's button, or the Guide-then-A chord. */
+    /**
+     * Whether the client's pad has its own QAM button to press. The Deck's sysfs being up is not
+     * enough: the drawer can make the pad an Xbox or PlayStation one, which has none, and a press
+     * of it never reaches the client.
+     */
+    private static boolean nativeQam() {
+        return SessionState.getDeckPad() && FakeInputWriter.padHasQam();
+    }
+
+    /** Opens the client's Quick Access menu: a tap of the pad's button, or the Guide-then-A chord. */
     public synchronized void triggerQam() {
-        if (!SessionState.getDeckPad()) {
+        if (!nativeQam()) {
             startQamChord();
             return;
         }
@@ -571,7 +580,7 @@ public final class PadBridge {
             return;
         }
         boolean guide = systemGuidePressed || qamChordActive;
-        boolean qam = SessionState.getDeckPad() && (systemQamPressed || qamTapPressed);
+        boolean qam = nativeQam() && (systemQamPressed || qamTapPressed);
         if (!guide && !qam) {
             writer.writePad(state);
             return;
