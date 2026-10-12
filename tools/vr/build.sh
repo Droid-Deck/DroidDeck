@@ -1,32 +1,64 @@
 #!/usr/bin/env bash
-# Builds the Cardboard VR pieces for the guest (linuxarm64) into tools/vr/out with the local cross
-# image, the same one tools/build_local.sh builds the preloads with:
-#   out/droiddeck   the SteamVR driver (driver_droiddeck.so + manifest + settings)
-#   out/layer       VK_LAYER_DROIDDECK_vr, the Vulkan layer SteamVR's compositor needs on Turnip/KGSL
-# Vulkan headers come from the pinned NDK (the cross image has none).
+# Builds Cardboard mode's SteamVR pieces for the guest (glibc aarch64):
+#   <out>/droiddeck   the SteamVR driver: driver_droiddeck.so, its manifest and default settings
+#   <out>/layer       VK_LAYER_DROIDDECK_vr, the Vulkan layer SteamVR's compositor needs on Turnip/KGSL
+#
+#   tools/vr/build.sh [OUT]            in the local cross image (default OUT: tools/vr/out)
+#   tools/vr/build.sh --native OUT     with aarch64-linux-gnu-gcc/g++ on PATH (CI, or inside the image)
+#
+# Vulkan headers: VK_INCLUDE (a directory holding vulkan/), else the NDK's (ANDROID_NDK_HOME, the
+# runner's latest NDK, or the newest under ANDROID_HOME). Only vulkan/ is copied out of it: the rest of
+# the NDK sysroot is Android's libc, not the guest's.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
-image=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
-out="$here/out"
 
-sdk=${ANDROID_HOME:-$HOME/Library/Android/sdk}
-vkinc=$(ls -d "$sdk"/ndk/*/toolchains/llvm/prebuilt/*/sysroot/usr/include 2>/dev/null | head -1)
-[ -n "$vkinc" ] || { echo "no NDK Vulkan headers under $sdk/ndk" >&2; exit 1; }
+native=0
+if [ "${1:-}" = --native ]; then native=1; shift; fi
+out=${1:-$here/out}
+case "$out" in /*) ;; *) out="$PWD/$out" ;; esac
 
-rm -rf "$out/droiddeck" "$out/layer" "$out/vkinclude"
-mkdir -p "$out/droiddeck/bin/linuxarm64" "$out/layer" "$out/vkinclude"
-cp -R "$here/driver_droiddeck/." "$out/droiddeck/"
-cp "$here/layer/VK_LAYER_DROIDDECK_vr.json" "$out/layer/"
-cp -R "$vkinc/vulkan" "$out/vkinclude/"
-if [ -d "$vkinc/vk_video" ]; then cp -R "$vkinc/vk_video" "$out/vkinclude/"; fi
+vkinc=${VK_INCLUDE:-}
+if [ -z "$vkinc" ]; then
+    for ndk in "${ANDROID_NDK_HOME:-}" "${ANDROID_NDK_LATEST_HOME:-}" \
+               $(ls -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/ndk/* 2>/dev/null | sort -r); do
+        [ -n "$ndk" ] || continue
+        cand=$(ls -d "$ndk"/toolchains/llvm/prebuilt/*/sysroot/usr/include 2>/dev/null | head -1)
+        if [ -n "$cand" ] && [ -f "$cand/vulkan/vk_layer.h" ]; then vkinc=$cand; break; fi
+    done
+fi
+[ -n "$vkinc" ] && [ -f "$vkinc/vulkan/vulkan_core.h" ] || { echo "tools/vr/build.sh: no Vulkan headers (set VK_INCLUDE)" >&2; exit 1; }
 
-run() { docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "$repo:/src" -w /src "$image" "$@"; }
+# Everything the compilers read sits under the repo, so the cross image (which mounts only the repo)
+# sees it too.
+work="$repo/build/vr"
+rm -rf "$work" && mkdir -p "$work/include"
+cp -R "$vkinc/vulkan" "$work/include/"
+if [ -d "$vkinc/vk_video" ]; then cp -R "$vkinc/vk_video" "$work/include/"; fi
+mkdir -p "$work/out/droiddeck/bin/linuxarm64" "$work/out/layer"
 
-# -z defs: an unresolved symbol fails the build here rather than the driver load in vrserver.
-run aarch64-linux-gnu-g++ -std=c++17 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
-    -fvisibility=hidden -static-libstdc++ -static-libgcc -pthread -Wl,-z,defs -Itools/vr/out/vkinclude \
-    -o tools/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so tools/vr/src/driver_droiddeck.cpp tools/vr/src/presenter.cpp -ldl
-run aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
-    -Wl,-z,defs -Itools/vr/out/vkinclude -o tools/vr/out/layer/libVkLayer_droiddeck_vr.so tools/vr/src/vk_layer_droiddeck_vr.c -ldl
+compile() {
+    local cmd=(sh -c '
+        set -e
+        aarch64-linux-gnu-g++ -std=c++17 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
+            -fvisibility=hidden -static-libstdc++ -static-libgcc -pthread -Wl,-z,defs -Ibuild/vr/include \
+            -o build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so tools/vr/src/driver_droiddeck.cpp tools/vr/src/presenter.cpp -ldl
+        aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -Wl,-z,defs -Ibuild/vr/include -o build/vr/out/layer/libVkLayer_droiddeck_vr.so tools/vr/src/vk_layer_droiddeck_vr.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so \
+            build/vr/out/layer/libVkLayer_droiddeck_vr.so')
+    if [ "$native" = 1 ]; then
+        (cd "$repo" && "${cmd[@]}")
+    else
+        docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "$repo:/src" -w /src \
+            "${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}" "${cmd[@]}"
+    fi
+}
+compile
+
+cp -R "$here/driver_droiddeck/." "$work/out/droiddeck/"
+cp "$here/layer/VK_LAYER_DROIDDECK_vr.json" "$work/out/layer/"
+rm -rf "$out/droiddeck" "$out/layer"
+mkdir -p "$out"
+cp -R "$work/out/droiddeck" "$work/out/layer" "$out/"
 echo "built $out/droiddeck and $out/layer"

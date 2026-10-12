@@ -137,6 +137,7 @@ import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.Cardboard
+import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
@@ -213,6 +214,8 @@ class DrawerActions(
     val cardboard: Cardboard = Cardboard.OFF,
     /** Whether the device has a rotation sensor (head tracking possible). */
     val cardboardSensor: Boolean = false,
+    /** SteamVR in the guest for Cardboard mode (gpu/SteamVr); null while unknown. */
+    val steamVr: SteamVr.Status? = null,
     /** Texture filtering for DirectX 9-11 games (core/TextureFiltering); lands on their next launch. */
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
@@ -250,6 +253,8 @@ class DrawerActions(
     val onEffects: (ScreenEffects) -> Unit = {},
     val onCardboard: (Cardboard) -> Unit = {},
     val onCardboardRecenter: () -> Unit = {},
+    /** install, start or stop SteamVR. */
+    val onSteamVr: (String) -> Unit = {},
     val onTextureAnisotropy: (Int?) -> Unit = {},
     val onTextureLodBias: (String?) -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
@@ -924,6 +929,18 @@ private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> 
         }
         if (c.headTracking && a.cardboardSensor)
             ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
+        val vrLabel = stringResource(R.string.cardboard_steamvr)
+        when (a.steamVr) {
+            SteamVr.Status.NOT_INSTALLED -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_install_hint),
+                stringResource(R.string.cardboard_steamvr_install), { a.onSteamVr("install") })
+            SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
+            SteamVr.Status.READY -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_ready_hint),
+                stringResource(R.string.cardboard_steamvr_start), { a.onSteamVr("start") })
+            SteamVr.Status.RUNNING -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_running_hint),
+                stringResource(R.string.cardboard_steamvr_stop), { a.onSteamVr("stop") })
+            SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}
+            null -> {}
+        }
     }
 }
 

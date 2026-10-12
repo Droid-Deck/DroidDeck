@@ -540,6 +540,38 @@ def quit_game(agent_dir, app_id, timeout):
 
 # --- Requests ------------------------------------------------------------------------------------
 
+VR_HELPER = "/usr/local/bin/droiddeck-steamvr"
+VR_ACTIONS = ("status", "install", "start", "stop")
+
+
+def steamvr(req):
+    """Cardboard mode's SteamVR: a fixed helper with four actions, unlike exec (no command line from
+    the request). install downloads 571 MB, so it runs detached and status reports it."""
+    action = req.get("action", "status")
+    if action not in VR_ACTIONS:
+        raise AgentError("INVALID_REQUEST", "vr action must be one of " + ", ".join(VR_ACTIONS))
+    helper = os.environ.get("DROIDDECK_VR_HELPER", VR_HELPER)
+    if not os.path.isfile(helper):
+        raise AgentError("UNAVAILABLE", "this runtime has no " + helper)
+    if action == "install":
+        state = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "droiddeck-steamvr"
+        state.mkdir(parents=True, exist_ok=True)
+        with open(state / "install.log", "ab") as log_file:
+            subprocess.Popen(["sh", helper, "install"], stdin=subprocess.DEVNULL, stdout=log_file,
+                             stderr=subprocess.STDOUT, start_new_session=True)
+        return {"action": action, "started": True}
+    done = subprocess.run(["sh", helper, action], stdin=subprocess.DEVNULL, capture_output=True,
+                          timeout=request_timeout(req, 30))
+    out = done.stdout.decode("utf-8", "replace").strip()
+    result = {"action": action, "exitCode": done.returncode, "output": out[-2000:]}
+    if action == "status":
+        for part in out.split():
+            key, _, value = part.partition("=")
+            if key in ("installed", "running", "installing", "driver"):
+                result[key] = value == "1"
+    return result
+
+
 def run_exec(req):
     argv = req.get("argv")
     if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and "\0" not in a for a in argv):
@@ -656,6 +688,8 @@ def handle(agent_dir, req):
         return steam_selection(agent_dir, request_timeout(req, 5))
     if kind == "quit":
         return quit_game(agent_dir, req.get("appId"), request_timeout(req, 15))
+    if kind == "vr":
+        return steamvr(req)
     raise AgentError("UNKNOWN_REQUEST", "Unknown agent request '%s'" % kind)
 
 

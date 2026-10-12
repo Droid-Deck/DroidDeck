@@ -52,6 +52,7 @@ import com.droiddeck.launcher.ui.SessionAchievements
 import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.HeadTracker
+import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
@@ -301,6 +302,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** Cardboard mode (gpu/Cardboard) and the sensor that turns the virtual screen with the head. */
     private var cardboard by mutableStateOf(Cardboard.OFF)
     private var headTracker: HeadTracker? = null
+    private var steamVrStatus by mutableStateOf<SteamVr.Status?>(null)
     private val hasRotationSensor by lazy {
         (getSystemService(SENSOR_SERVICE) as android.hardware.SensorManager).let {
             it.getDefaultSensor(android.hardware.Sensor.TYPE_GAME_ROTATION_VECTOR)
@@ -586,6 +588,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         releaseDrawerDirection()
                     }
                 }
+                // SteamVR's state for the Cardboard group, refreshed while the drawer shows it.
+                LaunchedEffect(drawerOpen, cardboard.enabled) {
+                    while (drawerOpen && cardboard.enabled) {
+                        steamVrStatus = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            SteamVr.status(this@SessionActivity)
+                        }
+                        kotlinx.coroutines.delay(3000)
+                    }
+                }
                 LaunchedEffect(drawerOpen, achievementsOpen, AgentGuest.focusRevision, StoreAchievements.revision) {
                     if (!drawerOpen && !achievementsOpen) return@LaunchedEffect
                     val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -615,6 +626,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     cardboardSensor = hasRotationSensor,
                     onCardboard = { c -> SessionPrefs.setCardboard(this@SessionActivity, c); applyCardboard(c) },
                     onCardboardRecenter = { headTracker?.recenter() },
+                    steamVr = steamVrStatus,
+                    onSteamVr = { action -> steamVrAction(action) },
                     textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
                     textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
                     frameGen = frameGen,
@@ -2546,6 +2559,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
         updateHeadTracker()
         super.onPause()
+    }
+
+    /** SteamVR for Cardboard mode: install, start or stop it in the guest. Starting switches the
+     *  picture to side-by-side, which is what SteamVR draws. */
+    private fun steamVrAction(action: String) {
+        if (action == "start" && cardboard.source != Cardboard.SOURCE_SBS) {
+            val c = cardboard.copy(source = Cardboard.SOURCE_SBS)
+            SessionPrefs.setCardboard(this, c)
+            applyCardboard(c)
+        }
+        if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
+        Thread({
+            val ok = SteamVr.run(this, action)
+            val now = SteamVr.status(this)
+            uiHandler.post {
+                steamVrStatus = now
+                if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
+            }
+        }, "steamvr-$action").start()
     }
 
     /** Cardboard mode: hand the settings to the compositor and run the head tracker while it needs one. */

@@ -592,6 +592,16 @@
     <string name="cardboard_no_sensor">This device has no rotation sensor.</string>
     <string name="cardboard_recenter">Recenter view</string>
     <string name="cardboard_recenter_button">Recenter</string>
+    <string name="cardboard_steamvr">SteamVR (experimental)</string>
+    <string name="cardboard_steamvr_install">Install</string>
+    <string name="cardboard_steamvr_install_hint">Downloads Valve\'s ARM64 SteamVR (571 MB).</string>
+    <string name="cardboard_steamvr_installing">Downloading and unpacking SteamVR…</string>
+    <string name="cardboard_steamvr_start">Start</string>
+    <string name="cardboard_steamvr_ready_hint">Runs SteamVR with your head as the headset; the picture switches to side-by-side 3D.</string>
+    <string name="cardboard_steamvr_stop">Stop</string>
+    <string name="cardboard_steamvr_running_hint">SteamVR is running.</string>
+    <string name="cardboard_steamvr_unavailable">Not available in this session.</string>
+    <string name="cardboard_steamvr_failed">SteamVR did not respond; see the session log.</string>
     <string name="drawer_deband">Debanding</string>
     <string name="drawer_deband_strength">Debanding strength</string>
     <string name="drawer_brightness">Brightness</string>

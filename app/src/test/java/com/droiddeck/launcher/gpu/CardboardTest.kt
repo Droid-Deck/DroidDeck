@@ -51,6 +51,17 @@ class CardboardTest {
         assertEquals(0f, Cardboard.lensInset(150f, 0f), eps)
     }
 
+    @Test fun steamVrStatusFollowsTheAgentAnswer() {
+        fun answer(vararg pairs: Pair<String, Boolean>) = JSONObject().apply { pairs.forEach { put(it.first, it.second) } }
+        assertEquals(SteamVr.Status.UNAVAILABLE, SteamVr.parse(answer("ok" to false, "installed" to true, "driver" to true)))
+        assertEquals(SteamVr.Status.UNAVAILABLE, SteamVr.parse(answer("ok" to true, "installed" to true, "driver" to false)))
+        assertEquals(SteamVr.Status.NOT_INSTALLED, SteamVr.parse(answer("ok" to true, "driver" to true)))
+        assertEquals(SteamVr.Status.INSTALLING, SteamVr.parse(answer("ok" to true, "installing" to true)))
+        assertEquals(SteamVr.Status.READY, SteamVr.parse(answer("ok" to true, "installed" to true, "driver" to true)))
+        assertEquals(SteamVr.Status.RUNNING,
+            SteamVr.parse(answer("ok" to true, "installed" to true, "driver" to true, "running" to true)))
+    }
+
     @Test fun quaternionMatchesKnownRotations() {
         // 90 degrees about z: x -> y.
         val m = matrix(quat(0f, 0f, 1f, 90.0))
