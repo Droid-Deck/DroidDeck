@@ -1400,7 +1400,22 @@ class MainActivity : ComponentActivity() {
                 onUsbRoot = { on ->
                     SessionPrefs.setUsbRootEnabled(this, on)
                     if (on) UsbRootMount.watch(this)
-                    usbRootAction { if (on) UsbRootMount.mount(this) else if (!SessionState.running) UsbRootMount.unmount(this) else null }
+                    usbRootAction {
+                        val error = if (on) UsbRootMount.mount(this) else if (!SessionState.running) UsbRootMount.unmount(this) else null
+                        // A USB library chosen through the other route follows the switch: same drive, new path.
+                        val pref = SessionPrefs.gameStorage(this)
+                        val root = UsbRootMount.path(this).absolutePath
+                        val moved = when {
+                            on && pref.startsWith("/mnt/media_rw/") -> root
+                            !on && pref == root -> ""
+                            else -> null
+                        }
+                        if (moved != null) {
+                            SessionPrefs.setGameStorage(this, moved, if (moved.isEmpty()) "" else getString(R.string.usb_root_volume))
+                            ui.post { gameStorage = moved }
+                        }
+                        error
+                    }
                 },
                 onUsbDrive = { uuid ->
                     usbRootAction {

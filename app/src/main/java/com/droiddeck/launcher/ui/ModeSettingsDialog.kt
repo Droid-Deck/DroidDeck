@@ -353,7 +353,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     if (tab == SheetTab.LIBRARY && steam) {
         if (s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
             // The USB drive's folder while it is unplugged: named, not shown as its long path.
-            val usbAway = (s.usbRoot != null && s.gameStorage == s.usbRoot.path || s.gameStorage.startsWith("/mnt/media_rw/")) &&
+            val usbAway = (s.gameStorage == s.usbRoot?.path || s.gameStorage.startsWith("/mnt/media_rw/")) &&
                 s.storageOptions.none { it.path == s.gameStorage }
             val custom = !usbAway && s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
             // Each choice: its path, its menu line, the chip's shorter line, and the label it is saved with.
