@@ -119,6 +119,11 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
     // Installs that stopped without the queue knowing (the app closed or was killed): the queue
     // lives in memory, so after a restart they were only on their game's page. They resume here too.
     val queued = entries.mapTo(HashSet()) { it.key }
+    // Matched against each store's library: one not read yet (Downloads opened first) is read from
+    // its cache, quietly, so the rows are there without visiting the store.
+    val ctx = LocalContext.current
+    val missing = StoresState.unfinished.map { it.store }.filter { StoresState.library[it] == null }.toSet()
+    LaunchedEffect(missing) { missing.forEach { StoresState.backend(it)?.syncLibrary(ctx, false) } }
     val interrupted = StoresState.unfinished.mapNotNull { u ->
         StoresState.library[u.store]?.firstOrNull {
             u.id == it.id || (u.id == null && u.folder.name == com.droiddeck.launcher.stores.StoreInstallRoot.folderName(it.title, it.id))
