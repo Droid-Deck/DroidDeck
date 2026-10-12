@@ -3,7 +3,6 @@ package com.droiddeck.launcher.ui
 import android.view.View
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -142,11 +141,14 @@ internal fun Modifier.glideBorder(
 }
 
 /** Leading edge on a focus move: quick and a little loose. */
-private fun lead(): AnimationSpec<Float> = Motion.sp(0.62f, 700f)
+/** A spring an edge chases its target on: damping ratio and stiffness, as Compose's. */
+private class Edge(val damping: Float, val stiffness: Float)
+
+private fun lead() = Edge(0.62f, 700f)
 /** Trailing edge: slower, settles without a bounce to speak of. */
-private fun trail(): AnimationSpec<Float> = Motion.sp(0.78f, 360f)
+private fun trail() = Edge(0.78f, 360f)
 /** Following a control that moves under the ring (a scroll): tight, no wobble. */
-private fun follow(): AnimationSpec<Float> = Motion.sp(1f, 2400f)
+private fun follow() = Edge(1f, 2400f)
 
 /** How long after a focus move the ring keeps its stretchy springs and keeps checking where it is. */
 private const val SETTLE_MS = 450L
@@ -180,8 +182,16 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
     val solid = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
-    // An edge each, the corner, and a droplet carrying all of them.
-    val jobs = remember { arrayOfNulls<Job>(7) }
+    // An edge each, the corner, a droplet carrying all of them, its solid fill, and the chase.
+    val jobs = remember { arrayOfNulls<Job>(8) }
+    // The chase: each edge on a spring of its own toward where focus is now. A new target only
+    // moves where it is heading - restarting an animation on every focus move started it from
+    // its first frame (which does not move), so a held direction over a busy page (each rail item
+    // swaps the page) left the ring standing while focus ran on ahead.
+    val target = remember { FloatArray(4) }
+    val vel = remember { FloatArray(4) }
+    val springs = remember { Array(4) { follow() } }
+    val startAt = remember { LongArray(4) }
     val cur = glide.current
     var lastColor by remember { mutableStateOf(Color.Transparent) }
     if (cur != null) lastColor = cur.color
@@ -192,23 +202,53 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
     LaunchedEffect(glide, Motion.scale) {
         var shown: GlideSource? = null
         var movedAt = 0L
-        var dirSpecs: List<AnimationSpec<Float>> = List(4) { follow() }
+        var dirSpecs: List<Edge> = List(4) { follow() }
         var delays = LongArray(4)
         var lastMove = 0L
-        fun go(i: Int, v: Float, spec: AnimationSpec<Float>, wait: Long) {
+        fun go(i: Int, v: Float, spec: Edge, wait: Long) {
             // A drop cut short by another move turns back into an outline on the way.
             if (jobs[5]?.isActive == true || solid.targetValue > 0f) {
                 jobs[5]?.cancel()
                 jobs[6]?.cancel()
                 jobs[6] = scope.launch { solid.animateTo(0f, Motion.tw(120)) }
             }
-            // Picks up the speed it is going at: restarting from rest on every step of a held
-            // direction is what made it stutter.
-            val speed = edges[i].velocity
-            jobs[i]?.cancel()
-            jobs[i] = scope.launch {
-                if (wait > 0) delay(Motion.ms(wait.toInt()).toLong())
-                edges[i].animateTo(v, spec, initialVelocity = if (wait > 0) 0f else speed)
+            val chasing = jobs[7]?.isActive == true
+            // An edge some other animation was moving (the appear, a drop's opening) is taken over
+            // at the speed it was going.
+            jobs[i]?.let { if (it.isActive) { it.cancel(); vel[i] = edges[i].velocity } }
+            if (!chasing) for (j in 0..3) if (jobs[j]?.isActive != true) vel[j] = edges[j].velocity
+            target[i] = v
+            springs[i] = spec
+            startAt[i] = System.nanoTime() + Motion.ms(wait.toInt()) * 1_000_000L
+            if (chasing) return
+            jobs[7] = scope.launch {
+                var last = withFrameNanos { it }
+                while (true) {
+                    val frame = withFrameNanos { it }
+                    // Real time, however long the frame took, in small steps so a stiff spring holds.
+                    val dt = ((frame - last) / 1e9f).coerceAtMost(0.1f) / Motion.scale.coerceAtLeast(0.01f)
+                    last = frame
+                    val now = System.nanoTime()
+                    var settled = true
+                    for (j in 0..3) {
+                        if (now < startAt[j]) { settled = false; continue }
+                        val k = springs[j].stiffness
+                        val c = 2f * springs[j].damping * kotlin.math.sqrt(k)
+                        var x = edges[j].value
+                        var u = vel[j]
+                        var left = dt
+                        while (left > 0f) {
+                            val h = minOf(left, 0.004f)
+                            u += (-k * (x - target[j]) - c * u) * h
+                            x += u * h
+                            left -= h
+                        }
+                        if (abs(x - target[j]) < 0.3f && abs(u) < 3f) { x = target[j]; u = 0f } else settled = false
+                        vel[j] = u
+                        edges[j].snapTo(x)
+                    }
+                    if (settled) break
+                }
             }
         }
         /** Pinch into a solid dot where it is, carry it over, and open it into [b] as it arrives. */
@@ -307,7 +347,7 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                         val grown = listOf(b.left - out, b.top - out, b.right + out, b.bottom + out)
                         jobs.forEach { it?.cancel() }
                         scope.launch { solid.snapTo(0f); edges.forEachIndexed { i, e -> e.snapTo(grown[i]) } }.join()
-                        dirSpecs = List(4) { Motion.sp(0.6f, 700f) }
+                        dirSpecs = List(4) { Edge(0.6f, 700f) }
                         delays = LongArray(4)
                         cornerTo(src, b, snap = true)
                         scope.launch { alpha.animateTo(1f, Motion.tw(140)) }
@@ -326,8 +366,8 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                         if (dropped) droplet(src, b)
                         else {
                             // A held direction runs along as one piece; a single press stretches.
-                            dirSpecs = if (held) List(4) { Motion.sp(0.9f, 900f) }
-                                else List(4) { i -> when (i) { leadIdx -> lead(); trailIdx -> trail(); else -> Motion.sp(0.7f, 520f) } }
+                            dirSpecs = if (held) List(4) { Edge(0.9f, 900f) }
+                                else List(4) { i -> when (i) { leadIdx -> lead(); trailIdx -> trail(); else -> Edge(0.7f, 520f) } }
                             delays = LongArray(4) { i -> if (i == trailIdx && !held) 30L else 0L }
                             cornerTo(src, b, snap = false)
                         }
