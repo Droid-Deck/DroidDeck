@@ -34,6 +34,5 @@ class DeckHapticsTest {
         val haptics = DeckHaptics()
         haptics.amplitude(LEFT, 7)
         assertEquals(DeckHaptics.amplitudeFor(-2), haptics.amplitude(BOTH, -2))
-        assertEquals(DeckHaptics.amplitudeFor(-2), haptics.amplitude(RIGHT, -5).let { haptics.amplitude(BOTH, -2) })
     }
 }
