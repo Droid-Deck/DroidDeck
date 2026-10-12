@@ -248,6 +248,8 @@ internal fun LiftHero(
     val playSrc = remember { MutableInteractionSource() }
     val playHovered by playSrc.collectIsHoveredAsState()
     var playFocused by remember { mutableStateOf(false) }
+    // Set as a pad leaves the sheet to the left for Play, which folds it once Play has focus.
+    val leftForPlay = remember { booleanArrayOf(false) }
     var heroAt by remember { mutableStateOf(Offset.Zero) }
     var rest by remember { mutableStateOf<Rect?>(null) }
     fun focusPlay() { if (ff != null && inputMode.inputMode == InputMode.Keyboard) runCatching { ff.primary.requestFocus() } }
@@ -557,8 +559,8 @@ internal fun LiftHero(
                         onPrevious = { if (tab > 0) { travel = -1; tab--; runCatching { chipFocus[tab].requestFocus() } } },
                         onNext = { if (tab < tabs.lastIndex) { travel = 1; tab++; runCatching { chipFocus[tab].requestFocus() } } },
                     )
-                    // A pad stays in the sheet until it folds; Left from it reaches Play, the handle.
-                    .focusProperties { exit = { dir -> if (!openState.value || launchingState.value) FocusRequester.Default else if (dir == FocusDirection.Left && ff != null) ff.primary else FocusRequester.Cancel } }
+                    // A pad stays in the sheet until it folds; Left from it reaches Play, the handle, and folds it.
+                    .focusProperties { exit = { dir -> if (!openState.value || launchingState.value) FocusRequester.Default else if (dir == FocusDirection.Left && ff != null) { leftForPlay[0] = true; ff.primary } else FocusRequester.Cancel } }
                     .focusGroup(),
             ) {
                 Box(
@@ -632,7 +634,11 @@ internal fun LiftHero(
                 Modifier
                     .onGloballyPositioned { rest = it.boundsInRoot() }
                     .graphicsLayer { translationY = raise * ride.value }
-                    .onFocusChanged { playFocused = it.hasFocus }
+                    .onFocusChanged {
+                        // Left out of the sheet (from the chips or a row) folds it, as Up from the chips does.
+                        if (it.hasFocus && leftForPlay[0]) { leftForPlay[0] = false; if (openState.value && !launchingState.value) close() }
+                        playFocused = it.hasFocus
+                    }
                     .hoverable(playSrc)
                     .onPreviewKeyEvent { e ->
                         val k = e.nativeKeyEvent
