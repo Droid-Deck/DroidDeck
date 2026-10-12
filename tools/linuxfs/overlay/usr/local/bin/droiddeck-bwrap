@@ -20,7 +20,7 @@ import socket
 import struct
 import sys
 
-SOCKET = "\0com.droiddeck.launcher.bwrap"
+SOCKET = "\0" + os.environ.get("DROIDDECK_BWRAP_SOCKET", "com.droiddeck.launcher.bwrap")
 VERSION = "bubblewrap 0.11.0 (droiddeck)"
 
 # Options and how many arguments each takes; bwrap(1).

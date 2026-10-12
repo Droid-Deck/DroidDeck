@@ -1,5 +1,6 @@
 """Attest prepared runtime inputs and reject stale local or CI APK payloads."""
 import hashlib
+import gzip
 import json
 from pathlib import Path
 import subprocess
@@ -14,8 +15,10 @@ MANIFEST = Path('app/build/runtime-inputs.json')
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
-                'tools/mangoapp', 'tools/msitools', 'tools/build_local.sh',
-                'tools/release/runtime_inputs.py']
+                'tools/mangoapp', 'tools/msitools', 'tools/comet', 'tools/build_local.sh',
+                'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
+                'tools/quest', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h',
+                'app/src/main/assets/graphics_driver/adrenotools-turnip25.1.0.tzst']
 
 
 def digest(path):
@@ -39,7 +42,7 @@ def sources(root):
 
 def outputs(root):
     result = {}
-    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync']:
+    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal']:
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
@@ -47,21 +50,27 @@ def outputs(root):
     for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so']:
         result['lib/arm64-v8a/' + library] = 'app/src/main/jniLibs/arm64-v8a/' + library
     result['assets/pulseaudio.tzst'] = 'app/build/prepared-assets/pulseaudio.tzst'
+    result['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'] = \
+        'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'
     return result
 
 
 def required():
-    paths = ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
+    paths = ['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst']
+    paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
              'libblfastpath.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime']]
     for arch in ['x86_64', 'i386']:
         paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libblsession.so']]
     paths += ['assets/linuxfs/x86_64/' + lib for lib in
               ['libfaultreport.so', 'libthunkaudit.so', 'libvulkan-thunk.so']]
+    paths += ['assets/linuxfs/i386/libfaultreport.so']
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-msitools/' + name for name in
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
     paths += ['assets/linuxfs/usr/local/lib/mangoapp/' + name for name in
               ['mangoapp', 'libfmt.so.10', 'libspdlog.so.1.13', 'libglfw.so.3', 'libtraceevent.so.1', 'libtracefs.so.1']]
+    paths += ['assets/linuxfs/usr/local/lib/droiddeck-comet/' + name for name in
+              ['comet', 'GalaxyCommunication.exe', 'update-permissions.exe', 'LICENSE', 'version']]
     for driver in ['linux-wine11', 'linux-wine11-systhread']:
         paths += ['assets/directaudio/' + driver + '/' + name for name in
                   ['aarch64-unix/winedirectaudio.so', 'aarch64-windows/winedirectaudio.drv',
@@ -69,6 +78,9 @@ def required():
     paths += ['assets/droiddeck-esync/index.json', 'assets/droiddeck-esync/index.json.sig',
               'lib/arm64-v8a/libproot.so', 'lib/arm64-v8a/libproot-loader.so',
               'lib/arm64-v8a/libdirectaudiorelay.so', 'assets/pulseaudio.tzst']
+    paths += ['assets/desktop-removal/' + name for name in
+              ['lxqt-r1.tsv.gzip', 'kde-remove.tsv.gzip', 'kde-keep.txt.gzip',
+               'emulators-keep.txt.gzip', 'versions.txt', 'sources.json']]
     return paths
 
 
@@ -84,6 +96,12 @@ def record(root=ROOT):
     missing = [name for name in required() if name not in paths or not (root / paths[name]).is_file()]
     if missing:
         raise ValueError('Missing runtime inputs:\n' + '\n'.join(missing))
+    for name, path in paths.items():
+        if name.startswith('assets/desktop-removal/') and name.endswith('.gzip'):
+            try:
+                gzip.decompress((root / path).read_bytes())
+            except (OSError, EOFError) as error:
+                raise ValueError('Invalid desktop removal inventory: ' + name) from error
     # Check inside the compressed payload, where a plain Gradle build used to ship no sinks.
     process = subprocess.Popen(['zstd', '-dc', str(root / paths['assets/pulseaudio.tzst'])], stdout=subprocess.PIPE)
     try:

@@ -30,6 +30,9 @@ import json
 import os
 import sys
 import time
+import subprocess
+import tempfile
+import hashlib
 from pathlib import Path
 
 LAUNCHER = ".droiddeck-launch.bat"
@@ -262,6 +265,76 @@ def exited(argv):
     return 0
 
 
+COMET_DIR = Path("/usr/local/lib/droiddeck-comet")
+
+
+def provision_galaxy(compat_data, proton, timeout=90):
+    """Proton creates the prefix and registers Galaxy before the first game runs."""
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton"
+    data = Path(compat_data)
+    data.mkdir(parents=True, exist_ok=True)
+    marker = data / "pfx/.droiddeck-comet-service"
+    try:
+        version = (COMET_DIR / "version").read_text().strip()
+        tools = [COMET_DIR / "GalaxyCommunication.exe", COMET_DIR / "update-permissions.exe"]
+        if not all(p.is_file() for p in tools):
+            return "not-installed"
+        stamp = version + " " + " ".join(hashlib.sha256(p.read_bytes()).hexdigest() for p in tools)
+        if marker.is_file() and marker.read_text() == stamp and (data / "pfx/system.reg").is_file():
+            return "ready"
+        # cmd/sc run through this title's selected Proton. The run verb bypasses the managed
+        # wrapper, so this cannot recursively request credentials or sync cloud saves.
+        with tempfile.TemporaryDirectory(prefix="droiddeck-galaxy-") as tmp:
+            folder = Path(tmp)
+            result = folder / "result"
+            bat = folder / "install.bat"
+            src = windows_path(str(COMET_DIR))
+            answer = windows_path(str(result))
+            target = r"C:\ProgramData\GOG.com\Galaxy\redists"
+            lines = ["@echo off", "setlocal", 'set "DD_DIR=%s"' % target,
+                     "sc query GalaxyCommunication >nul 2>&1",
+                     'if not errorlevel 1 if not exist "%DD_DIR%\\droiddeck-comet" goto existing',
+                     'if not exist "%DD_DIR%" mkdir "%DD_DIR%"',
+                     'copy /y "%s\\GalaxyCommunication.exe" "%s\\GalaxyCommunication.exe" >nul' % (src, target),
+                     'if errorlevel 1 exit /b 1',
+                     'sc query GalaxyCommunication >nul 2>&1',
+                     'if errorlevel 1 sc create GalaxyCommunication binpath= "%s\\GalaxyCommunication.exe"' % target,
+                     'if errorlevel 1 exit /b 1',
+                     '"%s\\update-permissions.exe"' % src,
+                     'if errorlevel 1 exit /b 1',
+                     'sc query GalaxyCommunication >nul 2>&1',
+                     'if errorlevel 1 exit /b 1',
+                     'echo managed>"%s\\droiddeck-comet"' % target,
+                     ':existing', 'echo ready>"%s"' % answer, 'exit /b 0']
+            bat.write_bytes(("\r\n".join(lines) + "\r\n").encode())
+            env = os.environ.copy()
+            env["BL_COMET_BOOTSTRAP"] = "1"
+            run = subprocess.run([proton, "run", "cmd.exe", "/d", "/c", windows_path(str(bat))],
+                                 env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+            if run.returncode or not result.is_file() or result.read_text().strip() != "ready":
+                return "service-unavailable"
+        marker.write_text(stamp)
+        return "ready"
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except (OSError, ValueError):
+        return "service-unavailable"
+
+
+def prepare_gog(sidecar, compat_data, launch_dir):
+    if not launch_dir:
+        log("gog achievements unavailable: no-channel")
+        return False
+    answer = ask(Path(launch_dir) / "stores", {"op": "gog-achievements", "store": "gog", "id": str(sidecar.get("id"))}, timeout=25.0)
+    if not isinstance(answer, dict) or not answer.get("ready"):
+        log("gog achievements: " + (str(answer.get("reason", "unavailable")) if isinstance(answer, dict) else "timeout"))
+        return False
+    state = provision_galaxy(compat_data, os.environ.get("BL_STORE_PROTON", ""))
+    log("gog achievements prefix: " + state)
+    return state == "ready"
+
+
 def main(argv):
     if argv and argv[0] == "--exited":
         return exited(argv[1:])
@@ -273,6 +346,8 @@ def main(argv):
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if store == "gog":
+        prepare_gog(sidecar, compat_data, launch_dir)
     if store == "epic":
         drop_stale(folder)
         choice = options(sidecar)

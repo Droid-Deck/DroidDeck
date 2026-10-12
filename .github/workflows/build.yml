@@ -44,6 +44,19 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - name: Check co-authors
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          base=$(git merge-base origin/main HEAD)
+          messages=$(git log --format=%B "$base..HEAD")
+          messages+=$'\n'"$(jq -r '.pull_request.title, (.pull_request.body // "")' "$GITHUB_EVENT_PATH")"
+          if grep -Eiq '^[[:space:]]*Co-authored-by:.*(Claude|Anthropic|OpenAI|ChatGPT|GPT|Copilot|Cursor|Gemini|Codex|Devin|Windsurf|Codeium|Amazon Q|Tabnine|Cody|\[bot\])' <<<"$messages"; then
+            echo "::error::AI and bot identities cannot be co-authors; remove the Co-authored-by trailer."
+            exit 1
+          fi
+
       - name: The packages a signed build ships as
         id: variants
         run: echo "list=$(awk '!/^#/ && NF { print $1 }' tools/release/variants.txt | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
@@ -173,7 +186,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'tools/linuxfs/debian-image.env') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -437,6 +450,13 @@ jobs:
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 
+      - name: Build GOG Galaxy companion
+        if: steps.preloads.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install 1.90.0 --profile minimal
+          rustup target add --toolchain 1.90.0 aarch64-unknown-linux-gnu
+          RUSTUP_TOOLCHAIN=1.90.0 bash tools/comet/build.sh
+
       - name: Build
         id: build
         env:
@@ -444,6 +464,7 @@ jobs:
           SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
         run: |
           set -o pipefail
+          python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
           python3 tools/release/runtime_inputs.py record
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk

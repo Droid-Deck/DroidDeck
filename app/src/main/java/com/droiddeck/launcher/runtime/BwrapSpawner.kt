@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 object BwrapSpawner {
     private const val TAG = "BwrapSpawner"
-    const val SOCKET = "com.droiddeck.launcher.bwrap"
+    fun socket(context: Context): String = "${context.packageName}.bwrap"
     private val seq = AtomicInteger()
     @Volatile private var server: LocalServerSocket? = null
 
@@ -42,10 +42,11 @@ object BwrapSpawner {
     fun start(context: Context) {
         if (server != null) return
         val app = context.applicationContext
+        val name = socket(app)
         val socket = try {
-            LocalServerSocket(SOCKET)
+            LocalServerSocket(name)
         } catch (e: IOException) {
-            Log.e(TAG, "cannot listen on $SOCKET", e)
+            Log.e(TAG, "cannot listen on $name", e)
             return
         }
         server = socket

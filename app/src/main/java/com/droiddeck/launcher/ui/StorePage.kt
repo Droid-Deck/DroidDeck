@@ -1,292 +1,636 @@
 package com.droiddeck.launcher.ui
 
-import com.droiddeck.launcher.R
-import androidx.compose.ui.res.stringResource
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.store.FlathubApi
 import com.droiddeck.launcher.store.StoreState
+import kotlinx.coroutines.delay
 
 // The Store rail section: Flathub's apps for this device's architecture, installed into the
-// Linux runtime with Flatpak, and the ones already installed.
+// Linux runtime with Flatpak, and the ones already installed - in the stores' style, in Flathub's
+// teal. Until Flatpak is set up it is the stores' sign-in hero: a wall of real app icons, one word,
+// one button that becomes its own progress. Then a chip row, shelves of square cards that flood
+// open into an app's page, and installs that fly home to the Installed chip.
 
-private val TABS = listOf(R.string.store_tab_discover, R.string.store_tab_search, R.string.store_tab_installed)
+private const val MODE_DISCOVER = "discover"
+private const val MODE_INSTALLED = "installed"
+private const val MODE_UPDATES = "updates"
+
+/** One app as a card shows it: Flathub's summary or what Flatpak says is installed. */
+private class CardApp(val id: String, val name: String, val icon: Any?, val summary: String? = null, val verified: Boolean = false)
+
+/** Where the Installed chip is, for an install's dot to land in, and how many have landed. */
+private object FlathubMotion {
+    var installedChip: Rect? = null
+    var landed by mutableIntStateOf(0)
+}
 
 @Composable
 internal fun StorePage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
-    val narrow = LocalNarrowPane.current
-    val padH = if (narrow) 16.dp else 22.dp
-    val padV = if (narrow) 12.dp else 18.dp
-    var tab by rememberSaveable { mutableStateOf(0) }
-    var openApp by rememberSaveable { mutableStateOf<String?>(null) }
-    var query by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(s.ready) { StoreState.refresh(ctx) }
     LaunchedEffect(Unit) { StoreState.loadSections() }
-    // A pad's focus sits on something the page is about to replace - the tile that opens an app,
-    // a tab's contents - and would be lost with it. Each move says where focus goes next.
-    val ff = LocalFrontFocus.current
-    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
-    val tabFocus = remember { List(TABS.size) { androidx.compose.ui.focus.FocusRequester() } }
-    var focusMove by remember { mutableStateOf<Pair<String, Int>?>(null) }
-    var lastApp by remember { mutableStateOf<String?>(null) }
-    fun closeApp() { lastApp = openApp; openApp = null; focusMove = "tile" to (focusMove?.second ?: 0) + 1 }
-    fun switchTab(to: Int) { tab = to; focusMove = "tab" to (focusMove?.second ?: 0) + 1 }
-    BackHandler(enabled = openApp != null) { closeApp() }
-    val scroll = rememberScrollState()
-    LaunchedEffect(openApp, tab) { scroll.scrollTo(0) }
-    LaunchedEffect(focusMove, openApp) {
-        if (inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
-        val target = when {
-            openApp != null -> ff?.primary
-            focusMove?.first == "tile" -> lastApp?.let { ff?.items?.get("tile:store:$it") } ?: tabFocus[tab]
-            focusMove?.first == "tab" -> tabFocus[tab]
-            else -> null
-        } ?: return@LaunchedEffect
-        var landed = false
-        focusWithinFrames({ landed }) { target.also { landed = runCatching { it.requestFocus() }.isSuccess } }
-    }
-    Column(
-        modifier = modifier.verticalScroll(scroll).padding(horizontal = padH, vertical = padV)
-            .bumpers(onPrevious = { if (openApp == null) switchTab((tab + TABS.size - 1) % TABS.size) },
-                     onNext = { if (openApp == null) switchTab((tab + 1) % TABS.size) }),
-    ) {
-        val id = openApp
-        if (id != null) {
-            AppDetail(s, a, id) { closeApp() }
-            return@Column
+    FlathubTheme {
+        // The storefront takes over from the hero once Flatpak is ready: the setup rail rings
+        // once, then the hero sinks away and the storefront rises.
+        var front by remember { mutableStateOf(StoreState.ready && s.ready) }
+        var ring by remember { mutableIntStateOf(0) }
+        LaunchedEffect(StoreState.ready, s.ready) {
+            val ready = StoreState.ready && s.ready
+            if (ready && !front) {
+                ring++
+                delay(Motion.ms(450).toLong())
+                front = true
+            } else if (!ready) front = false
         }
-        Rise(0) {
-            PageHeader(stringResource(R.string.store_title)) {
-                Chip(stringResource(R.string.store_chip_flathub), ok = false)
-                if (StoreState.ready) Chip(stringResource(R.string.store_chip_ready), ok = true)
-            }
-        }
-        if (!s.ready) {
-            Rise(1) { Note(stringResource(R.string.store_needs_runtime)) }
-            return@Column
-        }
-        if (!StoreState.ready) Rise(1) { SetupCard() }
-        Rise(2) {
-            TabStrip(
-                TABS.mapIndexed { i, id -> stringResource(id).let { t -> if (i == 2 && StoreState.installed.isNotEmpty()) stringResource(R.string.store_tab_count, t, StoreState.installed.size) else t } },
-                tab, { switchTab(it) }, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp), focusRequesters = tabFocus,
-            )
-        }
-        BusyBar()
-        when (tab) {
-            0 -> Discover(onOpen = { openApp = it }, onCategory = { category = it; query = ""; tab = 1; StoreState.search("", it) })
-            1 -> Search(query, category, { query = it }, { category = it }, onOpen = { openApp = it })
-            else -> Installed(a, onOpen = { openApp = it })
+        AnimatedContent(
+            front,
+            modifier = modifier,
+            transitionSpec = {
+                EnterTransition.None.togetherWith(fadeOut(Motion.tw(320)) + scaleOut(Motion.tw(320), targetScale = 0.95f))
+            },
+            label = "flathub",
+        ) { ready ->
+            if (ready) Storefront(s, a) else FlathubHero(s, ring)
         }
     }
 }
 
-/** Flatpak is not in the runtime yet: one button puts it there. */
+/**
+ * Flatpak is not set up yet: the stores' sign-in shape in teal. A tilted wall of the popular apps'
+ * icons (Flathub's public pages need no Flatpak) drifts behind, fading toward the words; one big
+ * button sets it up, and stretches into its own progress while it does.
+ */
 @Composable
-private fun SetupCard() {
+private fun FlathubHero(s: FrontEndState, ring: Int) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val narrow = LocalNarrowPane.current
+    val icons = remember(StoreState.sections.values.toList()) {
+        StoreState.sections.values.flatten().mapNotNull { it.icon }.distinct().take(48).takeIf { it.size >= 8 }.orEmpty()
+    }
     val busy = StoreState.busy == "setup"
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp).clip(Shape16).background(colors.surface).border(1.dp, pal.line, Shape16).padding(16.dp),
-    ) {
-        Text(stringResource(R.string.store_setup_title), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-        Text(
-            stringResource(R.string.store_setup_text),
-            fontSize = 14.sp, color = colors.onSurfaceVariant,
-        )
-        Actions {
-            PrimaryButton(if (busy) stringResource(R.string.store_setting_up) else stringResource(R.string.store_setup_title), enabled = StoreState.busy == null, main = true) { StoreState.setup(ctx) }
-        }
-    }
-}
-
-/** The running install, update or setup, whichever page it was started from. */
-@Composable
-private fun BusyBar() {
-    val colors = MaterialTheme.colorScheme
-    val busy = StoreState.busy ?: return
-    val name = StoreState.installed.firstOrNull { it.id == busy }?.name ?: StoreState.details[busy]?.name
-        ?: when (busy) { "setup" -> stringResource(R.string.store_flatpak); "update-all" -> stringResource(R.string.store_updates); else -> busy.substringAfterLast('.') }
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp)) {
-        val stage = StoreState.stage
-        Text(
-            if (stage != null && StoreState.percent >= 0) stringResource(R.string.store_busy_percent, name, stage, StoreState.percent) else stringResource(R.string.store_busy, name, stage ?: stringResource(R.string.store_starting)),
-            fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        if (StoreState.percent >= 0) LinearProgressIndicator(progress = { StoreState.percent / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp))
-        else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
-    }
-}
-
-@Composable
-private fun Discover(onOpen: (String) -> Unit, onCategory: (String) -> Unit) {
-    Rise(3) { SectionTitle(stringResource(R.string.store_categories), null) }
-    Rise(3) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
-            FlathubApi.categories.forEach { c -> PillButton(stringResource(c.label), selected = false) { onCategory(c.id) } }
-        }
-    }
-    if (StoreState.sectionsFailed && StoreState.sections.values.all { it.isEmpty() }) {
-        Rise(4) { Note(stringResource(R.string.store_unreachable)) }
-        Actions { SecondaryButton(stringResource(R.string.store_try_again)) { StoreState.loadSections(force = true) } }
-        return
-    }
-    StoreState.SECTIONS.forEachIndexed { i, (key, title) ->
-        val apps = StoreState.sections[key]
-        Rise(4 + i) { SectionTitle(stringResource(title), apps?.let { if (it.isEmpty()) null else it.size.toString() } ?: stringResource(R.string.store_section_loading)) }
-        if (apps != null && apps.isNotEmpty()) Rise(4 + i) { AppGrid(apps.take(12), first = i == 0, onOpen = onOpen) }
-    }
-}
-
-@Composable
-private fun Search(query: String, category: String?, onQuery: (String) -> Unit, onCategory: (String?) -> Unit, onOpen: (String) -> Unit) {
-    val view = androidx.compose.ui.platform.LocalView.current
-    val run = {
-        // The field is an Android EditText; Done leaves its keyboard over the results otherwise.
-        (view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
-            ?.hideSoftInputFromWindow(view.windowToken, 0)
-        StoreState.search(query.trim(), category)
-    }
-    Rise(3) {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-            AdbTextField(
-                value = query, onValueChange = onQuery, label = stringResource(R.string.store_search_label), keyboardType = KeyboardType.Text,
-                imeAction = ImeAction.Done, placeholder = stringResource(R.string.store_search_placeholder), modifier = Modifier.weight(1f), onDone = run,
+    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = if (narrow) 14.dp else 22.dp, vertical = if (narrow) 10.dp else 14.dp)) {
+        val shape = RoundedCornerShape(20.dp)
+        Box(Modifier.fillMaxWidth().height(maxHeight.coerceAtLeast(320.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
+            // Slower while it sets up, as the empty wall drifts.
+            androidx.compose.animation.Crossfade(icons, animationSpec = Motion.tw(600), label = "flathubWall") { tiles ->
+                val ground = Brush.linearGradient(listOf(Color(0xFF0B2E2B), Color(0xFF0B2E2B)))
+                val edge = FlathubTeal.copy(alpha = 0.18f)
+                TiltedWall(tiles.size, if (tiles.isEmpty() || busy) 75_000 else 50_000, capW = 68.dp, capH = 68.dp, gap = 14.dp, corner = 17.dp) { i ->
+                    WallCapsule(ground, edge = edge, icon = tiles.getOrNull(i))
+                }
+            }
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.horizontalGradient(
+                        0f to colors.background.copy(alpha = 0.97f), 0.45f to colors.background.copy(alpha = 0.9f),
+                        0.78f to colors.background.copy(alpha = 0.35f), 1f to colors.background.copy(alpha = 0.15f),
+                    ),
+                ),
             )
-            PrimaryButton(stringResource(R.string.store_search), main = true, onClick = run)
-        }
-    }
-    Rise(4) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 12.dp, bottom = 4.dp)) {
-            PillButton(stringResource(R.string.store_all), selected = category == null) { onCategory(null); StoreState.search(query.trim(), null) }
-            FlathubApi.categories.forEach { c ->
-                PillButton(stringResource(c.label), selected = category == c.id) { onCategory(c.id); StoreState.search(query.trim(), c.id) }
-            }
-        }
-    }
-    val results = StoreState.searchResults
-    when {
-        StoreState.searching -> Rise(5) { SectionTitle(stringResource(R.string.store_searching), null) }
-        results == null -> Rise(5) { Note(stringResource(R.string.store_search_hint)) }
-        results.isEmpty() -> Rise(5) { Note(stringResource(R.string.store_no_results)) }
-        else -> {
-            Rise(5) { SectionTitle(stringResource(R.string.store_results), results.size.toString()) }
-            Rise(6) { AppGrid(results, first = true, onOpen = onOpen) }
-        }
-    }
-}
-
-@Composable
-private fun Installed(a: FrontEndActions, onOpen: (String) -> Unit) {
-    val ctx = LocalContext.current
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val apps = StoreState.installed
-    Rise(3) {
-        Actions {
-            SecondaryButton(if (StoreState.checkingUpdates) stringResource(R.string.common_checking) else stringResource(R.string.store_check_updates), enabled = StoreState.ready && !StoreState.checkingUpdates && StoreState.busy == null) {
-                StoreState.checkUpdates(ctx)
-            }
-            if (StoreState.updates.isNotEmpty()) PrimaryButton(stringResource(R.string.store_update_all, StoreState.updates.size), enabled = StoreState.busy == null) {
-                StoreState.update(ctx, null, ctx.getString(R.string.store_updates))
-            } else if (StoreState.updatesChecked && !StoreState.checkingUpdates) ActionChip(stringResource(R.string.store_all_current), ok = true)
-        }
-    }
-    if (apps.isEmpty()) {
-        Rise(4) { Box(Modifier.padding(top = 12.dp)) { Note(if (StoreState.ready) stringResource(R.string.store_no_apps) else stringResource(R.string.store_setup_first_note)) } }
-        return
-    }
-    Rise(4) { SectionTitle(stringResource(R.string.store_tab_installed), apps.size.toString()) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        apps.forEachIndexed { i, app ->
-            key(app.id) {
-                Rise(5 + i.coerceAtMost(6)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14).padding(horizontal = 12.dp, vertical = 10.dp),
-                    ) {
-                        AppIcon(app.icon ?: StoreState.details[app.id]?.icon ?: FlathubApi.iconUrl(app.id), app.name, 44)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(app.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                (app.summary ?: app.id).let { if (app.id in StoreState.updates) stringResource(R.string.store_update_available_prefix, it) else it },
-                                fontSize = 13.sp, color = if (app.id in StoreState.updates) pal.signal else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        PrimaryButton(stringResource(R.string.store_open), compact = true, enabled = !s_busyFor(app.id)) { a.onFlatpakApp(app.id, app.name) }
-                        if (app.id in StoreState.updates) SecondaryButton(stringResource(R.string.common_update), compact = true, enabled = StoreState.busy == null) { StoreState.update(ctx, app.id, app.name) }
-                        SecondaryButton(stringResource(R.string.store_details), compact = true) { onOpen(app.id) }
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to colors.background.copy(alpha = 0.92f))))
+            Box(
+                Modifier.fillMaxSize().drawBehind {
+                    drawRect(Brush.radialGradient(listOf(FlathubTeal.copy(alpha = 0.22f), Color.Transparent), center = Offset(size.width * 0.16f, size.height * 0.9f), radius = size.height * 0.75f))
+                },
+            )
+            BoxWithConstraints(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = if (narrow) 20.dp else 40.dp, bottom = if (narrow) 20.dp else 36.dp, end = 20.dp)) {
+                val full = maxWidth
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Rise(1) {
+                        Text(stringResource(R.string.flathub_eyebrow), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, color = FlathubTeal)
                     }
+                    Rise(2) {
+                        Text(
+                            stringResource(R.string.flathub_name), fontSize = if (narrow) 30.sp else 42.sp, lineHeight = if (narrow) 34.sp else 46.sp,
+                            fontWeight = FontWeight.Black, color = colors.onBackground,
+                        )
+                    }
+                    Rise(3) { Text(stringResource(R.string.flathub_line), fontSize = 15.sp, color = colors.onSurfaceVariant) }
+                    Spacer(Modifier.height(8.dp))
+                    Rise(4) { SetupButton(s, busy, full, ring) { StoreState.setup(ctx) } }
                 }
             }
         }
     }
 }
 
-private fun s_busyFor(id: String) = StoreState.busy == id
+/**
+ * Set up Flathub, and its own progress: while it sets up the button springs out to the full width
+ * and fills in teal from the left with how far it is, the stage and the figure inside it. Without
+ * a runtime it says what is missing instead.
+ */
+@Composable
+private fun SetupButton(s: FrontEndState, busy: Boolean, full: Dp, ring: Int, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val density = LocalDensity.current
+    val ff = LocalFrontFocus.current
+    val inputMode = LocalInputModeManager.current
+    var restW by remember { mutableStateOf(0.dp) }
+    val grow by animateFloatAsState(if (busy) 1f else 0f, Motion.sp(0.7f, 380f), label = "setupGrow")
+    val fill by animateFloatAsState((StoreState.percent.coerceAtLeast(0) / 100f), Motion.tw(300), label = "setupFill")
+    if (!busy && grow < 0.01f) {
+        Box(Modifier.onSizeChanged { restW = with(density) { it.width.toDp() } }) {
+            PrimaryButton(
+                if (s.ready) stringResource(R.string.flathub_setup) else stringResource(R.string.store_needs_runtime),
+                enabled = s.ready && StoreState.busy == null, main = true, large = true, icon = Icons.Filled.Download, onClick = onClick,
+            )
+        }
+        return
+    }
+    // A pad keeps its place on the rail that took the button's.
+    if (ff != null) LaunchedEffect(Unit) { if (inputMode.inputMode == InputMode.Keyboard) focusSoon { ff.primary } }
+    val width = androidx.compose.ui.unit.lerp(restW.coerceAtLeast(120.dp), full, grow)
+    val shape = RoundedCornerShape(12.dp)
+    val shimmer = rememberInfiniteTransition(label = "setupShimmer")
+    val sweep by shimmer.animateFloat(-0.3f, 1.3f, infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart), label = "sweep")
+    val stage = StoreState.stage ?: stringResource(R.string.store_starting)
+    val label = if (StoreState.percent >= 0) "$stage · ${StoreState.percent}%" else stage
+    Box(
+        contentAlignment = Alignment.CenterStart,
+        modifier = Modifier.width(width).heightIn(min = 56.dp)
+            .then(if (ff != null) Modifier.focusRequester(ff.primary) else Modifier)
+            .pulseRing(ring, FlathubTeal)
+            .clip(shape).background(colors.surfaceVariant).border(1.dp, FlathubTeal.copy(alpha = 0.5f), shape)
+            .drawBehind {
+                if (StoreState.percent >= 0) drawRect(FlathubTeal, size = size.copy(width = size.width * fill))
+                else if (Motion.scale != 0f) {
+                    val w = size.width * 0.3f
+                    drawRect(Brush.horizontalGradient(listOf(Color.Transparent, FlathubTeal.copy(alpha = 0.55f), Color.Transparent), startX = size.width * sweep - w, endX = size.width * sweep + w))
+                }
+            }
+            .focusable()
+            .semantics { contentDescription = label }
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+    ) {
+        Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (StoreState.percent >= 50) FlathubInk else colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
 
+// ---- storefront ------------------------------------------------------------------------------------
+
+@Composable
+private fun Storefront(s: FrontEndState, a: FrontEndActions) {
+    val ctx = LocalContext.current
+    val narrow = LocalNarrowPane.current
+    val colors = MaterialTheme.colorScheme
+    val density = LocalDensity.current
+    val padH = if (narrow) 14.dp else 22.dp
+    var mode by rememberSaveable { mutableStateOf(MODE_DISCOVER) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
+    var openApp by rememberSaveable { mutableStateOf<String?>(null) }
+    val updates = StoreState.updates
+    if (mode == MODE_UPDATES && updates.isEmpty()) mode = MODE_INSTALLED
+    // Once a session is plenty: the Updates chip shows itself when there is something to update.
+    LaunchedEffect(StoreState.ready) { if (StoreState.ready && !StoreState.updatesChecked && !StoreState.checkingUpdates) StoreState.checkUpdates(ctx) }
+    // A search runs a beat after typing stops, or as a category is picked.
+    LaunchedEffect(query, category) {
+        if (query.isBlank() && category == null) { StoreState.clearSearch(); return@LaunchedEffect }
+        delay(350)
+        StoreState.search(query.trim(), category)
+    }
+    val ff = LocalFrontFocus.current
+    val inputMode = LocalInputModeManager.current
+    // Cards, where they are, for the page that opens from one.
+    val cards = remember { HashMap<String, Rect>() }
+    var viewportAt by remember { mutableStateOf(Offset.Zero) }
+    var detail by remember { mutableStateOf<String?>(null) }
+    var leaving by remember { mutableStateOf(false) }
+    var detailFrom by remember { mutableStateOf<Origin?>(null) }
+    var lastApp by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(openApp) {
+        val id = openApp
+        if (id != null) {
+            detailFrom = cards[id]?.let { Origin(it.translate(-viewportAt), 16f * density.density) }
+            leaving = false
+            detail = id
+            if (inputMode.inputMode == InputMode.Keyboard && ff != null) { delay(Motion.ms(300).toLong()); focusSoon { ff.primary } }
+        } else if (detail != null) {
+            lastApp = detail
+            if (detailFrom != null) { leaving = true; delay(Motion.ms(PAGE_RETURN_MS).toLong()) }
+            detail = null; leaving = false; detailFrom = null
+        }
+    }
+    // Back on the grid: focus goes to the card the page came from.
+    LaunchedEffect(detail) {
+        if (detail != null || inputMode.inputMode != InputMode.Keyboard || ff == null) return@LaunchedEffect
+        val id = lastApp ?: return@LaunchedEffect
+        ff.items["tile:store:$id"]?.let { req -> focusSoon { req } }
+    }
+    BackHandler(enabled = openApp != null) { openApp = null }
+    // An app's card on Desktop asked for its page.
+    LaunchedEffect(StoreState.openRequest) { StoreState.openRequest?.let { openApp = it; StoreState.openRequest = null } }
+    val covering = detail != null && !leaving
+    val sink by animateFloatAsState(if (covering) 0.95f else 1f, if (covering) Motion.tw(480) else Motion.tw(460, 40), label = "flathubSink")
+    val fade by animateFloatAsState(if (covering) 0f else 1f, if (covering) Motion.tw(320, 80) else Motion.tw(300, 100), label = "flathubFade")
+    val modes = buildList { add(MODE_DISCOVER); add(MODE_INSTALLED); if (updates.isNotEmpty()) add(MODE_UPDATES) }
+    // LB / RB with a pad: focus goes to the new mode's chip; the cards it was on leave with the old mode.
+    val seenMode = remember { arrayOf(mode) }
+    LaunchedEffect(mode) {
+        if (seenMode[0] == mode) return@LaunchedEffect
+        seenMode[0] = mode
+        if (inputMode.inputMode != InputMode.Keyboard || ff == null) return@LaunchedEffect
+        ff.items["flathub:$mode"]?.let { req -> focusSoon { req } }
+    }
+
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
+            .bumpers(
+                onPrevious = { if (openApp == null) mode = modes[(modes.indexOf(mode) + modes.size - 1) % modes.size] },
+                onNext = { if (openApp == null) mode = modes[(modes.indexOf(mode) + 1) % modes.size] },
+            ),
+    ) {
+        Rise(0) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // A page of Desktop's: the way back to it, for a finger (B does the same).
+                val show = LocalShowSection.current
+                BackLink(stringResource(R.string.rail_desktop), compact = true) { show("desktop") }
+                Box(Modifier.weight(1f)) { FlathubChips(mode, modes, StoreState.installed.size, updates.size) { mode = it } }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.weight(1f).fillMaxWidth().clipToBounds().onGloballyPositioned { viewportAt = it.positionInRoot() }) {
+            Column(
+                Modifier.fillMaxSize().graphicsLayer { scaleX = sink; scaleY = sink; alpha = fade }.verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+            ) {
+                val open: (String) -> Unit = { openApp = it }
+                when (mode) {
+                    MODE_DISCOVER -> Discover(query, category, { query = it }, { category = if (category == it) null else it }, cards, open)
+                    MODE_INSTALLED -> InstalledMode(cards, open)
+                    else -> UpdatesMode(cards, open)
+                }
+            }
+            detail?.let { id ->
+                val from = detailFrom
+                val icon = StoreState.details[id]?.icon ?: StoreState.sections.values.flatten().firstOrNull { it.id == id }?.icon ?: FlathubApi.iconUrl(id)
+                val body: @Composable () -> Unit = {
+                    Column(
+                        Modifier.fillMaxSize().background(colors.background).pointerInput(Unit) { detectTapGestures { } }
+                            .verticalScroll(rememberScrollState()).padding(bottom = 16.dp).focusGroup(),
+                    ) { AppDetail(s, a, id) { openApp = null } }
+                }
+                if (from == null) body()
+                else {
+                    // The card's own icon, cropped over the tile as it grows: the page arrives in the app's colour.
+                    val art = coil.compose.rememberAsyncImagePainter(
+                        remember(icon) { coil.request.ImageRequest.Builder(ctx).data(icon).size(256, 256).build() },
+                    )
+                    PageFlood(from, leaving, art) { body() }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Discover, Installed (with its count) and Updates (when there are any): one selection glides under
+ * them in teal; the Installed count pops as an install's dot lands in it.
+ */
+@Composable
+private fun FlathubChips(mode: String, modes: List<String>, installed: Int, updates: Int, onPick: (String) -> Unit) {
+    val pal = LocalPalette.current
+    val colors = MaterialTheme.colorScheme
+    val bounds = remember { mutableStateMapOf<String, Rect>() }
+    val tint = rememberUpdatedState(pal.signal)
+    Box(Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            for (m in modes) {
+                key(m) {
+                    val src = remember { MutableInteractionSource() }
+                    val hot = rememberHot(src)
+                    val shape = RoundedCornerShape(99.dp)
+                    val on = m == mode
+                    // Drawn by the row's glide by touch only; with a pad its own rest look and the bar.
+                    val under = on && androidx.compose.ui.platform.LocalInputModeManager.current.inputMode != androidx.compose.ui.input.InputMode.Keyboard
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        modifier = Modifier.weight(1f).paneItem("flathub:$m")
+                            .onGloballyPositioned {
+                                bounds[m] = it.boundsInParent()
+                                if (m == MODE_INSTALLED) FlathubMotion.installedChip = it.boundsInRoot()
+                            }
+                            .heightIn(min = 44.dp).clip(shape)
+                            .background(if (under) Color.Transparent else colors.surface)
+                            .shownBar(on, pal.signal)
+                            .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
+                            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab) { onPick(m) }
+                            .controllerConfirm { onPick(m) }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            stringResource(when (m) { MODE_DISCOVER -> R.string.store_tab_discover; MODE_INSTALLED -> R.string.store_tab_installed; else -> R.string.store_updates }),
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on || hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1,
+                        )
+                        val count = when (m) { MODE_INSTALLED -> installed; MODE_UPDATES -> updates; else -> -1 }
+                        if (count >= 0) Text(
+                            count.toString(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = pal.onSignal, maxLines = 1,
+                            modifier = Modifier.then(if (m == MODE_INSTALLED) Modifier.landingPop(FlathubMotion.landed) else Modifier)
+                                .clip(RoundedCornerShape(8.dp)).background(pal.signal).padding(horizontal = 6.dp, vertical = 1.dp),
+                        )
+                    }
+                }
+            }
+        }
+        // Over the chips: under them, their rest fill hid it as it crossed them.
+        ChipGlide(modes.indexOf(mode), bounds[mode], tint)
+    }
+}
+
+/**
+ * The card width for a width: room for a name on two lines and a two-line summary under the art,
+ * so a long name wraps instead of being cut to a few letters.
+ */
+private fun cardSize(width: Dp): Dp = when {
+    width >= 700.dp -> 164.dp
+    width >= 480.dp -> 148.dp
+    else -> 132.dp
+}
+
+@Composable
+private fun Discover(
+    query: String, category: String?, onQuery: (String) -> Unit, onCategory: (String) -> Unit,
+    cards: HashMap<String, Rect>, onOpen: (String) -> Unit,
+) {
+    Rise(1) {
+        ModeHeader(
+            stringResource(R.string.store_tab_discover), query, onQuery, stringResource(R.string.store_search_placeholder),
+        ) {
+            // The categories as small pills, at the right of the header.
+            val pills = rememberScrollState()
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.widthIn(max = 420.dp).edgeFade(pills).horizontalScroll(pills),
+            ) {
+                FlathubApi.categories.forEach { c -> PillButton(stringResource(c.label), selected = category == c.id) { onCategory(c.id) } }
+            }
+        }
+    }
+    val results = StoreState.searchResults
+    if (query.isNotBlank() || category != null) {
+        when {
+            StoreState.searching && results == null -> Rise(2) { Box(Modifier.padding(top = 12.dp)) { Note(stringResource(R.string.store_searching)) } }
+            results.isNullOrEmpty() -> Rise(2) { Box(Modifier.padding(top = 12.dp)) { Note(stringResource(R.string.store_no_results)) } }
+            else -> Rise(2) { CardGrid(results.map { CardApp(it.id, it.name, it.icon, it.summary, it.verified) }, cards, onOpen) }
+        }
+        return
+    }
+    if (StoreState.sectionsFailed && StoreState.sections.values.all { it.isEmpty() }) {
+        Rise(2) { Box(Modifier.padding(top = 12.dp)) { Note(stringResource(R.string.store_unreachable)) } }
+        Actions { SecondaryButton(stringResource(R.string.store_try_again)) { StoreState.loadSections(force = true) } }
+        return
+    }
+    StoreState.SECTIONS.forEachIndexed { i, (key, title) ->
+        val apps = StoreState.sections[key]
+        Rise(2 + i) { Shelf(stringResource(title), apps?.map { CardApp(it.id, it.name, it.icon, it.summary, it.verified) }, first = i == 0, cards, onOpen) }
+    }
+}
+
+@Composable
+private fun InstalledMode(cards: HashMap<String, Rect>, onOpen: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val apps = StoreState.installed
+    Rise(1) {
+        ModeHeader(stringResource(R.string.store_tab_count, stringResource(R.string.store_tab_installed), apps.size), "", {}, "") {
+            SmallLink(if (StoreState.checkingUpdates) stringResource(R.string.common_checking) else stringResource(R.string.store_check_updates), enabled = !StoreState.checkingUpdates && StoreState.busy == null) {
+                StoreState.checkUpdates(ctx)
+            }
+        }
+    }
+    if (apps.isEmpty()) { Rise(2) { Box(Modifier.padding(top = 12.dp)) { Note(stringResource(R.string.store_no_apps)) } }; return }
+    Rise(2) { CardGrid(apps.map { CardApp(it.id, it.name, it.icon ?: StoreState.details[it.id]?.icon ?: FlathubApi.iconUrl(it.id), it.summary) }, cards, onOpen) }
+}
+
+@Composable
+private fun UpdatesMode(cards: HashMap<String, Rect>, onOpen: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val apps = StoreState.installed.filter { it.id in StoreState.updates }
+    Rise(1) {
+        ModeHeader(stringResource(R.string.store_tab_count, stringResource(R.string.store_updates), apps.size), "", {}, "") {
+            PrimaryButton(stringResource(R.string.store_update_all, apps.size), compact = true, enabled = StoreState.busy == null) {
+                StoreState.update(ctx, null, ctx.getString(R.string.store_updates))
+            }
+        }
+    }
+    Rise(2) { CardGrid(apps.map { CardApp(it.id, it.name, it.icon ?: StoreState.details[it.id]?.icon ?: FlathubApi.iconUrl(it.id), it.summary) }, cards, onOpen) }
+}
+
+/** A horizontal row of cards under a title, the stores' shelf; nothing while it is empty. */
+@Composable
+private fun Shelf(title: String, apps: List<CardApp>?, first: Boolean, cards: HashMap<String, Rect>, onOpen: (String) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth()) {
+        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
+        if (apps == null) Text(stringResource(R.string.store_section_loading), fontSize = 13.sp, color = colors.onSurfaceVariant)
+        else if (apps.isNotEmpty()) BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val size = cardSize(maxWidth)
+            val shelf = rememberScrollState()
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().edgeFade(shelf).horizontalScroll(shelf).padding(vertical = 2.dp)) {
+                apps.take(18).forEachIndexed { i, app -> key(app.id) { AppCard(app, size, first && i == 0, cards) { onOpen(app.id) } } }
+            }
+        }
+    }
+}
+
+/** The Installed and Updates modes, and search: a grid of the same cards. */
+@Composable
+private fun CardGrid(apps: List<CardApp>, cards: HashMap<String, Rect>, onOpen: (String) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        val size = cardSize(maxWidth)
+        val columns = ((maxWidth + 10.dp) / (size + 10.dp)).toInt().coerceAtLeast(1)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            apps.chunked(columns).forEachIndexed { r, row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    row.forEachIndexed { i, app -> key(app.id) { AppCard(app, size, r == 0 && i == 0, cards) { onOpen(app.id) } } }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One app: its icon over a blurred, darkened copy of itself (darkened only, before Android 12),
+ * with one status on the art - Get, ✓, or how far an install is - and under it the name, on two
+ * lines if it needs them, and what the app is.
+ */
+@Composable
+private fun AppCard(app: CardApp, size: Dp, first: Boolean, cards: HashMap<String, Rect>, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.96f else if (hot) 1.03f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "cardScale")
+    val shape = RoundedCornerShape(16.dp)
+    val installed = StoreState.installed.any { it.id == app.id }
+    val update = app.id in StoreState.updates
+    val busy = StoreState.busy == app.id
+    val artH = size * 0.62f
+    Column(
+        Modifier.width(size).paneItem("tile:store:${app.id}").then(if (first) Modifier.firstTile() else Modifier)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
+            .glideBorder(hot, shape, pal.signal, pal.line)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
+            .controllerConfirm(onClick = onClick)
+            .semantics { contentDescription = app.name },
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxWidth().height(artH).onGloballyPositioned { cards[app.id] = it.boundsInRoot() }
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)).background(Color(0xFF0B2E2B)),
+        ) {
+            if (app.icon != null) {
+                // The icon's own colour, blurred and darkened, as the card's ground.
+                AsyncImage(
+                    model = app.icon, contentDescription = null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.8f; scaleY = 1.8f; alpha = 0.55f }
+                        .then(if (Build.VERSION.SDK_INT >= 31) Modifier.blur(18.dp) else Modifier),
+                )
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+                AsyncImage(model = app.icon, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(artH * 0.62f))
+            } else Icon(Icons.Outlined.Apps, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(artH * 0.5f))
+            // One status, on the art: what A on the card leads to.
+            Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+                when {
+                    busy -> Box(Modifier.clip(RoundedCornerShape(99.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(4.dp)) {
+                        if (StoreState.percent >= 0) CircularProgressIndicator(progress = { StoreState.percent / 100f }, strokeWidth = 2.dp, color = pal.signal, trackColor = pal.signal.copy(alpha = 0.25f), modifier = Modifier.size(16.dp))
+                        else CircularProgressIndicator(strokeWidth = 2.dp, color = pal.signal, modifier = Modifier.size(16.dp))
+                    }
+                    else -> Text(
+                        when {
+                            update -> stringResource(R.string.common_update)
+                            installed -> "✓"
+                            else -> stringResource(R.string.comp_get)
+                        },
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                        color = if (installed && !update) FlathubInk else pal.onSignal,
+                        modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (installed && !update) pal.good else pal.signal)
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 10.dp)) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    app.name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 17.sp, color = colors.onBackground,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                )
+                if (app.verified) Icon(Icons.Outlined.Verified, stringResource(R.string.store_verified), tint = pal.signal, modifier = Modifier.padding(top = 2.dp).size(13.dp))
+            }
+            // Two lines kept for the summary even when it is short, so cards in a row line up.
+            Text(
+                app.summary.orEmpty(), fontSize = 12.sp, lineHeight = 15.sp, color = colors.onSurfaceVariant,
+                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+    }
+}
+
+/**
+ * An app's page, flooded out of its card: its icon, name and what it is, one action (Install or
+ * Open, with Update beside it when there is one) and Website; then its screenshots and details.
+ * Install flies a dot to the Installed chip; Remove asks by stepping out of its button, in red.
+ */
 @Composable
 private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -296,44 +640,53 @@ private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: 
     val d = StoreState.details[id]
     val local = StoreState.installed.firstOrNull { it.id == id }
     val name = d?.name ?: local?.name ?: id
-    Rise(0) { BackLink(stringResource(R.string.store_title), onClick = onBack) }
+    val busyHere = StoreState.busy == id
+    val installed = local != null
+    Rise(0) { BackLink(stringResource(R.string.flathub_name), onClick = onBack) }
     Rise(1) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)) {
             AppIcon(d?.icon ?: local?.icon ?: FlathubApi.iconUrl(id), name, 72)
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                d?.developer?.let { Text(it, fontSize = 14.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                val meta = listOfNotNull(
+                    d?.developer, d?.version?.let { "v$it" },
+                    d?.downloadSize?.takeIf { it > 0 }?.let { stringResource(R.string.store_download_size, FileUtils.sizeToString(it)) },
+                ).joinToString(" · ")
+                if (meta.isNotEmpty()) Text(meta, fontSize = 14.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 (d?.summary ?: local?.summary)?.let { Text(it, fontSize = 14.sp, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)) }
             }
         }
     }
-    val busyHere = StoreState.busy == id
-    val installed = local != null
-    // Remove asks twice: one stray press of A should not cost a download. The second press has
-    // to come within a few seconds; the app's own data in ~/.var/app stays either way.
-    var confirmRemove by remember(id) { mutableStateOf(false) }
-    LaunchedEffect(confirmRemove) { if (confirmRemove) { kotlinx.coroutines.delay(4000); confirmRemove = false } }
     Rise(2) {
         Actions {
             if (installed) {
-                PrimaryButton(stringResource(R.string.store_open), enabled = !busyHere, main = true) { a.onFlatpakApp(id, name) }
+                PrimaryButton(if (busyHere) stringResource(R.string.common_working) else stringResource(R.string.store_open), enabled = !busyHere, main = true) { a.onFlatpakApp(id, name) }
                 if (id in StoreState.updates) SecondaryButton(stringResource(R.string.common_update), enabled = StoreState.busy == null) { StoreState.update(ctx, id, name) }
-                SecondaryButton(if (busyHere) stringResource(R.string.common_working) else if (confirmRemove) stringResource(R.string.store_press_again) else stringResource(R.string.store_remove), enabled = StoreState.busy == null) {
-                    if (confirmRemove) { confirmRemove = false; StoreState.uninstall(ctx, id, name) } else confirmRemove = true
-                }
             } else {
-                PrimaryButton(
-                    if (busyHere) stringResource(R.string.store_installing) else stringResource(R.string.store_install), main = true,
-                    enabled = StoreState.ready && StoreState.busy == null && s.ready && (d == null || d.arches.isEmpty() || "aarch64" in d.arches),
-                ) { StoreState.install(ctx, id, name) }
-                if (!StoreState.ready) ActionChip(stringResource(R.string.store_setup_first), ok = false)
+                var at by remember { mutableStateOf<Rect?>(null) }
+                Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+                    PrimaryButton(
+                        if (busyHere) (if (StoreState.percent >= 0) "${StoreState.stage ?: stringResource(R.string.store_installing)} · ${StoreState.percent}%" else stringResource(R.string.store_installing))
+                        else stringResource(R.string.store_install),
+                        main = true,
+                        enabled = StoreState.busy == null && s.ready && (d == null || d.arches.isEmpty() || "aarch64" in d.arches),
+                    ) {
+                        StoreState.install(ctx, id, name)
+                        // The button squashes into a dot that flies to the Installed chip, whose count pops.
+                        val from = at
+                        if (from != null) Flights.fly(Flight(from, to = { FlathubMotion.installedChip?.center }, onLand = { FlathubMotion.landed++ }))
+                        else FlathubMotion.landed++
+                    }
+                }
             }
-            d?.version?.let { ActionChip("v$it", ok = false) }
-            if (d != null && d.downloadSize > 0) ActionChip(stringResource(R.string.store_download_size, FileUtils.sizeToString(d.downloadSize)), ok = false)
-            if (installed) ActionChip(stringResource(R.string.store_installed_chip), ok = true)
+            d?.homepage?.let { url ->
+                SecondaryButton(stringResource(R.string.store_website)) {
+                    runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+                }
+            }
+            if (installed) RemoveButton(id, name, enabled = StoreState.busy == null)
         }
     }
-    if (busyHere) BusyBar()
     if (d == null) {
         Rise(3) {
             Box(Modifier.padding(top = 14.dp)) {
@@ -346,7 +699,8 @@ private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: 
     if (d.screenshots.isNotEmpty()) {
         Rise(3) { SectionTitle(stringResource(R.string.store_screenshots), null) }
         Rise(3) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            val shots = rememberScrollState()
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().edgeFade(shots).horizontalScroll(shots)) {
                 d.screenshots.take(6).forEach { shot ->
                     AsyncImage(
                         model = shot.thumb, contentDescription = null, contentScale = ContentScale.Crop,
@@ -379,52 +733,45 @@ private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: 
     }
 }
 
-/** Apps as wide tiles: icon, name, summary - three across, or a list on a narrow page. */
+/** Remove, which asks first: are you sure steps out of it in red, Keep first, so a stray A costs nothing. */
 @Composable
-private fun AppGrid(apps: List<FlathubApi.AppSummary>, first: Boolean, onOpen: (String) -> Unit) {
-    val columns = if (LocalNarrowPane.current) 1 else 3
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)) {
-        apps.chunked(columns).forEachIndexed { r, row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                row.forEachIndexed { i, app ->
-                    key(app.id) {
-                        AppTile(app, Modifier.weight(1f).fillMaxHeight(), isFirst = first && r == 0 && i == 0) { onOpen(app.id) }
-                    }
+private fun RemoveButton(id: String, name: String, enabled: Boolean) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val label = stringResource(R.string.store_remove)
+    var at by remember { mutableStateOf<Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        SecondaryButton(label, enabled = enabled) {
+            val from = at ?: return@SecondaryButton
+            Steps.ask(StepAsk(
+                anchor = from, side = StepSide.Right, accent = colors.error, pillCorner = 12.dp, items = 3,
+                handle = { Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.error, maxLines = 1) },
+            ) {
+                StepTitle(ctx.getString(R.string.flathub_remove_title, name))
+                Text(ctx.getString(R.string.flathub_remove_note), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.stepItem(2)) {
+                    StepChoice(ctx.getString(R.string.flathub_keep), enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
+                    StepChoice(label, danger = true, enabled = open) { Steps.fold(); StoreState.uninstall(ctx, id, name) }
                 }
-                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
-            }
+            })
         }
     }
 }
 
+/** A small text action at the right of a header. */
 @Composable
-private fun AppTile(app: FlathubApi.AppSummary, modifier: Modifier, isFirst: Boolean, onClick: () -> Unit) {
+private fun SmallLink(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "appScale")
-    val installed = StoreState.installed.any { it.id == app.id }
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = modifier.paneItem("tile:store:${app.id}").then(if (isFirst) Modifier.firstTile() else Modifier)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(Shape14)
-            .background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
-            .glideBorder(hot, Shape14, pal.signal, pal.line)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        AppIcon(app.icon, app.name, 44)
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(app.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (app.verified) Icon(Icons.Outlined.Verified, contentDescription = stringResource(R.string.store_verified), tint = pal.signal, modifier = Modifier.size(14.dp))
-            }
-            Text(if (installed) stringResource(R.string.store_tab_installed) else app.summary, fontSize = 13.sp, color = if (installed) pal.good else colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-    }
+    val hot = rememberHot(src) && enabled
+    Text(
+        text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+        color = if (!enabled) colors.onSurfaceVariant.copy(alpha = 0.5f) else if (hot) colors.onBackground else colors.onSurfaceVariant,
+        modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(8.dp)).glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp),
+    )
 }
 
 /** An app's icon from Flathub (a URL) or from its installed files; a placeholder until it loads. */
@@ -446,13 +793,13 @@ private fun PillButton(label: String, selected: Boolean, onClick: () -> Unit) {
     val hot = rememberHot(src)
     val shape = RoundedCornerShape(99.dp)
     Text(
-        label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+        label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
         color = if (selected) pal.onSignal else if (hot) colors.onBackground else colors.onSurfaceVariant,
-        modifier = Modifier.paneItem("pill:$label").clip(shape)
+        modifier = Modifier.paneItem("pill:$label").heightIn(min = 44.dp).padding(vertical = 6.dp).clip(shape)
             .background(if (selected) pal.signal else if (hot) pal.signal.copy(alpha = 0.16f) else colors.surfaceVariant)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .padding(horizontal = 12.dp, vertical = 7.dp),
     )
 }

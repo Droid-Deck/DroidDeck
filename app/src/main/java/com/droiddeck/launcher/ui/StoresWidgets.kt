@@ -13,7 +13,7 @@ internal fun StoresEngineRow() {
     val version = StoresNative.version
     SettingsRow(
         stringResource(R.string.setup_stores_engine),
-        version,
+        null,
     ) {
         Chip(if (version != null) stringResource(R.string.setup_stores_engine_chip_ready) else stringResource(R.string.setup_stores_engine_chip_missing), ok = version != null)
     }

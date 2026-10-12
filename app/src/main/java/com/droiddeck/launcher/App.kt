@@ -22,8 +22,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashHandler.install(this)
-        // Before anything else touches the session prefs, so the first session already runs in Deck mode.
-        com.droiddeck.launcher.session.SessionPrefs.settleDeckModeDefault(this)
+        com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
         GpuClockPin.clearLeftover(this)

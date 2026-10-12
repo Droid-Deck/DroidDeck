@@ -78,6 +78,24 @@ class RumbleComponentTest {
         assertFalse("the phone buzzed as well", shadowOf(vibrator).isVibrating)
     }
 
+    @Test fun repeatedAndRapidEffectsDoNotRestartTheMotors() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        repeat(5) { effect(strong = 40000, weak = 1000) }
+        effect(strong = 20000, weak = 1000)
+        assertEquals("a stream of packets restarted the motor each time", 1, pad.played.size)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(RumbleComponent.MIN_GAP_MS))
+        effect(strong = 40000, weak = 1000)
+        assertEquals("the same strength, still playing, was started again", 1, pad.played.size)
+        effect(strong = 20000, weak = 1000)
+        assertEquals(Triple(20000, 1000, 5000L), pad.played.last())
+        effect(strong = 0, weak = 0)
+        assertFalse(pad.vibrating)
+        effect(strong = 20000, weak = 1000)
+        assertTrue("an effect right after a stop was dropped", pad.vibrating)
+    }
+
     @Test fun aControllerWithoutMotorsFallsBackToThePhone() {
         rumble.controllerMotors = { null }
         activeController(PAD_ID)

@@ -93,9 +93,12 @@ object LogRedactor {
         "(?i)(?<![A-Za-z0-9_])(login)(\\s*=\\s*|[\"']\\s*[=:]\\s*|[\"']\\s+)" + ACCOUNT_VALUE
     )
 
+    /** A learned pattern and the text (lowercase) a line must hold for it to match; null when none can be said. */
+    private class Learned(val regex: Regex, val needs: String?)
+
     /** The device's Steam accounts and persona names as patterns (see [learnAccounts]). */
     @Volatile
-    private var accounts: List<Regex> = emptyList()
+    private var accounts: List<Learned> = emptyList()
 
     /**
      * Learns every Steam account on the device from the client's loginusers.vdf - its AccountName
@@ -103,12 +106,13 @@ object LogRedactor {
      * Names under three characters are skipped: blanking every "a" would ruin a log.
      */
     fun learnAccounts(loginUsers: java.io.File) {
-        val found = ArrayList<Regex>()
+        val found = ArrayList<Learned>()
         try {
             if (loginUsers.isFile) {
                 val kv = Regex("\"(AccountName|PersonaName)\"\\s+\"([^\"]*)\"")
                 kv.findAll(loginUsers.readText()).map { it.groupValues[2].trim() }.filter { it.length >= 3 }.distinct().forEach { name ->
-                    found += Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])")
+                    val needs = name.lowercase().takeIf { name.all { it.code < 0x80 } }
+                    found += Learned(Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])"), needs)
                 }
             }
         } catch (e: Exception) {
@@ -125,7 +129,7 @@ object LogRedactor {
 
     /** This device's public addresses as patterns (see [learnOwnAddresses]); empty until learned. */
     @Volatile
-    private var own: List<Regex> = emptyList()
+    private var own: List<Learned> = emptyList()
 
     /**
      * Learns the device's addresses from the link file the app writes for the session
@@ -133,7 +137,7 @@ object LogRedactor {
      * private, link-local and loopback addresses identify nobody and are left out.
      */
     fun learnOwnAddresses(linkFile: java.io.File) {
-        val found = ArrayList<Regex>()
+        val found = ArrayList<Learned>()
         try {
             if (linkFile.isFile) linkFile.forEachLine { line ->
                 val addr = line.trim().takeIf { it.startsWith("addr ") }?.split(Regex("\\s+"))?.getOrNull(1) ?: return@forEachLine
@@ -142,9 +146,12 @@ object LogRedactor {
                         val groups = expand6(addr)?.take(4) ?: return@forEachLine
                         // Any spelling of an address in this /64: leading zeros dropped, :: anywhere after.
                         val prefix = groups.joinToString(":") { g -> "0{0,3}" + Regex.escape(g.trimStart('0').ifEmpty { "0" }) }
-                        found += Regex("(?i)(?<![0-9A-Fa-f:])$prefix(?::[0-9A-Fa-f]{0,4}){1,4}(?:%[A-Za-z0-9_.]+)?")
+                        found += Learned(
+                            Regex("(?i)(?<![0-9A-Fa-f:])$prefix(?::[0-9A-Fa-f]{0,4}){1,4}(?:%[A-Za-z0-9_.]+)?"),
+                            groups[0].trimStart('0').ifEmpty { "0" },
+                        )
                     }
-                    "public IPv4" -> found += Regex("(?<![0-9.])" + Regex.escape(addr) + "(?![0-9.])")
+                    "public IPv4" -> found += Learned(Regex("(?<![0-9.])" + Regex.escape(addr) + "(?![0-9.])"), addr)
                 }
             }
         } catch (e: Exception) {
@@ -263,41 +270,87 @@ object LogRedactor {
         return "$q<redacted:account>$q"
     }
 
+    /**
+     * A line on its way through [redact]. Each rule runs only on a line holding what it cannot match
+     * without - a word, enough separators, a long enough run: most of a Steam log is lines no rule
+     * touches, and a session's logs went through every rule at about a megabyte a second. A line with anything but ASCII in it goes through
+     * every case-insensitive rule, since Android's regex folds case more widely than lowercase().
+     */
+    private class Line(var text: String) {
+        private val unfolded = text.any { it.code >= 0x80 }
+        private var lower: String? = null
+
+        fun has(vararg words: String): Boolean {
+            if (unfolded) return true
+            val folded = lower ?: text.lowercase().also { lower = it }
+            return words.any { folded.contains(it) }
+        }
+
+        fun set(next: String) {
+            if (next != text) {
+                text = next
+                lower = null
+            }
+        }
+
+        fun holds(c: Char, times: Int): Boolean {
+            var n = 0
+            for (ch in text) if (ch == c && ++n >= times) return true
+            return false
+        }
+
+        inline fun hasRun(length: Int, inRun: (Char) -> Boolean): Boolean {
+            var n = 0
+            for (ch in text) if (!inRun(ch)) n = 0 else if (++n >= length) return true
+            return false
+        }
+    }
+
+    private fun isHex(c: Char) = c in '0'..'9' || c in 'a'..'f' || c in 'A'..'F'
+
     /** [line] with every credential shape replaced. Null- and exception-safe by construction. */
     fun redact(line: String): String {
         if (line.isEmpty()) return line
         return try {
-            var out = line
-            out = MAC_FIELD.replace(out) { "${it.groupValues[1]}<redacted:mac>" }
-            out = MAC.replace(out, "<redacted:mac>")
-            out = DEVICE_IDENTIFIER.replace(out) {
+            val out = Line(line)
+            if (out.has("mac")) out.set(MAC_FIELD.replace(out.text) { "${it.groupValues[1]}<redacted:mac>" })
+            if (out.holds(':', 5) || out.holds('-', 5)) out.set(MAC.replace(out.text, "<redacted:mac>"))
+            if (out.has("serial", "android")) out.set(DEVICE_IDENTIFIER.replace(out.text) {
                 val value = it.groupValues[2]
                 val quote = value.first().takeIf { char -> char == '\"' || char == '\'' }?.toString().orEmpty()
                 "${it.groupValues[1]}${quote}<redacted:serial>${quote}"
+            })
+            if (out.holds('-', 4)) out.set(GUID.replace(out.text, "<redacted:guid>"))
+            if (out.has("jwt")) out.set(JWT_LABELLED.replace(out.text) { "${it.groupValues[1]}<redacted:jwt>" })
+            if ("ey" in out.text) out.set(JWT_BASE64.replace(out.text, "<redacted:jwt>"))
+            if (out.has("token", "auth", "ticket", "sessionid", "steamloginsecure", "api", "machine", "pass", "pwd", "secret")) {
+                out.set(SECRET_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>" })
             }
-            out = GUID.replace(out, "<redacted:guid>")
-            out = JWT_LABELLED.replace(out) { "${it.groupValues[1]}<redacted:jwt>" }
-            out = JWT_BASE64.replace(out, "<redacted:jwt>")
-            out = SECRET_KV.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>" }
-            out = GUARD_CODE.replace(out) { "${it.groupValues[1]}<redacted:code>" }
-            out = WEBAPI_KEY.replace(out, "<redacted:key>")
+            if (out.has("guard", "factor", "2fa")) out.set(GUARD_CODE.replace(out.text) { "${it.groupValues[1]}<redacted:code>" })
+            if (out.hasRun(32, ::isHex)) out.set(WEBAPI_KEY.replace(out.text, "<redacted:key>"))
             // Mask, not delete: the last four digits let a reader correlate lines to one account.
-            out = STEAMID64.replace(out) { "${it.groupValues[1]}********${it.groupValues[3]}" }
-            out = STEAMID3.replace(out) { m ->
+            if ("76561" in out.text) out.set(STEAMID64.replace(out.text) { "${it.groupValues[1]}********${it.groupValues[3]}" })
+            if ("[U:1:" in out.text) out.set(STEAMID3.replace(out.text) { m ->
                 val id = m.groupValues[1]
                 "[U:1:${if (id.length > 4) "*".repeat(id.length - 4) + id.takeLast(4) else id}]"
+            })
+            if (out.has("external")) out.set(EXTERNAL_ADDR.replace(out.text) { "${it.groupValues[1]}<redacted:ip>" })
+            for (r in own) if (r.needs == null || out.has(r.needs)) out.set(r.regex.replace(out.text, "<redacted:ip>"))
+            if (out.has("onloginstatechange")) out.set(LOGIN_STATE.replace(out.text) { "${it.groupValues[1]}<redacted:account>" })
+            if ("OnLoginUsersChanged " in out.text) out.set(LOGIN_USERS.replace(out.text) { "${it.groupValues[1]}<redacted:account>" })
+            if (out.has("account", "user")) {
+                out.set(ACCOUNT_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" })
             }
-            out = EXTERNAL_ADDR.replace(out) { "${it.groupValues[1]}<redacted:ip>" }
-            for (r in own) out = r.replace(out, "<redacted:ip>")
-            out = LOGIN_STATE.replace(out) { "${it.groupValues[1]}<redacted:account>" }
-            out = LOGIN_USERS.replace(out) { "${it.groupValues[1]}<redacted:account>" }
-            out = ACCOUNT_KV.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" }
-            out = LOGIN_KV.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" }
-            for (r in accounts) out = r.replace(out, "<redacted:account>")
-            out = EMAIL.replace(out, "<redacted:email>")
-            out = RESIDUAL.replace(out) { "${it.groupValues[1]}=<redacted:token>" }
-            out = LONG_TOKEN.replace(out, "<redacted:token>")
-            out
+            if (out.has("login")) out.set(LOGIN_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" })
+            for (r in accounts) if (r.needs == null || out.has(r.needs)) out.set(r.regex.replace(out.text, "<redacted:account>"))
+            if ('@' in out.text) out.set(EMAIL.replace(out.text, "<redacted:email>"))
+            if (out.has("jwt", "token", "ticket", "sessionid", "steamloginsecure", "machineauth")) {
+                out.set(RESIDUAL.replace(out.text) { "${it.groupValues[1]}=<redacted:token>" })
+            }
+            if (out.hasRun(88) { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '_' || it == '-' }) {
+                out.set(LONG_TOKEN.replace(out.text, "<redacted:token>"))
+            }
+            out.text
         } catch (t: Throwable) {
             // A log line is never worth crashing a session over, but an unscrubbed one must not
             // reach the file either.

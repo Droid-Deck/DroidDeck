@@ -79,6 +79,10 @@ public final class GogDownloadManager {
         public final String exeRelative;
         public final String buildId;
         public final long bytes;
+        /** The build manifest's "dependencies" (GOG's redistributable ids: MSVC2017_x64, DirectX...), for Windows components. */
+        public List<String> dependencies = new ArrayList<>();
+        /** The dependencies come from a gen2 build manifest read whole (gen1 builds and installers have none). */
+        public boolean dependenciesRead = false;
         Result(String exeRelative, String buildId, long bytes) { this.exeRelative = exeRelative; this.buildId = buildId; this.bytes = bytes; }
     }
 
@@ -150,10 +154,12 @@ public final class GogDownloadManager {
             if ((baseProductId == null || baseProductId.isEmpty()) && products != null && products.length() > 0)
                 baseProductId = products.getJSONObject(0).optString("productId", null);
             if (baseProductId == null || baseProductId.isEmpty()) baseProductId = game.gameId;
-            // The build's required redistributables (MSVC, DirectX, ...) are recorded for the engine
-            // log; Steam's shared redistributables run in the prefix on first launch as for any shortcut.
+            // The build's required redistributables (MSVC, DirectX, ...): logged, and kept in the
+            // sidecar, where Windows components take them as this game's list (WinCompSources).
             JSONArray deps = manifest.optJSONArray("dependencies");
-            if (deps != null && deps.length() > 0) cb.onLog("gog: build lists dependencies " + deps);
+            List<String> dependencies = new ArrayList<>();
+            if (deps != null) for (int i = 0; i < deps.length(); i++) { String d = deps.optString(i, ""); if (!d.isEmpty()) dependencies.add(d); }
+            if (!dependencies.isEmpty()) cb.onLog("gog: build lists dependencies " + deps);
 
             cb.onProgress("Reading depot manifests…", 10);
             List<DepotFile> files = new ArrayList<>();
@@ -262,6 +268,8 @@ public final class GogDownloadManager {
             String clientSecret = manifest.optString("clientSecret", null);
             if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
             out.result = new Result(pickExe(installPath, tempExe, game.title), gm.buildId, planned);
+            out.result.dependencies = dependencies;
+            out.result.dependenciesRead = true;
             return out;
         } catch (Exception e) {
             out.error = "exception: " + e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : "");
@@ -1031,6 +1039,48 @@ public final class GogDownloadManager {
     }
 
     /** The install size of the Windows build (English / all-language depots), or -1. Blocking. */
+    /**
+     * The "dependencies" of the build [buildId] of [gameId] (else the newest Windows build), from
+     * its build manifest alone: no game file is fetched. Null when the builds or the manifest
+     * could not be had; empty when the build lists none. Blocking.
+     */
+    public static List<String> fetchDependencies(String gameId, String buildId, String token) {
+        try {
+            String buildsUrl = "https://content-system.gog.com/products/" + gameId + "/os/windows/builds?generation=2";
+            String buildsJson = httpGet(buildsUrl, null);
+            if (buildsJson == null) buildsJson = httpGet(buildsUrl, token);
+            if (buildsJson == null) return null;
+            JSONArray items = new JSONObject(buildsJson).optJSONArray("items");
+            if (items == null || items.length() == 0) return null;
+            String manifestUrl = null;
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.getJSONObject(i);
+                if (!"windows".equals(item.optString("os"))) continue;
+                String link = item.optString("link");
+                if (link == null || link.isEmpty()) link = item.optString("meta_url");
+                if (manifestUrl == null) manifestUrl = link;
+                if (buildId != null && !buildId.isEmpty() && buildId.equals(item.optString("build_id"))) { manifestUrl = link; break; }
+            }
+            if (manifestUrl == null || manifestUrl.isEmpty()) return null;
+            byte[] raw = fetchBytes(manifestUrl, token);
+            if (raw == null) return null;
+            String manifestStr = decompressBytes(raw);
+            if (manifestStr == null) return null;
+            JSONObject manifest = new JSONObject(manifestStr);
+            // A manifest without depots is not one this reads right: no list rather than an empty one.
+            JSONArray depots = manifest.optJSONArray("depots");
+            if (depots == null) { Log.w(TAG, "gog: build manifest for " + gameId + " has no depots; keys " + manifest.names()); return null; }
+            JSONArray deps = manifest.optJSONArray("dependencies");
+            List<String> out = new ArrayList<>();
+            if (deps != null) for (int i = 0; i < deps.length(); i++) { String d = deps.optString(i, ""); if (!d.isEmpty()) out.add(d); }
+            Log.i(TAG, "gog: build " + manifest.optString("buildId", buildId) + " of " + gameId + ": " + depots.length() + " depots, dependencies "
+                + (manifest.has("dependencies") ? String.valueOf(deps) : "(none listed)"));
+            return out;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public static long fetchInstallSizeBytes(String gameId, String token) {
         try {
             String buildsUrl = "https://content-system.gog.com/products/" + gameId + "/os/windows/builds?generation=2";

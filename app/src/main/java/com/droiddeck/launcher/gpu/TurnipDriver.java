@@ -50,7 +50,8 @@ public final class TurnipDriver {
     /** Adreno 8xx (8 Elite, e.g. a Fold 8's A830). */
     private static final String DRIVER_A8XX = "turnip-sdk36";
     /** The two the apk carries; never removable, unpacked on demand. */
-    public static final List<String> BUNDLED = Collections.unmodifiableList(Arrays.asList(DRIVER_A7XX, DRIVER_A8XX));
+    public static final List<String> BUNDLED = Collections.unmodifiableList(Arrays.asList(
+            DRIVER_A7XX, DRIVER_A8XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER));
     /** Overrides the pick, for a device we cannot reach: a7xx, a8xx or system. */
     private static final String OVERRIDE_FILE = "Download/droiddeck-driver";
     /** Bundled drivers the user deleted: hidden from the list, their unpacked copy removed. */

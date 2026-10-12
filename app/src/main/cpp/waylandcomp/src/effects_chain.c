@@ -255,7 +255,11 @@ static void target_destroy(struct fx_target *t) {
 static int target_ensure(struct fx_target *t, int w, int h, const char *what) {
     if (t->img && t->w == w && t->h == h) return 0;
     target_destroy(t);
-    VkImageCreateInfo ii = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D,
+    /* Unrestricted mutable views keep these render-then-blit targets uncompressed on Turnip.
+     * UBWC targets corrupt even a constant-colour pass on Adreno 740 (FSR becomes black).
+     * Only the chain's intermediate images need this; the scene and guest images stay unchanged. */
+    VkImageCreateInfo ii = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                            .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT, .imageType = VK_IMAGE_TYPE_2D,
                             .format = g_fx_fmt, .extent = {(uint32_t)w, (uint32_t)h, 1}, .mipLevels = 1,
                             .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
                             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
@@ -290,6 +294,10 @@ static void scene_release(void) {
     if (g_scene.ds) g_vk.FreeDescriptorSets(g_dev, g_dpool, 1, &g_scene.ds);
     if (g_scene.view) g_vk.DestroyImageView(g_dev, g_scene.view, NULL);
     memset(&g_scene, 0, sizeof(g_scene));
+}
+
+void vkp_effects_forget_image(VkImage img) {
+    if (img && g_scene.img == img) scene_release();
 }
 
 static int scene_ensure(VkImage img, int w, int h) {

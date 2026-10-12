@@ -267,6 +267,18 @@ int accept(int fd, struct sockaddr *addr, socklen_t *len) {
   return accept4(fd, addr, len, 0);
 }
 
+/* binfmt.c: an exec of a program the kernel cannot run, handed to droiddeck-open in the desktop. */
+extern char **environ;
+typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
+                        char *const[], char *const[]);
+__attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, char *const argv[], char *const envp[]);
+__attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error);
+__attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]);
+__attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error);
+__attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
+                                                          const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
+                                                          spawn_fn real);
+
 /* lsof would read the denied /proc/net/tcp; answer its -i TCP@host:port query from the registry
  * instead of executing it. Recognised only when invoked as lsof with that query. */
 static int maybe_answer_lsof(const char *path, char *const argv[]) {
@@ -317,7 +329,9 @@ int execve(const char *path, char *const argv[], char *const envp[]) {
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execve");
   maybe_answer_lsof(path, argv);
-  return real(path, argv, envp);
+  bl_binfmt_before(path, argv, envp);
+  real(path, argv, envp);
+  return bl_binfmt_retry(path, argv, envp, errno);
 }
 
 /* popen(3) and posix_spawn(3) reach lsof without going through the execve symbol above. The
@@ -341,14 +355,18 @@ int execvp(const char *file, char *const argv[]) {
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execvp");
   maybe_answer_lsof(file, argv);
-  return real(file, argv);
+  bl_binfmt_before_search(file, argv, environ);
+  real(file, argv);
+  return bl_binfmt_after_search(file, argv, environ, errno);
 }
 
 int execv(const char *path, char *const argv[]) {
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execv");
   maybe_answer_lsof(path, argv);
-  return real(path, argv);
+  bl_binfmt_before(path, argv, environ);
+  real(path, argv);
+  return bl_binfmt_retry(path, argv, environ, errno);
 }
 
 int posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
@@ -358,9 +376,7 @@ int posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *
   if (strcmp(base, "lsof") == 0 && !fa) {
     return answer_lsof_via_spawn(path, argv, pid);
   }
-  static int (*real)(pid_t *, const char *, const posix_spawn_file_actions_t *,
-                     const posix_spawnattr_t *, char *const[], char *const[]);
-  if (!real) real = (int (*)(pid_t *, const char *, const posix_spawn_file_actions_t *,
-                             const posix_spawnattr_t *, char *const[], char *const[]))dlsym(RTLD_NEXT, "posix_spawn");
-  return real(pid, path, fa, attr, argv, envp);
+  static spawn_fn real;
+  if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawn");
+  return bl_binfmt_spawn(pid, path, fa, attr, argv, envp, real);
 }

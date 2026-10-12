@@ -1,6 +1,11 @@
 package com.droiddeck.launcher.agent
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import android.os.FileObserver
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -16,6 +21,9 @@ import java.util.UUID
  * whatever runs does so inside the live session with its own environment.
  */
 object AgentGuest {
+    private val main by lazy { Handler(Looper.getMainLooper()) }
+    var focusRevision by mutableIntStateOf(0)
+        private set
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
     private val lock = Any()
@@ -70,6 +78,7 @@ object AgentGuest {
             if (key == lastFocusKey) return
             lastFocusKey = key
         }
+        main.post { focusRevision++ }
         SessionEvents.record("focus.changed", fields + ("seq" to snapshot.optInt("seq")))
     }
 
@@ -84,6 +93,63 @@ object AgentGuest {
     /** The newest focus snapshot the daemon published, when a session is running. */
     fun focus(context: Context): JSONObject? =
         if (SessionState.running) readJson(File(dir(context), "focus.json")) else null
+
+    /** The Steam library game whose tile currently has controller or keyboard focus. */
+    fun selectedSteamAppId(context: Context): Long? {
+        val result = call(context, JSONObject().put("kind", "steam-selection"), 6_000)
+        if (!result.optBoolean("ok") || result.isNull("appId")) return null
+        return result.optLong("appId").takeIf { it in 1..4_294_967_295L }
+    }
+
+    /** The installed game Gamescope is presenting, including while Steam's overlay has focus. */
+    fun activeSteamAppId(context: Context, installedAppIds: Set<Long>): Long? {
+        val snapshot = focus(context) ?: return null
+        val focusedAppId = snapshot.optLong("focusedApp").takeIf { snapshot.has("focusedApp") }
+        val focusableAppIds = snapshot.optJSONArray("focusableApps")?.let { apps ->
+            buildList {
+                for (index in 0 until apps.length()) {
+                    apps.optLong(index).takeIf { it > 0 }?.let(::add)
+                }
+            }
+        }.orEmpty()
+        val baselayerAppIds = snapshot.optJSONArray("baselayerAppIds")?.let { apps ->
+            buildList {
+                for (index in 0 until apps.length()) {
+                    apps.optLong(index).takeIf { it > 0 }?.let(::add)
+                }
+            }
+        }.orEmpty()
+        return activeInstalledSteamAppId(focusedAppId, focusableAppIds, installedAppIds, baselayerAppIds)
+    }
+
+    internal fun focusedInstalledSteamAppId(focusedAppId: Long?, installedAppIds: Set<Long>): Long? =
+        focusedAppId?.takeIf { it in installedAppIds }
+
+    internal fun activeInstalledSteamAppId(
+        focusedAppId: Long?,
+        focusableAppIds: List<Long>,
+        installedAppIds: Set<Long>,
+        baselayerAppIds: List<Long> = emptyList(),
+    ): Long? = focusedInstalledSteamAppId(focusedAppId, installedAppIds)
+        ?: focusableAppIds.filter { it in installedAppIds }.distinct().singleOrNull()
+        ?: baselayerAppIds.filter { it in installedAppIds }.distinct().singleOrNull()
+
+    internal fun preferredInstalledSteamAppId(
+        selectedAppId: Long?,
+        activeAppId: Long?,
+        installedAppIds: Set<Long>,
+    ): Long? = selectedAppId?.takeIf { it in installedAppIds }
+        ?: activeAppId?.takeIf { it in installedAppIds }
+
+    internal fun selectedOrActiveInstalledSteamAppId(
+        selectedAppId: Result<Long?>,
+        activeAppId: Long?,
+        installedAppIds: Set<Long>,
+    ): Long? {
+        preferredInstalledSteamAppId(selectedAppId.getOrNull(), activeAppId, installedAppIds)?.let { return it }
+        selectedAppId.exceptionOrNull()?.let { throw it }
+        return null
+    }
 
     /** Send one request and wait for its answer. Throws [AgentException] with a stable code. */
     fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {

@@ -24,6 +24,12 @@ object CrashHandler {
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             try {
                 Log.e(TAG, "uncaught on ${thread.name}", error)
+                if (QuestExperimental.isSupported()) runCatching {
+                    File(context.filesDir, "quest-last-crash.txt").writeText(
+                        "${java.time.Instant.now()} thread=${thread.name}\n" +
+                            StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString()
+                    )
+                }
                 val dir = SessionPaths.current()
                 if (dir != null && dir.isDirectory) {
                     val trace = StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString()

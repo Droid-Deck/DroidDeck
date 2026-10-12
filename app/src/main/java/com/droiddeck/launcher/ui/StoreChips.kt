@@ -19,6 +19,13 @@ import com.droiddeck.launcher.stores.Store
 
 // Where a game came from, as a small coloured chip: Steam, one of the stores, or an added folder.
 
+/** Flathub's own accent, as each store has one, and the ink that reads on it. */
+internal val FlathubTeal = Color(0xFF3FB8AF)
+internal val FlathubInk = Color(0xFF04211F)
+
+/** The Store rail section's source id, for its colours. */
+internal const val FLATHUB = "flathub"
+
 /** The chip's colours per source: a tinted ground and a readable ink on it, one pair per store. */
 internal class SourceColours(val fill: Color, val ink: Color, val dot: Color)
 
@@ -27,6 +34,7 @@ internal fun sourceColours(source: String): SourceColours = when (source) {
     Store.EPIC.id -> SourceColours(Color(0xFF2A2A2A), Color(0xFFDDDDDD), Color(0xFFBDBDBD))
     Store.AMAZON.id -> SourceColours(Color(0xFF3A2A0A), Color(0xFFFFC266), Color(0xFFFF9900))
     Library.SOURCE_STEAM -> SourceColours(Color(0xFF16293D), Color(0xFF7CC4FF), Color(0xFF1A9FFF))
+    FLATHUB -> SourceColours(Color(0xFF0B2E2B), Color(0xFF9FE3DD), FlathubTeal)
     else -> SourceColours(Color(0xFF1A1D22), Color(0xFF9AA3AF), Color(0xFF9AA3AF))
 }
 

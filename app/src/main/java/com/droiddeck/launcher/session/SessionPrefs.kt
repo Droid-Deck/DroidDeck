@@ -1,14 +1,19 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.CpuAllocationDefaults
+import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.ScreenEffects
 import org.json.JSONObject
 
 /** The in-session switches: the HUD and how the on-screen controls decide to appear. */
 object SessionPrefs {
+    data class GameTextureFiltering(val anisotropy: Int? = null, val lodBias: String? = null)
+
     const val SUSPEND_AUTO = "auto"
     const val SUSPEND_NATIVE = "native"
     const val SUSPEND_MANUAL = "manual"
@@ -18,6 +23,9 @@ object SessionPrefs {
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
+    const val CONTROLLER_STEAM = "steamcontroller"
+    const val CONTROLLER_DS4 = "dualshock4"
+    const val CONTROLLER_DUALSENSE = "dualsense"
     const val OSC_AUTO = "auto"
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
@@ -35,6 +43,22 @@ object SessionPrefs {
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
+    val orientationOptions = listOf(
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE to R.string.setup_orientation_auto,
+        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE to R.string.setup_orientation_landscape,
+        ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE to R.string.setup_orientation_reverse,
+    )
+
+    fun orientation(context: Context): Int =
+        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            .takeIf { value -> orientationOptions.any { it.first == value } }
+            ?: ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+    fun setOrientation(context: Context, orientation: Int) {
+        require(orientationOptions.any { it.first == orientation })
+        prefs(context).edit().putInt("orientation", orientation).apply()
+    }
+
     /** Whether the launcher hides Android's status and navigation bars. */
     fun launcherFullscreen(context: Context): Boolean = prefs(context).getBoolean("launcherFullscreen", true)
 
@@ -48,15 +72,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("animations", on).apply()
     }
 
-    /** The Flathub Store (beta): its rail item. Off by default. */
-    fun storeEnabled(context: Context): Boolean = prefs(context).getBoolean("storeEnabled", false)
-
-    fun setStoreEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("storeEnabled", on).apply()
-    }
-
-    /** The Stores section (GOG, Epic Games, Amazon Games): its rail item. Off by default. */
-    fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", false)
+    fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", true)
 
     fun setGameStoresEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
@@ -114,9 +130,9 @@ object SessionPrefs {
 
     private fun hudKey(context: Context) = if (mangoappSession(context)) "hudDeck" else "hud"
 
-    /** A Steam session that runs Deck mode with its performance overlay (mangoapp). */
+    /** A Steam session with Deck mode's performance overlay (mangoapp). */
     private fun mangoappSession(context: Context) =
-        SessionState.mode == SessionService.MODE_STEAM && steamDeckMode(context) && mangoapp(context)
+        SessionState.mode == SessionService.MODE_STEAM && mangoapp(context)
 
     /** When enabled, a single Back opens Steam QAM and a double Back opens the session menu. */
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
@@ -256,26 +272,34 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("wifiDiscoveryAsked", true).apply()
     }
 
-    /**
-     * Whether the client's own core pick is overridden. When on, BL_CLIENT_CPUS is sent even when
-     * it names every core - unlike a game mask, the point here is to undo a pin Steam applies to
-     * itself, and the scheduler's default is exactly what Steam's choice takes away.
-     */
-    fun clientCpusOverride(context: Context): Boolean = prefs(context).getBoolean("clientCpusOverride", false)
+    internal data class CoreAllocation(val clientOverride: Boolean, val clientCpus: String, val gameCpus: String)
+
+    /** Defaults are read only for absent keys; even a saved empty/all-core choice wins. */
+    internal fun coreAllocation(context: Context, defaults: CpuAllocationDefaults.Allocation? = CpuAllocationDefaults.device): CoreAllocation {
+        val saved = prefs(context)
+        return CoreAllocation(
+            saved.getBoolean("clientCpusOverride", defaults != null && !saved.contains("clientCpus")),
+            saved.getString("clientCpus", defaults?.client.orEmpty()).orEmpty(),
+            saved.getString("gameCpus", defaults?.game.orEmpty()).orEmpty(),
+        )
+    }
+
+    /** Use the device default until the user saves an override or a client mask. */
+    fun clientCpusOverride(context: Context): Boolean = coreAllocation(context).clientOverride
 
     fun setClientCpusOverride(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("clientCpusOverride", on).apply()
     }
 
     /** Comma-separated core list for the client (taskset -c syntax); "" = every core. */
-    fun clientCpus(context: Context): String = prefs(context).getString("clientCpus", "") ?: ""
+    fun clientCpus(context: Context): String = coreAllocation(context).clientCpus
 
     fun setClientCpus(context: Context, list: String) {
         prefs(context).edit().putString("clientCpus", list).apply()
     }
 
-    /** Comma-separated core list for games (taskset -c syntax); "" = every core = nothing sent. */
-    fun gameCpus(context: Context): String = prefs(context).getString("gameCpus", "") ?: ""
+    /** Comma-separated core list for games (taskset -c syntax); "" = every core (explicitly restored when the client is pinned). */
+    fun gameCpus(context: Context): String = coreAllocation(context).gameCpus
 
     fun setGameCpus(context: Context, list: String) {
         prefs(context).edit().putString("gameCpus", list).apply()
@@ -432,27 +456,21 @@ object SessionPrefs {
 
     /**
      * What the pad is to the Steam client: [CONTROLLER_DECK], a Steam Deck controller (Quick Access
-     * button, gyro, Steam Input's full treatment - SteamDeckPad), or [CONTROLLER_XBOX360], the plain
-     * Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
+     * button, gyro, Steam Input's full treatment - SteamDeckPad), [CONTROLLER_STEAM], a 2025 Steam
+     * Controller (the same, plus grip sense and its own haptics), [CONTROLLER_DS4] or
+     * [CONTROLLER_DUALSENSE], a PlayStation pad with its touchpad fed by the trackpads, or
+     * [CONTROLLER_XBOX360], the plain Xbox 360 pad of earlier versions (QAM by the Guide+A chord).
      */
     fun steamController(context: Context): String =
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
-
-    /** Runs the SteamOS gamepad client with its Quick Access performance controls. On by default (settleDeckModeDefault). */
-    fun steamDeckMode(context: Context): Boolean = prefs(context).getBoolean("steamDeckMode", true)
-    fun setSteamDeckMode(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamDeckMode", on).apply() }
-
-    /**
-     * Deck mode is the default: every install, new or from before, is moved to it once. An install
-     * from before 0.3.0 had off written down for it whether or not anyone chose it, so the move
-     * can't tell a choice from that default and moves everyone; turning it off afterwards sticks.
-     * Run once at process start, before anything reads or writes these prefs.
-     */
-    fun settleDeckModeDefault(context: Context) {
-        val p = prefs(context)
-        if (p.getBoolean("deckModeMoved", false)) return
-        p.edit().putBoolean("steamDeckMode", true).putBoolean("deckModeMoved", true).apply()
+    /** [steamController]'s choice as libfakeinput's pad type (FakeInputWriter.PAD_TYPE_*). */
+    fun padType(id: String): Int = when (id) {
+        CONTROLLER_STEAM -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM
+        CONTROLLER_XBOX360 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_XBOX
+        CONTROLLER_DS4 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DS4
+        CONTROLLER_DUALSENSE -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DUALSENSE
+        else -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DECK
     }
 
     /**
@@ -586,24 +604,6 @@ object SessionPrefs {
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
 
-    /**
-     * The Steam client branch used for the first download and forced on the command line:
-     * "steamdeck_publicbeta" by default, or "publicbeta" when chosen with Deck mode off.
-     * Deck mode always takes the Deck branch, whatever was chosen:
-     * with -steamos3 the client picks its own branch as SteamOS does, and on publicbeta it settled
-     * on steamdeck_stable - an older client it then offered as a "Software Update" in every session,
-     * which applying turns into the exit-42 restart loop (seen on device 2026-09-30). Earlier, Deck
-     * mode on publicbeta also reinstalled the same client at every start (2026-09-23). On
-     * steamdeck_publicbeta the client finds no update. The choice applies with Deck mode off.
-     */
-    fun steamChannel(context: Context): String =
-        if (steamDeckMode(context)) "steamdeck_publicbeta"
-        else prefs(context).getString("steamChannel", null) ?: "steamdeck_publicbeta"
-
-    fun setSteamChannel(context: Context, id: String) {
-        prefs(context).edit().putString("steamChannel", id).apply()
-    }
-
     /** Whether opening DroidDeck starts a Steam session instead of showing the front end. */
     fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
 
@@ -612,8 +612,9 @@ object SessionPrefs {
     }
 
     /**
-     * The folders of the user's own Windows games (one game per subfolder), any number of them
-     * from anywhere on the device. The single folder an earlier build kept is carried in.
+     * The Games folders earlier builds let the user add (one game per subfolder); read only by
+     * GamesFolderMigration, which turns them into entries and clears them. The single folder an
+     * even earlier build kept is carried in.
      */
     fun addedGamesDirs(context: Context): List<String> {
         val p = prefs(context)
@@ -625,6 +626,26 @@ object SessionPrefs {
 
     fun setAddedGamesDirs(context: Context, dirs: List<String>) {
         prefs(context).edit().putString("addedGamesDirs", dirs.distinct().joinToString("\n")).remove("addedGamesDir").apply()
+    }
+
+    /**
+     * The Games folders earlier builds had (host path, guest path), still bound into the session so
+     * their games keep their paths; written once by GamesFolderMigration.
+     */
+    fun gameFolderBinds(context: Context): List<Pair<String, String>> =
+        (prefs(context).getString("gameFolderBinds", "") ?: "").split('\n').mapNotNull { line ->
+            line.split('\t').takeIf { it.size == 2 && it[0].isNotEmpty() && it[1].isNotEmpty() }?.let { it[0] to it[1] }
+        }
+
+    fun setGameFolderBinds(context: Context, binds: List<Pair<String, String>>) {
+        prefs(context).edit().putString("gameFolderBinds", binds.distinctBy { it.first }.joinToString("\n") { "${it.first}\t${it.second}" }).apply()
+    }
+
+    /** The Games folders were turned into entries (GamesFolderMigration); a record, not a gate. */
+    fun gamesFoldersMigrated(context: Context): Boolean = prefs(context).getBoolean("gamesFoldersMigrated", false)
+
+    fun setGamesFoldersMigrated(context: Context) {
+        prefs(context).edit().putBoolean("gamesFoldersMigrated", true).apply()
     }
 
     /**
@@ -865,6 +886,74 @@ object SessionPrefs {
         publishGameEnvironment(context)
     }
 
+    fun gameTextureFiltering(context: Context, scope: String): GameTextureFiltering {
+        require(GameEnvironment.validScope(scope))
+        return gameTextureFiltering(context)[scope] ?: GameTextureFiltering()
+    }
+
+    fun gameTextureFiltering(context: Context): Map<String, GameTextureFiltering> {
+        val json = runCatching {
+            JSONObject(prefs(context).getString("gameTextureFiltering", null) ?: "{}")
+        }.getOrElse { JSONObject() }
+        return buildMap {
+            json.keys().forEach { scope ->
+                if (!GameEnvironment.validScope(scope)) return@forEach
+                val entry = json.optJSONObject(scope) ?: return@forEach
+                val anisotropy = entry.optInt("anisotropy").takeIf {
+                    entry.has("anisotropy") && it in TextureFiltering.ANISOTROPY
+                }
+                val lodBias = entry.optString("lodBias").takeIf {
+                    entry.has("lodBias") && it in TextureFiltering.LOD_BIAS
+                }
+                if (anisotropy != null || lodBias != null) {
+                    put(scope, GameTextureFiltering(anisotropy, lodBias))
+                }
+            }
+        }
+    }
+
+    fun setGameTextureAnisotropy(context: Context, scope: String, value: Int?) {
+        require(value == null || value in TextureFiltering.ANISOTROPY)
+        updateGameTextureFiltering(context, scope) { it.copy(anisotropy = value) }
+    }
+
+    fun setGameTextureLodBias(context: Context, scope: String, choice: String?) {
+        require(choice == null || choice in TextureFiltering.LOD_BIAS)
+        updateGameTextureFiltering(context, scope) { it.copy(lodBias = choice) }
+    }
+
+    fun clearGameTextureFiltering(context: Context, scope: String) {
+        require(GameEnvironment.validScope(scope))
+        val choices = gameTextureFiltering(context).toMutableMap()
+        if (choices.remove(scope) == null) return
+        saveGameTextureFiltering(context, choices)
+        publishGameEnvironment(context)
+    }
+
+    private fun updateGameTextureFiltering(
+        context: Context,
+        scope: String,
+        change: (GameTextureFiltering) -> GameTextureFiltering,
+    ) {
+        require(GameEnvironment.validScope(scope))
+        val choices = gameTextureFiltering(context).toMutableMap()
+        val next = change(choices[scope] ?: GameTextureFiltering())
+        if (next.anisotropy == null && next.lodBias == null) choices.remove(scope) else choices[scope] = next
+        saveGameTextureFiltering(context, choices)
+        publishGameEnvironment(context)
+    }
+
+    private fun saveGameTextureFiltering(context: Context, choices: Map<String, GameTextureFiltering>) {
+        val json = JSONObject()
+        choices.forEach { (id, choice) ->
+            json.put(id, JSONObject().apply {
+                choice.anisotropy?.let { put("anisotropy", it) }
+                choice.lodBias?.let { put("lodBias", it) }
+            })
+        }
+        prefs(context).edit().putString("gameTextureFiltering", json.toString()).apply()
+    }
+
     /** Hands the change to the next game launch (GameEnvironmentStore); the running game keeps its own. */
     private fun publishGameEnvironment(context: Context) {
         runCatching { GameEnvironmentStore.publish(context) }
@@ -881,6 +970,26 @@ object SessionPrefs {
 
     fun setPipAutoEnter(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
+    }
+
+    /** A foldable's unfolded panel shows the game above the Deck controls (SessionDisplay.unfoldedGameHeight). */
+    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", false)
+
+    fun setUnfoldedControls(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
+    }
+
+    const val SURFACE_STICK = "stick"
+    const val SURFACE_TRACKPAD = "trackpad"
+
+    /** The Deck controls' gamepad tab: what each side is - an analog stick or a Steam trackpad.
+     *  Left a stick and right a trackpad until changed, as a Deck is mostly played. */
+    fun gamepadSurface(context: Context, right: Boolean): String =
+        prefs(context).getString(if (right) "gamepadRight" else "gamepadLeft", null)
+            ?: if (right) SURFACE_TRACKPAD else SURFACE_STICK
+
+    fun setGamepadSurface(context: Context, right: Boolean, surface: String) {
+        prefs(context).edit().putString(if (right) "gamepadRight" else "gamepadLeft", surface).apply()
     }
 
     fun suspendPolicy(context: Context, mode: String): String =

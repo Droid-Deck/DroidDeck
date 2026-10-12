@@ -74,6 +74,16 @@ class StoreGameSidecarTest {
         assertEquals(null, StoreGameSidecar.updateEpic(java.io.File(folder, "missing")) { it })
     }
 
+    @Test fun gogAchievementsAreIndependentOfCloudAndSurviveEdits() {
+        val folder = java.io.File(org.robolectric.RuntimeEnvironment.getApplication().filesDir, "gog-achievements").apply { mkdirs() }
+        StoreGameSidecar(Store.GOG, "1", "Game", "game.exe", cloud = false).write(folder)
+        assertTrue(StoreGameSidecar.read(folder)!!.achievements)
+        StoreGameSidecar.updateAchievements(folder, false)
+        StoreGameSidecar.updateCloud(folder, true)
+        assertFalse(StoreGameSidecar.read(folder)!!.achievements)
+        assertTrue(StoreGameSidecar.read(folder)!!.cloud)
+    }
+
     @Test fun anInstallUnderWayHasNoExeYetAndIsNotInstalled() {
         val started = StoreGameSidecar(Store.EPIC, "Metalstorm", "Metalstorm", exe = "", state = StoreGameSidecar.STATE_INSTALLING)
         val back = StoreGameSidecar.parse(started.toJson().toString())!!

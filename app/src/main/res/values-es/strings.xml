@@ -254,6 +254,9 @@
     <string name="mode_controller">Mando</string>
     <string name="mode_controller_hint">Cómo ve Steam tu mando. Se aplica en la próxima sesión.</string>
     <string name="mode_controller_deck">Mando de Steam Deck</string>
+    <string name="mode_controller_steam">Steam Controller</string>
+    <string name="mode_controller_ds4">DualShock 4</string>
+    <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Mando Xbox 360</string>
     <string name="mode_controller_note">Deck: botón de Quick Access y giroscopio. Xbox 360: abre Quick Access con Guide+A.</string>
     <string name="mode_back">Atrás</string>
@@ -283,16 +286,8 @@
     <string name="mode_decky_remove_title">¿Desinstalar Decky Loader?</string>
     <string name="mode_decky_remove_text">Elimina el loader. Tus plugins y ajustes se conservan.</string>
     <string name="mode_client">Cliente</string>
-    <string name="mode_deck_mode">Modo Steam Deck</string>
-    <string name="mode_deck_mode_hint">La interfaz Deck de Steam y los controles de rendimiento de Quick Access. Se aplica en la próxima sesión.</string>
     <string name="mode_mangoapp">Superposición de rendimiento</string>
     <string name="mode_mangoapp_hint">Desactívalo si los juegos fallan o se quedan en negro en modo Deck. Se aplica en la próxima sesión.</string>
-    <string name="mode_branch">Rama del cliente</string>
-    <string name="mode_branch_deck">Beta pública de Steam Deck (requerida por el modo Deck).</string>
-    <string name="mode_branch_hint">Se aplica en la próxima sesión. Steam puede actualizarse una vez.</string>
-    <string name="mode_branch_public">Beta pública</string>
-    <string name="mode_branch_deck_beta">Beta pública de Steam Deck</string>
-    <string name="mode_branch_note">El modo Deck siempre usa la beta pública de Steam Deck.</string>
     <string name="mode_steam_repair">Reparar el cliente de Steam</string>
     <string name="mode_steam_repair_hint">Vuelve a descargar el cliente de Steam la próxima vez que se inicie Steam. Úsalo si Steam se queda en la pantalla de carga. Se conservan los juegos, la sesión iniciada y los ajustes.</string>
     <string name="mode_steam_repair_queued">El cliente de Steam se volverá a descargar la próxima vez que se inicie Steam.</string>
@@ -312,12 +307,30 @@
     <string name="wincomp_title">Componentes de Windows</string>
     <string name="wincomp_pad_hint">LB / RB saltan entre las secciones.</string>
     <string name="wincomp_card_none">Ninguno</string>
-    <string name="wincomp_applies">DLL de Windows que Proton no incluye, de la lista de componentes de Bannerlator. Activa las que necesita este juego: van a la carpeta de Windows propia del juego, nunca a sus archivos, y se mantienen con cualquier Proton que use.</string>
+    <string name="wincomp_applies">DLL de Windows que Proton no incluye, de la lista de componentes. Activa las que necesita este juego: van a la carpeta de Windows propia del juego, nunca a sus archivos, y se mantienen con cualquier Proton que use.</string>
     <string name="wincomp_offline">No se pudo acceder a la lista de componentes. Los componentes ya descargados se pueden seguir activando o desactivando.</string>
     <string name="wincomp_recommended">Recomendados para este juego</string>
+    <string name="wincomp_checking">Comprobando lo que necesita este juego…</string>
+    <string name="wincomp_when_online">Disponible con conexión</string>
+    <plurals name="wincomp_turning_on">
+        <item quantity="one">Activando %1$d componente…</item>
+        <item quantity="many">Activando %1$d componentes…</item>
+        <item quantity="other">Activando %1$d componentes…</item>
+    </plurals>
+    <string name="wincomp_auto_section">Activados para este juego</string>
+    <string name="wincomp_auto_steam">Steam instala %1$s con %2$s (app %3$s)</string>
+    <string name="wincomp_auto_gog">De la lista de GOG para este juego</string>
+    <string name="wincomp_auto_epic">De los requisitos previos de Epic para este juego</string>
+    <string name="wincomp_auto_amazon">De los pasos de instalación de Amazon para este juego</string>
+    <string name="wincomp_steam_by_name">Steam instala %1$s con la app %2$s, encontrada por nombre</string>
+    <string name="wincomp_suggestions">También en la lista</string>
+    <string name="wincomp_suggestion_reason">En la lista de %1$s; no es un componente aquí</string>
+    <string name="wincomp_src_steam">Steam</string>
+    <string name="wincomp_src_gog">GOG</string>
+    <string name="wincomp_src_epic">Epic Games</string>
+    <string name="wincomp_src_amazon">Amazon Games</string>
     <string name="wincomp_found_bundled">El juego incluye %1$s</string>
     <string name="wincomp_found_shipped">El juego tiene %1$s (suele funcionar tal cual)</string>
-    <string name="wincomp_found_steam">Steam instala %1$s con este juego</string>
     <string name="wincomp_already_here">Ya está en este juego</string>
     <string name="wincomp_no_recommendation">Nada en la carpeta del juego apunta a un componente.</string>
     <string name="wincomp_all">Todos los componentes (%1$d)</string>
@@ -629,9 +642,6 @@
     <string name="setup_choose_home">Elige una app de inicio</string>
     <string name="setup_choose">Elegir</string>
     <string name="setup_linux_apps">Apps de Linux (beta)</string>
-    <string name="setup_store">Tienda Flathub</string>
-    <string name="setup_store_on">En el menú. Algunas apps pueden no iniciarse; los registros están en Download/DroidDeck.</string>
-    <string name="setup_store_off">Instala apps y juegos de Linux desde Flathub</string>
     <string name="setup_tool_files">Archivos</string>
     <string name="setup_tool_files_hint">Explorar y gestionar archivos</string>
     <string name="setup_tool_protons">Versiones de Proton</string>
@@ -839,6 +849,8 @@
     <string name="ctrl_steam_button">Botón Steam</string>
     <string name="ctrl_qam_button">Botón QAM</string>
     <string name="ctrl_keyboard_button">Botón de teclado</string>
+    <string name="ctrl_select_steam">Pulsa Select para abrir el menú de Steam</string>
+    <string name="ctrl_select_steam_hint">En lugar de View/Select.</string>
     <string name="setup_animations">Animaciones</string>
     <string name="ctrl_adaptive_hint">Los sticks aparecen donde tocas y se ocultan al soltar</string>
     <string name="ctrl_layout">Disposición</string>
@@ -1592,6 +1604,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">Oculto</string>
     <string name="ctrl_editor_drag">Arrastra para mover</string>
+    <string name="ctrl_editor_snap">Ajustar</string>
     <string name="ctrl_editor_save">Guardar</string>
 
     <!-- What the second screen shows during a session -->
@@ -2119,4 +2132,19 @@
         <item quantity="many">%1$d ya en Juegos</item>
         <item quantity="other">%1$d ya en Juegos</item>
     </plurals>
+    <string name="achievements_title">Logros</string>
+    <string name="achievements_count">%1$d de %2$d desbloqueados</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">Desbloqueados · %1$d</string>
+    <string name="achievements_group_locked">Bloqueados · %1$d</string>
+    <string name="achievements_group_hidden">Ocultos · %1$d</string>
+    <string name="achievements_hidden">Logro oculto</string>
+    <string name="achievements_hidden_detail">Los detalles se muestran al desbloquearlo.</string>
+    <string name="achievements_all">Todos los logros desbloqueados</string>
+    <string name="achievements_reading">Leyendo…</string>
+    <string name="achievements_signed_out">Inicia sesión en %1$s para ver tus logros.</string>
+    <string name="achievements_unreachable">No se pudo conectar con %1$s. Vuelve a intentarlo cuando tengas conexión.</string>
+    <string name="achievements_none">%1$s no indica logros para este juego.</string>
+    <string name="achievements_show_all">Ver los %1$d</string>
+    <string name="achievements_dialog_title">Logros · %1$s</string>
 </resources>

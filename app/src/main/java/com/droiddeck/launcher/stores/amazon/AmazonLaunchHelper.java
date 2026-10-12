@@ -66,13 +66,13 @@ public final class AmazonLaunchHelper {
     }
 
     /** The FuelPump variables, as KEY=VALUE, for the game's environment. */
-    public static String[] buildFuelEnv(String entitlementId, String productSku) {
+    public static String[] buildFuelEnv(String entitlementId, String productSku, String displayName) {
         return new String[]{
             "FUEL_DIR=C:\\ProgramData\\Amazon Games Services\\Legacy",
             "AMAZON_GAMES_SDK_PATH=C:\\ProgramData\\Amazon Games Services\\AmazonGamesSDK",
             "AMAZON_GAMES_FUEL_ENTITLEMENT_ID=" + entitlementId,
             "AMAZON_GAMES_FUEL_PRODUCT_SKU=" + productSku,
-            "AMAZON_GAMES_FUEL_DISPLAY_NAME=Player",
+            "AMAZON_GAMES_FUEL_DISPLAY_NAME=" + (displayName == null || displayName.isEmpty() ? "Player" : displayName),
         };
     }
 

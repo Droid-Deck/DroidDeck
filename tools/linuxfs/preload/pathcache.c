@@ -152,14 +152,19 @@ static int (*next_faccessat(void))(int, const char *, int, int) {
   return real;
 }
 
+/* binfmt.c: a program on noexec storage, which the desktop runs all the same. */
+__attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode);
+
 static int check_cwd(const char *path, int mode, int flags) {
   int (*real)(int, const char *, int, int) = next_faccessat();
+  int result;
 
   if (real == NULL) {
     errno = ENOSYS;
     return -1;
   }
-  return real(AT_FDCWD, path, mode, flags);
+  result = real(AT_FDCWD, path, mode, flags);
+  return result != 0 && errno == EACCES && bl_binfmt_runnable(path, mode) ? 0 : result;
 }
 
 int access(const char *path, int mode) {

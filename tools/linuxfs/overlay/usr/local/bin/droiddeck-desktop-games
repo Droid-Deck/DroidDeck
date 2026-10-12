@@ -12,12 +12,14 @@ import sys
 HOME = os.environ.get("HOME", "/root")
 STEAM_ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HOME, ".local/share/Steam")
 LIBRARIES = ((STEAM_ROOT, "Steam Games"), ("/mnt/droiddeck-sd", "SD Games"))
-# The client's own tools and runtimes live in steamapps beside the games; they are not titles.
-NOT_GAMES = {228980, 1493710, 3127680, 4183110, 4427310, 4185400}
+# The client's own tools and runtimes live in steamapps beside the games; they are not titles. A
+# depot with a toolmanifest.vdf is one too (a runtime or a Proton), listed here or not.
+NOT_GAMES = {228980, 1070560, 1391110, 1493710, 1628350, 3127680, 4183110, 4185400, 4427310, 4628740}
 APPS_DIR = os.path.join(HOME, ".local/share/applications")
 PREFIX = "droiddeck-game-"
 NAME = re.compile(r'^\s*"name"\s*"([^"]*)"', re.M)
 STATE = re.compile(r'^\s*"StateFlags"\s*"(\d+)"', re.M)
+INSTALLDIR = re.compile(r'^\s*"installdir"\s*"([^"]*)"', re.M)
 
 
 def games(library):
@@ -41,6 +43,9 @@ def games(library):
         state = STATE.search(text)
         # StateFlags 4 = fully installed; anything else is downloading, updating or broken.
         if not name or not state or (int(state.group(1)) & 4) == 0:
+            continue
+        installdir = INSTALLDIR.search(text)
+        if installdir and os.path.isfile(os.path.join(steamapps, "common", installdir.group(1), "toolmanifest.vdf")):
             continue
         out.append((appid, name.group(1)))
     return out

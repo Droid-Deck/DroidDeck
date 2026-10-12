@@ -9,6 +9,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
@@ -95,8 +96,11 @@ class OnScreenControls(
     private var quickPressedBy = -1
     private var keyboardPressedBy = -1
     private var settings = ControllerPrefs.read(context)
+    private var snap = settings.snap
     private var safe = Rect()
     private var selected: String? = null
+    private var snapX: Float? = null
+    private var snapY: Float? = null
     private var grabX = 0f
     private var grabY = 0f
     private var ignoreSaved = false
@@ -138,8 +142,16 @@ class OnScreenControls(
     fun reload() {
         releaseAll()
         settings = ControllerPrefs.read(context)
+        setSnap(settings.snap)
         applySettings()
         relayout()
+    }
+
+    private fun clearSnapGuides() {
+        if (snapX == null && snapY == null) return
+        snapX = null
+        snapY = null
+        invalidate()
     }
 
     private fun applySettings() {
@@ -177,6 +189,11 @@ class OnScreenControls(
         if (hidden) releaseAll()
         quickHidden = hidden
         invalidate()
+    }
+
+    fun setSnap(on: Boolean) {
+        snap = on
+        if (!on) clearSnapGuides()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -412,15 +429,18 @@ class OnScreenControls(
             }
         }
         if (editing) {
-            val group = selected ?: return
-            val (x, y) = centre(group)
             stroke.color = heldStroke
-            val single = members(group).singleOrNull()
-            if (single?.wide == true) {
-                val pad = dp(6f)
-                box.set(x - single.halfW - pad, y - single.halfH - pad, x + single.halfW + pad, y + single.halfH + pad)
-                canvas.drawRoundRect(box, single.halfH, single.halfH, stroke)
-            } else canvas.drawCircle(x, y, extent(group) + dp(6f), stroke)
+            snapX?.let { canvas.drawLine(it, safe.top.toFloat(), it, (height - safe.bottom).toFloat(), stroke) }
+            snapY?.let { canvas.drawLine(safe.left.toFloat(), it, (width - safe.right).toFloat(), it, stroke) }
+            selected?.let { group ->
+                val (x, y) = centre(group)
+                val single = members(group).singleOrNull()
+                if (single?.wide == true) {
+                    val pad = dp(6f)
+                    box.set(x - single.halfW - pad, y - single.halfH - pad, x + single.halfW + pad, y + single.halfH + pad)
+                    canvas.drawRoundRect(box, single.halfH, single.halfH, stroke)
+                } else canvas.drawCircle(x, y, extent(group) + dp(6f), stroke)
+            }
         } else if (!buttonsOnly) {
             val (x, y) = quickCenter()
             val radius = dp(18f)
@@ -587,6 +607,7 @@ class OnScreenControls(
     private fun onEditTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                clearSnapGuides()
                 val control = controlAt(event.x, event.y)
                 selected = control?.group
                 val group = selected ?: run { invalidate(); return false }
@@ -598,13 +619,28 @@ class OnScreenControls(
             MotionEvent.ACTION_MOVE -> {
                 val group = selected ?: return true
                 ignoreSaved = false
-                put(group, event.x + grabX, event.y + grabY)
+                val rawX = event.x + grabX
+                val rawY = event.y + grabY
+                val others = groups.filter { it != group && members(it).any(::isVisible) }.map { centre(it) }
+                val nextX = if (snap) closestSnap(rawX, others.map { it.first } + width / 2f) else null
+                val nextY = if (snap) closestSnap(rawY, others.map { it.second }) else null
+                put(group, nextX ?: rawX, nextY ?: rawY)
                 clamp(group)
+                val (x, y) = centre(group)
+                val visibleX = nextX?.takeIf { abs(x - it) <= SNAP_TOLERANCE_PX }
+                val visibleY = nextY?.takeIf { abs(y - it) <= SNAP_TOLERANCE_PX }
+                if ((visibleX != null && visibleX != snapX) || (visibleY != null && visibleY != snapY)) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                snapX = visibleX
+                snapY = visibleY
                 invalidate()
             }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> clearSnapGuides()
         }
         return true
     }
+
+    private fun closestSnap(position: Float, targets: List<Float>): Float? =
+        targets.minByOrNull { abs(position - it) }?.takeIf { abs(position - it) <= dp(SNAP_DP) }
 
     private fun controlAt(x: Float, y: Float): Control? =
         controls.firstOrNull {
@@ -715,6 +751,8 @@ class OnScreenControls(
         const val PHONE_MAX_HEIGHT_MM = 90f
         const val SHOULDER_WIDTH = 1.45f
         const val SHOULDER_HEIGHT = 0.8f
+        const val SNAP_DP = 9f
+        const val SNAP_TOLERANCE_PX = 1f
         val shoulderIds = setOf("lb", "rb", "lt", "rt")
         val directions = listOf("up", "right", "down", "left")
     }

@@ -6,6 +6,7 @@ import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.github.luben.zstd.ZstdInputStream
@@ -79,7 +80,14 @@ object ComponentsManager {
     private const val PLUGIN_DATA = "root/homebrew/data/decky-components-manager"
 
     data class Proton(val id: String, val name: String, val dir: File, val guestPath: String, val version: String, val valve: Boolean)
-    data class Component(val detected: String, val detail: String, val inUse: String, val activeFile: String?, val queued: String?)
+    data class Component(
+        val detected: String,
+        val detail: String,
+        val inUse: String,
+        val selected: String,
+        val activeFile: String?,
+        val queued: String?,
+    )
     data class Original(val comp: String, val protonVersion: String, val label: String, val size: Long)
     data class Package(val file: String, val comp: String, val version: String, val description: String, val size: Long)
     data class CatalogItem(val file: String, val comp: String, val release: String, val url: String, val size: Long, val digest: String)
@@ -129,22 +137,120 @@ object ComponentsManager {
 
     // ------------------------------------------------------------------ state
 
-    private fun loadState(context: Context): JSONObject =
-        runCatching { JSONObject(stateFile(context).readText()) }.getOrElse { JSONObject() }.apply {
+    private fun pendingStateFile(context: Context) = File(dataDir(context), "state.pending.json")
+
+    private fun loadState(context: Context): JSONObject {
+        recoverState(context)
+        return runCatching { JSONObject(stateFile(context).readText()) }.getOrElse { JSONObject() }.apply {
             if (!has("active")) put("active", JSONObject())
             if (!has("queued")) put("queued", JSONObject())
+            if (!has("profiles")) put("profiles", JSONObject())
         }
+    }
+
+    private fun writeStateFile(file: File, text: String) {
+        val tmp = File(file.parentFile, file.name + ".tmp")
+        try {
+            writeSynced(tmp, text)
+            check(tmp.renameTo(file)) { "Could not save component selections: ${file.name}" }
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    private fun writeSynced(file: File, text: String) {
+        FileOutputStream(file).use {
+            it.write(text.toByteArray(Charsets.UTF_8))
+            it.fd.sync()
+        }
+    }
+
+    private fun recoverState(context: Context) {
+        val pending = pendingStateFile(context)
+        if (!pending.exists()) return
+        val transaction = JSONObject(pending.readText())
+        val state = transaction.getJSONObject("state")
+        val expected = transaction.getString("launchSha256")
+        val published = File(launchDir(context), "desired.tsv")
+        val staged = File(launchDir(context), "desired.tsv.tmp")
+        // The launch-table rename is the commit point. Never read stale app selections after it.
+        if (!staged.exists() && published.isFile && Hashes.sha256(published) == expected) {
+            writeStateFile(stateFile(context), state.toString(2))
+            Log.i(TAG, "recovered published component selections")
+        } else {
+            Log.i(TAG, "discarded unpublished component selections")
+        }
+        check(pending.delete()) { "Could not finish component selection recovery" }
+        if (staged.exists()) check(staged.delete()) { "Could not remove unpublished component selections" }
+    }
 
     private fun saveState(context: Context, state: JSONObject) {
-        val f = stateFile(context)
-        val tmp = File(f.parentFile, f.name + ".tmp")
-        tmp.writeText(state.toString(2))
-        tmp.renameTo(f)
-        // Every change of choice reaches the launch wrappers at once.
-        runCatching { syncLaunchState(context, state) }.onFailure { Log.w(TAG, "launch state", it) }
+        val prepared = prepareLaunchState(context, state)
+        val dir = launchDir(context)
+        val tmp = File(dir, "desired.tsv.tmp")
+        try {
+            writeSynced(tmp, prepared.text)
+            writeStateFile(pendingStateFile(context), JSONObject()
+                .put("state", state)
+                .put("launchSha256", Hashes.sha256(tmp))
+                .toString())
+            check(tmp.renameTo(File(dir, "desired.tsv"))) { "Could not publish component selections" }
+            writeStateFile(stateFile(context), state.toString(2))
+            check(pendingStateFile(context).delete()) { "Could not finish saving component selections" }
+        } finally {
+            if (!pendingStateFile(context).exists()) tmp.delete()
+        }
+        File(dir, "store").listFiles()?.filter { it.isDirectory && it.name !in prepared.keep }
+            ?.forEach { it.deleteRecursively() }
     }
 
     private fun JSONObject.sub(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }
+
+    // Keep launch-time restore rows after the last per-game selection is removed.
+    private fun rememberProfiledComponent(state: JSONObject, comp: String) {
+        val profiled = state.optJSONArray("profiledComponents")?.let { values ->
+            (0 until values.length()).mapNotNull { values.optString(it).takeIf(COMPONENTS::contains) }
+        }.orEmpty().toMutableSet()
+        if (profiled.add(comp)) state.put("profiledComponents", JSONArray(profiled.sorted()))
+    }
+
+    fun gameComponents(context: Context, scope: String): Map<String, String> = synchronized(lock) {
+        val profile = loadState(context).sub("profiles").optJSONObject(scope) ?: return emptyMap()
+        COMPONENTS.mapNotNull { comp -> profile.optString(comp).takeIf(String::isNotEmpty)?.let { comp to it } }.toMap()
+    }
+
+    fun setGameComponent(context: Context, scope: String, comp: String, file: String?) = synchronized(lock) {
+        require(scope.matches(Regex("[1-9][0-9]{0,9}")) && scope.toLong() <= 4294967295L)
+        require(comp in COMPONENTS)
+        val state = loadState(context)
+        val profiles = state.sub("profiles")
+        val profile = profiles.optJSONObject(scope) ?: JSONObject().also { profiles.put(scope, it) }
+        if (file == null) {
+            if (profile.optString(comp).isNotEmpty()) rememberProfiledComponent(state, comp)
+            profile.remove(comp)
+            if (profile.length() == 0) profiles.remove(scope)
+        } else {
+            val name = safeName(file)
+            val wcp = File(packagesDir(context), name)
+            require(packageInfo(context, wcp).comp == comp)
+            for (proton in protons(context)) ensureOriginal(context, proton, comp, state)
+            rememberProfiledComponent(state, comp)
+            profile.put(comp, name)
+        }
+        saveState(context, state)
+    }
+
+    fun clearGameComponents(context: Context, scope: String) = synchronized(lock) {
+        require(GameEnvironment.validScope(scope))
+        val state = loadState(context)
+        val profiles = state.sub("profiles")
+        profiles.optJSONObject(scope)?.let { profile ->
+            COMPONENTS.filter { profile.optString(it).isNotEmpty() }
+                .forEach { rememberProfiledComponent(state, it) }
+        }
+        profiles.remove(scope)
+        saveState(context, state)
+    }
 
     /** Takes over the Decky plugin's packages, originals and swap records, once. */
     private fun migratePlugin(context: Context) {
@@ -220,24 +326,33 @@ object ComponentsManager {
      * Is anything running on this Proton right now - a game, or the client's own start-up runs,
      * whose Wine processes can outlive them? Swaps wait while it is. Read from the command lines.
      */
-    fun inUse(context: Context, proton: Proton): Boolean = anyProcess(context, proton) { needle, text -> text.contains(needle + "proton ") || text.contains(needle + "files/bin") }
+    fun inUse(context: Context, proton: Proton): Boolean =
+        anyProcess(context, proton) { paths, text -> processUsesProton(paths, text, gameOnly = false) }
 
     /**
      * Is a game running on this Proton? Only a launch runs proton with the verb waitforexitandrun
      * (Proton's own script stays up until the game exits); the client's start-up runs do not.
      */
-    fun gameRunning(context: Context, proton: Proton): Boolean = anyProcess(context, proton) { needle, text -> text.contains(needle + "proton waitforexitandrun") }
+    fun gameRunning(context: Context, proton: Proton): Boolean =
+        anyProcess(context, proton) { paths, text -> processUsesProton(paths, text, gameOnly = true) }
 
-    private fun anyProcess(context: Context, proton: Proton, match: (String, String) -> Boolean): Boolean {
-        val needles = (listOf(proton.guestPath) + EsyncPacks.distPathsFor(root(context), proton.guestPath))
-            .map { it.trimEnd('/') + "/" }
+    internal fun processUsesProton(paths: List<String>, text: String, gameOnly: Boolean): Boolean =
+        paths.any { path ->
+            val needle = path.trimEnd('/') + "/"
+            if (gameOnly) text.contains(needle + "proton waitforexitandrun")
+            else text.contains(needle + "proton ") || text.contains(needle + "files/bin")
+        }
+
+    private fun anyProcess(context: Context, proton: Proton, match: (List<String>, String) -> Boolean): Boolean {
+        val guestPaths = listOf(proton.guestPath) + EsyncPacks.distPathsFor(root(context), proton.guestPath)
+        val paths = (guestPaths + guestPaths.map { host(context, it).absolutePath } + proton.dir.absolutePath).distinct()
         val procs = File("/proc").listFiles() ?: return false
         for (p in procs) {
             if (!p.name.all(Char::isDigit)) continue
             val cmd = runCatching { File(p, "cmdline").readBytes() }.getOrNull() ?: continue
             if (cmd.isEmpty()) continue
             val text = String(cmd).replace('\u0000', ' ')
-            if (needles.any { match(it, text) }) return true
+            if (match(paths, text)) return true
         }
         return false
     }
@@ -261,7 +376,7 @@ object ComponentsManager {
     private fun compFiles(dir: File, comp: String): List<String> {
         if (comp == "fex") return FEX_FILES.filter { File(dir, it).isFile }
         val base = File(dir, COMP_DIR.getValue(comp))
-        return base.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }.sorted().toList()
+        return base.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).invariantSeparatorsPath }.sorted().toList()
     }
 
     private fun owned(comp: String, rel: String) = comp == "fex" || PE_ARCHES.any { "/$it/" in rel }
@@ -291,9 +406,11 @@ object ComponentsManager {
         return Package(f.name, comp, prof.optString("versionName", f.nameWithoutExtension), prof.optString("description"), f.length())
     }
 
+    /** The stored packages, newest version first. */
     fun packages(context: Context): List<Package> = packagesDir(context).listFiles()
-        ?.filter { it.isFile && it.name.endsWith(".wcp") }?.sortedBy { it.name }
+        ?.filter { it.isFile && it.name.endsWith(".wcp") }
         ?.mapNotNull { f -> runCatching { packageInfo(context, f) }.onFailure { Log.w(TAG, "skipping ${f.name}", it) }.getOrNull() }
+        ?.sortedWith(newestFirst { it.version.ifEmpty { it.file } })
         ?: emptyList()
 
     /** Unpacks a package's files/ into a Proton; for DXVK/VKD3D the component's own DLLs are replaced as a set. */
@@ -352,7 +469,7 @@ object ComponentsManager {
                 tar.closeArchiveEntry()
             }
         }
-        tmp.renameTo(dest)
+        check(tmp.renameTo(dest)) { "Could not save original bundle ${dest.name}" }
     }
 
     // ------------------------------------------------------------------ originals
@@ -380,8 +497,18 @@ object ComponentsManager {
         if (dest.isFile) return
         val active = state.sub("active").optJSONObject(p.id)?.optJSONObject(comp)
         if (active != null && active.optString("protonVersion") == p.version) return
+        val published = File(launchDir(context), "desired.tsv")
+        if (published.isFile) {
+            val mayHaveOverride = published.useLines { rows ->
+                rows.any { row ->
+                    val fields = row.split('\t')
+                    fields.size == 7 && fields[0] != "*" && fields[1] == p.dir.name &&
+                        fields[2] == p.version && fields[3] == comp
+                }
+            }
+            check(!mayHaveOverride) { context.getString(R.string.cmgr_original_missing) }
+        }
         val rels = compFiles(p.dir, comp)
-        if (rels.isEmpty()) return
         val current = if (comp == "fex") fexVersion(p.dir) else readVersionFile(File(p.dir, "${COMP_DIR.getValue(comp)}/version"))
         val profile = JSONObject()
             .put("type", TYPE_OF.getValue(comp))
@@ -400,7 +527,7 @@ object ComponentsManager {
         for (p in protons(context)) for (comp in COMPONENTS) {
             runCatching { ensureOriginal(context, p, comp, state) }.onFailure { Log.w(TAG, "original $comp of ${p.name}", it) }
         }
-        runCatching { syncLaunchState(context, state) }.onFailure { Log.w(TAG, "launch state", it) }
+        runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "launch state", it) }
     }
 
     // ------------------------------------------------------------------ view
@@ -431,9 +558,14 @@ object ComponentsManager {
                         else context.getString(R.string.cmgr_changed_outside)
                     }
                 }
+                val selectedLabel = when {
+                    active == null || active.optString("protonVersion") != p.version ->
+                        context.getString(R.string.comp_tag_original)
+                    else -> originalLabel(context, active) ?: active.optString("label", active.optString("file"))
+                }
                 val q = state.sub("queued").optJSONObject(p.id)?.optJSONObject(comp)
                 Component(
-                    detected.ifEmpty { context.getString(R.string.cmgr_not_present) }, detail, inUseLabel,
+                    detected.ifEmpty { context.getString(R.string.cmgr_not_present) }, detail, inUseLabel, selectedLabel,
                     active?.optString("file")?.takeIf { active.optString("protonVersion") == p.version },
                     q?.let { originalLabel(context, it) ?: it.optString("label") },
                 )
@@ -455,64 +587,111 @@ object ComponentsManager {
 
     // ------------------------------------------------------------------ launch-time enforcement
 
+    private data class PreparedLaunchState(val text: String, val keep: Set<String>)
+
     /**
-     * Writes what each Proton should be using for the launch wrappers: desired.tsv, one line per
-     * file (tool dir, Proton build, component, file, sha256, source copy), and an unpacked copy of
-     * every package or older-build original in use to copy from. Rebuilt whole after every change, so
-     * a restored or deleted choice simply stops being enforced. The Proton's own current-build
-     * originals are not listed: the wrappers also give Steam's probe runs their own prefix, which is
-     * what overwrote files in the first place.
+     * Stages what each Proton should use for the launch wrappers. General rows use scope `*`;
+     * per-game rows use the game's compatdata id and replace General for that component. Deletion
+     * rows remove managed DLLs absent from the chosen package, so switching games cannot leave files
+     * from the previous game's component set behind.
      */
-    private fun syncLaunchState(context: Context, state: JSONObject) {
+    private fun prepareLaunchState(context: Context, state: JSONObject): PreparedLaunchState {
         val dir = launchDir(context)
         val store = File(dir, "store").apply { mkdirs() }
         val all = protons(context)
         val lines = StringBuilder()
         val keep = HashSet<String>()
-        val active = state.sub("active")
-        for (pid in active.keys()) {
-            val p = all.firstOrNull { it.id == pid } ?: continue
-            val comps = active.optJSONObject(pid) ?: continue
-            for (comp in comps.keys()) {
-                val a = comps.optJSONObject(comp) ?: continue
-                if (a.optString("protonVersion") != p.version) continue
-                val file = a.optString("file")
-                val (key, wcp) = if (file.startsWith("original ")) {
-                    val v = file.removePrefix("original ")
-                    "original-$pid-${safeName(v)}-$comp" to File(originalsDir(context), "$pid/${safeName(v)}/$comp.wcp")
-                } else safeName(file.removeSuffix(".wcp")) to File(packagesDir(context), file)
-                if (!wcp.isFile) continue
-                val unpacked = File(store, key)
-                if (!File(unpacked, ".complete").isFile) {
-                    unpacked.deleteRecursively()
-                    readWcp(wcp) { tar ->
-                        while (true) {
-                            val e = tar.nextTarEntry ?: break
-                            val rel = normalize(e.name)
-                            if (e.isDirectory || !rel.startsWith("files/") || rel.split('/').any { it == ".." }) continue
-                            val out = File(unpacked, rel)
-                            out.parentFile?.mkdirs()
-                            FileOutputStream(out).use { tar.copyTo(it) }
-                        }
+
+        fun unpack(key: String, wcp: File, comp: String): File {
+            check(wcp.isFile) { context.getString(R.string.cmgr_not_stored) }
+            val unpacked = File(store, key)
+            if (!File(unpacked, ".complete").isFile) {
+                check(packageInfo(context, wcp).comp == comp) { "Wrong component in ${wcp.name}" }
+                unpacked.deleteRecursively()
+                check(unpacked.mkdirs()) { "Could not stage component bundle ${wcp.name}" }
+                readWcp(wcp) { tar ->
+                    while (true) {
+                        val e = tar.nextTarEntry ?: break
+                        val rel = normalize(e.name)
+                        if (e.isDirectory || !rel.startsWith("files/") || rel.split('/').any { it == ".." }) continue
+                        val out = File(unpacked, rel)
+                        out.parentFile?.mkdirs()
+                        FileOutputStream(out).use { tar.copyTo(it) }
                     }
-                    File(unpacked, ".complete").writeText("1\n")
                 }
-                keep += key
-                val files = a.optJSONObject("files") ?: continue
-                for (rel in files.keys()) {
-                    val src = File(unpacked, rel)
-                    if (!src.isFile) continue
-                    val guestSrc = "/" + src.absolutePath.removePrefix(root(context).absolutePath.trimEnd('/')).trimStart('/')
-                    lines.append(p.dir.name).append('\t').append(p.version).append('\t').append(comp).append('\t')
-                        .append(rel).append('\t').append(files.optString(rel)).append('\t').append(guestSrc).append('\n')
-                }
+                File(unpacked, ".complete").writeText("1\n")
+            }
+            keep += key
+            return unpacked
+        }
+
+        fun managed(comp: String): Set<String> = if (comp == "fex") FEX_FILES.toSet() else buildSet {
+            for (arch in PE_ARCHES) for (dll in COMP_DLLS.getValue(comp)) add("${COMP_DIR.getValue(comp)}/$arch/$dll")
+        }
+
+        fun append(scope: String, p: Proton, comp: String, key: String, wcp: File) {
+            val unpacked = unpack(key, wcp, comp)
+            val files = unpacked.let { base ->
+                File(base, "files").walkTopDown().filter { it.isFile }.map { it.relativeTo(base).invariantSeparatorsPath }
+                    .filter { owned(comp, it) }.associateWith { File(base, it) }
+            }
+            for (rel in managed(comp) - files.keys) {
+                lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
+                    .append('\t').append(rel).append("\t-\t-\n")
+            }
+            for ((rel, src) in files) {
+                val guestSrc = "/" + src.relativeTo(root(context)).invariantSeparatorsPath
+                lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
+                    .append('\t').append(rel).append('\t').append(Hashes.sha256(src)).append('\t').append(guestSrc).append('\n')
             }
         }
-        store.listFiles()?.filter { it.isDirectory && it.name !in keep }?.forEach { it.deleteRecursively() }
-        val list = File(dir, "desired.tsv")
-        val tmp = File(dir, "desired.tsv.tmp")
-        tmp.writeText(lines.toString())
-        tmp.renameTo(list)
+
+        fun choice(p: Proton, comp: String, entry: JSONObject): Pair<String, File>? {
+            val file = entry.optString("file")
+            return if (file.startsWith("original ")) {
+                val version = safeName(file.removePrefix("original "))
+                "original-${p.id}-$version-$comp" to File(originalsDir(context), "${p.id}/$version/$comp.wcp")
+            } else {
+                safeName(file.removeSuffix(".wcp")) to File(packagesDir(context), file)
+            }.takeIf { it.second.isFile }
+        }
+
+        val profiles = state.sub("profiles")
+        val profiledComponents = buildSet {
+            state.optJSONArray("profiledComponents")?.let { stored ->
+                for (index in 0 until stored.length()) {
+                    stored.optString(index).takeIf(COMPONENTS::contains)?.let(::add)
+                }
+            }
+            for (scope in profiles.keys()) {
+                val profile = profiles.optJSONObject(scope) ?: continue
+                COMPONENTS.filterTo(this) { profile.optString(it).isNotEmpty() }
+            }
+        }
+        val active = state.sub("active")
+        for (p in all) for (comp in COMPONENTS) {
+            val entry = active.optJSONObject(p.id)?.optJSONObject(comp)
+            val selected = entry?.takeIf { it.optString("protonVersion") == p.version }?.let { choice(p, comp, it) }
+            if (selected != null) append("*", p, comp, selected.first, selected.second)
+            else if (comp in profiledComponents) {
+                ensureOriginal(context, p, comp, state)
+                val original = originalFile(context, p, comp)
+                check(original.isFile) { context.getString(R.string.cmgr_original_missing) }
+                append("*", p, comp, "original-${p.id}-${safeName(p.version)}-$comp", original)
+            }
+        }
+        for (scope in profiles.keys()) {
+            val profile = profiles.optJSONObject(scope) ?: continue
+            for (comp in COMPONENTS) {
+                val file = profile.optString(comp)
+                if (file.isEmpty()) continue
+                val wcp = File(packagesDir(context), file)
+                if (!wcp.isFile) continue
+                val key = safeName(file.removeSuffix(".wcp"))
+                for (p in all) append(scope, p, comp, key, wcp)
+            }
+        }
+        return PreparedLaunchState(lines.toString(), keep)
     }
 
     // ------------------------------------------------------------------ actions
@@ -615,6 +794,11 @@ object ComponentsManager {
             val comps = active.optJSONObject(pid) ?: continue
             for (comp in comps.keys()) check(comps.optJSONObject(comp)?.optString("file") != name) { context.getString(R.string.cmgr_package_in_use, name, pid) }
         }
+        val profiles = state.sub("profiles")
+        for (scope in profiles.keys()) {
+            val profile = profiles.optJSONObject(scope) ?: continue
+            check(COMPONENTS.none { profile.optString(it) == name }) { context.getString(R.string.cmgr_package_in_use, name, scope) }
+        }
         val f = File(packagesDir(context), name)
         check(f.isFile) { context.getString(R.string.cmgr_package_not_stored, name) }
         f.delete()
@@ -670,9 +854,13 @@ object ComponentsManager {
         val arr = o.optJSONArray("items") ?: JSONArray()
         val items = (0 until arr.length()).map { arr.getJSONObject(it) }.map {
             CatalogItem(it.optString("file"), it.optString("comp"), it.optString("release"), it.optString("url"), it.optLong("size"), it.optString("digest"))
-        }.sortedWith(compareBy({ it.comp }, { it.release }, { it.file }))
+        }.sortedWith(compareBy<CatalogItem> { it.comp }.then(newestFirst { it.file }))
         return Catalog(items, o.optLong("fetchedAt"))
     }
+
+    /** By the version in [of], highest first: the newest builds lead a list, as they are what is picked. */
+    private fun <T> newestFirst(of: (T) -> String): Comparator<T> =
+        Comparator { a, b -> ProtonExtras.compareVersions(of(b), of(a)) }
 
     /**
      * A package Proton does not ship, required on the GPUs listed here. An empty [models] set

@@ -33,7 +33,12 @@ object GogAuth {
     fun isSignedIn(context: Context): Boolean = StoreAccounts.read(context, Store.GOG)?.optString("access_token", "")?.isNotEmpty() == true
 
     /** Saves a fresh sign-in and looks the account's name up for the chip. Blocking. */
-    fun saveLogin(context: Context, accessToken: String, refreshToken: String?, userId: String?) {
+    fun saveLogin(context: Context, accessToken: String, refreshToken: String?, userId: String?) = GogComet.replaceAccount {
+        saveAccount(context, accessToken, refreshToken, userId)
+    }
+
+    @Synchronized
+    private fun saveAccount(context: Context, accessToken: String, refreshToken: String?, userId: String?) {
         var username = ""
         runCatching {
             val body = StoreNet.get("https://embed.gog.com/userData.json", bearer = accessToken, userAgent = GALAXY_UA)
@@ -52,6 +57,7 @@ object GogAuth {
 
     /** A usable access token, refreshed when the recorded login time says it has expired; null when signed out or the refresh failed. */
     @JvmStatic
+    @Synchronized
     fun validToken(context: Context): String? {
         val json = StoreAccounts.read(context, Store.GOG) ?: return null
         val token = json.optString("access_token", "").ifEmpty { return null }
@@ -63,6 +69,7 @@ object GogAuth {
 
     /** Refreshes the access token; the new one, or null on any failure. Blocking. */
     @JvmStatic
+    @Synchronized
     fun refresh(context: Context): String? {
         val json = StoreAccounts.read(context, Store.GOG) ?: return null
         val refreshToken = json.optString("refresh_token", "").ifEmpty { return null }
@@ -81,6 +88,51 @@ object GogAuth {
         } catch (e: Exception) {
             // Not the throwable: HttpURLConnection's messages echo the URL, which embeds the secrets.
             Log.w(TAG, "refresh failed: ${e.javaClass.simpleName}")
+            null
+        } finally {
+            runCatching { conn?.disconnect() }
+        }
+    }
+
+    /** A complete companion snapshot. Never exported through the guest request channel. */
+    @Synchronized
+    fun cometCredentials(context: Context): JSONObject? {
+        val access = validToken(context) ?: return null
+        val saved = StoreAccounts.read(context, Store.GOG) ?: return null
+        val refresh = saved.optString("refresh_token").ifEmpty { return null }
+        var user = saved.optString("user_id")
+        var username = saved.optString("username")
+        if (!user.matches(Regex("[0-9]+")) || username.isEmpty()) {
+            val body = StoreNet.get("https://embed.gog.com/userData.json", bearer = access, userAgent = GALAXY_UA, timeoutMs = 5_000) ?: return null
+            val info = runCatching { JSONObject(body) }.getOrNull() ?: return null
+            user = info.optString("galaxyUserId", info.optString("userId", user))
+            username = info.optString("username", username)
+            if (!user.matches(Regex("[0-9]+")) || username.isEmpty()) return null
+            saved.put("user_id", user).put("username", username)
+            StoreAccounts.write(context, Store.GOG, saved)
+        }
+        return JSONObject().put("access_token", access).put("refresh_token", refresh)
+            .put("user_id", user).put("username", username)
+    }
+
+    class GameToken(val accessToken: String, val userId: String)
+
+    /** The Galaxy refresh token exchanged for one scoped to a game's own client. Blocking. */
+    fun gameToken(context: Context, clientId: String, clientSecret: String): GameToken? {
+        val json = StoreAccounts.read(context, Store.GOG) ?: return null
+        val refresh = json.optString("refresh_token", "").ifEmpty { return null }
+        var conn: HttpURLConnection? = null
+        return try {
+            val enc = { s: String -> java.net.URLEncoder.encode(s, "UTF-8") }
+            conn = (URL("https://auth.gog.com/token?client_id=${enc(clientId)}&client_secret=${enc(clientSecret)}&grant_type=refresh_token&refresh_token=${enc(refresh)}")
+                .openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 15_000 }
+            conn.setRequestProperty("User-Agent", "GOG Galaxy")
+            if (conn.responseCode != 200) { Log.w(TAG, "game token: HTTP ${conn.responseCode}"); return null }
+            val o = JSONObject(conn.inputStream.bufferedReader().readText())
+            val access = o.optString("access_token").ifEmpty { return null }
+            GameToken(access, o.optString("user_id").ifEmpty { json.optString("user_id") })
+        } catch (e: Exception) {
+            Log.w(TAG, "game token failed: ${e.javaClass.simpleName}")
             null
         } finally {
             runCatching { conn?.disconnect() }

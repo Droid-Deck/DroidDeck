@@ -28,6 +28,10 @@ object CpuCores {
         return format(if (cores.isEmpty()) all.toSet() else cores)
     }
 
+    /** An all-core game must undo the affinity inherited from a pinned Steam client. */
+    fun gameLaunchList(list: String, clientPinned: Boolean): String =
+        restrictionOrEmpty(list).ifEmpty { if (clientPinned) listOrAll("") else "" }
+
     /**
      * The list only when it is a real restriction, else "". Empty, absent, or naming every core
      * all mean "no preference": pinning a process to all cores is what the scheduler does
