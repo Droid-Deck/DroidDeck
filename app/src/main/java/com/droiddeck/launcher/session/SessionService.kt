@@ -258,6 +258,9 @@ class SessionService : Service() {
             synchronized(sessionWorkLock) {
                 if (gen != sessionGen || !SessionState.running) return@synchronized
                 try {
+                    // A tree the last session left behind (the app was killed or crashed, so its teardown
+                    // never ran) would hold the rootfs, the GPU and Steam's lock: nothing of ours should
+                    // be alive between sessions outside this process, except work registered with keep.
                     val cleanup = OrphanReaper.reap("session starting")
                     val sessionDir = openSessionFolder()
                     SessionEvents.record("session.cleanup", mapOf(
@@ -266,6 +269,9 @@ class SessionService : Service() {
                     ))
                     check(cleanup.complete) { "Previous session processes are still running: ${cleanup.remaining}" }
                     if (gen != sessionGen || !SessionState.running) return@synchronized
+                    // Another Steam client on the device signs ours out seconds after every login; the one that
+                    // does it here runs from boot without being opened. Only the Steam session signs in.
+                    // The desktop too: its Steam launchers run the client right there (droiddeck-steam-launch).
                     if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) RivalClients.stopBeforeSession(this)
                     runSession(gen, sessionDir)
                 } catch (e: Exception) {
@@ -470,6 +476,10 @@ class SessionService : Service() {
         watchLaunchRequests(sessionRoot)
         watchSyncWanted(root)
         EsyncPacks.fetchInBackground(this, root)
+        // One session replacing another (the desktop's Steam launchers): the old proot used to be
+        // killed by teardown after the new one had started, and its exit arrived here as
+        // "session ended: 137" and ended the NEW session. An exit belongs to the session that
+        // started it, even when its callback is queued until after teardown.
         val pid = HostProcess.start(line, hostEnv.asArray(), root, { status ->
             mainHandler.post {
                 if (gen == sessionGen) {
@@ -1291,8 +1301,12 @@ class SessionService : Service() {
         suspendController = null
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
         val finishAfterTeardown: () -> Unit = {
-            // Process waits and log collection can take seconds; doing either on the main thread
-            // risks an ANR. Collect after cleanup so the final shutdown diagnostics are included.
+            // On its own thread, never here: stopSession runs on the main thread (the notification's
+            // Stop action arrives there), and collecting means copying the compositor's log, scrubbing
+            // every Steam log line by line - 42 files on one measured run - and waiting for logcat to
+            // dump the crash buffer. That was about four and a half seconds of blocked main thread,
+            // and Android ANR'd the app for it: the desktop session that would not let go.
+            // Process waits stay off the main thread too; collect after cleanup to include shutdown diagnostics.
             Thread({
                 synchronized(sessionWorkLock) {
                     var finalStatus = status
@@ -1329,7 +1343,11 @@ class SessionService : Service() {
                             GpuClockPin.stop(this)
                             GameThreadHints.stop()
                             components.reversed().forEach {
-                                try { it.stop() } catch (e: Exception) { Log.w(TAG, "stopping ${it.javaClass.simpleName}", e) }
+                                try {
+                                    it.stop()
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
+                                }
                             }
                             components.clear()
                             FakeInputWriter.releaseAllRingSlots()

@@ -14,8 +14,9 @@ import java.io.File
  * sessions is inside the app process, so at session start anything else under our uid is a
  * leftover, and this sweeps it. Each pid is checked by uid at kill time, never by name.
  *
- * Work started outside a session and still in progress is registered with [keep]: it and its
- * descendants are left alone. Session-owned Flatpak sandboxes are tracked separately and must be
+ * The one exception is work the app started outside any session and is still waiting on - a
+ * Flatpak install from the store - registered with [keep]: that process and everything under it
+ * are left to finish. Session-owned Flatpak sandboxes are tracked separately and must be
  * included in teardown verification.
  */
 object OrphanReaper {
@@ -49,7 +50,15 @@ object OrphanReaper {
     }
 
     /**
-     * Reparented guest processes may no longer belong to a known tree, so also match the runtime.
+     * proot's --kill-on-exit takes its tracees down, but a session that died from the inside
+     * (the client asserting, Xwayland going) leaves gamescopereaper and the session script
+     * behind, still holding the Wayland socket and the audio server the next session needs.
+     *
+     * The tree sweep only reaches what proot still traces; a tracee it lost - an Xwayland that
+     * aborted from one thread and then looped on a syscall proot's own seccomp filter, with no
+     * tracer left, answers ENOSYS - survives, reparented to init, and wrote 9 GB of one line into
+     * the session log before anything killed it. Also match programs running out of the runtime,
+     * restricted to our uid and excluding independently protected work.
      * The caller must exclude new sessions until this shared-runtime sweep finishes.
      */
     internal fun reapSession(root: File, roots: Set<ProcessCleanup.Identity>): ProcessCleanup.Result {
@@ -125,6 +134,7 @@ object OrphanReaper {
             if (!directory.exists()) return null
             throw java.io.IOException("Could not inspect session process $pid", e)
         }
+        // "pid (comm) state ppid ...": comm may hold spaces and parentheses; the last ')' ends it.
         val fields = stat.substringAfterLast(") ").trim().split(Regex("\\s+"))
         check(fields.size >= 20) { "Invalid process stat for $pid" }
         val executable = try {
