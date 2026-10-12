@@ -71,6 +71,19 @@ class SelectedGameProfileTest {
         assertTrue(profile.hasOverrides)
     }
 
+    @Test fun startWithoutSteamIsListedByNameAndMakesProfileCustom() {
+        val environment = GameEnvironment.withGameNoSteam(GameEnvironment.Config(), game.profileKey, true)
+        val profile = resolve(environment = environment)
+
+        assertTrue(profile!!.startWithoutSteam)
+        assertEquals(0, profile.environmentOverrides)
+        assertTrue(profile.hasOverrides)
+
+        val off = GameEnvironment.withGameNoSteam(environment, game.profileKey, false)
+        assertFalse(resolve(environment = off)!!.startWithoutSteam)
+        assertEquals(emptyMap<String, Map<String, String?>>(), off.games)
+    }
+
     @Test fun unknownSelectedAppIsIgnored() {
         assertNull(resolve(selectedAppId = 42))
     }

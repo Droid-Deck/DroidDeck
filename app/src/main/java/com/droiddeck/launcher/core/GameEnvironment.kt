@@ -44,6 +44,20 @@ object GameEnvironment {
 
     const val FORCE_SSBS = "DROIDDECK_FORCE_SSBS"
 
+    /**
+     * A game's Start without Steam: droiddeck-game-env launches it without Proton's steam.exe (umu's
+     * launch where the Proton has it, else runinprefix), for games that close right away.
+     */
+    const val NO_STEAM = "DROIDDECK_NO_STEAM"
+
+    fun gameNoSteam(config: Config, scope: String): Boolean =
+        scope.isNotEmpty() && config.games[scope]?.get(NO_STEAM)?.lowercase() in setOf("1", "on", "true", "yes")
+
+    fun withGameNoSteam(config: Config, scope: String, on: Boolean): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        return withScopeValue(config, scope, NO_STEAM, if (on) "1" else null)
+    }
+
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
         defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
 

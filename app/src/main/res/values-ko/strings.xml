@@ -2088,4 +2088,19 @@
     <plurals name="games_already_n">
         <item quantity="other">%1$d개는 이미 게임에 있음</item>
     </plurals>
+    <string name="achievements_title">도전 과제</string>
+    <string name="achievements_count">%2$d개 중 %1$d개 달성</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">달성 · %1$d</string>
+    <string name="achievements_group_locked">미달성 · %1$d</string>
+    <string name="achievements_group_hidden">숨겨짐 · %1$d</string>
+    <string name="achievements_hidden">숨겨진 도전 과제</string>
+    <string name="achievements_hidden_detail">달성하면 세부 정보가 표시됩니다.</string>
+    <string name="achievements_all">모든 도전 과제 달성</string>
+    <string name="achievements_reading">불러오는 중…</string>
+    <string name="achievements_signed_out">도전 과제를 보려면 %1$s에 로그인하세요.</string>
+    <string name="achievements_unreachable">%1$s에 연결할 수 없습니다. 온라인 상태에서 다시 확인하세요.</string>
+    <string name="achievements_none">%1$s에 이 게임의 도전 과제가 없습니다.</string>
+    <string name="achievements_show_all">모두 보기(%1$d)</string>
+    <string name="achievements_dialog_title">도전 과제 · %1$s</string>
 </resources>

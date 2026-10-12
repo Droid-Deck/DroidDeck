@@ -59,15 +59,31 @@ class TouchpadGestures(
     private var moverLastX = 0f
     private var moverLastY = 0f
     private var holdDrag = false
+    private var clicked = 0
     private val longPress = Runnable {
         held = true
         dragging = true
         listener.onLongPress()
         listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
     }
+    private val clickUp = Runnable { releaseClick() }
+
+    private fun click(button: Int) {
+        releaseClick()
+        listener.onButton(button, true, x, y)
+        clicked = button
+        handler.postDelayed(clickUp, CLICK_MS)
+    }
+
+    private fun releaseClick() {
+        handler.removeCallbacks(clickUp)
+        if (clicked != 0) listener.onButton(clicked, false, x, y)
+        clicked = 0
+    }
 
     fun cancel() {
         handler.removeCallbacks(longPress)
+        releaseClick()
         if (dragging) listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
         dragging = false
         held = false
@@ -85,6 +101,7 @@ class TouchpadGestures(
     fun onTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                releaseClick()
                 lastX = event.x; lastY = event.y
                 downAt = event.eventTime
                 travelled = 0f; held = false; twoFingers = false; scrolled = false; secondWasTap = false
@@ -204,8 +221,7 @@ class TouchpadGestures(
                 }
                 // The second finger lifting quickly, with nothing scrolled: a right click.
                 if (twoFingers && secondWasTap && event.eventTime - secondDownAt < TAP_MS && !scrolled) {
-                    listener.onButton(PointerGestures.BTN_RIGHT, true, x, y)
-                    listener.onButton(PointerGestures.BTN_RIGHT, false, x, y)
+                    click(PointerGestures.BTN_RIGHT)
                     secondWasTap = false
                 }
                 return true
@@ -218,13 +234,11 @@ class TouchpadGestures(
                     twoFingers -> {
                         // Both fingers down and up together, no scroll: a right click.
                         if (secondWasTap && !scrolled && !cancelled && event.eventTime - downAt < TAP_MS * 2) {
-                            listener.onButton(PointerGestures.BTN_RIGHT, true, x, y)
-                            listener.onButton(PointerGestures.BTN_RIGHT, false, x, y)
+                            click(PointerGestures.BTN_RIGHT)
                         }
                     }
                     !cancelled && travelled <= slopPx && event.eventTime - downAt < TAP_MS -> {
-                        listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
-                        listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
+                        click(PointerGestures.BTN_LEFT)
                         lastTapAt = event.eventTime
                     }
                 }
@@ -239,6 +253,7 @@ class TouchpadGestures(
     companion object {
         private const val HOLD_MS = 500L
         private const val TAP_MS = 300L
+        private const val CLICK_MS = 50L
         private const val DOUBLE_TAP_MS = 300L
         private const val SCROLL_STEP_PX = 36f
     }
