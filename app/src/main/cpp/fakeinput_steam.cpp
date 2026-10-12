@@ -1223,7 +1223,7 @@ static constexpr uint8_t DECK_GET_STRING_ATTRIBUTE = 0xAE;
 static constexpr uint8_t DECK_GET_CHIP_ID = 0xBA;
 static constexpr uint8_t DECK_TRIGGER_RUMBLE_CMD = 0xEB;
 // Steam's haptics for the Deck's trackpads: a pulse train (MsgFireHapticPulse) and a typed effect
-// (MsgTriggerHaptic), both from SDL's src/joystick/hidapi/steam/controller_structs.h (packed).
+// (MsgTriggerHaptic). They go to the phone's own vibrator, never to the pad's rumble motors.
 static constexpr uint8_t DECK_TRIGGER_HAPTIC_PULSE = 0x8F;
 static constexpr uint8_t DECK_TRIGGER_HAPTIC_CMD = 0xEA;
 
@@ -1918,38 +1918,22 @@ __attribute__((visibility("hidden"))) static void log_deck_feature(const char *w
   if ((n & (n - 1)) == 0) Logger::log("deck: feature 0x%02x %s (x%u)\n", feature, what, n);
 }
 
-// The Deck's trackpad haptics have no motor of their own on a phone or a gamepad, so they become
-// short ticks on the same path as 0xEB (send_vibration -> the app's RumbleComponent, which plays
-// them on the pad's motors, or the phone). They carry
-// DECK_HAPTIC_PULSE in the slot word: the app plays a tick only while no game rumble runs and
-// never lets one end a rumble. Strength from the report's gain in dB, which Steam's Haptics
-// Intensity slider moves: linear amplitude, +12 dB (the slider's top) = full scale (65535),
-// 6 dB per halving: +6 dB 50%, 0 dB 25%, -6 dB 12.5% - each slider step an even step in felt
-// strength. Below that a floor of DECK_HAPTIC_FLOOR keeps the lowest setting faintly felt; a gain
-// of DECK_HAPTIC_OFF_DB or less (and no report at all, which is what Off sends) is nothing. Steam's
-// slider is the only control. The ticks stay short (durations below). Each new gain value seen is
-// logged ("deck: haptic 0x.. gain N dB -> level L/255"), so the slider's values show in pad.log.
-static constexpr uint16_t DECK_HAPTIC_PULSE = 0x8000;
+// A real Deck plays its trackpad haptics on the trackpads' own actuators, not on the grip rumble
+// motors, so they never go to the pad's motors here either: they go to the app as packets marked
+// DECK_HAPTIC in the slot word, and the app (RumbleComponent / DeckHaptics) plays them on the
+// phone's built-in vibrator, the stand-in for the trackpad actuators. Such a packet carries the
+// report's gain in dB (s16) where the strong magnitude goes, the trackpad in the low bits of the
+// slot word (0 left, 1 right, 2 both) and a duration in ms; 0 ms is a stop. The app keeps the
+// latest gain per trackpad and plays every tick at the higher of the two, as a phone has one motor.
+static constexpr uint16_t DECK_HAPTIC = 0x8000;
+static constexpr int DECK_HAPTIC_LEFT = 0, DECK_HAPTIC_RIGHT = 1, DECK_HAPTIC_BOTH = 2;
 
-static constexpr int DECK_HAPTIC_FULL_DB = 12;
-static constexpr int DECK_HAPTIC_OFF_DB = -60;
-static constexpr int DECK_HAPTIC_FLOOR = 0x1800;  // 24 of 255
-
-__attribute__((visibility("hidden"))) static int deck_haptic_strength(int db) {
-  if (db <= DECK_HAPTIC_OFF_DB) return 0;
-  if (db >= DECK_HAPTIC_FULL_DB) return 65535;
-  // 10^((dB - 12)/20) without libm (this library links libc only): -1 dB is a factor 0.891251.
-  double level = 65535.0;
-  for (int i = 0; i < DECK_HAPTIC_FULL_DB - db; i++) level *= 0.8912509381337456;
-  return std::max(DECK_HAPTIC_FLOOR, static_cast<int>(level + 0.5));
-}
-
-// Logs each new gain a haptic report type carries, with the level it becomes.
-__attribute__((visibility("hidden"))) static void deck_haptic_log_gain(uint8_t type, int db) {
-  static std::atomic<int> last[2] = {{INT_MIN}, {INT_MIN}};
-  std::atomic<int> &prev = last[type == 0xEA];
+// Logs each new gain a haptic report type carries for a trackpad, so Steam's slider values show in pad.log.
+__attribute__((visibility("hidden"))) static void deck_haptic_log_gain(uint8_t type, int side, int db) {
+  static std::atomic<int> last[2][3] = {{{INT_MIN}, {INT_MIN}, {INT_MIN}}, {{INT_MIN}, {INT_MIN}, {INT_MIN}}};
+  std::atomic<int> &prev = last[type == DECK_TRIGGER_HAPTIC_CMD][side];
   if (prev.exchange(db) == db) return;
-  Logger::log("deck: haptic 0x%02x gain %d dB -> level %d/255\n", type, db, deck_haptic_strength(db) >> 8);
+  Logger::log("deck: haptic 0x%02x side %d gain %d dB\n", type, side, db);
 }
 
 // Trackpad haptics can arrive many times a second; one tick every 40 ms keeps them distinct.
@@ -1958,58 +1942,55 @@ __attribute__((visibility("hidden"))) static bool deck_haptic_due() {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
   long long now = static_cast<long long>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
-  long long prev = last_ms.load();
-  if (now - prev < 40) return false;
+  if (now - last_ms.load() < 40) return false;
   last_ms.store(now);
   return true;
 }
 
-// Side 1 = left pad, 2 = right pad, 3 = both (MsgTriggerHaptic). Left is played on the strong
-// motor and right on the weak one, the way a gamepad's two motors sit.
-__attribute__((visibility("hidden"))) static void deck_haptic_send(int side, int strength, int ms) {
-  int strong = (side & 1) || side == 0 ? strength : 0;
-  int weak = (side & 2) || side == 0 ? strength : 0;
-  send_vibration(strong, weak, static_cast<uint16_t>(ms), DECK_HAPTIC_PULSE);
+__attribute__((visibility("hidden"))) static void deck_haptic_send(int side, int db, int ms) {
+  send_vibration(static_cast<int16_t>(std::max(-32768, std::min(32767, db))), 0, static_cast<uint16_t>(ms),
+                 static_cast<uint16_t>(DECK_HAPTIC | side));
 }
 
 // 0x8F MsgFireHapticPulse after [0]=report id, [1]=type, [2]=length:
 // [3] which_pad, [4..5] pulse_duration us, [6..7] pulse_interval us, [8..9] pulse_count,
-// [10..11] dBgain (s16), [12] priority. On a Deck these are microsecond ticks; a gamepad motor
-// needs ~10-15 ms to be felt, so the train's total length is played clamped to 12..50 ms: a tick,
-// never a buzz.
+// [10..11] dBgain (s16), [12] priority. On a Deck these are microsecond ticks; a vibrator needs
+// ~10-15 ms to be felt, so the train's total length is played clamped to 12..50 ms: a tick, never
+// a buzz. A pulse of 0 us is nothing.
 __attribute__((visibility("hidden"))) static void deck_haptic_pulse(const uint8_t *buf) {
   unsigned on_us = buf[4] | buf[5] << 8, off_us = buf[6] | buf[7] << 8, count = buf[8] | buf[9] << 8;
   int db = static_cast<int16_t>(buf[10] | buf[11] << 8);
   if (on_us == 0) return;
-  deck_haptic_log_gain(0x8F, db);
+  // which_pad is swapped on this legacy report (Linux hid-steam): 0 = right, 1 = left, 2 = both.
+  int side = buf[3] == 0 ? DECK_HAPTIC_RIGHT : buf[3] == 1 ? DECK_HAPTIC_LEFT : DECK_HAPTIC_BOTH;
+  deck_haptic_log_gain(DECK_TRIGGER_HAPTIC_PULSE, side, db);
   if (!deck_haptic_due()) return;
   unsigned long total_us = count ? static_cast<unsigned long>(count) * (on_us + off_us) : on_us;
   int ms = static_cast<int>(std::min<unsigned long>(50, std::max<unsigned long>(12, total_us / 1000)));
-  // which_pad is swapped on this legacy report (Linux hid-steam): 0 = right, 1 = left, 2 = both.
-  int side = buf[3] == 0 ? 2 : buf[3] == 1 ? 1 : 3;
-  deck_haptic_send(side, deck_haptic_strength(db), ms);
+  deck_haptic_send(side, db, ms);
 }
 
-// 0xEA MsgTriggerHaptic: [3] side, [4] cmd (0 off, 1 tick, 2 click, 3 tone, 4 rumble, 5 noise,
-// 6 script, 7 sweep), [5] ui_intensity, [6] dBgain (s8), [7..8] freq, [9..10] dur_ms (s16,
-// negative = until stopped). Ticks and clicks become 15 / 25 ms ticks, a script 40 ms; timed
-// effects (tone, rumble, noise, sweep) use their own duration (an endless one 1 s, renewed while
-// Steam keeps sending it), capped at 2 s, as those are meant to be felt as a buzz.
+// 0xEA MsgTriggerHaptic: [3] side (0 left, 1 right, 2 both), [4] cmd (0 off, 1 tick, 2 click,
+// 3 tone, 4 rumble, 5 noise, 6 script, 7 sweep), [5] ui_intensity, [6] dBgain (s8), [7..8] freq,
+// [9..10] dur_ms (s16, negative = until stopped). Ticks and clicks become 15 / 25 ms, a script
+// 40 ms; timed effects (tone, rumble, noise, sweep) use their own duration (an endless one 1 s,
+// renewed while Steam keeps sending it), capped at 2 s.
 __attribute__((visibility("hidden"))) static void deck_haptic_cmd(const uint8_t *buf) {
-  int side = buf[3], cmd = buf[4], db = static_cast<int8_t>(buf[6]);
-  if (cmd != 0) deck_haptic_log_gain(0xEA, db);
+  int side = buf[3] <= DECK_HAPTIC_BOTH ? buf[3] : DECK_HAPTIC_BOTH;
+  int cmd = buf[4], db = static_cast<int8_t>(buf[6]);
   int dur = static_cast<int16_t>(buf[9] | buf[10] << 8);
   int ms;
   switch (cmd) {
-  case 0: send_vibration(0, 0, 0, DECK_HAPTIC_PULSE); return;
+  case 0: deck_haptic_send(side, 0, 0); return;
   case 1: ms = 15; break;
   case 2: ms = 25; break;
   case 3: case 4: case 5: case 7: ms = dur > 0 ? std::min(dur, 2000) : dur < 0 ? 1000 : 60; break;
   case 6: ms = 40; break;
   default: return;
   }
+  deck_haptic_log_gain(DECK_TRIGGER_HAPTIC_CMD, side, db);
   if (cmd <= 2 && !deck_haptic_due()) return;
-  deck_haptic_send(side, deck_haptic_strength(db), ms);
+  deck_haptic_send(side, db, ms);
 }
 
 __attribute__((visibility("hidden"))) static int

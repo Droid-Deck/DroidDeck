@@ -26,7 +26,7 @@ import kotlin.math.max
  * Rumble for the pad, on the motors in the player's hands.
  *
  * When a game plays a force-feedback effect on the fake pad (or Steam Input sends the Deck's
- * rumble or haptic reports), the fake evdev layer inside the guest connects to the abstract socket
+ * rumble report), the fake evdev layer inside the guest connects to the abstract socket
  * [NAME] and sends one packet: strong, weak, duration in ms and the pad slot, four little-endian
  * 16-bit values. This listens for those and plays the effect on a physical controller:
  *
@@ -38,8 +38,11 @@ import kotlin.math.max
  *     Kishi over USB, [com.droiddeck.launcher.session.razer.RazerKishiRumble]);
  *  4. only then the device's own vibrator - and only when "phone vibration fallback" is on.
  *
- * The packet's slot word carries [PULSE] for the Deck's trackpad / UI haptics: short ticks that
- * play only while no game rumble is running and never end one.
+ * Steam's trackpad haptics (Deck reports 0x8F / 0xEA) come over the same socket with [HAPTIC] set
+ * in the slot word. A real Deck plays them on its trackpad actuators, not its grip rumble motors,
+ * so they never go to a controller: they play on the device's own vibrator ([DeckHaptics] picks the
+ * strength), whether or not rumble or the phone fallback is on, as Steam's own haptics settings
+ * are what control them.
  *
  * Every lookup is logged (id, name, vid:pid, vibrator ids, legacy hasVibrator, chosen path), rate
  * limited, and gamepads being added, changed or removed are logged too, so a session's app.log
@@ -50,7 +53,10 @@ class RumbleComponent : SessionPart() {
     @Volatile private var server: LocalServerSocket? = null
     @Volatile private var stopped = false
     private var phone: Motors? = null
-    /** Last effect destinations and resolved targets, keyed by game slot; haptics use their own key. */
+    private val haptics = DeckHaptics()
+    /** When the last haptic on the phone ends, so a haptic stop never cuts anything else. */
+    private var hapticUntil = 0L
+    /** Last effect destinations and resolved targets, keyed by game slot. */
     private val playing = HashMap<Int, Motors>()
     private val controllerIds = HashMap<Int, Int>()
     private val controllers = HashMap<Int, Motors?>()
@@ -81,8 +87,6 @@ class RumbleComponent : SessionPart() {
     /** The registered [RumbleProvider]s' motors. Tests swap it. */
     internal var providerMotors: () -> Motors? = { app()?.let { RumbleProviders.motors(it) } }
 
-    /** Until when (elapsedRealtime) a game's rumble runs, so Deck haptic ticks do not cut it short. */
-    private val rumbleUntil = HashMap<Int, Long>()
     private var providerGeneration = 0
 
     @Synchronized private fun refreshEnabled() {
@@ -183,7 +187,6 @@ class RumbleComponent : SessionPart() {
         controllerIds.clear()
         controllers.clear()
         fallbackSince.clear()
-        rumbleUntil.clear()
         RumbleProviders.release("session end")
         val s = server
         server = null
@@ -193,27 +196,16 @@ class RumbleComponent : SessionPart() {
 
     private fun u16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or ((b[at + 1].toInt() and 0xFF) shl 8)
 
-    private fun buzz(strong: Int, weak: Int, ms: Int) = buzz(strong, weak, ms, 0)
-
     @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) {
+        if (slot and HAPTIC != 0) { haptic(strong.toShort().toInt(), ms, slot and 0xFF); return }
         if (!enabled) return
-        val pulse = slot and PULSE != 0
-        val key = if (pulse) PULSE else slot and 0x7fff
-        val now = SystemClock.elapsedRealtime()
-        val activeRumbleUntil = rumbleUntil.values.maxOrNull() ?: 0L
+        val key = slot
         if ((strong == 0 && weak == 0) || ms == 0) {
-            // Stops are scoped to the player's slot; a Deck haptic stop never cuts game rumble.
-            if (pulse && now < activeRumbleUntil) return
-            if (!pulse) rumbleUntil.remove(key)
+            // Stops are scoped to the player's slot.
             playing.remove(key)?.cancel()
             return
         }
-        if (pulse && now < activeRumbleUntil) {
-            logLimited("pulse-skip", "rumble: haptic tick skipped while a rumble effect runs")
-            return
-        }
-        if (!pulse) rumbleUntil[key] = now + ms
-        val target = target(slot, key)
+        val target = target(key)
         val previous = playing[key]
         if (target !== previous) {
             previous?.cancel()
@@ -233,10 +225,28 @@ class RumbleComponent : SessionPart() {
         }
     }
 
-    /** Resolve each game slot independently; Deck haptics follow the most recently active pad. */
-    private fun target(packetSlot: Int, key: Int): Motors? {
-        val id = if (packetSlot and PULSE != 0) PadBridge.activeControllerId()
-            else PadBridge.controllerForSlot(packetSlot)
+    /** A Deck trackpad haptic: on the phone's vibrator only. [db] is the report's gain; 0 ms is a stop. */
+    private fun haptic(db: Int, ms: Int, side: Int) {
+        val target = phone ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (ms == 0) {
+            if (now < hapticUntil) target.cancel()
+            hapticUntil = 0L
+            return
+        }
+        val amplitude = haptics.amplitude(side, db)
+        if (amplitude == 0) return
+        try {
+            target.play(amplitude * 257, 0, ms.toLong().coerceIn(1L, 2000L))
+            hapticUntil = now + ms
+        } catch (e: Exception) {
+            logLimited("haptic", "rumble: haptic on ${target.name}: $e")
+        }
+    }
+
+    /** Resolve each game slot independently. */
+    private fun target(key: Int): Motors? {
+        val id = PadBridge.controllerForSlot(key)
         val now = SystemClock.elapsedRealtime()
         val retryFallback = controllers[key] == null && now - (fallbackSince[key] ?: 0L) >= FALLBACK_RETRY_MS
         val providersChanged = RumbleProviders.generation != providerGeneration
@@ -294,7 +304,7 @@ class RumbleComponent : SessionPart() {
     /**
      * Settings -> Controller -> "Test controller rumble": the same order as a session (a pad's
      * Android motors, then a provider's, then the phone if the fallback is on), then a pattern: strong motor, weak
-     * motor, three short Deck-style ticks, all at full strength. Blocks for about two seconds;
+     * motor, three short ticks, all at full strength. Blocks for about two seconds;
      * returns what played where, for a toast.
      */
     internal fun test(ctx: Context): String {
@@ -451,14 +461,14 @@ class RumbleComponent : SessionPart() {
         private const val TAG = "SessionService"
         /** Must match the fake evdev layer (fakeinput_steam.cpp). */
         const val NAME = "droiddeck-rumble"
+        /** Slot-word flag of a Deck trackpad haptic packet (fakeinput_steam.cpp DECK_HAPTIC): strong = gain in dB (s16), low bits = trackpad. */
+        const val HAPTIC = 0x8000
         private const val UNRESOLVED = Int.MIN_VALUE
         private const val BIND_RETRIES = 20
         private const val BIND_RETRY_MS = 250L
         private const val FALLBACK_RETRY_MS = 2000L
         private const val LOG_INTERVAL_MS = 5000L
-        /** Slot flag from the guest (fakeinput_steam.cpp): a Deck trackpad / UI haptic tick. */
-        const val PULSE = 0x8000
-        /** A Deck haptic tick at Steam's top Haptics Intensity (+12 dB): full strength. */
+        /** The Settings test's short ticks: full strength. */
         private const val TICK_STRENGTH = 0xFFFF
 
         /** Runs [RumbleComponent.test] off the main thread and hands its result back on it. */
