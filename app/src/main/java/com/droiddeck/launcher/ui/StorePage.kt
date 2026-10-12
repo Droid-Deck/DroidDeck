@@ -392,7 +392,6 @@ private fun FlathubChips(mode: String, modes: List<String>, installed: Int, upda
     val bounds = remember { mutableStateMapOf<String, Rect>() }
     val tint = rememberUpdatedState(pal.signal)
     Box(Modifier.fillMaxWidth()) {
-        ChipGlide(modes.indexOf(mode), bounds[mode], tint)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             for (m in modes) {
                 key(m) {
@@ -431,6 +430,8 @@ private fun FlathubChips(mode: String, modes: List<String>, installed: Int, upda
                 }
             }
         }
+        // Over the chips: under them, their rest fill hid it as it crossed them.
+        ChipGlide(modes.indexOf(mode), bounds[mode], tint)
     }
 }
 

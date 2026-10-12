@@ -46,8 +46,8 @@ internal enum class GlideAxis { Horizontal, Vertical }
 /**
  * The selection under a row of chips: [at] (in the row) of chip [index], in [tint]. A move to the
  * next chip stretches it - the leading edge on the focus ring's lead spring, the trailing one a
- * beat later on its trail spring - and a hop past a chip fades it out where it was and in where it
- * lands (carried over as a drop, it sat on chips the pad had already left). [axis] runs it down a column instead (the rail, a stack of layers). [corner] is the
+ * beat later on its trail spring - and a hop past chips stretches the same way, across them.
+ * Draw it over the chips: under them, their own rest fill hid it in flight. [axis] runs it down a column instead (the rail, a stack of layers). [corner] is the
  * chips' own corner; null draws a capsule. [fill] and [outline] are the resting alphas. Not
  * [visible], it fades away, and comes back on whichever chip it is on by then.
  */
@@ -97,13 +97,9 @@ internal fun BoxScope.ChipGlide(
             return@LaunchedEffect
         }
         coroutineScope {
-            if (abs(index - from) > 1) {
-                // Too far to stretch: out where it is, in where it lands.
-                shown.animateTo(0f, Motion.tw(90))
-                pinch.snapTo(0f); start.snapTo(s); end.snapTo(e)
-                shown.animateTo(1f, Motion.tw(160))
-            } else {
-                // An adjacent move can interrupt a long hop while it is still faded.
+            run {
+                // Every move stretches across, however far: a long one used to go as a drop (which
+                // sat on chips already left) and then as a fade (a flash of no fill at all).
                 launch { pinch.animateTo(0f, Motion.sp(0.6f, 500f)) }
                 launch { shown.animateTo(1f, Motion.tw(120)) }
                 val forward = index > from

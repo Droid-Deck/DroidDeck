@@ -775,7 +775,6 @@ internal fun SheetChips(labels: List<String>, selected: Int, focus: List<FocusRe
         val scroll = rememberScrollState()
         // Room inside the scroll for the focus ring, which the scroll's clip would otherwise cut.
         Box(if (equal) Modifier.fillMaxWidth() else Modifier.edgeFade(scroll).horizontalScroll(scroll).padding(3.dp)) {
-            ChipGlide(selected, bounds[selected], tint)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 // Up from the rows lands on the picked chip, not whichever sits above: landing picks.
@@ -790,6 +789,8 @@ internal fun SheetChips(labels: List<String>, selected: Int, focus: List<FocusRe
                     SheetChip(label, i == selected, m.onFocusChanged { if (it.isFocused && i != selected) onPick(i) }) { onPick(i) }
                 }
             }
+            // Over the chips: under them, their rest fill hid it as it crossed them.
+            ChipGlide(selected, bounds[selected], tint)
         }
     }
 }

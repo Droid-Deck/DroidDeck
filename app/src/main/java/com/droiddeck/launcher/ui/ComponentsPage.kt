@@ -901,7 +901,6 @@ fun ComponentsPage(
                     ) {
                         val tint = rememberUpdatedState(pal.signal)
                         val local = cardsAt[layer]?.translate(-stackAt)
-                        ChipGlide(LAYERS.indexOf(layer), local, tint, GlideAxis.Vertical, corner = 12.dp)
                         Stack(
                             layer, view, gpu, focus = layerFocus, landed = landed, rings = rings,
                             onPlaced = { l, r -> cardsAt[l] = r },
@@ -912,6 +911,8 @@ fun ComponentsPage(
                                 else runCatching { firstRow.requestFocus() }
                             },
                         )
+                        // Over the cards: under them, their rest fill hid it as it crossed them.
+                        ChipGlide(LAYERS.indexOf(layer), local, tint, GlideAxis.Vertical, corner = 12.dp)
                     }
                     if (!narrow) {
                         Spacer(Modifier.width(16.dp))
