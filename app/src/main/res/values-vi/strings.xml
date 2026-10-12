@@ -1643,7 +1643,6 @@
     <string name="adbpair_done_text">Nhấn để quay lại DroidDeck. Bạn có thể tắt Gỡ lỗi qua mạng không dây ngay bây giờ.</string>
     <string name="adbpair_title_failed">Thiết lập Gỡ lỗi qua mạng không dây đã dừng</string>
 
-    <string name="selfinst_http">Lượt tải trả về HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Kích thước tải xuống không khớp với APK đã phát hành và đã bị loại bỏ - hãy thử lại</string>
     <string name="selfinst_checksum_mismatch">Tệp tải xuống không khớp checksum và đã bị loại bỏ - hãy thử lại</string>
     <string name="selfinst_wrong_package">Bản cập nhật này dành cho package Android %1$s, không phải %2$s</string>
@@ -1741,7 +1740,6 @@
 
     <string name="turnip_rate_limited">Đã đạt giới hạn tốc độ của GitHub - hãy thử lại sau</string>
     <string name="turnip_github_http">GitHub trả về HTTP %1$d</string>
-    <string name="turnip_download_http">tải xuống trả về HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Danh sách driver này có trước checksum - hãy làm mới và thử lại</string>
     <string name="turnip_checksum_mismatch">Checksum không khớp - tệp tải xuống đã bị loại bỏ</string>
     <string name="turnip_not_adrenotools">Không phải driver AdrenoTools: %1$s</string>

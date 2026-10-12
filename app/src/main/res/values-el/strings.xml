@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Πατήστε για να επιστρέψετε στο DroidDeck. Μπορείτε να απενεργοποιήσετε τον ασύρματο εντοπισμό σφαλμάτων τώρα.</string>
     <string name="adbpair_title_failed">Η ρύθμιση ασύρματου εντοπισμού σφαλμάτων διακόπηκε</string>
 
-    <string name="selfinst_http">Η λήψη απάντησε με HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Το μέγεθος της λήψης δεν ταίριαζε με το δημοσιευμένο APK και απορρίφθηκε - δοκιμάστε ξανά</string>
     <string name="selfinst_checksum_mismatch">Η λήψη δεν ταίριαζε με το άθροισμα ελέγχου της και απορρίφθηκε - δοκιμάστε ξανά</string>
     <string name="selfinst_wrong_package">Η ενημέρωση είναι για το πακέτο Android %1$s, όχι για το %2$s</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">Το όριο ρυθμού του GitHub ξεπεράστηκε - δοκιμάστε ξανά αργότερα</string>
     <string name="turnip_github_http">Το GitHub απάντησε με HTTP %1$d</string>
-    <string name="turnip_download_http">η λήψη απάντησε με HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Αυτή η λίστα προγραμμάτων οδήγησης προηγείται των αθροισμάτων ελέγχου - ανανεώστε την και δοκιμάστε ξανά</string>
     <string name="turnip_checksum_mismatch">Αναντιστοιχία αθροίσματος ελέγχου - η λήψη απορρίφθηκε</string>
     <string name="turnip_not_adrenotools">Δεν είναι πρόγραμμα οδήγησης AdrenoTools: %1$s</string>

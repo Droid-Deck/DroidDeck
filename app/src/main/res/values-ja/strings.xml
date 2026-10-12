@@ -1651,7 +1651,6 @@
     <string name="adbpair_done_text">タップしてDroidDeckに戻ります。ワイヤレスデバッグはオフにしてかまいません。</string>
     <string name="adbpair_title_failed">ワイヤレスデバッグのセットアップが中断しました</string>
 
-    <string name="selfinst_http">ダウンロード先がHTTP %1$dを返しました</string>
     <string name="selfinst_size_mismatch">ダウンロードしたファイルのサイズが公開されているAPKと一致しないため、破棄しました。もう一度お試しください</string>
     <string name="selfinst_checksum_mismatch">ダウンロードしたファイルがチェックサムと一致しないため、破棄しました。もう一度お試しください</string>
     <string name="selfinst_wrong_package">このアップデートはAndroidパッケージ%1$s用で、%2$s用ではありません</string>
@@ -1749,7 +1748,6 @@
 
     <string name="turnip_rate_limited">GitHubのレート制限に達しました。後でもう一度お試しください</string>
     <string name="turnip_github_http">GitHubがHTTP %1$dを返しました</string>
-    <string name="turnip_download_http">ダウンロード先がHTTP %1$dを返しました</string>
     <string name="turnip_list_predates_checksums">このドライバー一覧はチェックサム導入前のものです。更新してからもう一度お試しください</string>
     <string name="turnip_checksum_mismatch">チェックサムが一致しないため、ダウンロードを破棄しました</string>
     <string name="turnip_not_adrenotools">AdrenoToolsドライバーではありません：%1$s</string>

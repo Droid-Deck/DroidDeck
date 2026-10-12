@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Koppintson a DroidDeckhez való visszatéréshez. A vezeték nélküli hibakeresést most kikapcsolhatja.</string>
     <string name="adbpair_title_failed">A vezeték nélküli hibakeresés beállítása megállt</string>
 
-    <string name="selfinst_http">A letöltés HTTP %1$d választ adott</string>
     <string name="selfinst_size_mismatch">A letöltés mérete nem egyezett a közzétett APK-val, és elvetésre került – próbálja újra</string>
     <string name="selfinst_checksum_mismatch">A letöltés nem egyezett az ellenőrzőösszegével, és elvetésre került – próbálja újra</string>
     <string name="selfinst_wrong_package">A frissítés a %1$s Android-csomaghoz tartozik, nem a %2$s-hez</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">A GitHub korlátja elérve – próbálja újra később</string>
     <string name="turnip_github_http">A GitHub HTTP %1$d választ adott</string>
-    <string name="turnip_download_http">a letöltés HTTP %1$d választ adott</string>
     <string name="turnip_list_predates_checksums">Ez az illesztőprogram-lista régebbi, mint az ellenőrzőösszegek – frissítse, és próbálja újra</string>
     <string name="turnip_checksum_mismatch">Az ellenőrzőösszeg nem egyezik – a letöltés elvetve</string>
     <string name="turnip_not_adrenotools">Nem egy AdrenoTools illesztőprogram: %1$s</string>

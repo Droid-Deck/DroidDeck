@@ -1685,7 +1685,6 @@
     <string name="adbpair_done_text">Apasă pentru a reveni la DroidDeck. Poți dezactiva acum Depanarea wireless.</string>
     <string name="adbpair_title_failed">Configurarea Depanării wireless s-a oprit</string>
 
-    <string name="selfinst_http">Descărcarea a răspuns cu HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Dimensiunea descărcării nu s-a potrivit cu APK-ul publicat și a fost abandonată - încearcă din nou</string>
     <string name="selfinst_checksum_mismatch">Descărcarea nu s-a potrivit cu suma sa de control și a fost abandonată - încearcă din nou</string>
     <string name="selfinst_wrong_package">Actualizarea este pentru pachetul Android %1$s, nu %2$s</string>
@@ -1783,7 +1782,6 @@
 
     <string name="turnip_rate_limited">S-a atins limita de solicitări a GitHub - încearcă din nou mai târziu</string>
     <string name="turnip_github_http">GitHub a răspuns cu HTTP %1$d</string>
-    <string name="turnip_download_http">descărcarea a răspuns cu HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Această listă de drivere e anterioară sumelor de control - reîmprospătează-o și încearcă din nou</string>
     <string name="turnip_checksum_mismatch">Sumă de control incorectă - descărcarea a fost abandonată</string>
     <string name="turnip_not_adrenotools">Nu este un driver AdrenoTools: %1$s</string>

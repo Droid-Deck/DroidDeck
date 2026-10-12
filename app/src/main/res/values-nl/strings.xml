@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Tik om terug te gaan naar DroidDeck. Je kunt draadloze foutopsporing nu uitschakelen.</string>
     <string name="adbpair_title_failed">Instellen van draadloze foutopsporing gestopt</string>
 
-    <string name="selfinst_http">De download antwoordde met HTTP %1$d</string>
     <string name="selfinst_size_mismatch">De downloadgrootte kwam niet overeen met de gepubliceerde APK en is verwijderd - probeer het opnieuw</string>
     <string name="selfinst_checksum_mismatch">De download kwam niet overeen met de checksum en is verwijderd - probeer het opnieuw</string>
     <string name="selfinst_wrong_package">De update is voor Android-package %1$s, niet voor %2$s</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">De ratelimiet van GitHub is bereikt - probeer het later opnieuw</string>
     <string name="turnip_github_http">GitHub antwoordde met HTTP %1$d</string>
-    <string name="turnip_download_http">download antwoordde met HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Deze driverlijst is ouder dan de checksums - vernieuw de lijst en probeer het opnieuw</string>
     <string name="turnip_checksum_mismatch">Checksum komt niet overeen - de download is verwijderd</string>
     <string name="turnip_not_adrenotools">Geen AdrenoTools-driver: %1$s</string>

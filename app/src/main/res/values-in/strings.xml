@@ -1643,7 +1643,6 @@
     <string name="adbpair_done_text">Ketuk untuk kembali ke DroidDeck. Anda bisa menonaktifkan Debugging nirkabel sekarang.</string>
     <string name="adbpair_title_failed">Penyiapan Debugging nirkabel dihentikan</string>
 
-    <string name="selfinst_http">Unduhan merespons HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Ukuran unduhan tidak sesuai dengan APK yang dipublikasikan dan dibuang - coba lagi</string>
     <string name="selfinst_checksum_mismatch">Unduhan tidak sesuai dengan checksum-nya dan dibuang - coba lagi</string>
     <string name="selfinst_wrong_package">Pembaruan ini untuk paket Android %1$s, bukan %2$s</string>
@@ -1741,7 +1740,6 @@
 
     <string name="turnip_rate_limited">Batas kecepatan GitHub tercapai - coba lagi nanti</string>
     <string name="turnip_github_http">GitHub merespons HTTP %1$d</string>
-    <string name="turnip_download_http">unduhan merespons HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Daftar driver ini dibuat sebelum adanya checksum - segarkan dan coba lagi</string>
     <string name="turnip_checksum_mismatch">Checksum tidak cocok - unduhan dibuang</string>
     <string name="turnip_not_adrenotools">Bukan driver AdrenoTools: %1$s</string>

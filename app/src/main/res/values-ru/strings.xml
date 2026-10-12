@@ -1714,7 +1714,6 @@
     <string name="adbpair_done_text">Нажмите, чтобы вернуться в DroidDeck. Теперь отладку по Wi-Fi можно отключить.</string>
     <string name="adbpair_title_failed">Настройка отладки по Wi-Fi остановлена</string>
 
-    <string name="selfinst_http">Сервер загрузки ответил HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Размер загруженного файла не совпал с опубликованным APK, файл удален — повторите попытку</string>
     <string name="selfinst_checksum_mismatch">Загруженный файл не совпал с контрольной суммой и был удален — повторите попытку</string>
     <string name="selfinst_wrong_package">Обновление предназначено для пакета Android %1$s, а не %2$s</string>
@@ -1812,7 +1811,6 @@
 
     <string name="turnip_rate_limited">Превышен лимит запросов GitHub — повторите попытку позже</string>
     <string name="turnip_github_http">GitHub ответил HTTP %1$d</string>
-    <string name="turnip_download_http">сервер загрузки ответил HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Этот список драйверов создан до появления контрольных сумм — обновите его и повторите попытку</string>
     <string name="turnip_checksum_mismatch">Контрольная сумма не совпадает — загруженный файл удален</string>
     <string name="turnip_not_adrenotools">Не драйвер AdrenoTools: %1$s</string>

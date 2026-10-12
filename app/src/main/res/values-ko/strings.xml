@@ -1651,7 +1651,6 @@
     <string name="adbpair_done_text">탭하여 DroidDeck으로 돌아가세요. 이제 무선 디버깅을 꺼도 됩니다.</string>
     <string name="adbpair_title_failed">무선 디버깅 설정이 중단되었습니다</string>
 
-    <string name="selfinst_http">다운로드 응답: HTTP %1$d</string>
     <string name="selfinst_size_mismatch">다운로드 크기가 배포된 APK와 일치하지 않아 삭제했습니다. 다시 시도하세요</string>
     <string name="selfinst_checksum_mismatch">다운로드한 파일이 체크섬과 일치하지 않아 삭제했습니다. 다시 시도하세요</string>
     <string name="selfinst_wrong_package">이 업데이트는 %2$s이(가) 아닌 Android 패키지 %1$s용입니다</string>
@@ -1749,7 +1748,6 @@
 
     <string name="turnip_rate_limited">GitHub 요청 한도에 도달했습니다. 나중에 다시 시도하세요</string>
     <string name="turnip_github_http">GitHub 응답: HTTP %1$d</string>
-    <string name="turnip_download_http">다운로드 응답: HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">이 드라이버 목록은 체크섬 도입 이전의 것입니다. 새로 고친 후 다시 시도하세요</string>
     <string name="turnip_checksum_mismatch">체크섬이 일치하지 않아 다운로드를 삭제했습니다</string>
     <string name="turnip_not_adrenotools">AdrenoTools 드라이버가 아닙니다: %1$s</string>

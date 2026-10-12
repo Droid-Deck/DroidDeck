@@ -1748,7 +1748,6 @@
     <string name="adbpair_done_text">اضغط للعودة إلى DroidDeck. يمكنك إيقاف تصحيح الأخطاء اللاسلكي الآن.</string>
     <string name="adbpair_title_failed">توقَّف إعداد تصحيح الأخطاء اللاسلكي</string>
 
-    <string name="selfinst_http">استجاب التنزيل بـ HTTP %1$d</string>
     <string name="selfinst_size_mismatch">حجم التنزيل غير مطابق لملف APK المنشور، وتم تجاهله - حاوِل مرة أخرى</string>
     <string name="selfinst_checksum_mismatch">التنزيل غير مطابق لمجموعه الاختباري، وتم تجاهله - حاوِل مرة أخرى</string>
     <string name="selfinst_wrong_package">التحديث مخصَّص لحزمة Android %1$s، لا %2$s</string>
@@ -1846,7 +1845,6 @@
 
     <string name="turnip_rate_limited">تم الوصول إلى حدّ الطلبات في GitHub - حاوِل مرة أخرى لاحقًا</string>
     <string name="turnip_github_http">استجاب GitHub بـ HTTP %1$d</string>
-    <string name="turnip_download_http">استجاب التنزيل بـ HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">قائمة برامج التشغيل هذه أقدم من إضافة المجاميع الاختبارية - حدِّثها وحاوِل مرة أخرى</string>
     <string name="turnip_checksum_mismatch">عدم تطابق المجموع الاختباري - تم تجاهل التنزيل</string>
     <string name="turnip_not_adrenotools">ليس برنامج تشغيل AdrenoTools: %1$s</string>

@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Napauta palataksesi DroidDeckiin. Voit sammuttaa langattoman virheenkorjauksen nyt.</string>
     <string name="adbpair_title_failed">Langattoman virheenkorjauksen käyttöönotto pysähtyi</string>
 
-    <string name="selfinst_http">Lataus vastasi HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Latauksen koko ei vastannut julkaistua APK-tiedostoa, ja se hylättiin - yritä uudelleen</string>
     <string name="selfinst_checksum_mismatch">Lataus ei vastannut tarkistussummaansa, ja se hylättiin - yritä uudelleen</string>
     <string name="selfinst_wrong_package">Päivitys on Android-paketille %1$s, ei %2$s</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">GitHubin käyttörajoitus tuli vastaan - yritä myöhemmin uudelleen</string>
     <string name="turnip_github_http">GitHub vastasi HTTP %1$d</string>
-    <string name="turnip_download_http">lataus vastasi HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Tämä ajuriluettelo on tarkistussummia vanhempi - päivitä se ja yritä uudelleen</string>
     <string name="turnip_checksum_mismatch">Tarkistussumma ei täsmää - lataus hylättiin</string>
     <string name="turnip_not_adrenotools">Ei AdrenoTools-ajuri: %1$s</string>

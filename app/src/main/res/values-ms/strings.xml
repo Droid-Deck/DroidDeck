@@ -1643,7 +1643,6 @@
     <string name="adbpair_done_text">Ketik untuk kembali ke DroidDeck. Anda boleh matikan Debugging Wayarles sekarang.</string>
     <string name="adbpair_title_failed">Persediaan Debugging Wayarles terhenti</string>
 
-    <string name="selfinst_http">Muat turun menjawab HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Saiz muat turun tidak sepadan dengan APK yang diterbitkan dan telah dibuang - cuba lagi</string>
     <string name="selfinst_checksum_mismatch">Muat turun tidak sepadan dengan checksumnya dan telah dibuang - cuba lagi</string>
     <string name="selfinst_wrong_package">Kemas kini ini untuk pakej Android %1$s, bukan %2$s</string>
@@ -1741,7 +1740,6 @@
 
     <string name="turnip_rate_limited">Had kadar GitHub dicapai - cuba lagi kemudian</string>
     <string name="turnip_github_http">GitHub menjawab HTTP %1$d</string>
-    <string name="turnip_download_http">muat turun menjawab HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Senarai pemacu ini mendahului checksum - segarkan dan cuba lagi</string>
     <string name="turnip_checksum_mismatch">Checksum tidak sepadan - muat turun telah dibuang</string>
     <string name="turnip_not_adrenotools">Bukan pemacu AdrenoTools: %1$s</string>

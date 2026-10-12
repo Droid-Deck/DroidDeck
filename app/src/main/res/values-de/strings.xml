@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Tippe, um zu DroidDeck zurückzukehren. Du kannst Debugging über WLAN jetzt deaktivieren.</string>
     <string name="adbpair_title_failed">Einrichtung von Debugging über WLAN abgebrochen</string>
 
-    <string name="selfinst_http">Der Download antwortete mit HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Der Download hatte nicht die Größe der veröffentlichten APK und wurde verworfen - versuche es erneut</string>
     <string name="selfinst_checksum_mismatch">Der Download stimmte nicht mit seiner Prüfsumme überein und wurde verworfen - versuche es erneut</string>
     <string name="selfinst_wrong_package">Das Update ist für das Android-Paket %1$s, nicht für %2$s</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">Das Rate-Limit von GitHub wurde erreicht - versuche es später erneut</string>
     <string name="turnip_github_http">GitHub antwortete mit HTTP %1$d</string>
-    <string name="turnip_download_http">Download antwortete mit HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Diese Treiberliste stammt aus der Zeit vor Prüfsummen - aktualisiere sie und versuche es erneut</string>
     <string name="turnip_checksum_mismatch">Prüfsumme stimmt nicht überein - der Download wurde verworfen</string>
     <string name="turnip_not_adrenotools">Kein AdrenoTools-Treiber: %1$s</string>

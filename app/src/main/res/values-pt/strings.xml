@@ -1685,7 +1685,6 @@
     <string name="adbpair_done_text">Toque para voltar ao DroidDeck. Você já pode desativar a depuração por Wi-Fi.</string>
     <string name="adbpair_title_failed">A configuração da depuração por Wi-Fi parou</string>
 
-    <string name="selfinst_http">O download respondeu HTTP %1$d</string>
     <string name="selfinst_size_mismatch">O tamanho do download não corresponde ao APK publicado, e ele foi descartado - tente de novo</string>
     <string name="selfinst_checksum_mismatch">O download não corresponde à soma de verificação e foi descartado - tente de novo</string>
     <string name="selfinst_wrong_package">A atualização é para o pacote Android %1$s, não %2$s</string>
@@ -1783,7 +1782,6 @@
 
     <string name="turnip_rate_limited">O limite de requisições do GitHub foi atingido - tente mais tarde</string>
     <string name="turnip_github_http">O GitHub respondeu HTTP %1$d</string>
-    <string name="turnip_download_http">o download respondeu HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Esta lista de drivers é anterior às somas de verificação - atualize-a e tente de novo</string>
     <string name="turnip_checksum_mismatch">A soma de verificação não confere - o download foi descartado</string>
     <string name="turnip_not_adrenotools">Não é um driver AdrenoTools: %1$s</string>

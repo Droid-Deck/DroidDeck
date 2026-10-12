@@ -1685,7 +1685,6 @@
     <string name="adbpair_done_text">Toque para voltar ao DroidDeck. Já pode desativar a depuração sem fios.</string>
     <string name="adbpair_title_failed">A configuração da depuração sem fios parou</string>
 
-    <string name="selfinst_http">A transferência respondeu HTTP %1$d</string>
     <string name="selfinst_size_mismatch">O tamanho da transferência não correspondia ao APK publicado e foi descartada - tente novamente</string>
     <string name="selfinst_checksum_mismatch">A transferência não correspondia à soma de verificação e foi descartada - tente novamente</string>
     <string name="selfinst_wrong_package">A atualização é para o pacote Android %1$s, não para %2$s</string>
@@ -1783,7 +1782,6 @@
 
     <string name="turnip_rate_limited">Foi atingido o limite de pedidos do GitHub - tente novamente mais tarde</string>
     <string name="turnip_github_http">O GitHub respondeu HTTP %1$d</string>
-    <string name="turnip_download_http">a transferência respondeu HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Esta lista de controladores é anterior às somas de verificação - atualize-a e tente novamente</string>
     <string name="turnip_checksum_mismatch">A soma de verificação não corresponde - a transferência foi descartada</string>
     <string name="turnip_not_adrenotools">Não é um controlador AdrenoTools: %1$s</string>

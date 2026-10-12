@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Trykk for å gå tilbake til DroidDeck. Du kan slå av trådløs feilsøking nå.</string>
     <string name="adbpair_title_failed">Oppsettet for trådløs feilsøking stoppet</string>
 
-    <string name="selfinst_http">Nedlastingen svarte HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Nedlastingens størrelse stemte ikke med den publiserte APK-en og ble forkastet – prøv igjen</string>
     <string name="selfinst_checksum_mismatch">Nedlastingen stemte ikke med sjekksummen og ble forkastet – prøv igjen</string>
     <string name="selfinst_wrong_package">Oppdateringen er for Android-pakken %1$s, ikke %2$s</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">GitHubs hastighetsgrense ble nådd – prøv igjen senere</string>
     <string name="turnip_github_http">GitHub svarte HTTP %1$d</string>
-    <string name="turnip_download_http">nedlastingen svarte HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Denne driverlisten er eldre enn sjekksummene – oppdater den og prøv igjen</string>
     <string name="turnip_checksum_mismatch">Sjekksummen stemmer ikke – nedlastingen ble forkastet</string>
     <string name="turnip_not_adrenotools">Ikke en AdrenoTools-driver: %1$s</string>

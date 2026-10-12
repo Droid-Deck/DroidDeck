@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Tryck för att gå tillbaka till DroidDeck. Du kan stänga av trådlös felsökning nu.</string>
     <string name="adbpair_title_failed">Konfigurationen av trådlös felsökning avbröts</string>
 
-    <string name="selfinst_http">Nedladdningen svarade HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Nedladdningens storlek matchade inte den publicerade APK-filen och förkastades - försök igen</string>
     <string name="selfinst_checksum_mismatch">Nedladdningen matchade inte sin kontrollsumma och förkastades - försök igen</string>
     <string name="selfinst_wrong_package">Uppdateringen är för Android-paketet %1$s, inte %2$s</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">GitHubs hastighetsgräns nåddes - försök igen senare</string>
     <string name="turnip_github_http">GitHub svarade HTTP %1$d</string>
-    <string name="turnip_download_http">nedladdningen svarade HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Den här drivrutinslistan är från innan kontrollsummor fanns - uppdatera den och försök igen</string>
     <string name="turnip_checksum_mismatch">Kontrollsumman stämmer inte - nedladdningen förkastades</string>
     <string name="turnip_not_adrenotools">Inte en AdrenoTools-drivrutin: %1$s</string>

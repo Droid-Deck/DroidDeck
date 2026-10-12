@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">DroidDeck\'e geri dönmek için dokunun. Kablosuz hata ayıklamayı şimdi kapatabilirsiniz.</string>
     <string name="adbpair_title_failed">Kablosuz hata ayıklama kurulumu durdu</string>
 
-    <string name="selfinst_http">İndirme HTTP %1$d yanıtı verdi</string>
     <string name="selfinst_size_mismatch">İndirme boyutu yayınlanan APK ile eşleşmedi ve atıldı - yeniden deneyin</string>
     <string name="selfinst_checksum_mismatch">İndirme, sağlama toplamıyla eşleşmedi ve atıldı - yeniden deneyin</string>
     <string name="selfinst_wrong_package">Güncelleme, %2$s değil %1$s Android paketi içindir</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">GitHub\'ın hız sınırına ulaşıldı - daha sonra yeniden deneyin</string>
     <string name="turnip_github_http">GitHub HTTP %1$d yanıtı verdi</string>
-    <string name="turnip_download_http">indirme HTTP %1$d yanıtı verdi</string>
     <string name="turnip_list_predates_checksums">Bu sürücü listesi sağlama toplamlarından önceki bir tarihe ait - yenileyip yeniden deneyin</string>
     <string name="turnip_checksum_mismatch">Sağlama toplamı uyuşmuyor - indirme atıldı</string>
     <string name="turnip_not_adrenotools">Bir AdrenoTools sürücüsü değil: %1$s</string>

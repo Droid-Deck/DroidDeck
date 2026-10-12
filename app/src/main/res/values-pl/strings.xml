@@ -1706,7 +1706,6 @@
     <string name="adbpair_done_text">Dotknij, aby wrócić do DroidDeck. Możesz już wyłączyć debugowanie bezprzewodowe.</string>
     <string name="adbpair_title_failed">Konfiguracja debugowania bezprzewodowego została przerwana</string>
 
-    <string name="selfinst_http">Serwer pobierania odpowiedział HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Rozmiar pobranego pliku nie zgadzał się z opublikowanym APK, więc go odrzucono – spróbuj ponownie</string>
     <string name="selfinst_checksum_mismatch">Pobrany plik nie zgadzał się z sumą kontrolną, więc go odrzucono – spróbuj ponownie</string>
     <string name="selfinst_wrong_package">Aktualizacja jest dla pakietu Android %1$s, a nie %2$s</string>
@@ -1804,7 +1803,6 @@
 
     <string name="turnip_rate_limited">Osiągnięto limit zapytań GitHub – spróbuj ponownie później</string>
     <string name="turnip_github_http">GitHub odpowiedział HTTP %1$d</string>
-    <string name="turnip_download_http">serwer pobierania odpowiedział HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Ta lista sterowników jest starsza niż sumy kontrolne – odśwież ją i spróbuj ponownie</string>
     <string name="turnip_checksum_mismatch">Niezgodna suma kontrolna – pobrany plik odrzucono</string>
     <string name="turnip_not_adrenotools">To nie jest sterownik AdrenoTools: %1$s</string>

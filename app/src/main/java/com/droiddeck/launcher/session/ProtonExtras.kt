@@ -192,7 +192,7 @@ object ProtonExtras {
         val verified = when {
             asset.sha256 != null -> asset.sha256.equals(Hashes.sha256(archive), ignoreCase = true)
             asset.sha512 != null -> {
-                val expected = Downloader.downloadString(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }
+                val expected = Downloader.downloadDirect(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }
                     ?: return context.getString(R.string.pextra_checksum_unreadable)
                 expected.equals(Hashes.sha512(archive), ignoreCase = true)
             }

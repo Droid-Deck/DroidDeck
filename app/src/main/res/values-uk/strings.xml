@@ -1706,7 +1706,6 @@
     <string name="adbpair_done_text">Торкніться, щоб повернутися до DroidDeck. Тепер можна вимкнути бездротове налагодження.</string>
     <string name="adbpair_title_failed">Налаштування бездротового налагодження зупинено</string>
 
-    <string name="selfinst_http">Завантаження відповіло HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Розмір завантаження не збігся з опублікованим APK, тож його відхилено - спробуйте ще раз</string>
     <string name="selfinst_checksum_mismatch">Завантаження не збіглося з контрольною сумою, тож його відхилено - спробуйте ще раз</string>
     <string name="selfinst_wrong_package">Оновлення призначене для пакета Android %1$s, а не %2$s</string>
@@ -1804,7 +1803,6 @@
 
     <string name="turnip_rate_limited">Перевищено ліміт запитів GitHub - спробуйте пізніше</string>
     <string name="turnip_github_http">GitHub відповів HTTP %1$d</string>
-    <string name="turnip_download_http">завантаження відповіло HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Цей список драйверів створено до появи контрольних сум - оновіть його і спробуйте ще раз</string>
     <string name="turnip_checksum_mismatch">Контрольна сума не збіглася - завантаження відхилено</string>
     <string name="turnip_not_adrenotools">Не драйвер AdrenoTools: %1$s</string>

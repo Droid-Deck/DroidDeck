@@ -1693,7 +1693,6 @@
     <string name="adbpair_done_text">Appuyez pour revenir à DroidDeck. Vous pouvez maintenant désactiver le débogage sans fil.</string>
     <string name="adbpair_title_failed">Configuration du débogage sans fil interrompue</string>
 
-    <string name="selfinst_http">Le téléchargement a renvoyé HTTP %1$d</string>
     <string name="selfinst_size_mismatch">La taille du téléchargement ne correspond pas à l\'APK publié ; il a été supprimé - réessayez</string>
     <string name="selfinst_checksum_mismatch">Le téléchargement ne correspond pas à sa somme de contrôle et a été supprimé - réessayez</string>
     <string name="selfinst_wrong_package">La mise à jour concerne le paquet Android %1$s, et non %2$s</string>
@@ -1791,7 +1790,6 @@
 
     <string name="turnip_rate_limited">Limite de requêtes GitHub atteinte - réessayez plus tard</string>
     <string name="turnip_github_http">GitHub a répondu HTTP %1$d</string>
-    <string name="turnip_download_http">le téléchargement a répondu HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Cette liste de pilotes est antérieure aux sommes de contrôle - actualisez-la et réessayez</string>
     <string name="turnip_checksum_mismatch">Somme de contrôle incorrecte - le téléchargement a été supprimé</string>
     <string name="turnip_not_adrenotools">Ce n\'est pas un pilote AdrenoTools : %1$s</string>

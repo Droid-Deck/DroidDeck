@@ -1651,7 +1651,6 @@
     <string name="adbpair_done_text">輕按即可返回 DroidDeck。你現在可以關閉無線偵錯。</string>
     <string name="adbpair_title_failed">無線偵錯設定已停止</string>
 
-    <string name="selfinst_http">下載回應 HTTP %1$d</string>
     <string name="selfinst_size_mismatch">下載的大小與已發佈的 APK 不符，已被捨棄 - 請再試一次</string>
     <string name="selfinst_checksum_mismatch">下載的檔案與其校驗和不符，已被捨棄 - 請再試一次</string>
     <string name="selfinst_wrong_package">此更新屬於 Android 套件 %1$s，而非 %2$s</string>
@@ -1749,7 +1748,6 @@
 
     <string name="turnip_rate_limited">已達 GitHub 的速率限制 - 請稍後再試</string>
     <string name="turnip_github_http">GitHub 回應 HTTP %1$d</string>
-    <string name="turnip_download_http">下載回應 HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">此驅動程式清單早於校驗和推出 - 請重新整理後再試一次</string>
     <string name="turnip_checksum_mismatch">校驗和不符 - 已捨棄下載的檔案</string>
     <string name="turnip_not_adrenotools">不是 AdrenoTools 驅動程式：%1$s</string>

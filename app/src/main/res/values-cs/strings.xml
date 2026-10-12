@@ -1706,7 +1706,6 @@
     <string name="adbpair_done_text">Klepnutím se vrátíte do DroidDecku. Bezdrátové ladění teď můžete vypnout.</string>
     <string name="adbpair_title_failed">Nastavení bezdrátového ladění bylo zastaveno</string>
 
-    <string name="selfinst_http">Stahování odpovědělo HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Velikost stahování neodpovídala zveřejněnému APK a bylo zahozeno - zkuste to znovu</string>
     <string name="selfinst_checksum_mismatch">Stahování neodpovídalo svému kontrolnímu součtu a bylo zahozeno - zkuste to znovu</string>
     <string name="selfinst_wrong_package">Aktualizace je pro balíček Androidu %1$s, ne %2$s</string>
@@ -1804,7 +1803,6 @@
 
     <string name="turnip_rate_limited">Byl dosažen limit požadavků GitHubu - zkuste to později</string>
     <string name="turnip_github_http">GitHub odpověděl HTTP %1$d</string>
-    <string name="turnip_download_http">stahování odpovědělo HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Tento seznam ovladačů předchází kontrolním součtům - obnovte ho a zkuste to znovu</string>
     <string name="turnip_checksum_mismatch">Neshoda kontrolního součtu - stahování bylo zahozeno</string>
     <string name="turnip_not_adrenotools">Není ovladač AdrenoTools: %1$s</string>

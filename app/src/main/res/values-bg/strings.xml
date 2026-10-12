@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Докосни, за да се върнеш в DroidDeck. Вече можеш да изключиш безжичното отстраняване на грешки.</string>
     <string name="adbpair_title_failed">Настройката на безжичното отстраняване на грешки спря</string>
 
-    <string name="selfinst_http">Изтеглянето отговори с HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Размерът на изтеглянето не съответстваше на публикуваното APK и беше отхвърлен - опитай отново</string>
     <string name="selfinst_checksum_mismatch">Изтеглянето не съответстваше на контролната си сума и беше отхвърлено - опитай отново</string>
     <string name="selfinst_wrong_package">Актуализацията е за Android пакета %1$s, а не за %2$s</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">Достигнато е ограничението на GitHub за заявки - опитай отново по-късно</string>
     <string name="turnip_github_http">GitHub отговори с HTTP %1$d</string>
-    <string name="turnip_download_http">изтеглянето отговори с HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Този списък с драйвери е отпреди въвеждането на контролни суми - обнови го и опитай отново</string>
     <string name="turnip_checksum_mismatch">Несъответствие в контролната сума - изтеглянето беше отхвърлено</string>
     <string name="turnip_not_adrenotools">Не е драйвер за AdrenoTools: %1$s</string>

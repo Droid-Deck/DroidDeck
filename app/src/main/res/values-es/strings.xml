@@ -1693,7 +1693,6 @@
     <string name="adbpair_done_text">Toca para volver a DroidDeck. Ya puedes desactivar la Depuración inalámbrica.</string>
     <string name="adbpair_title_failed">Se detuvo la configuración de la Depuración inalámbrica</string>
 
-    <string name="selfinst_http">La descarga respondió HTTP %1$d</string>
     <string name="selfinst_size_mismatch">El tamaño de la descarga no coincidía con el APK publicado y se descartó - inténtalo de nuevo</string>
     <string name="selfinst_checksum_mismatch">La descarga no coincidía con su suma de verificación y se descartó - inténtalo de nuevo</string>
     <string name="selfinst_wrong_package">La actualización es para el paquete de Android %1$s, no %2$s</string>
@@ -1791,7 +1790,6 @@
 
     <string name="turnip_rate_limited">Se alcanzó el límite de solicitudes de GitHub - inténtalo más tarde</string>
     <string name="turnip_github_http">GitHub respondió HTTP %1$d</string>
-    <string name="turnip_download_http">la descarga respondió HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Esta lista de controladores es anterior a las sumas de verificación - actualízala e inténtalo de nuevo</string>
     <string name="turnip_checksum_mismatch">La suma de verificación no coincide - se descartó la descarga</string>
     <string name="turnip_not_adrenotools">No es un controlador de AdrenoTools: %1$s</string>

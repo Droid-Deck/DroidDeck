@@ -1685,7 +1685,6 @@
     <string name="adbpair_done_text">Tocca per tornare a DroidDeck. Ora puoi disattivare il debug wireless.</string>
     <string name="adbpair_title_failed">Configurazione del debug wireless interrotta</string>
 
-    <string name="selfinst_http">Il download ha risposto HTTP %1$d</string>
     <string name="selfinst_size_mismatch">La dimensione del download non corrispondeva all\'APK pubblicato ed è stato scartato - riprova</string>
     <string name="selfinst_checksum_mismatch">Il download non corrispondeva al suo checksum ed è stato scartato - riprova</string>
     <string name="selfinst_wrong_package">L\'aggiornamento è per il pacchetto Android %1$s, non %2$s</string>
@@ -1783,7 +1782,6 @@
 
     <string name="turnip_rate_limited">Raggiunto il limite di richieste di GitHub - riprova più tardi</string>
     <string name="turnip_github_http">GitHub ha risposto HTTP %1$d</string>
-    <string name="turnip_download_http">il download ha risposto HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Questo elenco di driver è anteriore ai checksum - aggiornalo e riprova</string>
     <string name="turnip_checksum_mismatch">Checksum non corrispondente - il download è stato scartato</string>
     <string name="turnip_not_adrenotools">Non è un driver AdrenoTools: %1$s</string>

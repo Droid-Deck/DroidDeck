@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">DroidDeck पर वापस जाने के लिए टैप करें। अब आप वायरलेस डीबगिंग बंद कर सकते हैं।</string>
     <string name="adbpair_title_failed">वायरलेस डीबगिंग सेटअप रुक गया</string>
 
-    <string name="selfinst_http">डाउनलोड ने HTTP %1$d जवाब दिया</string>
     <string name="selfinst_size_mismatch">डाउनलोड का आकार पब्लिश किए APK से मेल नहीं खाया और इसे हटा दिया गया - फिर कोशिश करें</string>
     <string name="selfinst_checksum_mismatch">डाउनलोड अपने चेकसम से मेल नहीं खाया और इसे हटा दिया गया - फिर कोशिश करें</string>
     <string name="selfinst_wrong_package">यह अपडेट Android पैकेज %1$s के लिए है, %2$s के लिए नहीं</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">GitHub की रेट लिमिट पार हो गई - बाद में फिर कोशिश करें</string>
     <string name="turnip_github_http">GitHub ने HTTP %1$d जवाब दिया</string>
-    <string name="turnip_download_http">डाउनलोड ने HTTP %1$d जवाब दिया</string>
     <string name="turnip_list_predates_checksums">यह ड्राइवर लिस्ट चेकसम से पुरानी है - इसे रीफ़्रेश करें और फिर कोशिश करें</string>
     <string name="turnip_checksum_mismatch">चेकसम मेल नहीं खाया - डाउनलोड हटा दिया गया</string>
     <string name="turnip_not_adrenotools">यह AdrenoTools ड्राइवर नहीं है: %1$s</string>

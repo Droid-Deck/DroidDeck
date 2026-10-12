@@ -1664,7 +1664,6 @@
     <string name="adbpair_done_text">Tryk for at gå tilbage til DroidDeck. Du kan slukke Trådløs fejlretning nu.</string>
     <string name="adbpair_title_failed">Opsætning af Trådløs fejlretning stoppet</string>
 
-    <string name="selfinst_http">Downloadet svarede HTTP %1$d</string>
     <string name="selfinst_size_mismatch">Downloadets størrelse passede ikke med den udgivne APK og blev kasseret - forsøg igen</string>
     <string name="selfinst_checksum_mismatch">Downloadet matchede ikke sin tjeksum og blev kasseret - forsøg igen</string>
     <string name="selfinst_wrong_package">Opdateringen er til Android-pakken %1$s, ikke %2$s</string>
@@ -1762,7 +1761,6 @@
 
     <string name="turnip_rate_limited">GitHubs hastighedsgrænse blev nået - forsøg igen senere</string>
     <string name="turnip_github_http">GitHub svarede HTTP %1$d</string>
-    <string name="turnip_download_http">downloadet svarede HTTP %1$d</string>
     <string name="turnip_list_predates_checksums">Denne driverliste er ældre end tjeksummer - opdater den, og forsøg igen</string>
     <string name="turnip_checksum_mismatch">Tjeksum stemmer ikke - downloadet blev kasseret</string>
     <string name="turnip_not_adrenotools">Ikke en AdrenoTools-driver: %1$s</string>

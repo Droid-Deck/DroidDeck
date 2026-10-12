@@ -1727,7 +1727,7 @@
     <string name="adbpair_done_text">Tap to go back to DroidDeck. You can turn Wireless debugging off now.</string>
     <string name="adbpair_title_failed">Wireless debugging setup stopped</string>
 
-    <string name="selfinst_http">The download answered HTTP %1$d</string>
+    <string name="selfinst_download_failed">Download failed</string>
     <string name="selfinst_size_mismatch">The download size didn\'t match the published APK and was discarded - try again</string>
     <string name="selfinst_checksum_mismatch">The download didn\'t match its checksum and was discarded - try again</string>
     <string name="selfinst_wrong_package">The update is for Android package %1$s, not %2$s</string>
@@ -1825,7 +1825,7 @@
 
     <string name="turnip_rate_limited">GitHub\'s rate limit was hit - try again later</string>
     <string name="turnip_github_http">GitHub answered HTTP %1$d</string>
-    <string name="turnip_download_http">download answered HTTP %1$d</string>
+    <string name="turnip_download_failed">Download failed</string>
     <string name="turnip_list_predates_checksums">This driver list predates checksums - refresh it and try again</string>
     <string name="turnip_checksum_mismatch">Checksum mismatch - the download was discarded</string>
     <string name="turnip_not_adrenotools">Not an AdrenoTools driver: %1$s</string>
@@ -2204,6 +2204,14 @@
     <string name="setup_group_look">Look</string>
     <string name="setup_group_device">This device</string>
     <string name="setup_group_art">Library art</string>
+    <string name="setup_group_download">Downloads</string>
+    <string name="setup_download_source">Source</string>
+    <string name="setup_download_source_auto">Automatic</string>
+    <string name="setup_download_source_direct">Direct</string>
+    <string name="setup_download_source_mirror">Mirror</string>
+    <string name="setup_download_source_custom">Custom prefix</string>
+    <string name="setup_download_mirror">Site</string>
+    <string name="setup_download_prefix">Prefix</string>
     <string name="flathub_eyebrow">LINUX APPS</string>
     <string name="flathub_name">Flathub</string>
     <string name="flathub_line">Desktop apps for the Linux desktop, opened from Desktop.</string>

@@ -47,6 +47,7 @@ import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.core.CpuCores
+import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.core.WirelessAdbFix
@@ -155,6 +156,9 @@ class MainActivity : ComponentActivity() {
     private var stretch16x9 by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherFullscreen by mutableStateOf(true)
+    private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
+    private var downloadMirror by mutableStateOf("")
+    private var downloadPrefix by mutableStateOf("")
     private var animationsEnabled by mutableStateOf(true)
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
@@ -515,6 +519,10 @@ class MainActivity : ComponentActivity() {
         orientation = SessionPrefs.orientation(this)
         requestedOrientation = orientation
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
+        downloadSource = DownloadSource.mode(this)
+        downloadMirror = DownloadSource.mirror(this)
+        downloadPrefix = DownloadSource.custom(this)
+        DownloadSource.probe()
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
@@ -571,6 +579,9 @@ class MainActivity : ComponentActivity() {
                         showPhantomGate = showPhantomGate,
                         orientation = orientation,
                         launcherFullscreen = launcherFullscreen,
+                        downloadSource = downloadSource,
+                        downloadMirror = downloadMirror,
+                        downloadPrefix = downloadPrefix,
                         animationsEnabled = animationsEnabled,
                         gameStoresEnabled = gameStoresEnabled,
                         gameStoresSpeedTier = gameStoresSpeedTier,
@@ -749,6 +760,18 @@ class MainActivity : ComponentActivity() {
                             SessionPrefs.setAnimationsEnabled(this, on)
                             animationsEnabled = on
                             com.droiddeck.launcher.ui.Motion.refresh(this)
+                        },
+                        onDownloadSource = { mode ->
+                            DownloadSource.setMode(this, mode)
+                            downloadSource = mode
+                        },
+                        onDownloadMirror = { host ->
+                            DownloadSource.setMirror(this, host)
+                            downloadMirror = host
+                        },
+                        onDownloadPrefix = { prefix ->
+                            DownloadSource.setCustom(this, prefix)
+                            downloadPrefix = DownloadSource.custom(this)
                         },
                         onHomeApp = { manageHomeApp() },
                         onHomeScreen = { on ->
