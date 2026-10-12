@@ -87,6 +87,30 @@ object GogAuth {
         }
     }
 
+    class GameToken(val accessToken: String, val userId: String)
+
+    /** The Galaxy refresh token exchanged for one scoped to a game's own client. Blocking. */
+    fun gameToken(context: Context, clientId: String, clientSecret: String): GameToken? {
+        val json = StoreAccounts.read(context, Store.GOG) ?: return null
+        val refresh = json.optString("refresh_token", "").ifEmpty { return null }
+        var conn: HttpURLConnection? = null
+        return try {
+            val enc = { s: String -> java.net.URLEncoder.encode(s, "UTF-8") }
+            conn = (URL("https://auth.gog.com/token?client_id=${enc(clientId)}&client_secret=${enc(clientSecret)}&grant_type=refresh_token&refresh_token=${enc(refresh)}")
+                .openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 15_000 }
+            conn.setRequestProperty("User-Agent", "GOG Galaxy")
+            if (conn.responseCode != 200) { Log.w(TAG, "game token: HTTP ${conn.responseCode}"); return null }
+            val o = JSONObject(conn.inputStream.bufferedReader().readText())
+            val access = o.optString("access_token").ifEmpty { return null }
+            GameToken(access, o.optString("user_id").ifEmpty { json.optString("user_id") })
+        } catch (e: Exception) {
+            Log.w(TAG, "game token failed: ${e.javaClass.simpleName}")
+            null
+        } finally {
+            runCatching { conn?.disconnect() }
+        }
+    }
+
     /** Hosts the GOG login page hands off to for a social sign-in; they refuse an embedded browser's identity. */
     fun isIdentityProviderHost(host: String?): Boolean {
         val h = host?.lowercase() ?: return false

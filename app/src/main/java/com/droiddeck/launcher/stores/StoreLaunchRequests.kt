@@ -19,6 +19,9 @@ object StoreLaunchRequests {
     private val lock = Any()
     private var observer: FileObserver? = null
 
+    /** The store game this session last started; covers Steam's own Play button. */
+    @Volatile var lastLaunched: Pair<Store, String>? = null
+
     fun dir(context: Context) = File(LinuxRuntime.sessionRoot(context), "stores")
 
     /** Before each session: nothing of the last one's requests; then watch for new ones. */
@@ -28,6 +31,7 @@ object StoreLaunchRequests {
             observer?.stopWatching()
             val root = dir(app)
             root.deleteRecursively()
+            lastLaunched = null
             val req = File(root, "req").apply { mkdirs() }
             File(root, "resp").mkdirs()
             @Suppress("DEPRECATION")
@@ -59,6 +63,7 @@ object StoreLaunchRequests {
                 val id = request.optString("id")
                 if (id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-id")
                 else {
+                    lastLaunched = Store.EPIC to id
                     val code = StoreLaunch.epicCode(app, id)
                     JSONObject().put("ok", true).put("code", code.written).put("reason", code.reason)
                 }
@@ -70,6 +75,7 @@ object StoreLaunchRequests {
                 val id = request.optString("id")
                 if (store == null || id.isEmpty()) JSONObject().put("ok", false).put("reason", "no-game")
                 else {
+                    lastLaunched = store to id
                     // Marked before the game runs: whatever ends it, an upload follows (CloudSaves.uploadDirty).
                     CloudSaves.markDirty(app, store, id)
                     CloudSaves.downloadOrDefer(app, store, id).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }

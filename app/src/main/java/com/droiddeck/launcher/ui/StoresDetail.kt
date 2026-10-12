@@ -36,6 +36,7 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
@@ -128,6 +129,15 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     if (description.isNotBlank()) Rise(2) {
         Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
     }
+    val achievements = remember(store, id, item?.owned, installed) {
+        when {
+            StoreAchievements.forSource(store.id) == null -> null
+            item?.owned == true -> StoreAchievements.Game.of(item)
+            installed != null -> StoreAchievements.Game.of(installed.sidecar)
+            else -> null
+        }
+    }
+    if (achievements != null) Rise(3) { StoreAchievementsSection(achievements) }
 }
 
 /**

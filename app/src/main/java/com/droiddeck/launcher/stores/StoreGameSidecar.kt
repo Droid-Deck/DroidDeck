@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores
 
+import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -89,6 +90,12 @@ class StoreGameSidecar(
         const val STATE_INSTALLING = "installing"
 
         fun file(folder: File): File = File(folder, FILE_NAME)
+
+        /** An installed game's sidecar; walks the install folders. */
+        fun find(context: Context, store: Store, id: String): StoreGameSidecar? =
+            StoreInstallRoot.gameFolders(context.applicationContext).asSequence()
+                .mapNotNull { read(it) }
+                .firstOrNull { it.store == store && it.id == id }
 
         /**
          * Changes an Epic game's launch choices on disk: reads the sidecar fresh (never a copy held

@@ -223,6 +223,10 @@ class DrawerActions(
     val onHardwareKeyboard: () -> Unit,
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
+    /** Null hides the achievements row. */
+    val onAchievements: (() -> Unit)? = null,
+    /** (unlocked, total), or null when unknown. */
+    val achievementsProgress: Pair<Int, Int>? = null,
     val onOsc: (String) -> Unit,
     /** Edits the Steam touch layout of the game in front, when Steam's controls are up. */
     val onEditSteamTouch: (() -> Unit)? = null,
@@ -405,6 +409,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                     }
                     StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
+                }
+                a.onAchievements?.let { show ->
+                    DrawerAchievementsRow(a.achievementsProgress, Modifier.padding(top = if (short) 6.dp else 10.dp).then(focus.track(page, "achievements"))) {
+                        host.open = null; show()
+                    }
                 }
 
                 Row(

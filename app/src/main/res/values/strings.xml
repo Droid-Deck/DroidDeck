@@ -2122,6 +2122,19 @@
     <string name="stores_eyebrow_installed">installed</string>
     <string name="stores_eyebrow_library">in your library</string>
     <string name="stores_eyebrow_store">store</string>
+    <!-- A GOG or Epic game's achievements: the store page's section and the session panel. -->
+    <string name="achievements_title">Achievements</string>
+    <string name="achievements_count">%1$d of %2$d unlocked</string>
+    <string name="achievements_count_short">%1$d / %2$d</string>
+    <string name="achievements_group_unlocked">Unlocked · %1$d</string>
+    <string name="achievements_group_locked">Locked · %1$d</string>
+    <string name="achievements_hidden">Hidden achievement</string>
+    <string name="achievements_hidden_detail">Details are shown once it is unlocked.</string>
+    <string name="achievements_all">Every achievement unlocked</string>
+    <string name="achievements_reading">Reading…</string>
+    <string name="achievements_signed_out">Sign in to %1$s to see your achievements.</string>
+    <string name="achievements_unreachable">Could not reach %1$s. Check back once you are online.</string>
+    <string name="achievements_none">%1$s lists no achievements for this game.</string>
     <string name="stores_in_steam">✓ In Steam</string>
     <string name="stores_uninstall">Uninstall</string>
     <string name="stores_uninstalling">Uninstalling…</string>

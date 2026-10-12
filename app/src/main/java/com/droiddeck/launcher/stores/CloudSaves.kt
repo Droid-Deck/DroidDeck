@@ -137,7 +137,7 @@ object CloudSaves {
             val galaxy = GogAuth.validToken(context)
             val clientId = gogClientId(context, id, folder)
             if (userId.isEmpty() || galaxy == null || clientId == null) null
-            else GogCloud(userId, clientId, gogScopedToken(context, id, clientId, account?.optString("refresh_token").orEmpty()) ?: galaxy)
+            else GogCloud(userId, clientId, gogScopedToken(context, id, clientId) ?: galaxy)
         }
         Store.EPIC -> {
             val token = EpicCredentialStore.getValidAccessToken(context)
@@ -148,17 +148,9 @@ object CloudSaves {
     }
 
     /** GOG cloud storage wants a token issued to the game's own client: the Galaxy refresh token, exchanged with the game's id and secret. */
-    private fun gogScopedToken(context: Context, id: String, clientId: String, refresh: String): String? {
+    private fun gogScopedToken(context: Context, id: String, clientId: String): String? {
         val secret = GogPrefs.get(context).getString("client_secret_$id", null)?.ifEmpty { null } ?: return null
-        if (refresh.isEmpty()) return null
-        return try {
-            val enc = { s: String -> java.net.URLEncoder.encode(s, "UTF-8") }
-            val c = URL("https://auth.gog.com/token?client_id=${enc(clientId)}&client_secret=${enc(secret)}&grant_type=refresh_token&refresh_token=${enc(refresh)}").openConnection() as HttpURLConnection
-            c.connectTimeout = 15_000; c.readTimeout = 15_000
-            c.setRequestProperty("User-Agent", "GOG Galaxy")
-            if (c.responseCode != 200) { c.disconnect(); return null }
-            JSONObject(c.inputStream.bufferedReader().readText()).optString("access_token").ifEmpty { null }.also { c.disconnect() }
-        } catch (e: Exception) { null }
+        return GogAuth.gameToken(context, clientId, secret)?.accessToken
     }
 
     // ---- sync -----------------------------------------------------------------------------------
