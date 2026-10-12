@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -42,6 +43,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -84,11 +90,19 @@ fun DriverPage(
     // D-pad: up from the first driver lands on refresh; the page opens with the driver in use focused.
     val refreshFocus = remember { FocusRequester() }
     val selectedFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { selectedFocus.requestFocus() } }
+    val inputMode = LocalInputModeManager.current
+    var pageFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(inputMode.inputMode) {
+        if (inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
+        // The chooser holds controller focus until its closing animation finishes.
+        snapshotFlow { Steps.step }.first { it == null }
+        focusWithinFrames({ pageFocused }) { selectedFocus }
+    }
     val refreshSrc = remember { MutableInteractionSource() }
     val refreshHot = refreshSrc.collectIsFocusedAsState().value || refreshSrc.collectIsHoveredAsState().value
     SettingsPage(
         host, title = title, onBack = onBack, lede = "$hint\n$status",
+        modifier = Modifier.onFocusChanged { pageFocused = it.hasFocus }.focusGroup(),
         action = {
             Box(
                 contentAlignment = Alignment.Center,

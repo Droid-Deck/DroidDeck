@@ -137,7 +137,7 @@ class WinComponentsTest(unittest.TestCase):
         self.pick("openal")
         globals_ = GAME_ENV["win_components"].__globals__
         real = runpy.run_path(str(BIN / "droiddeck-wincomponents"))
-        real["apply"].__defaults__ = (self.selection, self.store)
+        real["apply"].__defaults__ = (self.selection, self.store, self.selection.parent / "no-pending.json", None)
         with mock.patch.dict(globals_, {"runpy": mock.Mock(run_path=lambda _path: real)}):
             self.assertEqual(GAME_ENV["win_components"](str(self.compat) + "/", "2571976725"), "openal32=n,b")
             self.assertEqual(GAME_ENV["win_components"]("", "2571976725"), "")
@@ -164,6 +164,59 @@ class WinComponentsTest(unittest.TestCase):
 
     def test_overrides_value_last_word_wins_and_refuses_junk(self):
         self.assertEqual(MODULE["overrides_value"](["a", "b=n", "a=b", "bad;name", "c=x"]), "b=n;a=b")
+
+
+class PendingWaitTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.store = root / "store"
+        self.pending = root / "pending.json"
+        self.slept = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def install(self, cid):
+        folder = self.store / cid
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "component.json").write_text(json.dumps({"id": cid, "overrides": []}))
+
+    def clock(self):
+        return len(self.slept) * 0.5
+
+    def wait(self, timeout=10.0, on_sleep=None):
+        def sleep(seconds):
+            self.slept.append(seconds)
+            if on_sleep:
+                on_sleep(len(self.slept))
+        return MODULE["wait_for_pending"]("1262580", self.pending, self.store, timeout, sleep, self.clock)
+
+    def test_nothing_pending_means_no_wait(self):
+        self.assertIsNone(self.wait())
+        self.pending.write_text(json.dumps({"games": {"999": ["d3dx9"]}}))
+        self.assertIsNone(self.wait())
+        self.install("d3dx9")
+        self.pending.write_text(json.dumps({"games": {"1262580": ["d3dx9"]}}))
+        self.assertIsNone(self.wait())
+        self.assertEqual([], self.slept)
+
+    def test_waits_until_the_component_lands(self):
+        self.pending.write_text(json.dumps({"games": {"1262580": ["vcredist2019_dll"]}}))
+        note = self.wait(on_sleep=lambda n: self.install("vcredist2019_dll") if n == 3 else None)
+        self.assertEqual(3, len(self.slept))
+        self.assertEqual("wincomp: 1262580 waited 1500ms for vcredist2019_dll", note)
+
+    def test_gives_up_cleanly_after_the_timeout(self):
+        self.pending.write_text(json.dumps({"games": {"1262580": ["vcredist2019_dll", "d3dx9"]}}))
+        self.install("d3dx9")
+        note = self.wait(timeout=2.0)
+        self.assertEqual(4, len(self.slept))
+        self.assertEqual("wincomp: 1262580 launched without vcredist2019_dll (not ready)", note)
+
+    def test_a_damaged_pending_file_is_no_wait(self):
+        self.pending.write_text("{not json")
+        self.assertIsNone(self.wait())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,434 @@
+#!/usr/bin/python3
+"""Runs a program from the desktop: a Windows program through the Proton Steam has chosen, a Linux
+program (x86 ones under FEX), an AppImage, or a script (under FEX beside x86 programs, as a game's
+start script is). Shared storage is noexec: FEX runs x86 programs there where they lie (libblsession's
+noexec.c), while a native one is copied - alone into the cache, or with its folder by the app once (as
+Add an app does) when that holds native programs or libraries. A Steam library's games are Steam's.
+
+    droiddeck-open [--window | --terminal] FILE [ARGS...]   the file manager's Run entries
+    droiddeck-open --exec FILE [ARGS...]                     an exec the kernel refused (libblsession)
+    droiddeck-open --install                                 the Run entries and default handlers
+
+The desktop composites in software, so a program started from it goes full screen on the GPU
+(droiddeck-gpu), as the menu's games do: --window keeps it in a desktop window instead, --terminal
+runs it in Konsole. A plain script stays on the desktop, and an exec whose output is read (a terminal,
+a pipe, a file) stays where it was started.
+"""
+import fcntl
+import hashlib
+import os
+import runpy
+import shutil
+import stat
+import subprocess
+import sys
+import time
+
+HOME = os.environ.get("HOME") or "/root"
+BIN = "/usr/local/bin"
+FEX = os.path.join(BIN, "droiddeck-fex")
+GPU = os.path.join(BIN, "droiddeck-gpu")
+PROTON_RUN = os.path.join(BIN, "droiddeck-proton-run")
+APPIMAGE_RUN = os.path.join(BIN, "droiddeck-appimage-run")
+SCRIPT_RUN = os.path.join(BIN, "droiddeck-script-run")
+STEAM_LAUNCH = os.path.join(BIN, "droiddeck-steam-launch")
+CACHE = os.path.join(HOME, ".cache", "droiddeck")
+# Where the app adds each kind, and what an added one holds.
+IMPORTS = {"appimage": ("/opt/appimages/user", "app"), "folder": ("/opt/droiddeck-apps", "entry")}
+# Android's own folders on shared storage: never copied in whole.
+SHARED_FOLDERS = ("alarms", "android", "audiobooks", "dcim", "documents", "download", "movies", "music",
+                  "notifications", "pictures", "podcasts", "recordings", "ringtones")
+SCAN_LIMIT = 4000
+APPS_DIR = "/usr/local/share/applications"
+WINDOWS = (".exe", ".bat", ".cmd", ".com", ".msi")
+NOT_PROGRAMS = (".dll", ".sys", ".drv", ".cpl", ".ocx", ".efi", ".scr", ".mui")
+SCRIPTS = (".sh", ".bash")
+MACHINES = {3: "i386", 62: "x86_64", 183: "arm64"}
+EMULATED = (3, 62)
+QUICK_FAILURE = 20
+IMPORT_WAIT = 1800
+WINDOWS_TYPES = ("application/x-ms-dos-executable", "application/x-msdownload",
+                 "application/vnd.microsoft.portable-executable", "application/x-msi", "application/x-bat")
+SCRIPT_TYPES = ("application/x-shellscript", "text/x-shellscript")
+LINUX_TYPES = ("application/x-executable", "application/x-pie-executable", "application/vnd.appimage")
+ENTRIES = (
+    ("droiddeck-open.desktop", "Run", "", WINDOWS_TYPES + SCRIPT_TYPES + LINUX_TYPES),
+    ("droiddeck-open-window.desktop", "Run in a Desktop Window", "--window ", WINDOWS_TYPES + SCRIPT_TYPES + LINUX_TYPES),
+    ("droiddeck-open-terminal.desktop", "Run in Konsole", "--terminal ", SCRIPT_TYPES + LINUX_TYPES),
+)
+
+
+def say(message):
+    print("droiddeck-open: %s" % message, file=sys.stderr, flush=True)
+
+
+def notify(title, body, icon="dialog-error"):
+    if not os.environ.get("DBUS_SESSION_BUS_ADDRESS") or not shutil.which("notify-send"):
+        return
+    try:
+        subprocess.run(["notify-send", "-a", "DroidDeck", "-i", icon, title, body],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def head(path, size=64):
+    try:
+        with open(path, "rb") as f:
+            return f.read(size)
+    except OSError:
+        return b""
+
+
+def machine(data):
+    if len(data) < 20 or data[:4] != b"\x7fELF":
+        return None
+    return int.from_bytes(data[18:20], "big" if data[5] == 2 else "little")
+
+
+def kind(path):
+    data = head(path)
+    ext = os.path.splitext(path)[1].lower()
+    if data[:4] == b"\x7fELF":
+        return "appimage" if data[8:11] == b"AI\x02" or ext == ".appimage" else "elf"
+    if ext in NOT_PROGRAMS:
+        return None
+    if ext in WINDOWS or data[:2] == b"MZ":
+        return "windows"
+    if data[:2] == b"#!" or ext in SCRIPTS:
+        return "script"
+    return None
+
+
+def noexec(path):
+    try:
+        return bool(os.statvfs(path).f_flag & os.ST_NOEXEC)
+    except OSError:
+        return False
+
+
+def interpreter(path):
+    line = head(path, 256).split(b"\n", 1)[0].rstrip(b"\r")
+    if line.startswith(b"#!"):
+        words = line[2:].decode("utf-8", "replace").split()
+        if words:
+            return words
+    return ["/bin/bash"]
+
+
+def for_x86(script):
+    return subprocess.call([FEX, "needs", os.path.dirname(script)], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL) == 0
+
+
+def runnable(path):
+    """The program itself, or a copy in the cache of a native one on noexec storage."""
+    if not noexec(path) or machine(head(path)) in EMULATED:
+        return path
+    st = os.stat(path)
+    key = hashlib.sha1(os.path.realpath(path).encode("utf-8")).hexdigest()[:16]
+    copy = os.path.join(CACHE, "exec", key, os.path.basename(path))
+    try:
+        same = os.stat(copy)
+        if same.st_size == st.st_size and same.st_mtime_ns == st.st_mtime_ns:
+            return copy
+    except OSError:
+        pass
+    os.makedirs(os.path.dirname(copy), exist_ok=True)
+    shutil.copyfile(path, copy + ".tmp")
+    os.utime(copy + ".tmp", ns=(st.st_atime_ns, st.st_mtime_ns))
+    os.chmod(copy + ".tmp", 0o755)
+    os.replace(copy + ".tmp", copy)
+    return copy
+
+
+def appimage(path):
+    """The image unpacked once into the cache, laid out as droiddeck-appimage-run expects."""
+    st = os.stat(path)
+    real = os.path.realpath(path)
+    key = hashlib.sha1(("%s\0%d\0%d" % (real, st.st_size, st.st_mtime_ns)).encode("utf-8")).hexdigest()[:16]
+    images = os.path.join(CACHE, "appimages")
+    return once(key, lambda: unpacked(path, real, key, images, os.path.join(images, key)))
+
+
+def once(key, make):
+    """[make]() for [key] one start at a time: a second start waits for the first, then finds it done."""
+    locks = os.path.join(CACHE, "locks")
+    os.makedirs(locks, exist_ok=True)
+    with open(os.path.join(locks, key), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return make()
+
+
+def unpacked(path, real, key, images, folder):
+    if os.path.exists(os.path.join(folder, "app", "AppRun")):
+        return folder
+    earlier = import_of(key, "appimage")
+    if earlier:
+        return earlier
+    name = os.path.splitext(os.path.basename(path))[0]
+    notify("Preparing %s" % name, "Unpacking it for its first start.", "system-run")
+    work = folder + ".tmp"
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work)
+    status = subprocess.call([FEX, "extract", real], cwd=work, stdout=subprocess.DEVNULL)
+    unpacked = os.path.realpath(os.path.join(work, "squashfs-root"))
+    if status != 0 or not os.path.isdir(unpacked):
+        shutil.rmtree(work, ignore_errors=True)
+        return imported("appimage", real, key, name)
+    os.replace(unpacked, os.path.join(work, "app"))
+    if os.path.islink(os.path.join(work, "squashfs-root")):
+        os.unlink(os.path.join(work, "squashfs-root"))
+    for file, value in (("name", name), ("arch", MACHINES.get(machine(head(path)), "")), ("source", real)):
+        with open(os.path.join(work, file), "w", encoding="utf-8") as f:
+            f.write(value + "\n")
+    for other in os.listdir(images):
+        old = os.path.join(images, other)
+        if other != key + ".tmp" and (head(os.path.join(old, "source"), 4096).decode("utf-8", "replace").strip() == real):
+            shutil.rmtree(old, ignore_errors=True)
+    os.replace(work, folder)
+    return folder
+
+
+def import_of(key, what):
+    root, made = IMPORTS[what]
+    try:
+        entries = sorted(os.listdir(root))
+    except OSError:
+        return None
+    for entry in entries:
+        folder = os.path.join(root, entry)
+        if head(os.path.join(folder, "desktop-import"), 64).split(b"\n", 1)[0] == key.encode() \
+                and os.path.exists(os.path.join(folder, made)):
+            return folder
+    return None
+
+
+def imported(what, real, key, name):
+    """[real] added by the app instead, as Add an app adds it (to the menu too): an AppImage whose hard
+    links (sharun's) only the app's own proot can make, or a folder of native programs off noexec storage."""
+    launch = os.environ.get("BL_LAUNCH_DIR")
+    if not launch or not os.path.isdir(launch):
+        raise RuntimeError("%s cannot run from here; add it in DroidDeck with Add an app." % name)
+    result = os.path.join(launch, "desktop-import-%s.result" % key)
+    request = os.path.join(launch, "desktop-import-%s.request" % key)
+    with open(request + ".tmp", "w", encoding="utf-8") as f:
+        f.write("id=%s\nkind=%s\npath=%s\n" % (key, what, real))
+    os.replace(request + ".tmp", request)
+    if what == "appimage":
+        notify("Adding %s to DroidDeck" % name, "It is unpacked once, then it starts, and it stays in the menu.", "system-run")
+    else:
+        notify("Adding %s to DroidDeck" % name, "Shared storage cannot run its programs, so the folder is copied in "
+               "once; then it starts, and it stays in the menu.", "system-run")
+    deadline = time.monotonic() + IMPORT_WAIT
+    while time.monotonic() < deadline:
+        try:
+            with open(result, encoding="utf-8") as f:
+                answer = f.read().strip()
+        except OSError:
+            time.sleep(1)
+            continue
+        os.unlink(result)
+        verdict, _, detail = answer.partition(" ")
+        if verdict == "ok" and os.path.exists(os.path.join(detail, IMPORTS[what][1])):
+            return detail
+        raise RuntimeError(detail or "DroidDeck could not add %s." % name)
+    raise RuntimeError("DroidDeck did not finish adding %s." % name)
+
+
+def game_folder(path):
+    """The folder of [path] when it runs only from a copy: on noexec storage, holding native programs or
+    libraries (besides [path]) that it starts or loads. Not the storage itself, one of Android's folders
+    or a Steam library."""
+    real = os.path.realpath(path)
+    folder = os.path.dirname(real)
+    if in_steam_library(real) or not noexec(folder):
+        return None
+    top = storage_root(folder)
+    parts = os.path.relpath(folder, top).split(os.sep)
+    if folder == top or (len(parts) == 1 and parts[0].lower() in SHARED_FOLDERS):
+        return None
+    seen = 0
+    for root, dirs, files in os.walk(folder):
+        if root[len(folder):].count(os.sep) >= 3:
+            dirs[:] = []
+        for name in files:
+            child = os.path.join(root, name)
+            if child == real:
+                continue
+            seen += 1
+            if seen > SCAN_LIMIT:
+                return None
+            if machine(head(child)) not in (None,) + EMULATED:
+                return folder
+    return None
+
+
+def in_steam_library(path):
+    """Whether [path] is in a Steam library: its games are Steam's to start, never copied in."""
+    return "steamapps" in os.path.realpath(path).lower().split(os.sep)
+
+
+def storage_root(folder):
+    """The top of the storage [folder] is on: the last folder above it on the same file system."""
+    top = folder
+    try:
+        dev = os.stat(folder).st_dev
+        while os.path.dirname(top) != top and os.stat(os.path.dirname(top)).st_dev == dev:
+            top = os.path.dirname(top)
+    except OSError:
+        pass
+    return top
+
+
+def copied_in(path):
+    """The app's copy of [path]'s folder, added (once) for it."""
+    real = os.path.realpath(path)
+    key = hashlib.sha1(("folder\0%s" % real).encode("utf-8")).hexdigest()[:16]
+    name = os.path.basename(os.path.dirname(real))
+    return once(key, lambda: import_of(key, "folder") or imported("folder", real, key, name))
+
+
+def steam_title(path):
+    """The Steam game [path] is the program of: Steam starts it, with the client most games need."""
+    try:
+        run = runpy.run_path(PROTON_RUN)
+        root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or run["STEAM_ROOT"]
+        target = run["locate"](path, root)
+        return target.appid if run["steam_launches"](target, path, root) else None
+    except (OSError, ValueError, KeyError, IndexError):
+        return None
+
+
+def command(path, args, what, window=False, appid=None):
+    """(command, working directory) that runs [path] in place."""
+    folder = os.path.dirname(path)
+    if what == "steam":
+        return [STEAM_LAUNCH, "desktop", appid], folder
+    if what == "windows":
+        return [PROTON_RUN] + (["--window"] if window else []) + [path] + args, folder
+    if what == "x86 script":
+        return [FEX, "run", "--mode", "on", "--for", folder, "--"] + interpreter(path) + [path] + args, folder
+    if what == "script":
+        return interpreter(path) + [path] + args, folder
+    if what == "appimage":
+        return [APPIMAGE_RUN, appimage(path)] + args, folder
+    if what == "folder":
+        return [SCRIPT_RUN, copied_in(path)] + args, folder
+    return [FEX, "run", "--mode", "auto", "--", runnable(path)] + args, folder
+
+
+def on_desktop(env):
+    return env.get("BL_DESKTOP") == "1" and not env.get("GAMESCOPE_WAYLAND_DISPLAY") and os.access(GPU, os.X_OK)
+
+
+def unattended(env):
+    """Nobody reads the output: it goes to /dev/null or the desktop's log, as from Dolphin or the menu."""
+    try:
+        out = os.fstat(1)
+    except OSError:
+        return True
+    if stat.S_ISCHR(out.st_mode):
+        return not os.isatty(1)
+    folder = env.get("BL_DEBUG_DIR")
+    try:
+        log = os.stat(os.path.join(folder, "desktop.log")) if folder else None
+    except OSError:
+        log = None
+    return log is not None and (log.st_dev, log.st_ino) == (out.st_dev, out.st_ino)
+
+
+def placed(cmd, what, mode, env):
+    """[cmd] where it shows: full screen on the GPU from the desktop, else where it was started."""
+    if mode == "terminal" and what not in ("windows", "steam") and shutil.which("konsole"):
+        return ["konsole", "--hold", "-e"] + cmd
+    if mode == "window" or what in ("script", "steam") or not on_desktop(env):
+        return cmd
+    if mode == "exec" and what != "windows" and not unattended(env):
+        return cmd
+    return [GPU] + cmd
+
+
+def install(directory=APPS_DIR):
+    os.makedirs(directory, exist_ok=True)
+    defaults = []
+    for file, name, option, types in ENTRIES:
+        body = ("[Desktop Entry]\nType=Application\nName=%s\nIcon=system-run\nExec=%s %s%%f\nTerminal=false\n"
+                "NoDisplay=true\nMimeType=%s;\n" % (name, os.path.join(BIN, "droiddeck-open"), option, ";".join(types)))
+        write(os.path.join(directory, file), body)
+    for mime in WINDOWS_TYPES + SCRIPT_TYPES + LINUX_TYPES:
+        defaults.append("%s=%s" % (mime, ENTRIES[0][0]))
+    added = ["%s=%s" % (mime, ";".join(f for f, _, _, types in ENTRIES if mime in types) + ";")
+             for mime in WINDOWS_TYPES + SCRIPT_TYPES + LINUX_TYPES]
+    write(os.path.join(directory, "mimeapps.list"),
+          "[Default Applications]\n%s\n\n[Added Associations]\n%s\n" % ("\n".join(defaults), "\n".join(added)))
+    return 0
+
+
+def write(path, text):
+    try:
+        with open(path, encoding="utf-8") as f:
+            if f.read() == text:
+                return
+    except OSError:
+        pass
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(path + ".tmp", path)
+
+
+def main(argv):
+    mode = "run"
+    if argv and argv[0] == "--install":
+        return install()
+    if argv and argv[0] in ("--window", "--terminal", "--exec"):
+        mode = argv.pop(0)[2:]
+    if argv and argv[0] == "--":
+        argv.pop(0)
+    if not argv:
+        say("usage: droiddeck-open [--window | --terminal | --exec] FILE [ARGS...] | --install")
+        return 2
+    path = os.path.abspath(argv[0])
+    what = kind(path)
+    if what is None:
+        say("%s is not a program this desktop can run" % path)
+        if mode != "exec":
+            notify("Cannot run %s" % os.path.basename(path), "It is not a Windows or Linux program or a script.")
+        return 126
+    linux_game = what in ("script", "elf") and mode == "run" and in_steam_library(path)
+    appid = steam_title(path) if (what == "windows" and mode != "window") or linux_game else None
+    if appid:
+        what = "steam"
+    elif what == "script" and for_x86(path):
+        what = "x86 script"
+    elif what in ("script", "elf") and game_folder(path):
+        what = "folder"
+    try:
+        cmd, folder = command(path, argv[1:], what, mode == "window", appid)
+    except (OSError, RuntimeError) as error:
+        say(str(error))
+        notify("Cannot run %s" % os.path.basename(path), str(error))
+        return 126
+    cmd = placed(cmd, what, mode, os.environ)
+    if mode != "exec" or not sys.stderr.isatty():
+        say("%s (%s): %s" % (path, what, " ".join(cmd[:4])))
+    try:
+        os.chdir(folder)
+    except OSError:
+        pass
+    if mode == "exec":
+        os.execv(cmd[0], cmd)
+    started = time.monotonic()
+    try:
+        status = subprocess.call(cmd)
+    except OSError as error:
+        status = 127
+        say("%s: %s" % (cmd[0], error))
+    if status != 0 and time.monotonic() - started < QUICK_FAILURE:
+        notify("%s did not start" % os.path.basename(path),
+               "It exited with status %d; the session's desktop.log says why." % status)
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

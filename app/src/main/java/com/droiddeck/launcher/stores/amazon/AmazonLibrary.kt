@@ -73,8 +73,11 @@ object AmazonLibrary {
             val creds = AmazonCredentialStore.load(app) ?: return SyncResult.NotLoggedIn
             val token = AmazonCredentialStore.getValidAccessToken(app) ?: return SyncResult.Failed(StoresState.notSignedInLine(Store.AMAZON))
             onStatus("Fetching game list…")
+            // Refused with the stored token (revoked, or an expiry read wrong): once more on a fresh one.
             val all = AmazonApiClient.getEntitlements(token, creds.deviceSerial)
-            if (all.isNullOrEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed("No games found in your Amazon library") else SyncResult.Ok(cachedList)
+                ?: AmazonCredentialStore.refresh(app)?.let { AmazonApiClient.getEntitlements(it, creds.deviceSerial) }
+            if (all == null) return if (cachedList.isEmpty()) SyncResult.Failed("Amazon Games did not answer for your library: refresh, or sign in again") else SyncResult.Ok(cachedList)
+            if (all.isEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed("No games found in your Amazon library") else SyncResult.Ok(cachedList)
             val games = all.filter { !(it.isDLC && it.parentProductId.isNotEmpty()) }.ifEmpty { all }
                 .sortedWith { a, b -> a.title.compareTo(b.title, ignoreCase = true) }
             for (fresh in games) cachedList.firstOrNull { it.productId == fresh.productId }?.let { fresh.versionId = it.versionId }

@@ -38,6 +38,8 @@ export MOZ_SHM_NO_SEALS=1
 # to the app as a Steam session - SteamOS's "Return to Gaming Mode". The session's own GL choice
 # (zink on Turnip, for the Steam client) is put back by droiddeck-gpu.
 export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+# mpv refuses that software GL and then fails its X11 fallback (an assertion): allowed it, it plays.
+[ -e /etc/mpv/mpv.conf ] || { mkdir -p /etc/mpv && echo gpu-sw=yes >/etc/mpv/mpv.conf; } 2>/dev/null
 export DROIDDECK_NESTED_SCALE=1
 export DROIDDECK_GLTHREAD=${mesa_glthread:-}
 unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread
@@ -75,6 +77,13 @@ python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
 # The windowed action still opens melonDS at the size/placement the LXQt desktop used.
 /usr/local/bin/droiddeck-desktop-window-rules 2>&1 | sed 's/^/[rules] /'
+# Windows programs, Linux programs, AppImages and scripts open with droiddeck-open (Steam's Proton,
+# FEX for x86); an exec the kernel refuses is handed to it as well (libblsession's binfmt.c). An
+# AppImage run directly cannot mount itself under proot, so it unpacks itself to run.
+python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
+export APPIMAGE_EXTRACT_AND_RUN=1
+# A click runs an executable script or program without KIO asking first; Dolphin's settings can still ask.
+[ -e /etc/xdg/kiorc ] || printf '[Executable scripts]\nbehaviourOnLaunch=execute\n' >/etc/xdg/kiorc 2>/dev/null
 # SteamOS's desktop icons: Return to Gaming Mode and Steam, put there once - what the user moves
 # or deletes stays that way.
 desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null); [ -n "$desktop_dir" ] && [ "$desktop_dir" != "$HOME" ] || desktop_dir=$HOME/Desktop

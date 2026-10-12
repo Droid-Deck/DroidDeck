@@ -256,6 +256,20 @@ object AppImageManager {
             "Terminal=false\nCategories=$categories\nX-DroidDeck-AppImage=$id\n")
     }
 
+    /** The desktop's import of [key]; older ones of the image at [path], since replaced, are removed. */
+    fun desktopImport(context: Context, key: String, path: String): String? {
+        var found: String? = null
+        root(context).listFiles()?.forEach { dir ->
+            val asked = FileUtils.readString(File(dir, UserApps.DESKTOP_IMPORT))?.lines() ?: return@forEach
+            if (asked.firstOrNull() == key) {
+                if (File(dir, "app").isDirectory) found = dir.name
+            } else if (asked.getOrNull(1) == path) {
+                remove(context, dir.name)
+            }
+        }
+        return found
+    }
+
     fun remove(context: Context, id: String) {
         if (id.isEmpty() || '/' in id || id.startsWith(".")) return
         FileUtils.delete(File(root(context), id))

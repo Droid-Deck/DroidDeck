@@ -75,10 +75,9 @@ object AmazonBackend : StoreBackend {
         StoresState.shelves[store] = StoreShelves(trending = items.filter { it.id !in installed }, free = emptyList(), deals = emptyList(), whatsNew = emptyList())
     }
 
-    override fun loadShelves(context: Context, force: Boolean) {
-        // Nothing public to fetch; the shelves follow the library sync.
-        if (!StoresState.library.containsKey(store)) syncLibrary(context, force)
-    }
+    // Nothing public to fetch; the shelves follow the library sync, which StoresState.open starts
+    // alongside this. A second sync here only came back Busy and cleared the first one's status.
+    override fun loadShelves(context: Context, force: Boolean) {}
 
     override fun install(context: Context, item: CatalogItem, root: File) {
         val app = context.applicationContext
@@ -119,7 +118,7 @@ object AmazonBackend : StoreBackend {
             val exe = spec.exeRelative.ifEmpty { StoreExe.pick(folder, null, game.title) }
             if (exe.isEmpty()) handle.log("amazon: no exe found in ${folder.name}; pick one in Steam settings › Added games")
             val env = LinkedHashMap<String, String>()
-            for (kv in AmazonLaunchHelper.buildFuelEnv(game.entitlementId, game.productSku)) env[kv.substringBefore('=')] = kv.substringAfter('=')
+            for (kv in AmazonLaunchHelper.buildFuelEnv(game.entitlementId, game.productSku, com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, Store.AMAZON)?.takeIf { it != Store.AMAZON.label })) env[kv.substringBefore('=')] = kv.substringAfter('=')
             val sidecar = StoreGameSidecar(
                 Store.AMAZON, game.productId, game.title, exe = exe.ifEmpty { "game.exe" }, args = spec.args, env = env,
                 installVersion = result.versionId ?: "", installedAt = System.currentTimeMillis(),
@@ -159,7 +158,7 @@ object AmazonBackend : StoreBackend {
             val code = Uri.parse(url).getQueryParameter("openid.oa2.authorization_code")
             if (code.isNullOrEmpty()) { Log.w(TAG, "login: return URL without a code"); return activity.getString(com.droiddeck.launcher.R.string.stores_login_error_verification) }
             val result = AmazonAuthClient.registerDevice(code, verifier, serial, clientId) ?: return activity.getString(com.droiddeck.launcher.R.string.stores_login_error_generic)
-            AmazonCredentialStore.save(activity, result.accessToken, result.refreshToken, serial, clientId, System.currentTimeMillis() + result.expiresIn * 1000L, result.name)
+            AmazonCredentialStore.save(activity, result.accessToken, result.refreshToken, result.deviceSerial ?: serial, clientId, System.currentTimeMillis() + result.expiresIn * 1000L, result.name)
             Log.i(TAG, "signed in")
             return null
         }

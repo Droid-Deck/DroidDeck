@@ -254,6 +254,9 @@
     <string name="mode_controller">手柄</string>
     <string name="mode_controller_hint">决定 Steam 把你的手柄识别为哪种类型，将在下次会话生效。</string>
     <string name="mode_controller_deck">Steam Deck 手柄</string>
+    <string name="mode_controller_steam">Steam Controller</string>
+    <string name="mode_controller_ds4">DualShock 4</string>
+    <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Xbox 360 手柄</string>
     <string name="mode_controller_note">Deck：快捷访问按钮与陀螺仪。Xbox 360：用 Guide+A 打开快捷访问。</string>
     <string name="mode_back">返回</string>
@@ -283,16 +286,8 @@
     <string name="mode_decky_remove_title">卸载 Decky Loader？</string>
     <string name="mode_decky_remove_text">移除加载器。你的插件和设置会保留。</string>
     <string name="mode_client">客户端</string>
-    <string name="mode_deck_mode">Steam Deck 模式</string>
-    <string name="mode_deck_mode_hint">Steam 的 Deck 界面和快捷访问性能控制。将在下次会话生效。</string>
     <string name="mode_mangoapp">性能覆盖层</string>
     <string name="mode_mangoapp_hint">若游戏在 Deck 模式下崩溃或黑屏，请关闭性能覆盖层。将在下次会话生效。</string>
-    <string name="mode_branch">客户端分支</string>
-    <string name="mode_branch_deck">Steam Deck 公开测试版（Deck 模式所必需）。</string>
-    <string name="mode_branch_hint">将在下次会话生效。Steam 可能会自行更新一次。</string>
-    <string name="mode_branch_public">公开测试版</string>
-    <string name="mode_branch_deck_beta">Steam Deck 公开测试版</string>
-    <string name="mode_branch_note">Deck 模式始终使用 Steam Deck 公开测试版。</string>
     <string name="mode_steam_repair">修复 Steam 客户端</string>
     <string name="mode_steam_repair_hint">下次启动 Steam 时重新下载 Steam 客户端。如果 Steam 一直停在加载画面，请使用此项。游戏、登录信息和设置都会保留。</string>
     <string name="mode_steam_repair_queued">下次启动 Steam 时将重新下载 Steam 客户端。</string>
@@ -312,12 +307,28 @@
     <string name="wincomp_title">Windows 组件</string>
     <string name="wincomp_pad_hint">按 LB / RB 在各部分之间跳转。</string>
     <string name="wincomp_card_none">无</string>
-    <string name="wincomp_applies">Proton 未包含的 Windows DLL，来自 Bannerlator 的组件列表。开启此游戏需要的组件：它们会放入游戏自己的 Windows 文件夹，绝不改动游戏文件，并且无论游戏使用哪个 Proton 都会保留。</string>
+    <string name="wincomp_applies">Proton 未包含的 Windows DLL，来自组件列表。开启此游戏需要的组件：它们会放入游戏自己的 Windows 文件夹，绝不改动游戏文件，并且无论游戏使用哪个 Proton 都会保留。</string>
     <string name="wincomp_offline">无法访问组件列表。已下载的组件仍可开启或关闭。</string>
     <string name="wincomp_recommended">此游戏推荐</string>
+    <string name="wincomp_checking">正在检查此游戏需要什么…</string>
+    <string name="wincomp_when_online">联网后可用</string>
+    <plurals name="wincomp_turning_on">
+        <item quantity="other">正在开启 %1$d 个组件…</item>
+    </plurals>
+    <string name="wincomp_auto_section">此游戏已开启</string>
+    <string name="wincomp_auto_steam">Steam 会随 %2$s（应用 %3$s）安装 %1$s</string>
+    <string name="wincomp_auto_gog">来自此游戏的 GOG 列表</string>
+    <string name="wincomp_auto_epic">来自此游戏的 Epic 先决条件</string>
+    <string name="wincomp_auto_amazon">来自此游戏的 Amazon 安装步骤</string>
+    <string name="wincomp_steam_by_name">Steam 会随应用 %2$s 安装 %1$s（按名称匹配）</string>
+    <string name="wincomp_suggestions">列表中的其他项</string>
+    <string name="wincomp_suggestion_reason">%1$s 列出；此处不是组件</string>
+    <string name="wincomp_src_steam">Steam</string>
+    <string name="wincomp_src_gog">GOG</string>
+    <string name="wincomp_src_epic">Epic Games</string>
+    <string name="wincomp_src_amazon">Amazon Games</string>
     <string name="wincomp_found_bundled">游戏自带 %1$s</string>
     <string name="wincomp_found_shipped">游戏含有 %1$s（通常可直接使用）</string>
-    <string name="wincomp_found_steam">Steam 会随此游戏安装 %1$s</string>
     <string name="wincomp_already_here">此游戏中已有</string>
     <string name="wincomp_no_recommendation">游戏文件夹中没有指向任何组件的内容。</string>
     <string name="wincomp_all">全部组件（%1$d）</string>
@@ -627,9 +638,6 @@
     <string name="setup_choose_home">选择主屏幕应用</string>
     <string name="setup_choose">选择</string>
     <string name="setup_linux_apps">Linux 应用（测试版）</string>
-    <string name="setup_store">Flathub 商店</string>
-    <string name="setup_store_on">显示在菜单中。部分应用可能无法启动；日志位于 Download/DroidDeck。</string>
-    <string name="setup_store_off">从 Flathub 安装 Linux 应用和游戏</string>
     <string name="setup_tool_files">文件</string>
     <string name="setup_tool_files_hint">浏览和管理文件</string>
     <string name="setup_tool_protons">Proton 版本</string>
@@ -831,6 +839,8 @@
     <string name="ctrl_steam_button">Steam 按钮</string>
     <string name="ctrl_qam_button">QAM 按钮</string>
     <string name="ctrl_keyboard_button">键盘按钮</string>
+    <string name="ctrl_select_steam">按 Select 打开 Steam 菜单</string>
+    <string name="ctrl_select_steam_hint">代替 View/Select。</string>
     <string name="setup_animations">动画</string>
     <string name="ctrl_adaptive_hint">摇杆出现在触摸处，松手后隐藏</string>
     <string name="ctrl_layout">布局</string>
@@ -1556,6 +1566,7 @@
     <!-- The on-screen button is not shown -->
     <string name="ctrl_target_hidden">隐藏</string>
     <string name="ctrl_editor_drag">拖动以移动</string>
+    <string name="ctrl_editor_snap">对齐</string>
     <string name="ctrl_editor_save">保存</string>
 
     <!-- What the second screen shows during a session -->

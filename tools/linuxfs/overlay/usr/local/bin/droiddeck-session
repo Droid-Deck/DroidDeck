@@ -50,6 +50,37 @@ prepare_locale() {
 }
 [ -z "${BL_INSIDE:-}" ] && prepare_locale
 
+# What earlier sessions left in /tmp. The guest's /tmp is a directory in the rootfs, never emptied
+# by a boot, and Android ends sessions by killing them: each left its mangoapp config, the client's
+# temporary directories and shared-memory sockets, Chromium's singleton directory (the web
+# helper's, an Electron app's), a session bus socket per run and a run's start stamp - 1,400
+# entries on a device after a few weeks. Each kind is swept while nothing that could own one runs,
+# with one find for the lot.
+clear_stale_tmp() {
+  local running names=() n
+  running=$(pgrep -af 'steamwebhelper|steamrtarm64/steam|--type=|droiddeck-appimage-run|dbus-run-session|dbus-daemon.*--session|dbus-launch|kwin|plasmashell' 2>/dev/null)
+  case $running in
+    *steamwebhelper* | *steamrtarm64/steam*) ;;
+    *) names+=(-o -name 'mangohud.????????' -o -name '.com.valvesoftware.Steam.??????'
+               -o -name 'steam_chrome_shmem_uid*' -o \( -type d -empty -name 'steam??????' \)) ;;
+  esac
+  case $running in *--type=*) ;; *) names+=(-o \( -type d -name 'scoped_dir??????' \)) ;; esac
+  case $running in *droiddeck-appimage-run*) ;; *) names+=(-o -name 'droiddeck-appimage.??????') ;; esac
+  case $running in
+    *dbus-run-session* | *dbus-daemon*--session* | *dbus-launch*) ;;
+    *) names+=(-o \( -type s -name 'dbus-??????????' \)) ;;
+  esac
+  case $running in
+    *kwin* | *plasmashell*) ;;
+    *) names+=(-o \( -type d -empty -name 'plasma-csd-generator.??????' \)) ;;
+  esac
+  [ ${#names[@]} -gt 0 ] || return 0
+  n=$(find /tmp -mindepth 1 -maxdepth 1 \( "${names[@]:1}" \) -print -exec rm -rf {} + 2>/dev/null | wc -l)
+  [ "$n" -gt 0 ] && echo "== /tmp: cleared $n entries earlier sessions left"
+  return 0
+}
+[ -z "${BL_INSIDE:-}" ] && clear_stale_tmp
+
 # Until the runtime is stable, Steam's own logs are copied beside the session log at exit so a
 # failed launch can be handed over as one folder.
 collect_steam_logs() {
@@ -264,14 +295,15 @@ if [ -z "${BL_INSIDE:-}" ]; then
   [ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
   # Extra gamescope arguments for an experiment (--debug-focus, say), from Download/droiddeck-env.
   [ -n "${BL_GAMESCOPE_ARGS:-}" ] && read -r -a _bl_extra <<<"$BL_GAMESCOPE_ARGS" && args+=("${_bl_extra[@]}")
-  # Deck mode's performance overlay (Quick Access Menu → Performance → Overlay Level) is drawn by
+  # The performance overlay (Quick Access Menu → Performance → Overlay Level) is drawn by
   # mangoapp, which gamescope starts beside the client; the client sets the level by rewriting
   # MANGOHUD_CONFIGFILE. The apk stages Valve's aarch64 build (tools/mangoapp) - without it the menu
   # still offers the levels and nothing appears. Starts hidden until the client writes a level.
   # BL_MANGOAPP=0 turns it off (one community build found Valve's mangoapp crashing on Turnip).
-  if [ "$mode" = steam ] && [ "${BL_STEAMDECK:-0}" = 1 ] && [ "${BL_MANGOAPP:-1}" = 1 ] \
+  if [ "$mode" = steam ] && [ "${BL_MANGOAPP:-1}" = 1 ] \
      && [ "${BL_STEAM_UI:-}" != desktop ] && command -v mangoapp >/dev/null 2>&1; then
-    MANGOHUD_CONFIGFILE=$(mktemp /tmp/mangohud.XXXXXXXX)
+    # One fixed file, rewritten each session: a mktemp name per session was never removed.
+    MANGOHUD_CONFIGFILE=/tmp/droiddeck-mangohud.conf
     echo no_display > "$MANGOHUD_CONFIGFILE"
     export MANGOHUD_CONFIGFILE STEAM_USE_MANGOAPP=1 STEAM_MANGOAPP_PRESETS_SUPPORTED=1 STEAM_MANGOAPP_HORIZONTAL_SUPPORTED=1
     args+=(--mangoapp)
@@ -376,9 +408,9 @@ case $mode in
     # its main library already - and the ARM64 Proton that lets it launch the Windows ones.
     # A request left in ~/.bl-proton-extra installs a third-party Proton before the client starts,
     # so it is in the Compatibility dropdown the first time the user looks. One per line, each the
-    # arguments to droiddeck-proton-extra: "ge", "cachyos", "ge --tag GE-Proton11-7", or a URL.
-    # Hundreds of megabytes each, so it is only ever done on request, and the line is dropped once
-    # it has succeeded - a failed download stays and is retried next session.
+    # arguments to droiddeck-proton-extra: "ge", "cachyos", "droiddeck", "ge --tag GE-Proton11-7",
+    # or a URL. Hundreds of megabytes each, so it is only ever done on request, and the line is
+    # dropped once it has succeeded - a failed download stays and is retried next session.
     if [ -s "$HOME/.bl-proton-extra" ]; then
       _bl_left=$HOME/.bl-proton-extra.left
       : > "$_bl_left"
@@ -433,6 +465,13 @@ case $mode in
           nap 5
         done
       ) &
+    fi
+    # Rockstar's launcher keeps drawing its hidden web interface for as long as a game of theirs
+    # runs; droiddeck-launcher-cores holds it on one slow core while it is out of sight, from
+    # gamescope's focus as the agent publishes it. BL_LAUNCHER_CORES=0 leaves launchers alone.
+    if [ "${BL_LAUNCHER_CORES:-1}" != 0 ] && [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ] \
+       && [ "${BL_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
+      /usr/local/bin/droiddeck-launcher-cores "$BL_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
 
     step "registering the app's game library with Steam"
@@ -642,11 +681,18 @@ case $mode in
         beat=$((beat + 1))
         [ "$((beat % 3))" -eq 0 ] || continue
         libraries=("$steam_root/steamapps" /mnt/droiddeck/steamapps /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps)
-        if seed_due; then
+        seed=; compat=
+        seed_due && seed=1
+        compat_due && compat=1
+        [ -n "$seed$compat" ] || continue
+        # Not beside a running game: the client rewrites its manifest at each launch, which made both
+        # due while it loaded. Its own launch seeds its prefix (droiddeck-game-env) regardless.
+        pgrep -x wineserver >/dev/null 2>&1 && continue
+        if [ -n "$seed" ]; then
           : > "$seed_stamp"
           droiddeck-seed-redists "$steam_root" >/dev/null 2>&1 || true
         fi
-        if compat_due; then
+        if [ -n "$compat" ]; then
           : > "$compat_stamp"
           steam-compatibility "$steam_root" >/dev/null 2>&1 || true
         fi
@@ -814,7 +860,7 @@ BUSCONF
     # desktop's launchers ask for; gamescope shows one window at a time and the game takes over.
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
-    # Deck mode (BL_STEAMDECK=1, the Steam page's Client settings): -steamdeck is the flag that puts
+    # Deck mode, always outside the desktop UI: -steamdeck is the flag that puts
     # the Quick Access Menu and the Deck settings pages on screen; the QAM's performance overlay
     # controls stay greyed out without -steamos3, as SteamOS and Armada launch it. -steamos3 makes
     # the client manage itself as SteamOS does - it calls steamos-select-branch and writes
@@ -822,7 +868,7 @@ BUSCONF
     # is an update that never installs: exit 42, a restart, for ever (Bannerlator 38996ea1). The
     # loop below puts package/beta back before every start. The SteamOS helpers the client calls
     # in this mode are staged as no-op stubs under /usr/bin.
-    if [ "${BL_STEAMDECK:-0}" = 1 ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
+    if [ "${BL_STEAM_UI:-}" != desktop ]; then
       _bl_ui+=(-steamdeck -steamos3)
       # The QAM's Scaling Filter lists NVIDIA Image Scaling only when told gamescope has it (it does).
       export STEAM_GAMESCOPE_NIS_SUPPORTED=1
@@ -844,13 +890,16 @@ BUSCONF
       [ -n "$_stale" ] && echo "== steam: cleared what an earlier session left:$_stale"
       unset _stale _f
     fi
-    # Use the same configured branch as the first-run download. Whatever wrote package/beta, the branch on
-    # disk has to agree with the one forced here - a disagreement is the restart loop above, and
-    # it is silent apart from rc=42 in this log.
+    # The Deck's beta branch, the one the first-run download takes: with -steamos3 on publicbeta
+    # the client settled on steamdeck_stable, an older client it then offered as a "Software
+    # Update" every session (2026-09-30); on steamdeck_publicbeta it finds no update. Whatever
+    # wrote package/beta, the branch on disk has to agree with the one forced here - a
+    # disagreement is the restart loop above, and it is silent apart from rc=42 in this log. A
+    # client installed from publicbeta by an older app moves over this way at its next start.
     # Checked before every start, not once: the client rewrites package/beta during its own run,
     # and a restart below (rc=42, or the one after the ARM64 Proton lands) would otherwise start it
     # again on the branch it just wrote.
-    steam_channel=${BL_STEAM_CHANNEL:-steamdeck_publicbeta}
+    steam_channel=steamdeck_publicbeta
     # The app's language (Setup, or the system's): the client's interface takes -language over its
     # registry, and the registry is rewritten before each start below for its update window.
     _bl_lang=()
@@ -869,6 +918,8 @@ BUSCONF
         for ((_i = 0; _i < 60; _i++)); do
           nap 30
           [ -e "$owned" ] && exit 0
+          # Loading steamclient.so under proot takes seconds of CPU: not while a game loads or runs.
+          pgrep -x wineserver >/dev/null 2>&1 && continue
           answer=$(droiddeck-steam-games probe "$steam_root" 993090 2>/dev/null) || continue
           case $answer in
             *'"993090": true'*) mkdir -p "${owned%/*}" && : > "$owned" && echo "== Lossless Scaling: owned" ;;

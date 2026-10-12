@@ -1164,6 +1164,7 @@ static void record_draw(VkCommandBuffer cmd, const struct vkp_draw *d, const VkI
 }
 
 static void destroy_scene_image(void) {
+    if (g_scene.img) vkp_effects_forget_image(g_scene.img);
     if (g_scene.img) hdrc_forget_image(g_scene.img); /* the HDR pass may have drawn into it */
     if (g_scene.img) blendp_forget_image(g_scene.img);
     if (g_scene.img) g_vk.DestroyImage(g_dev, g_scene.img, NULL);
@@ -1203,6 +1204,7 @@ static int ensure_scene_image(int w, int h) {
 static int ensure_img(struct vkp_img_slot *s, int w, int h, VkFormat fmt, VkImageUsageFlags usage, const char *what) {
     if (s->img && s->w == w && s->h == h && s->fmt == fmt) return 0;
     if (s->img) hdrc_forget_image(s->img);
+    if (s->img) vkp_effects_forget_image(s->img);
     if (s->img) blendp_forget_image(s->img);
     if (s->img) g_vk.DestroyImage(g_dev, s->img, NULL);
     if (s->mem) g_vk.FreeMemory(g_dev, s->mem, NULL);

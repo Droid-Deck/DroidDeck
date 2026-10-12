@@ -99,6 +99,8 @@ object StoresState {
     /** Reads what is on disk for every store: sign-ins, installed games, the engine probe. Off the main thread. */
     fun refresh(context: Context) {
         val app = context.applicationContext
+        // The first refresh after the app starts brings back what was in the download queue.
+        com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
         Thread({
             val found = Store.entries.mapNotNull { store -> StoreAccounts.signedInAs(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
@@ -217,6 +219,7 @@ object StoresState {
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null) {
         val app = context.applicationContext
         val target = root ?: StoreInstallRoot.installRoot(app)
+        com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
         backends[item.store]?.install(app, item, target) ?: logLine("${item.store.label}: this build cannot install yet")
     }
 

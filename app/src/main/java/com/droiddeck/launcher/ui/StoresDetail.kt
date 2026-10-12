@@ -61,8 +61,16 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             SourceChip(store.id)
         }
     }
-    Rise(1) {
-        Box(Modifier.fillMaxWidth().heightIn(min = if (narrow) 150.dp else 180.dp).clip(Shape16).background(artBrush(hueOf(title)))) {
+    // Out of a card, the hero holds still in its place: the card's flood lands on it, and a hero
+    // still rising in sat below where the flood had measured it (the art showed twice).
+    val hero: @Composable () -> Unit = {
+        androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.heroAt = null } }
+        Box(
+            Modifier.fillMaxWidth().heightIn(min = if (narrow) 150.dp else 180.dp)
+                // The card it opened from floods onto this, and draws back into the card from it.
+                .onGloballyPositioned { StoresMotion.heroAt = it.boundsInRoot() }
+                .clip(Shape16).background(artBrush(hueOf(title))),
+        ) {
             val art = item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
             if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.5f to colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
@@ -110,6 +118,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             }
         }
     }
+    if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
     // Plain text only, and nothing at all when the store sent a template key instead of words.
     // A description that is only the title again (some stores fill it so) is no description.
     val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()

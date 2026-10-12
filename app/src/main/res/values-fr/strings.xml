@@ -232,6 +232,9 @@
     <string name="mode_controller">Manette</string>
     <string name="mode_controller_hint">Comment Steam reconnaît votre manette. Prendra effet à la prochaine session.</string>
     <string name="mode_controller_deck">Manette Steam Deck</string>
+    <string name="mode_controller_steam">Steam Controller</string>
+    <string name="mode_controller_ds4">DualShock 4</string>
+    <string name="mode_controller_dualsense">DualSense</string>
     <string name="mode_controller_x360">Manette Xbox 360</string>
     <string name="mode_controller_note">Deck : fournit un bouton d\'accès rapide et un gyroscope. Xbox 360 : utilisez Guide+A pour ouvrir l\'accès rapide.</string>
     <string name="mode_back">Retour</string>
@@ -257,16 +260,8 @@
     <string name="mode_decky_remove_title">Désinstaller Decky Loader ?</string>
     <string name="mode_decky_remove_text">Supprime le chargeur. Vos plugins et paramètres seront conservés.</string>
     <string name="mode_client">Client</string>
-    <string name="mode_deck_mode">Mode Steam Deck</string>
-    <string name="mode_deck_mode_hint">Interface Steam Deck et contrôles de performance à accès rapide. Prendra effet à la prochaine session.</string>
     <string name="mode_mangoapp">Superposition de performance</string>
     <string name="mode_mangoapp_hint">Désactivez cette option si les jeux plantent ou affichent un écran noir en mode Deck. Prendra effet à la prochaine session.</string>
-    <string name="mode_branch">Branche du client</string>
-    <string name="mode_branch_deck">Bêta Steam Deck (requis pour le mode Deck).</string>
-    <string name="mode_branch_hint">Prendra effet à la prochaine session. Steam peut se mettre à jour une fois de lui-même.</string>
-    <string name="mode_branch_public">Bêta</string>
-    <string name="mode_branch_deck_beta">Bêta Steam Deck</string>
-    <string name="mode_branch_note">Le mode Deck utilise toujours la version bêta de Steam Deck.</string>
     <string name="mode_added_art">Illustrations</string>
     <string name="mode_sgdb_key">Clé API SteamGridDB</string>
     <string name="mode_sgdb_key_yours">Votre clé</string>
@@ -523,9 +518,6 @@
     <string name="setup_choose_home">Choisir l\'application d\'écran d\'accueil</string>
     <string name="setup_choose">Choisir</string>
     <string name="setup_linux_apps">Applications Linux (bêta)</string>
-    <string name="setup_store">Boutique Flathub</string>
-    <string name="setup_store_on">Affiché dans le menu. Certaines applications peuvent ne pas se lancer ; les journaux se trouvent dans Download/DroidDeck.</string>
-    <string name="setup_store_off">Installer des applications et des jeux Linux depuis Flathub</string>
     <string name="setup_tool_files">Fichiers</string>
     <string name="setup_tool_files_hint">Parcourir et gérer les fichiers</string>
     <string name="setup_tool_protons">Versions de Proton</string>
@@ -730,6 +722,8 @@
     <string name="ctrl_steam_button">Bouton Steam</string>
     <string name="ctrl_qam_button">Bouton QAM</string>
     <string name="ctrl_keyboard_button">Bouton clavier</string>
+    <string name="ctrl_select_steam">Appuyez sur Select pour ouvrir le menu Steam</string>
+    <string name="ctrl_select_steam_hint">À la place de View/Select.</string>
     <string name="setup_animations">Animations</string>
     <string name="ctrl_adaptive_hint">Le joystick apparaîtra là où vous touchez et se masquera une fois relâché</string>
     <string name="ctrl_layout">Disposition</string>

@@ -39,6 +39,8 @@ public final class AmazonAuthClient {
         public String refreshToken;
         public long expiresIn;
         public String name;
+        /** The serial Amazon registered the device under; the entitlements call hashes this one. */
+        public String deviceSerial;
     }
 
     private AmazonAuthClient() {}
@@ -78,8 +80,12 @@ public final class AmazonAuthClient {
             result.accessToken = bearer.getString("access_token");
             result.refreshToken = bearer.getString("refresh_token");
             result.expiresIn = bearer.optLong("expires_in", 3600L);
-            JSONObject customer = success.optJSONObject("extensions") != null ? success.getJSONObject("extensions").optJSONObject("customer_info") : null;
+            JSONObject ext = success.optJSONObject("extensions");
+            JSONObject customer = ext != null ? ext.optJSONObject("customer_info") : null;
             result.name = customer != null ? customer.optString("name", "") : "";
+            JSONObject device = ext != null ? ext.optJSONObject("device_info") : null;
+            String registered = device != null ? device.optString("device_serial_number", "") : "";
+            result.deviceSerial = registered.isEmpty() ? deviceSerial : registered;
             return result;
         } catch (Exception e) {
             Log.e(TAG, "registerDevice failed: " + e.getClass().getSimpleName());

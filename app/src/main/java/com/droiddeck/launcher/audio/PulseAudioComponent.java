@@ -182,26 +182,30 @@ public class PulseAudioComponent extends SessionPart {
      * client is never left without an output. Says so in the audio log either way.
      */
     private void ensureClientSink(java.io.PrintWriter out) {
-        long deadline = System.currentTimeMillis() + 15000L;
-        String sinks = null;
-        while (System.currentTimeMillis() < deadline && pid > 1) {
-            if (socket().exists() && (sinks = pactl("list", "short", "sinks")) != null) break;
-            try { Thread.sleep(250L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        try {
+            long deadline = System.currentTimeMillis() + 15000L;
+            String sinks = null;
+            while (System.currentTimeMillis() < deadline && pid > 1) {
+                if (socket().exists() && (sinks = pactl("list", "short", "sinks")) != null) break;
+                try { Thread.sleep(250L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+            }
+            String line;
+            if (sinks == null) {
+                line = "== client sink: the daemon did not answer in 15 s; no fallback attempted";
+            } else if (sinks.contains("\tDirectAudio\t") || sinks.startsWith("DirectAudio\t") || sinks.contains("\tDirectAudio\n") || sinks.matches("(?s).*\\bDirectAudio\\b.*")) {
+                line = "== client sink: DirectAudio (module-directaudio-native-sink)";
+            } else {
+                boolean loaded = pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink", "performance_mode=1", "adaptive=1", "volume=1.0") != null
+                        && pactl("set-default-sink", "AAudioSink") != null;
+                line = loaded ? "== client sink: DirectAudio did not come up; FALLBACK to the plain AAudio sink (AAudioSink)"
+                              : "== client sink: DirectAudio did not come up and the AAudio fallback failed too - no client sound";
+                Log.w(TAG, line);
+            }
+            Log.i(TAG, line);
+            if (out != null) synchronized (out) { out.println(line); out.flush(); }
+        } catch (Throwable t) {
+            Log.w(TAG, "ensureClientSink failed", t);
         }
-        String line;
-        if (sinks == null) {
-            line = "== client sink: the daemon did not answer in 15 s; no fallback attempted";
-        } else if (sinks.contains("\tDirectAudio\t") || sinks.startsWith("DirectAudio\t") || sinks.contains("\tDirectAudio\n") || sinks.matches("(?s).*\\bDirectAudio\\b.*")) {
-            line = "== client sink: DirectAudio (module-directaudio-native-sink)";
-        } else {
-            boolean loaded = pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink", "performance_mode=1", "adaptive=1", "volume=1.0") != null
-                    && pactl("set-default-sink", "AAudioSink") != null;
-            line = loaded ? "== client sink: DirectAudio did not come up; FALLBACK to the plain AAudio sink (AAudioSink)"
-                          : "== client sink: DirectAudio did not come up and the AAudio fallback failed too - no client sound";
-            Log.w(TAG, line);
-        }
-        Log.i(TAG, line);
-        if (out != null) synchronized (out) { out.println(line); out.flush(); }
     }
 
     /** Runs pactl against this daemon; its stdout, or null when it failed or timed out. */
@@ -223,8 +227,14 @@ public class PulseAudioComponent extends SessionPart {
             builder.environment().put("PULSE_SERVER", "unix:" + socket().getAbsolutePath());
             process = builder.start();
             String output;
-            try (InputStream in = process.getInputStream()) {
-                output = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            try (InputStream in = process.getInputStream();
+                 java.io.ByteArrayOutputStream outStream = new java.io.ByteArrayOutputStream()) {
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    outStream.write(buf, 0, n);
+                }
+                output = outStream.toString(java.nio.charset.StandardCharsets.UTF_8.name());
             }
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
@@ -234,7 +244,7 @@ public class PulseAudioComponent extends SessionPart {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
-        } catch (Exception e) {
+        } catch (Throwable t) {
             return null;
         } finally {
             if (process != null && process.isAlive()) process.destroyForcibly();

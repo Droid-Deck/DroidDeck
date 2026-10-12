@@ -20,12 +20,12 @@ import java.io.File
  */
 object DesktopCatalog {
     private const val TAG = "DesktopCatalog"
-    const val CATALOG_URL = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/desktop.json"
+    const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/desktop.json"
     /**
      * Valve's Proton Experimental (ARM64) with its appmanifest, laid out as the client keeps it.
      * In a catalog of its own so it never shows among the packages a user picks from.
      */
-    const val STEAM_SEED_URL = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/steam-seed.json"
+    const val STEAM_SEED_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/steam-seed.json"
     const val PROTON_SEED_ID = "proton-arm64"
 
     class Entry(
@@ -101,8 +101,23 @@ object DesktopCatalog {
     fun desktopInstalled(context: Context): Boolean = desktopInstalled(LinuxRuntime.rootDir(context))
 
     fun desktopInstalled(root: File): Boolean =
+        !File(root, DesktopRemoval.PENDING).exists() &&
         File(root, "usr/bin/kwin_wayland").isFile &&
             FileUtils.readString(File(root, ".droiddeck-pkg-$DESKTOP_ID"))?.trim() == BuildConfig.DESKTOP_KDE_TAG
+
+    fun desktopPresent(context: Context): Boolean {
+        val root = LinuxRuntime.rootDir(context)
+        return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists()
+    }
+
+    /** The installed desktop's size on disk; off the main thread. */
+    fun desktopSize(context: Context): Long = DesktopRemoval.installedSize(context)
+
+    fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) =
+        DesktopRemoval.cleanLegacy(context, listener)
+
+    fun removeDesktop(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? =
+        DesktopRemoval.remove(context, listener)
 
     /** Downloads, verifies and installs one package. Returns null on success, else a message. */
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
@@ -143,7 +158,13 @@ object DesktopCatalog {
                     if (!LinuxRuntimeInstaller.extract(context, download, root, listener)) return context.getString(R.string.deskpkg_extract_failed)
                 }
             }
+            if (entry.id == DESKTOP_ID) {
+                cleanLegacy(context, listener)
+                val pending = File(root, DesktopRemoval.PENDING)
+                check(!pending.exists() || pending.delete()) { "Could not finish desktop installation" }
+            }
             FileUtils.writeString(marker(context, entry.id), entry.version)
+            check(installed(context, entry.id) == entry.version) { "Could not finish package installation" }
             return null
         } catch (e: Exception) {
             Log.e(TAG, "install ${entry.id}", e)

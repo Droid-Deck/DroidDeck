@@ -14,6 +14,7 @@ class HomeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = com.droiddeck.launcher.session.SessionPrefs.orientation(this)
         routeHome()
     }
 
