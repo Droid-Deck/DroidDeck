@@ -755,9 +755,11 @@ private fun Modifier.drawBorderSidesAndFoot(color: Color, corner: Dp): Modifier 
 
 /**
  * The sheet's chips: equal capsules with one selection gliding under them (the stores' chip row),
- * LB and RB a chip at a time, a tap or A on a far one a hop as a drop. [first] takes focus as the
- * sheet opens. Too narrow for equal chips, the row scrolls.
+ * LB and RB a chip at a time, a tap or A on a far one a hop as a drop. A pad picks a chip by
+ * moving onto it, and comes into the row on the picked one. [first] takes focus as the sheet
+ * opens. Too narrow for equal chips, the row scrolls.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun SheetChips(labels: List<String>, selected: Int, focus: List<FocusRequester>? = null, onPick: (Int) -> Unit) {
     val pal = LocalPalette.current
@@ -774,12 +776,18 @@ internal fun SheetChips(labels: List<String>, selected: Int, focus: List<FocusRe
         // Room inside the scroll for the focus ring, which the scroll's clip would otherwise cut.
         Box(if (equal) Modifier.fillMaxWidth() else Modifier.edgeFade(scroll).horizontalScroll(scroll).padding(3.dp)) {
             ChipGlide(selected, bounds[selected], tint)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = if (equal) Modifier.fillMaxWidth() else Modifier) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                // Up from the rows lands on the picked chip, not whichever sits above: landing picks.
+                modifier = (if (equal) Modifier.fillMaxWidth() else Modifier)
+                    .focusProperties { enter = { chips.getOrNull(selected) ?: FocusRequester.Default } }
+                    .focusGroup(),
+            ) {
                 labels.forEachIndexed { i, label ->
                     val m = (if (equal) Modifier.weight(1f) else Modifier.widthIn(min = 64.dp))
                         .onGloballyPositioned { bounds[i] = it.boundsInParent() }
                         .focusRequester(chips[i])
-                    SheetChip(label, i == selected, m) { onPick(i) }
+                    SheetChip(label, i == selected, m.onFocusChanged { if (it.isFocused && i != selected) onPick(i) }) { onPick(i) }
                 }
             }
         }
