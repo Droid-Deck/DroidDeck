@@ -103,9 +103,10 @@ button through the agent.
   (`FAKE_EVDEV_MEMFD_PATHS`), so the app needs no new plumbing. They are a gaze pointer: low in front
   of each hand, pointing where the head looks. Mapping, right hand: right stick = trackpad, A/R3 =
   trackpad click, RT = trigger, RB = grip, Start = menu, guide = system. Left hand: left stick, X/L3,
-  LT, LB, Select. The pad's state is verified in the ring and both hands activate in SteamVR, but the
-  dashboard has not been seen yet: either the guide press is taken before it reaches the ring as a
-  plain button (Deck mode), or the dashboard's web helper does not render here. Next to chase.
+  LT, LB, Select. Both hands activate in SteamVR, and guide, Start and A presses show up in the ring the
+  driver reads. The dashboard still does not appear: `vrwebhelper` (CEF 126) stops after
+  `CefInitialize`, and `vrdashboard` logs `VR_Init failed with VRInitError_IPC_Compositor*`. Getting
+  SteamVR's web UI up is the next thing to chase.
 - **Layers**: only the first layer of each frame is drawn (the compositor's scene). Overlays submitted
   separately (some dashboard states) are not composited yet.
 - **Timing**: no reprojection, and the presenter blits whatever was submitted last. The chain
