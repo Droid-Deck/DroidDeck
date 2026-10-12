@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.epic
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import org.json.JSONArray
@@ -65,18 +66,18 @@ object EpicLibrary {
             val cachedList = cached(app)
             val lastSync = p.getLong(LAST_SYNC_KEY, 0L)
             if (!force && cachedList.isNotEmpty() && System.currentTimeMillis() - lastSync < THROTTLE_MS) return SyncResult.Throttled
-            onStatus("Checking sign-in…")
+            onStatus(app.getString(R.string.stores_sync_sign_in))
             val token = EpicCredentialStore.getValidAccessToken(app) ?: return SyncResult.NotLoggedIn
-            onStatus("Fetching game list…")
+            onStatus(app.getString(R.string.stores_sync_game_list))
             val raw = EpicApiClient.getLibraryItems(token)
-            if (raw.isNullOrEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed("No games found in your Epic library") else SyncResult.Ok(cachedList)
+            if (raw.isNullOrEmpty()) return if (cachedList.isEmpty()) SyncResult.Failed(app.getString(R.string.stores_sync_no_games, Store.EPIC.label)) else SyncResult.Ok(cachedList)
             val total = raw.size
             var done = 0
             for (game in raw) {
                 EpicApiClient.enrichFromCatalog(token, game)
                 if (game.releaseDate.isNotEmpty()) p.edit().putString("release_${game.appName}", game.releaseDate).apply()
                 done++
-                if (done % 5 == 0) onStatus("Loading game details… ($done/$total)")
+                if (done % 5 == 0) onStatus(app.getString(R.string.stores_sync_details, done, total))
             }
             val main = raw.filter { !it.isDLC }
             val display = (if (main.isEmpty()) raw else main).distinctBy { it.appName }.sortedWith { a, b -> a.title.compareTo(b.title, ignoreCase = true) }
@@ -91,7 +92,7 @@ object EpicLibrary {
             return SyncResult.Ok(display)
         } catch (e: Exception) {
             Log.w(TAG, "sync failed: ${e.message}")
-            return SyncResult.Failed(e.message ?: "Sync failed")
+            return SyncResult.Failed(e.message ?: context.getString(R.string.stores_sync_failed))
         } finally {
             syncing.set(false)
         }

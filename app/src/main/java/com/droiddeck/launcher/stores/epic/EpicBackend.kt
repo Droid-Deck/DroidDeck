@@ -47,7 +47,7 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
             val quiet = cached.isNotEmpty() && !force
             StoresState.post {
                 if (cached.isNotEmpty()) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached)
-                if (!quiet) StoresState.status[store] = "Fetching your library…"
+                if (!quiet) StoresState.status[store] = app.getString(com.droiddeck.launcher.R.string.stores_sync_library)
             }
             val result = EpicLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
             StoresState.post {
@@ -117,7 +117,7 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         private fun hasChunks(dir: File): Boolean = dir.isDirectory && (dir.list()?.isNotEmpty() == true)
 
         override fun run(handle: DownloadQueue.JobHandle): String? {
-            handle.stage(DownloadStage.MANIFEST, "Checking sign-in…")
+            handle.stage(DownloadStage.MANIFEST, app.getString(com.droiddeck.launcher.R.string.stores_sync_sign_in))
             val token = EpicCredentialStore.getValidAccessToken(app) ?: throw EpicDownloadManager.InstallException("Not signed in to Epic Games")
             StoreInstalls.begin(folder, Store.EPIC, item.id, item.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
             if (scratch == null && hasChunks(File(folder, ".chunks"))) handle.log("epic: resuming \"${item.title}\" with the chunks already beside it")
@@ -146,7 +146,7 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                 }
             }) ?: return null
             if (cancelled.get()) return null
-            handle.stage(DownloadStage.INSTALL, "Registering with Steam…")
+            handle.stage(DownloadStage.INSTALL, app.getString(com.droiddeck.launcher.R.string.stores_registering))
             EpicLibrary.rememberSize(app, item.id, result.bytes)
             val deploymentId = runCatching { JSONObject(manifestJson).optString("deploymentId", "") }.getOrDefault("")
             val exe = StoreExe.pick(folder, result.launchExe, item.title)

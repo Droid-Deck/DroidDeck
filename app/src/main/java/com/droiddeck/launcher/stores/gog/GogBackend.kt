@@ -38,7 +38,7 @@ object GogBackend : StoreBackend {
             val quiet = cached.isNotEmpty() && !force
             StoresState.post {
                 if (cached.isNotEmpty()) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached)
-                if (!quiet) StoresState.status[store] = "Fetching your library…"
+                if (!quiet) StoresState.status[store] = app.getString(com.droiddeck.launcher.R.string.stores_sync_library)
             }
             val result = GogLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
             StoresState.post {
@@ -106,7 +106,7 @@ object GogBackend : StoreBackend {
                 }
             }, cancelled) ?: return null
             if (cancelled.get()) return null
-            handle.stage(DownloadStage.INSTALL, "Registering with Steam…")
+            handle.stage(DownloadStage.INSTALL, app.getString(com.droiddeck.launcher.R.string.stores_registering))
             val sidecar = StoreGameSidecar(
                 Store.GOG, game.gameId, game.title, exe = result.exeRelative.ifEmpty { "" },
                 installVersion = result.buildId, installedAt = System.currentTimeMillis(),

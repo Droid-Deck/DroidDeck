@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.gog
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreNet
@@ -59,9 +60,9 @@ object GogLibrary {
             val app = context.applicationContext
             val p = GogPrefs.get(app)
             val token = GogAuth.validToken(app) ?: return SyncResult.NotLoggedIn
-            onStatus("Fetching game list…")
+            onStatus(app.getString(R.string.stores_sync_game_list))
             val gamesJson = StoreNet.get("https://embed.gog.com/user/data/games", bearer = token, userAgent = GogAuth.GALAXY_UA)
-                ?: return SyncResult.Failed("Couldn't reach GOG")
+                ?: return SyncResult.Failed(app.getString(R.string.stores_sync_gog_unreachable))
             val ids = ArrayList<String>()
             val parsed = runCatching {
                 val owned = JSONObject(gamesJson).optJSONArray("owned")
@@ -71,7 +72,7 @@ object GogLibrary {
                     if (id != "1801418160" && id != "0") ids.add(id)
                 }
             }.isSuccess
-            if (!parsed) return SyncResult.Failed("Error parsing library")
+            if (!parsed) return SyncResult.Failed(app.getString(R.string.stores_sync_gog_unreadable))
 
             val ownedSet = ids.toHashSet()
             val cachedList = cached(app)
@@ -91,7 +92,7 @@ object GogLibrary {
                 saveCache(p, list)
                 return SyncResult.Ok(list.sortedBy { it.title.lowercase() }, 0)
             }
-            onStatus("Syncing ${idsToFetch.size} game${if (idsToFetch.size == 1) "" else "s"}…")
+            onStatus(app.resources.getQuantityString(R.plurals.stores_sync_games, idsToFetch.size, idsToFetch.size))
             val pool = Executors.newFixedThreadPool(5)
             val futures = idsToFetch.map { id -> pool.submit(Callable<GogGame?> { fetchGame(p, id, token, skipped) }) }
             pool.shutdown()
@@ -99,7 +100,7 @@ object GogLibrary {
             for ((idx, f) in futures.withIndex()) {
                 val g = runCatching { f.get() }.getOrNull()
                 if (g != null) { merged[g.gameId] = g; fetched++ }
-                if ((idx + 1) % 5 == 0) onStatus("Syncing… ${idx + 1}/${futures.size}")
+                if ((idx + 1) % 5 == 0) onStatus(app.getString(R.string.stores_sync_progress, idx + 1, futures.size))
             }
             val finalList = merged.values.toList()
             saveCache(p, finalList)
@@ -110,7 +111,7 @@ object GogLibrary {
             return SyncResult.Ok(finalList.sortedBy { it.title.lowercase() }, fetched)
         } catch (e: Exception) {
             Log.w(TAG, "sync failed: ${e.message}")
-            return SyncResult.Failed(e.message ?: "Sync failed")
+            return SyncResult.Failed(e.message ?: context.getString(R.string.stores_sync_failed))
         } finally {
             syncing.set(false)
         }

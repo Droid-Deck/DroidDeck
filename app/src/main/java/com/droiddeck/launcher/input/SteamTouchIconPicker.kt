@@ -21,6 +21,7 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.droiddeck.launcher.R
 import java.util.concurrent.Executors
 
 /**
@@ -50,7 +51,7 @@ class SteamTouchIconPicker(
         val root = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(16), dp(8), dp(16), 0) }
         val left = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val label = EditText(context).apply {
-            hint = "Label (optional)"
+            setHint(R.string.touch_label_hint)
             setText(current.label)
             inputType = InputType.TYPE_CLASS_TEXT
             setSingleLine()
@@ -77,21 +78,22 @@ class SteamTouchIconPicker(
             setPadding(0, dp(8), 0, 0)
             addView(preview, LinearLayout.LayoutParams(dp(56), dp(56)))
             addView(TextView(context).apply {
-                text = if (names.isEmpty()) "Steam's icons were not found" else "${names.size} icons from Steam"
+                text = if (names.isEmpty()) context.getString(R.string.touch_icons_missing)
+                    else context.resources.getQuantityString(R.plurals.touch_icons_found, names.size, names.size)
                 setPadding(dp(12), 0, 0, 0)
             })
         })
-        left.addView(paletteRow("Icon colour", { foreground }) { foreground = it; adapter.notifyDataSetChanged(); updatePreview(preview) })
-        left.addView(paletteRow("Button colour", { background }) { background = it; adapter.notifyDataSetChanged(); updatePreview(preview) })
+        left.addView(paletteRow(context.getString(R.string.touch_icon_color), { foreground }) { foreground = it; adapter.notifyDataSetChanged(); updatePreview(preview) })
+        left.addView(paletteRow(context.getString(R.string.touch_button_color), { background }) { background = it; adapter.notifyDataSetChanged(); updatePreview(preview) })
         root.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         root.addView(grid, LinearLayout.LayoutParams(0, dp(250), 1.2f).apply { marginStart = dp(16) })
         updatePreview(preview)
         showPanel(host, title, root, listOf(
-            "No icon" to {
+            context.getString(R.string.touch_no_icon) to {
                 onPicked(current.copy(label = label.text.toString().replace(",", " ").trim(), icon = "", foreground = "", background = ""))
             },
-            "Cancel" to {},
-            "Use" to {
+            context.getString(R.string.common_cancel) to {},
+            context.getString(R.string.common_use) to {
                 onPicked(current.copy(label = label.text.toString().replace(",", " ").trim(), icon = icon,
                     foreground = if (icon.isEmpty()) "" else foreground, background = if (icon.isEmpty()) "" else background))
             },

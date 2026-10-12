@@ -22,7 +22,11 @@ object AppLanguage {
     const val SYSTEM = ""
 
     /** The languages the app ships, as BCP 47 tags, in the order the picker lists them. */
-    val supported: List<String> = listOf("en", "es", "fr", "ru", "ja", "ko", "zh-CN", "zh-TW", "zh-HK")
+    val supported: List<String> = listOf(
+        "en", "id", "ms", "cs", "da", "de", "es", "es-419", "fr", "it", "hu", "nl", "nb", "pl",
+        "pt-BR", "pt-PT", "ro", "fi", "sv", "vi", "tr", "el", "bg", "ru", "uk", "ar", "hi", "th",
+        "ja", "ko", "zh-CN", "zh-TW", "zh-HK",
+    )
 
     private const val PREFS = "language"
     private const val KEY = "app_language"
@@ -97,9 +101,18 @@ object AppLanguage {
     // 0 leaves it undefined, so only the locale is changed.
     private fun override(locale: Locale) = Configuration().apply { fontScale = 0f; setLocales(LocaleList(locale)) }
 
+    private val latinAmerica = setOf(
+        "419", "AR", "BO", "BR", "BZ", "CL", "CO", "CR", "CU", "DO", "EC", "GT", "HN", "MX", "NI", "PA",
+        "PE", "PR", "PY", "SV", "US", "UY", "VE",
+    )
+
     /** Which of the app's languages [locale] reads as, or null when the app does not ship it. */
     fun supportedTag(locale: Locale): String? = when (locale.language) {
-        "en", "es", "fr", "ru", "ja", "ko" -> locale.language
+        "en", "fr", "ru", "ja", "ko", "ms", "cs", "da", "de", "it", "hu", "nl", "nb", "pl", "ro", "fi",
+        "sv", "vi", "tr", "el", "bg", "uk", "ar", "hi", "th" -> locale.language
+        "in", "id" -> "id"
+        "es" -> if (locale.country in latinAmerica) "es-419" else "es"
+        "pt" -> if (locale.country.isEmpty() || locale.country == "BR") "pt-BR" else "pt-PT"
         "zh" -> when {
             locale.script == "Hans" -> "zh-CN"
             locale.country == "HK" || locale.country == "MO" -> "zh-HK"
@@ -116,9 +129,33 @@ object AppLanguage {
     /** A language's name in that language, for the picker: what a reader of it looks for. */
     fun nativeName(tag: String): String = when (tag) {
         "en" -> "English"
-        "es" -> "Español"
+        "id" -> "Bahasa Indonesia"
+        "ms" -> "Bahasa Melayu"
+        "cs" -> "Čeština"
+        "da" -> "Dansk"
+        "de" -> "Deutsch"
+        "es" -> "Español (España)"
+        "es-419" -> "Español (Latinoamérica)"
         "fr" -> "Français"
+        "it" -> "Italiano"
+        "hu" -> "Magyar"
+        "nl" -> "Nederlands"
+        "nb" -> "Norsk bokmål"
+        "pl" -> "Polski"
+        "pt-BR" -> "Português (Brasil)"
+        "pt-PT" -> "Português (Portugal)"
+        "ro" -> "Română"
+        "fi" -> "Suomi"
+        "sv" -> "Svenska"
+        "vi" -> "Tiếng Việt"
+        "tr" -> "Türkçe"
+        "el" -> "Ελληνικά"
+        "bg" -> "Български"
         "ru" -> "Русский"
+        "uk" -> "Українська"
+        "ar" -> "العربية"
+        "hi" -> "हिन्दी"
+        "th" -> "ไทย"
         "ja" -> "日本語"
         "ko" -> "한국어"
         "zh-CN" -> "简体中文"
