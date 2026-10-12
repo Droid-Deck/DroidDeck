@@ -17,6 +17,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.TimeUnit
 
 object BwrapSpawner {
     private const val TAG = "BwrapSpawner"
@@ -50,6 +51,7 @@ object BwrapSpawner {
         val dir = File(context.cacheDir, "bwrap/$id")
         client.use {
             val out = DataOutputStream(client.outputStream)
+            var sessionPeer: com.droiddeck.launcher.session.ProcessCleanup.Identity? = null
             try {
                 val peer = client.peerCredentials
                 if (peer.uid != Process.myUid()) {
@@ -61,8 +63,15 @@ object BwrapSpawner {
                 val body = ByteArray(input.readInt()).also { input.readFully(it) }
                 if (kind != 'R'.code) return
                 val request = JSONObject(String(body, Charsets.UTF_8))
+                val sessionOwned = request.optBoolean("sessionOwned")
+                if (sessionOwned) {
+                    val identity = com.droiddeck.launcher.session.OrphanReaper.identity(peer.pid)
+                        ?: throw IOException("Could not inspect session bwrap client ${peer.pid}")
+                    sessionPeer = identity
+                    com.droiddeck.launcher.session.OrphanReaper.keepSession(identity)
+                }
                 val plan = plan(context, request, dir)
-                run(context, plan, client, out, id)
+                run(context, plan, client, out, id, sessionOwned)
             } catch (e: Exception) {
                 Log.e(TAG, "sandbox $id", e)
                 runCatching {
@@ -70,6 +79,7 @@ object BwrapSpawner {
                     frame(out, 'X', "1".toByteArray())
                 }
             } finally {
+                sessionPeer?.let(com.droiddeck.launcher.session.OrphanReaper::release)
                 FileUtils.delete(dir)
             }
         }
@@ -277,7 +287,14 @@ object BwrapSpawner {
         try { Os.chmod(f.path, mode) } catch (e: Exception) {   }
     }
 
-    private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int) {
+    private fun run(
+        context: Context,
+        plan: Plan,
+        client: LocalSocket,
+        out: DataOutputStream,
+        id: Int,
+        sessionOwned: Boolean,
+    ) {
         val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
@@ -296,9 +313,20 @@ object BwrapSpawner {
         }
         val process = builder.start()
         val pid = HostProcess.pidOf(process)
-        com.droiddeck.launcher.session.OrphanReaper.keep(pid)
+        val sessionIdentity = if (sessionOwned) {
+            val identity = com.droiddeck.launcher.session.OrphanReaper.identity(pid)
+            if (identity == null) {
+                process.destroyForcibly()
+                process.waitFor()
+                throw IOException("Could not inspect session sandbox $pid")
+            }
+            com.droiddeck.launcher.session.OrphanReaper.keepSession(identity)
+            identity
+        } else {
+            com.droiddeck.launcher.session.OrphanReaper.keep(pid)
+            null
+        }
         Log.i(TAG, "sandbox $id pid $pid: ${plan.argv.joinToString(" ")} (${plan.binds.size} binds)")
-        synchronized(out) { frame(out, 'P', pid.toString().toByteArray()) }
         Thread({
             try { while (client.inputStream.read() >= 0) {   } }
             catch (e: IOException) {   }
@@ -307,24 +335,41 @@ object BwrapSpawner {
                 process.destroy()
             }
         }, "bwrap-$id-watch").apply { isDaemon = true; start() }
-        val buffer = ByteArray(16384)
-        var logged = 0
-        process.inputStream.use { stream ->
-            while (true) {
-                val n = try { stream.read(buffer) } catch (e: IOException) { -1 }
-                if (n < 0) break
-                if (logged < 4096 || verbose != null) {
-                    String(buffer, 0, if (verbose != null) n else minOf(n, 4096 - logged)).lines().filter { it.isNotBlank() }
-                        .forEach { Log.i(TAG, "sandbox $id: $it") }
-                    logged += n
+        try {
+            synchronized(out) { frame(out, 'P', pid.toString().toByteArray()) }
+            // The stand-in going away (Flatpak killed, the session over) ends the sandbox.
+            val buffer = ByteArray(16384)
+            // A sandbox that dies without a word still says why in logcat.
+            var logged = 0
+            process.inputStream.use { stream ->
+                while (true) {
+                    val n = try { stream.read(buffer) } catch (e: IOException) { -1 }
+                    if (n < 0) break
+                    if (logged < 4096 || verbose != null) {
+                        String(buffer, 0, if (verbose != null) n else minOf(n, 4096 - logged)).lines().filter { it.isNotBlank() }
+                            .forEach { Log.i(TAG, "sandbox $id: $it") }
+                        logged += n
+                    }
+                    try { synchronized(out) { frame(out, 'O', buffer.copyOf(n)) } } catch (e: IOException) { break }
                 }
-                try { synchronized(out) { frame(out, 'O', buffer.copyOf(n)) } } catch (e: IOException) { break }
+            }
+            val status = process.waitFor()
+            Log.i(TAG, "sandbox $id exited $status")
+            runCatching { synchronized(out) { frame(out, 'X', status.toString().toByteArray()) } }
+        } finally {
+            try {
+                if (process.isAlive) {
+                    process.destroy()
+                    if (!process.waitFor(1200, TimeUnit.MILLISECONDS)) process.destroyForcibly()
+                    if (process.isAlive) process.waitFor()
+                }
+            } finally {
+                if (!process.isAlive) {
+                    if (sessionIdentity != null) com.droiddeck.launcher.session.OrphanReaper.release(sessionIdentity)
+                    else com.droiddeck.launcher.session.OrphanReaper.release(pid)
+                }
             }
         }
-        val status = process.waitFor()
-        com.droiddeck.launcher.session.OrphanReaper.release(pid)
-        Log.i(TAG, "sandbox $id exited $status")
-        runCatching { synchronized(out) { frame(out, 'X', status.toString().toByteArray()) } }
     }
 
     private fun frame(out: DataOutputStream, kind: Char, payload: ByteArray) {

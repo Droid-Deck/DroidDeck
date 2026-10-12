@@ -66,6 +66,10 @@ class BwrapSpawnerTest {
         assertEquals("/a", Bind("/a", "/a").spec)
         assertEquals("/a:/b", Bind("/a", "/b").spec)
     }
+
+    @Test fun bwrapSocketUsesThePackageName() {
+        assertEquals("com.droiddeck.launcher.bwrap", BwrapSpawner.socket(RuntimeEnvironment.getApplication()))
+    }
 }
 
 @RunWith(RobolectricTestRunner::class)

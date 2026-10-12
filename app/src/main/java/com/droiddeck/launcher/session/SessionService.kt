@@ -56,10 +56,13 @@ class SessionService : Service() {
 
     private val components = java.util.concurrent.CopyOnWriteArrayList<SessionPart>()
     private var deckBinds: List<String> = emptyList()
-    private val stopLock = Any()
+    // A cancelled startup may still create resources; teardown must wait and collect those too.
+    private val sessionWorkLock = Any()
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
-    private var sessionPid = -1
+    @Volatile private var sessionProcess: ProcessCleanup.Identity? = null
+    private val sessionPid get() = sessionProcess?.pid ?: -1
+    /** Auxiliary PTY-backed proot shells launched from a secondary-display terminal. */
     private val auxiliaryProcesses = HashMap<Int, Long>()
     private val auxiliaryProcessesLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -203,14 +206,17 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
         }
+        if (SessionState.stopping) {
+            Log.i(TAG, "start ignored while the previous session is stopping")
+            return START_NOT_STICKY
+        }
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             stopSelf(startId)
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, buildNotification())
-        if (SessionState.running) return START_NOT_STICKY
+        if (!SessionState.tryStart()) return START_NOT_STICKY
         if (SessionState.stopRequested) {
-            SessionState.running = true
             stopSession(0)
             return START_NOT_STICKY
         }
@@ -236,12 +242,10 @@ class SessionService : Service() {
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
-        SessionState.running = true
         if (SessionState.stopRequested) {
             stopSession(0)
             return START_NOT_STICKY
         }
-        if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) RivalClients.stopBeforeSession(this)
         SessionState.firstFrameSeen = false
         SessionState.guestPid = -1
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
@@ -251,8 +255,29 @@ class SessionService : Service() {
         clearSteamGameMailbox()
         acquireLocks()
         Thread({
-            OrphanReaper.reap("session starting")
-            runSession(gen)
+            synchronized(sessionWorkLock) {
+                if (gen != sessionGen || !SessionState.running) return@synchronized
+                try {
+                    val cleanup = OrphanReaper.reap("session starting")
+                    val sessionDir = openSessionFolder()
+                    SessionEvents.record("session.cleanup", mapOf(
+                        "stage" to "startup", "complete" to cleanup.complete,
+                        "stopped" to cleanup.stopped, "remaining" to cleanup.remaining.map { it.pid }.joinToString(","),
+                    ))
+                    check(cleanup.complete) { "Previous session processes are still running: ${cleanup.remaining}" }
+                    if (gen != sessionGen || !SessionState.running) return@synchronized
+                    if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) RivalClients.stopBeforeSession(this)
+                    runSession(gen, sessionDir)
+                } catch (e: Exception) {
+                    Log.e(TAG, "could not prepare the session", e)
+                    mainHandler.post {
+                        if (gen == sessionGen && SessionState.running) {
+                            SessionEvents.fail("SESSION_START_FAILED", getString(R.string.session_start_failed), -1)
+                            stopSession(-1)
+                        }
+                    }
+                }
+            }
         }, "session-start").start()
         return START_NOT_STICKY
     }
@@ -290,27 +315,19 @@ class SessionService : Service() {
     }
 
 
-    private fun runSession(gen: Int) {
+    private fun runSession(gen: Int, sessionDir: File) {
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice()
-        try {
-            LinuxRuntime.writeAccounts(this)
-        } catch (e: Exception) {
-            Log.e(TAG, "could not write the guest's passwd/group", e)
-            stopSession(-1)
-            return
-        }
+        LinuxRuntime.writeAccounts(this)
 
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
-        killStragglers()
         SessionFiles.stage(this, root)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
-        val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
 
         Log.i(TAG, GpuClockPin.start(this))
@@ -379,7 +396,9 @@ class SessionService : Service() {
             val program = SessionState.program
             if (program.isNullOrEmpty()) {
                 Log.e(TAG, "run mode without a program")
-                stopSession(65)
+                mainHandler.post {
+                    if (gen == sessionGen && SessionState.running) stopSession(65)
+                }
                 return
             }
             guest.add(program)
@@ -441,7 +460,6 @@ class SessionService : Service() {
         components.add(networkLink)
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while it was starting; not launching it")
-            if (gen == sessionGen) components.clear()
             return
         }
         components.forEach { it.start() }
@@ -453,38 +471,27 @@ class SessionService : Service() {
         watchSyncWanted(root)
         EsyncPacks.fetchInBackground(this, root)
         val pid = HostProcess.start(line, hostEnv.asArray(), root, { status ->
-            if (gen != sessionGen) {
-                Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
-                return@start
+            mainHandler.post {
+                if (gen == sessionGen) {
+                    Log.i(TAG, "session ended: $status")
+                    stopSession(status ?: -1)
+                }
             }
-            Log.i(TAG, "session ended: $status")
-            stopSession(status ?: -1)
         }, null)
+        sessionProcess = OrphanReaper.identity(pid)
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
         if (gen != sessionGen || !SessionState.running) {
-            Log.i(TAG, "session stopped while its guest was starting; taking it down")
-            if (gen == sessionGen) {
-                launchWatcher?.stopWatching()
-                launchWatcher = null
-                syncWatcher?.stopWatching()
-                syncWatcher = null
-                components.reversed().forEach { runCatching { it.stop() } }
-                components.clear()
-            }
-            if (pid > 1) Thread({ teardown(pid) }, "session-teardown").start()
+            Log.i(TAG, "session stopped while its guest was starting; teardown will collect it")
             return
         }
-        sessionPid = pid
         if (pid > 1) {
             raiseTracer(pid, gen)
-            SessionEvents.guestStarted(pid)
         } else {
-            SessionEvents.record("guest.start_failed", mapOf("pid" to pid))
-            SessionEvents.fail("GUEST_START_FAILED", "The guest process could not be started", pid)
-            stopSession(-1)
-            return
+            error("The guest process could not be started (pid $pid)")
         }
-        if (gen == sessionGen && SessionState.running) {
+        mainHandler.post {
+            if (gen != sessionGen || !SessionState.running) return@post
+            SessionEvents.guestStarted(pid)
             suspendController = SessionSuspendController(
                 sessionRoot = { sessionPid },
                 helperRoots = { components.mapNotNull { it.suspendPid().takeIf { pid -> pid > 1 } } },
@@ -495,7 +502,7 @@ class SessionService : Service() {
                     if (!pulse.setSinkSuspended(false)) Log.w(TAG, "could not resume audio sink")
                 },
             )
-            mainHandler.post { updateSuspendPolicy() }
+            updateSuspendPolicy()
             updateDownloadMonitoring()
         }
     }
@@ -529,6 +536,8 @@ class SessionService : Service() {
         ))
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
         guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
+        // Session-owned bwrap requests are reaped with the guest; standalone tool installs are spared.
+        guest.add("DROIDDECK_SESSION_BWRAP=1")
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")
         guest.add("BL_ANDROID_CLIPBOARD=" + File(filesDir, "session/android-clipboard").path)
@@ -806,48 +815,15 @@ class SessionService : Service() {
         return binds
     }
 
-    private fun teardown(prootPid: Int, expectedStartTime: Long? = null) {
-        fun stillSameProcess(): Boolean = expectedStartTime == null || readStat(prootPid)?.second == expectedStartTime
-        if (!stillSameProcess()) return
-        val tree = descendants(prootPid)
-        if (!stillSameProcess()) return
-        android.os.Process.sendSignal(prootPid, 15)
-        if (!waitForExit(prootPid, GRACE_MS)) {
-            if (!stillSameProcess()) return
-            Log.w(TAG, "proot $prootPid did not exit on SIGTERM; killing it")
-            android.os.Process.killProcess(prootPid)
-        }
-        var killed = 0
-        for ((pid, started) in tree) {
-            val stat = readStat(pid) ?: continue
-            if (stat.second != started) continue
-            android.os.Process.killProcess(pid)
-            killed++
-        }
-        if (killed > 0) Log.i(TAG, "swept $killed process(es) proot left behind")
-    }
-
-    private fun descendants(root: Int): List<Pair<Int, Long>> {
-        val started = HashMap<Int, Long>()
-        val children = HashMap<Int, MutableList<Int>>()
-        File("/proc").listFiles()?.forEach { entry ->
-            val pid = entry.name.toIntOrNull() ?: return@forEach
-            val stat = readStat(pid) ?: return@forEach
-            started[pid] = stat.second
-            children.getOrPut(stat.first) { ArrayList() }.add(pid)
-        }
-        val out = ArrayList<Pair<Int, Long>>()
-        val queue = ArrayDeque<Int>().apply { add(root) }
-        val me = android.os.Process.myPid()
-        while (queue.isNotEmpty()) {
-            for (kid in children[queue.removeFirst()] ?: continue) {
-                if (kid <= 1 || kid == me || kid == root) continue
-                val when_ = started[kid] ?: continue
-                out.add(Pair(kid, when_))
-                queue.add(kid)
+    private fun teardown(prootPid: Int, expectedStartTime: Long) {
+        synchronized(sessionWorkLock) {
+            try {
+                val result = OrphanReaper.reapTree(ProcessCleanup.Identity(prootPid, expectedStartTime))
+                if (!result.complete) Log.e(TAG, "auxiliary processes still running: ${result.remaining}")
+            } catch (e: Exception) {
+                Log.e(TAG, "could not clean up auxiliary process $prootPid", e)
             }
         }
-        return out
     }
 
     private fun readStat(pid: Int): Pair<Int, Long>? {
@@ -859,8 +835,8 @@ class SessionService : Service() {
         return try { Pair(fields[1].toInt(), fields[19].toLong()) } catch (e: NumberFormatException) { null }
     }
 
-    private fun askSteamToExit(prootPid: Int) {
-        if (!File("/proc/$prootPid").exists()) return
+    private fun askSteamToExit(process: ProcessCleanup.Identity) {
+        if (!OrphanReaper.isAlive(process)) return
         val request = File(LinuxRuntime.sessionRoot(this), "steam-stop")
         try {
             request.writeText("")
@@ -868,22 +844,22 @@ class SessionService : Service() {
             Log.w(TAG, "could not ask the Steam client to exit", e)
             return
         }
-        val started = System.currentTimeMillis()
-        if (waitForExit(prootPid, STEAM_PICKUP_MS) || request.exists()) {
+        val started = android.os.SystemClock.elapsedRealtime()
+        if (waitForExit(process, STEAM_PICKUP_MS) || request.exists()) {
             request.delete()
             return
         }
-        val exited = waitForExit(prootPid, STEAM_EXIT_MS)
-        Log.i(TAG, "Steam client ${if (exited) "exited" else "did not exit"} after ${System.currentTimeMillis() - started} ms")
+        val exited = waitForExit(process, STEAM_EXIT_MS)
+        Log.i(TAG, "Steam client ${if (exited) "exited" else "did not exit"} after ${android.os.SystemClock.elapsedRealtime() - started} ms")
     }
 
-    private fun waitForExit(pid: Int, timeoutMs: Long): Boolean {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            if (!File("/proc/$pid").exists()) return true
-            try { Thread.sleep(50) } catch (e: InterruptedException) { return false }
+    private fun waitForExit(process: ProcessCleanup.Identity, timeoutMs: Long): Boolean {
+        val deadline = android.os.SystemClock.elapsedRealtime() + timeoutMs
+        while (android.os.SystemClock.elapsedRealtime() < deadline) {
+            if (!OrphanReaper.isAlive(process)) return true
+            Thread.sleep(50)
         }
-        return !File("/proc/$pid").exists()
+        return !OrphanReaper.isAlive(process)
     }
 
     private fun queueSteamGame(gameId: String?) {
@@ -962,41 +938,13 @@ class SessionService : Service() {
         File(directory, STEAM_GAME_REQUEST + ".tmp").delete()
     }
 
-    private fun killGuestLeftovers() {
-        val me = android.os.Process.myPid()
-        val rootfs = try { File(filesDir, "linuxfs").canonicalPath } catch (e: Exception) { return } + "/"
-        val procs = File("/proc").listFiles { f -> f.name.all { it.isDigit() } } ?: return
-        var killed = 0
-        for (proc in procs) {
-            val pid = proc.name.toIntOrNull() ?: continue
-            if (pid == me) continue
-            val exe = try { File(proc, "exe").canonicalPath } catch (e: Exception) { continue }
-            if (!exe.startsWith(rootfs)) continue
-            android.os.Process.killProcess(pid)
-            killed++
-        }
-        if (killed > 0) Log.w(TAG, "killed $killed guest process(es) proot no longer tracked")
-    }
-
-    private fun killStragglers() {
-        val me = android.os.Process.myPid()
-        val procs = File("/proc").listFiles { f -> f.name.all { it.isDigit() } } ?: return
-        var killed = 0
-        for (proc in procs) {
-            val pid = proc.name.toIntOrNull() ?: continue
-            if (pid == me) continue
-            val cmdline = try {
-                File(proc, "cmdline").readBytes().toString(Charsets.UTF_8).replace('\u0000', ' ')
-            } catch (e: Exception) {
-                continue
-            }
-            if (STRAGGLERS.none { cmdline.contains(it) }) continue
-            android.os.Process.killProcess(pid)
-            killed++
-        }
-        if (killed > 0) Log.w(TAG, "killed $killed leftover process(es) of a previous session")
-    }
-
+    /**
+     * The desktop's Steam launchers cannot start the client where they are (no dma-buf on the
+     * desktop), so they leave `steam-launch` in the session directory instead: which UI, and a
+     * steam:// URL or nothing. This ends the session and hands the activity the one to start.
+     * `session=desktop` (Big Picture's "Switch to Desktop", steamos-session-select) asks for the
+     * desktop instead, with Steam's desktop client started in it.
+     */
     private var launchWatcher: android.os.FileObserver? = null
 
     private fun watchLaunchRequests(dir: File) {
@@ -1285,6 +1233,7 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
+            SessionState.finishStop()
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
             } else {
@@ -1292,6 +1241,7 @@ class SessionService : Service() {
                 val message = SessionState.failureMessage ?: "Session guest exited with status $status"
                 val failureStatus = SessionState.failureStatus ?: status
                 SessionEvents.fail(code, message, failureStatus)
+                SessionState.relaunch = null
             }
             SessionState.notifyEnded(status)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -1300,14 +1250,15 @@ class SessionService : Service() {
     }
 
     private fun raiseTracer(pid: Int, gen: Int) {
+        val identity = sessionProcess ?: return
         Thread({
             try {
                 Thread.sleep(2000)
             } catch (e: InterruptedException) {
                 return@Thread
             }
-            if (gen != sessionGen || sessionPid != pid) return@Thread
             val nice = try {
+                if (gen != sessionGen || sessionProcess != identity || !OrphanReaper.isAlive(identity)) return@Thread
                 WaylandCompositor.nativeRaisePriority(pid, TRACER_NICE)
             } catch (t: Throwable) {
                 Log.w(TAG, "tracer priority", t)
@@ -1318,12 +1269,9 @@ class SessionService : Service() {
     }
 
     private fun stopSession(status: Int) {
+        if (!SessionState.beginStop()) return
         cancelQueuedSteamGame()
         completeNativeSleep()
-        synchronized(stopLock) {
-            if (!SessionState.running) return
-            SessionState.running = false
-        }
         xrActivityVisible = false
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
@@ -1338,42 +1286,67 @@ class SessionService : Service() {
         launchWatcher = null
         syncWatcher?.stopWatching()
         syncWatcher = null
-        val prootPid = sessionPid
-        sessionPid = -1
-        val auxiliary = synchronized(auxiliaryProcessesLock) {
-            auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
-        }
         SessionTerminal.clear(sessionGen)
         val controller = suspendController
         suspendController = null
-        val ended = SessionPaths.take()
-        if (ended != null) Thread({ collectSessionArtifacts(ended) }, "session-collect").start()
-        components.reversed().forEach {
-            try {
-                it.stop()
-            } catch (e: Exception) {
-                Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
-            }
-        }
-        components.clear()
-        FakeInputWriter.releaseAllRingSlots()
-        com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
         val finishAfterTeardown: () -> Unit = {
-            if (prootPid > 1 || auxiliary.isNotEmpty()) {
-                Thread({
-                    if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
-                    com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
-                    auxiliary.forEach { (pid, started) -> teardown(pid, started) }
-                    if (prootPid > 1) teardown(prootPid)
-                    killGuestLeftovers()
-                    finishSessionStop(status, stoppedGen)
-                }, "session-teardown").start()
-            } else {
-                Thread({ com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession); finishSessionStop(status, stoppedGen) }, "gog-session-stop").start()
-            }
+            // Process waits and log collection can take seconds; doing either on the main thread
+            // risks an ANR. Collect after cleanup so the final shutdown diagnostics are included.
+            Thread({
+                synchronized(sessionWorkLock) {
+                    var finalStatus = status
+                    try {
+                        check(stoppedGen == sessionGen && SessionState.stopping) { "Session changed during teardown" }
+                        com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
+                        val process = sessionProcess
+                        sessionProcess = null
+                        val roots = synchronized(auxiliaryProcessesLock) {
+                            auxiliaryProcesses.map { (pid, started) -> ProcessCleanup.Identity(pid, started) }
+                                .toMutableSet().also { auxiliaryProcesses.clear() }
+                        }
+                        if (process != null) {
+                            roots.add(process)
+                            if (steamClientMayRun) askSteamToExit(process)
+                        }
+                        val cleanup = OrphanReaper.reapSession(LinuxRuntime.rootDir(this), roots)
+                        SessionEvents.record("session.cleanup", mapOf(
+                            "stage" to "shutdown", "complete" to cleanup.complete,
+                            "stopped" to cleanup.stopped, "remaining" to cleanup.remaining.map { it.pid }.joinToString(","),
+                        ))
+                        check(cleanup.complete) { "Session processes are still running: ${cleanup.remaining}" }
+                    } catch (e: Exception) {
+                        finalStatus = -1
+                        Log.e(TAG, "session cleanup failed", e)
+                        SessionEvents.fail("SESSION_CLEANUP_FAILED", getString(R.string.session_cleanup_failed), finalStatus)
+                    } finally {
+                        try {
+                            launchWatcher?.stopWatching()
+                            launchWatcher = null
+                            syncWatcher?.stopWatching()
+                            syncWatcher = null
+                            SessionTerminal.clear(stoppedGen)
+                            GpuClockPin.stop(this)
+                            GameThreadHints.stop()
+                            components.reversed().forEach {
+                                try { it.stop() } catch (e: Exception) { Log.w(TAG, "stopping ${it.javaClass.simpleName}", e) }
+                            }
+                            components.clear()
+                            FakeInputWriter.releaseAllRingSlots()
+                            com.droiddeck.launcher.input.SteamTouchDevice.release()
+                            SessionPaths.take()?.let(::collectSessionArtifacts)
+                        } catch (e: Exception) {
+                            finalStatus = -1
+                            Log.e(TAG, "could not finish session teardown", e)
+                            SessionEvents.fail("SESSION_CLEANUP_FAILED", getString(R.string.session_cleanup_failed), finalStatus)
+                        } finally {
+                            finishSessionStop(finalStatus, stoppedGen)
+                        }
+                    }
+                }
+            }, "session-teardown").start()
         }
-        if (prootPid > 1) acquireLocks()
+        acquireLocks()
         if (controller != null) controller.closeAndResume(finishAfterTeardown) else finishAfterTeardown()
     }
 
@@ -1587,9 +1560,6 @@ class SessionService : Service() {
         private const val ACTION_STOP_AUXILIARY = "com.droiddeck.launcher.STOP_AUXILIARY"
         private const val ACTION_AUXILIARY_EXITED = "com.droiddeck.launcher.AUXILIARY_EXITED"
         private const val EXTRA_AUXILIARY_PID = "auxiliaryPid"
-        private val STRAGGLERS = listOf("droiddeck-session", "gamescope", "Xwayland", "steamrtarm64",
-            "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
-        private const val GRACE_MS = 1200L
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L
         private const val GAME_LAUNCH_RETRY_MS = 250L
@@ -1625,6 +1595,7 @@ class SessionService : Service() {
         }
 
         fun stop(context: Context) {
+            if (SessionState.stopping) return
             if (!SessionState.running) {
                 SessionState.stopRequested = true
                 return

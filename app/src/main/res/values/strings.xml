@@ -20,6 +20,9 @@
     <string name="resume_session">Resume</string>
     <string name="suspend_now">Suspend now</string>
     <string name="stop_session">Stop session</string>
+    <string name="session_wait_stopping">Waiting for the previous session to finish stopping.</string>
+    <string name="session_start_failed">The session could not start safely. Share the logs with a bug report, then try again.</string>
+    <string name="session_cleanup_failed">Some session processes could not be stopped. Share the logs with a bug report. If another attempt fails, force-stop DroidDeck in Android settings.</string>
     <string name="frame_gen_title">Frame generation</string>
     <string name="frame_gen_hint">Select the frame generation mode</string>
     <string name="frame_gen_off">Off</string>

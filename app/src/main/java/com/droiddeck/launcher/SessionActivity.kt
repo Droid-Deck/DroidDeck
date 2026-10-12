@@ -342,13 +342,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onInputDeviceChanged(deviceId: Int) = refreshControls()
     }
 
-    private var runtimeRemovalBlocked = false
+    private var startBlocked = false
+    private var observingStoppingSession = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyFollowOrientation(resources.configuration)
+        if (SessionState.stopping) {
+            observingStoppingSession = true
+            android.widget.Toast.makeText(this, R.string.session_wait_stopping, android.widget.Toast.LENGTH_SHORT).show()
+            SessionState.endListener = endListener
+            return
+        }
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
-            runtimeRemovalBlocked = true
+            startBlocked = true
             android.widget.Toast.makeText(this, R.string.session_wait_removal, android.widget.Toast.LENGTH_SHORT).show()
             finish()
             return
@@ -1288,7 +1296,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        if (installingRuntime || SessionState.stopRequested) return
+        if (installingRuntime || SessionState.stopRequested || SessionState.stopping) return
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
@@ -1417,6 +1425,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        if (observingStoppingSession) return
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
     }
@@ -1514,6 +1523,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onSessionEnded(status: Int) {
+        if (observingStoppingSession) {
+            if (status == 0) {
+                SessionState.relaunch?.let { next ->
+                    SessionState.relaunch = null
+                    next.putExtra(EXTRA_RETURN_HOME, intent.getBooleanExtra(EXTRA_RETURN_HOME, false))
+                    setIntent(next)
+                    recreate()
+                } ?: finish()
+            } else {
+                val message = SessionState.failureMessage
+                    ?: getString(
+                        R.string.session_ended_detail,
+                        status,
+                        SessionState.logFile?.path ?: getString(R.string.session_ended_no_log),
+                    )
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+                finish()
+            }
+            return
+        }
         if (isInPictureInPictureMode) {
             runOnUiThread { finish() }
             return
@@ -1554,7 +1583,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             else -> getString(R.string.session_ended_named, "Steam")
         }
         loading.showEnded(
-            hint?.text ?: stopped,
+            SessionState.failureMessage.takeIf {
+                SessionState.failureCode == "SESSION_START_FAILED" || SessionState.failureCode == "SESSION_CLEANUP_FAILED"
+            } ?: hint?.text ?: stopped,
             getString(R.string.session_ended_detail, status, SessionState.logFile?.path ?: getString(R.string.session_ended_no_log)),
         )
         focusEndedScreen()
@@ -1609,6 +1640,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE ->
                 return super.dispatchKeyEvent(event)
         }
+        if (observingStoppingSession) return true
         if (pipUi) return true
         val fromController = PadBridge.isControllerKeyEvent(event)
         if (fromController && event.action == KeyEvent.ACTION_DOWN) {
@@ -1691,6 +1723,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (observingStoppingSession) return true
         if (pipUi) return true
         if (drawerOpen && PadBridge.isControllerMotionEvent(event)) {
             if (!drawerControllerActive) sessionOverlay.requestFocus()
@@ -1710,9 +1743,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun dispatchTrackballEvent(event: MotionEvent): Boolean =
-        onCapturedPointer(event) || super.dispatchTrackballEvent(event)
+        observingStoppingSession || onCapturedPointer(event) || super.dispatchTrackballEvent(event)
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (observingStoppingSession) return true
         if (pipUi) return true
         if (event.actionMasked == MotionEvent.ACTION_DOWN && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             drawerControllerActive = false
@@ -2064,6 +2098,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var ignoreGameTouch = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (observingStoppingSession) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         if (routedTouchMode == SessionPrefs.TOUCH_OFF) return true
         if (SessionState.mode == SessionService.MODE_STEAM && SessionState.steamUi != "desktop") {
@@ -2334,6 +2369,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(inPip, newConfig)
+        if (observingStoppingSession) return
         if (::pip.isInitialized) pip.changed(inPip)
         if (!inPip && surfaceW > 0) followWindow(surfaceW, surfaceH)
         applyUnfoldedControls()
@@ -2349,7 +2385,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onStart() {
         super.onStart()
-        if (runtimeRemovalBlocked) return
+        if (startBlocked || observingStoppingSession) return
         started = true
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
         refreshSecondScreenDisplays()
@@ -2358,7 +2394,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onStop() {
-        if (runtimeRemovalBlocked) { super.onStop(); return }
+        if (startBlocked || observingStoppingSession) { super.onStop(); return }
         started = false
         displayManager.unregisterDisplayListener(displayListener)
         closeSecondScreen(reset = false)
@@ -2368,6 +2404,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        if (observingStoppingSession) return
         if (intent.action == SessionService.ACTION_AGENT_START) {
             if (SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
                 Log.w(TAG, "ignoring agent start while session phase is ${SessionState.phase}")
@@ -2390,7 +2427,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onResume() {
         super.onResume()
         applyFollowOrientation(resources.configuration)
-        if (runtimeRemovalBlocked) return
+        if (startBlocked || observingStoppingSession) return
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()
         if (intent?.action == SessionService.ACTION_RESUME) {
@@ -2414,7 +2451,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onPause() {
-        if (runtimeRemovalBlocked) { super.onPause(); return }
+        if (startBlocked || observingStoppingSession) { super.onPause(); return }
         sessionClipboard.stop()
         drawerOpen = false
         pcKeyboardOpen = false
@@ -2535,7 +2572,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (runtimeRemovalBlocked) return
+        if (startBlocked || observingStoppingSession) return
         if (hasFocus && !pipUi) {
             goFullscreen()
             refreshClipboard()
@@ -2576,7 +2613,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         uiHandler.removeCallbacks(steamTouchRetry)
-        if (runtimeRemovalBlocked) { super.onDestroy(); return }
+        if (observingStoppingSession) {
+            if (SessionState.endListener === endListener) SessionState.endListener = null
+            super.onDestroy()
+            return
+        }
+        if (startBlocked) { super.onDestroy(); return }
+        // Deliberately does NOT end the session: this activity can be destroyed while the user is
+        // in another app, and the whole point of the service is that Steam survives that.
         watching = false
         releaseDrawerDirection()
         pendingBackAction?.let(uiHandler::removeCallbacks)
@@ -2606,6 +2650,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun finish() {
+        if (observingStoppingSession) {
+            super.finish()
+            return
+        }
         if (isFinishing) return
         if (!quitFlooded && !closeAtOnce && com.droiddeck.launcher.ui.Motion.scale != 0f &&
             lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
