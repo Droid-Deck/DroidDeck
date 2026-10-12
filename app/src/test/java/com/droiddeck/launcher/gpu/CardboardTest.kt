@@ -95,19 +95,27 @@ class CardboardTest {
         assertVec(floatArrayOf(-1f, 0f, 0f), forward)
     }
 
-    @Test fun lookingStraightDownStillRecentres() {
-        // Screen facing up (phone flat, viewer looking down): forward has no horizontal part.
+    @Test fun farFromUprightRecentresTheWholeOrientation() {
+        // Screen facing up (device flat on a table, or the viewer lying back looking at the ceiling
+        // the other way round): a level horizon would hide the screen, so what the viewer faces is ahead.
+        for (m in listOf(HeadPose.IDENTITY, HeadPose.multiply(matrix(quat(0f, 0f, 1f, 30.0)), matrix(quat(1f, 0f, 0f, 20.0))))) {
+            val pose = HeadPose.relative(HeadPose.recenterBasis(m), m)
+            assertVec(HeadPose.IDENTITY, pose)
+        }
+        // Moving on from there turns the view as usual: 10 degrees to the left about the screen's up axis.
         val flat = HeadPose.IDENTITY
         val basis = HeadPose.recenterBasis(flat)
-        val pose = HeadPose.relative(basis, flat)
-        // Still a proper rotation (orthonormal, determinant 1).
-        val t = HeadPose.multiply(HeadPose.transpose(pose), pose)
-        assertVec(HeadPose.IDENTITY, t)
-        val det = pose[0] * (pose[4] * pose[8] - pose[5] * pose[7]) -
-            pose[1] * (pose[3] * pose[8] - pose[5] * pose[6]) + pose[2] * (pose[3] * pose[7] - pose[4] * pose[6])
-        assertEquals(1f, det, eps)
-        // And the view points straight down.
-        assertVec(floatArrayOf(0f, -1f, 0f), HeadPose.apply(pose, floatArrayOf(0f, 0f, -1f)))
+        val turned = HeadPose.multiply(flat, matrix(quat(0f, 1f, 0f, 10.0)))
+        val forward = HeadPose.apply(HeadPose.relative(basis, turned), floatArrayOf(0f, 0f, -1f))
+        assertEquals(-sin(PI / 18).toFloat(), forward[0], eps)
+    }
+
+    @Test fun fieldOfViewComesFromThePanelSeenThroughTheLens() {
+        val v2 = Cardboard.Viewer.CARDBOARD_V2
+        // A 74.7 mm tall panel 39.3 mm behind the lens: atan(37.35 / 39.3) = 43.5 degrees each way.
+        assertEquals(87.07f, Cardboard.fovDeg(v2, 74.7f), 0.05f)
+        assertEquals(v2.fallbackFovDeg, Cardboard.fovDeg(v2, 0f), eps)
+        assertEquals(Cardboard.Viewer.NONE.fallbackFovDeg, Cardboard.fovDeg(Cardboard.Viewer.NONE, 74.7f), eps)
     }
 
     @Test fun displayRotationRemapsTheScreenAxes() {

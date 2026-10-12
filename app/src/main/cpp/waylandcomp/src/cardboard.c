@@ -12,7 +12,10 @@
 #ifndef CARDBOARD_HOST_TEST
 #include "vk_loader.h"
 #include "vk_present.h" /* droiddeck_log */
+/* upscale_vert.h defines its array non-static, and effects_chain.c includes it too: a private name here. */
+#define upscale_vert_code cardboard_upscale_vert_code
 #include "upscale_vert.h"
+#undef upscale_vert_code
 #include "cardboard_frag.h"
 #endif
 
@@ -278,7 +281,7 @@ static int objects_ensure(void) {
                                           .maxSets = CB_MAX_SOURCES, .poolSizeCount = 1, .pPoolSizes = &ps};
         if (g_vk.CreateDescriptorPool(g_dev, &dpi, NULL, &g_dpool) != VK_SUCCESS) goto fail;
 
-        VkShaderModule vert = shader(upscale_vert_code, sizeof(upscale_vert_code));
+        VkShaderModule vert = shader(cardboard_upscale_vert_code, sizeof(cardboard_upscale_vert_code));
         VkShaderModule frag = shader(cardboard_frag_code, sizeof(cardboard_frag_code));
         if (!vert || !frag) {
             if (vert) g_vk.DestroyShaderModule(g_dev, vert, NULL);

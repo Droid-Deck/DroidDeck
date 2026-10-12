@@ -1341,7 +1341,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
-        SessionPrefs.cardboard(this).push(panelWidthMm())
+        panelSizeMm().let { (w, h) -> SessionPrefs.cardboard(this).push(w, h) }
         // The session's folder, claimed here because the compositor starts before the service and
         // opens its log once. The compositor reads the path from its environment; setting it after
         // it has started changes nothing, which is why the service copies the file in at teardown.
@@ -2551,7 +2551,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun applyCardboard(c: Cardboard) {
         val was = cardboard
         cardboard = c
-        if (CompositorHost.isStarted) c.push(panelWidthMm())
+        if (CompositorHost.isStarted) panelSizeMm().let { (w, h) -> c.push(w, h) }
         if (c.enabled && !was.enabled) headTracker?.recenter()
         updateHeadTracker()
     }
@@ -2569,12 +2569,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    /** The panel's physical width in millimetres (its long side), for lining the eyes up with the lenses. */
-    private fun panelWidthMm(): Float {
+    /** The panel's physical size in millimetres, long side first, for lining the eyes up with the lenses. */
+    private fun panelSizeMm(): Pair<Float, Float> {
         val dm = resources.displayMetrics
-        val px = maxOf(dm.widthPixels, dm.heightPixels).toFloat()
-        val dpi = if (dm.widthPixels >= dm.heightPixels) dm.xdpi else dm.ydpi
-        return if (dpi > 0f) px / dpi * 25.4f else 0f
+        val landscape = dm.widthPixels >= dm.heightPixels
+        val longPx = maxOf(dm.widthPixels, dm.heightPixels).toFloat()
+        val shortPx = minOf(dm.widthPixels, dm.heightPixels).toFloat()
+        val longDpi = if (landscape) dm.xdpi else dm.ydpi
+        val shortDpi = if (landscape) dm.ydpi else dm.xdpi
+        return (if (longDpi > 0f) longPx / longDpi * 25.4f else 0f) to (if (shortDpi > 0f) shortPx / shortDpi * 25.4f else 0f)
     }
 
     override fun onAttachedToWindow() {

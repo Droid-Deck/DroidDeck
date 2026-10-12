@@ -30,28 +30,34 @@ data class Cardboard(
     val lens: Viewer get() = Viewer.byId(viewer)
 
     /**
-     * Hands the settings to the compositor. [panelWidthMm] is the physical width of the panel the
-     * eyes are drawn on (0 = unknown): it decides how far each lens centre sits from its viewport's
-     * centre, so the two pictures line up with the viewer's lenses.
+     * Hands the settings to the compositor. [panelWidthMm] x [panelHeightMm] is the physical size of
+     * the panel the eyes are drawn on (0 = unknown). The width decides how far each lens centre sits
+     * from its viewport's centre, so the two pictures line up with the viewer's lenses; the height,
+     * seen through the lens from its focal distance, is the field of view the distortion works in.
      */
-    fun push(panelWidthMm: Float) {
+    fun push(panelWidthMm: Float, panelHeightMm: Float) {
         val l = lens
         WaylandCompositor.nativeSetCardboard(enabled, source, ipdMm / 1000f, screenDistanceDm / 10f,
-            screenWidthDm / 10f, l.k1, l.k2, l.fovDeg, lensInset(panelWidthMm, l.lensSeparationMm), l.chroma)
+            screenWidthDm / 10f, l.k1, l.k2, fovDeg(l, panelHeightMm), lensInset(panelWidthMm, l.lensSeparationMm), l.chroma)
     }
 
     fun encode(): JSONObject = JSONObject()
         .put("enabled", enabled).put("source", source).put("viewer", viewer).put("ipdMm", ipdMm)
         .put("screenWidthDm", screenWidthDm).put("screenDistanceDm", screenDistanceDm).put("headTracking", headTracking)
 
-    /** A lens the eyes can be drawn for: distortion, field of view and how far apart the lenses are. */
-    enum class Viewer(val id: String, val k1: Float, val k2: Float, val fovDeg: Float, val lensSeparationMm: Float, val chroma: Float) {
+    /**
+     * A lens the eyes can be drawn for: its distortion (Cardboard viewer profile coefficients, in
+     * tangent units at the panel), how far it sits from the panel, and how far apart the two are.
+     * [fallbackFovDeg] is the eye's field of view when the panel's size is unknown, or with no lens.
+     */
+    enum class Viewer(val id: String, val k1: Float, val k2: Float, val screenToLensMm: Float,
+                      val lensSeparationMm: Float, val chroma: Float, val fallbackFovDeg: Float) {
         /** Google Cardboard (2015): the common plastic and cardboard viewers. */
-        CARDBOARD_V2("cardboard2", 0.34f, 0.55f, 100f, 63.9f, 0.006f),
+        CARDBOARD_V2("cardboard2", 0.34f, 0.55f, 39.3f, 63.9f, 0.006f, 90f),
         /** The original 2014 Cardboard: narrower, gentler lenses. */
-        CARDBOARD_V1("cardboard1", 0.441f, 0.156f, 80f, 60f, 0.004f),
+        CARDBOARD_V1("cardboard1", 0.441f, 0.156f, 42f, 60f, 0.004f, 80f),
         /** No lens: side-by-side 3D glasses, a 3D TV, or just looking at the stereo pair. */
-        NONE("none", 0f, 0f, 60f, 0f, 0f);
+        NONE("none", 0f, 0f, 0f, 0f, 0f, 60f);
 
         companion object {
             fun byId(id: String): Viewer = entries.firstOrNull { it.id == id } ?: CARDBOARD_V2
@@ -73,6 +79,16 @@ data class Cardboard(
             screenDistanceDm = json.optInt("screenDistanceDm", 30).coerceIn(5, 200),
             headTracking = json.optBoolean("headTracking", true),
         )
+
+        /**
+         * One eye's vertical field of view on the panel side of the lens: half the panel's height
+         * seen from the lens's focal distance. The lens then spreads it wider (the distortion).
+         */
+        fun fovDeg(viewer: Viewer, panelHeightMm: Float): Float {
+            if (panelHeightMm <= 0f || viewer.screenToLensMm <= 0f) return viewer.fallbackFovDeg
+            val half = Math.toDegrees(kotlin.math.atan((panelHeightMm / 2f / viewer.screenToLensMm).toDouble())).toFloat()
+            return (2f * half).coerceIn(30f, 140f)
+        }
 
         /**
          * The lens centre's inset towards the nose, as a fraction of one eye viewport's width. Each
@@ -129,21 +145,23 @@ object HeadPose {
         return multiply(deviceToWorld, a)
     }
 
+    /** sin(60 degrees): looking further up or down than this recentres the whole orientation. */
+    private const val FULL_RECENTER_SIN = 0.866f
+
     /**
      * The yaw-only frame a recentre locks to: facing where the viewer looks now, upright. Columns
      * are its right, up and back axes in world coordinates. Pitch and roll stay absolute (gravity
-     * keeps the horizon level); only the heading is reset.
+     * keeps the horizon level); only the heading is reset - unless the view is more than 60 degrees
+     * from level, when the whole current orientation becomes straight ahead.
      */
     fun recenterBasis(screenToWorld: FloatArray): FloatArray {
         // Forward = the screen's -z in world.
         var fx = -screenToWorld[2]; var fy = -screenToWorld[5]
-        var len = sqrt(fx * fx + fy * fy)
-        if (len < 1e-3f) {
-            // Looking straight up or down: take the heading from the top of the screen instead.
-            fx = screenToWorld[1] * (if (screenToWorld[8] > 0f) 1f else -1f)
-            fy = screenToWorld[4] * (if (screenToWorld[8] > 0f) 1f else -1f)
-            len = sqrt(fx * fx + fy * fy).takeIf { it > 1e-6f } ?: 1f
-        }
+        val fz = -screenToWorld[8]
+        // Far from upright (lying back in bed, the device flat on a table): a level horizon would put
+        // the screen out of view, so the whole orientation is taken as straight ahead instead.
+        if (kotlin.math.abs(fz) > FULL_RECENTER_SIN) return screenToWorld.copyOf()
+        val len = sqrt(fx * fx + fy * fy)
         fx /= len; fy /= len
         // right = forward x up(0,0,1) = (fy, -fx, 0); up = (0,0,1); back = -forward.
         return floatArrayOf(
