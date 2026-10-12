@@ -350,6 +350,9 @@ internal fun LiftHero(
         }
     }
     BackHandler(enabled = open && !launching) { close() }
+    // The ring keeps out of the lift and the fold, and comes back on whatever has focus once
+    // they are done: Play rides the sheet on a layer, and the ring hung where Play had been.
+    if (ride.isRunning || (shown && !open)) VeilRing()
     val openNow = open || shown
     LaunchedEffect(openNow) { onOpenChange(openNow) }
 
