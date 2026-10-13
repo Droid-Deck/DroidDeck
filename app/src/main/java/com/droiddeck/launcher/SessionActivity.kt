@@ -1291,6 +1291,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // Turnip, not the system Adreno driver: importing the dma-bufs gamescope commits needs
         // VK_EXT_image_drm_format_modifier, which the system driver does not implement.
         val turnip = TurnipDriver(this)
+        com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "surface.driver-setup")
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
 
         // The output size belongs to the session, not to the Surface: gamescope's display is
@@ -1357,6 +1358,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             )
             Log.i(TAG, "hdr: " + (if (on) "on" else if (wanted) "wanted but ${probe.reason}" else "off") + " · display ${probe.formats.ifEmpty { "SDR" }}")
         }
+        com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
         CompositorHost.startOrAttach(
             holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },

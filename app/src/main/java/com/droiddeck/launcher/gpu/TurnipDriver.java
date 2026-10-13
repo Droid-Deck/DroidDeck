@@ -45,13 +45,16 @@ import java.util.zip.ZipInputStream;
  */
 public final class TurnipDriver {
     private static final String TAG = "TurnipDriver";
+    /** Pinned A6xx/A7xx upstream build; used as the A6xx offline fallback. */
+    private static final String DRIVER_A6XX = "turnip26.3.0-a6xx";
     /** Adreno 7xx (8 Gen 2/3, e.g. the Pocket FIT's A750). */
     private static final String DRIVER_A7XX = "turnip25.1.0";
     /** Adreno 8xx (8 Elite, e.g. a Fold 8's A830). */
     private static final String DRIVER_A8XX = "turnip-sdk36";
     /** The two the apk carries; never removable, unpacked on demand. */
     public static final List<String> BUNDLED = Collections.unmodifiableList(Arrays.asList(
-            DRIVER_A7XX, DRIVER_A8XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER));
+            DRIVER_A7XX, DRIVER_A8XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER,
+            DRIVER_A6XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER_A6XX));
     /** Overrides the pick, for a device we cannot reach: a7xx, a8xx or system. */
     private static final String OVERRIDE_FILE = "Download/droiddeck-driver";
     /** Bundled drivers the user deleted: hidden from the list, their unpacked copy removed. */
@@ -289,12 +292,14 @@ public final class TurnipDriver {
      */
     public String install() {
         String id = choose();
+        DriverSetupLog.write(context, "install.begin driver=" + id);
         if (id == null) return null;
         File dir = new File(contentDir, id);
         if (!new File(dir, "meta.json").isFile()) {
             FileUtils.delete(dir);
             if (!TarZst.extractAsset(context, "graphics_driver/adrenotools-" + id + ".tzst", dir)) {
                 Log.e(TAG, "could not unpack " + id);
+                DriverSetupLog.write(context, "install.unpack-failed driver=" + id);
                 FileUtils.delete(dir);
                 return null;
             }
@@ -305,6 +310,7 @@ public final class TurnipDriver {
             return null;
         }
         Log.i(TAG, "graphics driver " + id + " (" + library + ")");
+        DriverSetupLog.write(context, "install.ready driver=" + id + " library=" + library);
         return id;
     }
 
@@ -338,6 +344,7 @@ public final class TurnipDriver {
             if (forced.startsWith("system")) return null;
             if (forced.startsWith("a8")) return DRIVER_A8XX;
             if (forced.startsWith("a7")) return DRIVER_A7XX;
+            if (forced.startsWith("a6")) return DRIVER_A6XX;
         }
         String model = gpuModel();
         Log.i(TAG, "gpu model: " + (model == null ? "unknown" : model));
@@ -348,6 +355,7 @@ public final class TurnipDriver {
                 char generation = m.group(1).charAt(0);
                 if (generation >= '8') return DRIVER_A8XX;
                 if (generation == '7') return DRIVER_A7XX;
+                if (generation == '6') return DRIVER_A6XX;
             }
         }
         // Nothing to go on: Android 16 shipped with the 8 Elite, so treat a new device as 8xx.
