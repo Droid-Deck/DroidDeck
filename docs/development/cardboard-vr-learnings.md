@@ -18,6 +18,11 @@ and what is still open. Read it before the next round of VR work.
 | SteamVR Home | Blocked: Proton's `vrclient_x64` lacks `IVROverlayView_002` |
 | `helloxr -g Vulkan2` (OpenXR) | Session focused and submitting, picture shows as torn tiles |
 
+Screenshots from the Thor: [Thumper gameplay](evidence/cardboard-thumper-vr-gameplay-2026-10-13.png),
+[Thumper title](evidence/cardboard-thumper-vr-cardboard-2026-10-13.png),
+[The Thrill of the Fight](evidence/cardboard-thrill-of-the-fight-cardboard-2026-10-13.png),
+[the SteamVR dashboard with a game's EULA](evidence/cardboard-steamvr-dashboard-2026-10-13.png).
+
 Games run as x86-64 Windows builds through Proton ARM64 (FEX, DXVK). Proton's `vrclient_x64` forwards
 OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
 
