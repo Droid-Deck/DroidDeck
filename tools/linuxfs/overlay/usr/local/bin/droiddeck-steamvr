@@ -87,6 +87,27 @@ start)
 }
 JSON
     ln -sf "$steamvr/steamxr_linuxarm64.json" "$HOME/.config/openxr/1/active_runtime.json"
+    chaperone=$HOME/.local/share/Steam/config/chaperone_info.vrchap
+    [ -s "$chaperone" ] || cat > "$chaperone" <<'JSON'
+{
+   "jsonid" : "chaperone_info",
+   "universes" : [
+      {
+         "collision_bounds" : [
+            [ [ -1.0, 0.0, -1.0 ], [ -1.0, 2.43, -1.0 ], [ -1.0, 2.43, 1.0 ], [ -1.0, 0.0, 1.0 ] ],
+            [ [ -1.0, 0.0, 1.0 ], [ -1.0, 2.43, 1.0 ], [ 1.0, 2.43, 1.0 ], [ 1.0, 0.0, 1.0 ] ],
+            [ [ 1.0, 0.0, 1.0 ], [ 1.0, 2.43, 1.0 ], [ 1.0, 2.43, -1.0 ], [ 1.0, 0.0, -1.0 ] ],
+            [ [ 1.0, 0.0, -1.0 ], [ 1.0, 2.43, -1.0 ], [ -1.0, 2.43, -1.0 ], [ -1.0, 0.0, -1.0 ] ]
+         ],
+         "play_area" : [ 2.0, 2.0 ],
+         "seated" : { "translation" : [ 0.0, -1.6, 0.0 ], "yaw" : 0.0 },
+         "standing" : { "translation" : [ 0.0, 0.0, 0.0 ], "yaw" : 0.0 },
+         "universeID" : "2"
+      }
+   ],
+   "version" : 5
+}
+JSON
 
     # vrcompositor asks for VK_KHR_display, which makes Turnip/KGSL report no GPU at all; the layer stands
     # in for a display. gamescope's implicit WSI layer stays out of SteamVR's processes.

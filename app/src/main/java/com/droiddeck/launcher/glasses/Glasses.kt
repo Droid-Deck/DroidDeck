@@ -211,16 +211,17 @@ object Glasses {
         post { updateImu() }
     }
 
-    fun simulate(seconds: Int): Boolean {
+    fun simulate(seconds: Int, holdYaw: Double? = null, holdPitch: Double? = null): Boolean {
+        val hold = holdYaw != null || holdPitch != null
         val t = Thread({
             val start = SystemClock.elapsedRealtimeNanos()
             val end = start + seconds * 1_000_000_000L
             while (SystemClock.elapsedRealtimeNanos() < end && simulating.get() === Thread.currentThread()) {
                 val now = SystemClock.elapsedRealtimeNanos()
                 val t = (now - start) / 1e9
-                val yaw = 40.0 * sin(t * 2 * Math.PI / 6.0)
-                val pitch = 15.0 * sin(t * 2 * Math.PI / 4.0)
-                val roll = 5.0 * sin(t * 2 * Math.PI / 5.0)
+                val yaw = if (hold) holdYaw ?: 0.0 else 40.0 * sin(t * 2 * Math.PI / 6.0)
+                val pitch = if (hold) holdPitch ?: 0.0 else 15.0 * sin(t * 2 * Math.PI / 4.0)
+                val roll = if (hold) 0.0 else 5.0 * sin(t * 2 * Math.PI / 5.0)
                 val q = VitureProtocol.eulerZxy(roll.toFloat(), pitch.toFloat(), yaw.toFloat())
                 deliver(q, now)
                 SystemClock.sleep(4)

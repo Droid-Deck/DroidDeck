@@ -491,6 +491,10 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
             request.update(key=args.key, value=args.value)
         elif args.glasses_op == "simulate":
             request["seconds"] = args.seconds
+            if args.yaw is not None:
+                request["yaw"] = args.yaw
+            if args.pitch is not None:
+                request["pitch"] = args.pitch
         elif args.glasses_op == "mode":
             request["mode"] = args.mode
         elif args.glasses_op == "imu":
@@ -673,8 +677,10 @@ def build_parser() -> argparse.ArgumentParser:
     glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, brightness, volume, sunblock, 3d, gameOnGlasses, headTracking, auto3d")
     glasses_set.add_argument("key")
     glasses_set.add_argument("value")
-    glasses_sim = glasses_ops.add_parser("simulate", help="feed a moving head pose (yaw, pitch and roll sweeps)")
+    glasses_sim = glasses_ops.add_parser("simulate", help="feed a moving head pose (yaw, pitch and roll sweeps), or hold one")
     glasses_sim.add_argument("--seconds", type=int, default=20)
+    glasses_sim.add_argument("--yaw", type=float, help="hold this yaw (degrees, left positive) instead of sweeping")
+    glasses_sim.add_argument("--pitch", type=float, help="hold this pitch (degrees, down positive) instead of sweeping")
     glasses_ops.add_parser("stop-simulate")
     glasses_ops.add_parser("query", help="ask the glasses for their display mode, brightness, volume and IMU state")
     glasses_mode = glasses_ops.add_parser("mode", help="send a display mode byte, e.g. 0x31 (1080p60), 0x34 (1080p120), 0x32 (3D)")

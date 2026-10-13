@@ -417,12 +417,16 @@ public:
     // From the driver's pose thread: the head's orientation and the pad.
     void Update(const HmdQuaternion_t &head, const PadState *pad) {
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
+        const auto now = std::chrono::steady_clock::now();
+        const float dt = std::min(std::chrono::duration<float>(now - lastUpdate_).count(), 0.1f);
+        lastUpdate_ = now;
+        if (pad && pad->axes[7]) reach_ = std::clamp(reach_ - (pad->axes[7] > 0 ? 1.0f : -1.0f) * kReachSpeed * dt, kReachMin, kReachMax);
         DriverPose_t p = {};
         p.qWorldFromDriverRotation.w = 1;
         p.qDriverFromHeadRotation.w = 1;
         p.qRotation = head;
         // Low and in front of its side, in head space, then into the room with the head's rotation.
-        const double off[3] = {right_ ? 0.18 : -0.18, -0.35, -0.30};
+        const double off[3] = {right_ ? 0.18 : -0.18, -0.35, -0.30 - reach_};
         double m[3][3];
         const double w = head.w, x = head.x, y = head.y, z = head.z;
         m[0][0] = 1 - 2 * (y * y + z * z); m[0][1] = 2 * (x * y - z * w); m[0][2] = 2 * (x * z + y * w);
@@ -452,9 +456,12 @@ public:
     }
 
 private:
+    static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 0.7f;
     bool right_;
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     DriverPose_t pose_ = {};
+    float reach_ = 0.0f;
+    std::chrono::steady_clock::time_point lastUpdate_ = std::chrono::steady_clock::now();
     VRInputComponentHandle_t system_ = 0, menu_ = 0, grip_ = 0, triggerClick_ = 0, trigger_ = 0, padX_ = 0, padY_ = 0,
                              padClick_ = 0, padTouch_ = 0, haptic_ = 0;
 };

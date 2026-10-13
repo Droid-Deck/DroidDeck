@@ -2725,7 +2725,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun pushCardboard(c: Cardboard) {
-        val fov = if (c.viewer == Cardboard.Viewer.VITURE.id) glasses.verticalFovDeg else 0f
+        val fov = when {
+            c.viewer != Cardboard.Viewer.VITURE.id -> 0f
+            c.source == Cardboard.SOURCE_SBS -> GLASSES_VR_FOV_DEG
+            else -> glasses.verticalFovDeg
+        }
         panelSizeMm().let { (w, h) -> c.push(w, h, fov, refreshHz()) }
     }
 
@@ -2997,6 +3001,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val DRAWER_SLOW_REPEAT_FLOOR_MS = 240L
         private const val DRAWER_FAST_REPEAT_INTERVAL_MS = 90L
         private const val DRAWER_REPEAT_ACCELERATION_MS = 1_400L
+        private const val GLASSES_VR_FOV_DEG = 70f
         /** Compositor scale modes (Container.FULLSCREEN_* values): 1 = fit with bars, centred. */
         private const val SCALE_FIT = 1
         private const val ALIGN_CENTER = 0

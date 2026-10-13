@@ -136,7 +136,10 @@ class AgentBridgeProvider : ContentProvider() {
                     else -> return error("INVALID_KEY", "Unknown glasses setting '$key'")
                 }
             }
-            "simulate" -> if (!g.simulate(request.optInt("seconds", 20).coerceIn(1, 600))) return error("BUSY", "Already simulating")
+            "simulate" -> {
+                fun angle(key: String) = if (request.has(key)) request.optDouble(key).takeIf { it.isFinite() }?.coerceIn(-90.0, 90.0) else null
+                if (!g.simulate(request.optInt("seconds", 20).coerceIn(1, 600), angle("yaw"), angle("pitch"))) return error("BUSY", "Already simulating")
+            }
             "stop-simulate" -> g.stopSimulation()
             "query" -> { g.query(); Thread.sleep(600) }
             "mode" -> { g.sendMode(request.optString("mode").removePrefix("0x").toInt(16)); Thread.sleep(600) }
