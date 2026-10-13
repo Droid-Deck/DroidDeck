@@ -768,15 +768,19 @@ static int submit_drop_wait(VkSemaphore s, uint64_t value) {
     pthread_mutex_unlock(&g_br_lock);
     if (!imported || !value || value <= queued) return 0;
     struct dev *d = dev_for(dev);
-    PFN_vkGetSemaphoreCounterValue get = d ? (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValue") : NULL;
-    PFN_vkSignalSemaphore sig = d ? (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphore") : NULL;
-    if (!get || !sig) return 0;
+    if (!d) return 0;
+    /* A Vulkan 1.0 device (SteamVR's client interop) has only the KHR names. */
+    PFN_vkGetSemaphoreCounterValue get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValue");
+    if (!get) get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValueKHR");
+    PFN_vkSignalSemaphore sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphore");
+    if (!sig) sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphoreKHR");
+    if (!get) return 0;
     const uint64_t until = now_us() + SUBMIT_GRACE_US;
     for (;;) {
         uint64_t local = 0;
         if (get(dev, s, &local) == VK_SUCCESS && local >= value) return 0;
         uint64_t shared = atomic_load(counter);
-        if (shared >= value) {
+        if (shared >= value && sig) {
             VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, NULL, s, shared};
             if (sig(dev, &si) == VK_SUCCESS) return 0;
         }
@@ -796,6 +800,22 @@ static void note_signal(VkSemaphore s, uint64_t value) {
     struct bridged *b = bridged_find(s);
     if (b && b->timeline && value > b->submitted) b->submitted = value;
     pthread_mutex_unlock(&g_br_lock);
+}
+
+static void note_submit_signals(uint32_t count, const VkSubmitInfo *submits) {
+    for (uint32_t i = 0; i < count; i++) {
+        const VkTimelineSemaphoreSubmitInfo *t = NULL;
+        for (const VkBaseInStructure *p = submits[i].pNext; p; p = p->pNext)
+            if (p->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO) t = (const void *)p;
+        for (uint32_t j = 0; t && j < submits[i].signalSemaphoreCount && j < t->signalSemaphoreValueCount; j++)
+            note_signal(submits[i].pSignalSemaphores[j], t->pSignalSemaphoreValues[j]);
+    }
+}
+
+static void note_submit2_signals(uint32_t count, const VkSubmitInfo2 *submits) {
+    for (uint32_t i = 0; i < count; i++)
+        for (uint32_t j = 0; j < submits[i].signalSemaphoreInfoCount; j++)
+            note_signal(submits[i].pSignalSemaphoreInfos[j].semaphore, submits[i].pSignalSemaphoreInfos[j].value);
 }
 
 /* Drops waits on detached semaphores from a list; returns the new count. */
@@ -838,17 +858,21 @@ static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmit
             for (uint32_t j = 0; j < submits[i].signalSemaphoreCount; j++)
                 trace_sem("signals", submits[i].pSignalSemaphores[j], t && j < t->signalSemaphoreValueCount ? t->pSignalSemaphoreValues[j] : 0);
         }
+    /* Waits are judged before this submit's own signals count as queued: an acquire may wait on one
+     * value and signal the next on the same semaphore. */
     int any = 0;
-    for (uint32_t i = 0; i < count; i++) {
+    for (uint32_t i = 0; i < count && !any; i++) {
         const VkTimelineSemaphoreSubmitInfo *t = NULL;
         for (const VkBaseInStructure *p = submits[i].pNext; p; p = p->pNext)
             if (p->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO) t = (const void *)p;
-        for (uint32_t j = 0; t && j < submits[i].signalSemaphoreCount && j < t->signalSemaphoreValueCount; j++)
-            note_signal(submits[i].pSignalSemaphores[j], t->pSignalSemaphoreValues[j]);
         for (uint32_t j = 0; j < submits[i].waitSemaphoreCount && !any; j++)
             any = submit_drop_wait(submits[i].pWaitSemaphores[j], t && j < t->waitSemaphoreValueCount ? t->pWaitSemaphoreValues[j] : 0);
     }
-    if (!any) return next(q, count, submits, fence);
+    if (!any) {
+        VkResult r = next(q, count, submits, fence);
+        note_submit_signals(count, submits);
+        return r;
+    }
     VkSubmitInfo *copy = calloc(count, sizeof(*copy));
     VkTimelineSemaphoreSubmitInfo *tl = calloc(count, sizeof(*tl));
     void **bufs = calloc(count * 3, sizeof(void *));
@@ -882,6 +906,7 @@ static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmit
         }
     }
     VkResult r = next(q, count, copy, fence);
+    note_submit_signals(count, submits);
     for (uint32_t i = 0; i < count * 3; i++) free(bufs[i]);
     free(bufs); free(tl); free(copy);
     return r;
@@ -898,13 +923,14 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
                 trace_sem("signals", submits[i].pSignalSemaphoreInfos[j].semaphore, submits[i].pSignalSemaphoreInfos[j].value);
         }
     int any = 0;
-    for (uint32_t i = 0; i < count; i++) {
-        for (uint32_t j = 0; j < submits[i].signalSemaphoreInfoCount; j++)
-            note_signal(submits[i].pSignalSemaphoreInfos[j].semaphore, submits[i].pSignalSemaphoreInfos[j].value);
+    for (uint32_t i = 0; i < count && !any; i++)
         for (uint32_t j = 0; j < submits[i].waitSemaphoreInfoCount && !any; j++)
             any = submit_drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore, submits[i].pWaitSemaphoreInfos[j].value);
+    if (!any) {
+        VkResult r = next(q, count, submits, fence);
+        note_submit2_signals(count, submits);
+        return r;
     }
-    if (!any) return next(q, count, submits, fence);
     VkSubmitInfo2 *copy = calloc(count, sizeof(*copy));
     VkSemaphoreSubmitInfo **waits = calloc(count, sizeof(*waits));
     for (uint32_t i = 0; i < count; i++) {
@@ -918,6 +944,7 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
         copy[i].pWaitSemaphoreInfos = waits[i];
     }
     VkResult r = next(q, count, copy, fence);
+    note_submit2_signals(count, submits);
     for (uint32_t i = 0; i < count; i++) free(waits[i]);
     free(waits); free(copy);
     return r;
@@ -944,7 +971,29 @@ static VkResult VKAPI_CALL GetSemaphoreCounterValue(VkDevice d, VkSemaphore s, u
     return next(d, s, value);
 }
 
+/* semtrace also logs how shared (external memory) images are created, to compare both sides. */
+static VkResult VKAPI_CALL CreateImage(VkDevice d, const VkImageCreateInfo *ci, const VkAllocationCallbacks *a, VkImage *out) {
+    VkResult r = NEXT(d, CreateImage)(d, ci, a, out);
+    if (!sem_trace_on()) return r;
+    const VkExternalMemoryImageCreateInfo *ext = NULL;
+    const VkImageFormatListCreateInfo *list = NULL;
+    for (const VkBaseInStructure *p = ci->pNext; p; p = p->pNext) {
+        if (p->sType == VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO) ext = (const void *)p;
+        if (p->sType == VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO) list = (const void *)p;
+    }
+    if (!ext) return r;
+    char line[256];
+    int n = snprintf(line, sizeof(line), "%s image %ux%u format %d flags 0x%x usage 0x%x tiling %d handles 0x%x list",
+                     program_invocation_short_name, ci->extent.width, ci->extent.height, ci->format, ci->flags, ci->usage,
+                     ci->tiling, ext->handleTypes);
+    for (uint32_t i = 0; list && i < list->viewFormatCount && n < (int)sizeof(line) - 8; i++)
+        n += snprintf(line + n, sizeof(line) - n, " %d", list->pViewFormats[i]);
+    say("%s", line);
+    return r;
+}
+
 static PFN_vkVoidFunction semaphore_hook(const char *name) {
+    HOOK_AS("vkCreateImage", CreateImage)
     HOOK_AS("vkCreateSemaphore", CreateSemaphore)
     HOOK_AS("vkDestroySemaphore", DestroySemaphore)
     HOOK_AS("vkGetSemaphoreFdKHR", GetSemaphoreFdKHR)
