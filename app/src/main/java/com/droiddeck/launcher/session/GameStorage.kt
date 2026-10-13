@@ -25,16 +25,12 @@ object GameStorage {
     /** Every removable volume, as its app folder, with the free space it has. */
     fun options(context: Context): List<Option> {
         val sm = context.getSystemService(StorageManager::class.java)
-        val usb = if (SessionPrefs.usbRootEnabled(context) && UsbRootMount.mounted(context)) UsbRootMount.path(context).let { dir ->
-            val name = UsbRootMount.label ?: context.getString(R.string.usb_root_volume)
-            listOf(Option(context.getString(R.string.gstore_volume_free, name, free(dir)), dir.absolutePath, name))
-        } else emptyList()
         // One USB route at a time: the root mount when that setting is on, vold's own mount otherwise.
-        val hidden = if (SessionPrefs.usbRootEnabled(context)) emptyList() else hiddenUsb(context).filter { it.canWrite() }.map { dir ->
-            val name = context.getString(R.string.usb_root_volume)
-            Option(context.getString(R.string.gstore_volume_free, name, free(dir)), File(dir, "steam").absolutePath, name)
-        }
-        return usb + hidden + context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
+        val usbName = UsbRootMount.label ?: context.getString(R.string.usb_root_volume)
+        val usb = if (SessionPrefs.usbRootEnabled(context)) listOf(UsbRootMount.path(context)).filter { UsbRootMount.mounted(context) }.map { it to it }
+            else hiddenUsb(context).filter { it.canWrite() }.map { it to File(it, "steam") }
+        return usb.map { (volume, root) -> Option(context.getString(R.string.gstore_volume_free, usbName, free(volume)), root.absolutePath, usbName) } +
+            context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
             val removable = try { Environment.isExternalStorageRemovable(dir) } catch (e: Exception) { false }
             if (!removable) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(dir) } catch (e: Exception) { null }

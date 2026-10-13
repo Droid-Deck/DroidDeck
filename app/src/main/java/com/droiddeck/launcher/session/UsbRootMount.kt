@@ -4,10 +4,7 @@ import android.content.Context
 import android.os.Process
 import android.util.Log
 import com.droiddeck.launcher.R
-import com.topjohnwu.superuser.CallbackList
-import com.topjohnwu.superuser.Shell
 import java.io.File
-import java.util.concurrent.Executors
 
 /**
  * A USB drive as game storage, with root, on phones that do not show USB drives to apps.
@@ -49,25 +46,25 @@ object UsbRootMount {
         false
     }
 
-    private var shell: Shell? = null
+    private class Result(val code: Int, val out: List<String>)
 
-    @Synchronized
-    private fun root(): Shell {
-        shell?.takeIf { it.isAlive }?.let { return it }
-        return Shell.Builder.create().setFlags(Shell.FLAG_MOUNT_MASTER).setTimeout(15).build().also { shell = it }
+    private const val ROOT = "__root__"
+
+    /** Starts [script] as root in the global mount namespace (Magisk and KernelSU both take --mount-master). */
+    private fun su(script: String): java.lang.Process =
+        ProcessBuilder("su", "--mount-master", "-c", "[ \"\$(id -u)\" = 0 ] && echo $ROOT || exit 1\n$script").redirectErrorStream(true).start()
+
+    private fun run(context: Context, script: String): Result {
+        val process = try { su(script) } catch (e: java.io.IOException) { null }
+            ?: throw IllegalStateException(context.getString(R.string.usb_root_denied))
+        val out = process.inputStream.bufferedReader().readLines()
+        val code = process.waitFor()
+        if (out.firstOrNull() != ROOT) throw IllegalStateException(context.getString(R.string.usb_root_denied))
+        return Result(code, out.drop(1))
     }
 
-    private fun run(context: Context, script: String): Shell.Result {
-        val shell = try { root() } catch (e: Exception) { null }
-        if (shell == null || !shell.isRoot) throw IllegalStateException(context.getString(R.string.usb_root_denied))
-        // Subshell: the scripts `exit`, which would end libsu's shared shell.
-        return shell.newJob().add("(\n$script\n)").to(ArrayList(), ArrayList()).exec()
-    }
-
-    private fun Shell.Result.detail(): String = (err + out).joinToString(" ").trim().ifEmpty { "exit $code" }
-
-    private fun fail(context: Context, result: Shell.Result): Nothing =
-        throw IllegalStateException(context.getString(R.string.usb_root_mount_failed, result.code, result.detail()))
+    private fun fail(context: Context, result: Result): Nothing = throw IllegalStateException(
+        context.getString(R.string.usb_root_mount_failed, result.code, result.out.joinToString(" ").trim().ifEmpty { "exit ${result.code}" }))
 
     /** USB partitions vold has nodes for, mounted by it or not. */
     fun drives(context: Context): List<Drive> =
@@ -187,22 +184,20 @@ object UsbRootMount {
         watching = true
         val app = context.applicationContext
         Thread({
-            val shell = try { Shell.Builder.create().setFlags(Shell.FLAG_MOUNT_MASTER).build() } catch (e: Exception) { null }
-            if (shell == null || !shell.isRoot) { watching = false; return@Thread }
-            val events = object : CallbackList<String>(Executors.newSingleThreadExecutor()) {
-                // inotifyd: "n<TAB>/dev/block/vold<TAB>public:8,97" on create, "d..." on delete.
-                override fun onAddElement(line: String) {
-                    val fields = line.split('\t')
-                    if (fields.size < 3 || !fields[2].startsWith("public:") || !SessionPrefs.usbRootEnabled(app)) return
-                    if (fields[0] == "n") {
-                        // shortcut: fixed wait for vold to finish checking the new volume; poll its state if 5 s proves short.
-                        Thread.sleep(5000)
-                        mount(app)
-                    } else dropIfGone(app)
-                    onChange?.invoke()
-                }
+            val lines = try { su("exec inotifyd - /dev/block/vold:nd").inputStream.bufferedReader() } catch (e: java.io.IOException) { null }
+            if (lines == null || lines.readLine() != ROOT) { watching = false; return@Thread }
+            // inotifyd: "n<TAB>/dev/block/vold<TAB>public:8,97" on create, "d..." on delete.
+            lines.forEachLine { line ->
+                val fields = line.split('\t')
+                if (fields.size < 3 || !fields[2].startsWith("public:") || !SessionPrefs.usbRootEnabled(app)) return@forEachLine
+                if (fields[0] == "n") {
+                    // shortcut: fixed wait for vold to finish checking the new volume; poll its state if 5 s proves short.
+                    Thread.sleep(5000)
+                    mount(app)
+                } else dropIfGone(app)
+                onChange?.invoke()
             }
-            shell.newJob().add("exec inotifyd - /dev/block/vold:nd").to(events).submit()
+            watching = false
         }, "usb-root-watch").start()
     }
 
