@@ -11,7 +11,7 @@ import sys
 
 HOME = os.environ.get("HOME", "/root")
 STEAM_ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HOME, ".local/share/Steam")
-LIBRARIES = ((STEAM_ROOT, "Steam Games"), ("/mnt/droiddeck-sd", "SD Games"))
+LIBRARIES = ((STEAM_ROOT, "Steam Games"), ("/mnt/droiddeck-sd", "SD Games"), ("/mnt/droiddeck-usb", "USB Games"))
 # The client's own tools and runtimes live in steamapps beside the games; they are not titles. A
 # depot with a toolmanifest.vdf is one too (a runtime or a Proton), listed here or not.
 NOT_GAMES = {228980, 1070560, 1391110, 1493710, 1628350, 3127680, 4183110, 4185400, 4427310, 4628740}

@@ -394,7 +394,6 @@
     <string name="usb_root_drive">USB drive</string>
     <string name="usb_root_no_drive">None found</string>
     <string name="usb_root_volume">USB drive</string>
-    <string name="usb_root_away">USB drive (unplugged)</string>
     <string name="usb_root_unnamed">%1$s drive</string>
     <string name="usb_root_mounted">Mounted</string>
     <string name="usb_root_unmounted">Not mounted</string>

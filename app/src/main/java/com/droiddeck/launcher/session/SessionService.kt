@@ -943,7 +943,13 @@ class SessionService : Service() {
         }
         val libraries = ArrayList<Pair<String, String>>()
         if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
-        val gamesLibraries = GameStorage.gamesFolderLibraries(this)
+        // The USB drive is a library of its own beside the card, bound like a Games folder.
+        val usb = GameStorage.usbDrive(this)?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
+        if (usb != null) {
+            File(LinuxRuntime.rootDir(this), "mnt/droiddeck-usb").mkdirs()
+            binds.add(usb.host.path + ":" + usb.guest)
+        }
+        val gamesLibraries = listOfNotNull(usb) + GameStorage.gamesFolderLibraries(this)
         if (gamesLibraries.isNotEmpty()) {
             var room = if (ProotFastPath.enabled(this)) {
                 ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size

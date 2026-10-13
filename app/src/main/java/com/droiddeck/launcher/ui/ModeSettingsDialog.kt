@@ -128,8 +128,6 @@ class UsbRootUi(
     val enabled: Boolean,
     val drives: List<com.droiddeck.launcher.session.UsbRootMount.Drive>,
     val drive: String,
-    /** Where the drive mounts: the second-library path that means "the USB drive". */
-    val path: String,
     val mounted: Boolean,
     /** The last mount/eject error, or null. */
     val status: String?,
@@ -352,10 +350,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     }
     if (tab == SheetTab.LIBRARY && steam) {
         if (s.gameStorage != null) SettingsGroup(stringResource(R.string.mode_storage)) {
-            // The USB drive's folder while it is unplugged: named, not shown as its long path.
-            val usbAway = (s.gameStorage == s.usbRoot?.path || s.gameStorage.startsWith("/mnt/media_rw/")) &&
-                s.storageOptions.none { it.path == s.gameStorage }
-            val custom = !usbAway && s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
+            val custom = s.gameStorage.isNotEmpty() && s.gameStorage != "off" && s.storageOptions.none { it.path == s.gameStorage }
             // Each choice: its path, its menu line, the chip's shorter line, and the label it is saved with.
             class StorageChoice(val path: String, val label: String, val chip: String, val saved: String)
             val internal = stringResource(R.string.mode_storage_internal)
@@ -366,9 +361,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ))
                 add(StorageChoice("off", internal, internal, ""))
                 for (o in s.storageOptions) add(StorageChoice(o.path, o.label, o.label, o.name))
-                if (custom) stringResource(R.string.mode_storage_folder, s.gameStorage).let { add(StorageChoice(s.gameStorage, it, it, it)) }
-                if (usbAway) stringResource(R.string.usb_root_away).let { add(StorageChoice(s.gameStorage, it, it, stringResource(R.string.usb_root_volume))) }
-            }
+                if (custom) stringResource(R.string.mode_storage_folder, s.gameStorage).let { add(StorageChoice(s.gameStorage, it, it, it)) }            }
             val open = host.open == "storage"
             SettingsRow(
                 stringResource(R.string.mode_second_library),
