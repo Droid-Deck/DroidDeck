@@ -77,8 +77,15 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      `STEAM_OVERLAY` (the external overlay slot is mangoapp's), at the session's resolution;
 2. **`VK_LAYER_DROIDDECK_vr`**, a Vulkan layer, enabled explicitly in SteamVR's processes and implicit
    for the rest of the session (Steam's own web helper shares its in-VR overlay with SteamVR too, and
-   crashes without it until Steam quits). Implicitly it is pass-through unless SteamVR runs
-   (`droiddeck-steamvr`'s `active` marker) or a program asks for a display extension:
+   crashes without it until Steam quits). Implicitly it does nothing in an ordinary session:
+   - the display stand-in below happens only while SteamVR runs (`droiddeck-steamvr`'s `active`
+     marker, which a new session clears) or where the layer is enabled by name. Gamescope and games
+     asking for display extensions outside SteamVR get them untouched;
+   - the semaphore bridge runs in those same processes, and in Steam's web helper once SteamVR is
+     installed;
+   - with SteamVR not installed, every process gets the driver's functions unchanged.
+
+   What it does in SteamVR's processes:
    - `vrcompositor` always asks for `VK_KHR_display` and keeps a direct-mode window even with a
      driver-direct HMD. Turnip on KGSL refuses to enumerate any GPU when `VK_KHR_display` is enabled
      ("I can't KHR_display"). The layer takes the display extensions off the instance and stands in
@@ -98,8 +105,9 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      before its first frame (`helloxr`'s swapchain acquire, DXVK's submit thread in a Proton game).
      A submit's wait on an imported shared value that is neither reached nor queued in that process
      gets 3 ms for the other process to reach it, then is dropped;
-   - Steam's web helper always has the layer: its GPU process outlives SteamVR runs, and one started
-     without the layer crashed when SteamVR showed Steam's overlays, until Steam quit;
+   - Steam's web helper has the semaphore bridge whenever SteamVR is installed: its GPU process
+     outlives SteamVR runs, and one started without the layer crashed when SteamVR showed Steam's
+     overlays, until Steam quit;
    - `DROIDDECK_VR_CRASHTRACE=1` (or a `crashtrace` file beside the `active` marker, for processes like
      Steam whose environment is not ours) prints a backtrace on a fatal signal. `vrcompositor`'s
      launcher drops `LD_PRELOAD`, but the layer is loaded there. It only takes signals nobody handles

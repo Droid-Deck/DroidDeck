@@ -63,8 +63,14 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
   non-zero before using a semaphore set, so the dashboard never appeared. `sysv.c` now stamps
   `sem_otime` and `sem_ctime`.
 - **Steam's web helper needs the layer too.** It shares Steam's in-VR overlays with SteamVR and crashed
-  without the layer; after a few crashes Steam quits. Its GPU process outlives SteamVR runs, so the
-  layer is always active in `steamwebhelper`, not only while SteamVR's `active` marker exists.
+  without the layer; after a few crashes Steam quits. Its GPU process outlives SteamVR runs, so
+  `steamwebhelper` gets the semaphore bridge whenever SteamVR is installed, not only while SteamVR's
+  `active` marker exists. It never gets the display stand-in.
+- **Keep the layer out of ordinary sessions.** As an implicit layer it loads everywhere. Display
+  extensions are only taken off while SteamVR runs, a new session clears a leftover `active` marker,
+  and without SteamVR installed every process gets the driver's functions unchanged. Review feedback
+  on the first version pointed out that gamescope asking for a display extension would have been
+  rewritten in an ordinary session.
 - **The `active` marker race.** Clearing a stale marker whenever `vrserver` is not running also
   cleared it during startup, before `vrserver` appeared, because the app polls status every 3 s. Steam
   quit as a result. Only a marker older than 2 minutes is cleared now.

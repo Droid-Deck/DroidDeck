@@ -19,9 +19,14 @@
  * + VK_LAYER_PATH). It is also an implicit layer for the whole session, because processes SteamVR did
  * not start share textures with it too: Steam's web helper draws its in-VR overlay through SteamVR,
  * needs the exportable semaphores, and without them crashes until Steam quits. As an implicit layer
- * it stays out of the way: an instance is "active" only when it asks for a display extension, when it
- * was enabled explicitly, or while SteamVR runs (droiddeck-steamvr's marker file). An inactive
- * instance and its devices get the next layer's functions untouched.
+ * it stays out of the way:
+ *   - the display stand-in (taking display extensions off, the fake display) happens only while
+ *     SteamVR runs (droiddeck-steamvr's marker file) or where the layer was enabled by name, never in
+ *     an ordinary session: gamescope and games see the driver's extensions unchanged;
+ *   - the semaphore bridge is active in those same processes, and in Steam's web helper once SteamVR
+ *     is installed (its GPU process outlives SteamVR runs);
+ *   - everything else - every process of a session without SteamVR installed - gets the next layer's
+ *     functions untouched.
  */
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_layer.h>
@@ -117,21 +122,31 @@ struct dev {
     PFN_vkGetDeviceProcAddr gdpa;
     PFN_vkDestroyDevice destroy;
     int active;
+    int display; /* its instance has the pretend display */
 };
 
 /* SteamVR is running (droiddeck-steamvr start/stop keeps this file), or the layer was asked for by
- * name: then every instance is active, whoever creates it. */
-static int vr_session_active(void) {
+ * name. Only then does the layer stand in for a display. */
+static int steamvr_running(void) {
     const char *layers = getenv("VK_INSTANCE_LAYERS");
     if (layers && strstr(layers, "VK_LAYER_DROIDDECK_vr")) return 1;
     if (getenv("DROIDDECK_VR_LAYER_FORCE")) return 1;
-    /* Steam's web helper shares its in-VR overlays with SteamVR, and its GPU process lives across SteamVR
-     * runs: one created before SteamVR started crashes once SteamVR shows the overlay, and after a few
-     * of those Steam quits. With no SteamVR the layer has nothing to do there. */
-    if (!strcmp(program_invocation_short_name, "steamwebhelper")) return 1;
     const char *rt = getenv("XDG_RUNTIME_DIR");
     char path[512];
     snprintf(path, sizeof(path), "%s/droiddeck-steamvr/active", rt && *rt ? rt : "/run/droiddeck");
+    return access(path, F_OK) == 0;
+}
+
+/* Whether an instance gets the semaphore bridge. Steam's web helper shares its in-VR overlays with
+ * SteamVR, and its GPU process lives across SteamVR runs: one created before SteamVR started crashes
+ * once SteamVR shows the overlay, and after a few of those Steam quits. So it is bridged whenever
+ * SteamVR is installed, not only while it runs. */
+static int bridge_wanted(void) {
+    if (steamvr_running()) return 1;
+    if (strcmp(program_invocation_short_name, "steamwebhelper")) return 0;
+    const char *steamvr = getenv("STEAMVR");
+    char path[512];
+    snprintf(path, sizeof(path), "%s/bin/linuxarm64/vrstartup", steamvr && *steamvr ? steamvr : "/opt/steamvr");
     return access(path, F_OK) == 0;
 }
 
@@ -188,12 +203,14 @@ static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const 
     PFN_vkCreateInstance next_create = (PFN_vkCreateInstance)next_gipa(VK_NULL_HANDLE, "vkCreateInstance");
     if (!next_create) return VK_ERROR_INITIALIZATION_FAILED;
 
+    /* Outside SteamVR the instance is created exactly as asked: display extensions stay on. */
+    const int vr = steamvr_running();
     VkInstanceCreateInfo mine = *ci;
     const char **names = calloc(ci->enabledExtensionCount + 1, sizeof(*names));
     uint32_t n = 0;
     int stripped = 0;
     for (uint32_t i = 0; i < ci->enabledExtensionCount; i++) {
-        if (is_display_ext(ci->ppEnabledExtensionNames[i])) { say("taking %s off the instance", ci->ppEnabledExtensionNames[i]); stripped = 1; continue; }
+        if (vr && is_display_ext(ci->ppEnabledExtensionNames[i])) { say("taking %s off the instance", ci->ppEnabledExtensionNames[i]); stripped = 1; continue; }
         names[n++] = ci->ppEnabledExtensionNames[i];
     }
     if (stripped) {
@@ -213,7 +230,7 @@ static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const 
     free(names);
     if (r != VK_SUCCESS) return r;
 
-    const int active = stripped || vr_session_active();
+    const int active = vr || bridge_wanted();
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < MAX_OBJS; i++) {
         if (!g_inst[i].handle) {
@@ -251,13 +268,14 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     PFN_vkCreateDevice next_create = (PFN_vkCreateDevice)next_gipa(in ? in->handle : VK_NULL_HANDLE, "vkCreateDevice");
     if (!next_create) return VK_ERROR_INITIALIZATION_FAILED;
     const int active = in && in->active;
+    const int display = in && in->stripped;
 
     /* VK_EXT_display_control (vblank events on a display) goes too: there is no display. */
     VkDeviceCreateInfo mine = *ci;
     const char **names = calloc(ci->enabledExtensionCount + 1, sizeof(*names));
     uint32_t n = 0;
     for (uint32_t i = 0; i < ci->enabledExtensionCount; i++) {
-        if (active && !strcmp(ci->ppEnabledExtensionNames[i], "VK_EXT_display_control")) { say("taking %s off the device", ci->ppEnabledExtensionNames[i]); continue; }
+        if (display && !strcmp(ci->ppEnabledExtensionNames[i], "VK_EXT_display_control")) { say("taking %s off the device", ci->ppEnabledExtensionNames[i]); continue; }
         names[n++] = ci->ppEnabledExtensionNames[i];
     }
     mine.enabledExtensionCount = n;
@@ -268,7 +286,7 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < MAX_OBJS; i++) {
         if (!g_dev[i].handle) {
-            g_dev[i] = (struct dev){*out, next_gdpa, (PFN_vkDestroyDevice)next_gdpa(*out, "vkDestroyDevice"), active};
+            g_dev[i] = (struct dev){*out, next_gdpa, (PFN_vkDestroyDevice)next_gdpa(*out, "vkDestroyDevice"), active, display};
             break;
         }
     }
@@ -1062,7 +1080,7 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVr_GetDeviceProcAddr(Vk
     if (!strcmp(name, "vkGetDeviceProcAddr")) return (PFN_vkVoidFunction)DroidDeckVr_GetDeviceProcAddr;
     struct dev *d = dev_for(device);
     if (d && !d->active) return d->gdpa(device, name);
-    {
+    if (d && d->display) {
         PFN_vkVoidFunction f = display_device_hook(name);
         if (f) return f;
     }
