@@ -79,7 +79,7 @@ data class GlassesSettings(
     companion object {
         const val VR_FOV_MIN = 24
         const val VR_FOV_MAX = 90
-        const val VR_FOV_DEFAULT = 36
+        const val VR_FOV_DEFAULT = 90
         const val PICTURE_AUTO = 0
         const val PICTURE_SCREEN = 1
         const val PICTURE_SBS = 2
