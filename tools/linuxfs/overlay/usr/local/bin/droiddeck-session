@@ -276,6 +276,12 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
     fi
   fi
+  # The nested Wayland backend normally forwards Gamescope's cursor image to the host pointer.
+  # Steam Input moves Gamescope's X pointer with XTest, so render that cursor in the session output
+  # and keep the Android host overlay clear. The matching Gamescope patch preserves NULL/hidden state.
+  if [ "$mode" = steam ]; then
+    export gamescope_cursor_composite=2
+  fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
   [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
   # -r is what gamescope advertises as the refresh rate, and what a game reads as the display's.
