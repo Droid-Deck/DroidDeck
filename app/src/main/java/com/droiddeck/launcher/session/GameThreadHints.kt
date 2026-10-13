@@ -34,7 +34,7 @@ object GameThreadHints {
     private const val REPORT_MS = 50L
     private const val SCAN_EVERY = 20 // reports, so once a second
     private const val ENTER = 0.6
-    private const val LEAVE = 0.3
+    private const val LEAVE = 0.15 // a capped game's main thread idles to ~30% on a prime core; under 0.3 it hopped back and forth
     private const val MAX_THREADS = 2 // one per prime core; a third would be sped up in place instead
     private const val TOP_PROCESSES = 3
 
