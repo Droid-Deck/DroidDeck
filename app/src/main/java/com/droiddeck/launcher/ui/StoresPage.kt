@@ -439,11 +439,12 @@ private fun InstallWhere(item: CatalogItem) {
             StepList {
                 targets.forEachIndexed { i, t ->
                     val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item)
-                    val isLow = needed > 0 && t.freeBytes in 1 until needed
+                    val freeBytes = t.freeBytes
+                    val isLow = needed > 0 && freeBytes in 1 until needed
                     val trailingText = if (isLow) {
-                        stringResource(R.string.stores_storage_low, formatBytes(t.freeBytes), formatBytes(needed))
+                        stringResource(R.string.stores_storage_low, formatBytes(freeBytes), formatBytes(needed))
                     } else {
-                        stringResource(R.string.stores_target_free, formatBytes(t.freeBytes))
+                        stringResource(R.string.stores_target_free, formatBytes(freeBytes))
                     }
                     StepChoice(
                         label = if (t.removable) t.label else internalLabel,

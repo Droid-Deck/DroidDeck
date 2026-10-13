@@ -160,9 +160,6 @@ object DownloadQueue {
             publishLocked()
         }
         StoresState.logLine("${entry.store.label}: \"${entry.name}\" failed: $error")
-        main.post {
-            android.widget.Toast.makeText(app, error, android.widget.Toast.LENGTH_LONG).show()
-        }
         StoreDownloadService.ended(app, entry.copy(state = DownloadState.FAILED, error = error), installed = false, gamesKey = null)
     }
 
@@ -344,10 +341,6 @@ object DownloadQueue {
             }
             DownloadState.FAILED -> {
                 StoresState.logLine("${item.entry.store.label}: \"${item.entry.name}\" failed: $error")
-                val failMsg = error ?: context.getString(com.droiddeck.launcher.R.string.stores_dl_failed)
-                main.post {
-                    android.widget.Toast.makeText(context.applicationContext, failMsg, android.widget.Toast.LENGTH_LONG).show()
-                }
                 StoreDownloadService.ended(context, item.entry, installed = false, gamesKey = null)
             }
             DownloadState.CANCELLED -> StoresState.notifyLibraryChanged(context)

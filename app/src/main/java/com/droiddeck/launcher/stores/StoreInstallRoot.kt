@@ -24,12 +24,28 @@ object StoreInstallRoot {
         val errorMessage: String? = null
     )
 
-    fun availableBytes(file: File): Long = try {
-        val dir = if (file.isDirectory) file else (file.parentFile ?: file)
-        if (!dir.exists()) dir.mkdirs()
-        StatFs(if (dir.exists()) dir.path else file.path).availableBytes
+    fun availableBytes(file: File): Long {
+        return try {
+            var dir: File? = if (file.isDirectory) file else file.parentFile
+            if (dir == null) dir = file
+            while (dir != null && !dir.exists()) dir = dir.parentFile
+            val existing = dir
+            if (existing == null) {
+                StoresState.logLine("storage: no existing ancestor for store install target")
+                return usableSpaceOrUnknown(file)
+            }
+            StatFs(existing.path).availableBytes
+        } catch (e: Exception) {
+            StoresState.logLine("storage: StatFs failed for store install target (${e.javaClass.simpleName})")
+            usableSpaceOrUnknown(file)
+        }
+    }
+
+    private fun usableSpaceOrUnknown(file: File): Long = try {
+        file.usableSpace
     } catch (e: Exception) {
-        try { file.usableSpace } catch (ignored: Exception) { 0L }
+        StoresState.logLine("storage: usable-space fallback failed for store install target (${e.javaClass.simpleName})")
+        0L
     }
 
     /**

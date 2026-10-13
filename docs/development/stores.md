@@ -32,9 +32,13 @@ Preflight resolves an existing game's folder before selecting its target root, s
 repair on a card checks and remembers that volume rather than internal storage. Fresh GOG and
 Amazon installs can reject insufficient catalog-size space immediately; existing installs defer
 to manifest checks of the files still needing work (GOG MD5, Amazon SHA-256 where supplied).
+Free-space display probes the nearest existing ancestor without creating the target folder; if
+the probe cannot determine space, it reports the unknown value rather than blocking an install.
 Preflight failures remain failed Downloads rows with Clear and Retry. Retry reruns preflight
 outside the worker lifecycle and then enqueues the real backend; it never occupies a queue slot
-with a placeholder job. Active queue persistence and ordinary backend pause/retry are unchanged.
+with a placeholder job. Failures are kept in the Downloads UI, notification and logs rather than
+duplicated as transient failure toasts. Active queue persistence and ordinary backend pause/retry
+are unchanged.
 
 Epic installs use the same bounded Java writer whether the native engine is available or not.
 It fetches one chunk at a time, verifies it, and writes the required parts into the current

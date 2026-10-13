@@ -247,15 +247,11 @@ public final class EpicDownloadManager {
                         completedBytes += part.size & 0xFFFFFFFFL;
                         long elapsedMs = Math.max(1, (System.nanoTime() - transferStarted) / 1_000_000);
                         cb.onBytes(completedBytes, fTotalBytes, completedBytes * 1000 / elapsedMs);
-                        Integer refs = remainingRefs.get(guid);
-                        if (refs != null) {
-                            if (refs <= 1) {
-                                remainingRefs.remove(guid);
-                                if (cachedChunk.exists() && !cachedChunk.delete() && cachedChunk.exists()) {
-                                    throw new InstallException("Could not release consumed Epic chunk " + guid);
-                                }
-                                cachedChunkBytes.remove(guid);
-                            } else remainingRefs.put(guid, refs - 1);
+                        if (consumeChunkReference(remainingRefs, guid)) {
+                            if (cachedChunk.exists() && !cachedChunk.delete() && cachedChunk.exists()) {
+                                throw new InstallException("Could not release consumed Epic chunk " + guid);
+                            }
+                            cachedChunkBytes.remove(guid);
                         }
                         trimCacheToBound(chunkCacheDir, cachedChunkBytes);
                     }
@@ -315,19 +311,42 @@ public final class EpicDownloadManager {
 
     /** Evict oldest reusable chunks until retained cache data is under the fixed disk ceiling. */
     private static void trimCacheToBound(File cacheDir, Map<String, Long> cacheSizes) throws InstallException {
+        for (String guid : evictOldestReusableChunks(cacheSizes).keySet()) {
+            File chunk = new File(cacheDir, guid);
+            if (chunk.exists() && !chunk.delete() && chunk.exists()) {
+                throw new InstallException("Could not release Epic cache chunk " + guid);
+            }
+        }
+    }
+
+    /**
+     * The writer and space planner use the same oldest-first retained-cache policy. Entries leave
+     * this map as soon as their last reference is consumed; an oversized incoming chunk is
+     * therefore allowed to coexist with the retained cache until its current part is written.
+     */
+    private static Map<String, Long> evictOldestReusableChunks(Map<String, Long> cacheSizes) {
         long retained = 0;
         for (long bytes : cacheSizes.values()) retained += bytes;
+        Map<String, Long> evicted = new LinkedHashMap<>();
         java.util.Iterator<Map.Entry<String, Long>> iterator = cacheSizes.entrySet().iterator();
         while (retained > MAX_RETAINED_CHUNK_CACHE_BYTES && iterator.hasNext()) {
             Map.Entry<String, Long> entry = iterator.next();
-            File chunk = new File(cacheDir, entry.getKey());
-            long bytes = entry.getValue();
-            if (chunk.exists() && !chunk.delete() && chunk.exists()) {
-                throw new InstallException("Could not release Epic cache chunk " + entry.getKey());
-            }
-            retained -= bytes;
+            retained -= entry.getValue();
+            evicted.put(entry.getKey(), entry.getValue());
             iterator.remove();
         }
+        return evicted;
+    }
+
+    private static boolean consumeChunkReference(Map<String, Integer> refs, String guid) {
+        Integer count = refs.get(guid);
+        if (count == null) return false;
+        if (count <= 1) {
+            refs.remove(guid);
+            return true;
+        }
+        refs.put(guid, count - 1);
+        return false;
     }
 
     static boolean isValidCachedChunk(ChunkInfo chunk, File file) {
@@ -377,8 +396,6 @@ public final class EpicDownloadManager {
         Map<String, Integer> refs = chunkReferences(files);
         Map<String, Long> residentChunks = new LinkedHashMap<>(cachedChunkBytes);
         long residentDelta = 0, peak = 0;
-        long cacheResident = 0;
-        for (long bytes : residentChunks.values()) cacheResident += bytes;
         for (FileInfo file : files) {
             for (ChunkPart part : file.parts) {
                 String guid = part.guidStr();
@@ -388,7 +405,6 @@ public final class EpicDownloadManager {
                 long chunkBytes = knownBytes != null ? knownBytes : chunkWindowSize(chunk);
                 if (knownBytes == null) {
                     residentChunks.put(guid, chunkBytes);
-                    cacheResident += chunkBytes;
                     residentDelta += chunkBytes;
                     peak = Math.max(peak, residentDelta);
                 }
@@ -396,22 +412,11 @@ public final class EpicDownloadManager {
                     residentDelta += part.size & 0xFFFFFFFFL;
                     peak = Math.max(peak, residentDelta);
                 }
-                int count = refs.get(guid);
-                if (count <= 1) {
-                    refs.remove(guid);
+                if (consumeChunkReference(refs, guid)) {
                     Long removed = residentChunks.remove(guid);
-                    if (removed != null) { cacheResident -= removed; residentDelta -= removed; }
-                } else refs.put(guid, count - 1);
-                java.util.Iterator<Map.Entry<String, Long>> iterator = residentChunks.entrySet().iterator();
-                while (cacheResident > MAX_RETAINED_CHUNK_CACHE_BYTES && iterator.hasNext()) {
-                    Map.Entry<String, Long> entry = iterator.next();
-                    if (refs.containsKey(entry.getKey())) {
-                        long removed = entry.getValue();
-                        cacheResident -= removed;
-                        residentDelta -= removed;
-                        iterator.remove();
-                    }
+                    if (removed != null) residentDelta -= removed;
                 }
+                for (long bytes : evictOldestReusableChunks(residentChunks).values()) residentDelta -= bytes;
             }
         }
         return Math.max(0, peak);

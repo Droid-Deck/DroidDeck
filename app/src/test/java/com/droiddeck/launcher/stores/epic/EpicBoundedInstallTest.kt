@@ -237,6 +237,14 @@ class EpicBoundedInstallTest {
             sha1 = sha(bytes)
         }
         manifest.files = (0..2).map { gameFile("part-$it.bin", it * 1024, 1024) }
+        val chunk = manifest.uniqueChunks.single()
+        val estimatedPeak = EpicDownloadManager.estimatePeakAdditionalBytes(
+            manifest.files,
+            mapOf(chunk.guidStr() to chunk),
+            emptyMap(),
+            true,
+        )
+        assertEquals(EpicDownloadManager.MAX_RETAINED_CHUNK_CACHE_BYTES + 4 * 1024L, estimatedPeak)
         val samples = mutableListOf<Long>()
         val stages = mutableListOf<String>()
         val callback = object : EpicDownloadManager.Callback {

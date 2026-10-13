@@ -71,6 +71,15 @@ class StoreInstallRootTest {
         assertTrue(check.enough)
     }
 
+    @Test fun availableBytesUsesNearestExistingAncestorWithoutCreatingDirectories() {
+        val existing = File(app.filesDir, "storage-probe").apply { mkdirs() }
+        val missing = File(existing, "not-created/another-level/game")
+        ShadowStatFs.registerStats(existing.path, 1024, 100, 100)
+
+        assertTrue(StoreInstallRoot.availableBytes(missing) > 0L)
+        assertFalse(File(existing, "not-created").exists())
+    }
+
     @Test fun epicDefersFullSizeChecksToItsManifestDeltaForResume() {
         val item = CatalogItem(Store.EPIC, "large", "Large", imageUrl = null, owned = true, sizeBytes = Long.MAX_VALUE)
         val check = StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app))
