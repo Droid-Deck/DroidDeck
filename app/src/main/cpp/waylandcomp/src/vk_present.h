@@ -24,6 +24,10 @@ void vk_present_set_window(ANativeWindow *window);
 /* Compositor thread: apply a pending window change now. Returns 1 if the window changed. */
 int vkp_apply_window_request(void);
 
+/* Quest's Android swapchain draw path can corrupt the panel. Use gralloc-backed display
+ * layers for SDR scenes and the black backdrop, independently of HDR or launch order. */
+int vkp_quest_layer_presentation(void);
+
 /* How the scene is mapped onto the output (the app's Container.FULLSCREEN_* / ALIGN_* values,
  * mirrored 1:1 from ViewTransformation.java so touch input, which is mapped by the app with
  * that class, lands on the same pixels). Callable from any thread, applies on the next frame. */

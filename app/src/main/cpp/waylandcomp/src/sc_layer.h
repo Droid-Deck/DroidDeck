@@ -14,6 +14,8 @@
  *     +-- SurfaceView ..... the compositor's Vulkan swapchain; black while layer mode is up
  *          +-- z=1 "droiddeck_wayland_game" ...... the one fullscreen game window
  *          +-- z=2 "droiddeck_wayland_overlay" ... at most one window drawn ABOVE the game
+ * Quest additionally uses a z=0 immutable black backdrop instead of presenting black through
+ * Turnip's Android swapchain. Its normal SDR scene is composed into GAME as one layer.
  *
  * TWO layers is the hard cap (SC_LAYER_COUNT), and deliberately so: HWC composes only a few
  * layers before SurfaceFlinger falls back to GPU client composition, which would throw away the
@@ -156,6 +158,11 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
 
 /* The scene is not a single fullscreen window this frame: hide every layer that is up. */
 void sc_layer_hide(void);
+/* Opaque black backdrop on its own layer, below GAME. Its immutable CPU-initialized
+ * buffer avoids the Android Vulkan swapchain on Quest. Returns 0 on success, -1 on failure. */
+int sc_layer_base_black(int width, int height);
+/* Hide the backdrop before presenting content through the base Vulkan swapchain. */
+void sc_layer_hide_base(void);
 /* Only the overlay layer: nothing is above the game any more. The game keeps its layer, but its
  * SurfaceControl is swapped for a fresh one on the next frame (composition recovery, above - which
  * on this panel does not in fact win hardware composition back; see the measurement there). */

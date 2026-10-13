@@ -8,6 +8,9 @@ first launch selects manual drivers, the bundled
 `turnip25.1.0-quest1` Android driver and the default Linux driver. It enables
 `hdr.steam` to use the existing SurfaceControl presentation workaround from
 [the Quest report](https://github.com/Droid-Deck/DroidDeck/issues/245).
+Presentation also has a Quest-specific layer path for complete SDR scenes and
+the black backdrop, independent of this HDR preference; see
+[the presentation candidate and headset test](quest-presentation-test.md).
 These defaults apply once; subsequent user changes are retained. Colour
 accuracy and headset performance still need testing.
 
