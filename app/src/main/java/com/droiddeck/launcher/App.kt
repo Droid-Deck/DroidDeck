@@ -26,6 +26,7 @@ class App : Application() {
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
         GpuClockPin.clearLeftover(this)
+        com.droiddeck.launcher.glasses.Glasses.init(this)
         BwrapSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
         // The game stores the Stores section can talk to; the native engine loads only when one needs it.

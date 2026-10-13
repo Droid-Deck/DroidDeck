@@ -467,10 +467,11 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScreenEffects(JNI
 /* Cardboard mode - WaylandCompositor.nativeSetCardboard. */
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv *env, jclass clazz, jboolean enabled,
-        jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma) {
+        jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma,
+        jboolean mono, jfloat hz) {
     struct cardboard_params p = {.enabled = enabled ? 1 : 0, .source = source, .ipd_m = ipd, .screen_dist_m = dist,
                                  .screen_width_m = width, .k1 = k1, .k2 = k2, .fov_deg = fov, .lens_inset = inset,
-                                 .chroma = chroma};
+                                 .chroma = chroma, .mono = mono ? 1 : 0, .display_hz = hz};
     vkp_cardboard_set(&p);
 }
 

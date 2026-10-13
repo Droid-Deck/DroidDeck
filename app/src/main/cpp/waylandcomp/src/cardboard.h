@@ -30,6 +30,8 @@ struct cardboard_params {
     float fov_deg;       /* vertical field of view of one eye before distortion */
     float lens_inset;    /* lens centre inset towards the nose, fraction of an eye viewport */
     float chroma;        /* chromatic aberration pre-correction (0 = off) */
+    int mono;
+    float display_hz;
 };
 
 /* Any thread. Values are clamped to sane ranges. */

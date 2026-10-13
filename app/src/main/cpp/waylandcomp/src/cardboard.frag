@@ -24,6 +24,7 @@ layout(push_constant) uniform PC {
     vec4 lens;  // x: k1, y: k2, z: tan of half the eye's vertical field of view, w: chromatic spread
     vec4 view;  // x: lens centre inset (fraction of an eye viewport), y: source aspect w/h,
                 // z: source mode, w: eye viewport aspect w/h
+    vec4 extra;
 } pc;
 
 const vec3 BACKDROP = vec3(0.015, 0.015, 0.02);
@@ -59,10 +60,11 @@ vec3 eyeSample(vec2 tan, float eye) {
 }
 
 void main() {
-    float eye = uv.x < 0.5 ? 0.0 : 1.0;
-    vec2 local = vec2(uv.x * 2.0 - eye, uv.y);
+    bool mono = pc.extra.x > 0.5;
+    float eye = mono || uv.x < 0.5 ? 0.0 : 1.0;
+    vec2 local = mono ? uv : vec2(uv.x * 2.0 - eye, uv.y);
     // Lens centres sit inset towards the nose by view.x of a viewport.
-    float cx = 0.5 + (eye < 0.5 ? pc.view.x : -pc.view.x);
+    float cx = mono ? 0.5 : 0.5 + (eye < 0.5 ? pc.view.x : -pc.view.x);
     vec2 p = local - vec2(cx, 0.5);
     float tanH = pc.lens.z;
     vec2 t = vec2(p.x * pc.view.w, p.y) * 2.0 * tanH;

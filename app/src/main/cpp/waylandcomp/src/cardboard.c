@@ -43,6 +43,8 @@ void cardboard_clamp(struct cardboard_params *p) {
     p->fov_deg = clampf(p->fov_deg, 30.0f, 140.0f);
     p->lens_inset = clampf(p->lens_inset, -0.25f, 0.25f);
     p->chroma = clampf(p->chroma, 0.0f, 0.05f);
+    p->mono = p->mono ? 1 : 0;
+    p->display_hz = clampf(p->display_hz, 0.0f, 240.0f);
 }
 
 void cardboard_push_constants(const struct cardboard_params *p, const float pose[9],
@@ -50,7 +52,7 @@ void cardboard_push_constants(const struct cardboard_params *p, const float pose
     /* rot0..rot2: the pose's rows, each with one scalar riding in w. */
     for (int r = 0; r < 3; r++)
         for (int c = 0; c < 3; c++) out[r * 4 + c] = pose[r * 3 + c];
-    out[3] = p->ipd_m * 0.5f;
+    out[3] = p->mono ? 0.0f : p->ipd_m * 0.5f;
     out[7] = p->screen_dist_m;
     out[11] = p->screen_width_m * 0.5f;
     /* lens */
@@ -63,8 +65,9 @@ void cardboard_push_constants(const struct cardboard_params *p, const float pose
     out[17] = (src_w > 0 && src_h > 0) ? (float)src_w / (float)src_h : 16.0f / 9.0f;
     if (p->source == CARDBOARD_SOURCE_SBS) out[17] *= 0.5f; /* one eye's half */
     out[18] = (float)p->source;
-    out[19] = (out_w > 0 && out_h > 0) ? ((float)out_w * 0.5f) / (float)out_h : 1.0f;
-    out[20] = out[21] = out[22] = out[23] = 0.0f; /* reserved */
+    out[19] = (out_w > 0 && out_h > 0) ? ((float)out_w * (p->mono ? 1.0f : 0.5f)) / (float)out_h : 1.0f;
+    out[20] = p->mono ? 1.0f : 0.0f;
+    out[21] = out[22] = out[23] = 0.0f; /* reserved */
 }
 
 #ifndef CARDBOARD_HOST_TEST
@@ -91,9 +94,9 @@ void vkp_cardboard_set(const struct cardboard_params *p) {
     shm_publish(g_live);
     pthread_mutex_unlock(&g_lock);
     if (was != c.enabled || c.enabled)
-        droiddeck_log("cardboard", "%s: %s, ipd %.0f mm, screen %.1f m wide at %.1f m, lens k1 %.2f k2 %.2f, fov %.0f, inset %.3f, chroma %.3f",
+        droiddeck_log("cardboard", "%s: %s%s, ipd %.0f mm, screen %.1f m wide at %.1f m, lens k1 %.2f k2 %.2f, fov %.0f, inset %.3f, chroma %.3f",
                       c.enabled ? "on" : "off", c.source == CARDBOARD_SOURCE_SBS ? "side-by-side source" : "virtual screen",
-                      c.ipd_m * 1000.0f, c.screen_width_m, c.screen_dist_m, c.k1, c.k2, c.fov_deg, c.lens_inset, c.chroma);
+                      c.mono ? " (one eye)" : "", c.ipd_m * 1000.0f, c.screen_width_m, c.screen_dist_m, c.k1, c.k2, c.fov_deg, c.lens_inset, c.chroma);
 }
 
 /* The guest's copy of the pose (headpose_shm.h), mapped once a path is known. */
@@ -131,7 +134,9 @@ static void shm_publish(int live) {
     atomic_thread_fence(memory_order_release);
     memcpy(g_shm->rot, g_pose, sizeof(g_shm->rot));
     g_shm->ipd_m = g_set.ipd_m;
-    g_shm->flags = (live ? DROIDDECK_HEADPOSE_LIVE : 0u) | (g_set.enabled ? DROIDDECK_HEADPOSE_ENABLED : 0u);
+    g_shm->flags = (live ? DROIDDECK_HEADPOSE_LIVE : 0u) | (g_set.enabled ? DROIDDECK_HEADPOSE_ENABLED : 0u) |
+                   (g_set.mono ? DROIDDECK_HEADPOSE_MONO : 0u);
+    g_shm->display_hz = g_set.display_hz;
     g_shm->time_ns = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
     g_shm->tan_half_fov = tanf(g_set.fov_deg * 0.5f * (float)M_PI / 180.0f);
     g_shm->eye_w = (uint32_t)(g_eye_w > 0 ? g_eye_w : 0);
@@ -418,14 +423,15 @@ VkImage vkp_cardboard_run(VkCommandBuffer cmd, VkImage src, int src_w, int src_h
         if (!said) { said = 1; droiddeck_log("error", "cardboard: no descriptor for the frame; shown flat"); }
         return VK_NULL_HANDLE;
     }
-    if (g_eye_w != out_w / 2 || g_eye_h != out_h) {
+    snapshot();
+    int eye_w = g_cur.mono ? out_w : out_w / 2;
+    if (g_eye_w != eye_w || g_eye_h != out_h) {
         pthread_mutex_lock(&g_lock);
-        g_eye_w = out_w / 2;
+        g_eye_w = eye_w;
         g_eye_h = out_h;
         shm_publish(g_live);
         pthread_mutex_unlock(&g_lock);
     }
-    snapshot();
     struct { float ndc[4]; float rest[24]; } pc = {{-1.0f, -1.0f, 1.0f, 1.0f}, {0}};
     cardboard_push_constants(&g_cur, g_cur_pose, src_w, src_h, out_w, out_h, pc.rest);
 

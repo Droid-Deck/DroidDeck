@@ -23,6 +23,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -210,6 +211,8 @@ internal fun LiftHero(
     onOpenChange: (Boolean) -> Unit = {},
     start: Dp = 44.dp,
     bottom: Dp = 44.dp,
+    drop: DropSheetState? = null,
+    overlay: @Composable BoxWithConstraintsScope.(lifted: () -> Float) -> Unit = {},
 ) {
     val density = LocalDensity.current
     val inputMode = LocalInputModeManager.current
@@ -455,19 +458,36 @@ internal fun LiftHero(
             // A swipe anywhere on the hero moves the sheet under the finger - up from rest, down
             // when open - and lets go open or shut by how far it went and how fast. A swipe that
             // starts the wrong way (down at rest) is left alone, for the page under it.
-            .pointerInput(Unit) {
+            .pointerInput(drop) {
                 val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                 var decided = false
+                val dropFlick = 600.dp.toPx()
                 detectVerticalDragGestures(
                     onDragStart = { tracker.resetTracking(); decided = false; drag.engaged = false },
-                    onDragEnd = { if (drag.engaged) settleDrag(tracker.calculateVelocity().y) },
-                    onDragCancel = { if (drag.engaged) settleDrag(0f) },
+                    onDragEnd = {
+                        if (drag.engaged) settleDrag(tracker.calculateVelocity().y)
+                        else if (drop?.engaged == true) drop.settle(tracker.calculateVelocity().y, dropFlick)
+                    },
+                    onDragCancel = {
+                        if (drag.engaged) settleDrag(0f)
+                        else if (drop?.engaged == true) drop.settle(0f, dropFlick)
+                    },
                 ) { change, amount ->
                     if (launching) return@detectVerticalDragGestures
                     if (!decided) {
                         decided = true
                         // Up at rest opens; down when open closes. Anything else is not for the sheet.
-                        if (if (open) amount > 0f else amount < 0f) beginDrag()
+                        when {
+                            drop != null && (drop.open || drop.shown) -> if (drop.open && amount < 0f) drop.beginDrag()
+                            open || shown || amount < 0f -> if (if (open) amount > 0f else amount < 0f) beginDrag()
+                            drop != null && amount > 0f -> drop.beginDrag()
+                        }
+                    }
+                    if (drop?.engaged == true) {
+                        change.consume()
+                        tracker.addPosition(change.uptimeMillis, change.position)
+                        drop.drag(amount)
+                        return@detectVerticalDragGestures
                     }
                     if (!drag.engaged) return@detectVerticalDragGestures
                     change.consume()
@@ -488,7 +508,8 @@ internal fun LiftHero(
 
         // The wall behind sinks back about the pane's centre.
         val foot = h
-        Box(Modifier.fillMaxSize().clipToBounds().graphicsLayer { val k = 1f - 0.05f * sink.value; scaleX = k; scaleY = k }) { background() }
+        val wallSink = { maxOf(sink.value, drop?.sink?.value ?: 0f) }
+        Box(Modifier.fillMaxSize().clipToBounds().graphicsLayer { val k = 1f - 0.05f * wallSink(); scaleX = k; scaleY = k }) { background() }
         // The fades stay put: scaled with the wall they stopped short of the pane's edges and left
         // a bright band of unfaded wall down the side and along the top.
         scrim { sink.value }
@@ -627,7 +648,7 @@ internal fun LiftHero(
 
         // The words and the button, where they always were; the button rides the sheet's edge.
         Column(Modifier.align(Alignment.BottomStart).padding(start = start, bottom = bottom, end = 20.dp)) {
-            Box(Modifier.graphicsLayer { alpha = 1f - sink.value }) { words() }
+            Box(Modifier.graphicsLayer { alpha = 1f - wallSink() }) { words() }
             Spacer(Modifier.height(18.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
@@ -662,7 +683,7 @@ internal fun LiftHero(
             val besideShown = !(open || shown)
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.graphicsLayer { alpha = 1f - sink.value }
+                modifier = Modifier.graphicsLayer { alpha = 1f - wallSink() }
                     .focusProperties { canFocus = besideShown },
             ) { if (besideShown || sink.value < 0.99f) beside() }
             }
@@ -694,6 +715,7 @@ internal fun LiftHero(
                 }
             }
         }
+        overlay { sink.value }
     }
 }
 

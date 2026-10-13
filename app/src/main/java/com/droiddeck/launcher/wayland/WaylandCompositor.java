@@ -455,7 +455,7 @@ public final class WaylandCompositor {
      *  stereo pair. Distances in metres, field of view in degrees. */
     public static native void nativeSetCardboard(boolean enabled, int source, float ipdM, float screenDistM,
                                                  float screenWidthM, float k1, float k2, float fovDeg,
-                                                 float lensInset, float chroma);
+                                                 float lensInset, float chroma, boolean mono, float displayHz);
 
     /** The head pose for Cardboard mode: head -> world rotation, row-major 3x3 (any thread). {@code live}
      *  = a sensor produced it. */

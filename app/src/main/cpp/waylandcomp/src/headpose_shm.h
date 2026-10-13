@@ -22,6 +22,7 @@
 enum {
     DROIDDECK_HEADPOSE_LIVE = 1u << 0,    /* a rotation sensor is feeding it (else identity) */
     DROIDDECK_HEADPOSE_ENABLED = 1u << 1, /* Cardboard mode is on */
+    DROIDDECK_HEADPOSE_MONO = 1u << 2,
 };
 
 struct droiddeck_headpose {
@@ -37,7 +38,8 @@ struct droiddeck_headpose {
     float tan_half_fov;
     float eye_aspect;
     uint32_t eye_w, eye_h; /* one eye's viewport on the panel, pixels (0 = not drawn yet) */
-    uint32_t reserved[12];
+    float display_hz;
+    uint32_t reserved[11];
 };
 
 #ifdef __cplusplus

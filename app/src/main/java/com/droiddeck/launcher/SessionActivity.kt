@@ -52,6 +52,11 @@ import com.droiddeck.launcher.ui.SessionAchievements
 import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.HeadTracker
+import com.droiddeck.launcher.glasses.Glasses
+import com.droiddeck.launcher.glasses.GlassesScreen
+import com.droiddeck.launcher.glasses.GlassesSettings
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
@@ -308,6 +313,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var steamVrSwitchedPicture by mutableStateOf(false)
     /** SteamVR has been seen running since the switch: only then does "not running" mean it stopped. */
     private var steamVrSeenRunning = false
+    private var activeCardboard = Cardboard.OFF
+    private var glasses by mutableStateOf(Glasses.state.value)
+    private var glassesSettings by mutableStateOf(Glasses.settings.value)
+    private var glassesScreen: GlassesScreen? = null
+    private var glassesOutputActive by mutableStateOf(false)
+    private var glasses3dForVr = false
+    private var glassesSlot by mutableStateOf(0)
+    private var glassesKey: List<Any?> = emptyList()
+    private val glassesScope = kotlinx.coroutines.MainScope()
     private val hasRotationSensor by lazy {
         (getSystemService(SENSOR_SERVICE) as android.hardware.SensorManager).let {
             it.getDefaultSensor(android.hardware.Sensor.TYPE_GAME_ROTATION_VECTOR)
@@ -510,6 +524,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         sessionOverlay = createSessionOverlay()
         root.addView(sessionOverlay)
         setContentView(root)
+        glassesScope.launch { Glasses.state.collect { glasses = it; onGlassesChanged() } }
+        glassesScope.launch { Glasses.settings.collect { glassesSettings = it; onGlassesChanged() } }
         pip = com.droiddeck.launcher.session.SessionPipController(this, ::pipBounds, ::showPipUi)
         surfaceView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> pip.refresh() }
         pip.refresh()
@@ -565,6 +581,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 CursorOverlay(cursorPos, cursorVisible, resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (hud.text.isNotEmpty()) HudText(hud.text)
+                if (glassesOutputActive && !loading.visible) com.droiddeck.launcher.ui.GlassesPlayingHint(glasses.model)
+                if (glasses.present && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesCornerButton(glassesSlot,
+                    controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) {
+                    drawerPage = com.droiddeck.launcher.ui.SessionDrawerPage.GLASSES
+                    drawerOpen = true
+                }
                 if (loading.visible) LoadingOverlay(
                     loading.step, loading.percent, loading.elapsed, loading.hint, loading.ended,
                     topic = loading.topic, readable = loading.readable,
@@ -596,8 +618,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 // SteamVR's state for the Cardboard group, refreshed while the drawer shows it.
                 // Watched for as long as Cardboard mode is on (or the picture is switched for it), drawer open or
                 // not: however SteamVR is started or quit, the picture follows it.
-                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture) {
-                    while (cardboard.enabled || steamVrSwitchedPicture) {
+                val glassesVr = glassesOutputActive && glasses.canControl
+                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture, glassesVr) {
+                    while (cardboard.enabled || steamVrSwitchedPicture || glassesVr) {
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             SteamVr.status(this@SessionActivity)
                         }
@@ -634,6 +657,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     cardboardSensor = hasRotationSensor,
                     onCardboard = { c -> SessionPrefs.setCardboard(this@SessionActivity, c); applyCardboard(c) },
                     onCardboardRecenter = { headTracker?.recenter() },
+                    glassesPresent = glasses.present,
+                    glassesOutput = glassesOutputActive,
+                    onGlassesRecenter = { headTracker?.recenter() },
                     steamVr = steamVrStatus,
                     onSteamVr = { action -> steamVrAction(action) },
                     textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
@@ -1337,6 +1363,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        if (holder !== outputHolder()) return
         if (installingRuntime || SessionState.stopRequested) return
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
@@ -1361,7 +1388,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val live = if (SessionState.followScreen && !isInPictureInPictureMode)
             com.droiddeck.launcher.session.SessionDisplay.followSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
         else null
-        val size = live ?: if (SessionState.running) previous else outputSize()
+        val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
         if (!SessionState.running) SessionState.refreshHz = refreshHz()
         // How far the panel enlarges the session, for texture sharpness "Auto" (TextureFiltering):
@@ -1378,7 +1405,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
-        panelSizeMm().let { (w, h) -> SessionPrefs.cardboard(this).push(w, h) }
+        activeCardboard = effectiveCardboard(SessionPrefs.cardboard(this))
+        pushCardboard(activeCardboard)
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
         // The session's folder, claimed here because the compositor starts before the service and
         // opens its log once. The compositor reads the path from its environment; setting it after
@@ -1448,6 +1476,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var surfaceH = 0
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        if (holder !== outputHolder()) return
         val resized = surfaceW != 0 && (width != surfaceW || height != surfaceH)
         surfaceW = width
         surfaceH = height
@@ -1542,6 +1571,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * active; it is the rate gamescope gives Steam, and the QAM's Frame Limit divides it.
      */
     private fun refreshHz(): Float {
+        if (glassesScreen != null) glasses.hz.takeIf { it > 1f }?.let { return it }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val hz = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
@@ -2005,6 +2035,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!::displayManager.isInitialized) return
         val primaryId = display?.displayId ?: windowManager.defaultDisplay.displayId
         val candidates = SecondScreenDisplays.available(displayManager, primaryId)
+            .filter { glassesScreen == null || it.id != glasses.displayId }
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
         val newIds = candidates.map { it.id }.toSet()
@@ -2357,6 +2388,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun updateOnScreenControls() {
+        updateOnScreenPad()
+        val c = onScreenControls
+        glassesSlot = when {
+            c == null || c.visibility != View.VISIBLE -> 0
+            c.isButtonsOnly -> -1
+            controllerSettings?.keyboardButton != false -> 2
+            else -> 1
+        }
+    }
+
+    private fun updateOnScreenPad() {
         val forced = File(Environment.getExternalStorageDirectory(), "Download/droiddeck-osc")
             .takeIf { it.isFile }
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
@@ -2487,6 +2529,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // The panel may have changed while the session was a thumbnail (folded or unfolded in PiP).
         if (!inPip && surfaceW > 0) followWindow(surfaceW, surfaceH)
         applyUnfoldedControls()
+        updateGlassesScreen()
     }
 
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
@@ -2506,6 +2549,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         SessionService.setActivityVisible(this, true)
+        Glasses.rescan()
+        updateGlassesScreen()
     }
 
     override fun onStop() {
@@ -2515,6 +2560,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // Closed while the session is out of sight (sleep, a closed lid, another app), and kept:
         // onStart puts it back.
         closeSecondScreen(reset = false)
+        updateGlassesScreen()
         SessionService.setActivityVisible(this, false)
         super.onStop()
     }
@@ -2591,6 +2637,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** SteamVR for Cardboard mode: install, start or stop it in the guest. Starting switches the
      *  picture to side-by-side, which is what SteamVR draws. */
     private fun steamVrAction(action: String) {
+        if (glassesOutputActive) {
+            if (action == "start" && glassesSettings.auto3d && glasses.can3d && !glasses.sbs) {
+                glasses3dForVr = true
+                Glasses.set3d(true)
+            }
+            if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
+            Thread({
+                val ok = SteamVr.run(this, action)
+                val now = SteamVr.status(this)
+                uiHandler.post {
+                    onSteamVrStatus(now)
+                    if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
+                }
+            }, "steamvr-$action").start()
+            return
+        }
         if (action == "start") {
             switchPictureForSteamVr()
             steamVrSeenRunning = false
@@ -2621,7 +2683,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onSteamVrStatus(now: SteamVr.Status) {
+        val was = steamVrStatus
         steamVrStatus = now
+        if (glassesOutputActive) {
+            onGlassesSteamVr(now)
+            if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
+            return
+        }
         // Started some other way than the drawer (a script, a VR game): the picture follows it all the same.
         if (now == SteamVr.Status.RUNNING && cardboard.enabled && !steamVrSwitchedPicture &&
             cardboard.source != Cardboard.SOURCE_SBS) {
@@ -2647,25 +2715,124 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     /** Cardboard mode: hand the settings to the compositor and run the head tracker while it needs one. */
     private fun applyCardboard(c: Cardboard) {
-        val was = cardboard
+        val was = activeCardboard
         cardboard = c
-        if (CompositorHost.isStarted) panelSizeMm().let { (w, h) -> c.push(w, h) }
-        if (c.enabled && !was.enabled) headTracker?.recenter()
+        val e = effectiveCardboard(c)
+        activeCardboard = e
+        if (CompositorHost.isStarted) pushCardboard(e)
+        if (e.enabled && !was.enabled) headTracker?.recenter()
         updateHeadTracker()
+    }
+
+    private fun pushCardboard(c: Cardboard) {
+        val fov = if (c.viewer == Cardboard.Viewer.VITURE.id) glasses.verticalFovDeg else 0f
+        panelSizeMm().let { (w, h) -> c.push(w, h, fov, refreshHz()) }
+    }
+
+    private fun effectiveCardboard(c: Cardboard): Cardboard {
+        if (glassesScreen == null) return c
+        val s = glassesSettings
+        val source = when (s.picture3d) {
+            GlassesSettings.PICTURE_SBS -> Cardboard.SOURCE_SBS
+            GlassesSettings.PICTURE_SCREEN -> Cardboard.SOURCE_SCREEN
+            else -> when {
+                steamVrStatus == SteamVr.Status.RUNNING -> Cardboard.SOURCE_SBS
+                glasses.sbs -> Cardboard.SOURCE_SCREEN
+                else -> return Cardboard.OFF
+            }
+        }
+        return Cardboard(
+            enabled = true, source = source,
+            viewer = Cardboard.Viewer.VITURE.id, ipdMm = c.ipdMm,
+            screenWidthDm = s.screenWidthDm, screenDistanceDm = s.screenDistanceDm,
+            headTracking = s.headTracking && glasses.canControl,
+            mono = !glasses.sbs,
+        )
     }
 
     private fun updateHeadTracker() {
         // Side-by-side sources track too: the compositor leaves their picture alone, but whoever renders
         // it (the SteamVR driver, tools/vr) reads the pose from the shared file.
-        val want = resumed && cardboard.enabled && cardboard.headTracking
+        val onGlasses = glassesScreen != null
+        val c = activeCardboard
+        val want = (resumed || (onGlasses && started)) && c.enabled && c.headTracking
+        val current = headTracker
+        if (current != null && (!want || current.usesGlasses != onGlasses)) {
+            current.stop()
+            headTracker = null
+        }
         if (want) {
-            val t = headTracker ?: HeadTracker(this) {
+            val t = headTracker ?: HeadTracker(this, glasses = onGlasses) {
                 @Suppress("DEPRECATION")
                 (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
             }.also { headTracker = it }
             t.start()
-        } else {
-            headTracker?.stop()
+        }
+    }
+
+    private fun outputHolder(): SurfaceHolder = glassesScreen?.holder ?: surfaceView.holder
+
+    private fun glassesOutputSize(): Pair<Int, Int>? {
+        if (glassesScreen == null || glasses.width <= 0 || glasses.height <= 0) return null
+        val panel = (if (glasses.sbs) glasses.width / 2 else glasses.width) to glasses.height
+        val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+        return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, SessionPrefs.resolutionChoice(this, mode, panel))
+    }
+
+    private fun onGlassesChanged() {
+        val g = glasses
+        val s = glassesSettings
+        val key = listOf(g.usable, g.displayId, g.sbs, g.canControl, g.width, g.height, g.hz, s)
+        if (key == glassesKey) return
+        glassesKey = key
+        updateGlassesScreen()
+        applyCardboard(cardboard)
+    }
+
+    private fun updateGlassesScreen() {
+        if (!::surfaceView.isInitialized) return
+        val g = glasses
+        val want = started && !isInPictureInPictureMode && !runtimeRemovalBlocked && g.usable && glassesSettings.gameOnGlasses
+        val target = if (want) Glasses.glassesDisplay()?.takeIf { it.isValid } else null
+        val current = glassesScreen
+        if (current != null && current.display.displayId == target?.displayId) return
+        if (current != null) {
+            glassesScreen = null
+            glassesOutputActive = false
+            surfaceW = 0
+            surfaceH = 0
+            runCatching { current.dismiss() }
+            CompositorHost.detach(current.holder.surface)
+            if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
+        }
+        if (target != null) {
+            val screen = GlassesScreen(this, target, this)
+            try {
+                screen.show()
+            } catch (e: Exception) {
+                Log.w(TAG, "could not show the game on ${target.name}", e)
+                return
+            }
+            glassesScreen = screen
+            glassesOutputActive = true
+            surfaceW = 0
+            surfaceH = 0
+            Log.i(TAG, "game output on ${g.model} (display ${target.displayId})")
+        }
+        refreshSecondScreenDisplays()
+        applyCardboard(cardboard)
+    }
+
+    private fun onGlassesSteamVr(now: SteamVr.Status) {
+        val g = glasses
+        if (now == SteamVr.Status.RUNNING) {
+            if (glassesSettings.auto3d && g.can3d && !g.sbs && !glasses3dForVr) {
+                glasses3dForVr = true
+                Glasses.set3d(true)
+            }
+        } else if (glasses3dForVr && now != SteamVr.Status.UNAVAILABLE) {
+            glasses3dForVr = false
+            if (g.sbs) Glasses.set3d(false)
         }
     }
 
@@ -2745,6 +2912,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         pendingBackAction = null
         if (::pip.isInitialized) pip.destroyed()
         closeSecondScreen(reset = false)
+        glassesScope.cancel()
+        glassesScreen?.let { screen -> glassesScreen = null; runCatching { screen.dismiss() } }
+        headTracker?.stop()
         if (::hud.isInitialized) hud.stop()
         padBridge?.stop()
         steamController?.stop()

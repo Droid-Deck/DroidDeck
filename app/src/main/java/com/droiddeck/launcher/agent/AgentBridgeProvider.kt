@@ -101,9 +101,56 @@ class AgentBridgeProvider : ContentProvider() {
             AgentEnv.override(context, request.optString("name")).put("ok", true).put("command", "override")
         }
         "prefs" -> prefs(context, request)
+        "glasses" -> glasses(context, request)
         "access" -> JSONObject().put("ok", true).put("commands", AgentAccess.commandsAllowed(context))
             .put("debugBuild", BuildConfig.DEBUG).put("inbox", AgentEnv.inbox(context).absolutePath)
         else -> error("UNKNOWN_COMMAND", "Unknown agent command '$method'")
+    }
+
+    private fun glasses(context: Context, request: JSONObject): JSONObject {
+        val g = com.droiddeck.launcher.glasses.Glasses
+        when (request.optString("op", "status")) {
+            "status" -> {}
+            "allow" -> g.requestControl()
+            "set" -> {
+                val key = request.optString("key")
+                val value = request.optString("value")
+                fun on() = value == "1" || value.equals("true", true) || value.equals("on", true)
+                val number = value.toIntOrNull()
+                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "sbsSupport")
+                if (key in numeric && number == null) return error("INVALID_VALUE", "'$key' takes a number")
+                when (key) {
+                    "refreshHz" -> g.setRefreshHz(number!!)
+                    "sbsHz" -> g.setSbsHz(number!!)
+                    "brightness" -> g.setBrightness(number!!)
+                    "volume" -> g.setVolume(number!!)
+                    "sunblock" -> g.setSunblock(on())
+                    "3d" -> g.set3d(on())
+                    "gameOnGlasses" -> g.setGameOnGlasses(on())
+                    "headTracking" -> g.setHeadTracking(on())
+                    "auto3d" -> g.setAuto3d(on())
+                    "picture3d" -> g.setPicture3d(number!!)
+                    "screenWidthDm" -> g.setScreenWidthDm(number!!)
+                    "screenDistanceDm" -> g.setScreenDistanceDm(number!!)
+                    "sbsSupport" -> g.setSbsSupport(number!!)
+                    else -> return error("INVALID_KEY", "Unknown glasses setting '$key'")
+                }
+            }
+            "simulate" -> if (!g.simulate(request.optInt("seconds", 20).coerceIn(1, 600))) return error("BUSY", "Already simulating")
+            "stop-simulate" -> g.stopSimulation()
+            "query" -> { g.query(); Thread.sleep(600) }
+            "mode" -> { g.sendMode(request.optString("mode").removePrefix("0x").toInt(16)); Thread.sleep(600) }
+            "imu" -> return g.sampleImu(request.optLong("ms", 2000).coerceIn(200, 20_000)).put("ok", true).put("command", "glasses")
+            "raw" -> {
+                AgentAccess.requireCommands(context)
+                val payload = request.optString("payload").chunked(2).filter { it.length == 2 }.map { it.toInt(16).toByte() }.toByteArray()
+                if (!g.sendRaw(request.optString("msgId").removePrefix("0x").toInt(16), payload)) return error("NOT_CONNECTED", "The glasses' control link is not open")
+                Thread.sleep(300)
+            }
+            else -> return error("INVALID_OP", "Unknown glasses op")
+        }
+        if (request.optString("op") in setOf("set", "allow")) Thread.sleep(400)
+        return g.status().put("ok", true).put("command", "glasses").put("frames", g.recentFrames())
     }
 
     private fun state(context: Context): JSONObject {

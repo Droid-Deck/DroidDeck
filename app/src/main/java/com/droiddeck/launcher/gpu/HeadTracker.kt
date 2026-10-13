@@ -19,20 +19,43 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
  *
  * [rotation] is the Display rotation (Surface.ROTATION_*) the session is drawn in.
  */
-class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEventListener {
+class HeadTracker(context: Context, private val glasses: Boolean = false, private val rotation: () -> Int) : SensorEventListener {
     private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val sensor: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
         ?: sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private var thread: HandlerThread? = null
+    private var started = false
+    private val glassesLock = Any()
     @Volatile private var reference: HeadPose.Reference? = null
     @Volatile private var recenterPending = true
     @Volatile private var latest: FloatArray? = null
+
+    private val glassesSink = com.droiddeck.launcher.glasses.Glasses.PoseSink { x, y, z, w, _ ->
+        val m = HeadPose.fromGlasses(x, y, z, w)
+        synchronized(glassesLock) {
+            if (!started) return@PoseSink
+            latest = m
+            apply(m)
+        }
+    }
+
+    val usesGlasses: Boolean get() = glasses
 
     /** Whether this device has a rotation sensor at all (no sensor = a fixed, head-locked screen). */
     val available: Boolean get() = sensor != null
     val sensorName: String get() = sensor?.let { "${it.name} (${if (it.type == Sensor.TYPE_GAME_ROTATION_VECTOR) "game rotation vector" else "rotation vector"})" } ?: "none"
 
     fun start() {
+        if (glasses) {
+            synchronized(glassesLock) {
+                if (started) return
+                started = true
+                recenterPending = true
+            }
+            com.droiddeck.launcher.glasses.Glasses.setPoseSink(glassesSink)
+            WaylandCompositor.nativeLog("cardboard", "head tracking on: VITURE glasses IMU")
+            return
+        }
         val s = sensor ?: run {
             WaylandCompositor.nativeLog("cardboard", "no rotation sensor: the virtual screen stays head-locked")
             WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY, false)
@@ -47,6 +70,15 @@ class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEve
     }
 
     fun stop() {
+        if (glasses) {
+            synchronized(glassesLock) {
+                if (!started) return
+                started = false
+                WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY, false)
+            }
+            com.droiddeck.launcher.glasses.Glasses.clearPoseSink(glassesSink)
+            return
+        }
         val t = thread ?: return
         sensors.unregisterListener(this)
         t.quitSafely()
@@ -57,7 +89,8 @@ class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEve
     /** Make where the viewer looks now straight ahead (see HeadPose.recenter). */
     fun recenter() {
         recenterPending = true
-        latest?.let { apply(it) }
+        if (glasses) synchronized(glassesLock) { if (started) latest?.let { apply(it) } }
+        else latest?.let { apply(it) }
     }
 
     override fun onSensorChanged(event: SensorEvent) {

@@ -485,6 +485,20 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     if command == "access":
         return add_serial(checked(provider_call(adb, serial, "access"), "ACCESS_FAILED"), serial)
 
+    if command == "glasses":
+        request = {"op": args.glasses_op or "status"}
+        if args.glasses_op == "set":
+            request.update(key=args.key, value=args.value)
+        elif args.glasses_op == "simulate":
+            request["seconds"] = args.seconds
+        elif args.glasses_op == "mode":
+            request["mode"] = args.mode
+        elif args.glasses_op == "imu":
+            request["ms"] = args.ms
+        elif args.glasses_op == "raw":
+            request.update(msgId=args.msg_id, payload=args.payload or "")
+        return add_serial(checked(provider_call(adb, serial, "glasses", request=request), "GLASSES_FAILED"), serial)
+
     if command == "logs":
         state = get_state(adb, serial)
         session = state.get("session", {})
@@ -651,6 +665,25 @@ def build_parser() -> argparse.ArgumentParser:
     prefs_set.add_argument("--type", choices=["bool", "int", "long", "float", "string", "remove"], default="string")
 
     commands.add_parser("access", help="whether debugging tools are enabled on the device")
+
+    glasses = commands.add_parser("glasses", help="VITURE glasses: status, settings, head tracking test")
+    glasses_ops = glasses.add_subparsers(dest="glasses_op")
+    glasses_ops.add_parser("status")
+    glasses_ops.add_parser("allow", help="ask for USB control of the glasses again")
+    glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, brightness, volume, sunblock, 3d, gameOnGlasses, headTracking, auto3d")
+    glasses_set.add_argument("key")
+    glasses_set.add_argument("value")
+    glasses_sim = glasses_ops.add_parser("simulate", help="feed a moving head pose (yaw, pitch and roll sweeps)")
+    glasses_sim.add_argument("--seconds", type=int, default=20)
+    glasses_ops.add_parser("stop-simulate")
+    glasses_ops.add_parser("query", help="ask the glasses for their display mode, brightness, volume and IMU state")
+    glasses_mode = glasses_ops.add_parser("mode", help="send a display mode byte, e.g. 0x31 (1080p60), 0x34 (1080p120), 0x32 (3D)")
+    glasses_mode.add_argument("mode")
+    glasses_imu = glasses_ops.add_parser("imu", help="stream the glasses' IMU for a moment and show what it reports")
+    glasses_imu.add_argument("--ms", type=int, default=2000)
+    glasses_raw = glasses_ops.add_parser("raw", help="send one MCU command (debugging tools)")
+    glasses_raw.add_argument("msg_id", help="hex message id, e.g. 0x0007")
+    glasses_raw.add_argument("payload", nargs="?", help="hex bytes")
 
     logs = commands.add_parser("logs", help="pull the latest session artifact directory")
     logs.add_argument("which", choices=["latest"])

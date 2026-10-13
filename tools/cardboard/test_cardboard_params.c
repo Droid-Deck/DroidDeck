@@ -41,6 +41,12 @@ int main(void) {
     q.source = CARDBOARD_SOURCE_SBS;
     cardboard_push_constants(&q, pose, 3840, 1080, 2400, 1080, pc);
     CHECK(near(pc[17], 1920.0f / 1080.0f) && near(pc[18], 1.0f));
+    q.mono = 1;
+    cardboard_push_constants(&q, pose, 3840, 1080, 1920, 1080, pc);
+    CHECK(near(pc[3], 0.0f) && near(pc[19], 1920.0f / 1080.0f) && near(pc[20], 1.0f));
+    q.mono = 0;
+    cardboard_push_constants(&q, pose, 3840, 1080, 1920, 1080, pc);
+    CHECK(near(pc[3], 0.032f) && near(pc[19], 960.0f / 1080.0f) && near(pc[20], 0.0f));
     /* Unknown sizes fall back instead of dividing by zero. */
     cardboard_push_constants(&q, pose, 0, 0, 0, 0, pc);
     CHECK(isfinite(pc[17]) && isfinite(pc[19]));

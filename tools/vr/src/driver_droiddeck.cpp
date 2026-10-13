@@ -101,6 +101,8 @@ HmdQuaternion_t QuatFromMatrix(const float m[9]) {
     return q;
 }
 
+double VsyncPeriodSeconds();
+
 // IVRVirtualDisplay: the compositor renders the final frame into its own backbuffer and hands it
 // here instead of scanning it out. What the handle is on Linux is what this logs (experiment).
 class VirtualDisplay : public IVRVirtualDisplay {
@@ -115,10 +117,10 @@ public:
     }
     void WaitForPresent() override {}
     bool GetTimeSinceLastVsync(float *seconds, uint64_t *counter) override {
-        // A free-running 60 Hz vsync.
+        // A free-running vsync at the panel's rate.
         using namespace std::chrono;
         double t = duration<double>(steady_clock::now().time_since_epoch()).count();
-        double period = 1.0 / 60.0;
+        double period = VsyncPeriodSeconds();
         *seconds = (float)fmod(t, period);
         *counter = (uint64_t)(t / period);
         return true;
@@ -130,16 +132,20 @@ private:
 };
 
 // The vsync grid SteamVR paces against in driver-direct mode (Prop_DriverDirectModeSendsVsyncEvents):
-// a free-running 60 Hz tick, declared a little ahead of time (ALVR's announcer, alvr/server_openvr/src/vsync.rs).
+// a free-running tick at the panel's rate, declared a little ahead of time (ALVR's announcer, alvr/server_openvr/src/vsync.rs).
 class Vsync {
 public:
-    static constexpr std::chrono::nanoseconds kInterval{16666667};
     static constexpr std::chrono::microseconds kLead{2000};
+
+    static std::chrono::nanoseconds Interval() { return std::chrono::nanoseconds(intervalNs_.load()); }
+    static void SetRate(float hz) {
+        if (hz >= 24.0f && hz <= 240.0f) intervalNs_ = (int64_t)(1e9 / hz);
+    }
 
     static void Start() {
         if (running_.exchange(true)) return;
         thread_ = std::thread([] {
-            auto next = std::chrono::steady_clock::now() + kInterval;
+            auto next = std::chrono::steady_clock::now() + Interval();
             while (running_) {
                 auto announce = next - kLead;
                 std::this_thread::sleep_until(announce);
@@ -150,9 +156,10 @@ public:
                     std::lock_guard<std::mutex> lock(mutex_);
                     last_ = next;
                 }
-                next += kInterval;
+                const auto interval = Interval();
+                next += interval;
                 now = std::chrono::steady_clock::now();
-                while (next <= now) next += kInterval;
+                while (next <= now) next += interval;
             }
         });
     }
@@ -167,10 +174,13 @@ public:
 
 private:
     static inline std::atomic<bool> running_{false};
+    static inline std::atomic<int64_t> intervalNs_{16666667};
     static inline std::thread thread_;
     static inline std::mutex mutex_;
     static inline std::chrono::steady_clock::time_point last_{};
 };
+
+double VsyncPeriodSeconds() { return Vsync::Interval().count() / 1e9; }
 
 // IVRDriverDirectModeComponent: SteamVR renders each eye into textures this driver allocates
 // (shared Vulkan images from SteamVR's IPC resource manager, dmabufs on Linux) and hands them
@@ -276,7 +286,7 @@ public:
     void PostPresent(const Throttling_t *t) override {
         // Hold until the tick after the last one declared (ALVR's pacing): a slow frame costs one frame.
         auto last = Vsync::LastTick();
-        auto until = last + Vsync::kInterval * (1 + (t ? t->nFramesToThrottle : 0));
+        auto until = last + Vsync::Interval() * (1 + (t ? t->nFramesToThrottle : 0));
         if (until > std::chrono::steady_clock::now()) std::this_thread::sleep_until(until);
     }
 
@@ -468,6 +478,10 @@ public:
             tanHalf_ = hp.tan_half_fov;
             if (hp.eye_aspect > 0.0f) eyeAspect_ = hp.eye_aspect;
         }
+        if (pose_.Read(&hp) && hp.display_hz >= 24.0f) hz = hp.display_hz;
+        Vsync::SetRate(hz);
+        sentTan_ = tanHalf_;
+        sentAspect_ = eyeAspect_;
         VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, "DroidDeck Cardboard");
         VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, "DroidDeck");
         VRProperties()->SetStringProperty(c, Prop_TrackingSystemName_String, "droiddeck");
@@ -551,7 +565,7 @@ public:
     bool IsDisplayRealDisplay() override { return false; }
     void GetRecommendedRenderTargetSize(uint32_t *w, uint32_t *h) override {
         // Rendered a little larger than the panel: the lens pass magnifies the middle.
-        *w = (uint32_t)(width_ / 2 * 1.4f);
+        *w = (uint32_t)(height_ * 1.4f * eyeAspect_);
         *h = (uint32_t)(height_ * 1.4f);
     }
     void GetEyeOutputViewport(EVREye eye, uint32_t *x, uint32_t *y, uint32_t *w, uint32_t *h) override {
@@ -575,6 +589,22 @@ public:
     }
 
 private:
+    void UpdateEye(const droiddeck_headpose &hp) {
+        sentTan_ = tanHalf_ = hp.tan_half_fov;
+        sentAspect_ = eyeAspect_ = hp.eye_aspect;
+        HmdRect2_t r;
+        r.vTopLeft.v[0] = -tanHalf_ * eyeAspect_;
+        r.vTopLeft.v[1] = -tanHalf_;
+        r.vBottomRight.v[0] = tanHalf_ * eyeAspect_;
+        r.vBottomRight.v[1] = tanHalf_;
+        VRServerDriverHost()->SetDisplayProjectionRaw(id_, r, r);
+        uint32_t w = 0, h = 0;
+        GetRecommendedRenderTargetSize(&w, &h);
+        VRServerDriverHost()->SetRecommendedRenderTargetSize(id_, w, h);
+        Log("eye now tan(half fov) %.3f, aspect %.3f (%ux%u eye%s), render %ux%u", tanHalf_, eyeAspect_, hp.eye_w, hp.eye_h,
+            (hp.flags & DROIDDECK_HEADPOSE_MONO) ? ", one eye shown" : "", w, h);
+    }
+
     void PoseLoop() {
         uint32_t lastSeq = 0;
         auto lastSent = std::chrono::steady_clock::now();
@@ -589,6 +619,10 @@ private:
             if ((fresh || padChanged || now - lastSent > std::chrono::milliseconds(100)) && id_ != k_unTrackedDeviceIndexInvalid) {
                 if (fresh) {
                     lastSeq = hp.seq;
+                    if (hp.eye_w > 0 && hp.tan_half_fov > 0.0f && hp.eye_aspect > 0.0f &&
+                        (fabsf(hp.tan_half_fov - sentTan_) > 1e-3f || fabsf(hp.eye_aspect - sentAspect_) > 1e-3f))
+                        UpdateEye(hp);
+                    if (hp.display_hz >= 24.0f) Vsync::SetRate(hp.display_hz);
                     const bool worn = (hp.flags & DROIDDECK_HEADPOSE_ENABLED) != 0;
                     if (worn != worn_) {
                         worn_ = worn;
@@ -609,6 +643,7 @@ private:
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     int32_t width_ = 1920, height_ = 1080;
     float tanHalf_ = 1.0f, eyeAspect_ = 0.889f;
+    float sentTan_ = 0.0f, sentAspect_ = 0.0f;
 public:
     void SetHands(CardboardController *left, CardboardController *right) { hands_[0] = left; hands_[1] = right; }
 

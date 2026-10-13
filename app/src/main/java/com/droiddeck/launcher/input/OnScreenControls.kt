@@ -92,6 +92,7 @@ class OnScreenControls(
     private val groups = controls.map { it.group }.distinct()
 
     private var buttonsOnly = false
+    val isButtonsOnly: Boolean get() = buttonsOnly
     private var quickHidden = false
     private var quickPressedBy = -1
     private var keyboardPressedBy = -1
