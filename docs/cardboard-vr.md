@@ -145,12 +145,25 @@ a pose written to the shared file turns SteamVR's view. Started from the drawer 
 - **Cross-process GPU sync** is a poll away from exact (see the semaphore note above); binary
   semaphores are not bridged.
 - **Apps and games**: Windows VR games run through Proton ARM64 (FEX for the x86-64 game, DXVK, and
-  Proton's `vrclient_x64` bridging to SteamVR's ARM64 `vrclient.so`). **The Thrill of the Fight**
-  (494150, Unity, OpenVR) loads into its gym and renders in both eyes at 60 Hz on the Thor. SteamVR
-  opens its game menu over a newly started game; `vrcmd --hidedashboard` (in
-  `/opt/steamvr/bin/linuxarm64`) closes it. The Lab (6.6 GB) got the whole app killed by Android's
-  low-memory killer while loading next to Steam and SteamVR, and SUPERHOT VR stops at its EULA, which
-  the dashboard shows in VR. `hellovr_sdl` (OpenGL) needs GLEW, which the runtime lacks.
+  Proton's `vrclient_x64` bridging to SteamVR's ARM64 `vrclient.so`). Tested on the Thor:
+  - **Thumper** (356400, its own D3D11 engine), started with its VR launch option: menus and levels
+    at 60 Hz, about 7 ms CPU and 13 ms GPU a frame, 23 dropped frames in 6485;
+  - **The Thrill of the Fight** (494150, Unity): loads into its gym, 60 Hz with 6.5 ms CPU and 8.5 ms
+    GPU a frame;
+  - **The Lab** (6.6 GB) loads, but Android's low-memory killer took the whole app while it did, next
+    to Steam and SteamVR. Two VR games at once do the same, so quit one (`droiddeckctl quit <appid>`)
+    before starting the next;
+  - **SUPERHOT VR** stops at its EULA, which SteamVR's dashboard shows in VR;
+  - **SteamVR Home** is not in the ARM64 package. Steam's own Windows SteamVR (250820) has it
+    (`tools/steamvr_environments`, `steamtours.exe`), and it starts under Proton, but Proton's
+    `vrclient_x64` implements only `IVROverlayView_003` and Home asks for `_002`, so it stops at
+    "SteamVR initialization failed!";
+  - SteamVR's ARM64 OpenXR sample, `helloxr -g Vulkan2`, reaches a focused session and submits frames
+    (it was stuck before the first one until the wait fix above), but its picture shows up as torn
+    tiles: next to chase. `hellovr_sdl` (OpenGL) needs GLEW, which the runtime lacks.
+
+  SteamVR opens its game menu over a newly started game; `vrcmd --hidedashboard` (in
+  `/opt/steamvr/bin/linuxarm64`) closes it.
 - **Quest 3**: unrelated to this; on the Quest DroidDeck stays a 2D panel (`docs/quest.md`).
 
 ## Building and testing
