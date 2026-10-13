@@ -593,10 +593,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                 }
                 // SteamVR's state for the Cardboard group, refreshed while the drawer shows it.
-                // While the picture is switched for SteamVR it is watched with the drawer closed too, so
-                // quitting SteamVR any way at all hands the picture back.
-                LaunchedEffect(drawerOpen, cardboard.enabled, steamVrSwitchedPicture) {
-                    while ((drawerOpen && cardboard.enabled) || steamVrSwitchedPicture) {
+                // Watched for as long as Cardboard mode is on (or the picture is switched for it), drawer open or
+                // not: however SteamVR is started or quit, the picture follows it.
+                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture) {
+                    while (cardboard.enabled || steamVrSwitchedPicture) {
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             SteamVr.status(this@SessionActivity)
                         }
@@ -2578,14 +2578,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      *  picture to side-by-side, which is what SteamVR draws. */
     private fun steamVrAction(action: String) {
         if (action == "start") {
-            if (cardboard.source != Cardboard.SOURCE_SBS) {
-                SessionPrefs.setCardboardSourceBeforeSteamVr(this, cardboard.source)
-                val c = cardboard.copy(source = Cardboard.SOURCE_SBS)
-                SessionPrefs.setCardboard(this, c)
-                applyCardboard(c)
-            }
+            switchPictureForSteamVr()
             steamVrSeenRunning = false
-            steamVrSwitchedPicture = SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0
         }
         if (action == "stop") restoreSteamVrPicture()
         if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
@@ -2599,8 +2593,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }, "steamvr-$action").start()
     }
 
+    /** SteamVR draws a side-by-side pair: the picture switches to that, remembering what it was. */
+    private fun switchPictureForSteamVr() {
+        if (cardboard.source != Cardboard.SOURCE_SBS) {
+            SessionPrefs.setCardboardSourceBeforeSteamVr(this, cardboard.source)
+            val c = cardboard.copy(source = Cardboard.SOURCE_SBS)
+            SessionPrefs.setCardboard(this, c)
+            applyCardboard(c)
+        }
+        steamVrSwitchedPicture = SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0
+    }
+
     private fun onSteamVrStatus(now: SteamVr.Status) {
         steamVrStatus = now
+        // Started some other way than the drawer (a script, a VR game): the picture follows it all the same.
+        if (now == SteamVr.Status.RUNNING && cardboard.enabled && !steamVrSwitchedPicture &&
+            cardboard.source != Cardboard.SOURCE_SBS) {
+            switchPictureForSteamVr()
+            steamVrSeenRunning = true
+        }
         if (!steamVrSwitchedPicture) return
         if (now == SteamVr.Status.RUNNING) steamVrSeenRunning = true
         else if (steamVrSeenRunning && now != SteamVr.Status.UNAVAILABLE) restoreSteamVrPicture()
