@@ -616,6 +616,14 @@
     <string name="setup_saved_logs">已保存的会话日志</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 个</string>
     <string name="setup_clear_logs">清除日志</string>
+    <string name="setup_reset_settings">重置所有设置</string>
+    <string name="setup_reset_settings_hint">将所有设置恢复为默认值</string>
+    <string name="setup_reset_settings_button">重置</string>
+    <string name="setup_reset_settings_title">重置所有设置？</string>
+    <string name="setup_reset_settings_body">显示、性能、手柄、主题、语言和启动器设置将恢复为默认值。你的游戏、Steam 登录、商店账户、已下载的驱动和存储文件夹会被保留。</string>
+    <string name="setup_reset_settings_profiles">同时重置游戏配置档案（每个游戏的 Proton、FEX、组件和环境，以及默认配置档案的环境）</string>
+    <string name="setup_reset_settings_session_running">请先停止会话再重置设置。</string>
+    <string name="setup_reset_settings_partial">设置已重置，但部分内容未能重置。详情请查看日志。</string>
     <string name="setup_offline">离线模式</string>
     <string name="setup_sign_in_first">请先登录 Steam</string>
     <string name="setup_launcher">启动器</string>

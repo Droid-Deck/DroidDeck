@@ -616,6 +616,14 @@
     <string name="setup_saved_logs">已儲存的工作階段日誌</string>
     <string name="setup_saved_logs_hint">保留最新的 %1$d 個</string>
     <string name="setup_clear_logs">清除日誌</string>
+    <string name="setup_reset_settings">重設所有設定</string>
+    <string name="setup_reset_settings_hint">將所有設定還原為預設值</string>
+    <string name="setup_reset_settings_button">重設</string>
+    <string name="setup_reset_settings_title">要重設所有設定嗎？</string>
+    <string name="setup_reset_settings_body">顯示、效能、控制器、佈景主題、語言和啟動器設定將還原為預設值。你的遊戲、Steam 登入、商店帳戶、已下載的驅動程式和儲存資料夾都會保留。</string>
+    <string name="setup_reset_settings_profiles">同時重設遊戲設定檔（每個遊戲的 Proton、FEX、元件和環境，以及預設設定檔的環境）</string>
+    <string name="setup_reset_settings_session_running">請先停止工作階段再重設設定。</string>
+    <string name="setup_reset_settings_partial">設定已重設，但部分項目無法重設。詳細資訊請查看日誌。</string>
     <string name="setup_offline">離線模式</string>
     <string name="setup_sign_in_first">請先登入 Steam</string>
     <string name="setup_launcher">啟動器</string>

@@ -503,6 +503,14 @@
     <string name="setup_saved_logs">Journaux de session enregistrés</string>
     <string name="setup_saved_logs_hint">Conserver les %1$d plus récents</string>
     <string name="setup_clear_logs">Effacer les journaux</string>
+    <string name="setup_reset_settings">Réinitialiser tous les paramètres</string>
+    <string name="setup_reset_settings_hint">Remet chaque paramètre à sa valeur par défaut</string>
+    <string name="setup_reset_settings_button">Réinitialiser</string>
+    <string name="setup_reset_settings_title">Réinitialiser tous les paramètres ?</string>
+    <string name="setup_reset_settings_body">Les paramètres d\'affichage, de performances, de manette, de thème, de langue et du lanceur reprennent leurs valeurs par défaut. Vos jeux, votre connexion Steam, vos comptes de boutiques, les pilotes téléchargés et les dossiers de stockage sont conservés.</string>
+    <string name="setup_reset_settings_profiles">Réinitialiser aussi les profils de jeu (Proton, FEX, composants et environnement de chaque jeu, ainsi que l\'environnement du profil par défaut)</string>
+    <string name="setup_reset_settings_session_running">Arrêtez la session avant de réinitialiser les paramètres.</string>
+    <string name="setup_reset_settings_partial">Les paramètres ont été réinitialisés, mais certaines parties n\'ont pas pu l\'être. Les journaux contiennent les détails.</string>
     <string name="setup_offline">Mode hors ligne</string>
     <string name="setup_sign_in_first">Veuillez d\'abord vous connecter à Steam</string>
     <string name="setup_launcher">Lanceur</string>

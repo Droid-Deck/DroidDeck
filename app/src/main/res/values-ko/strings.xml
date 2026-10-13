@@ -616,6 +616,14 @@
     <string name="setup_saved_logs">저장된 세션 로그</string>
     <string name="setup_saved_logs_hint">최신 %1$d개 유지</string>
     <string name="setup_clear_logs">로그 지우기</string>
+    <string name="setup_reset_settings">모든 설정 초기화</string>
+    <string name="setup_reset_settings_hint">모든 설정을 기본값으로 되돌립니다</string>
+    <string name="setup_reset_settings_button">초기화</string>
+    <string name="setup_reset_settings_title">모든 설정을 초기화할까요?</string>
+    <string name="setup_reset_settings_body">화면, 성능, 컨트롤러, 테마, 언어 및 런처 설정이 기본값으로 돌아갑니다. 게임, Steam 로그인, 스토어 계정, 다운로드한 드라이버 및 저장소 폴더는 유지됩니다.</string>
+    <string name="setup_reset_settings_profiles">게임 프로필도 초기화 (각 게임의 Proton, FEX, 구성 요소 및 환경, 기본 프로필의 환경)</string>
+    <string name="setup_reset_settings_session_running">설정을 초기화하기 전에 세션을 중지하세요.</string>
+    <string name="setup_reset_settings_partial">설정이 초기화되었지만 일부는 초기화하지 못했습니다. 자세한 내용은 로그를 확인하세요.</string>
     <string name="setup_offline">오프라인 모드</string>
     <string name="setup_sign_in_first">먼저 Steam에 로그인하세요</string>
     <string name="setup_launcher">런처</string>

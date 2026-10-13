@@ -620,6 +620,14 @@
     <string name="setup_saved_logs">Registros de sesión guardados</string>
     <string name="setup_saved_logs_hint">Conserva los %1$d más recientes</string>
     <string name="setup_clear_logs">Borrar registros</string>
+    <string name="setup_reset_settings">Restablecer todos los ajustes</string>
+    <string name="setup_reset_settings_hint">Devuelve cada ajuste a su valor predeterminado</string>
+    <string name="setup_reset_settings_button">Restablecer</string>
+    <string name="setup_reset_settings_title">¿Restablecer todos los ajustes?</string>
+    <string name="setup_reset_settings_body">Los ajustes de pantalla, rendimiento, mando, tema, idioma y lanzador vuelven a sus valores predeterminados. Se conservan tus juegos, la sesión de Steam, las cuentas de tiendas, los controladores descargados y las carpetas de almacenamiento.</string>
+    <string name="setup_reset_settings_profiles">Restablecer también los perfiles de juego (Proton, FEX, componentes y entorno de cada juego, y el entorno del perfil predeterminado)</string>
+    <string name="setup_reset_settings_session_running">Detén la sesión antes de restablecer los ajustes.</string>
+    <string name="setup_reset_settings_partial">Los ajustes se restablecieron, pero algunas partes no se pudieron restablecer. Los registros tienen los detalles.</string>
     <string name="setup_offline">Modo sin conexión</string>
     <string name="setup_sign_in_first">Inicia sesión en Steam primero</string>
     <string name="setup_launcher">Launcher</string>

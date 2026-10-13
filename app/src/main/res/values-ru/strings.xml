@@ -578,6 +578,14 @@
     <string name="setup_saved_logs">Сохраненные журналы сессии</string>
     <string name="setup_saved_logs_hint">Хранятся последние %1$d</string>
     <string name="setup_clear_logs">Очистить журналы</string>
+    <string name="setup_reset_settings">Сбросить все настройки</string>
+    <string name="setup_reset_settings_hint">Возвращает все настройки к значениям по умолчанию</string>
+    <string name="setup_reset_settings_button">Сбросить</string>
+    <string name="setup_reset_settings_title">Сбросить все настройки?</string>
+    <string name="setup_reset_settings_body">Настройки экрана, производительности, контроллера, темы, языка и лаунчера вернутся к значениям по умолчанию. Ваши игры, вход в Steam, аккаунты магазинов, загруженные драйверы и папки хранилища сохранятся.</string>
+    <string name="setup_reset_settings_profiles">Также сбросить профили игр (Proton, FEX, компоненты и окружение каждой игры, а также окружение профиля по умолчанию)</string>
+    <string name="setup_reset_settings_session_running">Остановите сессию перед сбросом настроек.</string>
+    <string name="setup_reset_settings_partial">Настройки сброшены, но некоторые части сбросить не удалось. Подробности в журналах.</string>
     <string name="setup_offline">Автономный режим</string>
     <string name="setup_sign_in_first">Сначала войдите в Steam</string>
     <string name="setup_launcher">Лаунчер</string>
