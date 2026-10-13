@@ -104,6 +104,13 @@ class SteamLanguageTest(unittest.TestCase):
         self.assertEqual('koreana', value(text, *GLOBAL))
         self.assertEqual({'language': 'koreana'}, json.loads((self.home / '.steam/exportedsettings.json').read_text()))
 
+    def test_arabic_guest_language_writes_steam_registry_and_export(self):
+        self.assertTrue(apply(str(self.home), 'arabic'))
+        text = self.registry.read_text()
+        self.assertEqual('arabic', value(text, *STEAM))
+        self.assertEqual('arabic', value(text, *GLOBAL))
+        self.assertEqual({'language': 'arabic'}, json.loads((self.home / '.steam/exportedsettings.json').read_text()))
+
     def test_missing_keys_are_added_whatever_their_case(self):
         text = with_language('"registry"\n{\n\t"hkcu"\n\t{\n\t\t"software"\n\t\t{\n\t\t}\n\t}\n}\n', 'schinese')
         self.assertEqual('schinese', value(text, *STEAM))

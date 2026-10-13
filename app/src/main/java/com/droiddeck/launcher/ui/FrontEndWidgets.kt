@@ -55,6 +55,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -110,6 +112,7 @@ internal val Shape16 = RoundedCornerShape(16.dp)
 /** One level up, as Back and B do: a real button, big enough to hit ([compact]: for the tightest layouts). */
 @Composable
 internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Unit) {
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -125,7 +128,7 @@ internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Un
             .controllerConfirm(onClick = onClick)
             .padding(start = 8.dp, end = 16.dp),
     ) {
-        Icon(Icons.Filled.ChevronLeft, contentDescription = null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(22.dp))
+        Icon(Icons.Filled.ChevronLeft, contentDescription = null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(22.dp).graphicsLayer { scaleX = if (isRtl) -1f else 1f })
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
