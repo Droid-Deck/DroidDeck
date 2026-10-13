@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -37,13 +38,14 @@ class PresetScaleTest {
             }
         }
         val originalWidth = compose.onNodeWithTag("page-size").fetchSemanticsNode().boundsInRoot.width
-        compose.runOnIdle { scale.intValue = 75 }
+        // Commit test-driven state changes immediately; they do not run in a Compose frame.
+        compose.runOnIdle { Snapshot.withMutableSnapshot { scale.intValue = 75 } }
         compose.onNodeWithText("Performance").performClick()
         compose.onNodeWithText("Intermediate").performClick()
         compose.waitForIdle()
         assertEquals(originalWidth * 0.75f,
             compose.onNodeWithTag("page-size").fetchSemanticsNode().boundsInRoot.width, 1f)
-        compose.runOnIdle { open.value = true }
+        compose.runOnIdle { Snapshot.withMutableSnapshot { open.value = true } }
         compose.onNodeWithText("Compatibility").performClick()
         compose.waitForIdle()
         assertEquals(originalWidth * 0.75f,
