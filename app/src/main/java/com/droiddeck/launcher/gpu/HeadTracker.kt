@@ -24,7 +24,7 @@ class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEve
     private val sensor: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
         ?: sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private var thread: HandlerThread? = null
-    @Volatile private var basis: FloatArray? = null
+    @Volatile private var reference: HeadPose.Reference? = null
     @Volatile private var recenterPending = true
     @Volatile private var latest: FloatArray? = null
 
@@ -54,7 +54,7 @@ class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEve
         WaylandCompositor.nativeSetCardboardPose(HeadPose.IDENTITY, false)
     }
 
-    /** Make where the viewer looks now straight ahead (heading only; the horizon stays level). */
+    /** Make where the viewer looks now straight ahead (see HeadPose.recenter). */
     fun recenter() {
         recenterPending = true
         latest?.let { apply(it) }
@@ -68,11 +68,11 @@ class HeadTracker(context: Context, private val rotation: () -> Int) : SensorEve
     }
 
     private fun apply(screenToWorld: FloatArray) {
-        if (recenterPending || basis == null) {
-            basis = HeadPose.recenterBasis(screenToWorld)
+        val ref = reference.takeUnless { recenterPending } ?: HeadPose.recenter(screenToWorld).also {
+            reference = it
             recenterPending = false
         }
-        WaylandCompositor.nativeSetCardboardPose(HeadPose.relative(basis!!, screenToWorld), true)
+        WaylandCompositor.nativeSetCardboardPose(HeadPose.relative(ref, screenToWorld), true)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {

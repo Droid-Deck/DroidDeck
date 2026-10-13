@@ -130,49 +130,61 @@ object HeadPose {
     }
 
     /**
-     * Device -> screen axes for a Display rotation (Surface.ROTATION_* as 0..3), the same remap
-     * SensorManager.remapCoordinateSystem does for each rotation: the returned matrix maps screen
-     * to world, given the device's own device -> world matrix.
+     * Device -> screen axes for a Display rotation (Surface.ROTATION_* as 0..3): the returned matrix
+     * maps screen to world, given the device's own device -> world matrix. The same transform as
+     * input/PadMotion's and SensorManager.remapCoordinateSystem's (ROTATION_90 = AXIS_Y, AXIS_MINUS_X:
+     * the device's x is the screen's y, its y the screen's -x).
      */
     fun toScreen(deviceToWorld: FloatArray, rotation: Int): FloatArray {
         // Columns of A: where each screen axis points in device coordinates.
         val a = when (rotation and 3) {
-            1 -> floatArrayOf(0f, -1f, 0f, 1f, 0f, 0f, 0f, 0f, 1f)   // x = device y, y = -device x
-            2 -> floatArrayOf(-1f, 0f, 0f, 0f, -1f, 0f, 0f, 0f, 1f)  // x = -device x, y = -device y
-            3 -> floatArrayOf(0f, 1f, 0f, -1f, 0f, 0f, 0f, 0f, 1f)   // x = -device y, y = device x
+            1 -> floatArrayOf(0f, 1f, 0f, -1f, 0f, 0f, 0f, 0f, 1f)   // screen x = -device y, y = device x
+            2 -> floatArrayOf(-1f, 0f, 0f, 0f, -1f, 0f, 0f, 0f, 1f)  // screen x = -device x, y = -device y
+            3 -> floatArrayOf(0f, -1f, 0f, 1f, 0f, 0f, 0f, 0f, 1f)   // screen x = device y, y = -device x
             else -> IDENTITY
         }
         return multiply(deviceToWorld, a)
     }
 
-    /** sin(60 degrees): looking further up or down than this recentres the whole orientation. */
-    private const val FULL_RECENTER_SIN = 0.866f
+    /** sin(60 degrees): a view further from level than this is "held flat" for recentring. */
+    private const val FLAT_SIN = 0.866f
 
     /**
-     * The yaw-only frame a recentre locks to: facing where the viewer looks now, upright. Columns
-     * are its right, up and back axes in world coordinates. Pitch and roll stay absolute (gravity
-     * keeps the horizon level); only the heading is reset - unless the view is more than 60 degrees
-     * from level, when the whole current orientation becomes straight ahead.
+     * What a recentre locks to. The pose the compositor gets is basis^T * screenToWorld * tilt:
+     *  - [basis]: a level frame (columns right, up, back in world) facing the recentred heading. Every
+     *    rotation is measured in it, so turning about the real vertical always pans the view;
+     *  - [tilt]: the device's own tilt at the recentre, taken out so that pose starts straight ahead.
+     *    Identity when the device was held upright: the horizon then stays the true one.
      */
-    fun recenterBasis(screenToWorld: FloatArray): FloatArray {
-        // Forward = the screen's -z in world.
-        var fx = -screenToWorld[2]; var fy = -screenToWorld[5]
+    class Reference(val basis: FloatArray, val tilt: FloatArray)
+
+    /**
+     * Recentre on the current orientation. Held upright (the screen within 60 degrees of vertical, as
+     * in a viewer), only the heading resets: forward is where the screen faces. Held flat (lying back,
+     * or the device on a table or in the hands like a tray), forward is where the top of the screen
+     * points and the tilt resets too; turning at the hips still pans, tipping the device still tilts.
+     */
+    fun recenter(screenToWorld: FloatArray): Reference {
         val fz = -screenToWorld[8]
-        // Far from upright (lying back in bed, the device flat on a table): a level horizon would put
-        // the screen out of view, so the whole orientation is taken as straight ahead instead.
-        if (kotlin.math.abs(fz) > FULL_RECENTER_SIN) return screenToWorld.copyOf()
-        val len = sqrt(fx * fx + fy * fy)
+        val flat = kotlin.math.abs(fz) > FLAT_SIN
+        // Upright: the screen's -z. Flat: the screen's +y (its top edge), which is level then.
+        var fx = if (flat) screenToWorld[1] else -screenToWorld[2]
+        var fy = if (flat) screenToWorld[4] else -screenToWorld[5]
+        val len = sqrt(fx * fx + fy * fy).takeIf { it > 1e-4f } ?: run { fx = 0f; fy = 1f; 1f }
         fx /= len; fy /= len
         // right = forward x up(0,0,1) = (fy, -fx, 0); up = (0,0,1); back = -forward.
-        return floatArrayOf(
+        val basis = floatArrayOf(
             fy, 0f, -fx,
             -fx, 0f, -fy,
             0f, 1f, 0f,
         )
+        val tilt = if (flat) multiply(transpose(screenToWorld), basis) else IDENTITY
+        return Reference(basis, tilt)
     }
 
-    /** head -> recentred world: what the compositor takes (basis^T * screenToWorld). */
-    fun relative(basis: FloatArray, screenToWorld: FloatArray): FloatArray = multiply(transpose(basis), screenToWorld)
+    /** head -> recentred world: what the compositor takes. */
+    fun relative(ref: Reference, screenToWorld: FloatArray): FloatArray =
+        multiply(multiply(transpose(ref.basis), screenToWorld), ref.tilt)
 
     fun multiply(a: FloatArray, b: FloatArray): FloatArray = FloatArray(9) { i ->
         val r = i / 3; val c = i % 3
