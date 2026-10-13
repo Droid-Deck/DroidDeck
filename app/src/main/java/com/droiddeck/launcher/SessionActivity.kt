@@ -2598,6 +2598,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val ok = SteamVr.run(this, action)
             val now = SteamVr.status(this)
             uiHandler.post {
+                // A start that failed leaves nothing side-by-side to show: the picture goes back.
+                if (!ok && action == "start" && now != SteamVr.Status.RUNNING) restoreSteamVrPicture()
                 onSteamVrStatus(now)
                 if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
             }

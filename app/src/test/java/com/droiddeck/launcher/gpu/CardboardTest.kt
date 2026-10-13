@@ -3,6 +3,8 @@ package com.droiddeck.launcher.gpu
 import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -60,6 +62,27 @@ class CardboardTest {
         assertEquals(SteamVr.Status.READY, SteamVr.parse(answer("ok" to true, "installed" to true, "driver" to true)))
         assertEquals(SteamVr.Status.RUNNING,
             SteamVr.parse(answer("ok" to true, "installed" to true, "driver" to true, "running" to true)))
+        // The helper itself failed: the agent still says ok.
+        assertEquals(SteamVr.Status.UNAVAILABLE,
+            SteamVr.parse(answer("ok" to true, "installed" to true, "driver" to true).put("exitCode", 1)))
+    }
+
+    @Test fun steamVrActionsSucceedOnlyWhenTheHelperDid() {
+        fun answer(ok: Boolean, exitCode: Int? = null, started: Boolean? = null) = JSONObject().apply {
+            put("ok", ok)
+            exitCode?.let { put("exitCode", it) }
+            started?.let { put("started", it) }
+        }
+        assertTrue(SteamVr.succeeded("start", answer(true, exitCode = 0)))
+        assertTrue(SteamVr.succeeded("stop", answer(true, exitCode = 0)))
+        // The agent ran the request, but droiddeck-steamvr start failed (not installed, no driver).
+        assertFalse(SteamVr.succeeded("start", answer(true, exitCode = 1)))
+        assertFalse(SteamVr.succeeded("stop", answer(true, exitCode = 2)))
+        assertFalse(SteamVr.succeeded("start", answer(true)))
+        assertFalse(SteamVr.succeeded("start", answer(false, exitCode = 0)))
+        assertTrue(SteamVr.succeeded("install", answer(true, started = true)))
+        assertFalse(SteamVr.succeeded("install", answer(true)))
+        assertFalse(SteamVr.succeeded("install", answer(false, started = true)))
     }
 
     @Test fun quaternionMatchesKnownRotations() {

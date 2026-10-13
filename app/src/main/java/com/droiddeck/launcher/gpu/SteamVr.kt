@@ -25,16 +25,27 @@ object SteamVr {
         parse(AgentGuest.call(context, JSONObject().put("kind", "vr").put("action", "status"), STATUS_TIMEOUT_MS))
     }.getOrDefault(Status.UNAVAILABLE)
 
-    /** install, start or stop; true when the guest took it. */
+    /** install, start or stop; true when the guest did it. */
     fun run(context: Context, action: String): Boolean = runCatching {
         require(action in setOf("install", "start", "stop"))
-        AgentGuest.call(context, JSONObject().put("kind", "vr").put("action", action), ACTION_TIMEOUT_MS)
-            .optBoolean("ok", false)
+        succeeded(action, AgentGuest.call(context, JSONObject().put("kind", "vr").put("action", action), ACTION_TIMEOUT_MS))
     }.getOrDefault(false)
+
+    /**
+     * The agent answers ok whenever it ran the request, even when droiddeck-steamvr then failed; the
+     * helper's own exit code says whether start or stop worked. install runs detached and only reports
+     * that it started (its progress shows in status).
+     */
+    fun succeeded(action: String, answer: JSONObject): Boolean = when {
+        !answer.optBoolean("ok", false) -> false
+        action == "install" -> answer.optBoolean("started", false)
+        else -> answer.optInt("exitCode", -1) == 0
+    }
 
     /** The agent's status answer -> what the menu shows. */
     fun parse(answer: JSONObject): Status = when {
         !answer.optBoolean("ok", false) -> Status.UNAVAILABLE
+        answer.optInt("exitCode", 0) != 0 -> Status.UNAVAILABLE
         answer.optBoolean("installing") -> Status.INSTALLING
         !answer.optBoolean("driver") -> Status.UNAVAILABLE
         !answer.optBoolean("installed") -> Status.NOT_INSTALLED

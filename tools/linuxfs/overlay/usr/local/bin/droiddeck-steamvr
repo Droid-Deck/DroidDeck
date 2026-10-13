@@ -33,6 +33,8 @@ stop() {
     done
     # pgrep -x matches 15 characters of the name at most.
     for p in $(pgrep -f "$steamvr/bin/linuxarm64/vrcompositor-launcher"); do kill "$p" 2>/dev/null; done
+    # A process that exited on its own meanwhile is not a failure: the app reads this exit code.
+    return 0
 }
 
 case "${1:-status}" in
