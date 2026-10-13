@@ -92,6 +92,14 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      locally from the host), so GPU waits work as written, a poll period late. Waits on an imported
      binary semaphore, which cannot be bridged that way, are dropped. With the semaphores dropped
      outright (the first version) the dashboard showed torn, half-drawn tiles;
+   - Turnip on KGSL does not defer a submit that waits on a timeline value nobody has signalled yet:
+     `vkQueueSubmit` blocks until it is. SteamVR's client waits on a compositor value that the
+     compositor signals only after the client has submitted and said so, which deadlocked every app
+     before its first frame (`helloxr`'s swapchain acquire, DXVK's submit thread in a Proton game).
+     A submit's wait on an imported shared value that is neither reached nor queued in that process
+     gets 3 ms for the other process to reach it, then is dropped;
+   - Steam's web helper always has the layer: its GPU process outlives SteamVR runs, and one started
+     without the layer crashed when SteamVR showed Steam's overlays, until Steam quit;
    - `DROIDDECK_VR_CRASHTRACE=1` (or a `crashtrace` file beside the `active` marker, for processes like
      Steam whose environment is not ours) prints a backtrace on a fatal signal. `vrcompositor`'s
      launcher drops `LD_PRELOAD`, but the layer is loaded there. It only takes signals nobody handles
@@ -136,12 +144,13 @@ a pose written to the shared file turns SteamVR's view. Started from the drawer 
   after it arrived. The chain is SteamVR → presenter → DroidDeck compositor → lens pass.
 - **Cross-process GPU sync** is a poll away from exact (see the semaphore note above); binary
   semaphores are not bridged.
-- **Apps and games**: SteamVR's own ARM64 OpenXR sample, `helloxr -g Vulkan2` (run with the layer
-  environment `droiddeck-steamvr start` sets), connects: it sees the system as
-  "SteamVR/OpenXR : droiddeck" and creates its eye swapchains. It then leaves cleanly before its first
-  frame, right after SteamVR reports no input profile for it. That is the next thing to chase, along
-  with controllers. `hellovr_sdl` (OpenGL) needs GLEW, which the runtime lacks. x86/Windows VR games
-  would go through FEX/Proton and need vrclient for those architectures: untested.
+- **Apps and games**: Windows VR games run through Proton ARM64 (FEX for the x86-64 game, DXVK, and
+  Proton's `vrclient_x64` bridging to SteamVR's ARM64 `vrclient.so`). **The Thrill of the Fight**
+  (494150, Unity, OpenVR) loads into its gym and renders in both eyes at 60 Hz on the Thor. SteamVR
+  opens its game menu over a newly started game; `vrcmd --hidedashboard` (in
+  `/opt/steamvr/bin/linuxarm64`) closes it. The Lab (6.6 GB) got the whole app killed by Android's
+  low-memory killer while loading next to Steam and SteamVR, and SUPERHOT VR stops at its EULA, which
+  the dashboard shows in VR. `hellovr_sdl` (OpenGL) needs GLEW, which the runtime lacks.
 - **Quest 3**: unrelated to this; on the Quest DroidDeck stays a 2D panel (`docs/quest.md`).
 
 ## Building and testing

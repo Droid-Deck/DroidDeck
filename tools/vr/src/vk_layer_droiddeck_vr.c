@@ -125,6 +125,10 @@ static int vr_session_active(void) {
     const char *layers = getenv("VK_INSTANCE_LAYERS");
     if (layers && strstr(layers, "VK_LAYER_DROIDDECK_vr")) return 1;
     if (getenv("DROIDDECK_VR_LAYER_FORCE")) return 1;
+    /* Steam's web helper shares its in-VR overlays with SteamVR, and its GPU process lives across SteamVR
+     * runs: one created before SteamVR started crashes once SteamVR shows the overlay, and after a few
+     * of those Steam quits. With no SteamVR the layer has nothing to do there. */
+    if (!strcmp(program_invocation_short_name, "steamwebhelper")) return 1;
     const char *rt = getenv("XDG_RUNTIME_DIR");
     char path[512];
     snprintf(path, sizeof(path), "%s/droiddeck-steamvr/active", rt && *rt ? rt : "/run/droiddeck");
@@ -528,6 +532,7 @@ struct bridged {
     int fd;       /* the memfd, kept by the creator so every export can dup it; -1 for an importer */
     int timeline; /* 0: binary, bridged only by dropping its waits */
     unsigned long ino; /* the memfd's inode, which names the semaphore across processes in traces */
+    uint64_t submitted; /* the highest value this process has queued a signal of */
 };
 static pthread_mutex_t g_br_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct bridged g_br[MAX_SEMS];
@@ -669,7 +674,7 @@ static VkResult VKAPI_CALL CreateSemaphore(VkDevice d, const VkSemaphoreCreateIn
     atomic_store(counter, timeline ? type_info->initialValue : 0);
     pthread_mutex_lock(&g_br_lock);
     struct bridged *slot = bridged_find(VK_NULL_HANDLE);
-    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline, fd_ino(fd)};
+    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline, fd_ino(fd), 0};
     pthread_mutex_unlock(&g_br_lock);
     if (!slot) { munmap((void *)counter, 4096); close(fd); return r; }
     if (timeline) poller_start();
@@ -715,7 +720,7 @@ static VkResult VKAPI_CALL ImportSemaphoreFdKHR(VkDevice d, const VkImportSemaph
     struct bridged *b = bridged_find(info->semaphore);
     if (b) bridged_drop(b);
     b = bridged_find(VK_NULL_HANDLE);
-    if (b && counter) *b = (struct bridged){info->semaphore, d, counter, -1, timeline, ino};
+    if (b && counter) *b = (struct bridged){info->semaphore, d, counter, -1, timeline, ino, 0};
     else if (counter) munmap((void *)counter, 4096);
     pthread_mutex_unlock(&g_br_lock);
     if (timeline) poller_start();
@@ -734,12 +739,71 @@ static int drop_wait(VkSemaphore s) {
     return r;
 }
 
+static uint64_t now_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
+/* How long a submit may wait for another process to reach a shared value before the wait is dropped. */
+#define SUBMIT_GRACE_US 3000
+
+/* Whether a submit should drop its GPU wait on s for value.
+ *
+ * Turnip on KGSL does not defer a submit that waits on a timeline value nobody has signalled yet ("wait
+ * before signal"): vkQueueSubmit blocks the calling thread until the value is signalled. SteamVR's
+ * client waits on a value of the compositor's that the compositor signals only after the client has
+ * submitted and told it so, which on Turnip deadlocks the client before its first frame (helloxr's
+ * acquire, DXVK's submit thread in Proton games). For an imported timeline semaphore whose value is
+ * neither reached nor queued here, the counter gets a short grace period, then the wait goes. */
+static int submit_drop_wait(VkSemaphore s, uint64_t value) {
+    pthread_mutex_lock(&g_br_lock);
+    struct bridged *b = bridged_find(s);
+    if (!b) { pthread_mutex_unlock(&g_br_lock); return 0; }
+    if (!b->timeline) { int r = b->fd < 0; pthread_mutex_unlock(&g_br_lock); return r; }
+    const int imported = b->fd < 0;
+    const uint64_t queued = b->submitted;
+    VkDevice dev = b->dev;
+    _Atomic uint64_t *counter = b->counter;
+    pthread_mutex_unlock(&g_br_lock);
+    if (!imported || !value || value <= queued) return 0;
+    struct dev *d = dev_for(dev);
+    PFN_vkGetSemaphoreCounterValue get = d ? (PFN_vkGetSemaphoreCounterValue)d->gdpa(dev, "vkGetSemaphoreCounterValue") : NULL;
+    PFN_vkSignalSemaphore sig = d ? (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphore") : NULL;
+    if (!get || !sig) return 0;
+    const uint64_t until = now_us() + SUBMIT_GRACE_US;
+    for (;;) {
+        uint64_t local = 0;
+        if (get(dev, s, &local) == VK_SUCCESS && local >= value) return 0;
+        uint64_t shared = atomic_load(counter);
+        if (shared >= value) {
+            VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, NULL, s, shared};
+            if (sig(dev, &si) == VK_SUCCESS) return 0;
+        }
+        if (now_us() >= until) break;
+        usleep(100);
+    }
+    static _Atomic int dropped;
+    if (atomic_fetch_add(&dropped, 1) == 0)
+        say("%s: dropping a submit's wait on a shared value nobody has signalled yet (Turnip would block the submit)",
+            program_invocation_short_name);
+    return 1;
+}
+
+/* Notes the values this process queues signals of, so its own later waits on them are kept. */
+static void note_signal(VkSemaphore s, uint64_t value) {
+    pthread_mutex_lock(&g_br_lock);
+    struct bridged *b = bridged_find(s);
+    if (b && b->timeline && value > b->submitted) b->submitted = value;
+    pthread_mutex_unlock(&g_br_lock);
+}
+
 /* Drops waits on detached semaphores from a list; returns the new count. */
 static uint32_t keep_waits(const VkSemaphore *in, const VkPipelineStageFlags *stages, const uint64_t *values, uint32_t n,
                            VkSemaphore *out, VkPipelineStageFlags *out_stages, uint64_t *out_values) {
     uint32_t k = 0;
     for (uint32_t i = 0; i < n; i++) {
-        if (drop_wait(in[i])) continue;
+        if (submit_drop_wait(in[i], values ? values[i] : 0)) continue;
         out[k] = in[i];
         if (stages) out_stages[k] = stages[i];
         if (values) out_values[k] = values[i];
@@ -775,9 +839,15 @@ static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmit
                 trace_sem("signals", submits[i].pSignalSemaphores[j], t && j < t->signalSemaphoreValueCount ? t->pSignalSemaphoreValues[j] : 0);
         }
     int any = 0;
-    for (uint32_t i = 0; i < count && !any; i++)
+    for (uint32_t i = 0; i < count; i++) {
+        const VkTimelineSemaphoreSubmitInfo *t = NULL;
+        for (const VkBaseInStructure *p = submits[i].pNext; p; p = p->pNext)
+            if (p->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO) t = (const void *)p;
+        for (uint32_t j = 0; t && j < submits[i].signalSemaphoreCount && j < t->signalSemaphoreValueCount; j++)
+            note_signal(submits[i].pSignalSemaphores[j], t->pSignalSemaphoreValues[j]);
         for (uint32_t j = 0; j < submits[i].waitSemaphoreCount && !any; j++)
-            any = drop_wait(submits[i].pWaitSemaphores[j]);
+            any = submit_drop_wait(submits[i].pWaitSemaphores[j], t && j < t->waitSemaphoreValueCount ? t->pWaitSemaphoreValues[j] : 0);
+    }
     if (!any) return next(q, count, submits, fence);
     VkSubmitInfo *copy = calloc(count, sizeof(*copy));
     VkTimelineSemaphoreSubmitInfo *tl = calloc(count, sizeof(*tl));
@@ -828,9 +898,12 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
                 trace_sem("signals", submits[i].pSignalSemaphoreInfos[j].semaphore, submits[i].pSignalSemaphoreInfos[j].value);
         }
     int any = 0;
-    for (uint32_t i = 0; i < count && !any; i++)
+    for (uint32_t i = 0; i < count; i++) {
+        for (uint32_t j = 0; j < submits[i].signalSemaphoreInfoCount; j++)
+            note_signal(submits[i].pSignalSemaphoreInfos[j].semaphore, submits[i].pSignalSemaphoreInfos[j].value);
         for (uint32_t j = 0; j < submits[i].waitSemaphoreInfoCount && !any; j++)
-            any = drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore);
+            any = submit_drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore, submits[i].pWaitSemaphoreInfos[j].value);
+    }
     if (!any) return next(q, count, submits, fence);
     VkSubmitInfo2 *copy = calloc(count, sizeof(*copy));
     VkSemaphoreSubmitInfo **waits = calloc(count, sizeof(*waits));
@@ -839,7 +912,8 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
         uint32_t n = submits[i].waitSemaphoreInfoCount, k = 0;
         waits[i] = calloc(n + 1, sizeof(VkSemaphoreSubmitInfo));
         for (uint32_t j = 0; j < n; j++)
-            if (!drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore)) waits[i][k++] = submits[i].pWaitSemaphoreInfos[j];
+            if (!submit_drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore, submits[i].pWaitSemaphoreInfos[j].value))
+                waits[i][k++] = submits[i].pWaitSemaphoreInfos[j];
         copy[i].waitSemaphoreInfoCount = k;
         copy[i].pWaitSemaphoreInfos = waits[i];
     }
