@@ -1014,4 +1014,12 @@
     <string name="glasses_head_tracking_hint">Les capteurs des lunettes font tourner l\'écran virtuel et SteamVR avec votre tête.</string>
     <string name="glasses_recenter">Recentrer la vue</string>
     <string name="glasses_playing">En jeu sur %1$s</string>
+    <string name="stores_fact_developer">Développeur</string>
+    <string name="stores_fact_publisher">Éditeur</string>
+    <string name="stores_fact_released">Sortie</string>
+    <string name="stores_hltb_main">Principal</string>
+    <string name="stores_hltb_extras">+ Extras</string>
+    <string name="stores_hltb_completionist">Complétionniste</string>
+    <string name="stores_hltb_hours">%1$s h</string>
+    <string name="stores_hltb_minutes">%1$d min</string>
 </resources>

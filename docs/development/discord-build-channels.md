@@ -4,7 +4,7 @@ Use the same names as the app's Updates page:
 
 | App | Discord | Builds | Existing webhook secret |
 | --- | --- | --- | --- |
-| Preview | [#preview](https://discord.com/channels/1552707793247539220/1554202932965015583) | Signed builds of `main`, including merged fixes | `DISCORD_BUILDS_WEBHOOK` |
+| Preview | [#preview-builds](https://discord.com/channels/1552707793247539220/1554202932965015583) | Signed builds of `main`, including merged fixes | `DISCORD_BUILDS_WEBHOOK` |
 | Test builds | [#test-builds](https://discord.com/channels/1552707793247539220/1557605185365217340) | Signed builds of individual open pull requests | `DISCORD_PR_BUILDS_WEBHOOK` |
 
 Stable contains tested releases published from version tags. Preview contains the newest

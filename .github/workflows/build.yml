@@ -628,7 +628,7 @@ jobs:
 
   # Each signed main build as a prerelease of the public Droid-Deck/DroidDeck-CI (main-<sha>, the
   # last KEEP kept), where anyone can download it without a GitHub account, then a post in the
-  # Discord's #preview channel linking to it. The release is made with a token of the org's
+  # Discord's #preview-builds channel linking to it. The release is made with a token of the org's
   # "DroidDeck CI Publisher" app (installed on DroidDeck-CI only, Contents: write): its ID in the
   # DROIDDECK_CI_APP_ID variable, its private key in the DROIDDECK_CI_APP_KEY secret.
   # DISCORD_BUILDS_WEBHOOK is the channel's webhook URL. Keep this secret name when renaming

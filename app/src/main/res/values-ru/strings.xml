@@ -1125,4 +1125,12 @@
     <string name="glasses_head_tracking_hint">Датчики очков поворачивают виртуальный экран и SteamVR вслед за головой.</string>
     <string name="glasses_recenter">Сбросить вид</string>
     <string name="glasses_playing">Игра на %1$s</string>
+    <string name="stores_fact_developer">Разработчик</string>
+    <string name="stores_fact_publisher">Издатель</string>
+    <string name="stores_fact_released">Дата выхода</string>
+    <string name="stores_hltb_main">Сюжет</string>
+    <string name="stores_hltb_extras">+ Доп. задания</string>
+    <string name="stores_hltb_completionist">Полностью</string>
+    <string name="stores_hltb_hours">%1$s ч</string>
+    <string name="stores_hltb_minutes">%1$d мин</string>
 </resources>

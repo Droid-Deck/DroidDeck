@@ -2140,4 +2140,12 @@
     <string name="glasses_head_tracking_hint">眼鏡自帶的感應器會隨頭部轉動虛擬螢幕和 SteamVR。</string>
     <string name="glasses_recenter">重新置中視角</string>
     <string name="glasses_playing">正在 %1$s 上遊玩</string>
+    <string name="stores_fact_developer">開發商</string>
+    <string name="stores_fact_publisher">發行商</string>
+    <string name="stores_fact_released">發行日期</string>
+    <string name="stores_hltb_main">主線</string>
+    <string name="stores_hltb_extras">+ 支線</string>
+    <string name="stores_hltb_completionist">全收集</string>
+    <string name="stores_hltb_hours">%1$s 小時</string>
+    <string name="stores_hltb_minutes">%1$d 分鐘</string>
 </resources>

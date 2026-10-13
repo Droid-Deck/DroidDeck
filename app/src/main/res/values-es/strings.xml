@@ -2184,4 +2184,12 @@
     <string name="glasses_head_tracking_hint">Los sensores de las gafas giran la pantalla virtual y SteamVR con tu cabeza.</string>
     <string name="glasses_recenter">Recentrar la vista</string>
     <string name="glasses_playing">Jugando en %1$s</string>
+    <string name="stores_fact_developer">Desarrollador</string>
+    <string name="stores_fact_publisher">Distribuidor</string>
+    <string name="stores_fact_released">Lanzamiento</string>
+    <string name="stores_hltb_main">Principal</string>
+    <string name="stores_hltb_extras">+ Extras</string>
+    <string name="stores_hltb_completionist">Completista</string>
+    <string name="stores_hltb_hours">%1$s h</string>
+    <string name="stores_hltb_minutes">%1$d min</string>
 </resources>

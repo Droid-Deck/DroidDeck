@@ -1306,8 +1306,11 @@ internal fun stageLabel(stage: DownloadStage): String = when (stage) {
 }
 
 /** The game's web page, in the device's browser: this app buys nothing and claims nothing itself. */
-internal fun openStoreUrl(ctx: android.content.Context, item: CatalogItem) {
-    val url = item.storeUrl.ifBlank { return }
+internal fun openStoreUrl(ctx: android.content.Context, item: CatalogItem) = openUrl(ctx, item.storeUrl)
+
+/** A web page in the browser; nothing when the URL is blank or no app can open it. */
+internal fun openUrl(ctx: android.content.Context, url: String) {
+    if (url.isBlank()) return
     runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 

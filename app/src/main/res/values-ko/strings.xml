@@ -2140,4 +2140,12 @@
     <string name="glasses_head_tracking_hint">안경의 센서가 머리 움직임에 맞춰 가상 화면과 SteamVR을 돌립니다.</string>
     <string name="glasses_recenter">시점 재설정</string>
     <string name="glasses_playing">%1$s에서 플레이 중</string>
+    <string name="stores_fact_developer">개발사</string>
+    <string name="stores_fact_publisher">배급사</string>
+    <string name="stores_fact_released">출시일</string>
+    <string name="stores_hltb_main">메인</string>
+    <string name="stores_hltb_extras">+ 추가 요소</string>
+    <string name="stores_hltb_completionist">완전 정복</string>
+    <string name="stores_hltb_hours">%1$s시간</string>
+    <string name="stores_hltb_minutes">%1$d분</string>
 </resources>
