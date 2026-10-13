@@ -456,7 +456,7 @@ public:
     }
 
 private:
-    static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 0.7f;
+    static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 1.0f;
     bool right_;
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     DriverPose_t pose_ = {};
