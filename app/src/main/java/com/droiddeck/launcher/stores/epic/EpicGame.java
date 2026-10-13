@@ -22,4 +22,5 @@ public class EpicGame {
     public boolean isDLC = false;
     public String baseGameCatalogItemId = "";
     public String releaseDate = "";
+    public String publisher = "";
 }

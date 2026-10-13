@@ -575,6 +575,33 @@
     <string name="drawer_cas">Sharpening (CAS)</string>
     <string name="drawer_cas_level">Sharpening level</string>
     <string name="drawer_fake_hdr">Fake HDR</string>
+    <string name="cardboard_title">Cardboard VR</string>
+    <string name="cardboard_mode">Cardboard mode</string>
+    <string name="cardboard_mode_hint">Left and right eye views for a phone VR viewer.</string>
+    <string name="cardboard_source">Picture</string>
+    <string name="cardboard_source_screen">Virtual screen</string>
+    <string name="cardboard_source_sbs">Side-by-side 3D</string>
+    <string name="cardboard_viewer">Viewer</string>
+    <string name="cardboard_viewer_v2">Cardboard</string>
+    <string name="cardboard_viewer_v1">Cardboard (2014)</string>
+    <string name="cardboard_viewer_none">No lens</string>
+    <string name="cardboard_ipd">Eye distance</string>
+    <string name="cardboard_screen_width">Screen width</string>
+    <string name="cardboard_screen_distance">Screen distance</string>
+    <string name="cardboard_head_tracking">Head tracking</string>
+    <string name="cardboard_no_sensor">This device has no rotation sensor.</string>
+    <string name="cardboard_recenter">Recenter view</string>
+    <string name="cardboard_recenter_button">Recenter</string>
+    <string name="cardboard_steamvr">SteamVR (experimental)</string>
+    <string name="cardboard_steamvr_install">Install</string>
+    <string name="cardboard_steamvr_install_hint">Downloads Valve\'s ARM64 SteamVR (571 MB).</string>
+    <string name="cardboard_steamvr_installing">Downloading and unpacking SteamVR…</string>
+    <string name="cardboard_steamvr_start">Start</string>
+    <string name="cardboard_steamvr_ready_hint">Runs SteamVR with your head as the headset; the picture switches to side-by-side 3D.</string>
+    <string name="cardboard_steamvr_stop">Stop</string>
+    <string name="cardboard_steamvr_running_hint">SteamVR is running.</string>
+    <string name="cardboard_steamvr_unavailable">Not available in this session.</string>
+    <string name="cardboard_steamvr_failed">SteamVR did not respond; see the session log.</string>
     <string name="drawer_deband">Debanding</string>
     <string name="drawer_deband_strength">Debanding strength</string>
     <string name="drawer_brightness">Brightness</string>
@@ -631,7 +658,10 @@
     <string name="drawer_game_running">game running</string>
     <string name="drawer_reapplied">re-applied at launch %1$s</string>
     <string name="drawer_original">Original</string>
-    <string name="drawer_components_note">Download, import and delete on the Components page.</string>
+    <string name="drawer_components_note">Import and delete on the Components page.</string>
+    <string name="drawer_component_downloads">Download components</string>
+    <string name="drawer_component_downloads_hint">Downloads are shared with the Components page. Choose a downloaded version above to use it on the next game launch.</string>
+    <string name="drawer_component_choose_download">Choose a version to download</string>
     <string name="setup_check_done">Done</string>
     <string name="setup_check_warn">Needs attention</string>
     <string name="setup_check_busy">Working</string>
@@ -2141,6 +2171,17 @@
     <string name="achievements_none">%1$s lists no achievements for this game.</string>
     <string name="achievements_show_all">Show all %1$d</string>
     <string name="achievements_dialog_title">Achievements · %1$s</string>
+    <!-- A store game's facts row: the store's own facts, then Metacritic and HowLongToBeat, looked up by name. -->
+    <string name="stores_fact_developer">Developer</string>
+    <string name="stores_fact_publisher">Publisher</string>
+    <string name="stores_fact_released">Released</string>
+    <string name="stores_fact_metacritic" translatable="false">Metacritic</string>
+    <string name="stores_fact_hltb" translatable="false">HowLongToBeat</string>
+    <string name="stores_hltb_main">Main</string>
+    <string name="stores_hltb_extras">+ Extras</string>
+    <string name="stores_hltb_completionist">Completionist</string>
+    <string name="stores_hltb_hours">%1$s h</string>
+    <string name="stores_hltb_minutes">%1$d min</string>
     <string name="stores_in_steam">✓ In Steam</string>
     <string name="stores_uninstall">Uninstall</string>
     <string name="stores_uninstalling">Uninstalling…</string>

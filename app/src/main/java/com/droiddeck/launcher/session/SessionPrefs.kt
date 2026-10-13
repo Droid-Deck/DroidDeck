@@ -7,6 +7,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.CpuAllocationDefaults
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
+import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.ScreenEffects
 import org.json.JSONObject
 
@@ -844,6 +845,31 @@ object SessionPrefs {
     fun setScreenEffects(context: Context, effects: ScreenEffects) {
         prefs(context).edit().putString("screenEffects", effects.encode().toString()).apply()
     }
+
+    /** The key [cardboard] lives under; SessionActivity watches it so a change applies live. */
+    const val CARDBOARD_KEY = "cardboard"
+
+    /** Cardboard mode (gpu/Cardboard) as last set; off by default. */
+    fun cardboard(context: Context): Cardboard {
+        val text = prefs(context).getString(CARDBOARD_KEY, null) ?: return Cardboard.OFF
+        return runCatching { Cardboard.decode(JSONObject(text)) }.getOrDefault(Cardboard.OFF)
+    }
+
+    fun setCardboard(context: Context, cardboard: Cardboard) {
+        prefs(context).edit().putString(CARDBOARD_KEY, cardboard.encode().toString()).apply()
+    }
+
+    /** The Cardboard picture (Cardboard.SOURCE_*) to go back to once SteamVR stops; -1 = none (it was
+     *  not switched for SteamVR). Kept across activity restarts, so a SteamVR session that outlives the
+     *  activity still hands the picture back. */
+    fun cardboardSourceBeforeSteamVr(context: Context): Int = prefs(context).getInt("cardboardSourceBeforeSteamVr", -1)
+
+    fun setCardboardSourceBeforeSteamVr(context: Context, source: Int) {
+        prefs(context).edit().putInt("cardboardSourceBeforeSteamVr", source).apply()
+    }
+
+    /** The prefs file [cardboard] lives in, for a change listener. */
+    fun sessionPrefs(context: Context): android.content.SharedPreferences = prefs(context)
 
     val textureAnisotropyChoices = TextureFiltering.ANISOTROPY.map { it to if (it == 0) "Off" else "${it}x" }
 

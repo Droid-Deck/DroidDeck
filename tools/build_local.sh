@@ -131,6 +131,9 @@ docker run --rm --platform linux/amd64 \
         chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
     '
 
+# Cardboard mode's SteamVR driver and Vulkan layer (tools/vr, docs/cardboard-vr.md).
+DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${linuxfs_dir}/usr/local/lib/droiddeck-vr"
+
 github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
 if [[ -z "${github_repo}" ]]; then
     origin_url=$(git -C "${repo_root}" remote get-url origin)

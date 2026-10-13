@@ -71,7 +71,7 @@ object GogBackend : StoreBackend {
 
     override fun install(context: Context, item: CatalogItem, root: File) {
         val app = context.applicationContext
-        val game = GogGame(item.id, item.title, item.imageUrl ?: "", item.description, item.developer, item.tags, 2, item.tallImageUrl)
+        val game = GogGame(item.id, item.title, item.imageUrl ?: "", item.description, item.developer, item.tags, 2, item.tallImageUrl, item.releaseDate, item.publisher)
         val folder = StoreInstallRoot.folderFor(app, Store.GOG, game.gameId, game.title, root)
         val entry = DownloadEntry(store, item.id, item.title, cover = item.imageUrl, bytesTotal = item.sizeBytes, location = StoreInstallRoot.labelFor(app, folder))
         DownloadQueue.enqueue(app, entry) { InstallJob(app, game, item, folder) }

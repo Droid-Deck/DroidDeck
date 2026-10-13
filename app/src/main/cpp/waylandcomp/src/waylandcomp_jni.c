@@ -20,6 +20,7 @@
 #include "ahb_swapchain.h"
 #include "sc_layer.h"
 #include "effects_chain.h"
+#include "cardboard.h"
 #include "droiddeck_color.h"
 
 extern int droiddeck_wayland_run(void);
@@ -461,6 +462,36 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScreenEffects(JNIEnv *env, jclass clazz, jfloat brightness,
         jfloat contrast, jfloat gamma, jfloat saturation, jboolean fxaa, jboolean toon, jboolean crt, jboolean ntsc) {
     vkp_effects_set_screen(brightness, contrast, gamma, saturation, fxaa ? 1 : 0, toon ? 1 : 0, crt ? 1 : 0, ntsc ? 1 : 0);
+}
+
+/* Cardboard mode - WaylandCompositor.nativeSetCardboard. */
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboard(JNIEnv *env, jclass clazz, jboolean enabled,
+        jint source, jfloat ipd, jfloat dist, jfloat width, jfloat k1, jfloat k2, jfloat fov, jfloat inset, jfloat chroma) {
+    struct cardboard_params p = {.enabled = enabled ? 1 : 0, .source = source, .ipd_m = ipd, .screen_dist_m = dist,
+                                 .screen_width_m = width, .k1 = k1, .k2 = k2, .fov_deg = fov, .lens_inset = inset,
+                                 .chroma = chroma};
+    vkp_cardboard_set(&p);
+}
+
+/* The head pose (row-major 3x3, head -> world), from the sensor thread. */
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPose(JNIEnv *env, jclass clazz, jfloatArray rot,
+        jboolean live) {
+    float m[9];
+    if (!rot || (*env)->GetArrayLength(env, rot) < 9) return;
+    (*env)->GetFloatArrayRegion(env, rot, 0, 9, m);
+    vkp_cardboard_set_pose(m, live ? 1 : 0);
+}
+
+/* Where the head pose is shared with the guest - WaylandCompositor.nativeSetCardboardPoseFile. */
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetCardboardPoseFile(JNIEnv *env, jclass clazz, jstring path) {
+    if (!path) return;
+    const char *p = (*env)->GetStringUTFChars(env, path, NULL);
+    if (!p) return;
+    vkp_cardboard_set_pose_file(p);
+    (*env)->ReleaseStringUTFChars(env, path, p);
 }
 
 /* One "display" line in the session log, written from Java: facts that live in the Android

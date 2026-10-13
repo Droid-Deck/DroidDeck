@@ -628,7 +628,7 @@
     <string name="drawer_game_running">游戏运行中</string>
     <string name="drawer_reapplied">于启动 %1$s 时重新应用</string>
     <string name="drawer_original">原件</string>
-    <string name="drawer_components_note">在“组件”页面下载、导入和删除。</string>
+    <string name="drawer_components_note">在“组件”页面导入和删除。</string>
     <string name="setup_check_done">完成</string>
     <string name="setup_check_warn">需要处理</string>
     <string name="setup_check_busy">处理中</string>
@@ -2334,4 +2334,12 @@
     <string name="stores_sync_gog_unreachable">无法连接到 GOG</string>
     <string name="stores_sync_gog_unreadable">无法读取你的 GOG 游戏库</string>
     <string name="stores_registering">正在向 Steam 注册…</string>
+    <string name="stores_fact_developer">开发商</string>
+    <string name="stores_fact_publisher">发行商</string>
+    <string name="stores_fact_released">发行日期</string>
+    <string name="stores_hltb_main">主线</string>
+    <string name="stores_hltb_extras">+ 支线</string>
+    <string name="stores_hltb_completionist">全收集</string>
+    <string name="stores_hltb_hours">%1$s 小时</string>
+    <string name="stores_hltb_minutes">%1$d 分钟</string>
 </resources>

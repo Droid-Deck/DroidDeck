@@ -70,6 +70,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
@@ -85,7 +86,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -267,8 +271,9 @@ private fun SetupButton(s: FrontEndState, busy: Boolean, full: Dp, ring: Int, on
 
 // ---- storefront ------------------------------------------------------------------------------------
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun Storefront(s: FrontEndState, a: FrontEndActions) {
+internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
     val ctx = LocalContext.current
     val narrow = LocalNarrowPane.current
     val colors = MaterialTheme.colorScheme
@@ -290,6 +295,9 @@ private fun Storefront(s: FrontEndState, a: FrontEndActions) {
     }
     val ff = LocalFrontFocus.current
     val inputMode = LocalInputModeManager.current
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val view = LocalView.current
     // Cards, where they are, for the page that opens from one.
     val cards = remember { HashMap<String, Rect>() }
     var viewportAt by remember { mutableStateOf(Offset.Zero) }
@@ -300,6 +308,11 @@ private fun Storefront(s: FrontEndState, a: FrontEndActions) {
     LaunchedEffect(openApp) {
         val id = openApp
         if (id != null) {
+            // The grid stays composed for the return animation. Release its native search field
+            // before covering it, so its focus ring and keyboard do not follow onto the app page.
+            focusManager.clearFocus(force = true)
+            view.findFocus()?.clearFocus()
+            keyboard?.hide()
             detailFrom = cards[id]?.let { Origin(it.translate(-viewportAt), 16f * density.density) }
             leaving = false
             detail = id
@@ -350,7 +363,10 @@ private fun Storefront(s: FrontEndState, a: FrontEndActions) {
         Spacer(Modifier.height(8.dp))
         Box(Modifier.weight(1f).fillMaxWidth().clipToBounds().onGloballyPositioned { viewportAt = it.positionInRoot() }) {
             Column(
-                Modifier.fillMaxSize().graphicsLayer { scaleX = sink; scaleY = sink; alpha = fade }.verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
+                Modifier.fillMaxSize().focusProperties {
+                    enter = { if (detail == null) androidx.compose.ui.focus.FocusRequester.Default else androidx.compose.ui.focus.FocusRequester.Cancel }
+                }.focusGroup()
+                    .graphicsLayer { scaleX = sink; scaleY = sink; alpha = fade }.verticalScroll(rememberScrollState()).padding(bottom = 16.dp),
             ) {
                 val open: (String) -> Unit = { openApp = it }
                 when (mode) {

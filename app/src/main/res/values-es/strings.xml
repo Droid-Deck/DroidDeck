@@ -634,7 +634,7 @@
     <string name="drawer_game_running">juego en ejecución</string>
     <string name="drawer_reapplied">reaplicado al iniciar %1$s</string>
     <string name="drawer_original">Original</string>
-    <string name="drawer_components_note">Descarga, importa y elimina en la página Componentes.</string>
+    <string name="drawer_components_note">Importa y elimina en la página Componentes.</string>
     <string name="setup_check_done">Hecho</string>
     <string name="setup_check_warn">Requiere atención</string>
     <string name="setup_check_busy">Trabajando</string>
@@ -2384,4 +2384,12 @@
     <string name="stores_sync_gog_unreachable">No se pudo conectar con GOG</string>
     <string name="stores_sync_gog_unreadable">No se pudo leer tu biblioteca de GOG</string>
     <string name="stores_registering">Registrando con Steam…</string>
+    <string name="stores_fact_developer">Desarrollador</string>
+    <string name="stores_fact_publisher">Distribuidor</string>
+    <string name="stores_fact_released">Lanzamiento</string>
+    <string name="stores_hltb_main">Principal</string>
+    <string name="stores_hltb_extras">+ Extras</string>
+    <string name="stores_hltb_completionist">Completista</string>
+    <string name="stores_hltb_hours">%1$s h</string>
+    <string name="stores_hltb_minutes">%1$d min</string>
 </resources>

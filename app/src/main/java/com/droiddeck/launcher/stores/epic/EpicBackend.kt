@@ -80,7 +80,12 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
         val byCatalogItem = owned.associateBy { it.extra["catalogItemId"] ?: "" }
         fun mark(l: List<CatalogItem>) = l.map { i ->
             val match = i.extra["items"]?.split(',')?.firstNotNullOfOrNull { byCatalogItem[it] }
-            if (match != null) match.copy(imageUrl = i.imageUrl ?: match.imageUrl, tallImageUrl = i.tallImageUrl ?: match.tallImageUrl) else i
+            // The offer's art, and its facts where the library's catalog record has none.
+            if (match != null) match.copy(
+                imageUrl = i.imageUrl ?: match.imageUrl, tallImageUrl = i.tallImageUrl ?: match.tallImageUrl,
+                developer = match.developer.ifBlank { i.developer }, publisher = match.publisher.ifBlank { i.publisher },
+                releaseDate = match.releaseDate.ifBlank { i.releaseDate },
+            ) else i
         }
         return StoreShelves(mark(s.whatsNew), mark(s.deals), mark(s.free), mark(s.trending))
     }
