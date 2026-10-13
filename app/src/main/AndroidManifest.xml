@@ -7,6 +7,7 @@
     <!-- Session logs go to Downloads so a failed run can be handed over as one folder. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Store download progress and "installed" / "failed" notices (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
