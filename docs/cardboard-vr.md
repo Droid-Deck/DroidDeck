@@ -182,3 +182,5 @@ a pose written to the shared file turns SteamVR's view. Started from the drawer 
 - Logs: the compositor's `[cardboard]` lines; SteamVR's in `~/.local/share/Steam/logs`
   (`vrserver.txt`, `vrcompositor.txt`) and `/run/droiddeck/droiddeck-steamvr/vrstartup.log`. The
   driver's lines start with `droiddeck:`.
+
+Lessons from bringing this up on the Thor, and how to debug a live session: `docs/development/cardboard-vr-learnings.md`.
