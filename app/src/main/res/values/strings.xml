@@ -631,7 +631,10 @@
     <string name="drawer_game_running">game running</string>
     <string name="drawer_reapplied">re-applied at launch %1$s</string>
     <string name="drawer_original">Original</string>
-    <string name="drawer_components_note">Download, import and delete on the Components page.</string>
+    <string name="drawer_components_note">Import and delete on the Components page.</string>
+    <string name="drawer_component_downloads">Download components</string>
+    <string name="drawer_component_downloads_hint">Downloads are shared with the Components page. Choose a downloaded version above to use it on the next game launch.</string>
+    <string name="drawer_component_choose_download">Choose a version to download</string>
     <string name="setup_check_done">Done</string>
     <string name="setup_check_warn">Needs attention</string>
     <string name="setup_check_busy">Working</string>

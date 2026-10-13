@@ -564,7 +564,7 @@
     <string name="drawer_game_running">遊戲執行中</string>
     <string name="drawer_reapplied">於 %1$s 啟動時重新套用</string>
     <string name="drawer_original">原始</string>
-    <string name="drawer_components_note">請在「元件」頁面下載、匯入及刪除。</string>
+    <string name="drawer_components_note">請在「元件」頁面匯入及刪除。</string>
     <string name="setup_check_done">完成</string>
     <string name="setup_check_warn">需要處理</string>
     <string name="setup_check_busy">處理中</string>

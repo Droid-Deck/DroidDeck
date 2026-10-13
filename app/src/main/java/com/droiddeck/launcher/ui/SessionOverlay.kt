@@ -73,6 +73,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -265,6 +266,13 @@ class DrawerActions(
     val components: ComponentsManager.Snapshot? = null,
     /** Re-reads the Protons (and runs swaps that waited for a game to close). */
     val onComponentsRefresh: () -> Unit = {},
+    val componentCatalog: List<ComponentsManager.CatalogItem> = emptyList(),
+    val componentCatalogAt: Long = 0,
+    val componentCatalogChecking: Boolean = false,
+    val componentDownloads: Map<String, Int> = emptyMap(),
+    val componentDownloadRevision: Long = 0,
+    val onComponentCatalogRefresh: () -> Unit = {},
+    val onComponentDownload: (ComponentsManager.CatalogItem) -> Unit = {},
     /** Installed games available for profile inspection in the session drawer. */
     val gameProfiles: List<Pair<Long, String>> = emptyList(),
     /** The selected game profile, or null for the Default profile. */
@@ -314,7 +322,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     LaunchedEffect(a.selectedGameProfileId) {
         if (host.open == "fex") host.open = null
     }
-    LaunchedEffect(open, page) {
+    LaunchedEffect(open, page, a.componentDownloadRevision) {
         if (open && page == SessionDrawerPage.GAMES) {
             a.onGameProfilesPageOpened()
             a.onComponentsRefresh()
@@ -535,6 +543,17 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 )
                             }
                             ComponentsDrawerPage(host, a) { key -> focus.track(page, key) }
+                            ComponentDownloadsDrawerGroup(
+                                host = host,
+                                catalog = a.componentCatalog,
+                                catalogAt = a.componentCatalogAt,
+                                checking = a.componentCatalogChecking,
+                                packages = a.components?.packages.orEmpty(),
+                                downloads = a.componentDownloads,
+                                onRefresh = a.onComponentCatalogRefresh,
+                                onDownload = a.onComponentDownload,
+                                track = { key -> focus.track(page, key) },
+                            )
                         }
                         SessionDrawerPage.SESSION -> {
                             if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {
@@ -1117,8 +1136,8 @@ private fun ProfileSummaryRow(label: String, value: String) {
 
 /**
  * The Games tab's components: quick swaps between what is already installed, per Proton. A swap
- * into the Proton a running game uses waits until that game closes; downloading, importing and
- * deleting stay on the Components page in the app.
+ * into the Proton a running game uses waits until that game closes. Downloads below share the
+ * launcher's package store; importing and deleting stay on the Components page.
  */
 @Composable
 private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
@@ -1249,6 +1268,84 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
         stringResource(R.string.drawer_components_note),
         fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
     )
+}
+
+/** Downloads only store packages; the profile/Proton choices above apply them separately. */
+@Composable
+internal fun ComponentDownloadsDrawerGroup(
+    host: MenuHost,
+    catalog: List<ComponentsManager.CatalogItem>,
+    catalogAt: Long,
+    checking: Boolean,
+    packages: List<ComponentsManager.Package>,
+    downloads: Map<String, Int>,
+    onRefresh: () -> Unit,
+    onDownload: (ComponentsManager.CatalogItem) -> Unit,
+    track: (String) -> Modifier = { Modifier },
+) {
+    val colors = MaterialTheme.colorScheme
+    val installed = packages.map { it.file }.toSet()
+    SettingsGroup(stringResource(R.string.drawer_component_downloads)) {
+        Text(stringResource(R.string.drawer_component_downloads_hint), fontSize = 12.sp,
+            color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
+        SettingsRow(stringResource(R.string.comp_nightlies_checked,
+            if (catalogAt > 0) java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+                .format(java.util.Date(catalogAt * 1000)) else stringResource(R.string.comp_never)), null, stacked = true) {
+            ValueChip(stringResource(if (checking) R.string.common_checking else R.string.stores_refresh),
+                false, enabled = !checking, modifier = track("cmp-download-refresh"), onClick = onRefresh)
+        }
+        for (comp in ComponentsManager.COMPONENTS) {
+            val key = "cmp-download-$comp"
+            val items = catalog.filter { it.comp == comp }
+            val open = host.open == key
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text(ComponentsManager.LABEL.getValue(comp), fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                Box(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                    ValueChip(stringResource(R.string.drawer_component_choose_download), open,
+                        enabled = items.isNotEmpty(), modifier = track(key).fillMaxWidth()) {
+                        host.open = if (open) null else key
+                    }
+                    AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null },
+                        title = ComponentsManager.LABEL.getValue(comp)) { firstItemFocus ->
+                        val firstAvailable = items.firstOrNull { ComponentsManager.safeName(it.file) !in installed && it.file !in downloads }
+                        items.forEach { item ->
+                            val stored = ComponentsManager.safeName(item.file) in installed
+                            val progress = downloads[item.file]
+                            MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
+                                enabled = !stored && progress == null,
+                                detail = when {
+                                    stored -> stringResource(R.string.wincomp_downloaded)
+                                    progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
+                                    else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
+                                },
+                                focusRequester = if (item == firstAvailable) firstItemFocus else null,
+                            ) {
+                                onDownload(item)
+                                host.open = null
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (catalog.isEmpty() && !checking) Text(
+            stringResource(if (catalogAt == 0L) R.string.comp_refresh_to_list else R.string.comp_nothing_new),
+            fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(14.dp),
+        )
+        for ((file, progress) in downloads) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+                Text(stringResource(R.string.wincomp_downloading, file.removeSuffix(".wcp")),
+                    fontSize = 12.sp, color = colors.onSurfaceVariant)
+                if (progress < 0) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                else {
+                    Text("$progress%", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    LinearProgressIndicator(progress = { progress / 100f },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                }
+            }
+        }
+    }
 }
 
 /**

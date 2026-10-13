@@ -564,7 +564,7 @@
     <string name="drawer_game_running">게임 실행 중</string>
     <string name="drawer_reapplied">%1$s 시작 시 다시 적용됨</string>
     <string name="drawer_original">원본</string>
-    <string name="drawer_components_note">\"구성 요소\" 페이지에서 다운로드, 가져오기 및 삭제하세요.</string>
+    <string name="drawer_components_note">구성 요소 페이지에서 가져오기 및 삭제하세요.</string>
     <string name="setup_check_done">완료</string>
     <string name="setup_check_warn">처리 필요</string>
     <string name="setup_check_busy">처리 중</string>

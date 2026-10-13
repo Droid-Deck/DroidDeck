@@ -263,6 +263,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var closeAtOnce = false
     /** The drawer's Components tab: the Protons as last read (ComponentsManager). */
     private var drawerComponents by mutableStateOf<ComponentsManager.Snapshot?>(null)
+    private val drawerComponentMenu by lazy { ComponentsMenu(this, uiHandler) }
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
     private var drawerGameInventoryRevision = 0L
@@ -735,7 +736,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                     onClose = { drawerOpen = false },
                     components = drawerComponents,
-                    onComponentsRefresh = { refreshDrawerComponents() },
+                    onComponentsRefresh = {
+                        refreshDrawerComponents()
+                        drawerComponentMenu.refreshComponentCatalog(force = false)
+                    },
+                    componentCatalog = drawerComponentMenu.compCatalog,
+                    componentCatalogAt = drawerComponentMenu.compCatalogAt,
+                    componentCatalogChecking = drawerComponentMenu.compChecking,
+                    componentDownloads = drawerComponentMenu.compDownloads,
+                    componentDownloadRevision = drawerComponentMenu.compDownloadRevision,
+                    onComponentCatalogRefresh = { drawerComponentMenu.refreshComponentCatalog() },
+                    onComponentDownload = drawerComponentMenu::downloadComponent,
                     gameProfiles = drawerGameProfileRefresh.data?.profiles.orEmpty(),
                     selectedGameProfileId = drawerGameProfileId,
                     selectedGameProfile = drawerGameProfileRefresh.data
