@@ -143,7 +143,7 @@ object Glasses {
     fun query() = post {
         val l = link ?: return@post
         listOf(VitureProtocol.MSG_GET_DISPLAY, VitureProtocol.MSG_GET_BRIGHTNESS, VitureProtocol.MSG_GET_VOLUME, VitureProtocol.MSG_GET_IMU).forEachIndexed { i, msg ->
-            handler.postDelayed({ if (link === l) l.send(msg) }, 60L * i)
+            handler.postDelayed({ if (link === l) l.send(msg) }, VitureLink.COMMAND_GAP_MS * i)
         }
     }
 
@@ -391,7 +391,7 @@ object Glasses {
         Log.i(TAG, "opened ${model?.name} pid=0x%04X imu=%s".format(device.productId, l.hasImu))
         publish { it.copy(connected = true) }
         listOf(VitureProtocol.MSG_GET_BRIGHTNESS, VitureProtocol.MSG_GET_VOLUME, VitureProtocol.MSG_GET_DISPLAY).forEachIndexed { i, msg ->
-            handler.postDelayed({ if (link === l) l.send(msg) }, 60L * (i + 1))
+            handler.postDelayed({ if (link === l) l.send(msg) }, VitureLink.COMMAND_GAP_MS * (i + 1))
         }
         handler.postDelayed({
             if (link !== l) return@postDelayed

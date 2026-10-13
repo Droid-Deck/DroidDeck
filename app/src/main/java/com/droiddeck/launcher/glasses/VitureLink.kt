@@ -26,6 +26,7 @@ internal class VitureLink private constructor(
 
     @Volatile private var running = true
     private val writeLock = Any()
+    private var lastSendAt = 0L
     private val readers = mutableListOf<Thread>()
 
     val hasImu: Boolean get() = imuIn != null
@@ -68,7 +69,9 @@ internal class VitureLink private constructor(
         val pkt = VitureProtocol.packet(msgId, payload)
         val n = synchronized(writeLock) {
             if (!running) return false
-            connection.bulkTransfer(mcuOut, pkt, pkt.size, WRITE_TIMEOUT_MS)
+            val wait = lastSendAt + COMMAND_GAP_MS - SystemClock.uptimeMillis()
+            if (wait > 0) SystemClock.sleep(wait)
+            connection.bulkTransfer(mcuOut, pkt, pkt.size, WRITE_TIMEOUT_MS).also { lastSendAt = SystemClock.uptimeMillis() }
         }
         Log.i(TAG, "send 0x%04X [%s] -> %d".format(msgId, payload.joinToString("") { "%02X".format(it) }, n))
         return n == pkt.size
@@ -88,6 +91,7 @@ internal class VitureLink private constructor(
         private const val READ_TIMEOUT_MS = 100
         private const val WRITE_TIMEOUT_MS = 250
         private const val LOST_AFTER = 50
+        const val COMMAND_GAP_MS = 60L
 
         fun open(usb: UsbManager, device: UsbDevice, listener: Listener): VitureLink? {
             val hid = (0 until device.interfaceCount).map(device::getInterface)

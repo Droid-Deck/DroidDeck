@@ -2776,7 +2776,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (glassesScreen == null || glasses.width <= 0 || glasses.height <= 0) return null
         val panel = (if (glasses.sbs) glasses.width / 2 else glasses.width) to glasses.height
         val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
-        return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, SessionPrefs.resolutionChoice(this, mode, panel))
+        val display = com.droiddeck.launcher.session.SessionDisplay
+        val choice = SessionPrefs.resolutionChoice(this, mode, panel)
+        val size = display.resolveChoice(panel, choice)
+        val fixed = choice != display.MATCH_SCREEN && choice != display.FOLLOW_SCREEN && display.presetHeight(choice) == null
+        return if (fixed) display.resolve(panel, minOf(size.first, size.second), SessionPrefs.SHAPE_AUTO) else size
     }
 
     private fun onGlassesChanged() {
