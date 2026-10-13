@@ -83,6 +83,7 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.InputMode
@@ -725,10 +726,10 @@ internal fun LiftHero(
  * saying there is a drawer to pull up. Still with animations off.
  */
 @Composable
-internal fun Handle(height: Dp, down: Boolean = false) {
+internal fun Handle(height: Dp, above: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+    val shape = if (above) RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp) else RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
     val still = Motion.scale == 0f
     val bob = androidx.compose.animation.core.rememberInfiniteTransition(label = "handle")
     // A quick lift and settle, then a rest: a nudge, not a pulse.
@@ -748,19 +749,19 @@ internal fun Handle(height: Dp, down: Boolean = false) {
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.height(height).clip(shape).background(colors.surface)
-            .drawBorderSidesAndFoot(pal.line, 12.dp)
+            .drawBorderSidesAndFoot(pal.line, 12.dp, flip = above)
             .padding(start = 14.dp, end = 10.dp),
     ) {
         Text(stringResource(R.string.drawer_page_settings), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
         Icon(
-            if (down) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else (if (down) 3.dp else -3.dp).toPx() * lift },
+            if (above) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
+            modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else (if (above) 3.dp else -3.dp).toPx() * lift },
         )
     }
 }
 
 /** A 1dp outline down the sides and along the foot, none along the top (the lip tucks under Play). */
-private fun Modifier.drawBorderSidesAndFoot(color: Color, corner: Dp): Modifier =
+private fun Modifier.drawBorderSidesAndFoot(color: Color, corner: Dp, flip: Boolean = false): Modifier =
     this.drawWithContent {
         drawContent()
         val c = corner.toPx()
@@ -773,7 +774,7 @@ private fun Modifier.drawBorderSidesAndFoot(color: Color, corner: Dp): Modifier 
             arcTo(Rect(size.width - 2 * c, size.height - 2 * c + sw / 2, size.width - sw / 2, size.height - sw / 2), 90f, -90f, false)
             lineTo(size.width - sw / 2, 0f)
         }
-        drawPath(p, color, style = Stroke(sw))
+        if (flip) scale(1f, -1f) { drawPath(p, color, style = Stroke(sw)) } else drawPath(p, color, style = Stroke(sw))
     }
 
 /**

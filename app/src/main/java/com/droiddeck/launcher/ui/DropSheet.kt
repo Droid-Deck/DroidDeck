@@ -472,14 +472,15 @@ internal fun BoxWithConstraintsScope.DropSheet(
 
     val r0 = rest
     if (r0 != null && (state.lipShow.value > 0.01f || state.pull.value > 0.5f)) {
-        var handleW by remember { mutableStateOf(0f) }
+        var handleSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
         val lipH = 32.dp + state.pull.value.dp
         val drop = { if (!state.open && enabled) state.open = true }
         val settingsLabel = stringResource(R.string.drawer_page_settings)
         Box(
-            Modifier
-                .offset { IntOffset((r0.center.x - handleW / 2f).roundToInt(), (r0.bottom + lower * state.ride.value + (state.lipShow.value - 1f) * 8.dp.toPx()).roundToInt()) }
-                .onSizeChanged { handleW = it.width.toFloat() }
+            contentAlignment = Alignment.BottomCenter,
+            modifier = Modifier
+                .offset { IntOffset((r0.center.x - handleSize.width / 2f).roundToInt(), (r0.top + lower * state.ride.value - handleSize.height + (1f - state.lipShow.value) * 8.dp.toPx()).roundToInt()) }
+                .onSizeChanged { handleSize = it }
                 .graphicsLayer { alpha = state.lipShow.value * (1f - state.lipGone.value) * (1f - covered()) }
                 .zIndex(2f)
                 .heightIn(min = 44.dp).testTag("glasses-sheet-open")
@@ -487,7 +488,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
                 .focusProperties { canFocus = false }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = drop),
         ) {
-            Handle(lipH, down = true)
+            Handle(lipH, above = true)
         }
     }
 }
