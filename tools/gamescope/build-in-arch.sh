@@ -52,6 +52,9 @@ else
 fi
 PREP
 makepkg -A -s --noconfirm --skipchecksums --skippgpcheck  # -A: the PKGBUILD lists x86_64 only; Arch Linux ARM builds the same file
+# The package build compiles the focused regression test but does not execute it. Run it in the
+# same ARM build environment before staging the binary so the artifact and test result share a head.
+meson test -C src/gamescope/build --no-rebuild --print-errorlogs cursor_routing
 ls -l *.pkg.tar.*
 "
 cd "$WORK"
