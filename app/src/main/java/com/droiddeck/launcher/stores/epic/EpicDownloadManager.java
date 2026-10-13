@@ -4,13 +4,11 @@ import android.content.Context;
 import android.util.Log;
 
 import com.droiddeck.launcher.stores.StoreLog;
-import com.droiddeck.launcher.stores.download.StoreDownloadTier;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -29,18 +27,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.Inflater;
 
 public final class EpicDownloadManager {
 
     private static final String TAG = "EpicDownload";
     private static final String UA = EpicAuthClient.USER_AGENT;
+    /** Keep reusable chunk data bounded even when a manifest shares chunks across distant files. */
+    static final long MAX_RETAINED_CHUNK_CACHE_BYTES = 64L * 1024 * 1024;
 
     public interface Callback {
         void onProgress(String message, int pct);
@@ -126,7 +121,19 @@ public final class EpicDownloadManager {
             if (manifest == null) throw new InstallException("The manifest could not be parsed");
             manifest.cdnUrls = cdnUrls;
             cb.onLog("epic: chunkDir=" + manifest.chunkDir + " chunks=" + manifest.uniqueChunks.size() + " files=" + manifest.files.size() + " exe=" + manifest.launchExe);
+            return installManifest(manifest, installDirPath, chunkCacheDirPath, installTags, cancel, cb);
+        } catch (InstallException e) {
+            throw e;
+        } catch (Exception e) {
+            Log.w(TAG, "install failed", e);
+            throw new InstallException(e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : ""));
+        }
+    }
 
+    static Result installManifest(Manifest manifest, String installDirPath, String chunkCacheDirPath,
+                                  List<String> installTags, AtomicBoolean cancel, Callback cb) throws InstallException {
+        try {
+            List<CdnUrl> cdnUrls = manifest.cdnUrls;
             File installDir = new File(installDirPath);
             installDir.mkdirs();
             final String cachePath = chunkCacheDirPath == null ? "" : chunkCacheDirPath;
@@ -160,119 +167,116 @@ public final class EpicDownloadManager {
                 return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
             }
             List<ChunkInfo> needed = uniqueChunksForFiles(manifest, pending);
-            long cacheMissing = 0, pendingBytes = 0;
-            for (ChunkInfo c : needed) if (!new File(chunkCacheDir, c.guidStr()).isFile()) cacheMissing += Math.max(c.windowSize, 1);
-            for (FileInfo f : pending) pendingBytes += f.fileSize();
-            if (cachePath.isEmpty()) {
-                long free = installDir.getUsableSpace();
-                if (free > 0 && cacheMissing + pendingBytes > free) throw new InstallException("Not enough free space: need " + fmt(cacheMissing + pendingBytes) + " (" + fmt(pendingBytes) + " of game files + " + fmt(cacheMissing) + " of download cache), only " + fmt(free) + " free");
+            Map<String, ChunkInfo> chunksByGuid = new LinkedHashMap<>();
+            for (ChunkInfo c : needed) chunksByGuid.put(c.guidStr(), c);
+            if (!chunkCacheDir.isDirectory() && !chunkCacheDir.mkdirs()) throw new InstallException("Could not create Epic chunk cache");
+            Map<String, Long> cachedChunkBytes = prepareBoundedCache(chunkCacheDir, needed);
+            long pendingBytes = 0;
+            for (FileInfo f : pending) {
+                pendingBytes += f.fileSize();
+                File output = new File(installDir, f.filename.replace("\\", "/"));
+                File parent = output.getParentFile();
+                if (parent != null) parent.mkdirs();
+                // This file failed the delta check, so it cannot be resumed as a valid install.
+                // Remove it before estimating/writing its replacement to avoid requiring space
+                // for both the corrupt file and its verified replacement.
+                if (output.isFile() && !output.delete() && output.exists()) throw new InstallException("Could not replace incomplete file " + output.getName());
+            }
+            boolean cacheOnInstallVolume = cachePath.isEmpty();
+            long peakGameAdditional = cacheOnInstallVolume
+                    ? estimatePeakAdditionalBytes(pending, chunksByGuid, cachedChunkBytes, true)
+                    : pendingBytes;
+            long peakCacheAdditional = cacheOnInstallVolume
+                    ? 0 : estimatePeakAdditionalBytes(pending, chunksByGuid, cachedChunkBytes, false);
+            long freeGame = installDir.getUsableSpace();
+            if (cacheOnInstallVolume) {
+                if (freeGame > 0 && peakGameAdditional > freeGame) throw new InstallException("Not enough free space for the bounded Epic install: need up to " + fmt(peakGameAdditional) + " additional, only " + fmt(freeGame) + " free");
             } else {
-                long freeCache = chunkCacheDir.getUsableSpace(), freeGame = installDir.getUsableSpace();
-                if (freeCache > 0 && cacheMissing > freeCache) throw new InstallException("Not enough internal space for the download cache: need " + fmt(cacheMissing) + ", only " + fmt(freeCache) + " free");
+                long freeCache = chunkCacheDir.getUsableSpace();
+                if (freeCache > 0 && peakCacheAdditional > freeCache) throw new InstallException("Not enough internal space for the bounded Epic download cache: need up to " + fmt(peakCacheAdditional) + " additional, only " + fmt(freeCache) + " free");
                 if (freeGame > 0 && pendingBytes > freeGame) throw new InstallException("Not enough free space: need " + fmt(pendingBytes) + ", only " + fmt(freeGame) + " free");
             }
-            cb.onLog("epic: cache " + (cachePath.isEmpty() ? "beside the game" : "scratch") + ", " + fmt(cacheMissing) + " to fetch for " + fmt(pendingBytes) + " of files");
+            cb.onLog("epic: cache " + (cacheOnInstallVolume ? "beside the game" : "scratch") + ", peak game additional=" + fmt(peakGameAdditional) + (cacheOnInstallVolume ? "" : ", peak cache additional=" + fmt(peakCacheAdditional)) + " for " + fmt(pendingBytes) + " of files");
             long totalBytes = 0;
             for (ChunkInfo c : needed) totalBytes += Math.max(c.fileSize, 1);
             final long fTotalBytes = totalBytes;
             final int totalChunks = needed.size();
-            final AtomicLong completedBytes = new AtomicLong(0);
-            final AtomicInteger completedCount = new AtomicInteger(0);
-            final AtomicInteger failCount = new AtomicInteger(0);
-            final AtomicLong lastSpeedMs = new AtomicLong(System.currentTimeMillis());
-            final AtomicLong lastSpeedBytes = new AtomicLong(0);
-            final AtomicLong speedBps = new AtomicLong(0);
             cb.onSizes(fTotalBytes, planned);
             cb.onBytes(0, fTotalBytes, 0);
             cb.onLog("epic: " + fmt(fTotalBytes) + " in " + totalChunks + " chunks");
-
-            boolean javaPool = true;
-            final int[] pendingIdx = pendingIndices(manifest, pending);
-            boolean engine = com.droiddeck.launcher.stores.StoresNative.INSTANCE.getAvailable() && pendingIdx != null;
-            String nativeError = null;
-            if (engine) {
-                NativeOutcome r = runNativePool(ctx, manifestBytes, pendingIdx, needed, fTotalBytes, installDirPath, cachePath, cdnUrls, cancel, cb,
-                        completedBytes, completedCount, lastSpeedMs, lastSpeedBytes, speedBps);
-                if (r.started) {
-                    javaPool = false;
-                    if (r.cancelled) return null;
-                    if (!r.success) {
-                        cb.onLog("epic: engine failed: " + r.error);
-                        nativeError = r.error;
-                        failCount.incrementAndGet();
-                    }
-                } else cb.onLog("epic: engine not started (" + r.error + "); using the built-in pool");
-            }
-            if (javaPool) {
-                cb.onLog("epic: engine=built-in (8 threads)");
-                ExecutorService pool = Executors.newFixedThreadPool(8, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("epic-dl"));
-                for (ChunkInfo chunk : needed) {
-                    final ChunkInfo fc = chunk;
-                    pool.submit(() -> {
-                        if (cancel.get()) return;
-                        File cached = new File(chunkCacheDir, fc.guidStr());
-                        if (!cached.exists() && !downloadChunkStreaming(fc, manifest.chunkDir, cdnUrls, cached)) {
-                            cb.onLog("FAIL chunk=" + fc.guidStr());
-                            failCount.incrementAndGet();
-                            return;
-                        }
-                        long done = completedBytes.addAndGet(Math.max(fc.fileSize, 1));
-                        int cnt = completedCount.incrementAndGet();
-                        sampleSpeed(done, lastSpeedMs, lastSpeedBytes, speedBps);
-                        cb.onProgress("Downloading chunks (" + cnt + "/" + totalChunks + ")" + speedSuffix(speedBps.get()), (int) (done * 80L / Math.max(1, fTotalBytes)));
-                        cb.onBytes(done, fTotalBytes, speedBps.get());
-                    });
-                }
-                pool.shutdown();
-                try {
-                    while (!pool.awaitTermination(250, TimeUnit.MILLISECONDS)) {
-                        if (cancel.get()) { pool.shutdownNow(); pool.awaitTermination(5, TimeUnit.SECONDS); return null; }
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    pool.shutdownNow();
-                    throw new InstallException("interrupted");
-                }
-            }
-            if (cancel.get()) return null;
-            if (failCount.get() > 0) {
-                if (nativeError != null && !nativeError.isEmpty()) {
-                    throw new InstallException(nativeError);
-                }
-                throw new InstallException(failCount.get() + " chunk(s) failed to download");
-            }
-
-            if (engine) {
-                NativeOutcome r = runNativeAssembly(manifestBytes, pendingIdx, pending.size(), installDirPath, cachePath, cancel, cb);
-                if (r.started) {
-                    if (r.cancelled) return null;
-                    if (!r.success) throw new InstallException(r.error.isEmpty() ? "assembly failed" : r.error);
-                    cb.onProgress("Complete", 100);
-                    return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
-                }
-                cb.onLog("epic: assembler not started (" + r.error + "); writing the files here");
-            }
-            int totalFiles = pending.size(), doneFiles = 0;
-            long writtenBytes = 0, writeTotal = 0;
-            for (FileInfo f : pending) writeTotal += f.fileSize();
+            cb.onLog("epic: engine=bounded-java (shared path; native availability does not change cache semantics)");
+            Map<String, Integer> remainingRefs = chunkReferences(pending);
+            Set<String> creditedChunks = new LinkedHashSet<>();
+            long completedBytes = 0, writtenBytes = 0;
+            long fetchedBytes = 0;
+            long transferStarted = System.nanoTime();
+            int completedCount = 0, doneFiles = 0, totalFiles = pending.size();
             for (FileInfo file : pending) {
                 if (cancel.get()) return null;
                 String relPath = file.filename.replace("\\", "/");
                 File outFile = new File(installDir, relPath);
-                File parent = outFile.getParentFile();
-                if (parent != null) parent.mkdirs();
                 cb.onProgress("Writing: " + (relPath.contains("/") ? relPath.substring(relPath.lastIndexOf('/') + 1) : relPath), 80 + (int) (doneFiles * 20L / totalFiles));
-                try (FileOutputStream fos = new FileOutputStream(outFile); BufferedOutputStream bos = new BufferedOutputStream(fos, 65536)) {
+                // Like the native assembler, write to the final path and remove it on failure.
+                // A sibling "<name>.part" can itself be a legitimate file in the manifest.
+                File partFile = outFile;
+                MessageDigest fileSha = expectedDigest(file.sha1);
+                try (FileOutputStream fos = new FileOutputStream(partFile); BufferedOutputStream bos = new BufferedOutputStream(fos, 65536)) {
                     for (ChunkPart part : file.parts) {
-                        File cachedChunk = new File(chunkCacheDir, part.guidStr());
-                        if (!cachedChunk.exists()) throw new InstallException("Missing chunk " + part.guidStr() + " for " + relPath);
-                        byte[] data = readFile(cachedChunk);
-                        bos.write(data, part.offset, part.size);
+                        if (cancel.get()) throw new IOException("cancelled");
+                        String guid = part.guidStr();
+                        ChunkInfo chunk = chunksByGuid.get(guid);
+                        if (chunk == null) throw new InstallException("Missing chunk metadata " + guid + " for " + relPath);
+                        File cachedChunk = new File(chunkCacheDir, guid);
+                        if (!cachedChunk.isFile() || !isValidCachedChunk(chunk, cachedChunk)) {
+                            if (cachedChunk.exists() && !cachedChunk.delete() && cachedChunk.exists()) {
+                                throw new InstallException("Could not clear invalid Epic chunk " + guid);
+                            }
+                            cachedChunkBytes.remove(guid);
+                            cachedChunk = new File(chunkCacheDir, guid);
+                            if (!downloadChunkStreaming(chunk, manifest.chunkDir, cdnUrls, cachedChunk, cancel)) {
+                                if (cancel.get()) throw new IOException("cancelled");
+                                throw new InstallException("Failed to download Epic chunk " + guid);
+                            }
+                            cachedChunkBytes.put(guid, cachedChunk.length());
+                            fetchedBytes += Math.max(chunk.fileSize, 1);
+                        }
+                        if (creditedChunks.add(guid)) {
+                            completedBytes += Math.max(chunk.fileSize, 1);
+                            completedCount++;
+                            cb.onProgress("Downloading chunks (" + completedCount + "/" + totalChunks + ")", (int) (completedBytes * 80L / Math.max(1, fTotalBytes)));
+                        }
+                        long elapsedMs = Math.max(1, (System.nanoTime() - transferStarted) / 1_000_000);
+                        cb.onBytes(completedBytes, fTotalBytes, fetchedBytes * 1000 / elapsedMs);
+                        copyChunkPart(cachedChunk, part, bos, fileSha, cancel, relPath);
+                        Integer refs = remainingRefs.get(guid);
+                        if (refs != null) {
+                            if (refs <= 1) {
+                                remainingRefs.remove(guid);
+                                if (cachedChunk.exists() && !cachedChunk.delete() && cachedChunk.exists()) {
+                                    throw new InstallException("Could not release consumed Epic chunk " + guid);
+                                }
+                                cachedChunkBytes.remove(guid);
+                            } else remainingRefs.put(guid, refs - 1);
+                        }
+                        trimCacheToBound(chunkCacheDir, cachedChunkBytes);
                     }
+                    bos.flush();
+                } catch (IOException e) {
+                    partFile.delete();
+                    if (cancel.get()) return null;
+                    throw new InstallException("Could not assemble " + relPath + ": " + e.getMessage());
+                } catch (InstallException e) {
+                    partFile.delete();
+                    throw e;
+                }
+                if (cancel.get()) { partFile.delete(); return null; }
+                if (fileSha != null && !MessageDigest.isEqual(fileSha.digest(), file.sha1)) {
+                    partFile.delete();
+                    throw new InstallException("SHA-1 mismatch for " + relPath);
                 }
                 doneFiles++;
                 writtenBytes += file.fileSize();
-                cb.onStage("install", writtenBytes, writeTotal, doneFiles, totalFiles);
+                cb.onStage("install", writtenBytes, pendingBytes, doneFiles, totalFiles);
             }
             deleteDir(chunkCacheDir);
             cb.onProgress("Complete", 100);
@@ -285,72 +289,154 @@ public final class EpicDownloadManager {
         }
     }
 
-    private static final class NativeOutcome { boolean started, success, cancelled; String error = ""; }
-
-    private static int[] pendingIndices(Manifest manifest, List<FileInfo> pending) {
-        java.util.IdentityHashMap<FileInfo, Integer> index = new java.util.IdentityHashMap<>();
-        for (int i = 0; i < manifest.files.size(); i++) index.put(manifest.files.get(i), i);
-        int[] pendingIdx = new int[pending.size()];
-        for (int i = 0; i < pending.size(); i++) {
-            Integer k = index.get(pending.get(i));
-            if (k == null) return null;
-            pendingIdx[i] = k;
+    /**
+     * Discard abandoned/orphaned cache entries and retain only verified chunks this install uses.
+     * A bounded run consumes each chunk at its last part reference, so stale chunks from an older
+     * all-at-once run must not silently occupy the space needed by the game files.
+     */
+    static Map<String, Long> prepareBoundedCache(File cacheDir, List<ChunkInfo> needed) throws InstallException {
+        Map<String, ChunkInfo> byGuid = new LinkedHashMap<>();
+        for (ChunkInfo chunk : needed) byGuid.put(chunk.guidStr(), chunk);
+        Map<String, Long> valid = new LinkedHashMap<>();
+        File[] entries = cacheDir.listFiles();
+        if (entries == null) throw new InstallException("Could not inspect Epic chunk cache");
+        for (File entry : entries) {
+            ChunkInfo chunk = byGuid.get(entry.getName());
+            if (chunk == null || !isValidCachedChunk(chunk, entry)) {
+                deleteDir(entry);
+                if (entry.exists()) throw new InstallException("Could not clear stale Epic cache entry " + entry.getName());
+                continue;
+            }
+            valid.put(entry.getName(), entry.length());
         }
-        return pendingIdx;
+        trimCacheToBound(cacheDir, valid);
+        return valid;
     }
 
-    private static NativeOutcome runNativePool(Context ctx, byte[] manifestBytes, int[] pendingIdx, List<ChunkInfo> needed, long totalBytes,
-                                               String installDirPath, String cachePath, List<CdnUrl> cdnUrls, AtomicBoolean cancel, Callback cb,
-                                               AtomicLong completedBytes, AtomicInteger completedCount, AtomicLong lastSpeedMs, AtomicLong lastSpeedBytes, AtomicLong speedBps) {
-        NativeOutcome r = new NativeOutcome();
-        try {
-            String[] prefixes = new String[cdnUrls.size()];
-            for (int i = 0; i < cdnUrls.size(); i++) prefixes[i] = cdnUrls.get(i).baseUrl + cdnUrls.get(i).cloudDir;
-            final int totalChunks = needed.size();
-            StoreDownloadTier tier = StoreDownloadTier.Companion.current(ctx);
-            int workers = Math.max(1, Math.min(128, tier.getNetworkWindow()));
-            int process = Math.max(2, tier.getProcessWorkers());
-            cb.onLog("epic: engine=native workers=" + workers + " process_workers=" + process + " tier=" + tier.getId() + (cachePath.isEmpty() ? "" : " cache=scratch"));
-            EpicNative.Result res = EpicNative.run(manifestBytes, installDirPath, cachePath, prefixes, pendingIdx, totalChunks, totalBytes, "", workers, process, cancel,
-                    new EpicNative.Listener() {
-                        @Override public void onPlan(int chunksTotal, long bytesTotal, String chunkDir) { cb.onLog("epic: plan chunks=" + chunksTotal + " bytes=" + bytesTotal + " dir=" + chunkDir); }
-                        @Override public void onProgress(long bytesDone, long bytesTotal, int chunksDone, int chunksTotal) {
-                            completedBytes.set(bytesDone);
-                            completedCount.set(chunksDone);
-                            sampleSpeed(bytesDone, lastSpeedMs, lastSpeedBytes, speedBps);
-                            cb.onProgress("Downloading chunks (" + chunksDone + "/" + totalChunks + ")" + speedSuffix(speedBps.get()), (int) (bytesDone * 80L / Math.max(1, totalBytes)));
-                            cb.onBytes(bytesDone, totalBytes, speedBps.get());
-                        }
-                        @Override public void onLog(String line) { cb.onLog(line); }
-                        @Override public void onComplete(boolean success, String error, long bytesCredited) {}
-                    });
-            r.started = res.started; r.success = res.success; r.cancelled = res.cancelled; r.error = res.error == null ? "" : res.error;
-        } catch (Throwable t) {
-            r.started = false;
-            r.error = t.getClass().getSimpleName() + ": " + t.getMessage();
+    /** Evict oldest reusable chunks until retained cache data is under the fixed disk ceiling. */
+    private static void trimCacheToBound(File cacheDir, Map<String, Long> cacheSizes) throws InstallException {
+        long retained = 0;
+        for (long bytes : cacheSizes.values()) retained += bytes;
+        java.util.Iterator<Map.Entry<String, Long>> iterator = cacheSizes.entrySet().iterator();
+        while (retained > MAX_RETAINED_CHUNK_CACHE_BYTES && iterator.hasNext()) {
+            Map.Entry<String, Long> entry = iterator.next();
+            File chunk = new File(cacheDir, entry.getKey());
+            long bytes = entry.getValue();
+            if (chunk.exists() && !chunk.delete() && chunk.exists()) {
+                throw new InstallException("Could not release Epic cache chunk " + entry.getKey());
+            }
+            retained -= bytes;
+            iterator.remove();
         }
-        return r;
     }
 
-    private static NativeOutcome runNativeAssembly(byte[] manifestBytes, int[] pendingIdx, int totalFiles, String installDirPath, String cachePath, AtomicBoolean cancel, Callback cb) {
-        NativeOutcome r = new NativeOutcome();
-        try {
-            cb.onLog("epic: assembler=native files=" + totalFiles + (cachePath.isEmpty() ? "" : " cache=scratch"));
-            EpicNative.Result res = EpicNative.assemble(manifestBytes, installDirPath, cachePath, pendingIdx, cancel, new EpicNative.Listener() {
-                @Override public void onPlan(int chunksTotal, long bytesTotal, String chunkDir) {}
-                @Override public void onProgress(long bytesDone, long bytesTotal, int done, int total) {
-                    cb.onStage("install", bytesDone, bytesTotal, done, Math.max(total, totalFiles));
-                    cb.onProgress("Writing files (" + done + "/" + Math.max(total, totalFiles) + ")", 80 + (int) (done * 20L / Math.max(1, Math.max(total, totalFiles))));
+    static boolean isValidCachedChunk(ChunkInfo chunk, File file) {
+        if (!file.isFile()) return false;
+        if (chunk.windowSize > 0 && file.length() != chunk.windowSize) return false;
+        byte[] expected = chunk.sha1;
+        if (expected == null || expected.length != 20) return true;
+        boolean allZero = true;
+        for (byte b : expected) if (b != 0) { allZero = false; break; }
+        if (allZero) return true;
+        try (FileInputStream in = new FileInputStream(file)) {
+            MessageDigest sha = MessageDigest.getInstance("SHA-1");
+            byte[] buffer = new byte[64 * 1024];
+            int count;
+            while ((count = in.read(buffer)) != -1) sha.update(buffer, 0, count);
+            return MessageDigest.isEqual(sha.digest(), expected);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static MessageDigest expectedDigest(byte[] expected) throws InstallException {
+        if (expected == null || expected.length != 20) return null;
+        for (byte b : expected) if (b != 0) {
+            try { return MessageDigest.getInstance("SHA-1"); }
+            catch (java.security.NoSuchAlgorithmException e) { throw new InstallException("SHA-1 verification unavailable"); }
+        }
+        return null;
+    }
+
+    static Map<String, Integer> chunkReferences(List<FileInfo> files) {
+        Map<String, Integer> refs = new LinkedHashMap<>();
+        for (FileInfo file : files) for (ChunkPart part : file.parts) {
+            String guid = part.guidStr();
+            refs.put(guid, refs.containsKey(guid) ? refs.get(guid) + 1 : 1);
+        }
+        return refs;
+    }
+
+    /**
+     * Simulates the serial fetch → append part → last-reference eviction order. The returned
+     * additional-space peak is measured against the current free-space reading: existing verified
+     * chunks are already reflected in that reading and count as reclaimed only when actually freed.
+     */
+    static long estimatePeakAdditionalBytes(List<FileInfo> files, Map<String, ChunkInfo> chunksByGuid,
+                                            Map<String, Long> cachedChunkBytes, boolean includeFileWrites) {
+        Map<String, Integer> refs = chunkReferences(files);
+        Map<String, Long> residentChunks = new LinkedHashMap<>(cachedChunkBytes);
+        long residentDelta = 0, peak = 0;
+        long cacheResident = 0;
+        for (long bytes : residentChunks.values()) cacheResident += bytes;
+        for (FileInfo file : files) {
+            for (ChunkPart part : file.parts) {
+                String guid = part.guidStr();
+                ChunkInfo chunk = chunksByGuid.get(guid);
+                if (chunk == null) throw new IllegalArgumentException("Missing chunk metadata " + guid);
+                Long knownBytes = residentChunks.get(guid);
+                long chunkBytes = knownBytes != null ? knownBytes : chunkWindowSize(chunk);
+                if (knownBytes == null) {
+                    residentChunks.put(guid, chunkBytes);
+                    cacheResident += chunkBytes;
+                    residentDelta += chunkBytes;
+                    peak = Math.max(peak, residentDelta);
                 }
-                @Override public void onLog(String line) { cb.onLog(line); }
-                @Override public void onComplete(boolean success, String error, long bytes) {}
-            });
-            r.started = res.started; r.success = res.success; r.cancelled = res.cancelled; r.error = res.error == null ? "" : res.error;
-        } catch (Throwable t) {
-            r.started = false;
-            r.error = t.getClass().getSimpleName() + ": " + t.getMessage();
+                if (includeFileWrites) {
+                    residentDelta += part.size & 0xFFFFFFFFL;
+                    peak = Math.max(peak, residentDelta);
+                }
+                int count = refs.get(guid);
+                if (count <= 1) {
+                    refs.remove(guid);
+                    Long removed = residentChunks.remove(guid);
+                    if (removed != null) { cacheResident -= removed; residentDelta -= removed; }
+                } else refs.put(guid, count - 1);
+                java.util.Iterator<Map.Entry<String, Long>> iterator = residentChunks.entrySet().iterator();
+                while (cacheResident > MAX_RETAINED_CHUNK_CACHE_BYTES && iterator.hasNext()) {
+                    Map.Entry<String, Long> entry = iterator.next();
+                    if (refs.containsKey(entry.getKey())) {
+                        long removed = entry.getValue();
+                        cacheResident -= removed;
+                        residentDelta -= removed;
+                        iterator.remove();
+                    }
+                }
+            }
         }
-        return r;
+        return Math.max(0, peak);
+    }
+
+    private static void copyChunkPart(File chunkFile, ChunkPart part, BufferedOutputStream out,
+                                      MessageDigest fileSha, AtomicBoolean cancel, String relPath) throws IOException {
+        long offset = part.offset & 0xFFFFFFFFL;
+        long remaining = part.size & 0xFFFFFFFFL;
+        long length = chunkFile.length();
+        if (offset > length || remaining > length - offset) {
+            throw new IOException("Chunk " + part.guidStr() + " is too short for " + relPath);
+        }
+        try (FileInputStream in = new FileInputStream(chunkFile)) {
+            in.getChannel().position(offset);
+            byte[] buffer = new byte[64 * 1024];
+            while (remaining > 0) {
+                if (cancel.get()) throw new IOException("cancelled");
+                int count = in.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                if (count < 0) throw new IOException("Unexpected end of chunk " + part.guidStr());
+                out.write(buffer, 0, count);
+                if (fileSha != null) fileSha.update(buffer, 0, count);
+                remaining -= count;
+            }
+        }
     }
 
 
@@ -615,11 +701,12 @@ public final class EpicDownloadManager {
         }
     }
 
-    private static boolean downloadChunkStreaming(ChunkInfo chunk, String chunkDir, List<CdnUrl> cdnUrls, File outFile) {
+    private static boolean downloadChunkStreaming(ChunkInfo chunk, String chunkDir, List<CdnUrl> cdnUrls, File outFile, AtomicBoolean cancel) {
         String chunkPath = chunk.getPath(chunkDir);
         File tmp = new File(outFile.getPath() + ".part");
         tmp.delete();
         for (CdnUrl cdn : cdnUrls) {
+            if (cancel.get()) return false;
             HttpURLConnection conn = null;
             try {
                 conn = (HttpURLConnection) new URL(cdn.baseUrl + cdn.cloudDir + "/" + chunkPath).openConnection();
@@ -645,12 +732,14 @@ public final class EpicDownloadManager {
                     int storedAs = hdr.get() & 0xFF;
                     if (headerSize > 41) skipFully(in, headerSize - 41);
                     byte[] iobuf = new byte[131072];
+                    long outputBytes = 0;
                     if ((storedAs & 1) != 0) {
                         Inflater inflater = new Inflater();
                         byte[] obuf = new byte[131072];
                         int remaining = compressedSize;
                         try {
                             while (remaining > 0 && !inflater.finished()) {
+                                if (cancel.get()) break;
                                 if (inflater.needsInput()) {
                                     int n = in.read(iobuf, 0, Math.min(iobuf.length, remaining));
                                     if (n <= 0) break;
@@ -658,29 +747,47 @@ public final class EpicDownloadManager {
                                     inflater.setInput(iobuf, 0, n);
                                 }
                                 int out = inflater.inflate(obuf);
-                                if (out > 0) { fos.write(obuf, 0, out); if (sha != null) sha.update(obuf, 0, out); }
+                                if (out > 0) {
+                                    outputBytes = checkedChunkWriteSize(chunk, outputBytes, out);
+                                    fos.write(obuf, 0, out);
+                                    if (sha != null) sha.update(obuf, 0, out);
+                                }
+                                if (out == 0 && !inflater.needsInput() && !inflater.finished()) {
+                                    throw new IOException("invalid compressed Epic chunk");
+                                }
                             }
                             int out;
-                            while ((out = inflater.inflate(obuf)) > 0) { fos.write(obuf, 0, out); if (sha != null) sha.update(obuf, 0, out); }
+                            while ((out = inflater.inflate(obuf)) > 0) {
+                                outputBytes = checkedChunkWriteSize(chunk, outputBytes, out);
+                                fos.write(obuf, 0, out);
+                                if (sha != null) sha.update(obuf, 0, out);
+                            }
+                            if (!cancel.get() && !inflater.finished()) throw new IOException("truncated compressed Epic chunk");
                         } finally {
                             inflater.end();
                         }
                     } else {
                         int remaining = compressedSize;
                         while (remaining > 0) {
+                            if (cancel.get()) break;
                             int n = in.read(iobuf, 0, Math.min(iobuf.length, remaining));
                             if (n <= 0) break;
+                            outputBytes = checkedChunkWriteSize(chunk, outputBytes, n);
                             fos.write(iobuf, 0, n);
                             if (sha != null) sha.update(iobuf, 0, n);
                             remaining -= n;
                         }
+                        if (!cancel.get() && remaining != 0) throw new IOException("truncated Epic chunk");
                     }
                 }
+                if (cancel.get()) { tmp.delete(); conn.disconnect(); return false; }
+                if (chunk.windowSize > 0 && tmp.length() != chunk.windowSize) { tmp.delete(); conn.disconnect(); continue; }
                 if (sha != null && !MessageDigest.isEqual(sha.digest(), chunk.sha1)) { tmp.delete(); conn.disconnect(); continue; }
                 if (!tmp.renameTo(outFile)) { tmp.delete(); conn.disconnect(); continue; }
                 conn.disconnect();
                 return true;
             } catch (Exception e) {
+                Log.w(TAG, "chunk " + chunk.guidStr() + " failed: " + e.getMessage());
                 tmp.delete();
                 if (conn != null) conn.disconnect();
             }
@@ -688,6 +795,17 @@ public final class EpicDownloadManager {
         tmp.delete();
         Log.e(TAG, "every CDN failed for chunk " + chunk.guidStr());
         return false;
+    }
+
+    private static long checkedChunkWriteSize(ChunkInfo chunk, long written, int count) throws IOException {
+        long next = written + count;
+        if (next > chunkWindowSize(chunk)) throw new IOException("chunk exceeds expected window size");
+        return next;
+    }
+
+    private static long chunkWindowSize(ChunkInfo chunk) {
+        // Legacy JSON manifests omit window sizes; their chunks use 1 MiB windows.
+        return chunk.windowSize > 0 ? chunk.windowSize : 1024L * 1024;
     }
 
     private static void readFully(InputStream in, byte[] buf) throws IOException {
@@ -778,34 +896,11 @@ public final class EpicDownloadManager {
     }
 
 
-    static byte[] readFile(File f) throws IOException {
-        try (FileInputStream fis = new FileInputStream(f)) {
-            byte[] data = new byte[(int) f.length()];
-            int off = 0;
-            while (off < data.length) { int r = fis.read(data, off, data.length - off); if (r < 0) break; off += r; }
-            return data;
-        }
-    }
-
     static void deleteDir(File dir) {
         if (!dir.exists()) return;
         File[] files = dir.listFiles();
         if (files != null) for (File f : files) { if (f.isDirectory()) deleteDir(f); else f.delete(); }
         dir.delete();
-    }
-
-    private static void sampleSpeed(long done, AtomicLong lastSpeedMs, AtomicLong lastSpeedBytes, AtomicLong speedBps) {
-        long nowMs = System.currentTimeMillis(), prevMs = lastSpeedMs.get();
-        if (nowMs - prevMs >= 500 && lastSpeedMs.compareAndSet(prevMs, nowMs)) {
-            long prevB = lastSpeedBytes.getAndSet(done);
-            long dt = nowMs - prevMs;
-            if (dt > 0) speedBps.set((done - prevB) * 1000L / dt);
-        }
-    }
-
-    private static String speedSuffix(long bps) {
-        if (bps <= 0) return "";
-        return "  " + (bps >= 1048576 ? String.format("%.1f MB/s", bps / 1048576.0) : (bps / 1024) + " KB/s");
     }
 
     private static String fmt(long bytes) {

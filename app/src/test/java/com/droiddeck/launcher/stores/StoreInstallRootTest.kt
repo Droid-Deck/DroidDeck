@@ -69,4 +69,11 @@ class StoreInstallRootTest {
         val check = StoreInstallRoot.checkStorage(app, zeroItem, StoreInstallRoot.internalRoot(app))
         assertTrue(check.enough)
     }
+
+    @Test fun epicDefersFullSizeChecksToItsManifestDeltaForResume() {
+        val item = CatalogItem(Store.EPIC, "large", "Large", imageUrl = null, owned = true, sizeBytes = Long.MAX_VALUE)
+        val check = StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app))
+        assertTrue(check.enough)
+        assertEquals(Long.MAX_VALUE, check.requiredBytes)
+    }
 }

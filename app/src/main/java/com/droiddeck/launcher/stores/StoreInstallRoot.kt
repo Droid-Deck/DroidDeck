@@ -42,6 +42,9 @@ object StoreInstallRoot {
     fun checkStorage(context: Context, item: CatalogItem, targetRoot: File): StorageCheck {
         val size = estimatedBytesNeeded(item)
         val freeTarget = availableBytes(targetRoot)
+        // Epic's manifest delta accounts for completed files and reusable chunks on resume.
+        // Comparing the full catalog size to remaining free space would reject valid resumes.
+        if (item.store == Store.EPIC) return StorageCheck(enough = true, requiredBytes = size, availableBytes = freeTarget)
         if (size <= 0L) return StorageCheck(enough = true, requiredBytes = 0L, availableBytes = freeTarget)
         if (freeTarget in 1 until size) {
             val msg = context.getString(com.droiddeck.launcher.R.string.stores_storage_insufficient, formatBytes(size), formatBytes(freeTarget))

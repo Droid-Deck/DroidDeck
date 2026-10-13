@@ -24,15 +24,25 @@ scanned (`StoreInstallRoot.roots`): internal, every card, and the Steam library'
 installs an earlier build put there. `<Store>` is `GOG`, `Epic` or `Amazon`; `<title>` is the title
 with unsafe characters dropped, at most 60 characters (`StoreInstallRoot.folderName`), chosen once;
 a rerun (repair, update) lands on the folder whose sidecar carries the game's id, wherever it is.
-An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/`: the
-`chunkCacheDir` of both native calls (`EpicNative.run` fetches into it, `EpicNative.assemble`
-writes the files from it and drops each chunk after its last use, then the folder), and of the
-manager's own loops when the engine is not there; `""` keeps the cache beside the game, as an
-internal install has it. The scratch folder is removed on cancel-with-delete and on uninstall.
-The cache holds whole ~1 MiB chunk windows, shared with files this device does not install, so it
-is often larger than the game (Metalstorm: 9.1 GB of chunks for 4.4 GB of files); the free-space
-check, made after the delta pass, counts the missing chunks and the missing files on their own
-volumes. A successful run removes the cache.
+An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<id>/`;
+`""` keeps the cache beside the game, as an internal install has it. The scratch folder is
+removed on cancel-with-delete and on uninstall.
+
+Epic installs use the same bounded Java writer whether the native engine is available or not.
+It fetches one chunk at a time, verifies it, and writes the required parts into the current
+game file. Chunks are deleted after their last use; reusable chunks are retained up to 64 MiB,
+with at most one additional incoming chunk before eviction. Evicted shared chunks may be
+downloaded again. This trades parallel-download throughput and potentially extra network
+traffic for bounded temporary disk usage. The native batch APIs remain available but are not
+used by this install path.
+
+The space check follows the manifest delta pass and simulates file writes, chunk fetches,
+and evictions, rather than adding the entire cache to the entire game. Completed files and
+verified cached chunks are accounted for on resume. On a card, game and cache requirements
+are checked separately. File SHA-1 hashes are checked where supplied by the manifest; failed
+or cancelled output files are removed, and an interrupted process is repaired by the next
+delta pass. A successful run removes the cache. A resume within a large incomplete file
+restarts that file, not its individual parts.
 
 ## The sidecar
 
