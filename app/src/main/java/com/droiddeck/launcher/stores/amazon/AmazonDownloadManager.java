@@ -70,8 +70,8 @@ public final class AmazonDownloadManager {
             AmazonManifest.ParsedManifest manifest = AmazonManifest.parse(manifestBytes);
             cb.onLog("amazon: " + manifest.allFiles.size() + " files, " + fmt(manifest.totalInstallSize));
             long remainingBytes = remainingInstallBytes(manifest.allFiles, installDir);
-            long usable = installDir.getUsableSpace();
-            if (remainingBytes > 0 && usable > 0 && remainingBytes > usable)
+            long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installDir);
+            if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(remainingBytes, usable))
                 throw new InstallException("Not enough free space: need " + fmt(remainingBytes) + ", only " + fmt(usable) + " free");
             cb.onSizes(manifest.totalInstallSize, manifest.totalInstallSize);
             cb.onBytes(0, manifest.totalInstallSize, 0);

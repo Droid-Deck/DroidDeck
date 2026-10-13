@@ -154,8 +154,8 @@ public final class GogDownloadManager {
             for (DepotFile df : files) plannedBytes += df.totalSize;
             long remainingBytes = remainingInstallBytes(files, installPath);
             if (remainingBytes > 0) {
-                long usable = installPath.getUsableSpace();
-                if (usable > 0 && remainingBytes > usable) {
+                long usable = com.droiddeck.launcher.stores.StoreInstallRoot.availableBytes(installPath);
+                if (com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(remainingBytes, usable)) {
                     out.hardStop = true;
                     out.error = "Not enough free space: need " + formatBytes(remainingBytes) + ", only " + formatBytes(usable) + " free";
                     return out;

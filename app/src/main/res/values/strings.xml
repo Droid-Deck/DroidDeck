@@ -2084,6 +2084,7 @@
     <string name="stores_install_title">Install %1$s:</string>
     <string name="stores_target_internal">Internal</string>
     <string name="stores_target_free">%1$s free</string>
+    <string name="stores_target_free_unknown">Free space unknown</string>
     <string name="stores_storage_insufficient">Not enough free space: need %1$s, only %2$s free</string>
     <string name="stores_storage_low">Insufficient space (%1$s free, need %2$s)</string>
     <string name="stores_notification_channel">Store downloads</string>

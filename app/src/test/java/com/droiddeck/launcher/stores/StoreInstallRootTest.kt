@@ -109,4 +109,34 @@ class StoreInstallRootTest {
             assertFalse(StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app)).enough)
         }
     }
+
+    @Test fun measuredZeroRejectsFreshGogAndAmazonRatherThanBeingUnknown() {
+        val root = File(app.filesDir, "zero-space").apply { mkdirs() }
+        ShadowStatFs.registerStats(root.path, 1024, 0, 0)
+        val missing = File(root, "not-created/game")
+        assertEquals(0L, StoreInstallRoot.availableBytes(missing))
+        assertFalse(File(root, "not-created").exists())
+        for (store in listOf(Store.GOG, Store.AMAZON)) {
+            val item = CatalogItem(store, "zero-${store.id}", "Zero ${store.id}", imageUrl = null, sizeBytes = 1L)
+            val check = StoreInstallRoot.checkStorage(app, item, missing)
+            assertFalse(check.enough)
+            assertEquals(0L, check.availableBytes)
+        }
+    }
+
+    @Test fun failedProbesAreUnknownAndDoNotCreateOrWriteToTargets() {
+        val root = File(app.filesDir, "read-only-probe").apply { mkdirs() }
+        val missing = File(root, "not-created/game")
+        val fail: (File) -> Long = { throw java.io.IOException("unavailable") }
+        assertEquals(-1L, StoreInstallRoot.probeAvailableBytes(missing, fail, fail))
+        assertEquals(-1L, StoreInstallRoot.probeAvailableBytes(missing, fail, { 0L }))
+        assertEquals(42L, StoreInstallRoot.probeAvailableBytes(missing, fail, { 42L }))
+        assertEquals(0L, StoreInstallRoot.probeAvailableBytes(missing, { 0L }, fail))
+        assertFalse(File(root, "not-created").exists())
+        assertTrue(root.listFiles().orEmpty().isEmpty())
+        assertFalse(StoreInstallRoot.insufficientSpace(1L, -1L))
+        assertTrue(StoreInstallRoot.insufficientSpace(1L, 0L))
+        assertFalse(StoreInstallRoot.insufficientSpace(1L, 1L))
+        assertFalse(StoreInstallRoot.insufficientSpace(0L, 0L))
+    }
 }

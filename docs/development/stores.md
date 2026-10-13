@@ -33,7 +33,12 @@ repair on a card checks and remembers that volume rather than internal storage. 
 Amazon installs can reject insufficient catalog-size space immediately; existing installs defer
 to manifest checks of the files still needing work (GOG MD5, Amazon SHA-256 where supplied).
 Free-space display probes the nearest existing ancestor without creating the target folder; if
-the probe cannot determine space, it reports the unknown value rather than blocking an install.
+the probe cannot determine space, it reports **Free space unknown** rather than blocking an install.
+`StoreInstallRoot` uses `-1` for unknown and preserves a measured `StatFs` zero as **0 B free**.
+Fresh GOG/Amazon preflight and all three Java backend space checks reject known zero when bytes
+remain. The read-only probe walks existing ancestors without creating directories; a failed
+`StatFs` probe can use a positive `File.usableSpace` fallback, but that API's ambiguous zero is
+unknown, not a measurement of a full disk.
 Preflight failures remain failed Downloads rows with Clear and Retry. Retry reruns preflight
 outside the worker lifecycle and then enqueues the real backend; it never occupies a queue slot
 with a placeholder job. Failures are kept in the Downloads UI, notification and logs rather than
@@ -48,6 +53,18 @@ downloaded again. This trades parallel-download throughput and potentially extra
 traffic for bounded temporary disk usage. The native batch APIs remain available but are not
 used by this install path.
 
+The earlier batch design intentionally prioritizes parallel-download throughput. Native
+`epic/assemble.rs::build_assemble_plan` enables `scratch_cache` only for a nonempty cache path.
+`run_assemble` decrements per-file chunk references and removes chunks at their last use **only
+when that flag is set**; the default beside-game cache is removed at the end. The native tests
+`default_cache_assembles_like_the_kotlin_loop_and_removes_the_cache_at_the_end` and
+the scratch-cache assembly tests cover that distinction. Extending last-use reclamation to
+internal native assembly could keep parallel batch throughput and reduce the overlapping
+cache/output peak, but batch fetching still fills
+the cache before assembly. That is not equivalent to the bounded sequential writer's fixed
+retained-cache ceiling. This change keeps the bounded path and its explicit throughput/refetch
+tradeoff; it does not redesign or benchmark native download throughput.
+
 The bounded Epic download bar, measured rate and ETA count pending file bytes written, not unique
 compressed chunks fetched. Shared chunks therefore cannot complete the bar before later files
 are written, and an evicted chunk's refetch is reflected in the time spent doing that work.
@@ -55,14 +72,20 @@ Streaming stays in the Download stage until all files are written and verified, 
 Install for registration; it does not bounce between stages for each file.
 
 The space check follows the manifest delta pass and simulates file writes, chunk fetches,
-and evictions, rather than adding the entire cache to the entire game. It accounts for space
-reclaimable from outdated outputs without deleting them until both game and cache volume
-checks pass. An insufficient-space rejection preserves existing game files. Completed files and
+and evictions, rather than adding the entire cache to the entire game. Each file is written to a
+unique sibling staging file on its output volume (never the literal `<filename>.part`, which can
+be a legitimate manifest file), size/hash verified, synced and atomically renamed over its output.
+The old file remains until that swap succeeds. The planner credits its bytes only after that
+file's complete staging write, not by subtracting all old outputs up front. Both volume checks
+must accept this safe staging peak; insufficient space is rejected explicitly, with no destructive
+delete-first fallback. An unsupported/failed atomic rename fails the install and retains the old
+destination. Completed files and
 verified cached chunks are accounted for on resume. On a card, game and cache requirements
 are checked separately. File SHA-1 hashes are checked where supplied by the manifest; failed
-or cancelled output files are removed, and an interrupted process is repaired by the next
-delta pass. A successful run removes the cache. A resume within a large incomplete file
-restarts that file, not its individual parts.
+or cancelled staging files are removed without deleting old outputs. A successful run removes the
+cache. A resume within a large incomplete file restarts that file, not its individual parts.
+Abrupt process termination can leave a unique staging file; unlike normal failure/cancellation,
+its cleanup is not guaranteed, and the next space probe includes its occupied bytes.
 
 ## The sidecar
 
@@ -89,7 +112,18 @@ store root whose sidecar says `installing`, or that has no sidecar at all, is an
 install: `AddedGames.scan` leaves it out (it is neither a game nor a Custom folder), and the Stores
 card and page offer **Resume install**, which reuses that folder - and an Epic `.chunks` beside it -
 instead of starting a fresh one (`StoreInstallRoot.existingFolder`). A finished install being
-repaired keeps its finished sidecar. The launcher and the finished sidecar are written before the
+repaired keeps its finished sidecar until Epic reaches the first verified file swap. Immediately
+before that swap Epic atomically changes the record to `"state": "updating"`, preserves launch
+choices and identifiers, and clears `installVersion`. Network/hash failures or cancellation before
+that point leave the old installed record and files intact. A later failure can leave a mixture of
+verified new files and untouched old files: replacement is atomic **per file**, not a transactional
+whole-game update or rollback. The updating folder is excluded from installed scans and offered
+for resume. Cancellation with deletion clears caches but retains that folder and its verified
+swaps; retry preserves the updating record's metadata. If marking or swapping fails, no destructive
+fallback is attempted (the conservative updating state can remain even when a swap fails).
+Completion writes the installed record with the new version only after all selected files succeed.
+An already registered live Steam shortcut is not revoked at each file swap; do not launch an
+in-progress update. The launcher and the finished sidecar are written before the
 art and the Steam registration; a failure writing them fails the download with its message.
 
 `StoreGameSidecar.parse` refuses anything whose `exe` or `launcher` would point outside the folder.

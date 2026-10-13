@@ -9,6 +9,7 @@ import java.io.File
 import java.util.zip.CRC32
 
 object StoreInstallRoot {
+    const val SPACE_UNKNOWN = -1L
     private const val INTERNAL = "root/Games/Stores"
     private const val ON_VOLUME = "Games"
     const val GUEST_EXTERNAL = "/mnt/droiddeck-stores"
@@ -24,29 +25,30 @@ object StoreInstallRoot {
         val errorMessage: String? = null
     )
 
-    fun availableBytes(file: File): Long {
+    @JvmStatic
+    fun availableBytes(file: File): Long = probeAvailableBytes(file, { StatFs(it.path).availableBytes }, { it.usableSpace })
+
+    internal fun probeAvailableBytes(file: File, statBytes: (File) -> Long, usableBytes: (File) -> Long): Long {
+        var dir: File? = if (file.isDirectory) file else file.parentFile
+        if (dir == null) dir = file
+        while (dir != null && !dir.exists()) dir = dir.parentFile
+        val existing = dir ?: return SPACE_UNKNOWN
         return try {
-            var dir: File? = if (file.isDirectory) file else file.parentFile
-            if (dir == null) dir = file
-            while (dir != null && !dir.exists()) dir = dir.parentFile
-            val existing = dir
-            if (existing == null) {
-                StoresState.logLine("storage: no existing ancestor for store install target")
-                return usableSpaceOrUnknown(file)
-            }
-            StatFs(existing.path).availableBytes
+            statBytes(existing).coerceAtLeast(SPACE_UNKNOWN)
         } catch (e: Exception) {
             StoresState.logLine("storage: StatFs failed for store install target (${e.javaClass.simpleName})")
-            usableSpaceOrUnknown(file)
+            try {
+                // File's zero also means an unavailable measurement; only StatFs establishes zero.
+                usableBytes(existing).takeIf { it > 0L } ?: SPACE_UNKNOWN
+            } catch (fallback: Exception) {
+                StoresState.logLine("storage: usable-space fallback failed for store install target (${fallback.javaClass.simpleName})")
+                SPACE_UNKNOWN
+            }
         }
     }
 
-    private fun usableSpaceOrUnknown(file: File): Long = try {
-        file.usableSpace
-    } catch (e: Exception) {
-        StoresState.logLine("storage: usable-space fallback failed for store install target (${e.javaClass.simpleName})")
-        0L
-    }
+    @JvmStatic
+    fun insufficientSpace(required: Long, available: Long): Boolean = required > 0L && available >= 0L && available < required
 
     /**
      * The catalog size is the known minimum for an install. Epic's actual chunk-cache requirement
@@ -63,7 +65,7 @@ object StoreInstallRoot {
         // Comparing the full catalog size to remaining free space would reject valid resumes.
         if (item.store == Store.EPIC || existing != null) return StorageCheck(enough = true, requiredBytes = size, availableBytes = freeTarget)
         if (size <= 0L) return StorageCheck(enough = true, requiredBytes = 0L, availableBytes = freeTarget)
-        if (freeTarget in 1 until size) {
+        if (insufficientSpace(size, freeTarget)) {
             val msg = context.getString(com.droiddeck.launcher.R.string.stores_storage_insufficient, formatBytes(size), formatBytes(freeTarget))
             return StorageCheck(enough = false, requiredBytes = size, availableBytes = freeTarget, errorMessage = msg)
         }

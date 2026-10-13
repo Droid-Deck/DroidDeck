@@ -1,5 +1,8 @@
 package com.droiddeck.launcher.stores.epic
 
+import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoreInstalls
 import java.io.File
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -18,6 +21,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowStatFs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -33,6 +37,7 @@ class EpicBoundedInstallTest {
 
     @Before fun setUp() {
         root = temp.newFolder("game")
+        ShadowStatFs.registerStats(root.path, 1_000_000_000, 1_000_000_000, 1_000_000_000)
         server = ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"))
         worker = Thread {
             while (!server.isClosed) {
@@ -91,6 +96,145 @@ class EpicBoundedInstallTest {
         EpicDownloadManager.Callback { _, _ -> }, cache: String = "") =
         EpicDownloadManager.installManifest(manifest, root.path, cache, null, cancel, callback)
 
+    private fun oldInstall() {
+        File(root, "game.bin").writeBytes(byteArrayOf(9, 8, 7))
+        File(root, "game.bin.part").writeBytes(byteArrayOf(6, 5, 4))
+        StoreGameSidecar(Store.EPIC, "game", "Game", "game.bin", installVersion = "old").write(root)
+    }
+
+    private fun assertOldInstallIntact() {
+        assertArrayEquals(byteArrayOf(9, 8, 7), File(root, "game.bin").readBytes())
+        assertArrayEquals(byteArrayOf(6, 5, 4), File(root, "game.bin.part").readBytes())
+        assertEquals("old", StoreGameSidecar.read(root)?.installVersion)
+        assertTrue(StoreGameSidecar.read(root)?.isInstalled == true)
+        assertTrue(root.walk().none { it.name.endsWith(".stage") })
+    }
+
+    @Test fun networkFailureAfterAcceptedPreflightPreservesInstalledFilesAndRecord() {
+        oldInstall()
+        reject.set(true)
+        assertThrows(EpicDownloadManager.InstallException::class.java) { install() }
+        assertTrue(requests.get() > 0)
+        assertOldInstallIntact()
+    }
+
+    @Test fun hashFailureAfterAcceptedPreflightPreservesInstalledFilesAndRecord() {
+        oldInstall()
+        manifest.files.first().sha1 = ByteArray(20) { 1 }
+        assertThrows(EpicDownloadManager.InstallException::class.java) { install() }
+        assertOldInstallIntact()
+    }
+
+    @Test fun cancellationWhileStagingPreservesInstalledFilesAndRecord() {
+        oldInstall()
+        val cancel = AtomicBoolean()
+        assertNull(install(cancel, EpicDownloadManager.Callback { message, _ ->
+            if (message.startsWith("Downloading chunks (")) cancel.set(true)
+        }))
+        assertOldInstallIntact()
+    }
+
+    @Test fun laterFailureRetainsVerifiedSwapsAndMarksMixedUpdateResumable() {
+        oldInstall()
+        manifest.files.last().sha1 = ByteArray(20) { 1 }
+        assertThrows(EpicDownloadManager.InstallException::class.java) { install() }
+        assertArrayEquals(bytes.copyOfRange(0, bytes.size / 2), File(root, "game.bin").readBytes())
+        assertArrayEquals(byteArrayOf(6, 5, 4), File(root, "game.bin.part").readBytes())
+        val record = StoreGameSidecar.read(root)!!
+        assertEquals(StoreGameSidecar.STATE_UPDATING, record.state)
+        assertFalse(record.isInstalled)
+        assertEquals("", record.installVersion)
+        StoreInstalls.begin(root, Store.EPIC, "game", "Game", null, null)
+        assertEquals("game.bin", StoreGameSidecar.read(root)?.exe)
+        assertEquals(StoreGameSidecar.STATE_UPDATING, StoreGameSidecar.read(root)?.state)
+    }
+
+    @Test fun laterNetworkFailurePreservesTheUnreplacedOldFile() {
+        oldInstall()
+        val secondChunk = EpicDownloadManager.ChunkInfo().apply {
+            guid = intArrayOf(2, 0, 0, 0)
+            windowSize = bytes.size
+            fileSize = bytes.size.toLong()
+            sha1 = sha(bytes)
+        }
+        manifest.uniqueChunks.add(secondChunk)
+        manifest.files.last().parts.single().guid = secondChunk.guid
+        val callback = object : EpicDownloadManager.Callback {
+            override fun onProgress(message: String, pct: Int) {}
+            override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                if (stage == "stream" && items == 1) reject.set(true)
+            }
+        }
+        assertThrows(EpicDownloadManager.InstallException::class.java) { install(callback = callback) }
+        assertArrayEquals(bytes.copyOfRange(0, bytes.size / 2), File(root, "game.bin").readBytes())
+        assertArrayEquals(byteArrayOf(6, 5, 4), File(root, "game.bin.part").readBytes())
+        assertEquals(StoreGameSidecar.STATE_UPDATING, StoreGameSidecar.read(root)?.state)
+        assertTrue(root.walk().none { it.name.endsWith(".stage") })
+    }
+
+    @Test fun cancellationAfterFirstSwapLeavesAResumableMixedUpdate() {
+        oldInstall()
+        val cancel = AtomicBoolean()
+        val callback = object : EpicDownloadManager.Callback {
+            override fun onProgress(message: String, pct: Int) {}
+            override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                if (stage == "stream" && items == 1) cancel.set(true)
+            }
+        }
+        assertNull(install(cancel, callback))
+        assertArrayEquals(bytes.copyOfRange(0, bytes.size / 2), File(root, "game.bin").readBytes())
+        assertArrayEquals(byteArrayOf(6, 5, 4), File(root, "game.bin.part").readBytes())
+        assertEquals(StoreGameSidecar.STATE_UPDATING, StoreGameSidecar.read(root)?.state)
+        assertNotNull(install())
+        assertArrayEquals(bytes.copyOfRange(bytes.size / 2, bytes.size), File(root, "game.bin.part").readBytes())
+        // Registration, not an individual file swap, restores the installed state.
+        assertFalse(StoreGameSidecar.read(root)!!.isInstalled)
+    }
+
+    @Test fun atomicRenameFailurePreservesDestinationAndCleansStagingWithoutDeleteFallback() {
+        val destination = File(root, "game.bin").apply { mkdir() }
+        File(destination, "old-content").writeText("keep")
+        val error = assertThrows(EpicDownloadManager.InstallException::class.java) { install() }
+        assertTrue(error.message.orEmpty().contains("atomically replace"))
+        assertEquals("keep", File(destination, "old-content").readText())
+        assertTrue(root.walk().none { it.name.endsWith(".stage") })
+    }
+
+    @Test fun safeStagingSpaceBoundaryRejectsWithoutReclaimingAllOldOutputs() {
+        // The first staged half-file must coexist with the shared chunk and BOTH old outputs.
+        val old = ByteArray(bytes.size / 2) { 9 }
+        File(root, "game.bin").writeBytes(old)
+        File(root, "game.bin.part").writeBytes(old)
+        val peak = bytes.size + old.size
+        ShadowStatFs.registerStats(root.path, 1024, peak / 4096 - 1, peak / 4096 - 1)
+        assertThrows(EpicDownloadManager.InstallException::class.java) { install() }
+        assertEquals(0, requests.get())
+        assertArrayEquals(old, File(root, "game.bin").readBytes())
+        assertArrayEquals(old, File(root, "game.bin.part").readBytes())
+        ShadowStatFs.registerStats(root.path, 1024, peak / 4096, peak / 4096)
+        assertNotNull(install())
+    }
+
+    @Test fun zeroSpaceRejectsPendingFilesWhileUnknownSpaceIsNotTreatedAsZero() {
+        oldInstall()
+        ShadowStatFs.registerStats(root.path, 1024, 0, 0)
+        assertThrows(EpicDownloadManager.InstallException::class.java) { install() }
+        assertOldInstallIntact()
+        assertEquals(0, requests.get())
+        assertTrue(com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(1, 0))
+        assertFalse(com.droiddeck.launcher.stores.StoreInstallRoot.insufficientSpace(1, -1))
+    }
+
+    @Test fun zeroScratchSpaceRejectsBeforeFetchWithoutTouchingInstalledOutputs() {
+        oldInstall()
+        val cache = temp.newFolder("full-scratch")
+        ShadowStatFs.registerStats(cache.path, 1024, 0, 0)
+        val error = assertThrows(EpicDownloadManager.InstallException::class.java) { install(cache = cache.path) }
+        assertTrue(error.message.orEmpty().contains("Not enough internal space"))
+        assertOldInstallIntact()
+        assertEquals(0, requests.get())
+    }
+
     @Test fun installsSharedChunksAndPreservesLegitimatePartFilename() {
         assertNotNull(install())
         assertArrayEquals(bytes.copyOfRange(0, bytes.size / 2), File(root, "game.bin").readBytes())
@@ -122,6 +266,7 @@ class EpicBoundedInstallTest {
         assertTrue(manifest.files[0].fileSize() > root.usableSpace)
 
         for (cache in listOf("", temp.newFolder("scratch-rejected").path)) {
+            if (cache.isNotEmpty()) ShadowStatFs.registerStats(cache, 1_000_000_000, 1_000_000_000, 1_000_000_000)
             val error = assertThrows(EpicDownloadManager.InstallException::class.java) { install(cache = cache) }
             assertTrue(error.message.orEmpty().contains("Not enough free space"))
             assertArrayEquals(oldGame, File(root, "game.bin").readBytes())
@@ -131,11 +276,12 @@ class EpicBoundedInstallTest {
     }
 
     @Test fun acceptedUpdateReplacesOutdatedFilesWithVerifiedOutputs() {
-        File(root, "game.bin").writeBytes(byteArrayOf(9, 8, 7))
-        File(root, "game.bin.part").writeBytes(byteArrayOf(6, 5, 4))
+        oldInstall()
         assertNotNull(install())
         assertArrayEquals(bytes.copyOfRange(0, bytes.size / 2), File(root, "game.bin").readBytes())
         assertArrayEquals(bytes.copyOfRange(bytes.size / 2, bytes.size), File(root, "game.bin.part").readBytes())
+        assertEquals(StoreGameSidecar.STATE_UPDATING, StoreGameSidecar.read(root)?.state)
+        assertTrue(root.walk().none { it.name.endsWith(".stage") })
     }
 
     @Test fun pauseKeepsCompletedFilesAndResumeReusesSharedCache() {
@@ -179,6 +325,7 @@ class EpicBoundedInstallTest {
 
     @Test fun corruptCacheIsRefetchedAndScratchCacheIsRemovedOnSuccess() {
         val cache = temp.newFolder("scratch")
+        ShadowStatFs.registerStats(cache.path, 1_000_000_000, 1_000_000_000, 1_000_000_000)
         File(cache, manifest.uniqueChunks[0].guidStr()).writeBytes(ByteArray(bytes.size))
         assertNotNull(install(cache = cache.path))
         assertEquals(1, requests.get())
@@ -284,5 +431,15 @@ class EpicBoundedInstallTest {
         val peak = EpicDownloadManager.estimatePeakAdditionalBytes(listOf(file), chunks, emptyMap(), true)
         assertEquals(73 * gib, peak)
         assertTrue(peak < 96 * gib)
+    }
+
+    @Test fun plannersReclaimEachOldFileOnlyAfterItsOwnVerifiedSwap() {
+        val chunks = manifest.uniqueChunks.associateBy { it.guidStr() }
+        val half = bytes.size / 2L
+        val old = mapOf("game.bin" to half, "game.bin.part" to 100 * half)
+        assertEquals(bytes.size + half, EpicDownloadManager.estimatePeakAdditionalBytes(manifest.files, chunks, emptyMap(), true, old))
+        assertEquals(half, EpicDownloadManager.estimateStagedFilePeak(manifest.files, old))
+        assertEquals(2 * half, EpicDownloadManager.estimateStagedFilePeak(manifest.files, emptyMap()))
+        assertEquals(bytes.size.toLong(), EpicDownloadManager.estimatePeakAdditionalBytes(manifest.files, chunks, emptyMap(), false, old))
     }
 }
