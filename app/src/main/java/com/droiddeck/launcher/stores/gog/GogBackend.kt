@@ -40,7 +40,11 @@ object GogBackend : StoreBackend {
                 if (cached.isNotEmpty()) StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], cached)
                 if (!quiet) StoresState.status[store] = "Fetching your library…"
             }
-            val result = GogLibrary.sync(app, force) { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }
+            val result = GogLibrary.sync(app, force, onStatus = { line -> if (!quiet) StoresState.post { StoresState.status[store] = line } }, onList = { list ->
+                // Mapped here, off the main thread: the listing paints the tab before any product is asked about.
+                val items = list.map { GogLibrary.toCatalogItem(app, it) }
+                StoresState.post { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], items) }
+            })
             StoresState.post {
                 StoresState.status.remove(store)
                 when (result) {

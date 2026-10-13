@@ -7,6 +7,31 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-14 - `gog-library-listing`: the GOG library is drawn from the account listing, details follow
+
+- **The listing** (`GogLibrary`): the library came from `embed.gog.com/user/data/games`, which is the owned
+  ids and nothing else - no title, no art - so the tab stayed empty until every product had been asked about
+  one by one. It now comes from `account/getFilteredProducts` (`mediaType=1`, `hiddenFlag=0`, `sortBy=title`),
+  a hundred to a page, which carries the title, the category and the release date. Its `image` is a bare
+  hash the CDN serves only through Galaxy's own formatters, so a listing entry's card art is
+  `<hash>_glx_vertical_cover.webp` until the per-product fetch brings the wide background.
+- **The listing can fail** (`GogLibrary`): when it cannot be read the sync falls back to the older
+  owned-ids endpoint and keeps the old behaviour - there are no titles to draw, so nothing is painted
+  until the products come back.
+- **The tab paints first** (`GogLibrary.sync`): the whole library goes to `GogBackend` the moment the listing
+  is in, and again every twenty products, so the grid is on screen in seconds instead of after the last
+  product. `mergeItems` keeps the cards already shown as the same objects, so the fills do not reset the
+  scroll or the focus.
+- **The per-product fetch stays** (`fetchGame`): `api.gog.com` is what has the description, the developer,
+  the publisher, the Galaxy portrait and the build generation, and the detail page reads all of those from
+  the library entry, so the listing alone cannot replace it.
+- **The cache keeps only what was fetched**: a listing entry that never got its details is asked about again
+  next sync rather than kept as a bare title, and a product the last sync found uninstallable stays out of
+  the list while it is re-checked. The cache's own entry stays on screen even while it is re-fetched, so a
+  forced refresh does not drop back to box art.
+- **Tests** (`GogListingTest`): the filters - movies, other platforms, Galaxy's own entry, empty titles - the
+  fields a card needs, and a response that is not a listing.
+
 ## 2026-10-10 - `feat/wincomp-auto-sources`: Windows components picked by the game's source
 
 - **Per source** (`WinCompSources`): Steam - Steamworks Shared depots from the appmanifest or the
