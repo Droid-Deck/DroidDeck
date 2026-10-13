@@ -69,10 +69,16 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      Linux. SteamVR renders each eye into textures the driver allocates through its IPC resource
      manager (dmabufs);
    - `presenter.cpp` imports those eye textures into a Vulkan device of its own and blits them side
-     by side into a fullscreen X11 window on gamescope's Xwayland, marked `STEAM_OVERLAY` so gamescope
-     shows it above Steam. (The external overlay slot, `GAMESCOPE_EXTERNAL_OVERLAY`, is taken by
-     mangoapp.)
-2. **`VK_LAYER_DROIDDECK_vr`**, a Vulkan layer for SteamVR's processes:
+     by side into a fullscreen window on DroidDeck's own compositor (`wayland-0`, the app_id
+     `droiddeck-cardboard-vr` keeps it above gamescope's window), sized to the Cardboard panel so
+     nothing scales it down. SteamVR hands the textures over with no fence the driver can wait on, so
+     the presenter gives the compositor's GPU work a few milliseconds first, as ALVR does.
+     `DROIDDECK_VR_PRESENT=x11` uses the older path instead: an X11 window on gamescope's Xwayland marked
+     `STEAM_OVERLAY` (the external overlay slot is mangoapp's), at the session's resolution;
+2. **`VK_LAYER_DROIDDECK_vr`**, a Vulkan layer, enabled explicitly in SteamVR's processes and implicit
+   for the rest of the session (Steam's own web helper shares its in-VR overlay with SteamVR too, and
+   crashes without it until Steam quits). Implicitly it is pass-through unless SteamVR runs
+   (`droiddeck-steamvr`'s `active` marker) or a program asks for a display extension:
    - `vrcompositor` always asks for `VK_KHR_display` and keeps a direct-mode window even with a
      driver-direct HMD. Turnip on KGSL refuses to enumerate any GPU when `VK_KHR_display` is enabled
      ("I can't KHR_display"). The layer takes the display extensions off the instance and stands in
@@ -80,10 +86,15 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      (`VK_EXT_headless_surface`, sized from the mode because headless reports none). The vblank side
      of `VK_EXT_display_control` is a 60 Hz clock;
    - SteamVR shares a timeline semaphore with every shared image, exported as an opaque fd, which
-     Turnip/KGSL cannot export. The layer creates it unshared, hands out a placeholder fd, and drops
-     GPU waits on an imported placeholder. Each process still orders its own work;
-   - `DROIDDECK_VR_CRASHTRACE=1` prints a backtrace on a fatal signal. `vrcompositor`'s launcher drops
-     `LD_PRELOAD`, but the layer is loaded there.
+     Turnip/KGSL cannot export. The layer creates it unshared and hands out a memfd holding a 64-bit
+     counter instead. Every process with the semaphore keeps a real local one, and a poller thread
+     carries values both ways (reached locally: up into the counter; seen in the counter: signalled
+     locally from the host), so GPU waits work as written, a poll period late. Waits on an imported
+     binary semaphore, which cannot be bridged that way, are dropped. With the semaphores dropped
+     outright (the first version) the dashboard showed torn, half-drawn tiles;
+   - `DROIDDECK_VR_CRASHTRACE=1` (or a `crashtrace` file beside the `active` marker, for processes like
+     Steam whose environment is not ours) prints a backtrace on a fatal signal. `vrcompositor`'s
+     launcher drops `LD_PRELOAD`, but the layer is loaded there.
 3. **`droiddeck-steamvr`**, the guest helper (`status | install | start | stop`), which the app drives
    through the guest agent's fixed `vr` request (no agent commands needed). It also supplies an `xset`
    stand-in, because the dashboard's web helper checks the X server with it.
@@ -91,10 +102,19 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
 Imported eye textures carry the same format list SteamVR's mutable sRGB images do. With it Turnip keeps
 UBWC compression on, and an import that disagreed read compressed data as garbage.
 
+Two more fixes outside `tools/vr` were needed for the dashboard (Steam's library, in VR):
+
+- **SysV semaphores** (`tools/linuxfs/preload/sysv.c`): the session emulates them, and `IPC_STAT`
+  reported `sem_otime` 0 forever. SteamVR's web helper does the usual race-free init (wait until
+  `sem_otime` is non-zero), so its zygotes slept in a `semctl`/`usleep` loop and the dashboard never
+  appeared. `semop` now stamps `sem_otime`, `SETVAL`/`SETALL`/`IPC_SET` stamp `sem_ctime`;
+  `test_sysv_preload.py` covers it.
+- `vrwebhelper` gets the same tracer treatment as Steam's `steamwebhelper` (`tracer.c`).
+
 Verified on the AYN Thor (SD 8 Gen 2, Turnip): SteamVR 2.17.10 starts with the DroidDeck HMD active,
-the compositor runs driver-direct at about 60 fps, its default environment shows in both eyes through
-Cardboard mode, and a pose written to the shared file turns SteamVR's view. Started from the drawer
-button through the agent.
+the compositor runs driver-direct at about 60 fps, the dashboard (Steam's library in VR, with the
+controller's laser) shows cleanly in both eyes at the panel's resolution while Steam keeps running, and
+a pose written to the shared file turns SteamVR's view. Started from the drawer button through the agent.
 
 ### Not done yet
 
@@ -103,16 +123,14 @@ button through the agent.
   (`FAKE_EVDEV_MEMFD_PATHS`), so the app needs no new plumbing. They are a gaze pointer: low in front
   of each hand, pointing where the head looks. Mapping, right hand: right stick = trackpad, A/R3 =
   trackpad click, RT = trigger, RB = grip, Start = menu, guide = system. Left hand: left stick, X/L3,
-  LT, LB, Select. Both hands activate in SteamVR, and guide, Start and A presses show up in the ring the
-  driver reads. The dashboard still does not appear: `vrwebhelper` (CEF 126) stops after
-  `CefInitialize`, and `vrdashboard` logs `VR_Init failed with VRInitError_IPC_Compositor*`. Getting
-  SteamVR's web UI up is the next thing to chase.
-- **Layers**: only the first layer of each frame is drawn (the compositor's scene). Overlays submitted
-  separately (some dashboard states) are not composited yet.
-- **Timing**: no reprojection, and the presenter blits whatever was submitted last. The chain
-  (SteamVR → X11 overlay → gamescope → DroidDeck compositor → lens pass) adds latency. The gamescope
-  output is the session's resolution (often 1280x720), which then scales to the panel.
-- **Cross-process GPU sync** is approximate (see the semaphore note above).
+  LT, LB, Select. Both hands activate in SteamVR and their laser shows on the dashboard; guide, Start and
+  A presses show up in the ring the driver reads.
+- **Layers**: only the first layer of each frame is drawn. SteamVR's compositor composites the
+  dashboard into it, so this has not mattered yet.
+- **Timing**: no reprojection, and the presenter blits whatever was submitted last, a guard delay
+  after it arrived. The chain is SteamVR → presenter → DroidDeck compositor → lens pass.
+- **Cross-process GPU sync** is a poll away from exact (see the semaphore note above); binary
+  semaphores are not bridged.
 - **Apps and games**: SteamVR's own ARM64 OpenXR sample, `helloxr -g Vulkan2` (run with the layer
   environment `droiddeck-steamvr start` sets), connects: it sees the system as
   "SteamVR/OpenXR : droiddeck" and creates its eye swapchains. It then leaves cleanly before its first
