@@ -194,6 +194,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
     icon: ImageVector,
     tabs: List<Pair<String, String>>,
     covered: () -> Float = { 0f },
+    beside: @Composable (enabled: Boolean) -> Unit = {},
     rows: @Composable (tab: String) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -417,7 +418,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
                         if (k.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { if (k.action == KeyEvent.ACTION_DOWN) close(); true } else false
                     },
             ) {
-                SheetChips(tabs.map { it.second }, state.tab, chipFocus) { i -> state.travel = if (i > state.tab) 1 else -1; state.tab = i }
+                SheetChips(tabs.map { it.second }, state.tab, chipFocus, width = LocalSheetChipWidth.current, end = true) { i -> state.travel = if (i > state.tab) 1 else -1; state.tab = i }
             }
             val closeSource = remember { MutableInteractionSource() }
             val closeHot = rememberHot(closeSource)
@@ -437,6 +438,16 @@ internal fun BoxWithConstraintsScope.DropSheet(
     val enabled = covered() < 0.5f
     val toggle = { if (state.open) close() else state.open = true }
     val sideInset = if (narrow) 20.dp else 44.dp
+    val besideShown = enabled && !state.open && !state.shown
+    val r1 = rest
+    if (r1 != null && (besideShown || state.sink.value < 0.99f)) Box(
+        Modifier
+            .align(Alignment.TopEnd)
+            .padding(top = sideInset, end = sideInset + with(density) { r1.width.toDp() } + 12.dp)
+            .graphicsLayer { alpha = (1f - state.sink.value) * (1f - covered()) }
+            .zIndex(2f)
+            .focusProperties { canFocus = besideShown },
+    ) { beside(besideShown) }
     Box(
         Modifier
             .align(Alignment.TopEnd)

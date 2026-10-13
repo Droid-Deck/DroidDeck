@@ -74,7 +74,6 @@ data class GlassesSettings(
     val screenWidthDm: Int = 20,
     val screenDistanceDm: Int = 30,
     val vrFovDeg: Int = VR_FOV_DEFAULT,
-    val autoSteamVr: Boolean = true,
 ) {
     companion object {
         const val VR_FOV_MIN = 24
@@ -204,7 +203,6 @@ object Glasses {
     fun setScreenWidthDm(dm: Int) = post { update { it.copy(screenWidthDm = dm.coerceIn(5, 200)) } }
     fun setScreenDistanceDm(dm: Int) = post { update { it.copy(screenDistanceDm = dm.coerceIn(5, 200)) } }
     fun setVrFovDeg(deg: Int) = post { update { it.copy(vrFovDeg = deg.coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX)) } }
-    fun setAutoSteamVr(on: Boolean) = post { update { it.copy(autoSteamVr = on) } }
 
     fun glassesDisplay(): Display? = _state.value.displayId.takeIf { it != Display.INVALID_DISPLAY }?.let { displays.getDisplay(it) }
 
@@ -260,7 +258,7 @@ object Glasses {
             .put("settings", JSONObject().put("refreshHz", g.refreshHz).put("sbsHz", g.sbsHz).put("sunblock", g.sunblock ?: JSONObject.NULL)
                 .put("gameOnGlasses", g.gameOnGlasses).put("headTracking", g.headTracking).put("auto3d", g.auto3d)
                 .put("picture3d", g.picture3d).put("screenWidthDm", g.screenWidthDm).put("screenDistanceDm", g.screenDistanceDm)
-                .put("vrFovDeg", g.vrFovDeg).put("autoSteamVr", g.autoSteamVr))
+                .put("vrFovDeg", g.vrFovDeg))
     }
 
     fun recentFrames(): JSONArray = synchronized(frames) { JSONArray(frames.toList()) }
@@ -553,7 +551,6 @@ object Glasses {
             screenWidthDm = p.getInt("screenWidthDm", 20),
             screenDistanceDm = p.getInt("screenDistanceDm", 30),
             vrFovDeg = p.getInt("vrFovDeg", GlassesSettings.VR_FOV_DEFAULT).coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX),
-            autoSteamVr = p.getBoolean("autoSteamVr", true),
         )
     }
 
@@ -569,7 +566,6 @@ object Glasses {
             putInt("screenWidthDm", s.screenWidthDm)
             putInt("screenDistanceDm", s.screenDistanceDm)
             putInt("vrFovDeg", s.vrFovDeg)
-            putBoolean("autoSteamVr", s.autoSteamVr)
         }.apply()
     }
 }

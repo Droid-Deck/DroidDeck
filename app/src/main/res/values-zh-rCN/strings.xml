@@ -892,6 +892,7 @@
     <string name="content_linux_desktop_hint">KDE Plasma、Firefox 和你的模拟器</string>
     <string name="games_empty">你在 Steam 安装的游戏会在会话结束后显示在这里。</string>
     <string name="games_play_steam">游玩 Steam</string>
+    <string name="games_play_steamvr">游玩 SteamVR</string>
     <string name="games_launch_settings">启动设置</string>
     <string name="games_launch">启动</string>
     <string name="games_files">游戏文件</string>
@@ -2140,8 +2141,6 @@
     <string name="glasses_head_tracking_hint">眼镜自带的传感器会随头部转动虚拟屏幕和 SteamVR。</string>
     <string name="glasses_recenter">重新居中视角</string>
     <string name="glasses_recenter_button">重新居中</string>
-    <string name="glasses_auto_steamvr">连接眼镜时启动 SteamVR</string>
-    <string name="glasses_auto_steamvr_hint">在 Steam 中，插入眼镜时启动 SteamVR，拔出时停止。</string>
     <string name="glasses_vr_fov">SteamVR 视场角</string>
     <string name="glasses_vr_fov_hint">调低让 SteamVR 更近并填满眼镜；调高可看到更多周围内容。</string>
     <string name="glasses_playing">正在 %1$s 上游玩</string>

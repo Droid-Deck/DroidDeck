@@ -110,7 +110,13 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         key = "steam", tabs = tabs,
         drop = drop.takeIf { glasses.present },
         overlay = { lifted ->
-            if (glasses.present) DropSheet(drop, glasses.model, GlassesIcon, glassesTabs(glasses), covered = lifted) { tab ->
+            if (glasses.present) DropSheet(
+                drop, glasses.model, GlassesIcon, glassesTabs(glasses), covered = lifted,
+                beside = { enabled ->
+                    PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy, large = true, icon = Icons.Filled.PlayArrow,
+                        modifier = Modifier.testTag("play-steamvr")) { if (enabled) a.onPlaySteamVr() }
+                },
+            ) { tab ->
                 GlassesGroups(rememberMenuHost(), glasses, glassesSettings, inSession = false, tab = tab)
             }
         },

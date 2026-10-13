@@ -54,6 +54,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -105,6 +106,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import com.droiddeck.launcher.R
@@ -156,6 +158,13 @@ internal class SheetBeat(private val pieces: List<Animatable<Float, AnimationVec
 
 /** The sheet whose rows are being laid out, so each settings group can take its beat. */
 internal val LocalSheetBeat = staticCompositionLocalOf<SheetBeat?> { null }
+
+internal val LocalSheetChipWidth = compositionLocalOf { Dp.Unspecified }
+
+private val ChipGap = 6.dp
+
+internal fun sheetChipWidth(row: Dp, count: Int): Dp =
+    if (count > 0 && row / count >= 96.dp) (row - ChipGap * (count - 1)) / count else 0.dp
 
 /** A settings group's piece of the sheet's entrance; nothing outside a sheet. */
 @Composable
@@ -368,7 +377,7 @@ internal fun LiftHero(
     val lipFocus = remember { FocusRequester() }
     val settingsLabel = stringResource(R.string.drawer_page_settings)
     var lipFocused by remember { mutableStateOf(false) }
-    val lipWanted = !open && (!shown || lipBack) && (playFocused || playHovered || touchOnly || lipFocused)
+    val lipWanted = !open && (!shown || lipBack) && (playFocused || playHovered || touchOnly || lipFocused) && drop?.let { it.open || it.shown } != true
     LaunchedEffect(lipWanted) {
         if (lipWanted) {
             // Back from the sheet it comes straight away; otherwise a beat after Play has focus.
@@ -507,6 +516,12 @@ internal fun LiftHero(
         // Play's raised place: its centre 3dp under the sheet's edge, same left inset.
         val raise = restRect?.let { (openTop + with(density) { 3.dp.toPx() } - buttonH / 2f) - it.top } ?: 0f
         travelPx[0] = (h - openTop).coerceAtLeast(1f)
+        val pill = restRect?.translate(0f, raise)
+        // What the sheet holds: the chips to the right of Play, the rows under them.
+        val chipsX = with(density) {
+            if (narrow || pill == null) 16.dp.toPx() else pill.right + 20.dp.toPx() - inset
+        }
+        val chipWidth = with(density) { sheetChipWidth((w - 2 * inset - chipsX - 64.dp.toPx()).coerceAtLeast(0f).toDp(), tabs.size) }
 
         // The wall behind sinks back about the pane's centre.
         val foot = h
@@ -532,7 +547,6 @@ internal fun LiftHero(
             val rimPath = remember { Path() }
             val corner = with(density) { SheetCorner.toPx() }
             val rim = with(density) { 1.4.dp.toPx() }
-            val pill = restRect?.translate(0f, raise)
             Canvas(Modifier.fillMaxSize()) {
                 val f = fold.value
                 val ft = foldTop.value
@@ -559,10 +573,6 @@ internal fun LiftHero(
                     rimPath.lineTo(r, b)
                     drawPath(rimPath, rimColor, style = Stroke(rim))
                 }
-            }
-            // What the sheet holds: the chips to the right of Play, the rows under them.
-            val chipsX = with(density) {
-                if (narrow || pill == null) 16.dp.toPx() else pill.right + 20.dp.toPx() - sheetLeft
             }
             val chipsY = with(density) { if (narrow && pill != null) (pill.bottom - openTop) + 10.dp.toPx() else ChipsTop.toPx() }
             // The rows start under the chips, which are 44dp to touch: from 54dp they ran under the
@@ -656,7 +666,7 @@ internal fun LiftHero(
             Box(
                 Modifier
                     .onGloballyPositioned { rest = it.boundsInRoot() }
-                    .graphicsLayer { translationY = raise * ride.value }
+                    .graphicsLayer { translationY = raise * ride.value; alpha = 1f - (drop?.sink?.value ?: 0f) }
                     .onFocusChanged {
                         // Left out of the sheet (from the chips or a row) folds it, as Up from the chips does.
                         if (it.hasFocus && leftForPlay[0]) { leftForPlay[0] = false; if (openState.value && !launchingState.value) close() }
@@ -702,7 +712,7 @@ internal fun LiftHero(
                 Modifier
                     .offset { IntOffset((r0.center.x - handleW / 2f).roundToInt(), (r0.bottom + raise * ride.value + (lipShow.value - 1f) * 8.dp.toPx()).roundToInt()) }
                     .onSizeChanged { handleW = it.width.toFloat() }
-                    .graphicsLayer { alpha = lipShow.value * (1f - lipGone.value) }
+                    .graphicsLayer { alpha = lipShow.value * (1f - lipGone.value) * (1f - (drop?.sink?.value ?: 0f)) }
                     // 44dp to touch, with a 32dp visible handle.
                     .heightIn(min = 44.dp).testTag("sheet-open")
                     .semantics { contentDescription = settingsLabel }
@@ -717,7 +727,7 @@ internal fun LiftHero(
                 }
             }
         }
-        overlay { sink.value }
+        CompositionLocalProvider(LocalSheetChipWidth provides chipWidth) { overlay { sink.value } }
     }
 }
 
@@ -785,7 +795,14 @@ private fun Modifier.drawBorderSidesAndFoot(color: Color, corner: Dp, flip: Bool
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal fun SheetChips(labels: List<String>, selected: Int, focus: List<FocusRequester>? = null, onPick: (Int) -> Unit) {
+internal fun SheetChips(
+    labels: List<String>,
+    selected: Int,
+    focus: List<FocusRequester>? = null,
+    width: Dp = Dp.Unspecified,
+    end: Boolean = false,
+    onPick: (Int) -> Unit,
+) {
     val pal = LocalPalette.current
     val bounds = remember { mutableStateMapOf<Int, Rect>() }
     val tint = rememberUpdatedState(pal.signal)
@@ -794,20 +811,24 @@ internal fun SheetChips(labels: List<String>, selected: Int, focus: List<FocusRe
     var within by remember { mutableStateOf(false) }
     // LB / RB with a pad on the chips: focus goes with the selection.
     LaunchedEffect(selected) { if (within) runCatching { chips[selected].requestFocus() } }
-    BoxWithConstraints(Modifier.fillMaxWidth().onFocusChanged { within = it.hasFocus }) {
-        val equal = maxWidth / labels.size.coerceAtLeast(1) >= 96.dp
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().onFocusChanged { within = it.hasFocus },
+        contentAlignment = if (end) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+        val equal = !width.isSpecified && maxWidth / labels.size.coerceAtLeast(1) >= 96.dp
+        val least = if (width.isSpecified) maxOf(width, 64.dp) else 64.dp
         val scroll = rememberScrollState()
         // Room inside the scroll for the focus ring, which the scroll's clip would otherwise cut.
         Box(if (equal) Modifier.fillMaxWidth() else Modifier.edgeFade(scroll).horizontalScroll(scroll).padding(3.dp)) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(ChipGap),
                 // Up from the rows lands on the picked chip, not whichever sits above: landing picks.
                 modifier = (if (equal) Modifier.fillMaxWidth() else Modifier)
                     .focusProperties { enter = { chips.getOrNull(selected) ?: FocusRequester.Default } }
                     .focusGroup(),
             ) {
                 labels.forEachIndexed { i, label ->
-                    val m = (if (equal) Modifier.weight(1f) else Modifier.widthIn(min = 64.dp))
+                    val m = (if (equal) Modifier.weight(1f) else Modifier.widthIn(min = least))
                         .onGloballyPositioned { bounds[i] = it.boundsInParent() }
                         .focusRequester(chips[i])
                     SheetChip(label, i == selected, m.onFocusChanged { if (it.isFocused && i != selected) onPick(i) }) { onPick(i) }

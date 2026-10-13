@@ -139,6 +139,9 @@ Verified on the AYN Thor (SD 8 Gen 2, Turnip): SteamVR 2.17.10 starts with the D
 the compositor runs driver-direct at about 60 fps, the dashboard (Steam's library in VR, with the
 controller's laser) shows cleanly in both eyes at the panel's resolution while Steam keeps running, and
 a pose written to the shared file turns SteamVR's view. Started from the drawer button through the agent.
+With VITURE glasses connected, the Steam page also offers **Play SteamVR**, which starts Steam and then
+SteamVR (installing it first if needed), and stops SteamVR when the glasses are unplugged. **Play
+Steam** never starts it: while SteamVR runs, Steam keeps its own window in front of flat games.
 
 ### Not done yet
 
@@ -152,7 +155,8 @@ a pose written to the shared file turns SteamVR's view. Started from the drawer 
   on release. Clicking the left stick hands the sticks to the game as trackpads (walking, turning,
   teleport) and back. Mapping, right hand: A/R3 = trackpad click, RT = trigger, RB = grip, Start = menu, guide =
   system. Left hand: X, LT, LB, Select. Both hands activate in SteamVR and their laser shows on the
-  dashboard; guide, Start and A presses show up in the ring the driver reads.
+  dashboard; guide, Start and A presses show up in the ring the driver reads. They are drawn as Index
+  controllers and switch off while another driver's controller is connected.
 - **Layers**: only the first layer of each frame is drawn. SteamVR's compositor composites the
   dashboard into it, so this has not mattered yet.
 - **Timing**: no reprojection. The presenter blits the frame submitted last once `vrcompositor`'s GPU

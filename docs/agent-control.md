@@ -76,7 +76,7 @@ artifact or file error, 7 debugging tools disabled.
 
 ```sh
 tools/droiddeckctl state                         # schema 2, below
-tools/droiddeckctl start steam --wait            # --ui desktop, --url steam://..., --timeout
+tools/droiddeckctl start steam --wait            # --ui desktop, --url steam://..., --steamvr, --timeout
 tools/droiddeckctl start steam --wait --reuse    # keep a Steam session that is already up
 tools/droiddeckctl start desktop
 tools/droiddeckctl run /usr/bin/foo -- arg1 arg2
@@ -132,7 +132,7 @@ mode except the desktop).
 `state` returns `schema`, `build`, `appVersion`, `runtime {installed, version}`,
 `agent {guest, guestFocus, commands}` and `session`:
 
-- `id`, `phase`, `running`, `mode`, `program`, `steamUi`, `steamUrl`, `suspended`, `pip`,
+- `id`, `phase`, `running`, `mode`, `program`, `steamUi`, `steamUrl`, `steamVr`, `suspended`, `pip`,
   `firstFrame`, `output` [w, h], `refreshHz`, `lastTransitionAt`, `guestPid`, `installing`
 - `logDir`, `eventsFile`, `artifactsAvailable`, `artifactsComplete`, `failure {code, message, status}`
 - `focus`: gamescope's focus as the guest agent last published it, or null:

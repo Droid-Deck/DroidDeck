@@ -340,6 +340,8 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                 if not args.url.startswith("steam://"):
                     raise ControlError("Steam URL must start with steam://", "INVALID_STEAM_URL")
                 request["steamUrl"] = args.url
+            if args.steamvr:
+                request["steamVr"] = True
         if args.reuse:
             # A scenario's per-run "before": keep a session of this mode that is already up, so only
             # a run after one that ended (a crash, the low-memory killer) starts a new one.
@@ -551,6 +553,7 @@ def build_parser() -> argparse.ArgumentParser:
     start = commands.add_parser("start", help="start Steam or the desktop")
     start.add_argument("mode", choices=["steam", "desktop"])
     start.add_argument("--ui", choices=["bigpicture", "desktop"], default="bigpicture")
+    start.add_argument("--steamvr", action="store_true", help="start SteamVR with the session (VITURE glasses)")
     start.add_argument("--url", help="steam:// URL to pass to the client")
     start.add_argument("--wait", action="store_true", help="wait for READY after starting")
     start.add_argument("--reuse", action="store_true", help="keep a running session of this mode instead of failing")
@@ -674,7 +677,7 @@ def build_parser() -> argparse.ArgumentParser:
     glasses_ops = glasses.add_subparsers(dest="glasses_op")
     glasses_ops.add_parser("status")
     glasses_ops.add_parser("allow", help="ask for USB control of the glasses again")
-    glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, brightness, volume, sunblock, 3d, gameOnGlasses, headTracking, auto3d, picture3d, screenWidthDm, screenDistanceDm, vrFovDeg, autoSteamVr")
+    glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, brightness, volume, sunblock, 3d, gameOnGlasses, headTracking, auto3d, picture3d, screenWidthDm, screenDistanceDm, vrFovDeg")
     glasses_set.add_argument("key")
     glasses_set.add_argument("value")
     glasses_sim = glasses_ops.add_parser("simulate", help="feed a moving head pose (yaw, pitch and roll sweeps), or hold one")

@@ -387,7 +387,8 @@ public:
         VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, "DroidDeck Pad Hand");
         VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, "DroidDeck");
         VRProperties()->SetStringProperty(c, Prop_TrackingSystemName_String, "droiddeck");
-        VRProperties()->SetStringProperty(c, Prop_RenderModelName_String, "generic_controller");
+        VRProperties()->SetStringProperty(c, Prop_RenderModelName_String,
+                                          right_ ? "{indexcontroller}valve_controller_knu_1_0_right" : "{indexcontroller}valve_controller_knu_1_0_left");
         VRProperties()->SetStringProperty(c, Prop_ControllerType_String, "vive_controller");
         VRProperties()->SetStringProperty(c, Prop_InputProfilePath_String, "{htc}/input/vive_controller_profile.json");
         VRProperties()->SetInt32Property(c, Prop_ControllerRoleHint_Int32,
@@ -413,6 +414,20 @@ public:
     void DebugRequest(const char *, char *resp, uint32_t size) override { if (size) resp[0] = 0; }
 
     DriverPose_t GetPose() override { return pose_; }
+
+    void Disconnect() {
+        if (id_ == k_unTrackedDeviceIndexInvalid) return;
+        DriverPose_t p = {};
+        p.qWorldFromDriverRotation.w = 1;
+        p.qDriverFromHeadRotation.w = 1;
+        p.qRotation.w = 1;
+        p.result = TrackingResult_Uninitialized;
+        pose_ = p;
+        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, p, sizeof(p));
+        auto in = VRDriverInput();
+        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_}) in->UpdateBooleanComponent(h, false, 0);
+        for (VRInputComponentHandle_t h : {trigger_, padX_, padY_}) in->UpdateScalarComponent(h, 0.0f, 0);
+    }
 
     // From the driver's pose thread: the head's orientation and the pad.
     static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 1.0f;
@@ -685,12 +700,34 @@ private:
                 if (havePad && pad.axes[7] && !CardboardController::Grabbing(pad, false) && !CardboardController::Grabbing(pad, true))
                     reach_ = std::clamp(reach_ - (pad.axes[7] > 0 ? 1.0f : -1.0f) * CardboardController::kReachSpeed * dt,
                                         CardboardController::kReachMin, CardboardController::kReachMax);
-                for (CardboardController *hand : hands_) if (hand) hand->Update(head.qRotation, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
+                if (now - lastScan_ > std::chrono::seconds(1)) {
+                    lastScan_ = now;
+                    const bool other = OtherControllers();
+                    if (other != otherControllers_) {
+                        otherControllers_ = other;
+                        Log("%s", other ? "other VR controllers connected: pad hands off" : "no other VR controllers: pad hands on");
+                        if (other) for (CardboardController *hand : hands_) if (hand) hand->Disconnect();
+                    }
+                }
+                if (!otherControllers_)
+                    for (CardboardController *hand : hands_) if (hand) hand->Update(head.qRotation, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
                 if (havePad) lastPad_ = pad;
                 lastSent = now;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
+    }
+
+    static bool OtherControllers() {
+        TrackedDevicePose_t poses[k_unMaxTrackedDeviceCount];
+        VRServerDriverHost()->GetRawTrackedDevicePoses(0.0f, poses, k_unMaxTrackedDeviceCount);
+        for (uint32_t i = 0; i < k_unMaxTrackedDeviceCount; i++) {
+            if (!poses[i].bDeviceIsConnected) continue;
+            PropertyContainerHandle_t c = VRProperties()->TrackedDeviceToPropertyContainer(i);
+            if (VRProperties()->GetInt32Property(c, Prop_DeviceClass_Int32) != TrackedDeviceClass_Controller) continue;
+            if (VRProperties()->GetStringProperty(c, Prop_TrackingSystemName_String) != "droiddeck") return true;
+        }
+        return false;
     }
 
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
@@ -710,6 +747,8 @@ private:
     bool sticksMoveHands_ = true;
     float reach_ = 0.0f;
     std::chrono::steady_clock::time_point lastReach_ = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point lastScan_{};
+    bool otherControllers_ = false;
     CardboardController *hands_[2] = {nullptr, nullptr};
     bool virtualDisplay_ = false, directMode_ = false;
     VirtualDisplay vd_;

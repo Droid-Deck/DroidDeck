@@ -1002,6 +1002,7 @@
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox and your emulators</string>
     <string name="games_empty">Games you install in Steam show up here after the session.</string>
     <string name="games_play_steam">Play Steam</string>
+    <string name="games_play_steamvr">Play SteamVR</string>
     <string name="games_launch_settings">Launch settings</string>
     <string name="games_launch">Launch</string>
     <string name="games_files">Game files</string>
@@ -2397,8 +2398,6 @@
     <string name="glasses_head_tracking_hint">The glasses\' own sensors turn the virtual screen and SteamVR with your head.</string>
     <string name="glasses_recenter">Recenter view</string>
     <string name="glasses_recenter_button">Recenter</string>
-    <string name="glasses_auto_steamvr">Start SteamVR with the glasses</string>
-    <string name="glasses_auto_steamvr_hint">In Steam, SteamVR starts when the glasses are plugged in and stops when they are unplugged.</string>
     <string name="glasses_vr_fov">SteamVR field of view</string>
     <string name="glasses_vr_fov_hint">Lower brings SteamVR closer and fills the glasses; higher shows more around you.</string>
     <string name="glasses_playing">Playing on %1$s</string>

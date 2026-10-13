@@ -600,6 +600,7 @@ class MainActivity : ComponentActivity() {
                     ),
                     FrontEndActions(
                         onPlay = { startSteamSession() },
+                        onPlaySteamVr = { startSteamSession(steamVr = true) },
                         // The client's desktop UI, with gamescope's Deck integration disabled.
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
@@ -926,8 +927,8 @@ class MainActivity : ComponentActivity() {
         if (SessionPrefs.runSteamAtStartup(this) && !isFinishing && !isDestroyed) startSteamSession()
     }
 
-    private fun startSteamSession() {
-        startSession(Intent(this, SessionActivity::class.java), steamSession = true)
+    private fun startSteamSession(steamVr: Boolean = false) {
+        startSession(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, steamVr), steamSession = true)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

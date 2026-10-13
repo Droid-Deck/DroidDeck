@@ -892,6 +892,7 @@
     <string name="content_linux_desktop_hint">KDE Plasma、Firefox、エミュレーター</string>
     <string name="games_empty">Steamでインストールされたゲームは、セッション終了後にここに表示されます。</string>
     <string name="games_play_steam">Steamを実行</string>
+    <string name="games_play_steamvr">SteamVRを実行</string>
     <string name="games_launch_settings">起動設定</string>
     <string name="games_launch">起動</string>
     <string name="games_files">ゲームファイル</string>
@@ -2140,8 +2141,6 @@
     <string name="glasses_head_tracking_hint">グラスのセンサーで、頭の動きに合わせて仮想スクリーンと SteamVR を動かします。</string>
     <string name="glasses_recenter">視点をリセット</string>
     <string name="glasses_recenter_button">中央に戻す</string>
-    <string name="glasses_auto_steamvr">グラス接続時に SteamVR を起動</string>
-    <string name="glasses_auto_steamvr_hint">Steam では、グラスを接続すると SteamVR を起動し、外すと停止します。</string>
     <string name="glasses_vr_fov">SteamVR の視野角</string>
     <string name="glasses_vr_fov_hint">小さくすると SteamVR が近くなりグラスいっぱいに広がり、大きくすると周囲が広く見えます。</string>
     <string name="glasses_playing">%1$s でプレイ中</string>

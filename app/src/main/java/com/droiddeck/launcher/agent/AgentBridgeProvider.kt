@@ -133,7 +133,6 @@ class AgentBridgeProvider : ContentProvider() {
                     "screenWidthDm" -> g.setScreenWidthDm(number!!)
                     "screenDistanceDm" -> g.setScreenDistanceDm(number!!)
                     "vrFovDeg" -> g.setVrFovDeg(number!!)
-                    "autoSteamVr" -> g.setAutoSteamVr(on())
                     "sbsSupport" -> g.setSbsSupport(number!!)
                     else -> return error("INVALID_KEY", "Unknown glasses setting '$key'")
                 }
@@ -170,6 +169,7 @@ class AgentBridgeProvider : ContentProvider() {
             .put("steamUi", SessionState.steamUi ?: JSONObject.NULL)
             .put("steamUrl", SessionState.steamUrl ?: JSONObject.NULL)
             .put("suspended", SessionState.suspended)
+            .put("steamVr", SessionState.steamVr)
             .put("pip", SessionState.pipActive)
             .put("firstFrame", SessionState.firstFrameSeen)
             .put("output", JSONArray().put(SessionState.outputSize.first).put(SessionState.outputSize.second))

@@ -321,6 +321,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var glasses3dForVr = false
     private var glassesPresent = false
     private var steamVrAutoTried = false
+    private var steamVrInstallTried = false
     private var headTracking by mutableStateOf(false)
     private var glassesSlot by mutableStateOf(0)
     private var glassesKey: List<Any?> = emptyList()
@@ -425,6 +426,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionState.steamUi = intent.getStringExtra(SessionService.EXTRA_STEAM_UI)
             SessionState.steamUrl = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
+            SessionState.steamVr = intent.getBooleanExtra(EXTRA_STEAMVR, false)
+        } else if (intent.getBooleanExtra(EXTRA_STEAMVR, false) && SessionState.mode == SessionService.MODE_STEAM) {
+            SessionState.steamVr = true
         }
         if (intent.action == SessionService.ACTION_AGENT_START) {
             SessionEvents.record("agent.start_requested", mapOf("mode" to SessionState.mode))
@@ -2584,6 +2588,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // Home/notification resumes must retain the external frontend's return destination.
         if (this.intent.getBooleanExtra(EXTRA_RETURN_HOME, false)) intent.putExtra(EXTRA_RETURN_HOME, true)
         setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_STEAMVR, false) && SessionState.mode == SessionService.MODE_STEAM) {
+            SessionState.steamVr = true
+            steamVrAutoTried = false
+        }
         if (intent.action == SessionService.ACTION_HOME_GUIDE) {
             handleHomeGuideIntent(intent)
         } else if (intent.action == SessionService.ACTION_RESUME) {
@@ -2815,11 +2823,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun autoStartSteamVr(now: SteamVr.Status) {
         if (now == SteamVr.Status.RUNNING) steamVrAutoTried = true
-        if (now != SteamVr.Status.READY || steamVrAutoTried || !glassesSettings.autoSteamVr || !glasses.canControl ||
-            loading.visible || SessionState.mode != SessionService.MODE_STEAM) return
-        steamVrAutoTried = true
-        Log.i(TAG, "starting SteamVR for ${glasses.model}")
-        steamVrAction("start")
+        if (steamVrAutoTried || !SessionState.steamVr || !glasses.canControl || loading.visible ||
+            SessionState.mode != SessionService.MODE_STEAM) return
+        when (now) {
+            SteamVr.Status.READY -> {
+                steamVrAutoTried = true
+                Log.i(TAG, "starting SteamVR for ${glasses.model}")
+                steamVrAction("start")
+            }
+            SteamVr.Status.NOT_INSTALLED -> if (!steamVrInstallTried) {
+                steamVrInstallTried = true
+                Log.i(TAG, "installing SteamVR for ${glasses.model}")
+                steamVrAction("install")
+            }
+            else -> Unit
+        }
     }
 
     private fun updateGlassesScreen() {
@@ -3012,6 +3030,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     companion object {
         const val EXTRA_RETURN_HOME = "returnHome"
+        const val EXTRA_STEAMVR = "steamVr"
         /** How long the leaving flood may take before the session closes without it. */
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TAG = "SessionActivity"

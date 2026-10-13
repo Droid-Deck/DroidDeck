@@ -859,6 +859,7 @@
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox и ваши эмуляторы</string>
     <string name="games_empty">Игры, установленные в Steam, появятся здесь после завершения сессии.</string>
     <string name="games_play_steam">Запустить Steam</string>
+    <string name="games_play_steamvr">Запустить SteamVR</string>
     <string name="games_launch_settings">Настройки запуска</string>
     <string name="games_launch">Запустить</string>
     <string name="games_files">Файлы игры</string>
@@ -1125,8 +1126,6 @@
     <string name="glasses_head_tracking_hint">Датчики очков поворачивают виртуальный экран и SteamVR вслед за головой.</string>
     <string name="glasses_recenter">Сбросить вид</string>
     <string name="glasses_recenter_button">Центрировать</string>
-    <string name="glasses_auto_steamvr">Запускать SteamVR с очками</string>
-    <string name="glasses_auto_steamvr_hint">В Steam SteamVR запускается при подключении очков и останавливается при отключении.</string>
     <string name="glasses_vr_fov">Поле зрения SteamVR</string>
     <string name="glasses_vr_fov_hint">Меньше — SteamVR ближе и заполняет очки; больше — шире обзор вокруг.</string>
     <string name="glasses_playing">Игра на %1$s</string>

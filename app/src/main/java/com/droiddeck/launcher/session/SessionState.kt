@@ -58,6 +58,8 @@ object SessionState {
     var steamUi: String? = null
     @Volatile
     var steamUrl: String? = null
+    @Volatile
+    var steamVr = false
     /** A session the guest asked for (the desktop's Steam launchers): started by the activity once this one has ended. */
     var relaunch: android.content.Intent? = null
     /** HDR10 was asked for and the panel can show it: the compositor was told, and the session

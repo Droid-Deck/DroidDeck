@@ -153,6 +153,7 @@ class FrontEndState(
 
 class FrontEndActions(
     val onPlay: () -> Unit,
+    val onPlaySteamVr: () -> Unit = {},
     val onPlayDesktopUi: () -> Unit,
     val onSteamGame: (Library.SteamGame) -> Unit,
     val onGameShortcut: (Library.SteamGame) -> Unit = {},

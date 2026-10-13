@@ -95,6 +95,9 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
     and KGSL does not order the copy after the client's GPU work. The presenter's blit sat behind the
     game's frame, so the compositor showed the swapchain image's older picture. The presenter now
     waits for its blit before it presents.
+- **Flat games under SteamVR.** With SteamVR running, Steam lists a flat game after its own window in
+  gamescope's base layer, so Big Picture keeps the focus and the game never shows, theatre setting or
+  not. SteamVR is therefore started only by Play SteamVR, never with the glasses alone.
 - **A new projection needs an event.** `SetDisplayProjectionRaw` changed what `vrserver` reports, but
   `vrcompositor` kept the frustum it started with, so the glasses' field of view did nothing until
   SteamVR restarted. The driver now follows it with `VREvent_LensDistortionChanged`.

@@ -130,8 +130,6 @@ internal fun GlassesGroups(
                 format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("glasses-distance")) { Glasses.setScreenDistanceDm(it) }
         }
         steamVr()
-        ToggleRow(host, "glasses-auto-steamvr", stringResource(R.string.glasses_auto_steamvr), stringResource(R.string.glasses_auto_steamvr_hint),
-            s.autoSteamVr, chipModifier = track("glasses-auto-steamvr")) { Glasses.setAutoSteamVr(it) }
         SliderRow(stringResource(R.string.glasses_vr_fov), stringResource(R.string.glasses_vr_fov_hint), s.vrFovDeg,
             GlassesSettings.VR_FOV_MIN..GlassesSettings.VR_FOV_MAX, step = 1,
             format = { "$it°" }, modifier = track("glasses-vr-fov")) { Glasses.setVrFovDeg(it) }

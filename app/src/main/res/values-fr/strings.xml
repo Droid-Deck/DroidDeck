@@ -775,6 +775,7 @@
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox et vos émulateurs</string>
     <string name="games_empty">Les jeux installés sur Steam apparaîtront ici après la fin de la session.</string>
     <string name="games_play_steam">Lancer Steam</string>
+    <string name="games_play_steamvr">Lancer SteamVR</string>
     <string name="games_launch_settings">Paramètres de lancement</string>
     <string name="games_launch">Lancer</string>
     <string name="games_files">Fichiers du jeu</string>
@@ -1014,8 +1015,6 @@
     <string name="glasses_head_tracking_hint">Les capteurs des lunettes font tourner l\'écran virtuel et SteamVR avec votre tête.</string>
     <string name="glasses_recenter">Recentrer la vue</string>
     <string name="glasses_recenter_button">Recentrer</string>
-    <string name="glasses_auto_steamvr">Lancer SteamVR avec les lunettes</string>
-    <string name="glasses_auto_steamvr_hint">Dans Steam, SteamVR démarre quand les lunettes sont branchées et s\'arrête quand elles sont débranchées.</string>
     <string name="glasses_vr_fov">Champ de vision SteamVR</string>
     <string name="glasses_vr_fov_hint">Plus bas rapproche SteamVR et remplit les lunettes ; plus haut montre davantage autour de vous.</string>
     <string name="glasses_playing">En jeu sur %1$s</string>
