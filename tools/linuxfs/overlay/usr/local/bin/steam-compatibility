@@ -947,6 +947,10 @@ def native_targets(steam_root, apps):
             targets[app] = None
             continue
         if "windows" in oslist:
+            # A Linux launch exists, but appinfo alone does not tell us whether Steam's missing
+            # per-game mapping is an intentional native choice. The plan preserves it only when
+            # config/state shows a user selection; new titles still follow the Proton default.
+            targets[app] = NATIVE_CHOICE
             continue
         targets[app] = FEX_TOOL
     return targets
@@ -1029,15 +1033,18 @@ def app_order(app):
 
 
 DEFERRED_GAME_TOOL = object()
+NATIVE_CHOICE = object()
 
 
-def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None, managed=None):
+def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None, managed=None,
+                 native_choices=()):
     runnable = {n.lower() for n in runnable}
     installed = set(installed)
     picks = set(picks)
     native = native or {}
     overrides = overrides or {}
     managed = set(auto) if managed is None else set(managed)
+    native_choices = set(native_choices)
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
@@ -1058,6 +1065,14 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
         stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):
             continue
+        if target is NATIVE_CHOICE:
+            # Steam removes CompatToolMapping when the user chooses its native Linux option. A
+            # prior DroidDeck mapping in `auto` distinguishes that choice from a new install with
+            # no per-game entry; persist the opt-out so the scanner does not restore Proton later.
+            if not name and (app in native_choices or app in current or app in managed):
+                kept[app] = NATIVE_CHOICE
+                continue
+            target = default
         if target is None:
             # An empty Steam mapping is the native default for ARM64 Linux titles. Clear only
             # a mapping DroidDeck previously wrote; a non-Proton per-game choice belongs to Steam.
@@ -1210,6 +1225,30 @@ def read_mapping(tokens, mapping):
     return current
 
 
+def read_config_mapping(config_path):
+    """Read per-app choices without creating or rewriting the client's mapping block."""
+    try:
+        with open(config_path, encoding="utf-8", errors="replace") as f:
+            tokens = tokenize(f.read())
+    except OSError:
+        return None
+    depth = 0
+    for token in tokens:
+        if token == "{":
+            depth += 1
+        elif token == "}":
+            depth -= 1
+            if depth < 0:
+                return None
+    if depth != 0:
+        return None
+    steam = find_block(tokens, ["InstallConfigStore", "Software", "Valve", "Steam"])
+    if steam is None:
+        return None
+    mapping = find_block(tokens[steam + 1:], ["CompatToolMapping"])
+    return read_mapping(tokens, mapping + steam + 1) if mapping is not None else {}
+
+
 def set_mapping(tokens, mapping, app, tool):
     block = find_block(tokens[mapping + 1:], [app])
     if tool is None:
@@ -1283,13 +1322,15 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current),
             native_targets(steam_root, set(apps) | set(picks)), picks,
-            overrides, state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ())
+            overrides, state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else (),
+            state.get("native", ()))
         for app, tool in changes.items():
             set_mapping(tokens, mapping, app, tool)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):
             write_changed(config_path, text)
-        state["auto"] = auto
+        state["auto"] = {app: tool for app, tool in auto.items() if tool is not NATIVE_CHOICE}
+        state["native"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
         state["tools"] = catalog
         state.setdefault("default", default)
         write_json(state_path("state.json", directory), state)

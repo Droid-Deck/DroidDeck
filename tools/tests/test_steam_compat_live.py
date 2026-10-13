@@ -273,6 +273,100 @@ class ReconcileTest(unittest.TestCase):
         finally:
             COMPAT["native_targets"] = original_native_targets
 
+    def test_factorio_native_choice_survives_inherited_live_selection_and_restart(self):
+        app = "427520"
+        (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text("")
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        (self.state / "state.json").write_text(json.dumps({
+            "default": TOOL,
+            "auto": {app: TOOL},
+        }))
+
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, apps: {
+            app: COMPAT["NATIVE_CHOICE"]
+        } if app in apps else {}
+        try:
+            # CompatManager reports the inherited Proton despite there being no raw per-game
+            # entry. Prior auto ownership plus that absence is the native-choice evidence.
+            page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL, app: "proton"}, [TOOL, TOOL_11])
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["auto"], {})
+            self.assertEqual(state["native"], [app])
+            self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
+
+            # Repeated live reconciliation and a fresh helper process retain the opt-out without
+            # attempting to set the inherited global value as a per-game Proton.
+            page.sets.clear()
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["native"], [app])
+            restarted = LIVE["Helper"](str(self.steam), 1)
+            restarted.page = page
+            restarted.reconcile()
+            state = json.loads((self.state / "state.json").read_text())
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["native"], [app])
+
+            # A real explicit per-game tool in config remains authoritative and clears the
+            # persisted native marker.
+            config.write_text(
+                '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+                '"CompatToolMapping" { "0" { "name" "%s" } '
+                '"%s" { "name" "GE-Proton11-7" } } } } } }' % (TOOL, app))
+            page.mapping[app] = "GE-Proton11-7"
+            state = self.reconcile(page)
+            self.assertEqual(page.mapping[app], "GE-Proton11-7")
+            self.assertEqual(page.sets, [])
+            self.assertEqual(state["native"], [])
+
+            for choice in ("steamlinuxruntime", COMPAT["FEX_TOOL"], TOOL_11):
+                (self.state / "state.json").write_text(json.dumps({
+                    "default": TOOL,
+                    "auto": {},
+                    "native": [app],
+                }))
+                config.write_text(
+                    '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+                    '"CompatToolMapping" { "0" { "name" "%s" } '
+                    '"%s" { "name" "%s" } } } } }' % (TOOL, app, choice))
+                page.mapping[app] = choice
+                page.sets.clear()
+                state = self.reconcile(page)
+                self.assertEqual(page.mapping[app], choice)
+                self.assertEqual(page.sets, [])
+                self.assertEqual(state["native"], [], choice)
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
+    def test_factorio_without_prior_auto_state_uses_the_default_proton(self):
+        app = "427520"
+        (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text("")
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        (self.state / "state.json").write_text(json.dumps({"default": TOOL, "auto": {}}))
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL, app: "proton"}, [TOOL, TOOL_11])
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, apps: {
+            app: COMPAT["NATIVE_CHOICE"]
+        } if app in apps else {}
+        try:
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [(app, TOOL)])
+            self.assertEqual(state["auto"], {app: TOOL})
+            self.assertEqual(state["native"], [])
+            self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
     def test_missing_per_game_proton_stays_deferred_live(self):
         page = FakePage({"0": TOOL, "10": "GE-Proton9-1", "11": TOOL_11}, [TOOL, TOOL_11])
         (self.state / "games.json").write_text(json.dumps({

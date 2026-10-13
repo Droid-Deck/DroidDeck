@@ -453,15 +453,36 @@ class Helper:
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
             current["0"] = top["selected"]
             native = COMPAT["native_targets"](self.steam_root, apps)
+            raw_mapping = COMPAT["read_config_mapping"](
+                os.path.join(self.steam_root, "config", "config.vdf"))
+            prior_auto = state.get("auto", {})
+            if not isinstance(prior_auto, dict):
+                prior_auto = {}
+            prior_native = state.get("native", ())
+            native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
+            if raw_mapping is not None:
+                for app in native:
+                    if app in raw_mapping:
+                        # The config file records explicit choices, while GetCompatTools exposes
+                        # Steam's resolved fallback for an empty/inherited per-game choice.
+                        current[app] = raw_mapping[app]
+                    elif app in prior_auto or app in native_choices:
+                        # Steam removes CompatToolMapping altogether for its native choice. The
+                        # live API reports the inherited global Proton in this case, so use raw
+                        # absence plus our previous ownership to preserve the opt-out.
+                        current[app] = ""
             changes, auto = COMPAT["plan_mapping"](
                 current, installed, [t["name"] for t in live], default,
                 COMPAT["followers"](state, current), native, picks, overrides,
-                state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ())
+                prior_auto.keys(), native_choices)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
                                    tool if tool is not None else "Steam native default"))
-            state.update(auto=auto, tools=catalog, live=True)
+            state.update(
+                auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
+                native=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
+                tools=catalog, live=True)
             if waiting:
                 state["pending"] = wanted
                 say("%s is new to the running client; it applies when Steam next starts" % wanted)

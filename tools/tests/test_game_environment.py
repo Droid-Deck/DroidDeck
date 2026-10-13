@@ -26,6 +26,22 @@ def config_text(entries):
     return '"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }' % mapping
 
 
+class ReadConfigMappingTest(unittest.TestCase):
+    def test_missing_parent_or_unbalanced_vdf_is_not_treated_as_absent_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text('"InstallConfigStore" { "Software" { "Other" {} } }')
+            self.assertIsNone(COMPAT["read_config_mapping"](str(config)))
+            config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" {} }')
+            self.assertIsNone(COMPAT["read_config_mapping"](str(config)))
+
+    def test_valid_steam_parent_without_compat_mapping_has_no_per_app_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" {} } } }')
+            self.assertEqual(COMPAT["read_config_mapping"](str(config)), {})
+
+
 class GameEnvironmentTest(unittest.TestCase):
     def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -451,6 +467,86 @@ class ProtonDefaultTest(unittest.TestCase):
                 self.assertEqual(config.read_bytes(), first)
             finally:
                 globals_["native_targets"] = original_native_targets
+
+    def test_factorio_preserves_an_observed_native_choice_despite_ambiguous_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            config.write_text(config_text([("0", self.TOOL)]))
+            state = {"default": self.TOOL, "auto": {}}
+            (Path(tmp) / "state.json").write_text(json.dumps(state))
+
+            globals_ = COMPAT["native_targets"].__globals__
+            original_platforms = globals_["appinfo_platforms"]
+            globals_["appinfo_platforms"] = lambda _path, wanted: {
+                "427520": ({"linux", "macos", "windows"}, "", "game")
+            } if "427520" in wanted else {}
+            try:
+                native = COMPAT["native_targets"](str(steam), ["427520"])
+                self.assertIs(native["427520"], COMPAT["NATIVE_CHOICE"])
+
+                # An absent mapping on a new install still follows the existing Proton default.
+                changes, auto = COMPAT["plan_mapping"](
+                    {"0": self.TOOL}, ["427520"], self.NAMES, self.TOOL, {}, native)
+                self.assertEqual(changes, {"427520": self.TOOL})
+                self.assertEqual(auto, {"427520": self.TOOL})
+
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": self.TOOL})
+
+                # Steam's native choice removes the per-game mapping. Prior auto state is the
+                # evidence that this removal is intentional rather than a new install.
+                state["auto"] = {"427520": self.TOOL}
+                (Path(tmp) / "state.json").write_text(json.dumps(state))
+                config.write_text(config_text([("0", self.TOOL)]))
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                first = config.read_bytes()
+                self.assertEqual(mapping_of(first.decode()), {"0": self.TOOL})
+                self.assertEqual(COMPAT["tokenize"](first.decode()),
+                                 COMPAT["tokenize"](config_text([("0", self.TOOL)])))
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native"], ["427520"])
+
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(config.read_bytes(), first)
+
+                config.write_text(config_text([("0", self.TOOL), ("427520", "")]))
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                native_choice = config.read_bytes()
+                self.assertEqual(mapping_of(native_choice.decode()), {"0": self.TOOL, "427520": ""})
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native"], ["427520"])
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(config.read_bytes(), native_choice)
+
+                for choice in (COMPAT["FEX_TOOL"], COMPAT["TOOL_11"], "GE-Proton11-7"):
+                    config.write_text(config_text([("0", self.TOOL), ("427520", choice)]))
+                    COMPAT["register_default"](
+                        str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                    self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": choice})
+                    self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["native"], [])
+
+                # A later explicit built-in Proton choice must cancel the native opt-out and
+                # resume the existing wrapper path even though Steam deleted the original map.
+                state = json.loads((Path(tmp) / "state.json").read_text())
+                state["native"] = ["427520"]
+                state["auto"] = {}
+                (Path(tmp) / "state.json").write_text(json.dumps(state))
+                config.write_text(config_text([("0", self.TOOL), ("427520", "proton_experimental")]))
+                COMPAT["register_default"](
+                    str(config), ["427520"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": self.TOOL})
+                saved = json.loads((Path(tmp) / "state.json").read_text())
+                self.assertEqual(saved["native"], [])
+                self.assertEqual(saved["auto"], {"427520": self.TOOL})
+            finally:
+                globals_["appinfo_platforms"] = original_platforms
 
     def test_native_arm64_preserves_a_proton_mapping_without_managed_state(self):
         changes, auto = COMPAT["plan_mapping"](

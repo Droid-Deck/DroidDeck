@@ -499,7 +499,7 @@ class AppInfoTest(unittest.TestCase):
         table = struct.pack("<I", len(strings)) + b"".join(s.encode() + b"\0" for s in strings)
         return struct.pack("<IIq", magic, 1, table_at) + body + table
 
-    def test_linux_only_titles_are_sent_to_fex(self):
+    def test_linux_only_titles_are_sent_to_fex_and_dual_platform_is_deferred(self):
         for magic in (0x07564427, 0x07564428, 0x07564429):
             with tempfile.TemporaryDirectory() as tmp:
                 steam = Path(tmp)
@@ -512,7 +512,10 @@ class AppInfoTest(unittest.TestCase):
                 }, magic))
                 self.COMPAT["APPINFO_CACHE"].clear()
                 targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "41", "50", "70", "80", "90", "1628350", "60"])
-                self.assertEqual(targets, {"20": "droiddeck-fex", "40": None, "41": None, "50": "droiddeck-fex"}, hex(magic))
+                self.assertEqual(targets, {
+                    "20": "droiddeck-fex", "30": self.COMPAT["NATIVE_CHOICE"],
+                    "40": None, "41": None, "50": "droiddeck-fex",
+                }, hex(magic))
 
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
         def deck(oslist, runtime, kind="game"):
