@@ -780,8 +780,11 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
 /* The window the app's performance HUD follows: the latest one at least as big as the last to
  * start presenting GPU frames (take_dmabuf) (X11 binds the HUD to the _MESA_DRV window and counts X presents instead). JNI upcalls. */
 static struct surface *g_hud_surface;
-/* When the HUD's window last presented a frame (now_ns), to let a replacement take over. */
-static int64_t g_hud_last_ns;
+/* When the HUD's window last presented a new frame (now_ns), and when it last committed at all,
+ * a repeat of the frame it shows included. A replacement may take over only once it has gone
+ * quiet in the second sense: gamescope repeats a paused game's frame under a busy overlay, and
+ * that overlay must not become the game. */
+static int64_t g_hud_last_ns, g_hud_alive_ns;
 /* That window committed a frame the screen has not drawn yet. */
 static int g_hud_fresh;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu); /* window NULL = gone */
@@ -791,7 +794,14 @@ extern void droiddeck_on_game_frame(void);
 extern void droiddeck_on_game_program(int pid, const char *program);
 
 static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_resource *buffer) {
-    if (s->dmabuf != buffer || s->dmabuf_buf != b) {
+    /* The buffer this surface already shows, committed again. Gamescope's Wayland backend attaches
+     * every plane on every frame it outputs, so its game plane comes back unchanged whenever only
+     * something above it moved (MangoHud's graph, Steam's overlay). The surface still holds it and
+     * never released it, so the client cannot have drawn into it: it is no new frame. Counted as
+     * one, a game capped at 30 read 50-60 fps in the HUD, and frame generation took those repeats
+     * as source frames ("LSFG 2x 59 -> 54" instead of 30 -> 60). */
+    const int repeat = s->dmabuf == buffer && s->dmabuf_buf == b;
+    if (!repeat) {
         drop_dmabuf(s, 1);
         s->dmabuf = buffer;
         s->dmabuf_buf = b;
@@ -826,7 +836,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     s->buf_h = b->height;
     s->buf_alpha = (b->format & 0xff) == 'A';
     s->has_content = b->img != NULL;
-    g_stat_dmabuf++;
+    if (!repeat) g_stat_dmabuf++;
     const int announced_now = !s->announced_vulkan;
     if (!s->announced_vulkan) {
         char name[160];
@@ -857,7 +867,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
      * full-screen gamescope over the desktop still does), and a window gone quiet for a second
      * gives way to whatever draws next. */
     if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
-        (!g_hud_surface || now_ns() - g_hud_last_ns > 1000000000LL ||
+        (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL ||
          (announced_now && (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
         char name[160];
         describe(s, name, sizeof(name));
@@ -886,7 +896,10 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
      * Asking whether the compositor could import it, as this used to, is a question about the
      * copy path and not about whether a frame happened: a game whose buffers go straight to
      * the display layer draws on screen while the counter sat at 0.0 fps and 1000.0 ms. */
-    if (s == g_hud_surface) { g_hud_last_ns = now_ns(); g_hud_fresh = 1; droiddeck_on_game_frame(); }
+    if (s == g_hud_surface) {
+        g_hud_alive_ns = now_ns();
+        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; droiddeck_on_game_frame(); }
+    }
 }
 
 /* ---- hooks for ahb_swapchain.c (zero-copy layers) */
