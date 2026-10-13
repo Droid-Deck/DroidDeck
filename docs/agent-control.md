@@ -26,7 +26,7 @@ Player controls and observations work over authorized ADB on any build: `state`,
 `resume`, `wait`, `launch`, `quit`, `focus`, `input`, `ui`, `logs`, `screenshot`, `record`, `displays`,
 `wake`, and `access`.
 
-**Setup > Session > Debugging tools** is off by default in every build, including debug builds.
+**Setup > Diagnostics > Debugging tools** is off by default in every build, including debug builds.
 It enables `run`, `guest`, `cdp`, all `env` operations, `override`, and `prefs`. The toggle switches
 directly without a confirmation dialog. The bridge refuses to change it through `ui` or preference
 writes. The existing preference key, `setting-agent-commands` test tag, JSON command names, and

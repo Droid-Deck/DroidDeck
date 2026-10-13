@@ -300,7 +300,7 @@ def start_session(adb: str, serial: str, request: dict) -> dict:
 def require_commands(adb: str, serial: str) -> dict:
     access = checked(provider_call(adb, serial, "access"), "ACCESS_FAILED")
     if access.get("commands") is not True:
-        raise ControlError("Debugging tools are off: turn on Setup > Session > Debugging tools on the device",
+        raise ControlError("Debugging tools are off: turn on Setup > Diagnostics > Debugging tools on the device",
                            "AGENT_COMMANDS_DISABLED")
     return access
 
