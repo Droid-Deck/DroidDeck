@@ -40,9 +40,17 @@ mkdir -p "$work/out/droiddeck/bin/linuxarm64" "$work/out/layer"
 compile() {
     local cmd=(sh -c '
         set -e
+        # libwayland-client: linked against a stub with its soname (the guest has the real one).
+        mkdir -p build/vr/stub
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -Itools/vr/third_party/wayland \
+            -o build/vr/stub/libwayland-client.so tools/vr/src/wayland_client_stub.c
+        aarch64-linux-gnu-gcc -c -fPIC -O2 -Itools/vr/third_party/wayland -o build/vr/xdg-shell-protocol.o \
+            app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c
         aarch64-linux-gnu-g++ -std=c++17 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
             -fvisibility=hidden -static-libstdc++ -static-libgcc -pthread -Wl,-z,defs -Ibuild/vr/include \
-            -o build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so tools/vr/src/driver_droiddeck.cpp tools/vr/src/presenter.cpp -ldl
+            -Itools/vr/third_party/wayland -Iapp/src/main/cpp/waylandcomp/generated \
+            -o build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so tools/vr/src/driver_droiddeck.cpp tools/vr/src/presenter.cpp \
+            build/vr/xdg-shell-protocol.o -Lbuild/vr/stub -lwayland-client -ldl
         aarch64-linux-gnu-gcc -std=c11 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
             -Wl,-z,defs -Ibuild/vr/include -o build/vr/out/layer/libVkLayer_droiddeck_vr.so tools/vr/src/vk_layer_droiddeck_vr.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so \

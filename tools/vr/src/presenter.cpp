@@ -5,6 +5,9 @@ typedef struct _XDisplay Display;
 typedef unsigned long Window;
 typedef unsigned long VisualID;
 #include <vulkan/vulkan_xlib.h>
+#include <wayland-client.h>
+#include <vulkan/vulkan_wayland.h>
+#include "xdg-shell-client-protocol.h"
 
 #include "presenter.h"
 
@@ -16,6 +19,7 @@ typedef unsigned long VisualID;
 #include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
+#include <fcntl.h>
 #include <mutex>
 #include <thread>
 #include <unistd.h>
@@ -70,6 +74,7 @@ struct X11 {
 #define VK_INSTANCE(X) \
     X(DestroyInstance) X(EnumeratePhysicalDevices) X(GetPhysicalDeviceQueueFamilyProperties) \
     X(GetPhysicalDeviceMemoryProperties) X(CreateDevice) X(GetDeviceProcAddr) X(CreateXlibSurfaceKHR) \
+    X(CreateWaylandSurfaceKHR) \
     X(GetPhysicalDeviceSurfaceSupportKHR) X(GetPhysicalDeviceSurfaceCapabilitiesKHR) \
     X(GetPhysicalDeviceSurfaceFormatsKHR) X(GetPhysicalDeviceSurfacePresentModesKHR) X(GetPhysicalDeviceProperties)
 #define VK_DEVICE(X) \
@@ -161,7 +166,13 @@ private:
     // ------------------------------------------------------------ the presenting thread
 
     void Run() {
-        if (!InitWindow() || !InitVulkan()) {
+        const char *mode = getenv("DROIDDECK_VR_PRESENT");
+        wayland_ = !(mode && !strcmp(mode, "x11")) && InitWayland();
+        if (!wayland_ && !InitWindow()) {
+            Log("presenter: unavailable, frames are not shown");
+            return;
+        }
+        if (!InitVulkan()) {
             Log("presenter: unavailable, frames are not shown");
             return;
         }
@@ -184,6 +195,7 @@ private:
                 haveFrame_ = false;
                 if (!draw) f.texture[0] = f.texture[1] = 0;
             }
+            if (wl_) { wl_display_dispatch_pending(wl_); wl_display_flush(wl_); }
             for (auto &p : imports) Import(p);
             for (auto h : removals) Forget(h);
             // SteamVR hands the textures over at Present with no fence the driver can wait on: give the
@@ -203,6 +215,78 @@ private:
     }
 
     std::chrono::microseconds guard_{4000};
+
+    // ------------------------------------------------------------ Wayland: straight to DroidDeck's compositor
+    // The compositor the app runs (wayland-0 in the session's runtime dir, beside gamescope's socket)
+    // takes a fullscreen toplevel at the panel's size: one hop and one scale fewer than the X11 overlay
+    // through gamescope, whose output is the session's (often smaller) resolution.
+    struct wl_display *wl_ = nullptr;
+    struct wl_compositor *wlComp_ = nullptr;
+    struct xdg_wm_base *wm_ = nullptr;
+    struct wl_surface *wlSurf_ = nullptr;
+    struct xdg_surface *xdgSurf_ = nullptr;
+    struct xdg_toplevel *toplevel_ = nullptr;
+    bool wayland_ = false, configured_ = false;
+    int32_t cfgW_ = 0, cfgH_ = 0;
+
+    static void OnGlobal(void *data, struct wl_registry *reg, uint32_t name, const char *iface, uint32_t version) {
+        Impl *self = (Impl *)data;
+        if (!strcmp(iface, wl_compositor_interface.name))
+            self->wlComp_ = (struct wl_compositor *)wl_registry_bind(reg, name, &wl_compositor_interface, version < 4 ? version : 4);
+        else if (!strcmp(iface, xdg_wm_base_interface.name))
+            self->wm_ = (struct xdg_wm_base *)wl_registry_bind(reg, name, &xdg_wm_base_interface, 1);
+    }
+    static void OnGlobalRemove(void *, struct wl_registry *, uint32_t) {}
+    static void OnPing(void *, struct xdg_wm_base *wm, uint32_t serial) { xdg_wm_base_pong(wm, serial); }
+    static void OnSurfaceConfigure(void *data, struct xdg_surface *xs, uint32_t serial) {
+        xdg_surface_ack_configure(xs, serial);
+        ((Impl *)data)->configured_ = true;
+    }
+    static void OnToplevelConfigure(void *data, struct xdg_toplevel *, int32_t w, int32_t h, struct wl_array *) {
+        Impl *self = (Impl *)data;
+        if (w > 0 && h > 0) { self->cfgW_ = w; self->cfgH_ = h; }
+    }
+    static void OnToplevelClose(void *, struct xdg_toplevel *) {}
+
+    bool InitWayland() {
+        const char *name = getenv("DROIDDECK_VR_WAYLAND_DISPLAY");
+        if (!name || !*name) name = "wayland-0";
+        wl_ = wl_display_connect(name);
+        if (!wl_) { Log("presenter: no Wayland display %s; using the X11 overlay", name); return false; }
+        static const struct wl_registry_listener regListener = {OnGlobal, OnGlobalRemove};
+        struct wl_registry *reg = wl_display_get_registry(wl_);
+        wl_registry_add_listener(reg, &regListener, this);
+        wl_display_roundtrip(wl_);
+        if (!wlComp_ || !wm_) { Log("presenter: %s lacks wl_compositor or xdg_wm_base", name); return false; }
+        static const struct xdg_wm_base_listener wmListener = {OnPing};
+        xdg_wm_base_add_listener(wm_, &wmListener, this);
+        wlSurf_ = wl_compositor_create_surface(wlComp_);
+        xdgSurf_ = xdg_wm_base_get_xdg_surface(wm_, wlSurf_);
+        static const struct xdg_surface_listener xsListener = {OnSurfaceConfigure};
+        xdg_surface_add_listener(xdgSurf_, &xsListener, this);
+        toplevel_ = xdg_surface_get_toplevel(xdgSurf_);
+        static const struct xdg_toplevel_listener tlListener = {OnToplevelConfigure, OnToplevelClose, nullptr, nullptr};
+        xdg_toplevel_add_listener(toplevel_, &tlListener, this);
+        xdg_toplevel_set_title(toplevel_, "DroidDeck Cardboard VR");
+        xdg_toplevel_set_app_id(toplevel_, "droiddeck-cardboard-vr");
+        xdg_toplevel_set_fullscreen(toplevel_, nullptr);
+        wl_surface_commit(wlSurf_);
+        for (int i = 0; i < 20 && !configured_; i++) wl_display_roundtrip(wl_);
+        // The size: the panel the Cardboard pass draws (two eyes, from the shared pose file), so nothing
+        // scales the picture down on the way. The compositor's configure carries the session's output
+        // size, which is often smaller; it is the fallback.
+        width_ = height_ = 0;
+        int fd = open("/run/droiddeck/droiddeck-headpose", O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            uint32_t eye[2] = {0, 0};
+            if (pread(fd, eye, sizeof(eye), 72) == (ssize_t)sizeof(eye) && eye[0] && eye[1]) { width_ = eye[0] * 2; height_ = eye[1]; }
+            close(fd);
+        }
+        if (!width_ && cfgW_ > 0 && cfgH_ > 0) { width_ = (uint32_t)cfgW_; height_ = (uint32_t)cfgH_; }
+        if (!width_) { width_ = 1920; height_ = 1080; }
+        Log("presenter: %ux%u fullscreen window on Wayland display %s (configured %s)", width_, height_, name, configured_ ? "yes" : "no");
+        return true;
+    }
 
     bool InitWindow() {
         if (const char *g = getenv("DROIDDECK_VR_PRESENT_GUARD_MS")) guard_ = std::chrono::microseconds((long)(atof(g) * 1000));
@@ -240,7 +324,7 @@ private:
 #define X(n) vk_.n = (PFN_vk##n)vk_.GetInstanceProcAddr(VK_NULL_HANDLE, "vk" #n);
         VK_GLOBAL(X)
 #undef X
-        const char *iexts[] = {"VK_KHR_surface", "VK_KHR_xlib_surface"};
+        const char *iexts[] = {"VK_KHR_surface", wayland_ ? "VK_KHR_wayland_surface" : "VK_KHR_xlib_surface"};
         VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO, nullptr, "droiddeck-vr-presenter", 1, nullptr, 0, VK_API_VERSION_1_1};
         VkInstanceCreateInfo ici = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, nullptr, 0, &app, 0, nullptr, 2, iexts};
         VkResult r = vk_.CreateInstance(&ici, nullptr, &inst_);
@@ -257,8 +341,13 @@ private:
         vk_.GetPhysicalDeviceProperties(pd_, &props);
         vk_.GetPhysicalDeviceMemoryProperties(pd_, &mem_);
 
-        VkXlibSurfaceCreateInfoKHR sci = {VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR, nullptr, 0, dpy_, win_};
-        if ((r = vk_.CreateXlibSurfaceKHR(inst_, &sci, nullptr, &surface_)) != VK_SUCCESS) { Log("presenter: xlib surface %d", r); return false; }
+        if (wayland_) {
+            VkWaylandSurfaceCreateInfoKHR wci = {VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR, nullptr, 0, wl_, wlSurf_};
+            if ((r = vk_.CreateWaylandSurfaceKHR(inst_, &wci, nullptr, &surface_)) != VK_SUCCESS) { Log("presenter: wayland surface %d", r); return false; }
+        } else {
+            VkXlibSurfaceCreateInfoKHR sci = {VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR, nullptr, 0, dpy_, win_};
+            if ((r = vk_.CreateXlibSurfaceKHR(inst_, &sci, nullptr, &surface_)) != VK_SUCCESS) { Log("presenter: xlib surface %d", r); return false; }
+        }
 
         uint32_t nq = 0;
         vk_.GetPhysicalDeviceQueueFamilyProperties(pd_, &nq, nullptr);
