@@ -178,8 +178,14 @@ def unimported(steam_root, snapshot, candidates):
     return sorted({appid for appid in candidates.values() if snapshot["owned"].get(str(appid)) is True} - routed)
 
 
+def routable(game):
+    """Whether a listed game may become a Steam install of the same title: not one of Battle.net's
+    ("route": false), which Battle.net launches from its own install."""
+    return game.get("route", True) is not False
+
+
 def watch(steam_root, listing):
-    games = read_json(listing, [])
+    games = [game for game in read_json(listing, []) if isinstance(game, dict) and routable(game)]
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
@@ -386,6 +392,9 @@ def route(steam_root, acct, games):
     except OSError as error:
         print(f"droiddeck-steam-games: set-aside installs not restored ({error})")
     for game in games:
+        if not routable(game):
+            shortcuts.append(game)
+            continue
         folder = game.get("folder", "")
         appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)

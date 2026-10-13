@@ -27,6 +27,10 @@ object SessionFiles {
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
         "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
+        // Blizzard's Battle.net in a desktop window, in a Proton prefix of its own (runtime/BattleNet).
+        "usr/local/bin/droiddeck-battlenet" to "usr/local/bin/droiddeck-battlenet",
+        // Opens what the app asks the desktop for (runtime/DesktopRequests), from Plasma's autostart.
+        "usr/local/bin/droiddeck-desktop-requests" to "usr/local/bin/droiddeck-desktop-requests",
         // KWin at the app's surface size, for Plasma's session (it starts KWin through this name).
         "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
         "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",

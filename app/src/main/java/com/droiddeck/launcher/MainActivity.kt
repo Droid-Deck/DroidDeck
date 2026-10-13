@@ -138,6 +138,8 @@ class MainActivity : ComponentActivity() {
     private var pkgPercent by mutableIntStateOf(-1)
     private var desktopInstalled by mutableStateOf(false)
     private var desktopPresent by mutableStateOf(false)
+    private var battleNetInstalled by mutableStateOf(false)
+    private var battleNetRemoving by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
     private var offline by mutableStateOf(false)
     private var showPerformance by mutableStateOf(false)
@@ -579,6 +581,8 @@ class MainActivity : ComponentActivity() {
                         packageStage = pkgStage,
                         packagePercent = pkgPercent,
                         sessionRunning = SessionState.running,
+                        desktopRunning = SessionState.running && SessionState.mode == SessionService.MODE_DESKTOP,
+                        battleNetInstalled = battleNetInstalled, battleNetRemoving = battleNetRemoving,
                         backActionsInverted = backActionsInverted,
                         buildLabel = BuildConfig.BUILD_LABEL,
                         oscMode = oscMode,
@@ -657,6 +661,9 @@ class MainActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_PROGRAM, app.program)
                                 .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
                         },
+                        onBattleNet = { openBattleNet() },
+                        onBattleNetInstall = { uid -> openBattleNet(listOf("install-game", uid)) },
+                        onRemoveBattleNet = { removeBattleNet() },
                         // A Flatpak app from the store, full screen under gamescope like an emulator.
                         onFlatpakApp = { id, name ->
                             Library.flatpakNames[id] = name
@@ -1242,6 +1249,37 @@ class MainActivity : ComponentActivity() {
         desktopPresent = DesktopCatalog.desktopPresent(this)
     }
 
+    /**
+     * Battle.net in a window on the desktop, doing [args] (droiddeck-battlenet's: install-game ID);
+     * it installs Battle.net first when it is not there. A desktop running is asked to open it (the
+     * activity then shows it); otherwise the desktop starts with it. Another kind of session has to
+     * end first, which its page says.
+     */
+    private fun openBattleNet(args: List<String> = emptyList()) {
+        val program = com.droiddeck.launcher.runtime.BattleNet.PROGRAM
+        if (!SessionState.running) {
+            startSession(Intent(this, SessionActivity::class.java)
+                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
+                .putExtra(SessionService.EXTRA_PROGRAM, program)
+                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, args.toTypedArray()))
+        } else if (SessionState.mode == SessionService.MODE_DESKTOP) {
+            runCatching { com.droiddeck.launcher.runtime.DesktopRequests.open(LinuxRuntime.sessionRoot(this), program, args) }
+                .onFailure { Log.w(TAG, "Battle.net request", it) }
+            startActivity(Intent(this, SessionActivity::class.java))
+        }
+    }
+
+    /** Battle.net's prefix and everything in it, gone, off the main thread; only with no session running. */
+    private fun removeBattleNet() {
+        if (battleNetRemoving || SessionState.running) return
+        battleNetRemoving = true
+        Thread({
+            runCatching { com.droiddeck.launcher.runtime.BattleNet.remove(this) }
+                .onFailure { Log.w(TAG, "Battle.net removal", it) }
+            ui.post { battleNetRemoving = false; refresh() }
+        }, "battlenet-remove").start()
+    }
+
     private fun launchProgram(path: String) {
         startActivity(Intent(this, SessionActivity::class.java)
             .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
@@ -1594,6 +1632,7 @@ class MainActivity : ComponentActivity() {
         addedGamesArt = SessionPrefs.addedGamesArt(this)
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         desktopPresent = DesktopCatalog.desktopPresent(this)
+        battleNetInstalled = com.droiddeck.launcher.runtime.BattleNet.installed(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)

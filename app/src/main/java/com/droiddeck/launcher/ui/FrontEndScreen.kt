@@ -123,6 +123,11 @@ class FrontEndState(
     val packageStage: String? = null,
     val packagePercent: Int = -1,
     val sessionRunning: Boolean = false,
+    /** The session running is the desktop: Battle.net opens in it instead of starting one. */
+    val desktopRunning: Boolean = false,
+    /** Battle.net's client is installed in its prefix; it is being removed. */
+    val battleNetInstalled: Boolean = false,
+    val battleNetRemoving: Boolean = false,
     val removalPending: Boolean = false,
     val runtimeActionsBlocked: Boolean = false,
     val backActionsInverted: Boolean = false,
@@ -175,6 +180,11 @@ class FrontEndActions(
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
     /** An app added on the Desktop page. */
     val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
+    /** Battle.net in a desktop window, installed first when it is not there; and removed. */
+    val onBattleNet: () -> Unit = {},
+    val onRemoveBattleNet: () -> Unit = {},
+    /** Battle.net opened on the desktop with a game's install (its id: fenris, osi...), installed first if need be. */
+    val onBattleNetInstall: (String) -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
     /** Reads Steam's session settings for its lifted sheet (under Play). */
@@ -237,6 +247,11 @@ class FrontEndActions(
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
 )
+
+/** A page of Desktop's own, out of a card in its dock: an emulator, a ROM, an added app, Battle.net or Flathub. */
+internal fun desktopSubpage(selected: String) =
+    selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") ||
+        selected == "store" || selected == BATTLENET_PAGE
 
 internal object Motion {
     var scale by mutableStateOf(1f)
@@ -453,11 +468,10 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     remember(density) { Hops.density = density; true }
-    // Back (and B) from a ROM, an emulator, an added app or Flathub steps out one level instead
+    // Back (and B) from a ROM, an emulator, an added app, Battle.net or Flathub steps out one level instead
     // of leaving the app: a ROM -> its emulator, the others -> Desktop.
     BackHandler(
-        enabled = !processSettingsPageVisible && (s.pageKey == null || page == null) &&
-            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"),
+        enabled = !processSettingsPageVisible && (s.pageKey == null || page == null) && desktopSubpage(selected),
     ) {
         selected = if (selected.startsWith("rom:")) "emu:" + selected.removePrefix("rom:").substringBefore(':') else "desktop"
     }
@@ -475,8 +489,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         s.pageKey == "performance" -> "steam"
         s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
-        // Flathub is a page of Desktop's, as an emulator's is.
-        selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" -> "desktop"
+        // Flathub and Battle.net are pages of Desktop's, as an emulator's is.
+        desktopSubpage(selected) -> "desktop"
         else -> s.pageKey ?: selected
     }
     // Bumped each time a rail item is picked, so a controller moves on into the new page.
@@ -662,8 +676,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val hasBackTarget = (s.pageKey != null && page != null) ||
         // A section reached by a hop goes back to where it came from, not to the rail.
         (s.pageKey == null && Hops.origin?.page == selected) ||
-        ((s.pageKey == null || page == null) &&
-            (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))
+        ((s.pageKey == null || page == null) && desktopSubpage(selected))
     // At the top of a section, Back goes to the rail - the launcher itself is never backed out of.
     BackHandler(enabled = !processSettingsPageVisible && !hasBackTarget) {
         if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)

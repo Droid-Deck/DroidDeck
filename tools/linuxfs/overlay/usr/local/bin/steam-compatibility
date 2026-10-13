@@ -102,6 +102,7 @@ TOOL_MANIFEST_VDF = """"manifest"
 # An Epic game needs a fresh sign-in code, which only the app can mint: droiddeck-store-launch asks
 # for it and the app writes it into the game's folder, so a launch from the client's own Play
 # button signs in just as one from the app does. A real launch only; never in the way of it.
+# Battle.net's games are launched by Battle.net, which droiddeck-store-launch hands the launch to.
 BL_STORE_SETUP = """
 bl_store_launch() {
   [ "${verb:-}" = waitforexitandrun ] || return 0
@@ -120,8 +121,11 @@ bl_store_launch() {
   fi
   [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
   /usr/local/bin/droiddeck-store-launch "$@"
+  rc=$?
   # 10: a store game with cloud saves - the launch waits for Proton and uploads after (bl_run).
-  [ $? -eq 10 ] && BL_STORE_EXIT=1
+  [ $rc -eq 10 ] && BL_STORE_EXIT=1
+  # 11: the launch was run start to end (a Battle.net game, through droiddeck-battlenet).
+  [ $rc -eq 11 ] && exit 0
   return 0
 }
 

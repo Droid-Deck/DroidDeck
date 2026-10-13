@@ -260,6 +260,15 @@ class SessionService : Service() {
         // replaces can report its own exit in the gap between the two, and that exit must not
         // be taken as this one's.
         val gen = ++sessionGen
+        // A desktop asked to open a program (Battle.net's tile) opens it once Plasma is up; no
+        // session inherits a request an earlier desktop never got to. Here, on the main thread, so
+        // a request the launcher leaves for this desktop once it is running comes after it.
+        runCatching {
+            com.droiddeck.launcher.runtime.DesktopRequests.reset(
+                LinuxRuntime.sessionRoot(this), SessionState.program.takeIf { SessionState.mode == MODE_DESKTOP },
+                SessionState.programArgs,
+            )
+        }.onFailure { Log.w(TAG, "desktop request", it) }
         cancelQueuedSteamGame(clearMailbox = false)
         clearSteamGameMailbox()
         acquireLocks()
@@ -1233,6 +1242,11 @@ class SessionService : Service() {
                         Log.i(TAG, "Steam requested session sleep")
                         updateSuspendPolicy()
                     }
+                    return
+                }
+                if (path == com.droiddeck.launcher.runtime.BattleNet.FEX_REQUEST) {
+                    File(dir, path).delete()
+                    com.droiddeck.launcher.runtime.BattleNet.answerFexRequest(this@SessionService, dir)
                     return
                 }
                 if (path != null && path.startsWith("desktop-import-") && path.endsWith(".request")) {

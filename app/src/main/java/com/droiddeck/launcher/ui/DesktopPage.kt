@@ -39,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.DesktopWindows
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.CircularProgressIndicator
@@ -170,8 +171,8 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 
 /**
  * The dock along the top of the Desktop hero: what runs in the desktop (emulators installed, apps
- * added, Flathub's installed apps), then the emulators that can be added - one
- * row of cards that scrolls sideways, over the wall. It sinks back with the wall as the sheet lifts.
+ * added, Flathub's installed apps, Battle.net), then what can be added (Battle.net, the emulators) -
+ * one row of cards that scrolls sideways, over the wall. It sinks back with the wall as the sheet lifts.
  */
 @Composable
 private fun DesktopDock(
@@ -183,7 +184,8 @@ private fun DesktopDock(
     val narrow = LocalNarrowPane.current
     val available = s.emulators.filter { !it.installed }
     val flatpaks = com.droiddeck.launcher.store.StoreState.installed
-    val keys = installed.map { "emu:${it.id}" } + apps.map { "user:${it.key}" } + flatpaks.map { "flatpak:${it.id}" }
+    val keys = installed.map { "emu:${it.id}" } + apps.map { "user:${it.key}" } + flatpaks.map { "flatpak:${it.id}" } +
+        listOfNotNull(BATTLENET_PAGE.takeIf { s.battleNetInstalled })
     // Where the last of your apps sits, for a new emulator's dot to land after it.
     var lastAt by remember { mutableStateOf<Rect?>(null) }
     var dockAt by remember { mutableStateOf<Rect?>(null) }
@@ -191,8 +193,6 @@ private fun DesktopDock(
     val mounted = remember { booleanArrayOf(false) }
     LaunchedEffect(Unit) { mounted[0] = true }
     val scroll = rememberScrollState()
-    // Nothing yet (the emulators' catalog still on its way): no heading over an empty row.
-    if (keys.isEmpty() && available.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
     Column(Modifier.fillMaxWidth().padding(top = if (narrow) 14.dp else 22.dp)) {
         Text(
             stringResource(R.string.user_apps_section).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp,
@@ -229,13 +229,15 @@ private fun DesktopDock(
                                 openFrom(at, flatpak.icon, "store")
                             } else if (app != null) DesktopCard(k, app.name, stringResource(app.kind.label()), art = app.icon, fallback = if (app.kind == UserApps.Kind.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps, first = i == 0) { at ->
                                 openFrom(at, app.icon, k)
-                            }
+                            } else if (k == BATTLENET_PAGE) BattleNetCard(first = i == 0) { at -> openFrom(at, null, k) }
                         }
                     }
                 }
             }
             // Between yours and what can be added: a thin rule.
             if (keys.isNotEmpty()) Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(120.dp).background(pal.line2))
+            // Battle.net leads what can be added. Get opens its page: installing it starts the desktop.
+            if (!s.battleNetInstalled) BattleNetCard(first = keys.isEmpty(), get = true) { at -> openFrom(at, null, BATTLENET_PAGE) }
             available.forEach { e ->
                 key(e.id) {
                     val pkg = Library.packageId(e.id)?.let { id -> s.packages?.firstOrNull { it.id == id } }
@@ -245,7 +247,7 @@ private fun DesktopDock(
                     DesktopCard(
                         "emu:${e.id}", e.name, if (busyHere) (s.packageStage ?: stringResource(R.string.store_installing)) else system,
                         art = e.iconRes, badge = if (busyHere) null else stringResource(R.string.comp_get),
-                        progress = if (busyHere) s.packagePercent else null, first = keys.isEmpty() && e == available.first(),
+                        progress = if (busyHere) s.packagePercent else null,
                     ) { at ->
                         // Get installs it there and then, and a dot flies to where its card will be;
                         // when it cannot (no runtime, a session running), its page says why.
@@ -267,6 +269,14 @@ private fun DesktopDock(
         }
     }
 }
+
+/** Battle.net's card: its page floods out of it. [get]: not installed yet, with Get on it. */
+@Composable
+private fun BattleNetCard(first: Boolean, get: Boolean = false, onClick: (Rect?) -> Unit) = DesktopCard(
+    BATTLENET_PAGE, stringResource(R.string.bnet_name), stringResource(R.string.bnet_card),
+    art = null, fallback = Icons.Outlined.SportsEsports, tint = BattleNetBlue,
+    first = first, badge = if (get) stringResource(R.string.comp_get) else null, onClick = onClick,
+)
 
 /**
  * A square button the big one's height beside it on the hero: an icon in [tint] (the palette's

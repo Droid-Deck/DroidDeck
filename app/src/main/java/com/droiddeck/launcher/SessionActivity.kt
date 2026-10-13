@@ -488,8 +488,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val needRuntime = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(this) == null
             val needDesktop = intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_DESKTOP &&
                 !com.droiddeck.launcher.runtime.DesktopCatalog.desktopInstalled(this)
-            val needProton = (intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM) == SessionService.MODE_STEAM &&
-                com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
+            // Battle.net runs on the same Proton as Steam's games, so a desktop opening it seeds it too.
+            val protonUser = (intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM) == SessionService.MODE_STEAM ||
+                intent.getStringExtra(SessionService.EXTRA_PROGRAM) == com.droiddeck.launcher.runtime.BattleNet.PROGRAM
+            val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
             if (needRuntime || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton)
         }
         hud = PerfHud(this)

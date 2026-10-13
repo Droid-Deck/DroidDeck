@@ -55,6 +55,21 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual(self.folder, (self.steam / 'steamapps/common/DroidDeck-42').resolve())
         self.assertEqual(b'game', self.exe.read_bytes())
 
+    def test_a_battle_net_game_stays_a_shortcut_even_when_owned_on_steam(self):
+        self.snapshot()
+        game = dict(self.game, route=False)
+        games, routes = imports.route(self.steam, self.acct, [game])
+        self.assertEqual([game], games)
+        self.assertEqual({}, routes)
+        self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
+
+    def test_a_battle_net_game_is_never_looked_up_on_steam(self):
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([dict(self.game, route=False)]))
+        with patch.object(imports, 'identify') as identify:
+            self.assertIsNone(imports.watch(self.steam, listing))
+        identify.assert_not_called()
+
     def test_migrates_only_unchanged_legacy_import_manifests(self):
         self.snapshot()
         imports.route(self.steam, self.acct, [self.game])
