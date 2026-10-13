@@ -978,6 +978,7 @@
     <string name="achievements_show_all">Tout afficher (%1$d)</string>
     <string name="achievements_dialog_title">Succès · %1$s</string>
     <string name="stores_fact_developer">Développeur</string>
+    <string name="stores_fact_publisher">Éditeur</string>
     <string name="stores_fact_released">Sortie</string>
     <string name="stores_hltb_main">Principal</string>
     <string name="stores_hltb_extras">+ Extras</string>

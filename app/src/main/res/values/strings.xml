@@ -2146,6 +2146,7 @@
     <string name="achievements_dialog_title">Achievements · %1$s</string>
     <!-- A store game's facts row: the store's own facts, then Metacritic and HowLongToBeat, looked up by name. -->
     <string name="stores_fact_developer">Developer</string>
+    <string name="stores_fact_publisher">Publisher</string>
     <string name="stores_fact_released">Released</string>
     <string name="stores_fact_metacritic" translatable="false">Metacritic</string>
     <string name="stores_fact_hltb" translatable="false">HowLongToBeat</string>

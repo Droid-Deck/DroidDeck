@@ -23,8 +23,11 @@ object GameFacts {
     private const val MISS_TTL_MS = 2L * 24 * 60 * 60 * 1000
     private const val TIMEOUT_MS = 10_000
 
-    /** HowLongToBeat's community times, in seconds; 0 when nobody has logged that kind of run. */
-    data class Hltb(val main: Int, val extras: Int, val completionist: Int) {
+    /** Metacritic's critic score (0-100) and the game's page there. */
+    data class Metacritic(val score: Int, val url: String)
+
+    /** HowLongToBeat's community times, in seconds (0 when nobody has logged that kind of run), and the game's page there. */
+    data class Hltb(val main: Int, val extras: Int, val completionist: Int, val url: String) {
         val isEmpty: Boolean get() = main <= 0 && extras <= 0 && completionist <= 0
     }
 
@@ -36,20 +39,26 @@ object GameFacts {
     private val memory = ConcurrentHashMap<String, Entry<*>>()
 
     /** The score or the times already in memory, without touching disk or network; null when not yet known. */
-    fun peekMetacritic(title: String): Lookup<Int>? = peek("metacritic", title)
+    fun peekMetacritic(title: String): Lookup<Metacritic>? = peek("metacritic", title)
     fun peekHltb(title: String): Lookup<Hltb>? = peek("hltb", title)
 
-    /** Metacritic's critic score (0-100), or null when Steam does not list the game or has no score for it. */
-    fun metacritic(context: Context, title: String): Int? =
-        remembered(context, "metacritic", title, read = { it.optInt("score").takeIf { s -> s > 0 } }, write = { o, v -> o.put("score", v) }) {
-            searchSteamScore(title)
-        }
+    /** The score, or null when Steam does not list the game or has no score for it. */
+    fun metacritic(context: Context, title: String): Metacritic? =
+        remembered(context, "metacritic", title,
+            read = { o -> o.optInt("score").takeIf { it > 0 }?.let { Metacritic(it, o.optString("url").ifEmpty { metacriticSearch(title) }) } },
+            write = { o, v -> o.put("score", v.score).put("url", v.url) },
+        ) { searchSteamScore(title) }
 
     fun hltb(context: Context, title: String): Hltb? =
         remembered(context, "hltb", title,
-            read = { o -> Hltb(o.optInt("main"), o.optInt("extras"), o.optInt("completionist")).takeUnless { it.isEmpty } },
-            write = { o, v -> o.put("main", v.main).put("extras", v.extras).put("completionist", v.completionist) },
+            read = { o -> Hltb(o.optInt("main"), o.optInt("extras"), o.optInt("completionist"), o.optString("url").ifEmpty { hltbSearch(title) }).takeUnless { it.isEmpty } },
+            write = { o, v -> o.put("main", v.main).put("extras", v.extras).put("completionist", v.completionist).put("url", v.url) },
         ) { searchHltb(title) }
+
+    // Where a game goes when its own page is not known: the site's search for its name.
+    private fun metacriticSearch(title: String) = "https://www.metacritic.com/search/${encodePath(TitleMatch.searchTerm(title))}/?category=13"
+    private fun hltbSearch(title: String) = "$HLTB/?q=${URLEncoder.encode(TitleMatch.searchTerm(title), "UTF-8")}"
+    private fun encodePath(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
 
     @Suppress("UNCHECKED_CAST")
     private fun <T> peek(kind: String, title: String): Lookup<T>? {
@@ -99,7 +108,8 @@ object GameFacts {
     private fun fileName(title: String) = TitleMatch.normalize(title).take(80).ifEmpty { "_" + title.hashCode().toUInt() }
 
     // Steam's store search lists a game's Metacritic score beside its name: one request, no key.
-    private fun searchSteamScore(title: String): Fetched<Int> {
+    // The game's own Metacritic page is in its app details, asked for only once there is a score.
+    private fun searchSteamScore(title: String): Fetched<Metacritic> {
         val term = URLEncoder.encode(TitleMatch.searchTerm(title), "UTF-8")
         val body = StoreNet.get("https://store.steampowered.com/api/storesearch/?l=english&cc=US&term=$term", timeoutMs = TIMEOUT_MS)
             ?: return Fetched.Failed
@@ -108,8 +118,19 @@ object GameFacts {
             val scored = (0 until items.length()).mapNotNull { items.optJSONObject(it) }
                 .filter { it.optString("type") == "app" && (it.optString("metascore").toIntOrNull() ?: 0) > 0 }
             val best = TitleMatch.pick(title, scored) { listOf(it.optString("name")) }
-            Fetched.Answer(best?.optString("metascore")?.toIntOrNull())
+            val score = best?.optString("metascore")?.toIntOrNull() ?: return Fetched.Answer(null)
+            Fetched.Answer(Metacritic(score, metacriticPage(best.optLong("id")) ?: metacriticSearch(title)))
         }.getOrElse { Fetched.Failed }
+    }
+
+    /** Steam's link to the game on Metacritic, without its tracking tag; null when Steam gives none. */
+    private fun metacriticPage(appId: Long): String? {
+        if (appId <= 0) return null
+        val body = StoreNet.get("https://store.steampowered.com/api/appdetails?appids=$appId&filters=metacritic", timeoutMs = TIMEOUT_MS) ?: return null
+        return runCatching {
+            JSONObject(body).optJSONObject("$appId")?.optJSONObject("data")?.optJSONObject("metacritic")?.optString("url")
+                ?.substringBefore('?')?.takeIf { it.startsWith("https://") }
+        }.getOrNull()
     }
 
     // HowLongToBeat's own site search: a short-lived token from init, sent back as x-auth-token.
@@ -154,7 +175,10 @@ object GameFacts {
             val games = (0 until data.length()).mapNotNull { data.optJSONObject(it) }
                 .sortedByDescending { it.optString("game_type") == "game" }
             val best = TitleMatch.pick(title, games) { g -> listOf(g.optString("game_name")) + g.optString("game_alias").split(',') }
-            Fetched.Answer(best?.let { Hltb(it.optInt("comp_main"), it.optInt("comp_plus"), it.optInt("comp_100")) }?.takeUnless { it.isEmpty })
+            Fetched.Answer(best?.let {
+                val page = it.optInt("game_id").takeIf { id -> id > 0 }?.let { id -> "$HLTB/game/$id" } ?: hltbSearch(title)
+                Hltb(it.optInt("comp_main"), it.optInt("comp_plus"), it.optInt("comp_100"), page)
+            }?.takeUnless { it.isEmpty })
         }.getOrElse {
             Log.w(TAG, "HowLongToBeat answer unreadable: ${it.javaClass.simpleName}")
             Fetched.Failed

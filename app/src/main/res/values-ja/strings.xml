@@ -2104,6 +2104,7 @@
     <string name="achievements_show_all">すべて表示（%1$d）</string>
     <string name="achievements_dialog_title">実績 · %1$s</string>
     <string name="stores_fact_developer">開発元</string>
+    <string name="stores_fact_publisher">パブリッシャー</string>
     <string name="stores_fact_released">発売日</string>
     <string name="stores_hltb_main">メイン</string>
     <string name="stores_hltb_extras">+ やり込み</string>

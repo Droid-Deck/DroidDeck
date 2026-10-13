@@ -2104,6 +2104,7 @@
     <string name="achievements_show_all">显示全部 %1$d 项</string>
     <string name="achievements_dialog_title">成就 · %1$s</string>
     <string name="stores_fact_developer">开发商</string>
+    <string name="stores_fact_publisher">发行商</string>
     <string name="stores_fact_released">发行日期</string>
     <string name="stores_hltb_main">主线</string>
     <string name="stores_hltb_extras">+ 支线</string>

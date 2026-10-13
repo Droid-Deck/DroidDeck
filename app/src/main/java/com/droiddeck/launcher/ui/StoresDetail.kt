@@ -126,9 +126,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
         // An owned game resolves to its library entry; the storefront's copy of it may know more.
         val listed = StoresState.shelves[store]?.all.orEmpty().firstOrNull { it.id == id }
         val developer = item?.developer?.ifBlank { null } ?: listed?.developer.orEmpty()
+        val publisher = item?.publisher?.ifBlank { null } ?: listed?.publisher.orEmpty()
         val releaseDate = item?.releaseDate?.ifBlank { null } ?: listed?.releaseDate.orEmpty()
         val scores = rememberGameScores(title.takeIf { it != id })
-        Rise(2) { StoreGameFacts(developer, releaseDate, scores) }
+        Rise(2) { StoreGameFacts(developer, publisher, releaseDate, scores) }
     }
     // Plain text only, and nothing at all when the store sent a template key instead of words.
     // A description that is only the title again (some stores fill it so) is no description.

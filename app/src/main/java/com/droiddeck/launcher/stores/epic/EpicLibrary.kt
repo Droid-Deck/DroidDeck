@@ -45,6 +45,7 @@ object EpicLibrary {
                 g.installSize = j.optLong("installSize", 0L).let { if (it > 1_099_511_627_776L) 0L else it }
                 g.canRunOffline = j.optBoolean("canRunOffline", true)
                 g.releaseDate = j.optString("releaseDate", "")
+                g.publisher = j.optString("publisher", "")
                 if (g.appName.isNotEmpty()) list.add(g)
             }
             list.distinctBy { it.appName }.sortedBy { it.title.lowercase() }
@@ -103,7 +104,7 @@ object EpicLibrary {
             for (g in games) arr.put(JSONObject().put("appName", g.appName).put("namespace", g.namespace).put("catalogItemId", g.catalogItemId)
                 .put("title", g.title).put("artCover", g.artCover).put("artSquare", g.artSquare).put("developer", g.developer)
                 .put("description", g.description).put("version", g.version).put("installSize", g.installSize).put("canRunOffline", g.canRunOffline)
-                .put("releaseDate", g.releaseDate))
+                .put("releaseDate", g.releaseDate).put("publisher", g.publisher))
             prefs.edit().putString(CACHE_KEY, arr.toString()).apply()
         }
     }
@@ -112,7 +113,7 @@ object EpicLibrary {
         store = Store.EPIC, id = g.appName, title = g.title.ifBlank { g.appName },
         imageUrl = g.artSquare.ifBlank { null } ?: g.artCover.ifBlank { null },
         tallImageUrl = g.artCover.ifBlank { null } ?: g.artSquare.ifBlank { null },
-        developer = g.developer, description = com.droiddeck.launcher.stores.cleanStoreText(g.description), owned = true,
+        developer = g.developer, publisher = g.publisher, description = com.droiddeck.launcher.stores.cleanStoreText(g.description), owned = true,
         // A cache from before the release date was kept still has it under the older per-game key.
         releaseDate = g.releaseDate.ifEmpty { EpicPrefs.get(context).getString("release_${g.appName}", "").orEmpty() },
         sizeBytes = EpicPrefs.get(context).getLong("size_${g.appName}", g.installSize),

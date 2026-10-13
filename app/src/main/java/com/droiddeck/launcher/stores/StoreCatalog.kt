@@ -26,6 +26,7 @@ data class CatalogItem(
     /** The web product page: where "Get for free" and "View on <store>" land. */
     val storeUrl: String = "",
     val developer: String = "",
+    val publisher: String = "",
     val releaseDate: String = "",
     val description: String = "",
     /** True for a title the signed-in account owns (a library entry). */
