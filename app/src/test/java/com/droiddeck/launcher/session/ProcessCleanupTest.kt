@@ -213,7 +213,7 @@ class ProcessCleanupTest {
         }
 
         val result = processes.cleanup.terminate { snapshot ->
-            OrphanReaper.sessionTargets(snapshot, tracked, emptySet(), "/runtime/")
+            OrphanReaper.sessionTargets(snapshot, tracked, "/runtime/")
         }
 
         assertTrue(result.complete)
@@ -242,7 +242,7 @@ class ProcessCleanupTest {
         }
 
         val result = processes.cleanup.terminate {
-            OrphanReaper.sessionTargets(it, tracked, emptySet(), "/runtime/")
+            OrphanReaper.sessionTargets(it, tracked, "/runtime/")
         }
 
         assertTrue(result.complete)
@@ -281,14 +281,14 @@ class ProcessCleanupTest {
         ).terminate { it }
     }
 
-    @Test fun sessionCleanupTargetsItsSandboxesButSparesIndependentGuestCommands() {
+    @Test fun runtimeSweepPreservesIndependentWork() {
         val sessionRoot = Processes().add(10)
-        val sessionSandbox = Processes().add(20)
+        val sessionSandbox = Processes().add(20).copy(executable = "/runtime/bin/proot")
         val independentCommand = Processes().add(30).copy(executable = "/runtime/bin/proot")
         val independentSandbox = Processes().add(40, parent = 30).copy(executable = "/runtime/bin/proot")
         val processList = listOf(sessionRoot, sessionSandbox, independentCommand, independentSandbox)
         val targets = OrphanReaper.sessionTargets(
-            processList, hashSetOf(sessionRoot.identity), setOf(sessionSandbox.identity), "/runtime/",
+            processList, hashSetOf(sessionRoot.identity), "/runtime/",
         )
         val unprotected = OrphanReaper.unprotectedTargets(
             processList, targets, setOf(independentCommand.identity),

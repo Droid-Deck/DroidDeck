@@ -2,7 +2,6 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.util.Log
-import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -31,8 +30,7 @@ object CrashHandler {
                     worker.start()
                     worker.join(8000)
                 }
-                // The session's tree would outlive us otherwise, and block the next launch.
-                OrphanReaper.reap("app crash", LinuxRuntime.rootDir(context))
+                OrphanReaper.reap("app crash")
             } catch (e: Throwable) {
             } finally {
                 previous?.uncaughtException(thread, error) ?: Runtime.getRuntime().halt(2)

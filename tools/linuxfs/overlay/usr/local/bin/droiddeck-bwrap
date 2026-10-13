@@ -234,7 +234,7 @@ def recv_exact(sock, n):
     return buf
 
 
-def app_request(s):
+def run_by_app(s):
     ops = []
     for op in s.ops:
         op = dict(op)
@@ -246,14 +246,7 @@ def app_request(s):
     argv = list(s.command)
     if s.argv0:
         argv[0] = s.argv0
-    return {
-        "argv": argv, "env": s.env, "cwd": s.cwd or "/", "ops": ops,
-        "sessionOwned": os.environ.get("DROIDDECK_SESSION_BWRAP") == "1",
-    }
-
-
-def run_by_app(s):
-    request = app_request(s)
+    request = {"argv": argv, "env": s.env, "cwd": s.cwd or "/", "ops": ops}
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         sock.connect(SOCKET)

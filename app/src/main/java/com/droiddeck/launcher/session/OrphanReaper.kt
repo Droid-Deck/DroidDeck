@@ -16,33 +16,15 @@ import java.io.File
  *
  * The one exception is work the app started outside any session and is still waiting on - a
  * Flatpak install from the store - registered with [keep]: that process and everything under it
- * are left to finish. Session-owned Flatpak sandboxes are tracked separately and must be
- * included in teardown verification.
+ * are left to finish.
  */
 object OrphanReaper {
     private const val TAG = "OrphanReaper"
-    private const val CLEANUP_MARKER = "session-cleanup-required"
     private val kept = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
-    private val sessionKept = java.util.concurrent.ConcurrentHashMap.newKeySet<ProcessCleanup.Identity>()
-    private val sessionWorkLock = Any()
-    @Volatile private var cleanupRequired = false
-    @Volatile private var sessionWorkOpen = false
 
     fun keep(pid: Int) { if (pid > 0) kept.add(pid) }
 
-    /** Tracks a session-owned sandbox so shutdown must verify its exit instead of sparing it. */
-    internal fun keepSession(identity: ProcessCleanup.Identity) { sessionKept.add(identity) }
-
-    fun release(pid: Int) {
-        kept.remove(pid)
-        sessionKept.removeIf { it.pid == pid }
-    }
-
-    internal fun release(identity: ProcessCleanup.Identity) { sessionKept.remove(identity) }
-
-    @JvmStatic
-    fun hasSessionProcesses(context: android.content.Context): Boolean =
-        cleanupRequired || sessionKept.isNotEmpty() || File(context.filesDir, CLEANUP_MARKER).isFile
+    fun release(pid: Int) { kept.remove(pid) }
 
     internal fun identity(pid: Int): ProcessCleanup.Identity? =
         readProcess(pid)?.takeIf { it.alive }?.identity
@@ -50,63 +32,7 @@ object OrphanReaper {
     internal fun isAlive(identity: ProcessCleanup.Identity): Boolean =
         readProcess(identity.pid)?.let { it.identity == identity && it.alive } == true
 
-    internal fun openSessionWork(): Boolean = synchronized(sessionWorkLock) {
-        sessionWorkOpen = SessionState.running && !SessionState.stopping
-        sessionWorkOpen
-    }
-
-    internal fun closeSessionWork() {
-        sessionWorkOpen = false
-    }
-
-    internal fun awaitSessionWork() {
-        synchronized(sessionWorkLock) {}
-    }
-
-    internal fun <T> withSessionWork(start: () -> T): T? {
-        if (!sessionWorkOpen || !SessionState.running || SessionState.stopping) return null
-        return synchronized(sessionWorkLock) {
-            if (!sessionWorkOpen || !SessionState.running || SessionState.stopping) null else start()
-        }
-    }
-
-    @Synchronized
-    internal fun markCleanupRequired(root: File) {
-        val marker = cleanupMarker(root)
-        try {
-            check(marker.parentFile?.isDirectory == true || marker.parentFile?.mkdirs() == true) {
-                "Could not create session cleanup marker directory"
-            }
-            val tmp = File(marker.parentFile, marker.name + ".tmp")
-            java.io.FileOutputStream(tmp).use { stream ->
-                stream.write("Session process cleanup must be verified before runtime maintenance.\n".toByteArray())
-                stream.fd.sync()
-            }
-            try {
-                java.nio.file.Files.move(
-                    tmp.toPath(), marker.toPath(),
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                )
-            } catch (e: java.nio.file.AtomicMoveNotSupportedException) {
-                java.nio.file.Files.move(tmp.toPath(), marker.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-            }
-            cleanupRequired = true
-        } catch (e: Exception) {
-            throw java.io.IOException("Could not persist the session cleanup marker", e)
-        }
-    }
-
-    internal fun reap(reason: String, root: File): ProcessCleanup.Result {
-        return try {
-            cleanup(reason) { processes -> processes }.also { result ->
-                if (!result.complete) markCleanupRequired(root)
-            }
-        } catch (e: Exception) {
-            markCleanupRequired(root)
-            throw e
-        }
-    }
+    internal fun reap(reason: String): ProcessCleanup.Result = cleanup(reason) { it }
 
     /**
      * proot's --kill-on-exit takes its tracees down, but a session that died from the inside
@@ -123,33 +49,9 @@ object OrphanReaper {
     internal fun reapSession(root: File, roots: Set<ProcessCleanup.Identity>): ProcessCleanup.Result {
         val path = root.canonicalPath + "/"
         val tracked = HashSet(roots)
-        return try {
-            cleanup("session stopped") { processes ->
-                sessionTargets(processes, tracked, sessionKept, path)
-            }.also { result -> updateCleanupMarker(root, result) }
-        } catch (e: Exception) {
-            markCleanupRequired(root)
-            throw e
+        return cleanup("session stopped") { processes ->
+            sessionTargets(processes, tracked, path)
         }
-    }
-
-    @Synchronized
-    internal fun clearCleanupRequired(root: File) {
-        val marker = cleanupMarker(root)
-        if (marker.exists() && !marker.delete()) {
-            throw java.io.IOException("Could not clear the session cleanup marker")
-        }
-        File(marker.parentFile, marker.name + ".tmp").delete()
-        cleanupRequired = false
-    }
-
-    internal fun updateCleanupMarker(root: File, result: ProcessCleanup.Result) {
-        if (result.complete) clearCleanupRequired(root) else markCleanupRequired(root)
-    }
-
-    private fun cleanupMarker(root: File): File {
-        val parent = checkNotNull(root.parentFile) { "Runtime root has no parent" }
-        return File(parent, CLEANUP_MARKER)
     }
 
     internal fun reapTree(identity: ProcessCleanup.Identity): ProcessCleanup.Result {
@@ -187,10 +89,8 @@ object OrphanReaper {
     internal fun sessionTargets(
         processes: List<ProcessCleanup.Entry>,
         tracked: MutableSet<ProcessCleanup.Identity>,
-        sessionProcesses: Set<ProcessCleanup.Identity>,
         runtimePath: String,
     ): List<ProcessCleanup.Entry> {
-        tracked.addAll(sessionProcesses)
         processes.filter { it.executable.startsWith(runtimePath) }.mapTo(tracked) { it.identity }
         tracked.addAll(ProcessCleanup.descendants(processes, tracked))
         return processes.filter { it.identity in tracked }

@@ -4,10 +4,10 @@ import android.app.Service
 import android.content.Intent
 import android.os.Looper
 import com.droiddeck.launcher.SessionActivity
-import com.droiddeck.launcher.MainActivity
-import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.SessionPart
+import com.droiddeck.launcher.input.FakeInputWriter
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
-import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -18,16 +18,31 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import org.robolectric.annotation.LooperMode
-import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], manifest = Config.NONE)
+@Config(sdk = [28], manifest = Config.NONE, shadows = [
+    SessionLifecycleTest.ShadowInputWriter::class, SessionLifecycleTest.ShadowCompositor::class,
+])
 @LooperMode(LooperMode.Mode.PAUSED)
 class SessionLifecycleTest {
+    @Implements(value = FakeInputWriter::class, isInAndroidSdk = false, callThroughByDefault = false)
+    class ShadowInputWriter {
+        companion object {
+            @Implementation @JvmStatic fun __staticInitializer__() {}
+        }
+    }
+
+    @Implements(value = WaylandCompositor::class, isInAndroidSdk = false, callThroughByDefault = false)
+    class ShadowCompositor {
+        companion object {
+            @Implementation @JvmStatic fun __staticInitializer__() {}
+        }
+    }
+
     @Before @After fun reset() {
-        OrphanReaper.closeSessionWork()
-        OrphanReaper.clearCleanupRequired(LinuxRuntime.rootDir(RuntimeEnvironment.getApplication()))
         SessionState.running = false
         SessionState.finishStop()
         SessionState.stopRequested = false
@@ -60,46 +75,6 @@ class SessionLifecycleTest {
         assertTrue(SessionState.tryStart())
     }
 
-    @Test fun teardownClosesAndDrainsInFlightSessionWork() {
-        assertTrue(SessionState.tryStart())
-        assertTrue(OrphanReaper.openSessionWork())
-        val entered = java.util.concurrent.CountDownLatch(1)
-        val release = java.util.concurrent.CountDownLatch(1)
-        val worker = Thread {
-            OrphanReaper.withSessionWork {
-                entered.countDown()
-                release.await()
-            }
-        }
-        worker.start()
-        try {
-            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
-            OrphanReaper.closeSessionWork()
-            assertNull(OrphanReaper.withSessionWork { fail("closed session work must not start") })
-            val draining = java.util.concurrent.CountDownLatch(1)
-            val drain = Thread {
-                draining.countDown()
-                OrphanReaper.awaitSessionWork()
-            }
-            drain.start()
-            assertTrue(draining.await(5, java.util.concurrent.TimeUnit.SECONDS))
-            val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
-            while (drain.state != Thread.State.BLOCKED && System.nanoTime() < deadline) Thread.yield()
-            assertEquals(Thread.State.BLOCKED, drain.state)
-            assertTrue(drain.isAlive)
-            release.countDown()
-            worker.join(5000)
-            drain.join(5000)
-            assertFalse(worker.isAlive)
-            assertFalse(drain.isAlive)
-        } finally {
-            release.countDown()
-            worker.join(5000)
-            SessionState.beginStop()
-            SessionState.finishStop()
-        }
-    }
-
     @Test fun activityRecreatedDuringStopReattachesAndReceivesCompletion() {
         beginTeardown()
         val original = Robolectric.buildActivity(SessionActivity::class.java).create()
@@ -126,32 +101,66 @@ class SessionLifecycleTest {
         replacement.destroy()
     }
 
-    @Test fun directActivityLaunchDuringTeardownAttachesWithoutStartingAGuest() {
+    @Test fun activityCannotStartAnotherGuestWhileFailedCleanupIsFinishing() {
         beginTeardown()
+        SessionEvents.fail("SESSION_CLEANUP_FAILED", "Session processes are still running", -1)
         val activity = Robolectric.buildActivity(SessionActivity::class.java).create()
         assertFalse(activity.get().isFinishing)
         assertNotNull(SessionState.endListener)
-        assertEquals(SessionPhase.STOPPING, SessionState.phase)
+        assertEquals(SessionPhase.FAILED, SessionState.phase)
         assertFalse(SessionState.running)
+        activity.get().surfaceCreated(android.view.SurfaceView(activity.get()).holder)
+        assertNull(shadowOf(RuntimeEnvironment.getApplication()).nextStartedService)
         activity.start().resume().pause().stop().destroy()
         assertNull(SessionState.endListener)
         assertTrue(SessionState.stopping)
     }
 
-    @Test fun waitingActivityConsumesTouchWithoutSessionViews() {
-        beginTeardown()
-        val activity = Robolectric.buildActivity(SessionActivity::class.java).create()
-        val event = android.view.MotionEvent.obtain(
-            0L, 0L, android.view.MotionEvent.ACTION_DOWN, 10f, 10f, 0,
-        ).apply {
-            source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+    @Test fun stopWaitsForStartupToReleaseItsResourcesBeforeFinishing() {
+        val service = Robolectric.buildService(SessionService::class.java).create()
+        assertTrue(SessionState.tryStart())
+        val lock = SessionService::class.java.getDeclaredField("sessionWorkLock")
+            .apply { isAccessible = true }.get(service.get())
+        @Suppress("UNCHECKED_CAST")
+        val parts = SessionService::class.java.getDeclaredField("components")
+            .apply { isAccessible = true }.get(service.get()) as MutableList<SessionPart>
+        val stopped = java.util.concurrent.CountDownLatch(1)
+        var notified = false
+        SessionState.endListener = {
+            assertEquals(0L, stopped.count)
+            assertFalse(SessionState.stopping)
+            notified = true
         }
         try {
-            assertTrue(activity.get().dispatchTouchEvent(event))
-            assertTrue(activity.get().onTouchEvent(event))
+            synchronized(lock) {
+                service.get().onStartCommand(Intent(SessionService.ACTION_STOP), 0, 1)
+                assertTrue(SessionState.stopping)
+                service.get().onStartCommand(Intent(), 0, 2)
+                assertFalse(SessionState.running)
+                assertFalse(notified)
+                val teardown = Thread.getAllStackTraces().keys.single { it.name == "session-teardown" }
+                val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
+                while (teardown.isAlive && teardown.state != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+                    Thread.yield()
+                }
+                assertEquals(Thread.State.BLOCKED, teardown.state)
+                parts.add(object : SessionPart() {
+                    override fun start() {}
+                    override fun stop() { stopped.countDown() }
+                })
+            }
+            assertTrue(stopped.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
+            while (!notified && System.nanoTime() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10)
+            }
+            assertTrue(notified)
+            assertTrue(parts.isEmpty())
+            assertTrue(SessionState.tryStart())
         } finally {
-            event.recycle()
-            activity.destroy()
+            SessionState.running = false
+            service.destroy()
         }
     }
 
@@ -202,61 +211,13 @@ class SessionLifecycleTest {
         assertTrue(SessionState.stopping)
     }
 
-    @Test fun failedCleanupStillBlocksRuntimeRemovalUntilTeardownFinishes() {
+    @Test fun cleanupFailureCannotAllowRuntimeRemovalDuringTeardown() {
         beginTeardown()
         val context = RuntimeEnvironment.getApplication()
-        val root = LinuxRuntime.rootDir(context)
-        OrphanReaper.markCleanupRequired(root)
         SessionEvents.fail("SESSION_CLEANUP_FAILED", "Session processes are still running", -1)
-        val service = Robolectric.buildService(SessionService::class.java).create()
-        try {
-            SessionService::class.java.getDeclaredMethod(
-                "finishSessionStop", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
-            ).apply { isAccessible = true }.invoke(service.get(), -1, 0)
-            shadowOf(Looper.getMainLooper()).idle()
-            assertFalse(SessionState.stopping)
-            assertTrue(OrphanReaper.hasSessionProcesses(context))
-            assertTrue(java.io.File(context.filesDir, "session-cleanup-required").isFile)
-            assertNull(LinuxRuntimeInstaller.beginUninstall(context))
-            assertNull(LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop"))
-            assertFalse(LinuxRuntimeInstaller.isBusy())
-
-            OrphanReaper.updateCleanupMarker(root, ProcessCleanup.Result(0, emptyList()))
-            assertFalse(OrphanReaper.hasSessionProcesses(context))
-            val maintenance = LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop")
-            assertNotNull(maintenance)
-            assertTrue(maintenance.run(null) { null })
-        } finally {
-            service.destroy()
-        }
-    }
-
-    @Test fun pendingCleanupExplainsWhyRuntimeChangesAreBlockedUntilVerified() {
-        val context = RuntimeEnvironment.getApplication()
-        val root = LinuxRuntime.rootDir(context)
-        OrphanReaper.markCleanupRequired(root)
-        val activity = Robolectric.buildActivity(MainActivity::class.java).get()
-        val guard = MainActivity::class.java.getDeclaredMethod("runtimeCleanupBlocksChanges")
-            .apply { isAccessible = true }
-
-        assertEquals(true, guard.invoke(activity))
-        assertEquals(context.getString(R.string.session_cleanup_required), ShadowToast.getTextOfLatestToast())
-        assertTrue(OrphanReaper.hasSessionProcesses(context))
-
-        OrphanReaper.updateCleanupMarker(root, ProcessCleanup.Result(0, emptyList()))
-        assertEquals(false, guard.invoke(activity))
-    }
-
-    @Test fun survivingSessionSandboxBlocksRuntimeRemoval() {
-        val context = RuntimeEnvironment.getApplication()
-        OrphanReaper.keepSession(ProcessCleanup.Identity(12345, 10))
-        try {
-            assertNull(LinuxRuntimeInstaller.beginUninstall(context))
-            assertNull(LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop"))
-            assertFalse(LinuxRuntimeInstaller.isBusy())
-        } finally {
-            OrphanReaper.release(12345)
-        }
+        assertNull(LinuxRuntimeInstaller.beginUninstall(context))
+        assertNull(LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop"))
+        assertFalse(LinuxRuntimeInstaller.isBusy())
     }
 
     @Test fun completionReleasesTheGateBeforeNotifyingTheActivity() {

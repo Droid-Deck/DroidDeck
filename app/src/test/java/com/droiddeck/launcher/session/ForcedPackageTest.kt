@@ -86,25 +86,6 @@ class ForcedPackageTest {
         assertNull(install(gpu(650, GpuInfo.Family.A6XX)))
     }
 
-    @Test fun cancelledForcedPackagePreparationDoesNotApplyAComponent() {
-        proton("proton-exp")
-        val cancelled = java.util.concurrent.atomic.AtomicBoolean()
-        var applied = false
-        try {
-            ComponentsManager.ensureForcedPackages(
-                context,
-                gpu(650, GpuInfo.Family.A6XX),
-                { _, _, _ -> item(dxvk2, "Dxvk-Linux") },
-                { _, _ -> cancelled.set(true) },
-                { _, _ -> applied = true; "applied" },
-                java.util.function.BooleanSupplier { cancelled.get() },
-            )
-            fail("cancelled startup must not continue applying forced packages")
-        } catch (_: java.util.concurrent.CancellationException) {
-        }
-        assertFalse(applied)
-    }
-
     @Test fun aChosenPackageIsNotReplaced() {
         proton("proton-exp")
         writeState("proton-exp", "dxvk-3.1-linux.wcp", "experimental-11")

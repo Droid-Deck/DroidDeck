@@ -1707,7 +1707,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onRuntimeButton() {
-        if (runtimeChangesBlocked() || runtimeCleanupBlocksChanges()) return
+        if (runtimeChangesBlocked()) return
         val release = available
         if (removalPending || installed != null && release?.version == installed) {
             showRemove = true
@@ -1774,14 +1774,8 @@ class MainActivity : ComponentActivity() {
             protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null ||
             components.compBusy != null || saveBusy != null || com.droiddeck.launcher.store.UserAppsState.working != null
 
-    private fun runtimeCleanupBlocksChanges(): Boolean {
-        if (!com.droiddeck.launcher.session.OrphanReaper.hasSessionProcesses(this)) return false
-        android.widget.Toast.makeText(this, R.string.session_cleanup_required, android.widget.Toast.LENGTH_LONG).show()
-        return true
-    }
-
     private fun removeDesktop() {
-        if (runtimeChangesBlocked() || runtimeCleanupBlocksChanges()) return
+        if (runtimeChangesBlocked()) return
         val operation = LinuxRuntimeInstaller.beginMaintenance(this, getString(R.string.desktop_removing)) ?: return
         com.droiddeck.launcher.runtime.RuntimeInstallService.keepRemovalAlive(this)
         followRuntimeOperation { listener ->
@@ -1805,7 +1799,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun removeRuntime() {
-        if (runtimeChangesBlocked() || runtimeCleanupBlocksChanges()) return
+        if (runtimeChangesBlocked()) return
         val removal = LinuxRuntimeInstaller.beginUninstall(this) ?: return
         ready = false
         com.droiddeck.launcher.runtime.RuntimeInstallService.keepRemovalAlive(this)
