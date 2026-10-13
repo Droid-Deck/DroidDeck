@@ -686,6 +686,14 @@
     <string name="setup_saved_logs">Saved session logs</string>
     <string name="setup_saved_logs_hint">Keeps the newest %1$d</string>
     <string name="setup_clear_logs">Clear logs</string>
+    <string name="setup_reset_settings">Reset all settings</string>
+    <string name="setup_reset_settings_hint">Puts every setting back to its default</string>
+    <string name="setup_reset_settings_button">Reset</string>
+    <string name="setup_reset_settings_title">Reset all settings?</string>
+    <string name="setup_reset_settings_body">Display, performance, controller, theme, language and launcher settings go back to their defaults. Your games, Steam sign-in, store accounts, downloaded drivers and storage folders are kept.</string>
+    <string name="setup_reset_settings_profiles">Also reset game profiles (each game\'s Proton, FEX, components and environment, and the Default profile\'s environment)</string>
+    <string name="setup_reset_settings_session_running">Stop the session before resetting settings.</string>
+    <string name="setup_reset_settings_partial">Settings were reset, but some parts could not be. The logs have the details.</string>
     <string name="setup_offline">Offline mode</string>
     <string name="setup_sign_in_first">Sign in to Steam first</string>
     <string name="setup_launcher">Launcher</string>

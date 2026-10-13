@@ -116,6 +116,7 @@ class MainActivity : ComponentActivity() {
     private var frameGenLabel by mutableStateOf("")
     private var lossless by mutableStateOf(Lossless.State.NONE)
     private var showRemove by mutableStateOf(false)
+    private var showResetSettings by mutableStateOf(false)
     private var showNonAdreno by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
@@ -725,6 +726,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }, "clear-logs").start()
                         },
+                        onResetSettings = {
+                            if (SessionState.running) android.widget.Toast.makeText(this, R.string.setup_reset_settings_session_running, android.widget.Toast.LENGTH_LONG).show()
+                            else showResetSettings = true
+                        },
                         onOffline = {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
                             offline = OfflineMode.enabled(this)
@@ -869,6 +874,10 @@ class MainActivity : ComponentActivity() {
                     confirm = androidx.compose.ui.res.stringResource(R.string.store_remove),
                     onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
+                )
+                if (showResetSettings) com.droiddeck.launcher.ui.ResetSettingsDialog(
+                    onConfirm = { gameProfiles -> resetSettings(gameProfiles) },
+                    onDismiss = { showResetSettings = false },
                 )
                 flood?.let { f -> com.droiddeck.launcher.ui.LaunchFlood(f.from, onProgress = { floodProgress = it }) { launchFlooded(f) } }
                 returning?.let { r ->
@@ -1740,6 +1749,22 @@ class MainActivity : ComponentActivity() {
         followRuntimeOperation { listener ->
             operation.run(listener) { progress -> DesktopCatalog.removeDesktop(this, progress) }
         }
+    }
+
+    /** Setup's Reset all settings; the activity is recreated so every screen reads the defaults (and the language) again. */
+    private fun resetSettings(gameProfiles: Boolean) {
+        if (SessionState.running) return
+        val scopes = steamGames.map { it.profileKey }
+        Thread({
+            val ok = com.droiddeck.launcher.session.SettingsReset.resetAll(this, gameProfiles, scopes)
+            ui.post {
+                if (isDestroyed) return@post
+                com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
+                if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
+                com.droiddeck.launcher.ui.Motion.refresh(this)
+                recreate()
+            }
+        }, "reset-settings").start()
     }
 
     private fun removeRuntime() {
