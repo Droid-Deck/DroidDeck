@@ -18,28 +18,36 @@ index d74268b..f49ef59 100644
  
  namespace gamescope
  {
-@@ -2462,6 +2464,15 @@ namespace gamescope
+@@ -2462,11 +2464,18 @@ namespace gamescope
          if ( !m_pPointer )
              return;
  
-+        // When Gamescope paints the cursor into its output, do not also expose the Wayland cursor
-+        // surface to the host compositor. In particular, the host may draw it at an unrelated
-+        // pointer position.
-+        if ( !CursorShouldBeForwardedToHost( cv_cursor_composite.Get() ) )
+-		if ( cv_wayland_mouse_warp_without_keyboard_focus )
+-			bUseHostCursor = m_bPointerLocked && !m_bKeyboardEntered && m_pDefaultCursorSurface;
+-		else
+-			bUseHostCursor = !m_bKeyboardEntered && m_pDefaultCursorSurface;
+-
++        bUseHostCursor = CursorShouldUseHostFallback(
++            cv_wayland_mouse_warp_without_keyboard_focus.Get(), m_bPointerLocked,
++            m_bKeyboardEntered, m_pDefaultCursorSurface != nullptr );
++
++        // Keep the original no-keyboard-focus fallback, but prevent client cursor surfaces from
++        // being drawn by both the host compositor and Gamescope's manual cursor painter.
++        if ( !CursorShouldBeForwardedToHost( cv_cursor_composite.Get(), bUseHostCursor ) )
 +        {
 +            wl_pointer_set_cursor( m_pPointer, m_uPointerEnterSerial, nullptr, 0, 0 );
 +            return;
 +        }
 +
- 		if ( cv_wayland_mouse_warp_without_keyboard_focus )
- 			bUseHostCursor = m_bPointerLocked && !m_bKeyboardEntered && m_pDefaultCursorSurface;
- 		else
+         if ( bUseHostCursor )
+         {
+             wl_pointer_set_cursor( m_pPointer, m_uPointerEnterSerial, m_pDefaultCursorSurface, m_pDefaultCursorInfo->uXHotspot, m_pDefaultCursorInfo->uYHotspot );
 diff --git a/src/Utils/CursorRouting.h b/src/Utils/CursorRouting.h
 new file mode 100644
 index 0000000..d7c21da
 --- /dev/null
 +++ b/src/Utils/CursorRouting.h
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,36 @@
 +#pragma once
 +
 +namespace gamescope
@@ -58,9 +66,17 @@ index 0000000..d7c21da
 +        return !hasNestedHints || nestedPaintsCursor;
 +    }
 +
-+    constexpr bool CursorShouldBeForwardedToHost( int cursorCompositeMode )
++    constexpr bool CursorShouldUseHostFallback( bool warpWithoutKeyboardFocus, bool pointerLocked,
++                                                bool keyboardEntered, bool hasDefaultCursor )
 +    {
-+        return cursorCompositeMode != 2;
++        if ( warpWithoutKeyboardFocus )
++            return pointerLocked && !keyboardEntered && hasDefaultCursor;
++        return !keyboardEntered && hasDefaultCursor;
++    }
++
++    constexpr bool CursorShouldBeForwardedToHost( int cursorCompositeMode, bool useHostCursorFallback )
++    {
++        return cursorCompositeMode != 2 || useHostCursorFallback;
 +    }
 +
 +    constexpr bool CursorImageShouldBePainted( bool imageEmpty, bool cursorHidden )
@@ -143,7 +159,7 @@ new file mode 100644
 index 0000000..9c622db
 --- /dev/null
 +++ b/tests/test_cursor_routing.cpp
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,49 @@
 +#include <catch2/catch_test_macros.hpp>
 +
 +#include "Utils/CursorRouting.h"
@@ -162,13 +178,27 @@ index 0000000..9c622db
 +    REQUIRE( CursorShouldBeComposited( 1, false, true, false, false ) );
 +    REQUIRE_FALSE( CursorShouldBeComposited( 0, true, true, false, true ) );
 +    REQUIRE_FALSE( CursorShouldBeComposited( 1, false, false, false, false ) );
++    REQUIRE( CursorShouldBeComposited( 2, false, false, true, false ) );
 +}
 +
-+TEST_CASE("manual nested cursor composition hides the duplicate host cursor", "[cursor_routing]")
++TEST_CASE("manual composition retains only the no-focus default cursor fallback", "[cursor_routing]")
 +{
-+    REQUIRE_FALSE( CursorShouldBeForwardedToHost( 2 ) );
-+    REQUIRE( CursorShouldBeForwardedToHost( 1 ) );
-+    REQUIRE( CursorShouldBeForwardedToHost( 0 ) );
++    REQUIRE_FALSE( CursorShouldBeForwardedToHost( 2, false ) );
++    REQUIRE( CursorShouldBeForwardedToHost( 2, true ) );
++    REQUIRE( CursorShouldBeForwardedToHost( 1, false ) );
++    REQUIRE( CursorShouldBeForwardedToHost( 0, false ) );
++}
++
++TEST_CASE("host cursor fallback follows the keyboard-focus and lock defaults", "[cursor_routing]")
++{
++    // The default policy only uses the host cursor when relative input is locked and keyboard
++    // focus is absent. Turning that policy off allows the host default whenever focus is absent.
++    REQUIRE( CursorShouldUseHostFallback( true, true, false, true ) );
++    REQUIRE_FALSE( CursorShouldUseHostFallback( true, false, false, true ) );
++    REQUIRE_FALSE( CursorShouldUseHostFallback( true, true, true, true ) );
++    REQUIRE_FALSE( CursorShouldUseHostFallback( true, true, false, false ) );
++    REQUIRE( CursorShouldUseHostFallback( false, false, false, true ) );
++    REQUIRE_FALSE( CursorShouldUseHostFallback( false, true, true, true ) );
 +}
 +
 +TEST_CASE("an empty or hidden client cursor stays hidden when composition is forced", "[cursor_routing]")
