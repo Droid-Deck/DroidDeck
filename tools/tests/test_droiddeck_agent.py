@@ -255,6 +255,42 @@ class AgentTest(unittest.TestCase):
             answer = self.ask({"kind": "steam-selection"})
         self.assertEqual("INVALID_SELECTION", answer["error"]["code"])
 
+    def test_shortcut_cgameid_waits_for_exact_steam_overview_mapping(self):
+        game_id = str((3551182975 << 32) | 0x02000000)
+        self.assertEqual(3551182975, agent.steam_shortcut_app_id(game_id))
+        self.assertIsNone(agent.steam_shortcut_app_id("413150"))
+        self.assertIsNone(agent.steam_shortcut_app_id(str((3551182975 << 32) | 0x03000000)))
+        clock = [0.0]
+        with patch.object(agent, "cdp_eval", side_effect=[{"value": None}, {"value": "3551182975"}]) as evaluate, \
+             patch.object(agent.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(agent.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            result = agent.wait_for_steam_shortcut_overview(self.dir, game_id, timeout=1)
+        self.assertEqual({"supported": True, "ready": True, "appId": 3551182975}, result)
+        expression = evaluate.call_args_list[0].args[1]
+        self.assertIn("GetAppOverviewByGameID", expression)
+        self.assertIn(json.dumps(game_id), expression)
+        self.assertNotIn("RequestAppDetails", expression)
+        self.assertFalse(evaluate.call_args_list[0].kwargs["await_promise"])
+
+    def test_wrong_overview_app_id_keeps_shortcut_url_held_until_timeout(self):
+        game_id = str((3537741571 << 32) | 0x02000000)
+        clock = [0.0]
+        with patch.object(agent, "cdp_eval", return_value={"value": "646570"}) as evaluate, \
+             patch.object(agent.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(agent.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            with self.assertRaises(agent.AgentError) as raised:
+                agent.wait_for_steam_shortcut_overview(self.dir, game_id, timeout=0.5)
+        self.assertEqual("STEAM_OVERVIEW_TIMEOUT", raised.exception.code)
+        self.assertGreater(evaluate.call_count, 0)
+        self.assertTrue(all("RequestAppDetails" not in call.args[1] for call in evaluate.call_args_list))
+
+    def test_normal_steam_ids_and_unknown_cgameids_skip_overview_wait(self):
+        for game_id in ("413150", str((123456789 << 32) | 0x03000000), "18446744073709551616"):
+            with self.subTest(game_id=game_id), patch.object(agent, "cdp_eval") as evaluate:
+                result = agent.wait_for_steam_shortcut_overview(self.dir, game_id)
+            self.assertFalse(result["supported"])
+            evaluate.assert_not_called()
+
     def test_cdp_exception(self):
         server = FakeDevTools({"result": {"result": {"type": "object"}, "exceptionDetails": {
             "text": "Uncaught", "exception": {"description": "ReferenceError: SteamClient is not defined"}}}})

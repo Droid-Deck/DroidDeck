@@ -775,12 +775,10 @@ case $mode in
         fi
       done
     ) &
-    # A game the app asked to launch on a cold start is not put on the client's command line: the
-    # client takes it before its interface is up, its launch stops at "waiting for user response to
-    # ShowInterstitials" with nobody to answer, and the game page reads Launching for ever (device,
-    # 2026-10-09, and 2026-10-08 before it). It is handed over once the interface has focus
-    # (gamescope's focused app 769) and has had a moment, through the same steam-game request an
-    # in-session launch uses; after two minutes it goes anyway.
+    # Steam's launch-action handler maps a shortcut CGameID through appStore.GetAppOverviewByGameID
+    # before requesting 32-bit app details. If that overview is missing, its fallback passes the
+    # 64-bit CGameID to RegisterForAppDetails and can leave ShowInterstitials waiting. Hold the URL
+    # until Steam has the expected mapping; native and unrecognized IDs keep the legacy launch path.
     if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -z "${BL_DESKTOP:-}" ]; then
       _bl_held=
       _bl_rest=()
@@ -793,13 +791,28 @@ case $mode in
       if [ -n "$_bl_held" ]; then
         set -- "${_bl_rest[@]}"
         (
+          _bl_launch_ready=
           _bl_end=$((SECONDS + 120))
           until [ "$(xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p')" = 769 ] || [ "$SECONDS" -ge "$_bl_end" ]; do
             sleep 1
           done
-          sleep 4
-          echo "== steam: interface up; launching the requested game $_bl_held"
-          printf '%s\n' "$_bl_held" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
+          if /usr/local/bin/droiddeck-agent --wait-steam-shortcut-overview "$_bl_held" 45; then
+            echo "== steam: shortcut overview ready; launching the requested game $_bl_held"
+            _bl_launch_ready=1
+          else
+            _bl_overview_status=$?
+            if [ "$_bl_overview_status" -eq 3 ]; then
+              echo "== steam: not a shortcut CGameID; keeping the existing launch path"
+              sleep 4
+              _bl_launch_ready=1
+            else
+              echo "== steam: expected shortcut overview did not become ready; holding the launch URL"
+            fi
+          fi
+          if [ "$_bl_launch_ready" = 1 ]; then
+            echo "== steam: interface up; launching the requested game $_bl_held"
+            printf '%s\n' "$_bl_held" > "$BL_LAUNCH_DIR/steam-game.tmp" && mv -f "$BL_LAUNCH_DIR/steam-game.tmp" "$BL_LAUNCH_DIR/steam-game"
+          fi
         ) &
       fi
     fi
