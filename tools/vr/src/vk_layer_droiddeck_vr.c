@@ -312,21 +312,25 @@ static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallback
  * One pretend display with one mode and one plane. vrcompositor keeps a direct mode window on it even
  * when a driver-direct driver takes the frames, and waits on that window's presents, so the display
  * needs a working swapchain: its surface is a headless one (VK_EXT_headless_surface, Mesa's WSI).
- * The vblank side of VK_EXT_display_control is a 60 Hz clock. Size and rate:
- * DROIDDECK_VR_DISPLAY_MODE=WIDTHxHEIGHT@HZ (default 1920x1080@60). */
+ * The vblank side of VK_EXT_display_control is a clock at the panel's rate. Size and rate:
+ * DROIDDECK_VR_DISPLAY_MODE=WIDTHxHEIGHT@HZ (default 1920x1080, at the head pose file's rate, else 60). */
 
+#include <fcntl.h>
+#include <stdatomic.h>
 #include <time.h>
+#include "../../../app/src/main/cpp/waylandcomp/src/headpose_shm.h"
 
 #define FAKE_DISPLAY ((VkDisplayKHR)(uintptr_t)0xdd0001)
 #define FAKE_MODE ((VkDisplayModeKHR)(uintptr_t)0xdd0002)
 static uint32_t g_mode_w = 1920, g_mode_h = 1080, g_mode_mhz = 60000;
+static int g_mode_fixed;
 
 static void mode_init(void) {
     static int done;
     if (done++) return;
     const char *m = getenv("DROIDDECK_VR_DISPLAY_MODE");
     unsigned w, h, hz;
-    if (m && sscanf(m, "%ux%u@%u", &w, &h, &hz) == 3 && w && h && hz) { g_mode_w = w; g_mode_h = h; g_mode_mhz = hz * 1000; }
+    if (m && sscanf(m, "%ux%u@%u", &w, &h, &hz) == 3 && w && h && hz) { g_mode_w = w; g_mode_h = h; g_mode_mhz = hz * 1000; g_mode_fixed = 1; }
 }
 
 static uint64_t now_ns(void) {
@@ -334,7 +338,40 @@ static uint64_t now_ns(void) {
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
-static uint64_t frame_ns(void) { return 1000000000000ull / g_mode_mhz; }
+static _Atomic(const struct droiddeck_headpose *) g_pose;
+static _Atomic uint64_t g_pose_tried;
+
+static const struct droiddeck_headpose *pose_map(void) {
+    const struct droiddeck_headpose *p = atomic_load(&g_pose);
+    if (p) return p;
+    uint64_t t = now_ns(), last = atomic_load(&g_pose_tried);
+    if (last && t - last < 1000000000ull) return NULL;
+    atomic_store(&g_pose_tried, t);
+    int fd = open("/run/droiddeck/" DROIDDECK_HEADPOSE_FILE, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return NULL;
+    void *m = mmap(NULL, sizeof(struct droiddeck_headpose), PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+    if (m == MAP_FAILED) return NULL;
+    const struct droiddeck_headpose *expected = NULL;
+    if (!atomic_compare_exchange_strong(&g_pose, &expected, (const struct droiddeck_headpose *)m)) {
+        munmap(m, sizeof(struct droiddeck_headpose));
+        return expected;
+    }
+    return m;
+}
+
+static uint32_t mode_mhz(void) {
+    mode_init();
+    if (g_mode_fixed) return g_mode_mhz;
+    const struct droiddeck_headpose *p = pose_map();
+    if (!p || __atomic_load_n(&p->magic, __ATOMIC_RELAXED) != DROIDDECK_HEADPOSE_MAGIC) return g_mode_mhz;
+    uint32_t bits = __atomic_load_n((const uint32_t *)&p->display_hz, __ATOMIC_RELAXED);
+    float hz;
+    memcpy(&hz, &bits, sizeof(hz));
+    return hz >= 24.0f && hz <= 240.0f ? (uint32_t)(hz * 1000.0f + 0.5f) : g_mode_mhz;
+}
+
+static uint64_t frame_ns(void) { return 1000000000000ull / mode_mhz(); }
 
 static VkDisplayPropertiesKHR display_props(void) {
     mode_init();
@@ -384,7 +421,7 @@ static VkResult VKAPI_CALL GetDisplayPlaneSupportedDisplaysKHR(VkPhysicalDevice 
 }
 static VkDisplayModePropertiesKHR mode_props(void) {
     mode_init();
-    VkDisplayModePropertiesKHR m = {FAKE_MODE, {{g_mode_w, g_mode_h}, g_mode_mhz}};
+    VkDisplayModePropertiesKHR m = {FAKE_MODE, {{g_mode_w, g_mode_h}, mode_mhz()}};
     return m;
 }
 static VkResult VKAPI_CALL GetDisplayModePropertiesKHR(VkPhysicalDevice pd, VkDisplayKHR d, uint32_t *count, VkDisplayModePropertiesKHR *p) {
@@ -452,7 +489,7 @@ static VkResult VKAPI_CALL GetRandROutputDisplayEXT(VkPhysicalDevice pd, void *d
     *d = FAKE_DISPLAY; return VK_SUCCESS;
 }
 
-/* VK_EXT_display_control on the device: a 60 Hz clock. A vblank event's fence comes back signalled
+/* VK_EXT_display_control on the device: a clock at the panel's rate. A vblank event's fence comes back signalled
  * once the next tick has passed (the caller's vblank thread waits right after registering). */
 static VkResult VKAPI_CALL DisplayPowerControlEXT(VkDevice d, VkDisplayKHR disp, const VkDisplayPowerInfoEXT *info) { return VK_SUCCESS; }
 static VkResult signalled_fence(VkDevice d, const VkAllocationCallbacks *a, VkFence *fence) {

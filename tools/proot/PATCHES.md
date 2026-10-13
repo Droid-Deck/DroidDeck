@@ -80,6 +80,12 @@ Added by DroidDeck:
   The `faccessat2` exit stop (termux 5ba8b95, for glibc's ENOSYS fallback on kernels before 5.8) and
   the `statx` one (emulation on kernels before 4.11) are dropped when the running kernel is newer.
   Host build: `ioctl` 31.6 -> 0.5 us; `stat`/`statx`/`faccessat2` about 44 -> 28 us (one stop).
+- `0015-robust-list-from-seccomp.patch` - Android's app policy refuses `set_robust_list` and
+  `get_robust_list`. proot still answers the first with `ENOSYS` but keeps the head each thread
+  offered (cleared on `execve`, none in a new task), and answers the second for the calling thread
+  with it. SteamVR's `vrclient.so` asks for the head through libc's `syscall()`, which
+  `libblsession.so`'s robust.c never sees: `libopenvr_api.so` opens it `RTLD_DEEPBIND`. Steam
+  aborted on "futex robust_list not initialized by pthreads" as soon as SteamVR was registered.
 
 Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-performance.md`):
 

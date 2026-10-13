@@ -464,6 +464,7 @@ public:
     EVRInitError Activate(uint32_t unObjectId) override {
         id_ = unObjectId;
         PropertyContainerHandle_t c = VRProperties()->TrackedDeviceToPropertyContainer(id_);
+        container_ = c;
         width_ = VRSettings()->GetInt32(kSettingsSection, "windowWidth");
         height_ = VRSettings()->GetInt32(kSettingsSection, "windowHeight");
         if (width_ <= 0) width_ = 1920;
@@ -480,6 +481,7 @@ public:
         }
         if (pose_.Read(&hp) && hp.display_hz >= 24.0f) hz = hp.display_hz;
         Vsync::SetRate(hz);
+        sentHz_ = hz;
         sentTan_ = tanHalf_;
         sentAspect_ = eyeAspect_;
         VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, "DroidDeck Cardboard");
@@ -509,7 +511,7 @@ public:
         VRProperties()->SetBoolProperty(c, Prop_ContainsProximitySensor_Bool, true);
         VRDriverInput()->CreateBooleanComponent(c, "/proximity", &proximity_);
         VRDriverInput()->UpdateBooleanComponent(proximity_, true, 0);
-        Log("HMD activated: %dx%d at %.0f Hz, eye tan(half fov) %.3f, eye aspect %.3f", width_, height_, hz, tanHalf_, eyeAspect_);
+        Log("HMD activated: %dx%d at %.0f Hz, eye tan(half fov) %.3f, eye aspect %.3f", width_, height_, hz, tanHalf_.load(), eyeAspect_.load());
 
         running_ = true;
         thread_ = std::thread([this] { PoseLoop(); });
@@ -565,8 +567,9 @@ public:
     bool IsDisplayRealDisplay() override { return false; }
     void GetRecommendedRenderTargetSize(uint32_t *w, uint32_t *h) override {
         // Rendered a little larger than the panel: the lens pass magnifies the middle.
-        *w = (uint32_t)(height_ * 1.4f * eyeAspect_);
-        *h = (uint32_t)(height_ * 1.4f);
+        const float scale = renderScale_;
+        *w = (uint32_t)(height_ * scale * eyeAspect_);
+        *h = (uint32_t)(height_ * scale);
     }
     void GetEyeOutputViewport(EVREye eye, uint32_t *x, uint32_t *y, uint32_t *w, uint32_t *h) override {
         *y = 0; *w = (uint32_t)width_ / 2; *h = (uint32_t)height_;
@@ -592,6 +595,7 @@ private:
     void UpdateEye(const droiddeck_headpose &hp) {
         sentTan_ = tanHalf_ = hp.tan_half_fov;
         sentAspect_ = eyeAspect_ = hp.eye_aspect;
+        renderScale_ = (hp.flags & DROIDDECK_HEADPOSE_MONO) ? 1.0f : 1.4f;
         HmdRect2_t r;
         r.vTopLeft.v[0] = -tanHalf_ * eyeAspect_;
         r.vTopLeft.v[1] = -tanHalf_;
@@ -601,8 +605,15 @@ private:
         uint32_t w = 0, h = 0;
         GetRecommendedRenderTargetSize(&w, &h);
         VRServerDriverHost()->SetRecommendedRenderTargetSize(id_, w, h);
-        Log("eye now tan(half fov) %.3f, aspect %.3f (%ux%u eye%s), render %ux%u", tanHalf_, eyeAspect_, hp.eye_w, hp.eye_h,
+        Log("eye now tan(half fov) %.3f, aspect %.3f (%ux%u eye%s), render %ux%u", tanHalf_.load(), eyeAspect_.load(), hp.eye_w, hp.eye_h,
             (hp.flags & DROIDDECK_HEADPOSE_MONO) ? ", one eye shown" : "", w, h);
+    }
+
+    void UpdateRate(float hz) {
+        sentHz_ = hz;
+        Vsync::SetRate(hz);
+        VRProperties()->SetFloatProperty(container_, Prop_DisplayFrequency_Float, hz);
+        Log("panel now %.0f Hz", hz);
     }
 
     void PoseLoop() {
@@ -622,7 +633,7 @@ private:
                     if (hp.eye_w > 0 && hp.tan_half_fov > 0.0f && hp.eye_aspect > 0.0f &&
                         (fabsf(hp.tan_half_fov - sentTan_) > 1e-3f || fabsf(hp.eye_aspect - sentAspect_) > 1e-3f))
                         UpdateEye(hp);
-                    if (hp.display_hz >= 24.0f) Vsync::SetRate(hp.display_hz);
+                    if (hp.display_hz >= 24.0f && fabsf(hp.display_hz - sentHz_) > 0.5f) UpdateRate(hp.display_hz);
                     const bool worn = (hp.flags & DROIDDECK_HEADPOSE_ENABLED) != 0;
                     if (worn != worn_) {
                         worn_ = worn;
@@ -642,8 +653,9 @@ private:
 
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     int32_t width_ = 1920, height_ = 1080;
-    float tanHalf_ = 1.0f, eyeAspect_ = 0.889f;
-    float sentTan_ = 0.0f, sentAspect_ = 0.0f;
+    std::atomic<float> tanHalf_{1.0f}, eyeAspect_{0.889f}, renderScale_{1.4f};
+    float sentTan_ = 0.0f, sentAspect_ = 0.0f, sentHz_ = 0.0f;
+    PropertyContainerHandle_t container_ = k_ulInvalidPropertyContainer;
 public:
     void SetHands(CardboardController *left, CardboardController *right) { hands_[0] = left; hands_[1] = right; }
 

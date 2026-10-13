@@ -17,7 +17,6 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
@@ -204,9 +203,6 @@ internal fun BoxWithConstraintsScope.DropSheet(
     val narrow = LocalNarrowPane.current
     val chipFocus = remember(tabs.size) { List(tabs.size) { FocusRequester() } }
     val buttonFocus = remember { FocusRequester() }
-    val buttonSrc = remember { MutableInteractionSource() }
-    val buttonHovered by buttonSrc.collectIsHoveredAsState()
-    var buttonFocused by remember { mutableStateOf(false) }
     val rightForButton = remember { booleanArrayOf(false) }
     var rest by remember { mutableStateOf<Rect?>(null) }
     val openState = rememberUpdatedState(state.open)
@@ -277,8 +273,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
     BackHandler(enabled = state.open) { close() }
     if (state.ride.isRunning || (state.shown && !state.open)) VeilRing()
 
-    val lipWanted = !state.open && (!state.shown || state.lipBack) && covered() < 0.5f &&
-        (buttonFocused || buttonHovered || inputMode.inputMode == InputMode.Touch)
+    val lipWanted = !state.open && (!state.shown || state.lipBack) && covered() < 0.5f
     LaunchedEffect(lipWanted) {
         if (lipWanted) {
             if (!state.lipBack) delay(Motion.ms(160).toLong())
@@ -453,9 +448,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
             .focusProperties { canFocus = enabled }
             .onFocusChanged {
                 if (it.hasFocus && rightForButton[0]) { rightForButton[0] = false; if (openState.value) close() }
-                buttonFocused = it.hasFocus
             }
-            .hoverable(buttonSrc)
             .onPreviewKeyEvent { e ->
                 val k = e.nativeKeyEvent
                 if (k.keyCode != KeyEvent.KEYCODE_DPAD_DOWN && !(state.open && k.keyCode == KeyEvent.KEYCODE_DPAD_LEFT)) false
