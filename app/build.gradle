@@ -150,12 +150,6 @@ android {
             minifyEnabled false
             signingConfig signingConfigs.testkey
         }
-        // A debug build that installs beside the official app.
-        sidebyside {
-            initWith debug
-            applicationIdSuffix '.sidebyside'
-            matchingFallbacks = ['debug']
-        }
     }
 
     lint {
@@ -235,7 +229,7 @@ def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     commandLine 'python3', 'tools/release/runtime_inputs.py', 'verify'
 }
 tasks.configureEach { task ->
-    if (task.name in ['packageDebug', 'packageRelease', 'packageSidebyside']) task.dependsOn(verifyRuntimeInputs)
+    if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
 }
 
 // The GOG / Epic / Amazon download engines are Rust (app/src/main/rust/stores, ported from
