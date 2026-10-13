@@ -91,6 +91,10 @@ int vkp_ready(void);
 int vkp_has_window(void);
 /* 1 once the Vulkan device was lost: nothing is presented any more (the session must restart). */
 int vkp_device_lost(void);
+/* Compositor thread only. Submitted reads may still be pending: retain imported
+ * buffer references and withhold DMA-BUF releases until the app process exits.
+ * This terminal state is distinct from genuine device loss. */
+int vkp_completion_unknown(void);
 
 // Clear to black, blit the draws in order (first = bottom) and present.
 // Returns 0 on success, -1 if nothing could be presented (no window yet, etc.).

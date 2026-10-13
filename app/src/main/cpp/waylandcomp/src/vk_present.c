@@ -39,7 +39,8 @@ struct vkp_image {
 
 static ANativeWindow *g_window;  /* the window frames go to; compositor thread only */
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
-static int g_dev_state;       /* 0 = not yet, 1 = ok, -1 = failed, -2 = lost (VK_ERROR_DEVICE_LOST) */
+static int g_dev_state;       /* 0 = not yet, 1 = ok, -1 = failed, -2 = lost, -3 = completion unknown */
+static void device_lost(const char *where);
 static VkInstance g_inst;
 static VkPhysicalDevice g_pd;
 static VkDevice g_dev;
@@ -112,11 +113,26 @@ static void perf_add(int64_t *sum, int64_t *max, unsigned *count, int64_t d) {
     if (d > *max) *max = d;
     (*count)++;
 }
+/* A timeout is not device loss and does not cancel a submit. Keep its images
+ * and memory alive until this compositor process exits. Resuming
+ * would reset a pending command buffer/fence or free memory still read by the GPU. */
+static void quarantine_pending_work(VkResult result, const char *where) {
+    if (g_dev_state != 1) return;
+    g_dev_state = -3;
+    g_base_black = 0;
+    LOGE("GPU completion unconfirmed (%d in %s): presenting stopped; pending resources retained; "
+         "restart DroidDeck", (int)result, where);
+}
+
 /* vkWaitForFences on the compositor's own work, timed for the perf line. */
 static VkResult timed_wait(VkFence fence, uint64_t timeout) {
+    if (g_dev_state != 1)
+        return g_dev_state == -2 ? VK_ERROR_DEVICE_LOST : VK_ERROR_UNKNOWN;
     int64_t t0 = perf_now();
     VkResult r = g_vk.WaitForFences(g_dev, 1, &fence, VK_TRUE, timeout);
     perf_add(&g_perf.wait_ns, &g_perf.wait_max_ns, &g_perf.waits, perf_now() - t0);
+    if (r != VK_SUCCESS && r != VK_ERROR_DEVICE_LOST)
+        quarantine_pending_work(r, "fence wait");
     return r;
 }
 
@@ -236,7 +252,12 @@ static void reset_sync(void) {
 static void destroy_swapchain(void) {
     g_base_black = 0; /* a new swapchain starts with nothing on it */
     if (g_dev_state != 1) return;
-    g_vk.DeviceWaitIdle(g_dev);
+    VkResult idle = g_vk.DeviceWaitIdle(g_dev);
+    if (idle != VK_SUCCESS) {
+        if (idle == VK_ERROR_DEVICE_LOST) device_lost("swapchain idle");
+        else quarantine_pending_work(idle, "swapchain idle");
+        return;
+    }
     reset_sync();
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
     if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
@@ -302,6 +323,7 @@ int vkp_has_window(void) {
 }
 
 int vkp_device_lost(void) { return g_dev_state == -2; }
+int vkp_completion_unknown(void) { return g_dev_state == -3; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
@@ -546,6 +568,7 @@ static int dev_init(void) {
     g_dev_state = 1;
     reset_sync();
     init_black_image();
+    if (g_dev_state != 1) return -1;
     vkp_framegen_device_ready(g_dev, g_queue, g_qfam, fg_features != NULL);
     return 0;
 }
@@ -557,7 +580,7 @@ static int swap_init_locked(void);
 static int swap_init(void) {
     struct timespec ts;
     int64_t now;
-    if (!g_window) return -1;
+    if (!g_window || g_dev_state != 1) return -1;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     now = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
     if (now < g_swap_retry_at_ns) return -1;
@@ -842,10 +865,15 @@ static void init_black_image(void) {
     g_vk.EndCommandBuffer(cmd);
     VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &cmd};
     g_vk.ResetFences(g_dev, 1, &g_fence);
-    if (g_vk.QueueSubmit(g_queue, 1, &si, g_fence) == VK_SUCCESS &&
-        g_vk.WaitForFences(g_dev, 1, &g_fence, VK_TRUE, 1000000000ULL) == VK_SUCCESS)
-        g_black_state = 1;
-    else
+    VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
+    if (qr == VK_SUCCESS) {
+        VkResult fr = timed_wait(g_fence, 1000000000ULL);
+        if (fr == VK_SUCCESS) g_black_state = 1;
+        else if (fr == VK_ERROR_DEVICE_LOST) device_lost("black image");
+    } else if (qr == VK_ERROR_DEVICE_LOST) {
+        device_lost("black image submit");
+    }
+    if (g_black_state != 1)
         droiddeck_log("gpu", "letterbox black image unavailable: the whole output is cleared every copy-path frame");
 }
 
@@ -1084,10 +1112,10 @@ struct vkp_image *vkp_image_create_shm(int w, int h) {
     return img;
 }
 
-/* Renders are synchronous (we wait for the frame's fence), so writing between frames
- * never races the GPU. */
+/* Between successfully completed frames the GPU is idle. After an unconfirmed
+ * wait, retain the mapped bytes too: the previous submit may still read them. */
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride) {
-    if (!img || !img->map || !data) return;
+    if (g_dev_state != 1 || !img || !img->map || !data) return;
     size_t rowbytes = (size_t)img->w * 4;
     if ((size_t)stride < rowbytes) rowbytes = (size_t)stride;
     for (int y = 0; y < img->h; y++)
@@ -1100,6 +1128,7 @@ int vkp_image_height(const struct vkp_image *img) { return img ? img->h : 0; }
 
 void vkp_image_destroy(struct vkp_image *img) {
     if (!img) return;
+    if (g_dev_state == -3) return; /* completion unknown: retain GPU ownership */
     if (g_dev) {
         blendp_forget_image(img->image);
         if (img->map) g_vk.UnmapMemory(g_dev, img->mem);
@@ -1391,6 +1420,7 @@ static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int 
  * so they never rebuild; they fail and the frame ends early. 0 on success. */
 static int acquire_image(int k, int first, uint32_t *img, VkResult *ar_out) {
     for (int attempt = 0; ; attempt++) {
+        if (g_dev_state != 1) return -1;
         if (!g_swapchain && (!first || swap_init() != 0)) return -1;
         /* A bounded wait: a surface that went away without telling us must not park the
          * compositor thread forever (clients are paced from this thread). */
@@ -1402,7 +1432,7 @@ static int acquire_image(int k, int first, uint32_t *img, VkResult *ar_out) {
         if (ar == VK_ERROR_OUT_OF_DATE_KHR || ar == VK_ERROR_SURFACE_LOST_KHR) {
             droiddeck_log("gpu", "screen surface %s on acquire: rebuilding the swapchain", vk_result_name(ar));
             destroy_swapchain();
-            if (first && attempt == 0) continue;
+            if (first && attempt == 0 && g_dev_state == 1) continue;
             return -1;
         }
         droiddeck_log("error", "present: acquire %d failed (%s %d)", k, vk_result_name(ar), (int)ar);
@@ -1530,6 +1560,7 @@ static void send_hdr_metadata(const struct droiddeck_color *c) {
 static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *how) {
     if (how) *how = 0;
+    if (g_dev_state < 0) return -1;
     vkp_apply_window_request();
     check_surface_changed(); /* a rotation or a fold the rebind did not cover: rebuild at the new size */
     if (g_dev_state == -2) return -1;
@@ -1552,6 +1583,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                                      : "no HDR frames through the screen swapchain any more: rebuilding it as SDR");
         destroy_swapchain();
     }
+    if (g_dev_state != 1) return -1;
     g_swap_hdr_want = want_hdr;
 
     uint32_t img = 0;
@@ -1762,6 +1794,10 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         if (k > 0) {
             VkResult ark;
             if (acquire_image(k, 0, &img, &ark) != 0) {
+                /* Teardown may have retained this frame's pending work, or
+                 * acquire may have reported real device loss. Neither permits
+                 * a completion-marker submit or another fence wait. */
+                if (g_dev_state != 1) return -1;
                 droiddeck_log("framegen", "present %d/%d: no swapchain image; the frame ends early", k + 1, presents);
                 pr = VK_ERROR_OUT_OF_DATE_KHR;
                 break;
@@ -1794,17 +1830,24 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         pr = g_vk.QueuePresentKHR(g_queue, &pi);
         perf_add(&g_perf.present_ns, &g_perf.present_max_ns, &g_perf.presents, perf_now() - t_pres);
         if (k < ngen) presented_gen++;
-        if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR || pr == VK_ERROR_DEVICE_LOST) break;
+        if (pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return -1; }
+        if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR) break;
     }
     if (!fence_submitted) {
         /* Ended early: an empty submit carrying the fence is ordered after everything queued
          * above, so the wait below still means "this frame's work is done". */
         VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
-        g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
+        VkResult marker = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
+        if (marker != VK_SUCCESS) {
+            if (marker == VK_ERROR_DEVICE_LOST) device_lost("frame completion submit");
+            else quarantine_pending_work(marker, "frame completion submit");
+            return -1; /* no fence was submitted; never wait on its unsignalled state */
+        }
     }
     VkResult fr = timed_wait(g_fence, UINT64_MAX);
-    if (fg) vkp_framegen_presented(presented_gen);
     if (fr == VK_ERROR_DEVICE_LOST || pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return -1; }
+    if (fr != VK_SUCCESS) return -1;
+    if (fg) vkp_framegen_presented(presented_gen);
     if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR) {
         /* The surface changed or went away under this frame: rebuild before the next one. */
         droiddeck_log("gpu", "screen surface %s on present: rebuilding the swapchain", vk_result_name(pr));
@@ -1878,6 +1921,7 @@ void vkp_signal_first_frame(void) {
 int vkp_update_map(int scene_w, int scene_h) {
     if (g_dev_state == -2 || dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
     check_surface_changed(); /* layer mode may present nothing on the base surface for a long time */
+    if (g_dev_state != 1) return -1;
     if (!g_swapchain && swap_init() != 0) return -1;
     update_map(scene_w, scene_h);
     return g_map.valid ? 0 : -1;
@@ -2116,6 +2160,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     if (g_pass.active) vkp_pass_abort();
     if (g_dev_state == -2 || dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
     check_surface_changed(); /* as in render_impl: the effects pass maps onto the output's size */
+    if (g_dev_state != 1) return -1;
     if (!g_swapchain && swap_init() != 0) return -1; /* the mapping is in output pixels */
     update_map(scene_w, scene_h);
     if (!g_map.valid) return -1;
@@ -2211,8 +2256,9 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
 int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
     if (!g_pass.active) { if (wait_fd >= 0) close(wait_fd); return -1; }
     g_pass.active = 0;
+    if (g_dev_state != 1) { if (wait_fd >= 0) close(wait_fd); return -1; }
     VkCommandBuffer cmd = g_cmds[0];
-    if (!dst || !dst->blit_dst || g_dev_state == -2) {
+    if (!dst || !dst->blit_dst) {
         if (wait_fd >= 0) close(wait_fd);
         g_vk.EndCommandBuffer(cmd);
         return -1;
@@ -2267,5 +2313,6 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
 void vkp_pass_abort(void) {
     if (!g_pass.active) return;
     g_pass.active = 0;
-    g_vk.EndCommandBuffer(g_cmds[0]); /* never submitted; the buffer is reset before its next use */
+    if (g_dev_state == 1)
+        g_vk.EndCommandBuffer(g_cmds[0]); /* never submitted; reset before its next use */
 }
