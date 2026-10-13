@@ -103,7 +103,11 @@ public final class EpicApiClient {
             if (attrs != null) {
                 JSONObject offline = attrs.optJSONObject("CanRunOffline");
                 if (offline != null) game.canRunOffline = !"false".equalsIgnoreCase(offline.optString("value", "true"));
+                JSONObject publisher = attrs.optJSONObject("publisherName");
+                if (publisher != null) game.publisher = publisher.optString("value", "").trim();
             }
+            JSONObject seller = item.optJSONObject("seller");
+            if (game.publisher.isEmpty() && seller != null) game.publisher = seller.optString("name", "").trim();
             String rd = item.optString("viewableDate", "");
             if (rd.isEmpty()) rd = item.optString("effectiveDate", "");
             if (!rd.isEmpty()) game.releaseDate = rd;

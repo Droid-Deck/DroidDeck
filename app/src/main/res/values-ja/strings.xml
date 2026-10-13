@@ -564,7 +564,7 @@
     <string name="drawer_game_running">ゲーム実行中</string>
     <string name="drawer_reapplied">%1$sの起動時に再適用しました</string>
     <string name="drawer_original">元</string>
-    <string name="drawer_components_note">「コンポーネント」ページでダウンロード、インポート、削除してください。</string>
+    <string name="drawer_components_note">「コンポーネント」ページでインポート、削除してください。</string>
     <string name="setup_check_done">完了</string>
     <string name="setup_check_warn">要対応</string>
     <string name="setup_check_busy">処理中</string>
@@ -2103,4 +2103,12 @@
     <string name="achievements_none">%1$s にはこのゲームの実績がありません。</string>
     <string name="achievements_show_all">すべて表示（%1$d）</string>
     <string name="achievements_dialog_title">実績 · %1$s</string>
+    <string name="stores_fact_developer">開発元</string>
+    <string name="stores_fact_publisher">パブリッシャー</string>
+    <string name="stores_fact_released">発売日</string>
+    <string name="stores_hltb_main">メイン</string>
+    <string name="stores_hltb_extras">+ やり込み</string>
+    <string name="stores_hltb_completionist">完全制覇</string>
+    <string name="stores_hltb_hours">%1$s時間</string>
+    <string name="stores_hltb_minutes">%1$d分</string>
 </resources>

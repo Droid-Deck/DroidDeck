@@ -49,7 +49,10 @@ import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunchRequests
 import com.droiddeck.launcher.ui.SessionAchievements
+import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.gpu.HeadTracker
+import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
@@ -263,6 +266,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var closeAtOnce = false
     /** The drawer's Components tab: the Protons as last read (ComponentsManager). */
     private var drawerComponents by mutableStateOf<ComponentsManager.Snapshot?>(null)
+    private val drawerComponentMenu by lazy { ComponentsMenu(this, uiHandler) }
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
     private var drawerGameInventoryRevision = 0L
@@ -296,6 +300,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var effects by mutableStateOf(ScreenEffects.OFF)
+    /** Cardboard mode (gpu/Cardboard) and the sensor that turns the virtual screen with the head. */
+    private var cardboard by mutableStateOf(Cardboard.OFF)
+    private var headTracker: HeadTracker? = null
+    private var steamVrStatus by mutableStateOf<SteamVr.Status?>(null)
+    /** The picture was switched to side-by-side for SteamVR and goes back when it stops. */
+    private var steamVrSwitchedPicture by mutableStateOf(false)
+    /** SteamVR has been seen running since the switch: only then does "not running" mean it stopped. */
+    private var steamVrSeenRunning = false
+    private val hasRotationSensor by lazy {
+        (getSystemService(SENSOR_SERVICE) as android.hardware.SensorManager).let {
+            it.getDefaultSensor(android.hardware.Sensor.TYPE_GAME_ROTATION_VECTOR)
+                ?: it.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR)
+        } != null
+    }
+    // Held in a field: SharedPreferences keeps its listeners weakly. A change from anywhere (the
+    // drawer, tools/droiddeckctl prefs set) applies live.
+    private val cardboardPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SessionPrefs.CARDBOARD_KEY) uiHandler.post { applyCardboard(SessionPrefs.cardboard(this)) }
+    }
     private var textureAnisotropy by mutableStateOf(0)
     private var textureLodBias by mutableStateOf(TextureFiltering.LOD_BIAS_OFF)
     private var drawerTextureAnisotropy by mutableStateOf<Int?>(null)
@@ -570,6 +593,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         releaseDrawerDirection()
                     }
                 }
+                // SteamVR's state for the Cardboard group, refreshed while the drawer shows it.
+                // Watched for as long as Cardboard mode is on (or the picture is switched for it), drawer open or
+                // not: however SteamVR is started or quit, the picture follows it.
+                LaunchedEffect(cardboard.enabled, steamVrSwitchedPicture) {
+                    while (cardboard.enabled || steamVrSwitchedPicture) {
+                        val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            SteamVr.status(this@SessionActivity)
+                        }
+                        onSteamVrStatus(now)
+                        kotlinx.coroutines.delay(3000)
+                    }
+                }
                 LaunchedEffect(drawerOpen, achievementsOpen, AgentGuest.focusRevision, StoreAchievements.revision) {
                     if (!drawerOpen && !achievementsOpen) return@LaunchedEffect
                     val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -595,6 +630,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     hudOn = hudOn,
                     upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                     effects = effects,
+                    cardboard = cardboard,
+                    cardboardSensor = hasRotationSensor,
+                    onCardboard = { c -> SessionPrefs.setCardboard(this@SessionActivity, c); applyCardboard(c) },
+                    onCardboardRecenter = { headTracker?.recenter() },
+                    steamVr = steamVrStatus,
+                    onSteamVr = { action -> steamVrAction(action) },
                     textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
                     textureLodBias = if (drawerGameProfileId == null) textureLodBias else drawerTextureLodBias,
                     frameGen = frameGen,
@@ -735,7 +776,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     },
                     onClose = { drawerOpen = false },
                     components = drawerComponents,
-                    onComponentsRefresh = { refreshDrawerComponents() },
+                    onComponentsRefresh = {
+                        refreshDrawerComponents()
+                        drawerComponentMenu.refreshComponentCatalog(force = false)
+                    },
+                    componentCatalog = drawerComponentMenu.compCatalog,
+                    componentCatalogAt = drawerComponentMenu.compCatalogAt,
+                    componentCatalogChecking = drawerComponentMenu.compChecking,
+                    componentDownloads = drawerComponentMenu.compDownloads,
+                    componentDownloadRevision = drawerComponentMenu.compDownloadRevision,
+                    onComponentCatalogRefresh = { drawerComponentMenu.refreshComponentCatalog() },
+                    onComponentDownload = drawerComponentMenu::downloadComponent,
                     gameProfiles = drawerGameProfileRefresh.data?.profiles.orEmpty(),
                     selectedGameProfileId = drawerGameProfileId,
                     selectedGameProfile = drawerGameProfileRefresh.data
@@ -1115,6 +1166,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         effects = SessionPrefs.screenEffects(this)
+        applyCardboard(SessionPrefs.cardboard(this))
+        // A switch left from before this activity (or this resume): SteamVR was running then, so the next
+        // "not running" hands the picture back.
+        if (SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0 && !steamVrSwitchedPicture) {
+            steamVrSwitchedPicture = true
+            steamVrSeenRunning = true
+        }
         textureAnisotropy = SessionPrefs.textureAnisotropy(this)
         textureLodBias = SessionPrefs.textureLodBias(this)
         val nextTouchMode = SessionPrefs.touchMode(this)
@@ -1320,6 +1378,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
         SessionPrefs.screenEffects(this).push(SessionPrefs.upscaler(this))
+        panelSizeMm().let { (w, h) -> SessionPrefs.cardboard(this).push(w, h) }
+        WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
         // The session's folder, claimed here because the compositor starts before the service and
         // opens its log once. The compositor reads the path from its environment; setting it after
         // it has started changes nothing, which is why the service copies the file in at teardown.
@@ -1478,13 +1538,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * The rate of the mode PerfMode asked for, not the one the panel is still in: the switch lands
      * some frames after onCreate, and read too early it gave gamescope `-r 60` on a 120 Hz panel -
      * the client and every game then paced themselves to 60. (WinNative's requestedPanelRefreshRate.)
+     * Never above the user's peak refresh rate, which Android holds the panel to whatever mode is
+     * active; it is the rate gamescope gives Steam, and the QAM's Frame Limit divides it.
      */
     private fun refreshHz(): Float {
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val hz = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
             ?: display?.refreshRate ?: 60f
-        return if (hz > 1f) hz else 60f
+        val capped = minOf(hz, PerfMode.peakRefreshCap(this))
+        return if (capped > 1f) capped else 60f
     }
 
     /**
@@ -2501,6 +2564,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         readPrefs()
         if (::pip.isInitialized) pip.resumed()
         if (CompositorHost.isStarted) applyFrameGen()
+        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(cardboardPrefListener)
     }
 
     override fun onPause() {
@@ -2519,7 +2583,101 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updatePointerCapture()
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
+        SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
+        updateHeadTracker()
         super.onPause()
+    }
+
+    /** SteamVR for Cardboard mode: install, start or stop it in the guest. Starting switches the
+     *  picture to side-by-side, which is what SteamVR draws. */
+    private fun steamVrAction(action: String) {
+        if (action == "start") {
+            switchPictureForSteamVr()
+            steamVrSeenRunning = false
+        }
+        if (action == "stop") restoreSteamVrPicture()
+        if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
+        Thread({
+            val ok = SteamVr.run(this, action)
+            val now = SteamVr.status(this)
+            uiHandler.post {
+                // A start that failed leaves nothing side-by-side to show: the picture goes back.
+                if (!ok && action == "start" && now != SteamVr.Status.RUNNING) restoreSteamVrPicture()
+                onSteamVrStatus(now)
+                if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
+            }
+        }, "steamvr-$action").start()
+    }
+
+    /** SteamVR draws a side-by-side pair: the picture switches to that, remembering what it was. */
+    private fun switchPictureForSteamVr() {
+        if (cardboard.source != Cardboard.SOURCE_SBS) {
+            SessionPrefs.setCardboardSourceBeforeSteamVr(this, cardboard.source)
+            val c = cardboard.copy(source = Cardboard.SOURCE_SBS)
+            SessionPrefs.setCardboard(this, c)
+            applyCardboard(c)
+        }
+        steamVrSwitchedPicture = SessionPrefs.cardboardSourceBeforeSteamVr(this) >= 0
+    }
+
+    private fun onSteamVrStatus(now: SteamVr.Status) {
+        steamVrStatus = now
+        // Started some other way than the drawer (a script, a VR game): the picture follows it all the same.
+        if (now == SteamVr.Status.RUNNING && cardboard.enabled && !steamVrSwitchedPicture &&
+            cardboard.source != Cardboard.SOURCE_SBS) {
+            switchPictureForSteamVr()
+            steamVrSeenRunning = true
+        }
+        if (!steamVrSwitchedPicture) return
+        if (now == SteamVr.Status.RUNNING) steamVrSeenRunning = true
+        else if (steamVrSeenRunning && now != SteamVr.Status.UNAVAILABLE) restoreSteamVrPicture()
+    }
+
+    /** SteamVR stopped: the Cardboard picture goes back to what it was before Start. */
+    private fun restoreSteamVrPicture() {
+        val before = SessionPrefs.cardboardSourceBeforeSteamVr(this)
+        SessionPrefs.setCardboardSourceBeforeSteamVr(this, -1)
+        steamVrSwitchedPicture = false
+        steamVrSeenRunning = false
+        if (before < 0 || cardboard.source == before) return
+        val c = cardboard.copy(source = before)
+        SessionPrefs.setCardboard(this, c)
+        applyCardboard(c)
+    }
+
+    /** Cardboard mode: hand the settings to the compositor and run the head tracker while it needs one. */
+    private fun applyCardboard(c: Cardboard) {
+        val was = cardboard
+        cardboard = c
+        if (CompositorHost.isStarted) panelSizeMm().let { (w, h) -> c.push(w, h) }
+        if (c.enabled && !was.enabled) headTracker?.recenter()
+        updateHeadTracker()
+    }
+
+    private fun updateHeadTracker() {
+        // Side-by-side sources track too: the compositor leaves their picture alone, but whoever renders
+        // it (the SteamVR driver, tools/vr) reads the pose from the shared file.
+        val want = resumed && cardboard.enabled && cardboard.headTracking
+        if (want) {
+            val t = headTracker ?: HeadTracker(this) {
+                @Suppress("DEPRECATION")
+                (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
+            }.also { headTracker = it }
+            t.start()
+        } else {
+            headTracker?.stop()
+        }
+    }
+
+    /** The panel's physical size in millimetres, long side first, for lining the eyes up with the lenses. */
+    private fun panelSizeMm(): Pair<Float, Float> {
+        val dm = resources.displayMetrics
+        val landscape = dm.widthPixels >= dm.heightPixels
+        val longPx = maxOf(dm.widthPixels, dm.heightPixels).toFloat()
+        val shortPx = minOf(dm.widthPixels, dm.heightPixels).toFloat()
+        val longDpi = if (landscape) dm.xdpi else dm.ydpi
+        val shortDpi = if (landscape) dm.ydpi else dm.xdpi
+        return (if (longDpi > 0f) longPx / longDpi * 25.4f else 0f) to (if (shortDpi > 0f) shortPx / shortDpi * 25.4f else 0f)
     }
 
     override fun onAttachedToWindow() {

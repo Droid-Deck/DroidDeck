@@ -122,11 +122,20 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
         }
     }
     if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
+    if (store == Store.GOG || store == Store.EPIC) {
+        // An owned game resolves to its library entry; the storefront's copy of it may know more.
+        val listed = StoresState.shelves[store]?.all.orEmpty().firstOrNull { it.id == id }
+        val developer = item?.developer?.ifBlank { null } ?: listed?.developer.orEmpty()
+        val publisher = item?.publisher?.ifBlank { null } ?: listed?.publisher.orEmpty()
+        val releaseDate = item?.releaseDate?.ifBlank { null } ?: listed?.releaseDate.orEmpty()
+        val scores = rememberGameScores(title.takeIf { it != id })
+        Rise(2) { StoreGameFacts(developer, publisher, releaseDate, scores) }
+    }
     // Plain text only, and nothing at all when the store sent a template key instead of words.
     // A description that is only the title again (some stores fill it so) is no description.
     val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
-    if (description.isNotBlank()) Rise(2) {
+    if (description.isNotBlank()) Rise(3) {
         Text(description, fontSize = 13.sp, lineHeight = 19.sp, color = colors.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
     }
     val achievements = remember(store, id, item?.owned, installed) {
@@ -137,7 +146,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
             else -> null
         }
     }
-    if (achievements != null) Rise(3) { StoreAchievementsSection(achievements) }
+    if (achievements != null) Rise(4) { StoreAchievementsSection(achievements) }
 }
 
 /**
