@@ -628,10 +628,11 @@ jobs:
 
   # Each signed main build as a prerelease of the public Droid-Deck/DroidDeck-CI (main-<sha>, the
   # last KEEP kept), where anyone can download it without a GitHub account, then a post in the
-  # Discord's builds channel linking to it. The release is made with a token of the org's
+  # Discord's #preview channel linking to it. The release is made with a token of the org's
   # "DroidDeck CI Publisher" app (installed on DroidDeck-CI only, Contents: write): its ID in the
   # DROIDDECK_CI_APP_ID variable, its private key in the DROIDDECK_CI_APP_KEY secret.
-  # DISCORD_BUILDS_WEBHOOK is the channel's webhook URL.
+  # DISCORD_BUILDS_WEBHOOK is the channel's webhook URL. Keep this secret name when renaming
+  # the channel: Discord routes the existing webhook by channel ID, not its display name.
   announce:
     needs: [build, sign]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -733,7 +734,7 @@ jobs:
           echo "apk=$GITHUB_SERVER_URL/$CI_REPO/releases/download/$tag/$apk" >> "$GITHUB_OUTPUT"
           echo "Published $url"
 
-      - name: Post to Discord
+      - name: Post the Preview build to Discord
         env:
           WEBHOOK: ${{ secrets.DISCORD_BUILDS_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}
@@ -757,7 +758,7 @@ jobs:
             what="[\`${GITHUB_SHA::7}\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA): $subject"
           fi
           get=$(printf 'Download: [standard APK](<%s>) · [all variants](<%s>)' "$APK" "$RELEASE")
-          content=$(printf '**New signed build** `main-%s`\n%s\n%s' "${GITHUB_SHA::7}" "$what" "$get")
+          content=$(printf '**New signed Preview build** `main-%s`\n%s\nIn the app: **Updates → Preview**\n%s' "${GITHUB_SHA::7}" "$what" "$get")
           jq -n --arg content "$content" '{content: $content, allowed_mentions: {parse: []}}' |
             curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK" -o /dev/null
           echo "Posted: $content"
