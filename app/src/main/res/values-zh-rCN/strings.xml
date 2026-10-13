@@ -2103,4 +2103,11 @@
     <string name="achievements_none">%1$s 未列出此游戏的成就。</string>
     <string name="achievements_show_all">显示全部 %1$d 项</string>
     <string name="achievements_dialog_title">成就 · %1$s</string>
+    <string name="stores_fact_developer">开发商</string>
+    <string name="stores_fact_released">发行日期</string>
+    <string name="stores_hltb_main">主线</string>
+    <string name="stores_hltb_extras">+ 支线</string>
+    <string name="stores_hltb_completionist">全收集</string>
+    <string name="stores_hltb_hours">%1$s 小时</string>
+    <string name="stores_hltb_minutes">%1$d 分钟</string>
 </resources>

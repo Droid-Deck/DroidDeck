@@ -45,7 +45,8 @@ object GogLibrary {
             (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 GogGame(o.optString("gameId", ""), o.optString("title", ""), o.optString("imageUrl", ""), cleanStoreText(o.optString("description", "")),
-                    o.optString("developer", ""), o.optString("category", ""), o.optInt("generation", 1), o.optString("verticalCover", "").ifEmpty { null })
+                    o.optString("developer", ""), o.optString("category", ""), o.optInt("generation", 1), o.optString("verticalCover", "").ifEmpty { null },
+                    o.optString("releaseDate", ""))
             }.filter { it.gameId.isNotEmpty() }.sortedBy { it.title.lowercase() }
         }.getOrDefault(emptyList())
     }
@@ -148,7 +149,13 @@ object GogLibrary {
             val desc = cleanStoreText(prod.optJSONObject("description")?.optString("lead", ""))
                 .ifEmpty { cleanStoreText(v2?.optString("overview", "")) }
                 .ifEmpty { cleanStoreText(v2?.optString("description", "")) }
-            val developer = prod.optJSONObject("developers")?.optString("name", "") ?: prod.optString("developer", "")
+            // The products endpoint names no developer; the v2 record does, with the worldwide release date.
+            val embedded = v2?.optJSONObject("_embedded")
+            val developer = embedded?.optJSONArray("developers")
+                ?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("name")?.takeIf(String::isNotBlank) } }
+                ?.joinToString(", ").orEmpty()
+            val releaseDate = listOf(embedded?.optJSONObject("product")?.optString("globalReleaseDate"), prod.optString("release_date"))
+                .firstOrNull { !it.isNullOrBlank() && it != "null" }.orEmpty()
             val genres = prod.optJSONArray("genres")
             val category = if (genres != null && genres.length() > 0) genres.optJSONObject(0)?.optString("name", "") ?: "" else ""
 
@@ -164,9 +171,7 @@ object GogLibrary {
                     if (maxGen > 0) generation = maxGen
                 }
             }
-            val ed = prefs.edit().putInt("gen_$id", generation)
-            prod.optString("release_date", "").takeIf { it.isNotEmpty() }?.let { ed.putString("release_$id", it) }
-            ed.apply()
+            prefs.edit().putInt("gen_$id", generation).apply()
             if (prefs.getLong("size_$id", -1L) <= 0) {
                 val size = GogDownloadManager.fetchInstallSizeBytes(id, token)
                 if (size > 0) prefs.edit().putLong("size_$id", size).apply()
@@ -182,7 +187,7 @@ object GogLibrary {
                 verticalCover = fetchVerticalCover(id).ifEmpty { StoreNet.sgdbPoster(title) }
             }
             if (!verticalCover.isNullOrEmpty()) prefs.edit().putString("vcover_$id", verticalCover).apply()
-            return GogGame(id, title, GogStoreCatalog.absolutize(imageUrl), desc, developer, category, generation, verticalCover?.ifEmpty { null })
+            return GogGame(id, title, GogStoreCatalog.absolutize(imageUrl), desc, developer, category, generation, verticalCover?.ifEmpty { null }, releaseDate)
         } catch (_: Exception) {
             return null
         }
@@ -203,7 +208,7 @@ object GogLibrary {
             val arr = JSONArray()
             for (g in games) {
                 arr.put(JSONObject().put("gameId", g.gameId).put("title", g.title).put("imageUrl", g.imageUrl).put("description", g.description)
-                    .put("developer", g.developer).put("category", g.category).put("generation", g.generation)
+                    .put("developer", g.developer).put("category", g.category).put("generation", g.generation).put("releaseDate", g.releaseDate)
                     .apply { if (!g.verticalCover.isNullOrEmpty()) put("verticalCover", g.verticalCover) })
             }
             prefs.edit().putString(CACHE_KEY, arr.toString()).apply()
@@ -216,6 +221,8 @@ object GogLibrary {
         imageUrl = GogStoreCatalog.absolutize(g.imageUrl).ifBlank { null },
         tallImageUrl = GogStoreCatalog.absolutize(g.verticalCover ?: g.imageUrl).ifBlank { null },
         tags = g.category, developer = g.developer, description = g.description, owned = true,
+        // A cache from before the release date was kept still has it under the older per-game key.
+        releaseDate = g.releaseDate.ifEmpty { GogPrefs.get(context).getString("release_${g.gameId}", "").orEmpty() },
         sizeBytes = sizeOf(context, g.gameId),
         storeUrl = "https://www.gog.com/en/game/${g.gameId}",
     )

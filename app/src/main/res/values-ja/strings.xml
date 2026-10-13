@@ -2103,4 +2103,11 @@
     <string name="achievements_none">%1$s にはこのゲームの実績がありません。</string>
     <string name="achievements_show_all">すべて表示（%1$d）</string>
     <string name="achievements_dialog_title">実績 · %1$s</string>
+    <string name="stores_fact_developer">開発元</string>
+    <string name="stores_fact_released">発売日</string>
+    <string name="stores_hltb_main">メイン</string>
+    <string name="stores_hltb_extras">+ やり込み</string>
+    <string name="stores_hltb_completionist">完全制覇</string>
+    <string name="stores_hltb_hours">%1$s時間</string>
+    <string name="stores_hltb_minutes">%1$d分</string>
 </resources>

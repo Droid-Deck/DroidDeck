@@ -32,7 +32,7 @@ object EpicStoreCatalog {
 
     private const val ELEMENT_FIELDS =
         "title id namespace description effectiveDate releaseDate offerType productSlug urlSlug " +
-            "items{id namespace} keyImages{type url} seller{name} tags{name} " +
+            "items{id namespace} keyImages{type url} seller{name} tags{name} customAttributes{key value} " +
             "catalogNs{mappings(pageType:\"productHome\"){pageSlug pageType}} " +
             "price(country:\$country){totalPrice{discountPrice originalPrice discount currencyCode " +
             "fmtPrice(locale:\$locale){originalPrice discountPrice}}}"
@@ -116,11 +116,19 @@ object EpicStoreCatalog {
         return CatalogItem(
             store = Store.EPIC, id = id, title = title, imageUrl = wide ?: thumb, tallImageUrl = tall ?: thumb, tags = tagLine,
             isFree = isFree, hasPrice = hasPrice, finalPrice = finalPrice, originalPrice = if (discountPct > 0) fmtOriginal else "", discountPercent = discountPct,
-            storeUrl = storeUrl, developer = e.optJSONObject("seller")?.optString("name", "").orEmpty(),
+            storeUrl = storeUrl, developer = developerOf(e),
             releaseDate = e.optString("releaseDate", e.optString("effectiveDate", "")), description = com.droiddeck.launcher.stores.cleanStoreText(e.optString("description", "")),
             extra = buildMap { put("namespace", ns); if (itemIds.isNotEmpty()) put("items", itemIds.joinToString(",")); if (slug.isNotBlank()) put("slug", slug) },
             mature = com.droiddeck.launcher.stores.matureByTags(allTags),
         )
+    }
+
+    // Get developer, otherwise grab publisher.
+    private fun developerOf(e: JSONObject): String {
+        val attrs = e.optJSONArray("customAttributes")
+        val named = attrs?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) }.firstOrNull { it.optString("key") == "developerName" } }
+            ?.optString("value", "")?.takeIf { it.isNotBlank() }
+        return named ?: e.optJSONObject("seller")?.optString("name", "").orEmpty()
     }
 
     private fun pageSlugOf(e: JSONObject): String {

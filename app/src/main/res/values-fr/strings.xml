@@ -977,4 +977,11 @@
     <string name="achievements_none">%1$s n\'indique aucun succès pour ce jeu.</string>
     <string name="achievements_show_all">Tout afficher (%1$d)</string>
     <string name="achievements_dialog_title">Succès · %1$s</string>
+    <string name="stores_fact_developer">Développeur</string>
+    <string name="stores_fact_released">Sortie</string>
+    <string name="stores_hltb_main">Principal</string>
+    <string name="stores_hltb_extras">+ Extras</string>
+    <string name="stores_hltb_completionist">Complétionniste</string>
+    <string name="stores_hltb_hours">%1$s h</string>
+    <string name="stores_hltb_minutes">%1$d min</string>
 </resources>

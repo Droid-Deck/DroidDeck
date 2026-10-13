@@ -2147,4 +2147,11 @@
     <string name="achievements_none">%1$s no indica logros para este juego.</string>
     <string name="achievements_show_all">Ver los %1$d</string>
     <string name="achievements_dialog_title">Logros · %1$s</string>
+    <string name="stores_fact_developer">Desarrollador</string>
+    <string name="stores_fact_released">Lanzamiento</string>
+    <string name="stores_hltb_main">Principal</string>
+    <string name="stores_hltb_extras">+ Extras</string>
+    <string name="stores_hltb_completionist">Completista</string>
+    <string name="stores_hltb_hours">%1$s h</string>
+    <string name="stores_hltb_minutes">%1$d min</string>
 </resources>
