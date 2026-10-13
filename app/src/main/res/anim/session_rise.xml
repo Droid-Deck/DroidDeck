@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The session surface rises over the front end. -->
 <set xmlns:android="http://schemas.android.com/apk/res/android" android:interpolator="@android:interpolator/decelerate_cubic">
     <translate android:fromYDelta="100%p" android:toYDelta="0" android:duration="380" />
     <alpha android:fromAlpha="0.6" android:toAlpha="1" android:duration="380" />

@@ -11,10 +11,6 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.FlatpakManager
 
-/**
- * The store's state for the life of the process, so an install carries on - and its progress
- * shows - while the user moves around the launcher or plays something meanwhile.
- */
 object StoreState {
     private val main = Handler(Looper.getMainLooper())
 
@@ -26,10 +22,8 @@ object StoreState {
         private set
     var checkingUpdates by mutableStateOf(false)
         private set
-    /** Flathub has been asked this session, so an empty [updates] means up to date. */
     var updatesChecked by mutableStateOf(false)
         private set
-    /** What is running: "setup", an app id, or "update-all"; null when idle. */
     var busy by mutableStateOf<String?>(null)
         private set
     var stage by mutableStateOf<String?>(null)
@@ -37,7 +31,6 @@ object StoreState {
     var percent by mutableStateOf(-1)
         private set
 
-    /** The front page's sections, by collection name; absent until loaded, empty list on failure. */
     val sections = mutableStateMapOf<String, List<FlathubApi.AppSummary>>()
     var sectionsFailed by mutableStateOf(false)
         private set
@@ -49,7 +42,6 @@ object StoreState {
     var searching by mutableStateOf(false)
         private set
 
-    /** An app whose Flathub page was asked for from outside the store (its card on Desktop), once. */
     var openRequest by mutableStateOf<String?>(null)
     private var searchSeq = 0
 

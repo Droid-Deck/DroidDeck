@@ -18,12 +18,12 @@ W = int(sys.argv[1]) if len(sys.argv) > 1 else 1280
 H = int(sys.argv[2]) if len(sys.argv) > 2 else 720
 FPS = int(sys.argv[3]) if len(sys.argv) > 3 else 30
 OUT = sys.argv[4] if len(sys.argv) > 4 else f"droiddeck-boot-{W}x{H}.webm"
-THEME = sys.argv[5] if len(sys.argv) > 5 else "light"                  # light | dark
-ONLY = [int(x) for x in os.environ.get("FRAMES", "").split(",") if x]   # debug: render some frames only
+THEME = sys.argv[5] if len(sys.argv) > 5 else "light"
+ONLY = [int(x) for x in os.environ.get("FRAMES", "").split(",") if x]
 
 html = Path(__file__).with_name("droiddeck-boot.html").resolve()
 tmp = Path(os.environ["FRAMEDIR"]) if os.environ.get("FRAMEDIR") else Path(tempfile.mkdtemp(prefix="ddframes_"))
-tmp.mkdir(parents=True, exist_ok=True)   # FRAMEDIR=... makes a long render resumable
+tmp.mkdir(parents=True, exist_ok=True)
 t0 = time.time()
 with sync_playwright() as p:
     browser = p.chromium.launch()
@@ -45,16 +45,16 @@ if ONLY:
     print("frames left in", tmp); sys.exit(0)
 
 COLOR = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"]
-SOUND = Path(__file__).with_name("droiddeck-boot-sound.wav")   # made by sound.py; muxed in if present
+SOUND = Path(__file__).with_name("droiddeck-boot-sound.wav")
 cmd = ["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", str(tmp / "f%05d.png")]
 if SOUND.exists():
     cmd += ["-i", str(SOUND), "-map", "0:v", "-map", "1:a"]
     cmd += ["-c:a", "aac", "-b:a", "192k"] if OUT.lower().endswith(".mp4") else ["-c:a", "libopus", "-b:a", "160k"]
 cmd += ["-vf", "scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int,format=yuv420p"]
-if OUT.lower().endswith(".mp4"):   # H.264 for sharing, previews and anything that won't play webm
+if OUT.lower().endswith(".mp4"):
     cmd += ["-c:v", "libx264", "-preset", "slow", "-crf", "15", "-profile:v", "high", "-tune", "animation",
             "-g", str(FPS * 2), "-movflags", "+faststart"]
-else:                              # VP8 keeps software decoding inexpensive during Steam startup
+else:
     cmd += ["-c:v", "libvpx", "-b:v", "2M", "-crf", "10", "-deadline", "good", "-cpu-used", "2",
             "-g", str(FPS * 2)]
 cmd += COLOR + ([] if SOUND.exists() else ["-an"]) + [OUT]

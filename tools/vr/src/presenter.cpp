@@ -1,4 +1,3 @@
-// See presenter.h.
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan_core.h>
 typedef struct _XDisplay Display;
@@ -41,7 +40,6 @@ void Log(const char *fmt, ...) {
     fprintf(stderr, "[droiddeck] %s\n", buf);
 }
 
-// ---------------------------------------------------------------- Xlib, loaded at runtime
 
 struct X11 {
     void *lib = nullptr;
@@ -68,7 +66,6 @@ struct X11 {
     }
 };
 
-// ---------------------------------------------------------------- Vulkan, loaded at runtime
 
 #define VK_GLOBAL(X) X(CreateInstance)
 #define VK_INSTANCE(X) \
@@ -124,7 +121,7 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         for (int i = 0; i < 3; i++) {
             if (fds[i] < 0) continue;
-            int fd = dup(fds[i]); // the import owns its fd; the driver keeps its own
+            int fd = dup(fds[i]);
             if (fd >= 0) pending_.push_back({handles[i], fd, format, w, h});
         }
         EnsureThread();
@@ -163,7 +160,6 @@ private:
         }
     }
 
-    // ------------------------------------------------------------ the presenting thread
 
     void Run() {
         const char *mode = getenv("DROIDDECK_VR_PRESENT");
@@ -198,9 +194,6 @@ private:
             if (wl_) { wl_display_dispatch_pending(wl_); wl_display_flush(wl_); }
             for (auto &p : imports) Import(p);
             for (auto h : removals) Forget(h);
-            // SteamVR hands the textures over at Present with no fence the driver can wait on: give the
-            // compositor's GPU work a moment to land before copying, as ALVR does (a torn or half-drawn
-            // frame otherwise).
             if (f.texture[0]) std::this_thread::sleep_until(at + guard_);
             if (f.texture[0] && Draw(f)) shown++;
             auto now = std::chrono::steady_clock::now();
@@ -216,10 +209,6 @@ private:
 
     std::chrono::microseconds guard_{4000};
 
-    // ------------------------------------------------------------ Wayland: straight to DroidDeck's compositor
-    // The compositor the app runs (wayland-0 in the session's runtime dir, beside gamescope's socket)
-    // takes a fullscreen toplevel at the panel's size: one hop and one scale fewer than the X11 overlay
-    // through gamescope, whose output is the session's (often smaller) resolution.
     struct wl_display *wl_ = nullptr;
     struct wl_compositor *wlComp_ = nullptr;
     struct xdg_wm_base *wm_ = nullptr;
@@ -272,9 +261,6 @@ private:
         xdg_toplevel_set_fullscreen(toplevel_, nullptr);
         wl_surface_commit(wlSurf_);
         for (int i = 0; i < 20 && !configured_; i++) wl_display_roundtrip(wl_);
-        // The size: the panel the Cardboard pass draws (two eyes, from the shared pose file), so nothing
-        // scales the picture down on the way. The compositor's configure carries the session's output
-        // size, which is often smaller; it is the fallback.
         width_ = height_ = 0;
         int fd = open("/run/droiddeck/droiddeck-headpose", O_RDONLY | O_CLOEXEC);
         if (fd >= 0) {
@@ -291,8 +277,6 @@ private:
     bool InitWindow() {
         if (const char *g = getenv("DROIDDECK_VR_PRESENT_GUARD_MS")) guard_ = std::chrono::microseconds((long)(atof(g) * 1000));
         if (!x_.Load()) { Log("presenter: no libX11"); return false; }
-        // gamescope's first Xwayland (:0) is where its overlays (mangoapp, Steam's) live; SteamVR's
-        // processes inherit the games' display (:1), so it is not taken from DISPLAY.
         const char *name = getenv("DROIDDECK_VR_DISPLAY");
         if (!name || !*name) name = ":0";
         dpy_ = x_.OpenDisplay(name);
@@ -302,14 +286,11 @@ private:
         height_ = (uint32_t)x_.DisplayHeight(dpy_, scr);
         win_ = x_.CreateSimpleWindow(dpy_, x_.DefaultRootWindow(dpy_), 0, 0, width_, height_, 0, 0, 0);
         x_.StoreName(dpy_, win_, "DroidDeck Cardboard VR");
-        // gamescope shows an external overlay above whatever has focus (mangoapp is one).
-        // gamescope composites one external overlay (mangoapp, the perf HUD, usually holds it) and one Steam
-        // overlay; the Steam overlay slot is free while nothing is shown over a game.
         const char *atom = getenv("DROIDDECK_VR_OVERLAY_ATOM");
         if (!atom || !*atom) atom = "STEAM_OVERLAY";
-        unsigned long cardinal = 6; // XA_CARDINAL
-        unsigned long one = 1;      // format 32 properties are longs in Xlib
-        x_.ChangeProperty(dpy_, win_, x_.InternAtom(dpy_, atom, 0), cardinal, 32, 0 /* PropModeReplace */,
+        unsigned long cardinal = 6;
+        unsigned long one = 1;
+        x_.ChangeProperty(dpy_, win_, x_.InternAtom(dpy_, atom, 0), cardinal, 32, 0  ,
                           (const unsigned char *)&one, 1);
         x_.MapWindow(dpy_, win_);
         x_.Flush(dpy_);
@@ -438,15 +419,10 @@ private:
         return -1;
     }
 
-    // Imports one of SteamVR's shared images with the parameters it was made with (ALVR's recipe):
-    // optimal tiling, mutable format (which keeps it uncompressed), opaque fd, dedicated memory. UNORM so a
-    // blit copies the bytes rather than decoding sRGB.
     void Import(const PendingImport &p) {
         Imported im{p.handle};
         im.width = p.width;
         im.height = p.height;
-        // The same format list SteamVR's mutable sRGB images carry: with it Turnip keeps UBWC compression on,
-        // and the import has to agree on that or it reads compressed data as plain pixels.
         const char *fl = getenv("DROIDDECK_VR_IMPORT_FORMAT_LIST");
         const bool formatList = !fl || strcmp(fl, "0") != 0;
         VkFormat formats[2] = {(VkFormat)p.format, UnormOf(p.format)};
@@ -516,8 +492,6 @@ private:
         VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
         vk_.BeginCommandBuffer(cmd_, &bi);
         VkImage dst = images_[idx];
-        // The eye textures come from SteamVR's compositor (another process): take them from the external
-        // queue family as they are (GENERAL keeps the contents; they are uncompressed).
         VkImageMemoryBarrier pre[3] = {
             Barrier(dst, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT),
             Barrier(eye[0]->image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, 0, VK_ACCESS_TRANSFER_READ_BIT,
@@ -597,11 +571,11 @@ private:
     std::vector<Imported> textures_;
 };
 
-} // namespace
+}
 
 void Presenter::AddTextures(const uint64_t h[3], const int fds[3], uint32_t f, uint32_t w, uint32_t hh) { Impl::Get().Add(h, fds, f, w, hh); }
 void Presenter::RemoveTexture(uint64_t h) { Impl::Get().Remove(h); }
 void Presenter::Submit(const EyeFrame &f) { Impl::Get().Submit(f); }
 void Presenter::Shutdown() { Impl::Get().Shutdown(); }
 
-} // namespace droiddeck
+}

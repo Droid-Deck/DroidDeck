@@ -1,5 +1,3 @@
-# Application packages from steamdeck-desktop-r1's desktop.packages.txt.
-# Keep dependencies and shared apps/icons (Firefox, mpv, Breeze, xdg-utils and portals).
 labwc
 lxqt-panel
 lxqt-config

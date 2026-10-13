@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Session helpers and ELF preload tests need Linux (/proc, inotify and glibc), as in CI.
 set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"

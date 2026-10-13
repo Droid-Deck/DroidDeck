@@ -1,15 +1,6 @@
 package com.droiddeck.launcher.input
 
-/**
- * The Steam Deck controller's back grips and trackpads, which a handheld's own pad does not have:
- * the second screen's Deck controls (DeckControlsPanel) drive them, and each change goes into the
- * pad's ring ([FakeInputWriter.writeDeckControls]) for libfakeinput's Deck report.
- *
- * Trackpad positions are -1..1 each way with y up, as on a Deck; a pad touched reports its
- * position, a pad clicked also reports full pressure.
- */
 object DeckControls {
-    /** Bits of the ring's controls word - MUST match DECK_EXTRA_* in fakeinput_steam.cpp. */
     const val L4 = 1
     const val R4 = 2
     const val L5 = 4
@@ -19,7 +10,6 @@ object DeckControls {
     private const val LEFT_CLICK = 64
     private const val RIGHT_CLICK = 128
 
-    /** The pad the Deck controller is made from (PadBridge's slot). */
     private const val SLOT = 0
 
     private var controls = 0
@@ -32,7 +22,6 @@ object DeckControls {
         publish()
     }
 
-    /** A finger on (or off) one trackpad at x, y in -1..1, y up. */
     @Synchronized
     fun setPad(right: Boolean, touching: Boolean, x: Float = 0f, y: Float = 0f) {
         val at = if (right) 2 else 0
@@ -49,7 +38,6 @@ object DeckControls {
         publish()
     }
 
-    /** Everything let go - for when the panel goes away with a finger still on it. */
     @Synchronized
     fun releaseAll() {
         if (controls == 0 && pads.all { it.toInt() == 0 } && pressure.all { it.toInt() == 0 }) return

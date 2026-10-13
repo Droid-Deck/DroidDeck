@@ -1,7 +1,4 @@
 #!/usr/bin/python3
-# droiddeck-esync: picks and stages the esync pack for each Proton build.
-# Credit: esync and ntsync were designed by Elizabeth Figura for Wine and Proton, and fsync by Elizabeth Figura
-# and Paul Gofman; droiddeck-esync, droiddeck-ntsync and droiddeck-fsync build on that work.
 import contextlib
 import fcntl
 import hashlib

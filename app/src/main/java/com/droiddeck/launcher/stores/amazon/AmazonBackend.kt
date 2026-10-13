@@ -23,11 +23,6 @@ import com.droiddeck.launcher.stores.download.DownloadStage
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * Amazon Games in the Stores section. Amazon has no browsable catalog for third-party clients -
- * Prime Gaming's claims live on gaming.amazon.com, signed in - so the Store tab's shelves are cut
- * from the account's own library: owned-not-installed as Trending, installed as Your library.
- */
 object AmazonBackend : StoreBackend {
     private const val TAG = "AmazonBackend"
     override val store: Store = Store.AMAZON
@@ -46,7 +41,6 @@ object AmazonBackend : StoreBackend {
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
         Thread({
-            // The cache off the main thread; with it on screen a background sync keeps quiet.
             val cached = AmazonLibrary.cached(app)
             val quiet = cached.isNotEmpty() && !force
             StoresState.post {
@@ -67,7 +61,6 @@ object AmazonBackend : StoreBackend {
         }, "amazon-sync").start()
     }
 
-    /** The library and, from it, the shelves. */
     private fun publish(app: Context, games: List<AmazonGame>) {
         val items = games.map { AmazonLibrary.toCatalogItem(app, it) }
         StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], items)
@@ -75,8 +68,6 @@ object AmazonBackend : StoreBackend {
         StoresState.shelves[store] = StoreShelves(trending = items.filter { it.id !in installed }, free = emptyList(), deals = emptyList(), whatsNew = emptyList())
     }
 
-    // Nothing public to fetch; the shelves follow the library sync, which StoresState.open starts
-    // alongside this. A second sync here only came back Busy and cleared the first one's status.
     override fun loadShelves(context: Context, force: Boolean) {}
 
     override fun install(context: Context, item: CatalogItem, root: File) {
@@ -135,7 +126,6 @@ object AmazonBackend : StoreBackend {
         }
     }
 
-    /** Amazon's device sign-in: a PKCE challenge on the sign-in page, the code on the return URL, a device registration for tokens. */
     private class LoginFlow : StoreLoginActivity.Flow {
         private val serial = AmazonPkce.generateDeviceSerial()
         private val clientId = AmazonPkce.generateClientId(serial)

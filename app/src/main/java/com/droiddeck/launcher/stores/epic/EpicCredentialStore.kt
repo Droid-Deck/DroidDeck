@@ -6,11 +6,6 @@ import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
 import org.json.JSONObject
 
-/**
- * The Epic sign-in in StoreAccounts' private file: access and refresh tokens, the account id and
- * display name (the launch arguments carry both), the expiry. Refreshed when within five minutes
- * of expiring.
- */
 object EpicCredentialStore {
     private const val TAG = "EpicAuth"
 
@@ -34,9 +29,7 @@ object EpicCredentialStore {
     @JvmStatic
     fun isLoggedIn(context: Context): Boolean = load(context) != null
 
-    /** A valid access token, refreshed when within five minutes of expiry; null when signed out or the refresh failed. */
     @JvmStatic
-    /** The stored access token is past its expiry (a refresh, if one was tried, did not replace it). */
     fun expired(context: Context): Boolean {
         val creds = load(context) ?: return false
         return creds.expiresAt in 1 until System.currentTimeMillis()

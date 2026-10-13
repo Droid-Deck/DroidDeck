@@ -7,7 +7,6 @@ import com.droiddeck.launcher.core.FileUtils
 import java.io.File
 import java.util.zip.GZIPInputStream
 
-/** Inventories are generated from pinned archives by tools/desktop-kde/removal-manifests.py. */
 internal object DesktopRemoval {
     const val PENDING = ".droiddeck-desktop-removing"
     private const val CLEANING = ".droiddeck-lxqt-cleaning-v1"
@@ -19,15 +18,9 @@ internal object DesktopRemoval {
     private fun protected(context: Context, root: File) =
         DesktopFileRemoval.runtimeFiles(root) + lines(context, "emulators-keep.txt.gzip")
 
-    /**
-     * What the desktop's own files take on disk, from the same inventory its removal uses (each
-     * file's size); the bundled apps' and emulators' shared files are not counted. Reads an asset:
-     * call it off the main thread.
-     */
     fun installedSize(context: Context): Long =
         lines(context, "kde-remove.tsv.gzip").sumOf { line -> line.split('\t').getOrNull(1)?.toLongOrNull() ?: 0L }
 
-    /** Called before a guest starts or just after KDE extraction; retries after a process death. */
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) {
         val root = LinuxRuntime.rootDir(context)
         if (FileUtils.readString(File(root, CLEANED))?.trim() == "1") return
@@ -54,7 +47,6 @@ internal object DesktopRemoval {
         val version = FileUtils.readString(pending)?.trim() ?: FileUtils.readString(marker)?.trim()
         val versions = context.assets.open("desktop-removal/versions.txt").bufferedReader().use { it.readLines() }
         check(version in versions) { context.getString(R.string.desktop_removal_unknown) }
-        // Validate all inventories and the runtime database before dropping the installed marker.
         val entries = lines(context, "kde-remove.tsv.gzip").map(DesktopFileRemoval.Entry::parse)
         val keep = protected(context, root)
         cleanLegacy(context, listener)
@@ -63,7 +55,6 @@ internal object DesktopRemoval {
         if (marker.exists() && !marker.delete()) error("Could not clear desktop marker")
         val removing = context.getString(R.string.desktop_removing)
         val result = DesktopFileRemoval.remove(root, entries, keep) { listener.onProgress(removing, it) }
-        // APK-staged desktop files are matched against the APK too; keep user-modified copies.
         for ((asset, path) in com.droiddeck.launcher.session.SessionFiles.DESKTOP_FILES) {
             val target = DesktopFileRemoval.safeFile(root, path) ?: continue
             if (!isRegularFile(target)) continue

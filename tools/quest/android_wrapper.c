@@ -1,7 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Loaded as the AdrenoTools driver; DT_NEEDED points to the original Turnip.
- * Vulkan/HAL symbols are resolved from that dependency. Its ioctl calls resolve here.
- */
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #define _GNU_SOURCE
 #include "kgsl_compat.h"
 #include <dlfcn.h>

@@ -75,49 +75,49 @@ artifact or file error, 7 debugging tools disabled.
 ## Commands
 
 ```sh
-tools/droiddeckctl state                         # schema 2, below
-tools/droiddeckctl start steam --wait            # --ui desktop, --url steam://..., --timeout
-tools/droiddeckctl start steam --wait --reuse    # keep a Steam session that is already up
+tools/droiddeckctl state
+tools/droiddeckctl start steam --wait
+tools/droiddeckctl start steam --wait --reuse
 tools/droiddeckctl start desktop
 tools/droiddeckctl run /usr/bin/foo -- arg1 arg2
-tools/droiddeckctl wait ready|idle|failed        # --timeout (default 90 s)
+tools/droiddeckctl wait ready|idle|failed
 tools/droiddeckctl stop
 tools/droiddeckctl resume
 
-tools/droiddeckctl launch 489830 --wait          # Steam game by app id; --wait = until it has focus
-tools/droiddeckctl wait focused 489830           # gamescope focuses it AND Steam lists it focusable
-tools/droiddeckctl wait game                     # any app but the Steam client (769) has focus
-tools/droiddeckctl quit 489830                   # Steam's TerminateApp, then SIGTERM/SIGKILL
-tools/droiddeckctl focus                         # focus properties and every Xwayland server's windows
+tools/droiddeckctl launch 489830 --wait
+tools/droiddeckctl wait focused 489830
+tools/droiddeckctl wait game
+tools/droiddeckctl quit 489830
+tools/droiddeckctl focus
 
-tools/droiddeckctl input key ENTER               # names (ESC, F1, UP, A...) or evdev codes; --mod CTRL
-tools/droiddeckctl input text 'hello world'      # as US-layout keys; --commit for text-input
-tools/droiddeckctl input tap 640 360             # session output pixels; --space fraction for 0..1
+tools/droiddeckctl input key ENTER
+tools/droiddeckctl input text 'hello world'
+tools/droiddeckctl input tap 640 360
 tools/droiddeckctl input swipe 100 600 100 100 --duration 400
-tools/droiddeckctl input pad a                   # a b x y lb rb start select guide qam up down left right
+tools/droiddeckctl input pad a
 tools/droiddeckctl input stick left 0 -1 --hold 500
 tools/droiddeckctl input trigger right 1.0
 
-tools/droiddeckctl ui dump                       # tagged, labelled and clickable nodes; --all for every node
-tools/droiddeckctl ui click rail-steam           # by test tag
-tools/droiddeckctl ui click --match "Play"       # by text or description; --index for the nth match
+tools/droiddeckctl ui dump
+tools/droiddeckctl ui click rail-steam
+tools/droiddeckctl ui click --match "Play"
 tools/droiddeckctl ui set-text some-field --text abc
 
-tools/droiddeckctl guest -- xprop -root GAMESCOPE_FOCUSED_APP     # --timeout --env K=V --cwd --stdin --check
+tools/droiddeckctl guest -- xprop -root GAMESCOPE_FOCUSED_APP
 tools/droiddeckctl cdp targets
-tools/droiddeckctl cdp eval 'SteamClient.Apps.GetMyRunningApps?.()'  # --target, --no-await
-tools/droiddeckctl env set DXVK_HUD=fps          # next session only; --persistent until cleared
+tools/droiddeckctl cdp eval 'SteamClient.Apps.GetMyRunningApps?.()'
+tools/droiddeckctl env set DXVK_HUD=fps
 tools/droiddeckctl env list
 tools/droiddeckctl env clear [next|persistent|all]
-tools/droiddeckctl override gamescope ./gamescope   # first on the next session's PATH, removed after it
+tools/droiddeckctl override gamescope ./gamescope
 tools/droiddeckctl prefs get session
-tools/droiddeckctl prefs set session some_key true --type bool   # returns the previous value
+tools/droiddeckctl prefs set session some_key true --type bool
 
 tools/droiddeckctl logs latest ./session-artifacts
 tools/droiddeckctl screenshot ./screen.png --display 4
 tools/droiddeckctl record ./clip.mp4 --seconds 8 --display 0
-tools/droiddeckctl displays                      # logical ids, names, sizes, capture ids
-tools/droiddeckctl wake                          # wake the screen, dismiss the keyguard
+tools/droiddeckctl displays
+tools/droiddeckctl wake
 ```
 
 A sleeping device suspends the session and hides the app's windows from `ui dump`; `wake` first.

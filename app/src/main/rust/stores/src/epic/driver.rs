@@ -1,12 +1,3 @@
-//! Plan → `FetchItem`s → `crate::fetch_core::run_fetch` with a sink that fills the chunk cache.
-//!
-//! This is the replacement for the body of the Java pool block in `EpicDownloadManager.install`
-//! ("Download unique chunks — 8 parallel threads"). Inputs are exactly what that block sees:
-//! the parsed manifest (re-parsed here from the same bytes), the pending file set (indices Java
-//! computed after its delta/verify pass), the CDN prefixes (`baseUrl + cloudDir`, cloudflare
-//! already skipped) and the chunk cache dir. Output = `<cache>/<GUID>` for every needed chunk,
-//! where `<cache>` is `<installDir>/.chunks` unless the caller named another directory; the
-//! files are assembled from it afterwards (by the Kotlin manager, or by [`super::assemble`]).
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -21,65 +12,44 @@ use super::plan::{
     total_credit_bytes, unique_chunks_for_files,
 };
 
-/// Java `conn.setReadTimeout(60000)` — the longer of the two Java timeouts (connect was 30 s).
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Everything the JNI layer hands over for one run.
 pub struct EpicRequest {
     pub manifest_bytes: Vec<u8>,
     pub install_dir: String,
-    /// Chunk cache directory; `""` = `<installDir>/.chunks`. See [`resolve_cache_dir`].
     pub chunk_cache_dir: String,
-    /// `cdn.baseUrl + cdn.cloudDir` per manifest-API CDN entry, in Java's order.
     pub cdn_prefixes: Vec<String>,
-    /// Indices into `manifest.files` of Java's `pendingFiles` (post delta/verify), in order.
     pub pending_file_indices: Vec<usize>,
-    /// Java's `neededChunks.size()` / `totalBytes` for the plan cross-check (`None` = skip).
     pub expected_chunks: Option<u64>,
     pub expected_bytes: Option<u64>,
     pub ca_bundle_path: String,
-    /// Window ceiling: the Steam speed tier's network window (Fast = 32) since improvements
-    /// round 1; the Java fallback pool keeps its fixed 8 (`super::JAVA_POOL_THREADS`).
     pub max_workers: usize,
     pub process_workers: usize,
     pub label: String,
 }
 
-/// The chunk plan for one run.
 #[derive(Debug)]
 pub struct EpicPlan {
     pub manifest: Manifest,
     pub cache_dir: PathBuf,
-    /// The cache is a directory the caller named, apart from the install: scratch space that
-    /// the assembler empties as it goes and removes when it is done.
     pub scratch_cache: bool,
-    /// Chunk indices (into `manifest.unique_chunks`) in Java's submission order.
     pub needed: Vec<usize>,
-    /// `Σ max(fileSize, 1)` over `needed`.
     pub total_bytes: u64,
-    /// Distinct CDN prefixes = fetch-core host keys.
     pub hosts: Vec<String>,
 }
 
-/// Terminal result of a run, in the shape Java's pool block needs to reproduce its own exit
-/// paths (`CANCELLED during chunk download (n/total chunks)`, `N chunks failed`, `chunksOK=`).
 #[derive(Clone, Debug, Default)]
 pub struct EpicOutcome {
     pub success: bool,
     pub cancelled: bool,
     pub error: String,
-    /// Credited (manifest `max(fileSize,1)`) bytes: skipped-cached + fetched.
     pub bytes_credited: u64,
-    /// Chunks accounted for (skipped-cached + fetched), Java's `completedCount`.
     pub chunks_done: u64,
     pub chunks_total: u64,
     pub bytes_total: u64,
-    /// Decompressed bytes actually written to the cache this run.
     pub decompressed_written: u64,
 }
 
-/// Parse + plan (no I/O beyond reading the cache dir). `Err` = "engine could not start"; Java
-/// then runs its own pool, since nothing has been fetched yet.
 pub fn build_plan(req: &EpicRequest) -> Result<EpicPlan, String> {
     let manifest = parse_manifest(&req.manifest_bytes).map_err(|e| format!("plan: {e}"))?;
     for &i in &req.pending_file_indices {
@@ -124,10 +94,8 @@ pub fn build_plan(req: &EpicRequest) -> Result<EpicPlan, String> {
     })
 }
 
-/// Sink: one downloaded body → verified cache file. `id` indexes `fetch_chunks`.
 struct ChunkCacheSink<'a> {
     plan: &'a EpicPlan,
-    /// Chunk indices (into `manifest.unique_chunks`) of the items actually being fetched.
     fetch_chunks: &'a [usize],
     decompressed: AtomicU64,
 }
@@ -144,15 +112,11 @@ impl<'a> FetchSink for ChunkCacheSink<'a> {
                 self.decompressed.fetch_add(written, Ordering::Relaxed);
                 Ok(chunk.credit_bytes())
             }
-            // Every per-attempt failure in Java is "try the next CDN"; the core's Retry rotates
-            // hosts and backs off the same way (bounded at its attempt cap).
             Err(reason) => Err(SinkError::Retry(format!("{} {reason}", chunk.guid_str()))),
         }
     }
 }
 
-/// Rolling speed sampler for the end-of-run summary: samples at ≥500 ms like the Java pool's
-/// `lastSpeedMs` logic, keeps the peak.
 struct SpeedMeter {
     start: Instant,
     last_at: Instant,
@@ -197,9 +161,6 @@ impl SpeedMeter {
     }
 }
 
-/// Run the plan. `progress(bytes_done, chunks_done)` fires once per accounted chunk (cached-skip
-/// or fetched), exactly the cadence of the Java pool's per-task `progress(...)` call. `log`
-/// receives engine lines (`fetch-window`, `summary`, failures).
 pub fn run_plan(
     plan: &EpicPlan,
     req: &EpicRequest,
@@ -228,8 +189,6 @@ pub fn run_plan(
         req.process_workers
     ));
 
-    // Java: each pool task first checks the cancel flag, then `cachedFile.exists()` → credit
-    // without fetching. Account for the cached chunks up front (same credit, same callback).
     let mut fetch_chunks: Vec<usize> = Vec::with_capacity(plan.needed.len());
     let mut pre_bytes: u64 = 0;
     let mut pre_chunks: u64 = 0;
@@ -293,16 +252,12 @@ pub fn run_plan(
 
     let opts = FetchOptions {
         max_workers: req.max_workers.max(1),
-        // Improvements round 1: the tier ceiling split across the distinct CDNs (floor 6), so
-        // the whole window is reachable on 1 host or on all 3.
         per_host_cap: host_cap,
         timeout: REQUEST_TIMEOUT,
         headers: vec![("User-Agent".to_string(), super::USER_AGENT.to_string())],
         ca_bundle_path: req.ca_bundle_path.clone(),
         process_workers: req.process_workers.max(1),
         label: req.label.clone(),
-        // Whole-body mode (Epic chunks are ≤ ~1 MiB compressed; the core's byte budget scales
-        // with the window); `stream` and any future field keep the core's defaults.
         ..FetchOptions::default()
     };
 

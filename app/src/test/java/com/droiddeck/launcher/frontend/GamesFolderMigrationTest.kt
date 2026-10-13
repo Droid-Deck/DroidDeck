@@ -16,7 +16,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** Games folders from earlier builds become entries, every game keeping what it had. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class GamesFolderMigrationTest {
@@ -40,7 +39,6 @@ class GamesFolderMigrationTest {
         StoreGameSidecar.file(store).writeText("""{"store":"gog","id":"1","title":"Store Game","exe":"Store.exe"}""")
         File(pc, "Notes").mkdirs()
         SessionPrefs.setAddedGamesDirs(app, listOf(pc.path))
-        // What earlier scans had kept, by folder.
         SessionPrefs.setAddedGameExe(app, beta.path, pick.path)
         SessionPrefs.addedGameAppId(app, alpha.path, 0x8123_4567L)
         SessionPrefs.addedGameAppId(app, beta.path, 0x8765_4321L)
@@ -63,11 +61,9 @@ class GamesFolderMigrationTest {
         assertEquals(0x8765_4321L, games.getValue(beta.path).appId)
         assertEquals("Alpha GOTY", games.getValue(alpha.path).name)
         assertEquals(pick.path, games.getValue(beta.path).exe.path)
-        // The same path inside the session as before: the shortcut keeps its target.
         assertEquals(AddedGames.GUEST_DIR + "/PC/Alpha/Alpha.exe", games.getValue(alpha.path).guestExe)
         assertEquals(AddedGames.GUEST_DIR + "/PC/Beta/bin/Beta64.exe", games.getValue(beta.path).guestExe)
         assertTrue(SessionPrefs.removedAddedGames(app).contains(gone.path))
-        // Not a library any more.
         assertTrue(GameStorage.gamesFolderLibraries(app).isEmpty())
     }
 

@@ -56,7 +56,6 @@ class Detection(unittest.TestCase):
     def test_anything_else_is_left_alone(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root)
-            # The exe of a store game is one too (a GOG game without a launcher); a stray file is not.
             self.assertEqual(folder, store.find_store_game([str(folder / 'Metalstorm.exe')])[0])
             self.assertIsNone(store.find_store_game([str(Path(root) / 'elsewhere/readme.txt')]))
             (folder / '.droiddeck-store.json').unlink()
@@ -65,7 +64,6 @@ class Detection(unittest.TestCase):
     def test_only_epic_asks_for_a_code(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog')
-            # Cloud saves off: GOG still prepares achievements, never an Epic exchange code.
             sc = json.loads((folder / '.droiddeck-store.json').read_text()); sc['cloud'] = False
             (folder / '.droiddeck-store.json').write_text(json.dumps(sc))
             os.environ['BL_LAUNCH_DIR'] = str(Path(root) / 'session')
@@ -136,7 +134,6 @@ class Prefix(unittest.TestCase):
         text = self.reg.read_text()
         self.assertIn('[Software\\\\Wine\\\\WineBrowser] ', text)
         self.assertIn('"Browsers"="/usr/local/bin/droiddeck-open-url,xdg-open"', text)
-        # A second launch adds nothing: the last word already says so.
         store.provision_prefix(str(self.compat))
         self.assertEqual(text, self.reg.read_text())
 
@@ -158,7 +155,6 @@ class Choices(unittest.TestCase):
             folder = game(root)
             sidecar = json.loads((folder / '.droiddeck-store.json').read_text())
             self.assertEqual({'eos': True, 'offline': False}, store.options(sidecar))
-            # An earlier build's overlay field is read past.
             self.assertEqual({'eos': True, 'offline': False}, store.options({'epic': {'v': 2, 'overlay': True}}))
             sidecar['epic'] = {'eos': True, 'offline': True}
             sidecar['cloud'] = False
@@ -175,7 +171,6 @@ class Choices(unittest.TestCase):
             finally:
                 del os.environ['BL_LAUNCH_DIR']
                 del os.environ['STEAM_COMPAT_DATA_PATH']
-            # Offline: no request was made and no code is left; the old overlay pointer is gone.
             self.assertFalse((Path(root) / 'session/stores/req').exists())
             self.assertFalse((folder / '.droiddeck-epic-code').exists())
             text = reg.read_text()
@@ -200,7 +195,6 @@ class Browser(unittest.TestCase):
 
 class ExeTarget(unittest.TestCase):
     def test_a_game_started_by_its_exe_is_found_from_a_subfolder(self):
-        # Most GOG games have no launcher .bat: Steam runs the exe, which may sit in a subfolder.
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog', ident='1207664643')
             (folder / 'bin/x64').mkdir(parents=True)
@@ -222,7 +216,6 @@ class CloudHooks(unittest.TestCase):
                 original = store.ask
                 asked = []
                 store.ask = lambda channel, request, timeout=5.0: asked.append((request, timeout)) or {'ok': True, 'files': 2, 'reason': 'ok'}
-                # 10: the launcher waits for Proton and calls --exited afterwards.
                 self.assertEqual(store.STORE_GAME, store.main([bat]))
                 self.assertEqual(0, store.main(['--exited', bat]))
             finally:
@@ -309,7 +302,6 @@ class GogAchievements(unittest.TestCase):
                 self.assertTrue((data / 'pfx/.droiddeck-comet-service').is_file())
                 self.assertEqual('ready', store.provision_galaxy(str(data), str(proton)))
                 self.assertEqual(1, len(seen))
-                # A recreated prefix must be provisioned again, even with the same Proton.
                 __import__('shutil').rmtree(data / 'pfx')
                 self.assertEqual('ready', store.provision_galaxy(str(data), str(proton)))
                 self.assertEqual(2, len(seen))

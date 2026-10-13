@@ -106,20 +106,13 @@ import com.droiddeck.launcher.store.FlathubApi
 import com.droiddeck.launcher.store.StoreState
 import kotlinx.coroutines.delay
 
-// The Store rail section: Flathub's apps for this device's architecture, installed into the
-// Linux runtime with Flatpak, and the ones already installed - in the stores' style, in Flathub's
-// teal. Until Flatpak is set up it is the stores' sign-in hero: a wall of real app icons, one word,
-// one button that becomes its own progress. Then a chip row, shelves of square cards that flood
-// open into an app's page, and installs that fly home to the Installed chip.
 
 private const val MODE_DISCOVER = "discover"
 private const val MODE_INSTALLED = "installed"
 private const val MODE_UPDATES = "updates"
 
-/** One app as a card shows it: Flathub's summary or what Flatpak says is installed. */
 private class CardApp(val id: String, val name: String, val icon: Any?, val summary: String? = null, val verified: Boolean = false)
 
-/** Where the Installed chip is, for an install's dot to land in, and how many have landed. */
 private object FlathubMotion {
     var installedChip: Rect? = null
     var landed by mutableIntStateOf(0)
@@ -131,8 +124,6 @@ internal fun StorePage(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     LaunchedEffect(s.ready) { StoreState.refresh(ctx) }
     LaunchedEffect(Unit) { StoreState.loadSections() }
     FlathubTheme {
-        // The storefront takes over from the hero once Flatpak is ready: the setup rail rings
-        // once, then the hero sinks away and the storefront rises.
         var front by remember { mutableStateOf(StoreState.ready && s.ready) }
         var ring by remember { mutableIntStateOf(0) }
         LaunchedEffect(StoreState.ready, s.ready) {
@@ -156,11 +147,6 @@ internal fun StorePage(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     }
 }
 
-/**
- * Flatpak is not set up yet: the stores' sign-in shape in teal. A tilted wall of the popular apps'
- * icons (Flathub's public pages need no Flatpak) drifts behind, fading toward the words; one big
- * button sets it up, and stretches into its own progress while it does.
- */
 @Composable
 private fun FlathubHero(s: FrontEndState, ring: Int) {
     val ctx = LocalContext.current
@@ -174,7 +160,6 @@ private fun FlathubHero(s: FrontEndState, ring: Int) {
     BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = if (narrow) 14.dp else 22.dp, vertical = if (narrow) 10.dp else 14.dp)) {
         val shape = RoundedCornerShape(20.dp)
         Box(Modifier.fillMaxWidth().height(maxHeight.coerceAtLeast(320.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
-            // Slower while it sets up, as the empty wall drifts.
             androidx.compose.animation.Crossfade(icons, animationSpec = Motion.tw(600), label = "flathubWall") { tiles ->
                 val ground = Brush.linearGradient(listOf(Color(0xFF0B2E2B), Color(0xFF0B2E2B)))
                 val edge = FlathubTeal.copy(alpha = 0.18f)
@@ -217,11 +202,6 @@ private fun FlathubHero(s: FrontEndState, ring: Int) {
     }
 }
 
-/**
- * Set up Flathub, and its own progress: while it sets up the button springs out to the full width
- * and fills in teal from the left with how far it is, the stage and the figure inside it. Without
- * a runtime it says what is missing instead.
- */
 @Composable
 private fun SetupButton(s: FrontEndState, busy: Boolean, full: Dp, ring: Int, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -240,7 +220,6 @@ private fun SetupButton(s: FrontEndState, busy: Boolean, full: Dp, ring: Int, on
         }
         return
     }
-    // A pad keeps its place on the rail that took the button's.
     if (ff != null) LaunchedEffect(Unit) { if (inputMode.inputMode == InputMode.Keyboard) focusSoon { ff.primary } }
     val width = androidx.compose.ui.unit.lerp(restW.coerceAtLeast(120.dp), full, grow)
     val shape = RoundedCornerShape(12.dp)
@@ -269,7 +248,6 @@ private fun SetupButton(s: FrontEndState, busy: Boolean, full: Dp, ring: Int, on
     }
 }
 
-// ---- storefront ------------------------------------------------------------------------------------
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -285,9 +263,7 @@ internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
     var openApp by rememberSaveable { mutableStateOf<String?>(null) }
     val updates = StoreState.updates
     if (mode == MODE_UPDATES && updates.isEmpty()) mode = MODE_INSTALLED
-    // Once a session is plenty: the Updates chip shows itself when there is something to update.
     LaunchedEffect(StoreState.ready) { if (StoreState.ready && !StoreState.updatesChecked && !StoreState.checkingUpdates) StoreState.checkUpdates(ctx) }
-    // A search runs a beat after typing stops, or as a category is picked.
     LaunchedEffect(query, category) {
         if (query.isBlank() && category == null) { StoreState.clearSearch(); return@LaunchedEffect }
         delay(350)
@@ -298,7 +274,6 @@ internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val view = LocalView.current
-    // Cards, where they are, for the page that opens from one.
     val cards = remember { HashMap<String, Rect>() }
     var viewportAt by remember { mutableStateOf(Offset.Zero) }
     var detail by remember { mutableStateOf<String?>(null) }
@@ -308,8 +283,6 @@ internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
     LaunchedEffect(openApp) {
         val id = openApp
         if (id != null) {
-            // The grid stays composed for the return animation. Release its native search field
-            // before covering it, so its focus ring and keyboard do not follow onto the app page.
             focusManager.clearFocus(force = true)
             view.findFocus()?.clearFocus()
             keyboard?.hide()
@@ -323,20 +296,17 @@ internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
             detail = null; leaving = false; detailFrom = null
         }
     }
-    // Back on the grid: focus goes to the card the page came from.
     LaunchedEffect(detail) {
         if (detail != null || inputMode.inputMode != InputMode.Keyboard || ff == null) return@LaunchedEffect
         val id = lastApp ?: return@LaunchedEffect
         ff.items["tile:store:$id"]?.let { req -> focusSoon { req } }
     }
     BackHandler(enabled = openApp != null) { openApp = null }
-    // An app's card on Desktop asked for its page.
     LaunchedEffect(StoreState.openRequest) { StoreState.openRequest?.let { openApp = it; StoreState.openRequest = null } }
     val covering = detail != null && !leaving
     val sink by animateFloatAsState(if (covering) 0.95f else 1f, if (covering) Motion.tw(480) else Motion.tw(460, 40), label = "flathubSink")
     val fade by animateFloatAsState(if (covering) 0f else 1f, if (covering) Motion.tw(320, 80) else Motion.tw(300, 100), label = "flathubFade")
     val modes = buildList { add(MODE_DISCOVER); add(MODE_INSTALLED); if (updates.isNotEmpty()) add(MODE_UPDATES) }
-    // LB / RB with a pad: focus goes to the new mode's chip; the cards it was on leave with the old mode.
     val seenMode = remember { arrayOf(mode) }
     LaunchedEffect(mode) {
         if (seenMode[0] == mode) return@LaunchedEffect
@@ -354,7 +324,6 @@ internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
     ) {
         Rise(0) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // A page of Desktop's: the way back to it, for a finger (B does the same).
                 val show = LocalShowSection.current
                 BackLink(stringResource(R.string.rail_desktop), compact = true) { show("desktop") }
                 Box(Modifier.weight(1f)) { FlathubChips(mode, modes, StoreState.installed.size, updates.size) { mode = it } }
@@ -386,7 +355,6 @@ internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
                 }
                 if (from == null) body()
                 else {
-                    // The card's own icon, cropped over the tile as it grows: the page arrives in the app's colour.
                     val art = coil.compose.rememberAsyncImagePainter(
                         remember(icon) { coil.request.ImageRequest.Builder(ctx).data(icon).size(256, 256).build() },
                     )
@@ -397,10 +365,6 @@ internal fun Storefront(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-/**
- * Discover, Installed (with its count) and Updates (when there are any): one selection glides under
- * them in teal; the Installed count pops as an install's dot lands in it.
- */
 @Composable
 private fun FlathubChips(mode: String, modes: List<String>, installed: Int, updates: Int, onPick: (String) -> Unit) {
     val pal = LocalPalette.current
@@ -415,7 +379,6 @@ private fun FlathubChips(mode: String, modes: List<String>, installed: Int, upda
                     val hot = rememberHot(src)
                     val shape = RoundedCornerShape(99.dp)
                     val on = m == mode
-                    // Drawn by the row's glide by touch only; with a pad its own rest look and the bar.
                     val under = on && androidx.compose.ui.platform.LocalInputModeManager.current.inputMode != androidx.compose.ui.input.InputMode.Keyboard
                     Row(
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
@@ -446,15 +409,10 @@ private fun FlathubChips(mode: String, modes: List<String>, installed: Int, upda
                 }
             }
         }
-        // Over the chips: under them, their rest fill hid it as it crossed them.
         ChipGlide(modes.indexOf(mode), bounds[mode], tint)
     }
 }
 
-/**
- * The card width for a width: room for a name on two lines and a two-line summary under the art,
- * so a long name wraps instead of being cut to a few letters.
- */
 private fun cardSize(width: Dp): Dp = when {
     width >= 700.dp -> 164.dp
     width >= 480.dp -> 148.dp
@@ -470,7 +428,6 @@ private fun Discover(
         ModeHeader(
             stringResource(R.string.store_tab_discover), query, onQuery, stringResource(R.string.store_search_placeholder),
         ) {
-            // The categories as small pills, at the right of the header.
             val pills = rememberScrollState()
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -529,7 +486,6 @@ private fun UpdatesMode(cards: HashMap<String, Rect>, onOpen: (String) -> Unit) 
     Rise(2) { CardGrid(apps.map { CardApp(it.id, it.name, it.icon ?: StoreState.details[it.id]?.icon ?: FlathubApi.iconUrl(it.id), it.summary) }, cards, onOpen) }
 }
 
-/** A horizontal row of cards under a title, the stores' shelf; nothing while it is empty. */
 @Composable
 private fun Shelf(title: String, apps: List<CardApp>?, first: Boolean, cards: HashMap<String, Rect>, onOpen: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -546,7 +502,6 @@ private fun Shelf(title: String, apps: List<CardApp>?, first: Boolean, cards: Ha
     }
 }
 
-/** The Installed and Updates modes, and search: a grid of the same cards. */
 @Composable
 private fun CardGrid(apps: List<CardApp>, cards: HashMap<String, Rect>, onOpen: (String) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 10.dp)) {
@@ -562,11 +517,6 @@ private fun CardGrid(apps: List<CardApp>, cards: HashMap<String, Rect>, onOpen: 
     }
 }
 
-/**
- * One app: its icon over a blurred, darkened copy of itself (darkened only, before Android 12),
- * with one status on the art - Get, ✓, or how far an install is - and under it the name, on two
- * lines if it needs them, and what the app is.
- */
 @Composable
 private fun AppCard(app: CardApp, size: Dp, first: Boolean, cards: HashMap<String, Rect>, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -595,7 +545,6 @@ private fun AppCard(app: CardApp, size: Dp, first: Boolean, cards: HashMap<Strin
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)).background(Color(0xFF0B2E2B)),
         ) {
             if (app.icon != null) {
-                // The icon's own colour, blurred and darkened, as the card's ground.
                 AsyncImage(
                     model = app.icon, contentDescription = null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.8f; scaleY = 1.8f; alpha = 0.55f }
@@ -604,7 +553,6 @@ private fun AppCard(app: CardApp, size: Dp, first: Boolean, cards: HashMap<Strin
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
                 AsyncImage(model = app.icon, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(artH * 0.62f))
             } else Icon(Icons.Outlined.Apps, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(artH * 0.5f))
-            // One status, on the art: what A on the card leads to.
             Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
                 when {
                     busy -> Box(Modifier.clip(RoundedCornerShape(99.dp)).background(Color.Black.copy(alpha = 0.55f)).padding(4.dp)) {
@@ -633,7 +581,6 @@ private fun AppCard(app: CardApp, size: Dp, first: Boolean, cards: HashMap<Strin
                 )
                 if (app.verified) Icon(Icons.Outlined.Verified, stringResource(R.string.store_verified), tint = pal.signal, modifier = Modifier.padding(top = 2.dp).size(13.dp))
             }
-            // Two lines kept for the summary even when it is short, so cards in a row line up.
             Text(
                 app.summary.orEmpty(), fontSize = 12.sp, lineHeight = 15.sp, color = colors.onSurfaceVariant,
                 minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp),
@@ -642,11 +589,6 @@ private fun AppCard(app: CardApp, size: Dp, first: Boolean, cards: HashMap<Strin
     }
 }
 
-/**
- * An app's page, flooded out of its card: its icon, name and what it is, one action (Install or
- * Open, with Update beside it when there is one) and Website; then its screenshots and details.
- * Install flies a dot to the Installed chip; Remove asks by stepping out of its button, in red.
- */
 @Composable
 private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -688,7 +630,6 @@ private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: 
                         enabled = StoreState.busy == null && s.ready && (d == null || d.arches.isEmpty() || "aarch64" in d.arches),
                     ) {
                         StoreState.install(ctx, id, name)
-                        // The button squashes into a dot that flies to the Installed chip, whose count pops.
                         val from = at
                         if (from != null) Flights.fly(Flight(from, to = { FlathubMotion.installedChip?.center }, onLand = { FlathubMotion.landed++ }))
                         else FlathubMotion.landed++
@@ -749,7 +690,6 @@ private fun AppDetail(s: FrontEndState, a: FrontEndActions, id: String, onBack: 
     }
 }
 
-/** Remove, which asks first: are you sure steps out of it in red, Keep first, so a stray A costs nothing. */
 @Composable
 private fun RemoveButton(id: String, name: String, enabled: Boolean) {
     val ctx = LocalContext.current
@@ -774,7 +714,6 @@ private fun RemoveButton(id: String, name: String, enabled: Boolean) {
     }
 }
 
-/** A small text action at the right of a header. */
 @Composable
 private fun SmallLink(text: String, enabled: Boolean = true, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -790,7 +729,6 @@ private fun SmallLink(text: String, enabled: Boolean = true, onClick: () -> Unit
     )
 }
 
-/** An app's icon from Flathub (a URL) or from its installed files; a placeholder until it loads. */
 @Composable
 internal fun AppIcon(model: Any?, name: String, size: Int) {
     val colors = MaterialTheme.colorScheme
@@ -800,7 +738,6 @@ internal fun AppIcon(model: Any?, name: String, size: Int) {
     }
 }
 
-/** A category pill: small, focusable, and filled when it is the one in use. */
 @Composable
 private fun PillButton(label: String, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme

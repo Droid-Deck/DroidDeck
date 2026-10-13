@@ -341,8 +341,6 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIn("GE-Proton11-7", [entry["name"] for entry in COMPAT["tool_catalog"](str(home), None)])
 
     def test_droiddeck_proton_is_adopted_and_labelled_like_any_other_extra(self):
-        # Its folder has a space ("DroidDeck-Proton 11-7.5") and its internal name starts with
-        # "DroidDeck-Proton-", which lower-cases to our own tools' prefix: neither may matter.
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             (home / "label").write_text("Compatible\n")
@@ -370,15 +368,12 @@ class GameEnvironmentTest(unittest.TestCase):
             config.write_text(config_text([("0", COMPAT["TOOL"]), ("42", "DroidDeck-Proton-11-7.5")]))
             COMPAT["register_default"](str(config), ["42", "43"], protect=protect)
             self.assertEqual(mapping_of(config.read_text()), {"0": COMPAT["TOOL"], "42": "DroidDeck-Proton-11-7.5", "43": COMPAT["TOOL"]})
-            # Once removed it is no longer runnable, and its games go back to the default.
             changes, _ = COMPAT["plan_mapping"]({"0": COMPAT["TOOL"], "42": "DroidDeck-Proton-11-7.5"}, ["42"], [COMPAT["TOOL"]], COMPAT["TOOL"], {})
             self.assertEqual(changes, {"42": COMPAT["TOOL"]})
 
     def test_both_proton_wrappers_call_environment_launcher(self):
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-            # Started through bl_run, which execs it - or, for a store game with cloud saves, waits
-            # for it so droiddeck-store-launch --exited can follow (test_store_launch.CloudHooks).
             self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
 
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
@@ -564,8 +559,6 @@ class DirectAudioPrefixTest(unittest.TestCase):
         wine = self.tool / "files/bin-arm64/wine"
         wine.write_text("#!/bin/sh\necho wine-11.0-4c8f2e1 '(Staging)'\n")
         wine.chmod(0o755)
-        # Proton's own winepulse.so names the audio interface: the classic table never imports
-        # PsCreateSystemThread, the system-thread one (Proton-CachyOS) always does.
         (self.tool / "files/lib/wine/aarch64-unix").mkdir(parents=True)
         self.winepulse = self.tool / "files/lib/wine/aarch64-unix/winepulse.so"
         self.winepulse.write_bytes(b"\x7fELF classic wine 11 pulse driver")
@@ -607,8 +600,6 @@ class DirectAudioPrefixTest(unittest.TestCase):
         result = self.run_setup()
         self.assertIn("DirectAudio selected", result.stderr)
         self.assertIn("WINEDLLPATH=%s/lib/wine" % self.audio, result.stdout)
-        # Proton-CachyOS's mmdevapi takes the driver list from this variable, and its launcher
-        # pre-sets it to pulse,alsa unless it is already set.
         self.assertIn("WINE_AUDIO_DRIVER=directaudio,pulse\n", result.stdout)
         self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
         self.assertEqual(self.link("syswow64"), str(self.audio / "lib/wine/i386-windows/winedirectaudio.drv"))
@@ -701,16 +692,11 @@ class StartWithoutSteamTest(unittest.TestCase):
             game = [str(ge), "waitforexitandrun", "/games/Game.exe", "-windowed"]
             self.assertEqual(start(game, {}, "3384071994"), (game, {}))
             on = {"DROIDDECK_NO_STEAM": "1"}
-            # An added game (a shortcut id) has no Steam fixes: UMU_ID 0. The command is unchanged.
             self.assertEqual(start(game, on, "3384071994"), (game, dict(on, UMU_ID="0")))
-            # A Steam game keeps its protonfixes under its own id.
             self.assertEqual(start(game, on, "570940")[1]["UMU_ID"], "570940")
-            # A UMU_ID the user set wins.
             self.assertEqual(start(game, dict(on, UMU_ID="umu-1"), "570940")[1]["UMU_ID"], "umu-1")
-            # Valve's Proton has no umu launch: the game runs straight in the prefix.
             plain = [str(valve)] + game[1:]
             self.assertEqual(start(plain, on, "570940"), ([str(valve), "runinprefix", "/games/Game.exe", "-windowed"], on))
-            # Only a game launch: the client's own runs and other verbs are left alone.
             for other in ([str(ge), "run", "/x.exe"], [str(ge), "waitforexitandrun"], [str(valve), "getcompatpath", "/x"]):
                 self.assertEqual(start(other, on, "570940"), (other, on))
 

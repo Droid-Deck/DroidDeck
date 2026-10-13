@@ -31,26 +31,11 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.gog.GogAuth
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * A store's own sign-in page in a WebView, one activity for the three stores: GOG's OAuth page
- * (the token comes back in the redirect's fragment), Epic's web login (an authorization code on
- * a JSON page), Amazon's device sign-in (a PKCE code on the return URL). Plain views, as the
- * proven GOG flow was: the page is rendered with the store's own client identity, and a social
- * sign-in hop to Google / Facebook / Apple runs under a real browser identity in a popup, since
- * those providers refuse an embedded browser.
- *
- * Nothing from the page is logged but redacted URLs and key names; the tokens go straight to
- * StoreAccounts' private file and the activity finishes.
- */
 class StoreLoginActivity : ComponentActivity() {
     companion object {
         private const val TAG = "StoreLogin"
         const val EXTRA_STORE = "store"
         private const val KEY_STATE = "oauth_state"
-        /**
-         * The colour the Stores page flooded to before opening this page, read once: the page opens
-         * on it, with no window animation, and its chrome rises in, as a session opens on Play's blue.
-         */
         @Volatile internal var floodColor: Int? = null
         private const val CHROME_UA = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
 
@@ -61,15 +46,11 @@ class StoreLoginActivity : ComponentActivity() {
         }
     }
 
-    /** What one store's flow decides: the page to open, the identity to open it with, and the redirect that ends it. */
     internal interface Flow {
         val startUrl: String
         val userAgent: String
-        /** True when [url] is the flow's end; the activity then calls [finish]. */
         fun isRedirect(url: String): Boolean
-        /** Runs off the main thread with the redirect; returns null on success, else a message to show. */
         fun finish(activity: StoreLoginActivity, view: WebView, url: String): String?
-        /** Whether a JSON page at the redirect must be read out of the document instead of the URL (Epic). */
         val readsPage: Boolean get() = false
     }
 
@@ -85,7 +66,6 @@ class StoreLoginActivity : ComponentActivity() {
     private lateinit var titleText: TextView
     private var oauthState: String? = null
     private val captured = AtomicBoolean(false)
-    /** Opened behind a flood: it opens and closes with no window animation. */
     private var flooded = false
 
     private fun dp(value: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
@@ -126,7 +106,6 @@ class StoreLoginActivity : ComponentActivity() {
 
     override fun finish() {
         super.finish()
-        // Back to the Stores page, which is still covered in the flood and drains it from there.
         @Suppress("DEPRECATION") if (flooded) overridePendingTransition(0, 0)
     }
 
@@ -193,7 +172,6 @@ class StoreLoginActivity : ComponentActivity() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.userAgentString = userAgent
-        // The stores' social-login buttons are window.open() popups; without these the call is dropped silently.
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
         if (isPopup) CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
@@ -224,7 +202,6 @@ class StoreLoginActivity : ComponentActivity() {
         override fun onCloseWindow(window: WebView?) { if (isPopup || window === popupWebView) dismissPopup() }
     }
 
-    /** Deferred: destroying a WebView from inside one of its own callbacks crashes chromium. */
     private fun dismissPopup() {
         val child = popupWebView ?: return
         popupWebView = null
@@ -243,12 +220,10 @@ class StoreLoginActivity : ComponentActivity() {
     private inner class Client(private val isPopup: Boolean) : WebViewClient() {
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
             Log.d(TAG, "page[popup=$isPopup]: ${StoreLog.redactUrl(url)}")
-            // Amazon's return URL lands as a page load rather than a navigation we can intercept.
             if (url != null && view != null && flow?.isRedirect(url) == true && flow?.readsPage != true) complete(view, url)
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
-            // Epic's redirect is a JSON page: the code is in the document, read once it is loaded.
             if (url != null && view != null && flow?.readsPage == true && flow?.isRedirect(url) == true) complete(view, url)
         }
 
@@ -277,9 +252,6 @@ class StoreLoginActivity : ComponentActivity() {
             val f = flow ?: return false
             val url = uri.toString()
             if (f.isRedirect(url) && !f.readsPage) { complete(view, url); return true }
-            // A social sign-in hop that stays in the main view: the provider gets a browser identity,
-            // and the store gets its own identity back afterwards (a plain Chrome UA makes GOG's
-            // page serve a form that never renders in a WebView).
             if (!isPopup && store == Store.GOG) {
                 if (GogAuth.isGogHost(uri.host) && view.settings.userAgentString != f.userAgent) { view.settings.userAgentString = f.userAgent; return false }
                 if (GogAuth.isIdentityProviderHost(uri.host) && view.settings.userAgentString != CHROME_UA) {
@@ -303,7 +275,6 @@ class StoreLoginActivity : ComponentActivity() {
             if (!f.readsPage) view.stopLoading()
         }
         if (f.readsPage) {
-            // The document's text, then the exchange off the main thread.
             view.evaluateJavascript("(function(){ try { return document.body.innerText; } catch(e){ return ''; } })()") { json ->
                 Thread({ settle(f.finish(this, view, json ?: "")) }, "store-login").start()
             }

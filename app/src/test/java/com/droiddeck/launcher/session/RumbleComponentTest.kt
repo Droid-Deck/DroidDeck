@@ -164,7 +164,6 @@ class RumbleComponentTest {
     }
 
     private fun effect(strong: Int = 65535, weak: Int = 65535, slot: Int = 0) {
-        // Inject a decoded force-feedback packet; transport is outside these tests.
         val int = Int::class.javaPrimitiveType
         RumbleComponent::class.java.getDeclaredMethod("buzz", int, int, int, int)
             .apply { isAccessible = true }.invoke(rumble, strong, weak, 5000, slot)

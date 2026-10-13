@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 
-/** Store lines reach the Downloads log and logcat; nothing in them may carry a token. */
 class StoreLogTest {
     @Test fun gogSecureLinkKeepsOnlyTheHost() {
         val line = "gog: window 32 in_flight 3 https://gog-cdn-fastly.gog.com/token=nva=1791500000~dirs=/content-system/v2/store/1207658924~token=0a1b2c3d4e5f/content-system/v2/store/1207658924/ab/cd/abcdef 12.1 MB/s"
@@ -24,7 +23,6 @@ class StoreLogTest {
         assertEquals("refresh access_token=… refresh_token: '…' code=… hdnts=… __token__=…", out)
         assertEquals("Authorization: …", StoreLog.redactLine("Authorization: Bearer eyJhbGciOi"))
         assertEquals("""{"access_token":"…","expires_in":7200}""", StoreLog.redactLine("""{"access_token":"eyJ.abc","expires_in":7200}"""))
-        // Ordinary numbers stay: "HTTP code 403" has no separator to read as a secret.
         assertEquals("HTTP code 403 from https://api.gog.com/products/…", StoreLog.redactLine("HTTP code 403 from https://user:pw@api.gog.com/products/1?expand=x"))
     }
 }

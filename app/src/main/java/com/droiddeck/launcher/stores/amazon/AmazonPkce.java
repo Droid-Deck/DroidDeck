@@ -7,16 +7,13 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.UUID;
 
-/** The PKCE values Amazon's device sign-in takes, generated the way the Amazon Games launcher does. */
 public final class AmazonPkce {
     private static final String DEVICE_TYPE = "A2UMVHOX7UP4V7";
 
     private AmazonPkce() {}
 
-    /** One per sign-in: a UUID as uppercase hex. */
     public static String generateDeviceSerial() { return UUID.randomUUID().toString().replace("-", "").toUpperCase(); }
 
-    /** hex("serial#DEVICE_TYPE"). */
     public static String generateClientId(String serial) {
         byte[] bytes = (serial + "#" + DEVICE_TYPE).getBytes(StandardCharsets.UTF_8);
         StringBuilder sb = new StringBuilder();
@@ -39,7 +36,6 @@ public final class AmazonPkce {
         }
     }
 
-    /** SHA-256 of the input as uppercase hex: the entitlements call's hardwareHash. */
     public static String sha256Upper(String input) {
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8));
