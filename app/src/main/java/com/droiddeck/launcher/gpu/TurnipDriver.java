@@ -45,7 +45,7 @@ import java.util.zip.ZipInputStream;
  */
 public final class TurnipDriver {
     private static final String TAG = "TurnipDriver";
-    /** Adreno 7xx (8 Gen 2/3, e.g. the Pocket FIT's A750). */
+    /** Adreno 6xx/7xx (e.g. the 618 in the Mi Note 10, 8 Gen 2/3 like the Pocket FIT's A750). */
     private static final String DRIVER_A7XX = "turnip25.1.0";
     /** Adreno 8xx (8 Elite, e.g. a Fold 8's A830). */
     private static final String DRIVER_A8XX = "turnip-sdk36";
@@ -348,6 +348,10 @@ public final class TurnipDriver {
                 char generation = m.group(1).charAt(0);
                 if (generation >= '8') return DRIVER_A8XX;
                 if (generation == '7') return DRIVER_A7XX;
+                // Adreno 6xx (e.g. the 618 in the Mi Note 10): the bundled A7XX build drives the
+                // compositor, Banners-Turnip 6xx/7xx drives the guest. Explicit so an Android 16
+                // custom ROM (tucana has Lineage Android 16) does not fall through to the A8XX SDK default.
+                if (generation == '6') return DRIVER_A7XX;
             }
         }
         // Nothing to go on: Android 16 shipped with the 8 Elite, so treat a new device as 8xx.
