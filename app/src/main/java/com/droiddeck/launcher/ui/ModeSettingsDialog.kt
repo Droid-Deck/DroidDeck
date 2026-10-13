@@ -361,7 +361,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ))
                 add(StorageChoice("off", internal, internal, ""))
                 for (o in s.storageOptions) add(StorageChoice(o.path, o.label, o.label, o.name))
-                if (custom) stringResource(R.string.mode_storage_folder, s.gameStorage).let { add(StorageChoice(s.gameStorage, it, it, it)) }            }
+                if (custom) stringResource(R.string.mode_storage_folder, s.gameStorage).let { add(StorageChoice(s.gameStorage, it, it, it)) }
+            }
             val open = host.open == "storage"
             SettingsRow(
                 stringResource(R.string.mode_second_library),

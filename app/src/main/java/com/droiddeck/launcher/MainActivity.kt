@@ -1400,7 +1400,10 @@ class MainActivity : ComponentActivity() {
                 onUsbRoot = { on ->
                     SessionPrefs.setUsbRootEnabled(this, on)
                     if (on) UsbRootMount.watch(this)
-                    usbRootAction { if (on) UsbRootMount.mount(this) else if (!SessionState.running) UsbRootMount.unmount(this) else null }
+                    usbRootAction {
+                        if (on) UsbRootMount.mount(this)
+                        else UsbRootMount.unwatch(this).let { if (SessionState.running) null else UsbRootMount.unmount(this) }
+                    }
                 },
                 onUsbDrive = { uuid ->
                     usbRootAction {
@@ -1584,7 +1587,7 @@ class MainActivity : ComponentActivity() {
             ui.post { zramSupported = zram; zramCompression = zramOn }
             drivers.refreshDrivers()
             if (mode == SessionService.MODE_STEAM) refreshUsbRoot()
-            val needsAccess = GameStorage.usbNeedsAccess(this)
+            val needsAccess = mode == SessionService.MODE_STEAM && GameStorage.usbNeedsAccess(this)
             val storage = GameStorage.options(this)
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
             val deckySupervisor = mode == SessionService.MODE_STEAM && DeckyManager.supervisorEnabled(this)
@@ -1617,8 +1620,7 @@ class MainActivity : ComponentActivity() {
         val state = com.droiddeck.launcher.ui.UsbRootUi(
             on, drives, drive, UsbRootMount.mounted(this), error, SessionState.running,
         )
-        val storage = GameStorage.options(this)
-        ui.post { usbRoot = state; storageOptions = storage }
+        ui.post { usbRoot = state }
     }
 
     /** A second Steam library, proven writable first; "" = internal only. */
