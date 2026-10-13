@@ -1400,22 +1400,7 @@ class MainActivity : ComponentActivity() {
                 onUsbRoot = { on ->
                     SessionPrefs.setUsbRootEnabled(this, on)
                     if (on) UsbRootMount.watch(this)
-                    usbRootAction {
-                        val error = if (on) UsbRootMount.mount(this) else if (!SessionState.running) UsbRootMount.unmount(this) else null
-                        // A USB library chosen through the other route follows the switch: same drive, new path.
-                        val pref = SessionPrefs.gameStorage(this)
-                        val root = UsbRootMount.path(this).absolutePath
-                        val moved = when {
-                            on && pref.startsWith("/mnt/media_rw/") -> root
-                            !on && pref == root -> ""
-                            else -> null
-                        }
-                        if (moved != null) {
-                            SessionPrefs.setGameStorage(this, moved, if (moved.isEmpty()) "" else getString(R.string.usb_root_volume))
-                            ui.post { gameStorage = moved }
-                        }
-                        error
-                    }
+                    usbRootAction { if (on) UsbRootMount.mount(this) else if (!SessionState.running) UsbRootMount.unmount(this) else null }
                 },
                 onUsbDrive = { uuid ->
                     usbRootAction {
@@ -1630,7 +1615,7 @@ class MainActivity : ComponentActivity() {
         val drive = SessionPrefs.usbRootDrive(this)
         if (on && drive.isNotEmpty() && drives.none { it.uuid == drive }) error = error ?: getString(R.string.usb_root_not_plugged)
         val state = com.droiddeck.launcher.ui.UsbRootUi(
-            on, drives, drive, UsbRootMount.path(this).absolutePath, UsbRootMount.mounted(this), error, SessionState.running,
+            on, drives, drive, UsbRootMount.mounted(this), error, SessionState.running,
         )
         val storage = GameStorage.options(this)
         ui.post { usbRoot = state; storageOptions = storage }

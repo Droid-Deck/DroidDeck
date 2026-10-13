@@ -24,6 +24,7 @@ object SecondaryLibrary {
     }
 
     val CARD_GUESTS = listOf("/mnt/droiddeck-sd", "/mnt/bannerlator-sd")
+    const val USB_GUEST = "/mnt/droiddeck-usb"
 
     /** Parent binds come first; the more specific private directories override them in PRoot. */
     fun binds(files: File, library: File, guests: List<String> = CARD_GUESTS): List<String> {

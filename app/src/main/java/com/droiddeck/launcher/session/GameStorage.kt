@@ -25,12 +25,7 @@ object GameStorage {
     /** Every removable volume, as its app folder, with the free space it has. */
     fun options(context: Context): List<Option> {
         val sm = context.getSystemService(StorageManager::class.java)
-        // One USB route at a time: the root mount when that setting is on, vold's own mount otherwise.
-        val usbName = UsbRootMount.label ?: context.getString(R.string.usb_root_volume)
-        val usb = if (SessionPrefs.usbRootEnabled(context)) listOf(UsbRootMount.path(context)).filter { UsbRootMount.mounted(context) }.map { it to it }
-            else hiddenUsb(context).filter { it.canWrite() }.map { it to File(it, "steam") }
-        return usb.map { (volume, root) -> Option(context.getString(R.string.gstore_volume_free, usbName, free(volume)), root.absolutePath, usbName) } +
-            context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
+        return context.getExternalFilesDirs(null).orEmpty().filterNotNull().mapNotNull { dir ->
             val removable = try { Environment.isExternalStorageRemovable(dir) } catch (e: Exception) { false }
             if (!removable) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(dir) } catch (e: Exception) { null }
@@ -57,6 +52,16 @@ object GameStorage {
 
     /** A hidden USB drive is plugged in but the app may not use it yet. */
     fun usbNeedsAccess(context: Context): Boolean = hiddenUsb(context).any { !it.canWrite() }
+
+    /**
+     * The USB drive, by whichever route is on: the root mount, or vold's own with All files access.
+     * shortcut: one drive only (the first), list them all if two drives need to be libraries at once.
+     */
+    fun usbDrive(context: Context): File? =
+        if (SessionPrefs.usbRootEnabled(context)) UsbRootMount.path(context).takeIf { UsbRootMount.mounted(context) }
+        else hiddenUsb(context).firstOrNull { it.canWrite() }
+
+    fun usbLabel(context: Context): String = UsbRootMount.label ?: context.getString(R.string.usb_root_volume)
 
     fun free(dir: File): String = try {
         FileUtils.sizeToString(StatFs(dir.path).availableBytes)
@@ -86,8 +91,6 @@ object GameStorage {
         return when {
             pref == SessionPrefs.GAME_STORAGE_OFF -> null
             pref.isEmpty() -> options(context).firstOrNull()?.let { Option(it.name, it.path) }
-            // Unmounted, the folder is on internal storage: never hand Steam that.
-            pref == UsbRootMount.path(context).absolutePath && !UsbRootMount.mounted(context) -> null
             else -> Option(SessionPrefs.gameStorageLabel(context), pref)
         }
     }

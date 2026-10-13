@@ -90,6 +90,15 @@ class LibraryListTest(unittest.TestCase):
         self.assertIn(self.pc, self.paths(self.run_main()))
         self.assertIn(self.card, self.paths(self.vdf.read_text()))
 
+    def test_usb_library_follows_the_list(self):
+        usb = self.root / "usb"
+        (usb / "steamapps").mkdir(parents=True)
+        with patch.object(library, "USB", str(usb)):
+            self.listing.write_text(json.dumps([{"path": str(usb), "label": "USB drive"}]))
+            self.assertIn(usb, self.paths(self.run_main()))
+            self.listing.write_text("[]")
+            self.assertNotIn(usb, self.paths(self.run_main()))
+
     def test_without_a_list_only_the_card_is_managed(self):
         text = self.run_main(listing=False)
         self.assertEqual([self.steam, self.old, self.user, self.card], self.paths(text))
