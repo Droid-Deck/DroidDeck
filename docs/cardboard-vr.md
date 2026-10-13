@@ -144,11 +144,15 @@ a pose written to the shared file turns SteamVR's view. Started from the drawer 
 
 - **Controllers**: the driver adds two Vive-profile hands driven by the session's game pad. It reads
   the absolute-state snapshot the app already publishes in fake input ring 0
-  (`FAKE_EVDEV_MEMFD_PATHS`), so the app needs no new plumbing. They are a gaze pointer: low in front
-  of each hand, pointing where the head looks. Mapping, right hand: right stick = trackpad, A/R3 =
-  trackpad click, RT = trigger, RB = grip, Start = menu, guide = system. Left hand: left stick, X/L3,
-  LT, LB, Select. Both hands activate in SteamVR and their laser shows on the dashboard; guide, Start and
-  A presses show up in the ring the driver reads.
+  (`FAKE_EVDEV_MEMFD_PATHS`), so the app needs no new plumbing. They rest low in front of each side and
+  point where the head looks. Each stick moves its hand sideways (40 cm), up (50 cm) and down (30 cm)
+  and turns it as if from an elbow 45 cm behind, so pointers and aim follow it too; the hand eases
+  back when the stick is let go. The d-pad's up and down move both hands in and out; while a hand's
+  trigger or grip is held they move only that hand (a slingshot or bow pulled back), and it eases back
+  on release. Clicking the left stick hands the sticks to the game as trackpads (walking, turning,
+  teleport) and back. Mapping, right hand: A/R3 = trackpad click, RT = trigger, RB = grip, Start = menu, guide =
+  system. Left hand: X, LT, LB, Select. Both hands activate in SteamVR and their laser shows on the
+  dashboard; guide, Start and A presses show up in the ring the driver reads.
 - **Layers**: only the first layer of each frame is drawn. SteamVR's compositor composites the
   dashboard into it, so this has not mattered yet.
 - **Timing**: no reprojection. The presenter blits the frame submitted last once `vrcompositor`'s GPU

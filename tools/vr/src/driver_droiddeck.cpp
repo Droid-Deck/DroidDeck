@@ -415,18 +415,43 @@ public:
     DriverPose_t GetPose() override { return pose_; }
 
     // From the driver's pose thread: the head's orientation and the pad.
-    void Update(const HmdQuaternion_t &head, const PadState *pad) {
+    static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 1.0f;
+
+    static bool Grabbing(const PadState &pad, bool right) {
+        return pad.axes[right ? 4 : 5] > kGrabTrigger || (pad.buttons & (right ? PAD_RB : PAD_LB));
+    }
+
+    void Update(const HmdQuaternion_t &head, const PadState *pad, bool sticksMoveHands, float reach) {
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         const auto now = std::chrono::steady_clock::now();
         const float dt = std::min(std::chrono::duration<float>(now - lastUpdate_).count(), 0.1f);
         lastUpdate_ = now;
-        if (pad && pad->axes[7]) reach_ = std::clamp(reach_ - (pad->axes[7] > 0 ? 1.0f : -1.0f) * kReachSpeed * dt, kReachMin, kReachMax);
+        const float follow = 1.0f - std::exp(-dt / kHandSmoothing);
+        const bool grab = pad && Grabbing(*pad, right_);
+        if (grab && pad->axes[7]) pull_ = std::clamp(pull_ - (pad->axes[7] > 0 ? 1.0f : -1.0f) * kReachSpeed * dt, kReachMin - reach, kReachMax - reach);
+        else if (!grab) pull_ -= pull_ * follow;
+        const float stickX = pad ? pad->axes[right_ ? 2 : 0] / 32767.0f : 0.0f, stickY = pad ? -pad->axes[right_ ? 3 : 1] / 32767.0f : 0.0f;
+        float aimX = 0.0f, aimY = 0.0f;
+        const float tilt = std::sqrt(stickX * stickX + stickY * stickY);
+        if (sticksMoveHands && tilt > kStickDeadzone) {
+            const float scale = std::min((tilt - kStickDeadzone) / (1.0f - kStickDeadzone), 1.0f) / tilt;
+            aimX = stickX * scale;
+            aimY = stickY * scale;
+        }
+        handX_ += (aimX * kHandRangeX - handX_) * follow;
+        handY_ += (aimY * (aimY > 0.0f ? kHandRangeUp : kHandRangeDown) - handY_) * follow;
         DriverPose_t p = {};
         p.qWorldFromDriverRotation.w = 1;
         p.qDriverFromHeadRotation.w = 1;
-        p.qRotation = head;
+        const double yaw = std::atan2(-handX_, kHandPivot) / 2, pitch = std::atan2(handY_, std::hypot(kHandPivot, handX_)) / 2;
+        const double cy = std::cos(yaw), sy = std::sin(yaw), cp = std::cos(pitch), sp = std::sin(pitch);
+        const double lw = cy * cp, lx = cy * sp, ly = sy * cp, lz = -sy * sp;
+        p.qRotation.w = head.w * lw - head.x * lx - head.y * ly - head.z * lz;
+        p.qRotation.x = head.w * lx + head.x * lw + head.y * lz - head.z * ly;
+        p.qRotation.y = head.w * ly - head.x * lz + head.y * lw + head.z * lx;
+        p.qRotation.z = head.w * lz + head.x * ly - head.y * lx + head.z * lw;
         // Low and in front of its side, in head space, then into the room with the head's rotation.
-        const double off[3] = {right_ ? 0.18 : -0.18, -0.35, -0.30 - reach_};
+        const double off[3] = {(right_ ? 0.18 : -0.18) + handX_, -0.25 + handY_, -0.35 - reach - pull_};
         double m[3][3];
         const double w = head.w, x = head.x, y = head.y, z = head.z;
         m[0][0] = 1 - 2 * (y * y + z * z); m[0][1] = 2 * (x * y - z * w); m[0][2] = 2 * (x * z + y * w);
@@ -441,9 +466,8 @@ public:
         if (!pad) return;
         auto in = VRDriverInput();
         const uint32_t b = pad->buttons;
-        const float stickX = pad->axes[right_ ? 2 : 0] / 32767.0f, stickY = -pad->axes[right_ ? 3 : 1] / 32767.0f;
         const float trig = pad->axes[right_ ? 4 : 5] / 255.0f;
-        const bool touch = stickX * stickX + stickY * stickY > 0.01f;
+        const bool touch = !sticksMoveHands && stickX * stickX + stickY * stickY > 0.01f;
         in->UpdateBooleanComponent(system_, right_ && (b & PAD_GUIDE), 0);
         in->UpdateBooleanComponent(menu_, (b & (right_ ? PAD_START : PAD_SELECT)) != 0, 0);
         in->UpdateBooleanComponent(grip_, (b & (right_ ? PAD_RB : PAD_LB)) != 0, 0);
@@ -452,15 +476,16 @@ public:
         in->UpdateScalarComponent(padX_, touch ? stickX : 0.0f, 0);
         in->UpdateScalarComponent(padY_, touch ? stickY : 0.0f, 0);
         in->UpdateBooleanComponent(padTouch_, touch || (b & (right_ ? PAD_A : PAD_X)), 0);
-        in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : (PAD_X | PAD_L3))) != 0, 0);
+        in->UpdateBooleanComponent(padClick_, (b & (right_ ? (PAD_A | PAD_R3) : PAD_X)) != 0, 0);
     }
 
 private:
-    static constexpr float kReachSpeed = 0.6f, kReachMin = -0.2f, kReachMax = 1.0f;
+    static constexpr int16_t kGrabTrigger = 153;
+    static constexpr float kStickDeadzone = 0.12f, kHandRangeX = 0.40f, kHandRangeUp = 0.50f, kHandRangeDown = 0.30f, kHandSmoothing = 0.05f, kHandPivot = 0.45f;
     bool right_;
     uint32_t id_ = k_unTrackedDeviceIndexInvalid;
     DriverPose_t pose_ = {};
-    float reach_ = 0.0f;
+    float pull_ = 0.0f, handX_ = 0.0f, handY_ = 0.0f;
     std::chrono::steady_clock::time_point lastUpdate_ = std::chrono::steady_clock::now();
     VRInputComponentHandle_t system_ = 0, menu_ = 0, grip_ = 0, triggerClick_ = 0, trigger_ = 0, padX_ = 0, padY_ = 0,
                              padClick_ = 0, padTouch_ = 0, haptic_ = 0;
@@ -651,7 +676,16 @@ private:
                 }
                 DriverPose_t head = GetPose();
                 VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(DriverPose_t));
-                for (CardboardController *hand : hands_) if (hand) hand->Update(head.qRotation, havePad ? &pad : nullptr);
+                if (havePad && (pad.buttons & PAD_L3) && !(lastPad_.buttons & PAD_L3)) {
+                    sticksMoveHands_ = !sticksMoveHands_;
+                    Log("sticks now move %s", sticksMoveHands_ ? "the hands" : "in the game");
+                }
+                const float dt = std::min(std::chrono::duration<float>(now - lastReach_).count(), 0.1f);
+                lastReach_ = now;
+                if (havePad && pad.axes[7] && !CardboardController::Grabbing(pad, false) && !CardboardController::Grabbing(pad, true))
+                    reach_ = std::clamp(reach_ - (pad.axes[7] > 0 ? 1.0f : -1.0f) * CardboardController::kReachSpeed * dt,
+                                        CardboardController::kReachMin, CardboardController::kReachMax);
+                for (CardboardController *hand : hands_) if (hand) hand->Update(head.qRotation, havePad ? &pad : nullptr, sticksMoveHands_, reach_);
                 if (havePad) lastPad_ = pad;
                 lastSent = now;
             }
@@ -673,6 +707,9 @@ private:
     PadState lastPad_;
     VRInputComponentHandle_t proximity_ = 0;
     bool worn_ = true;
+    bool sticksMoveHands_ = true;
+    float reach_ = 0.0f;
+    std::chrono::steady_clock::time_point lastReach_ = std::chrono::steady_clock::now();
     CardboardController *hands_[2] = {nullptr, nullptr};
     bool virtualDisplay_ = false, directMode_ = false;
     VirtualDisplay vd_;
