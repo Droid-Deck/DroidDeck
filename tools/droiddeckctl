@@ -674,7 +674,7 @@ def build_parser() -> argparse.ArgumentParser:
     glasses_ops = glasses.add_subparsers(dest="glasses_op")
     glasses_ops.add_parser("status")
     glasses_ops.add_parser("allow", help="ask for USB control of the glasses again")
-    glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, brightness, volume, sunblock, 3d, gameOnGlasses, headTracking, auto3d")
+    glasses_set = glasses_ops.add_parser("set", help="refreshHz, sbsHz, brightness, volume, sunblock, 3d, gameOnGlasses, headTracking, auto3d, picture3d, screenWidthDm, screenDistanceDm, vrFovDeg, autoSteamVr")
     glasses_set.add_argument("key")
     glasses_set.add_argument("value")
     glasses_sim = glasses_ops.add_parser("simulate", help="feed a moving head pose (yaw, pitch and roll sweeps), or hold one")

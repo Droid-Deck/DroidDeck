@@ -2139,6 +2139,11 @@
     <string name="glasses_head_tracking">헤드 트래킹</string>
     <string name="glasses_head_tracking_hint">안경의 센서가 머리 움직임에 맞춰 가상 화면과 SteamVR을 돌립니다.</string>
     <string name="glasses_recenter">시점 재설정</string>
+    <string name="glasses_recenter_button">중앙 맞추기</string>
+    <string name="glasses_auto_steamvr">안경 연결 시 SteamVR 시작</string>
+    <string name="glasses_auto_steamvr_hint">Steam에서 안경을 연결하면 SteamVR을 시작하고, 분리하면 중지합니다.</string>
+    <string name="glasses_vr_fov">SteamVR 시야각</string>
+    <string name="glasses_vr_fov_hint">낮추면 SteamVR이 가까워져 안경을 가득 채우고, 높이면 주변이 더 넓게 보입니다.</string>
     <string name="glasses_playing">%1$s에서 플레이 중</string>
     <string name="stores_fact_developer">개발사</string>
     <string name="stores_fact_publisher">배급사</string>

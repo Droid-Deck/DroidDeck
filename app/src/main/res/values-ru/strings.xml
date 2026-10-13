@@ -1124,6 +1124,11 @@
     <string name="glasses_head_tracking">Отслеживание головы</string>
     <string name="glasses_head_tracking_hint">Датчики очков поворачивают виртуальный экран и SteamVR вслед за головой.</string>
     <string name="glasses_recenter">Сбросить вид</string>
+    <string name="glasses_recenter_button">Центрировать</string>
+    <string name="glasses_auto_steamvr">Запускать SteamVR с очками</string>
+    <string name="glasses_auto_steamvr_hint">В Steam SteamVR запускается при подключении очков и останавливается при отключении.</string>
+    <string name="glasses_vr_fov">Поле зрения SteamVR</string>
+    <string name="glasses_vr_fov_hint">Меньше — SteamVR ближе и заполняет очки; больше — шире обзор вокруг.</string>
     <string name="glasses_playing">Игра на %1$s</string>
     <string name="stores_fact_developer">Разработчик</string>
     <string name="stores_fact_publisher">Издатель</string>

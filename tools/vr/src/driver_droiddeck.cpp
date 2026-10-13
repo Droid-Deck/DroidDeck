@@ -612,6 +612,7 @@ private:
         uint32_t w = 0, h = 0;
         GetRecommendedRenderTargetSize(&w, &h);
         VRServerDriverHost()->SetRecommendedRenderTargetSize(id_, w, h);
+        VRServerDriverHost()->VendorSpecificEvent(id_, VREvent_LensDistortionChanged, VREvent_Data_t{}, 0.0);
         Log("eye now tan(half fov) %.3f, aspect %.3f (%ux%u eye%s), render %ux%u", tanHalf_.load(), eyeAspect_.load(), hp.eye_w, hp.eye_h,
             (hp.flags & DROIDDECK_HEADPOSE_MONO) ? ", one eye shown" : "", w, h);
     }

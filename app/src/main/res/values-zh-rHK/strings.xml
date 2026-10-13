@@ -2139,6 +2139,11 @@
     <string name="glasses_head_tracking">頭部追蹤</string>
     <string name="glasses_head_tracking_hint">眼鏡自帶的感應器會隨頭部轉動虛擬螢幕和 SteamVR。</string>
     <string name="glasses_recenter">重新置中視角</string>
+    <string name="glasses_recenter_button">重新置中</string>
+    <string name="glasses_auto_steamvr">連接眼鏡時啟動 SteamVR</string>
+    <string name="glasses_auto_steamvr_hint">在 Steam 中，插入眼鏡時啟動 SteamVR，拔出時停止。</string>
+    <string name="glasses_vr_fov">SteamVR 視場角</string>
+    <string name="glasses_vr_fov_hint">調低令 SteamVR 更近並填滿眼鏡；調高可看到更多周圍內容。</string>
     <string name="glasses_playing">正在 %1$s 上遊玩</string>
     <string name="stores_fact_developer">開發商</string>
     <string name="stores_fact_publisher">發行商</string>

@@ -2396,5 +2396,10 @@
     <string name="glasses_head_tracking">Head tracking</string>
     <string name="glasses_head_tracking_hint">The glasses\' own sensors turn the virtual screen and SteamVR with your head.</string>
     <string name="glasses_recenter">Recenter view</string>
+    <string name="glasses_recenter_button">Recenter</string>
+    <string name="glasses_auto_steamvr">Start SteamVR with the glasses</string>
+    <string name="glasses_auto_steamvr_hint">In Steam, SteamVR starts when the glasses are plugged in and stops when they are unplugged.</string>
+    <string name="glasses_vr_fov">SteamVR field of view</string>
+    <string name="glasses_vr_fov_hint">Lower brings SteamVR closer and fills the glasses; higher shows more around you.</string>
     <string name="glasses_playing">Playing on %1$s</string>
 </resources>

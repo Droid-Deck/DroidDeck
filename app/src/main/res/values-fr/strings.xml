@@ -1013,6 +1013,11 @@
     <string name="glasses_head_tracking">Suivi de la tête</string>
     <string name="glasses_head_tracking_hint">Les capteurs des lunettes font tourner l\'écran virtuel et SteamVR avec votre tête.</string>
     <string name="glasses_recenter">Recentrer la vue</string>
+    <string name="glasses_recenter_button">Recentrer</string>
+    <string name="glasses_auto_steamvr">Lancer SteamVR avec les lunettes</string>
+    <string name="glasses_auto_steamvr_hint">Dans Steam, SteamVR démarre quand les lunettes sont branchées et s\'arrête quand elles sont débranchées.</string>
+    <string name="glasses_vr_fov">Champ de vision SteamVR</string>
+    <string name="glasses_vr_fov_hint">Plus bas rapproche SteamVR et remplit les lunettes ; plus haut montre davantage autour de vous.</string>
     <string name="glasses_playing">En jeu sur %1$s</string>
     <string name="stores_fact_developer">Développeur</string>
     <string name="stores_fact_publisher">Éditeur</string>

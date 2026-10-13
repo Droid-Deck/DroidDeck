@@ -117,7 +117,7 @@ class AgentBridgeProvider : ContentProvider() {
                 val value = request.optString("value")
                 fun on() = value == "1" || value.equals("true", true) || value.equals("on", true)
                 val number = value.toIntOrNull()
-                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "sbsSupport")
+                val numeric = setOf("refreshHz", "sbsHz", "brightness", "volume", "picture3d", "screenWidthDm", "screenDistanceDm", "vrFovDeg", "sbsSupport")
                 if (key in numeric && number == null) return error("INVALID_VALUE", "'$key' takes a number")
                 when (key) {
                     "refreshHz" -> g.setRefreshHz(number!!)
@@ -132,6 +132,8 @@ class AgentBridgeProvider : ContentProvider() {
                     "picture3d" -> g.setPicture3d(number!!)
                     "screenWidthDm" -> g.setScreenWidthDm(number!!)
                     "screenDistanceDm" -> g.setScreenDistanceDm(number!!)
+                    "vrFovDeg" -> g.setVrFovDeg(number!!)
+                    "autoSteamVr" -> g.setAutoSteamVr(on())
                     "sbsSupport" -> g.setSbsSupport(number!!)
                     else -> return error("INVALID_KEY", "Unknown glasses setting '$key'")
                 }

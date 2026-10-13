@@ -95,6 +95,9 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
     and KGSL does not order the copy after the client's GPU work. The presenter's blit sat behind the
     game's frame, so the compositor showed the swapchain image's older picture. The presenter now
     waits for its blit before it presents.
+- **A new projection needs an event.** `SetDisplayProjectionRaw` changed what `vrserver` reports, but
+  `vrcompositor` kept the frustum it started with, so the glasses' field of view did nothing until
+  SteamVR restarted. The driver now follows it with `VREvent_LensDistortionChanged`.
 - **Head-tracking axes.** With the display at `ROTATION_90`, screen x is minus device y and screen y is
   device x. Getting this wrong made a turn at the hips tilt the view. Recentring now keeps the world
   vertical and resets the heading only.

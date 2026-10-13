@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -128,6 +130,11 @@ internal fun GlassesGroups(
                 format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("glasses-distance")) { Glasses.setScreenDistanceDm(it) }
         }
         steamVr()
+        ToggleRow(host, "glasses-auto-steamvr", stringResource(R.string.glasses_auto_steamvr), stringResource(R.string.glasses_auto_steamvr_hint),
+            s.autoSteamVr, chipModifier = track("glasses-auto-steamvr")) { Glasses.setAutoSteamVr(it) }
+        SliderRow(stringResource(R.string.glasses_vr_fov), stringResource(R.string.glasses_vr_fov_hint), s.vrFovDeg,
+            GlassesSettings.VR_FOV_MIN..GlassesSettings.VR_FOV_MAX, step = 1,
+            format = { "$it°" }, modifier = track("glasses-vr-fov")) { Glasses.setVrFovDeg(it) }
     }
     if ((tab == null || tab == GlassesTab.HARDWARE) && g.canControl) SettingsGroup(stringResource(R.string.glasses_hardware)) {
         SliderRow(stringResource(R.string.glasses_brightness), null, g.brightness.coerceAtLeast(0), 0..g.brightnessMax, step = 1,
@@ -145,6 +152,13 @@ internal fun GlassesGroups(
     }
 }
 
+private fun padButtonColors(tint: Int, opacity: Int, pressed: Boolean): Pair<Color, Color> {
+    val base = Color(tint)
+    val alpha = opacity.coerceIn(0, 100) / 100f
+    fun light(a: Int, f: Float) = Color(base.red + (1 - base.red) * f, base.green + (1 - base.green) * f, base.blue + (1 - base.blue) * f, a * alpha / 255f)
+    return Color(base.red * 0.12f, base.green * 0.12f, base.blue * 0.12f, 190 / 255f) to (if (pressed) light(230, 0.7f) else light(150, 0.25f))
+}
+
 @Composable
 internal fun GlassesCornerButton(slot: Int, tint: Int, opacity: Int, onClick: () -> Unit) {
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -155,11 +169,7 @@ internal fun GlassesCornerButton(slot: Int, tint: Int, opacity: Int, onClick: ()
         val bottom = if (slot < 0) 44.dp else 34.dp
         val source = remember { MutableInteractionSource() }
         val pressed by source.collectIsPressedAsState()
-        val base = Color(tint)
-        val alpha = opacity.coerceIn(0, 100) / 100f
-        val fill = Color(base.red * 0.12f, base.green * 0.12f, base.blue * 0.12f, 190 / 255f)
-        fun light(a: Int, f: Float) = Color(base.red + (1 - base.red) * f, base.green + (1 - base.green) * f, base.blue + (1 - base.blue) * f, a * alpha / 255f)
-        val line = if (pressed) light(230, 0.7f) else light(150, 0.25f)
+        val (fill, line) = padButtonColors(tint, opacity, pressed)
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -172,6 +182,32 @@ internal fun GlassesCornerButton(slot: Int, tint: Int, opacity: Int, onClick: ()
                 .testTag("glasses-button"),
         ) {
             Icon(GlassesIcon, stringResource(R.string.glasses_open), tint = line, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+@Composable
+internal fun GlassesRecenterButton(tint: Int, opacity: Int, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val (fill, line) = padButtonColors(tint, opacity, pressed)
+    val shape = RoundedCornerShape(50)
+    Box(
+        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout).padding(top = 12.dp),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .height(36.dp)
+                .clip(shape)
+                .background(fill)
+                .border(1.5.dp, line, shape)
+                .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
+                .padding(horizontal = 18.dp)
+                .testTag("glasses-recenter"),
+        ) {
+            Text(stringResource(R.string.glasses_recenter_button), color = line, fontSize = 14.sp)
         }
     }
 }

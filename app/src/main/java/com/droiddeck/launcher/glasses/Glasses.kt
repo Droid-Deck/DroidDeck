@@ -73,8 +73,13 @@ data class GlassesSettings(
     val picture3d: Int = PICTURE_AUTO,
     val screenWidthDm: Int = 20,
     val screenDistanceDm: Int = 30,
+    val vrFovDeg: Int = VR_FOV_DEFAULT,
+    val autoSteamVr: Boolean = true,
 ) {
     companion object {
+        const val VR_FOV_MIN = 24
+        const val VR_FOV_MAX = 90
+        const val VR_FOV_DEFAULT = 36
         const val PICTURE_AUTO = 0
         const val PICTURE_SCREEN = 1
         const val PICTURE_SBS = 2
@@ -198,6 +203,8 @@ object Glasses {
     fun setPicture3d(picture: Int) = post { update { it.copy(picture3d = picture.coerceIn(0, 2)) } }
     fun setScreenWidthDm(dm: Int) = post { update { it.copy(screenWidthDm = dm.coerceIn(5, 200)) } }
     fun setScreenDistanceDm(dm: Int) = post { update { it.copy(screenDistanceDm = dm.coerceIn(5, 200)) } }
+    fun setVrFovDeg(deg: Int) = post { update { it.copy(vrFovDeg = deg.coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX)) } }
+    fun setAutoSteamVr(on: Boolean) = post { update { it.copy(autoSteamVr = on) } }
 
     fun glassesDisplay(): Display? = _state.value.displayId.takeIf { it != Display.INVALID_DISPLAY }?.let { displays.getDisplay(it) }
 
@@ -252,7 +259,8 @@ object Glasses {
             .put("fovDeg", s.diagonalFovDeg.toDouble()).put("noSignal", s.noSignal).put("sbsSupport", s.sbsSupport)
             .put("settings", JSONObject().put("refreshHz", g.refreshHz).put("sbsHz", g.sbsHz).put("sunblock", g.sunblock ?: JSONObject.NULL)
                 .put("gameOnGlasses", g.gameOnGlasses).put("headTracking", g.headTracking).put("auto3d", g.auto3d)
-                .put("picture3d", g.picture3d).put("screenWidthDm", g.screenWidthDm).put("screenDistanceDm", g.screenDistanceDm))
+                .put("picture3d", g.picture3d).put("screenWidthDm", g.screenWidthDm).put("screenDistanceDm", g.screenDistanceDm)
+                .put("vrFovDeg", g.vrFovDeg).put("autoSteamVr", g.autoSteamVr))
     }
 
     fun recentFrames(): JSONArray = synchronized(frames) { JSONArray(frames.toList()) }
@@ -544,6 +552,8 @@ object Glasses {
             picture3d = p.getInt("picture3d", GlassesSettings.PICTURE_AUTO),
             screenWidthDm = p.getInt("screenWidthDm", 20),
             screenDistanceDm = p.getInt("screenDistanceDm", 30),
+            vrFovDeg = p.getInt("vrFovDeg", GlassesSettings.VR_FOV_DEFAULT).coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX),
+            autoSteamVr = p.getBoolean("autoSteamVr", true),
         )
     }
 
@@ -558,6 +568,8 @@ object Glasses {
             putInt("picture3d", s.picture3d)
             putInt("screenWidthDm", s.screenWidthDm)
             putInt("screenDistanceDm", s.screenDistanceDm)
+            putInt("vrFovDeg", s.vrFovDeg)
+            putBoolean("autoSteamVr", s.autoSteamVr)
         }.apply()
     }
 }

@@ -61,7 +61,8 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
 1. **`driver_droiddeck.so`**, an OpenVR driver with one HMD:
    - pose: the shared head pose file (3DoF, standing height);
    - projection: exactly the frustum the Cardboard pass samples, with identity distortion (the app does
-     the lens);
+     the lens). A new frustum mid-run (the glasses' SteamVR field of view) goes out with
+     `SetDisplayProjectionRaw` and `VREvent_LensDistortionChanged`;
    - a proximity sensor that reads "worn" while Cardboard mode is on. Without it SteamVR takes a still
      headset (a phone on a table) for an unused one, enters standby after a few seconds, and the
      compositor stops submitting frames;

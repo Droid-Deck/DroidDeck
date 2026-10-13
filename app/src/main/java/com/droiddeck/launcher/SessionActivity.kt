@@ -319,6 +319,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var glassesScreen: GlassesScreen? = null
     private var glassesOutputActive by mutableStateOf(false)
     private var glasses3dForVr = false
+    private var glassesPresent = false
+    private var steamVrAutoTried = false
+    private var headTracking by mutableStateOf(false)
     private var glassesSlot by mutableStateOf(0)
     private var glassesKey: List<Any?> = emptyList()
     private val glassesScope = kotlinx.coroutines.MainScope()
@@ -582,6 +585,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (hud.text.isNotEmpty()) HudText(hud.text)
                 if (glassesOutputActive && !loading.visible) com.droiddeck.launcher.ui.GlassesPlayingHint(glasses.model)
+                if (glassesOutputActive && headTracking && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesRecenterButton(
+                    controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) { headTracker?.recenter() }
                 if (glasses.present && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesCornerButton(glassesSlot,
                     controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) {
                     drawerPage = com.droiddeck.launcher.ui.SessionDrawerPage.GLASSES
@@ -2643,14 +2648,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 Glasses.set3d(true)
             }
             if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
-            Thread({
+            steamVrWorker.execute {
                 val ok = SteamVr.run(this, action)
                 val now = SteamVr.status(this)
                 uiHandler.post {
                     onSteamVrStatus(now)
                     if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
                 }
-            }, "steamvr-$action").start()
+            }
             return
         }
         if (action == "start") {
@@ -2659,7 +2664,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (action == "stop") restoreSteamVrPicture()
         if (action == "install") steamVrStatus = SteamVr.Status.INSTALLING
-        Thread({
+        steamVrWorker.execute {
             val ok = SteamVr.run(this, action)
             val now = SteamVr.status(this)
             uiHandler.post {
@@ -2668,7 +2673,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onSteamVrStatus(now)
                 if (!ok) Toast.makeText(this, getString(R.string.cardboard_steamvr_failed), Toast.LENGTH_LONG).show()
             }
-        }, "steamvr-$action").start()
+        }
     }
 
     /** SteamVR draws a side-by-side pair: the picture switches to that, remembering what it was. */
@@ -2688,6 +2693,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (glassesOutputActive) {
             onGlassesSteamVr(now)
             if ((was == SteamVr.Status.RUNNING) != (now == SteamVr.Status.RUNNING)) applyCardboard(cardboard)
+            autoStartSteamVr(now)
             return
         }
         // Started some other way than the drawer (a script, a VR game): the picture follows it all the same.
@@ -2727,7 +2733,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun pushCardboard(c: Cardboard) {
         val fov = when {
             c.viewer != Cardboard.Viewer.VITURE.id -> 0f
-            c.source == Cardboard.SOURCE_SBS -> GLASSES_VR_FOV_DEG
+            c.source == Cardboard.SOURCE_SBS -> glassesSettings.vrFovDeg.toFloat()
             else -> glasses.verticalFovDeg
         }
         panelSizeMm().let { (w, h) -> c.push(w, h, fov, refreshHz()) }
@@ -2772,6 +2778,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }.also { headTracker = it }
             t.start()
         }
+        headTracking = headTracker != null
     }
 
     private fun outputHolder(): SurfaceHolder = glassesScreen?.holder ?: surfaceView.holder
@@ -2790,11 +2797,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun onGlassesChanged() {
         val g = glasses
         val s = glassesSettings
-        val key = listOf(g.usable, g.displayId, g.sbs, g.canControl, g.width, g.height, g.hz, s)
+        val key = listOf(g.present, g.usable, g.displayId, g.sbs, g.canControl, g.width, g.height, g.hz, s)
         if (key == glassesKey) return
         glassesKey = key
         updateGlassesScreen()
         applyCardboard(cardboard)
+        if (glassesPresent && !g.present) onGlassesUnplugged()
+        glassesPresent = g.present
+    }
+
+    private fun onGlassesUnplugged() {
+        val hadVr = steamVrAutoTried
+        steamVrAutoTried = false
+        glasses3dForVr = false
+        if (hadVr && !cardboard.enabled) steamVrAction("stop")
+    }
+
+    private fun autoStartSteamVr(now: SteamVr.Status) {
+        if (now == SteamVr.Status.RUNNING) steamVrAutoTried = true
+        if (now != SteamVr.Status.READY || steamVrAutoTried || !glassesSettings.autoSteamVr || !glasses.canControl ||
+            loading.visible || SessionState.mode != SessionService.MODE_STEAM) return
+        steamVrAutoTried = true
+        Log.i(TAG, "starting SteamVR for ${glasses.model}")
+        steamVrAction("start")
     }
 
     private fun updateGlassesScreen() {
@@ -3001,7 +3026,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val DRAWER_SLOW_REPEAT_FLOOR_MS = 240L
         private const val DRAWER_FAST_REPEAT_INTERVAL_MS = 90L
         private const val DRAWER_REPEAT_ACCELERATION_MS = 1_400L
-        private const val GLASSES_VR_FOV_DEG = 70f
+        private val steamVrWorker = java.util.concurrent.ThreadPoolExecutor(0, 1, 30, java.util.concurrent.TimeUnit.SECONDS,
+            java.util.concurrent.LinkedBlockingQueue()) { Thread(it, "steamvr") }
         /** Compositor scale modes (Container.FULLSCREEN_* values): 1 = fit with bars, centred. */
         private const val SCALE_FIT = 1
         private const val ALIGN_CENTER = 0

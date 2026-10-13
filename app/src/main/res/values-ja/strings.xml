@@ -2139,6 +2139,11 @@
     <string name="glasses_head_tracking">ヘッドトラッキング</string>
     <string name="glasses_head_tracking_hint">グラスのセンサーで、頭の動きに合わせて仮想スクリーンと SteamVR を動かします。</string>
     <string name="glasses_recenter">視点をリセット</string>
+    <string name="glasses_recenter_button">中央に戻す</string>
+    <string name="glasses_auto_steamvr">グラス接続時に SteamVR を起動</string>
+    <string name="glasses_auto_steamvr_hint">Steam では、グラスを接続すると SteamVR を起動し、外すと停止します。</string>
+    <string name="glasses_vr_fov">SteamVR の視野角</string>
+    <string name="glasses_vr_fov_hint">小さくすると SteamVR が近くなりグラスいっぱいに広がり、大きくすると周囲が広く見えます。</string>
     <string name="glasses_playing">%1$s でプレイ中</string>
     <string name="stores_fact_developer">開発元</string>
     <string name="stores_fact_publisher">パブリッシャー</string>
