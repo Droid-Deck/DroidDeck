@@ -30,7 +30,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], qualifiers = "w960dp-h540dp-land")
+@Config(sdk = [28], qualifiers = "w960dp-h540dp-land", application = android.app.Application::class)
 class FlathubFocusTest {
     @get:Rule val compose = createRobolectricComposeRule()
 
