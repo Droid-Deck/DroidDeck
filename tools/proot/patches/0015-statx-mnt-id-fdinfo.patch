@@ -3,28 +3,36 @@ From: DroidDeck <droiddeck@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 00:00:00 +0000
 Subject: [PATCH] statx: supply mount IDs on kernels before 5.8
 
-statx has returned basic metadata since Linux 4.11, but STATX_MNT_ID was
-added in 5.8. libglnx needs that field while chasing an open descriptor.
-For AT_EMPTY_PATH requests, use the descriptor's real mnt_id from fdinfo
-when the kernel omitted it. Keep the exit stop only on kernels that need
-this compatibility path.
+On kernels before 5.8, statx can succeed without STATX_MNT_ID. Recover it
+from the already-open descriptor after verifying its identity. Keep the
+compatibility exit stop only on kernels that need the missing field.
 ---
+diff --git a/src/syscall/seccomp.c b/src/syscall/seccomp.c
+index ee7b8acd68660f38fd52f56e951ffb94e9061d68..ff3a79b60e9092a296bb444c919bb3861338727f 100644
+--- a/src/syscall/seccomp.c
++++ b/src/syscall/seccomp.c
+@@ -738,4 +738,4 @@ int enable_syscall_filtering(const Tracee *tracee)
+- * the statx one emulates the call when it fails, which only a kernel
+- * before 4.11 does for want of it - a statx Android's policy traps is
+- * emulated from SIGSYS instead.  Both stops re-read and re-translate
+- * the path, and are paid on every call.
++ * the statx one emulates the syscall before 4.11 and supplies MNT_ID
++ * from fdinfo through 5.7. Android policy traps are still emulated from
++ * SIGSYS instead. Both stops re-read and re-translate the path, and are
++ * paid on every call.
+@@ -764 +764,4 @@ static void drop_unneeded_exit_stops(void)
+-			if (major > 4 || (major == 4 && minor >= 11))
++			/* Linux 4.11 introduced statx; Linux 5.8 added MNT_ID.
++			 * Keep its exit stop through 5.7 so the missing ID can be
++			 * recovered from the descriptor's fdinfo. */
++			if (major > 5 || (major == 5 && minor >= 8))
 diff --git a/src/tracee/statx.c b/src/tracee/statx.c
-index 0000000..0000000 100644
+index ca972f892e84461cb694dd13a37bfbc67527b320..824771ccf5934e1f870fc36a29fb22fdcad0a856 100644
 --- a/src/tracee/statx.c
 +++ b/src/tracee/statx.c
-@@ -2,6 +2,7 @@
- #include <sys/sysmacros.h>  /* major, minor, */
- 
- #include "tracee/statx.h"
+@@ -4,0 +5 @@
 +#include "tracee/statx_mnt_id.h"
- #include "tracee/mem.h"
- 
- int handle_statx_syscall(Tracee *tracee, bool from_sigsys) {
-@@ -123,6 +123,15 @@ int handle_statx_syscall(Tracee *tracee, bool from_sigsys) {
- 		}
- 	}
- 
+@@ -125,0 +127,9 @@ int handle_statx_syscall(Tracee *tracee, bool from_sigsys) {
 +	/* libglnx chases an already-open fd with AT_EMPTY_PATH and requires a
 +	 * mount ID. Kernels before 5.8 can succeed without returning that field.
 +	 * The tracee is stopped at this syscall exit; accept only the ordinary
@@ -34,30 +42,3 @@ index 0000000..0000000 100644
 +			&state.statx_buf))
 +		state.updated_stats = true;
 +
- 	/* Notify extensions */
- 	status = notify_extensions(tracee, STATX_SYSCALL, (intptr_t) &state, 0);
- 	if (status < 0) {
-diff --git a/src/syscall/seccomp.c b/src/syscall/seccomp.c
-index 0000000..0000000 100644
---- a/src/syscall/seccomp.c
-+++ b/src/syscall/seccomp.c
-@@ -738,4 +738,4 @@
-- * the statx one emulates the call when it fails, which only a kernel
-- * before 4.11 does for want of it - a statx Android's policy traps is
-- * emulated from SIGSYS instead.  Both stops re-read and re-translate
-- * the path, and are paid on every call.
-+ * the statx one emulates the syscall before 4.11 and supplies MNT_ID
-+ * from fdinfo through 5.7. Android policy traps are still emulated from
-+ * SIGSYS instead. Both stops re-read and re-translate the path, and are
-+ * paid on every call.
-@@ -763,5 +763,8 @@ static void drop_unneeded_exit_stops(void)
- 		case PR_statx:
--			if (major > 4 || (major == 4 && minor >= 11))
-+			/* Linux 4.11 introduced statx; Linux 5.8 added MNT_ID.
-+			 * Keep its exit stop through 5.7 so the missing ID can be
-+			 * recovered from the descriptor's fdinfo. */
-+			if (major > 5 || (major == 5 && minor >= 8))
- 				proot_sysnums[i].flags &= ~FILTER_SYSEXIT;
- 			break;
- 		default:
----
