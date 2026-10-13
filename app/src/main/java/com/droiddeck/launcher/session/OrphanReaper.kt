@@ -21,8 +21,12 @@ import java.io.File
  */
 object OrphanReaper {
     private const val TAG = "OrphanReaper"
+    private const val CLEANUP_MARKER = "session-cleanup-required"
     private val kept = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
     private val sessionKept = java.util.concurrent.ConcurrentHashMap.newKeySet<ProcessCleanup.Identity>()
+    private val sessionWorkLock = Any()
+    @Volatile private var cleanupRequired = false
+    @Volatile private var sessionWorkOpen = false
 
     fun keep(pid: Int) { if (pid > 0) kept.add(pid) }
 
@@ -37,7 +41,8 @@ object OrphanReaper {
     internal fun release(identity: ProcessCleanup.Identity) { sessionKept.remove(identity) }
 
     @JvmStatic
-    fun hasSessionProcesses(): Boolean = sessionKept.isNotEmpty()
+    fun hasSessionProcesses(context: android.content.Context): Boolean =
+        cleanupRequired || sessionKept.isNotEmpty() || File(context.filesDir, CLEANUP_MARKER).isFile
 
     internal fun identity(pid: Int): ProcessCleanup.Identity? =
         readProcess(pid)?.takeIf { it.alive }?.identity
@@ -45,8 +50,62 @@ object OrphanReaper {
     internal fun isAlive(identity: ProcessCleanup.Identity): Boolean =
         readProcess(identity.pid)?.let { it.identity == identity && it.alive } == true
 
-    internal fun reap(reason: String): ProcessCleanup.Result = cleanup(reason) { processes ->
-        processes
+    internal fun openSessionWork(): Boolean = synchronized(sessionWorkLock) {
+        sessionWorkOpen = SessionState.running && !SessionState.stopping
+        sessionWorkOpen
+    }
+
+    internal fun closeSessionWork() {
+        sessionWorkOpen = false
+    }
+
+    internal fun awaitSessionWork() {
+        synchronized(sessionWorkLock) {}
+    }
+
+    internal fun <T> withSessionWork(start: () -> T): T? {
+        if (!sessionWorkOpen || !SessionState.running || SessionState.stopping) return null
+        return synchronized(sessionWorkLock) {
+            if (!sessionWorkOpen || !SessionState.running || SessionState.stopping) null else start()
+        }
+    }
+
+    @Synchronized
+    internal fun markCleanupRequired(root: File) {
+        val marker = cleanupMarker(root)
+        try {
+            check(marker.parentFile?.isDirectory == true || marker.parentFile?.mkdirs() == true) {
+                "Could not create session cleanup marker directory"
+            }
+            val tmp = File(marker.parentFile, marker.name + ".tmp")
+            java.io.FileOutputStream(tmp).use { stream ->
+                stream.write("Session process cleanup must be verified before runtime maintenance.\n".toByteArray())
+                stream.fd.sync()
+            }
+            try {
+                java.nio.file.Files.move(
+                    tmp.toPath(), marker.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                )
+            } catch (e: java.nio.file.AtomicMoveNotSupportedException) {
+                java.nio.file.Files.move(tmp.toPath(), marker.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            }
+            cleanupRequired = true
+        } catch (e: Exception) {
+            throw java.io.IOException("Could not persist the session cleanup marker", e)
+        }
+    }
+
+    internal fun reap(reason: String, root: File): ProcessCleanup.Result {
+        return try {
+            cleanup(reason) { processes -> processes }.also { result ->
+                if (!result.complete) markCleanupRequired(root)
+            }
+        } catch (e: Exception) {
+            markCleanupRequired(root)
+            throw e
+        }
     }
 
     /**
@@ -63,9 +122,33 @@ object OrphanReaper {
      */
     internal fun reapSession(root: File, roots: Set<ProcessCleanup.Identity>): ProcessCleanup.Result {
         val path = root.canonicalPath + "/"
-        return cleanup("session stopped") { processes ->
-            sessionTargets(processes, roots, sessionKept, path)
+        return try {
+            cleanup("session stopped") { processes ->
+                sessionTargets(processes, roots, sessionKept, path)
+            }.also { result -> updateCleanupMarker(root, result) }
+        } catch (e: Exception) {
+            markCleanupRequired(root)
+            throw e
         }
+    }
+
+    @Synchronized
+    internal fun clearCleanupRequired(root: File) {
+        val marker = cleanupMarker(root)
+        if (marker.exists() && !marker.delete()) {
+            throw java.io.IOException("Could not clear the session cleanup marker")
+        }
+        File(marker.parentFile, marker.name + ".tmp").delete()
+        cleanupRequired = false
+    }
+
+    internal fun updateCleanupMarker(root: File, result: ProcessCleanup.Result) {
+        if (result.complete) clearCleanupRequired(root) else markCleanupRequired(root)
+    }
+
+    private fun cleanupMarker(root: File): File {
+        val parent = checkNotNull(root.parentFile) { "Runtime root has no parent" }
+        return File(parent, CLEANUP_MARKER)
     }
 
     internal fun reapTree(identity: ProcessCleanup.Identity): ProcessCleanup.Result {
@@ -80,6 +163,7 @@ object OrphanReaper {
         reason: String,
         select: (List<ProcessCleanup.Entry>) -> Collection<ProcessCleanup.Entry>,
     ): ProcessCleanup.Result {
+        val protectedWork = HashSet<ProcessCleanup.Identity>()
         val cleanup = ProcessCleanup(
             snapshot = ::processes,
             current = ::readProcess,
@@ -89,7 +173,7 @@ object OrphanReaper {
         )
         val result = cleanup.terminate { processes ->
             val protected = processes.filter { it.identity.pid in kept }.mapTo(HashSet()) { it.identity }
-            unprotectedTargets(processes, select(processes), protected)
+            unprotectedTargets(processes, select(processes), protected, protectedWork)
         }
         if (result.complete) {
             Log.i(TAG, "confirmed ${result.stopped} process(es) exited - $reason")
@@ -115,9 +199,10 @@ object OrphanReaper {
         processes: List<ProcessCleanup.Entry>,
         targets: Collection<ProcessCleanup.Entry>,
         protectedRoots: Set<ProcessCleanup.Identity>,
+        protectedWork: MutableSet<ProcessCleanup.Identity> = HashSet(),
     ): List<ProcessCleanup.Entry> {
-        val spared = ProcessCleanup.descendants(processes, protectedRoots)
-        return targets.filter { it.identity !in spared }
+        protectedWork.addAll(ProcessCleanup.descendants(processes, protectedRoots))
+        return targets.filter { it.identity !in protectedWork }
     }
 
     private fun processes(): List<ProcessCleanup.Entry> {

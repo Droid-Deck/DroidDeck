@@ -248,6 +248,14 @@ class SessionService : Service() {
         }
         SessionState.firstFrameSeen = false
         SessionState.guestPid = -1
+        try {
+            OrphanReaper.markCleanupRequired(LinuxRuntime.rootDir(this))
+        } catch (e: Exception) {
+            Log.e(TAG, "could not persist the session cleanup guard", e)
+            SessionEvents.fail("SESSION_START_FAILED", getString(R.string.session_start_failed), -1)
+            stopSession(-1)
+            return START_NOT_STICKY
+        }
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
         com.droiddeck.launcher.wayland.CompositorHost.newSession()
         val gen = ++sessionGen
@@ -261,7 +269,7 @@ class SessionService : Service() {
                     // A tree the last session left behind (the app was killed or crashed, so its teardown
                     // never ran) would hold the rootfs, the GPU and Steam's lock: nothing of ours should
                     // be alive between sessions outside this process, except work registered with keep.
-                    val cleanup = OrphanReaper.reap("session starting")
+                    val cleanup = OrphanReaper.reap("session starting", LinuxRuntime.rootDir(this))
                     val sessionDir = openSessionFolder()
                     SessionEvents.record("session.cleanup", mapOf(
                         "stage" to "startup", "complete" to cleanup.complete,
@@ -273,6 +281,7 @@ class SessionService : Service() {
                     // does it here runs from boot without being opened. Only the Steam session signs in.
                     // The desktop too: its Steam launchers run the client right there (droiddeck-steam-launch).
                     if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) RivalClients.stopBeforeSession(this)
+                    if (!OrphanReaper.openSessionWork()) return@synchronized
                     runSession(gen, sessionDir)
                 } catch (e: Exception) {
                     Log.e(TAG, "could not prepare the session", e)
@@ -346,6 +355,10 @@ class SessionService : Service() {
             runCatching { ComponentsManager.ensureForcedPackages(this) }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
+            if (gen != sessionGen || !SessionState.running) {
+                Log.i(TAG, "session stopped while forced components were being prepared")
+                return
+            }
         }
         addClientEnvironment(guest, steamHere)
         val fastPathAt = guest.size
@@ -1280,6 +1293,7 @@ class SessionService : Service() {
 
     private fun stopSession(status: Int) {
         if (!SessionState.beginStop()) return
+        OrphanReaper.closeSessionWork()
         cancelQueuedSteamGame()
         completeNativeSleep()
         xrActivityVisible = false
@@ -1309,6 +1323,7 @@ class SessionService : Service() {
             // Process waits stay off the main thread too; collect after cleanup to include shutdown diagnostics.
             Thread({
                 synchronized(sessionWorkLock) {
+                    OrphanReaper.awaitSessionWork()
                     var finalStatus = status
                     try {
                         check(stoppedGen == sessionGen && SessionState.stopping) { "Session changed during teardown" }

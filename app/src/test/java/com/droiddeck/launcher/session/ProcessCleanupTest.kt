@@ -197,6 +197,30 @@ class ProcessCleanupTest {
         assertTrue(child.identity in tracked)
     }
 
+    @Test fun sessionCleanupRetainsAReparentedChildOutsideTheRuntime() {
+        val processes = Processes()
+        val root = processes.add(10).copy(executable = "/runtime/bin/session")
+        val child = processes.add(11, parent = 10).copy(executable = "/external-app/bin/game")
+        processes.entries[10] = root
+        processes.entries[11] = child
+        processes.onSignal = { pid, signal ->
+            if (pid == 11 && signal == 9) processes.entries.remove(11)
+        }
+        processes.onSleep = {
+            processes.entries.remove(10)
+            processes.entries[11]?.let { processes.entries[11] = it.copy(parent = 1) }
+        }
+
+        val result = processes.cleanup.terminate { snapshot ->
+            OrphanReaper.sessionTargets(snapshot, setOf(root.identity), emptySet(), "/runtime/")
+        }
+
+        assertTrue(result.complete)
+        assertEquals(2, result.stopped)
+        assertTrue(processes.signals.any { it == (11 to 9) })
+        assertTrue(processes.entries.isEmpty())
+    }
+
     @Test fun descendantsDoNotFollowReusedRootPids() {
         val processes = Processes()
         val original = processes.add(10)
@@ -242,5 +266,19 @@ class ProcessCleanupTest {
 
         assertEquals(setOf(10, 20, 30, 40), targets.map { it.identity.pid }.toSet())
         assertEquals(setOf(10, 20), unprotected.map { it.identity.pid }.toSet())
+    }
+
+    @Test fun protectedGuestCommandChildrenStaySparedAfterReparenting() {
+        val command = Processes().add(30)
+        val child = Processes().add(31, parent = 30).copy(executable = "/runtime/bin/proot")
+        val protected = hashSetOf<ProcessCleanup.Identity>()
+        val first = listOf(command, child)
+        assertTrue(OrphanReaper.unprotectedTargets(first, first, setOf(command.identity), protected).isEmpty())
+
+        val reparented = child.copy(parent = 1)
+        assertTrue(OrphanReaper.unprotectedTargets(
+            listOf(reparented), listOf(reparented), setOf(command.identity), protected,
+        ).isEmpty())
+        assertTrue(child.identity in protected)
     }
 }

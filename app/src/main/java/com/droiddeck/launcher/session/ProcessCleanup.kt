@@ -35,21 +35,23 @@ internal class ProcessCleanup(
         val started = now()
         val deadline = started + GRACE_MS + KILL_WAIT_MS
         val observed = HashSet<Identity>()
+        val targets = LinkedHashSet<Identity>()
         val terminatedAt = HashMap<Identity, Long>()
         val killed = HashSet<Identity>()
         var emptyPasses = 0
         while (true) {
             val processes = snapshot()
-            val targets = select(processes).filter { it.alive }.distinctBy { it.identity }
-            observed.addAll(targets.map { it.identity })
+            targets.addAll(select(processes).filter { it.alive }.map { it.identity })
+            val liveTargets = processes.filter { it.alive && it.identity in targets }
+            observed.addAll(liveTargets.map { it.identity })
             val live = processes.filter { it.alive }.mapTo(HashSet()) { it.identity }
             val stopped = observed.count { it !in live }
-            if (targets.isEmpty()) {
+            if (liveTargets.isEmpty()) {
                 if (++emptyPasses >= 2) return Result(stopped, emptyList())
             } else {
                 emptyPasses = 0
             }
-            for (entry in targets) {
+            for (entry in liveTargets) {
                 val identity = entry.identity
                 val termSentAt = terminatedAt[identity]
                 if (termSentAt == null) {
@@ -60,8 +62,8 @@ internal class ProcessCleanup(
                     if (killed.add(identity)) send(identity, SIGKILL)
                 }
             }
-            if (targets.isNotEmpty() && now() >= deadline) {
-                return Result(stopped, targets.map { it.identity })
+            if (liveTargets.isNotEmpty() && now() >= deadline) {
+                return Result(stopped, liveTargets.map { it.identity })
             }
             sleep(POLL_MS)
         }

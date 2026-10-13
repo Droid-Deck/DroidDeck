@@ -70,8 +70,14 @@ object BwrapSpawner {
                     sessionPeer = identity
                     com.droiddeck.launcher.session.OrphanReaper.keepSession(identity)
                 }
-                val plan = plan(context, request, dir)
-                run(context, plan, client, out, id, sessionOwned)
+                val sandbox = if (sessionOwned) {
+                    com.droiddeck.launcher.session.OrphanReaper.withSessionWork {
+                        start(context, plan(context, request, dir), client, id, sessionOwned)
+                    } ?: throw IOException("Session stopped before sandbox launch")
+                } else {
+                    start(context, plan(context, request, dir), client, id, sessionOwned)
+                }
+                run(sandbox, client, out, id)
             } catch (e: Exception) {
                 Log.e(TAG, "sandbox $id", e)
                 runCatching {
@@ -287,7 +293,14 @@ object BwrapSpawner {
         try { Os.chmod(f.path, mode) } catch (e: Exception) {   }
     }
 
-    private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int, sessionOwned: Boolean) {
+    private class RunningSandbox(
+        val plan: Plan,
+        val process: java.lang.Process,
+        val pid: Int,
+        val sessionIdentity: com.droiddeck.launcher.session.ProcessCleanup.Identity?,
+    )
+
+    private fun start(context: Context, plan: Plan, client: LocalSocket, id: Int, sessionOwned: Boolean): RunningSandbox {
         val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
@@ -331,6 +344,15 @@ object BwrapSpawner {
                 process.destroy()
             }
         }, "bwrap-$id-watch").apply { isDaemon = true; start() }
+        return RunningSandbox(plan, process, pid, sessionIdentity)
+    }
+
+    private fun run(sandbox: RunningSandbox, client: LocalSocket, out: DataOutputStream, id: Int) {
+        val plan = sandbox.plan
+        val process = sandbox.process
+        val pid = sandbox.pid
+        val sessionIdentity = sandbox.sessionIdentity
+        val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         try {
             synchronized(out) { frame(out, 'P', pid.toString().toByteArray()) }
             val buffer = ByteArray(16384)
