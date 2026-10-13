@@ -122,9 +122,10 @@ object OrphanReaper {
      */
     internal fun reapSession(root: File, roots: Set<ProcessCleanup.Identity>): ProcessCleanup.Result {
         val path = root.canonicalPath + "/"
+        val tracked = HashSet(roots)
         return try {
             cleanup("session stopped") { processes ->
-                sessionTargets(processes, roots, sessionKept, path)
+                sessionTargets(processes, tracked, sessionKept, path)
             }.also { result -> updateCleanupMarker(root, result) }
         } catch (e: Exception) {
             markCleanupRequired(root)
@@ -185,14 +186,14 @@ object OrphanReaper {
 
     internal fun sessionTargets(
         processes: List<ProcessCleanup.Entry>,
-        roots: Set<ProcessCleanup.Identity>,
+        tracked: MutableSet<ProcessCleanup.Identity>,
         sessionProcesses: Set<ProcessCleanup.Identity>,
         runtimePath: String,
     ): List<ProcessCleanup.Entry> {
-        val tracked = HashSet(roots)
         tracked.addAll(sessionProcesses)
+        processes.filter { it.executable.startsWith(runtimePath) }.mapTo(tracked) { it.identity }
         tracked.addAll(ProcessCleanup.descendants(processes, tracked))
-        return processes.filter { it.identity in tracked || it.executable.startsWith(runtimePath) }
+        return processes.filter { it.identity in tracked }
     }
 
     internal fun unprotectedTargets(
@@ -201,7 +202,8 @@ object OrphanReaper {
         protectedRoots: Set<ProcessCleanup.Identity>,
         protectedWork: MutableSet<ProcessCleanup.Identity> = HashSet(),
     ): List<ProcessCleanup.Entry> {
-        protectedWork.addAll(ProcessCleanup.descendants(processes, protectedRoots))
+        protectedWork.addAll(protectedRoots)
+        protectedWork.addAll(ProcessCleanup.descendants(processes, protectedWork))
         return targets.filter { it.identity !in protectedWork }
     }
 

@@ -203,6 +203,7 @@ class ProcessCleanupTest {
         val child = processes.add(11, parent = 10).copy(executable = "/external-app/bin/game")
         processes.entries[10] = root
         processes.entries[11] = child
+        val tracked = hashSetOf(root.identity)
         processes.onSignal = { pid, signal ->
             if (pid == 11 && signal == 9) processes.entries.remove(11)
         }
@@ -212,13 +213,42 @@ class ProcessCleanupTest {
         }
 
         val result = processes.cleanup.terminate { snapshot ->
-            OrphanReaper.sessionTargets(snapshot, setOf(root.identity), emptySet(), "/runtime/")
+            OrphanReaper.sessionTargets(snapshot, tracked, emptySet(), "/runtime/")
         }
 
         assertTrue(result.complete)
         assertEquals(2, result.stopped)
         assertTrue(processes.signals.any { it == (11 to 9) })
         assertTrue(processes.entries.isEmpty())
+    }
+
+    @Test fun sessionCleanupFindsNewChildrenOfAReparentedTarget() {
+        val processes = Processes()
+        val root = processes.add(10)
+        val child = processes.add(11, parent = 10)
+        val tracked = hashSetOf(root.identity)
+        processes.onSleep = {
+            when (processes.time) {
+                50L -> {
+                    processes.entries.remove(10)
+                    processes.entries[11] = child.copy(parent = 1)
+                }
+                100L -> processes.add(12, parent = 11)
+                150L -> processes.entries.remove(11)
+            }
+        }
+        processes.onSignal = { pid, signal ->
+            if (pid == 12 && signal == 15) processes.entries.remove(pid)
+        }
+
+        val result = processes.cleanup.terminate {
+            OrphanReaper.sessionTargets(it, tracked, emptySet(), "/runtime/")
+        }
+
+        assertTrue(result.complete)
+        assertEquals(3, result.stopped)
+        assertTrue(processes.entries.isEmpty())
+        assertTrue(12 to 15 in processes.signals)
     }
 
     @Test fun descendantsDoNotFollowReusedRootPids() {
@@ -258,7 +288,7 @@ class ProcessCleanupTest {
         val independentSandbox = Processes().add(40, parent = 30).copy(executable = "/runtime/bin/proot")
         val processList = listOf(sessionRoot, sessionSandbox, independentCommand, independentSandbox)
         val targets = OrphanReaper.sessionTargets(
-            processList, setOf(sessionRoot.identity), setOf(sessionSandbox.identity), "/runtime/",
+            processList, hashSetOf(sessionRoot.identity), setOf(sessionSandbox.identity), "/runtime/",
         )
         val unprotected = OrphanReaper.unprotectedTargets(
             processList, targets, setOf(independentCommand.identity),
@@ -280,5 +310,32 @@ class ProcessCleanupTest {
             listOf(reparented), listOf(reparented), setOf(command.identity), protected,
         ).isEmpty())
         assertTrue(child.identity in protected)
+    }
+
+    @Test fun newChildrenOfReparentedIndependentWorkStayProtected() {
+        val processes = Processes()
+        processes.add(10)
+        val command = processes.add(30)
+        val child = processes.add(31, parent = 30)
+        val protected = hashSetOf<ProcessCleanup.Identity>()
+        processes.onSleep = {
+            when (processes.time) {
+                50L -> {
+                    processes.entries.remove(30)
+                    processes.entries[31] = child.copy(parent = 1)
+                }
+                100L -> processes.add(32, parent = 31)
+                150L -> processes.entries.remove(10)
+            }
+        }
+
+        val result = processes.cleanup.terminate {
+            OrphanReaper.unprotectedTargets(it, it, setOf(command.identity), protected)
+        }
+
+        assertTrue(result.complete)
+        assertEquals(1, result.stopped)
+        assertEquals(setOf(31, 32), processes.entries.keys)
+        assertTrue(processes.signals.all { it.first == 10 })
     }
 }

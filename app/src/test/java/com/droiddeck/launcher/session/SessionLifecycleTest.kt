@@ -4,6 +4,8 @@ import android.app.Service
 import android.content.Intent
 import android.os.Looper
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.MainActivity
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.junit.After
@@ -17,6 +19,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
+import org.robolectric.shadows.ShadowToast
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -226,6 +229,22 @@ class SessionLifecycleTest {
         } finally {
             service.destroy()
         }
+    }
+
+    @Test fun pendingCleanupExplainsWhyRuntimeChangesAreBlockedUntilVerified() {
+        val context = RuntimeEnvironment.getApplication()
+        val root = LinuxRuntime.rootDir(context)
+        OrphanReaper.markCleanupRequired(root)
+        val activity = Robolectric.buildActivity(MainActivity::class.java).get()
+        val guard = MainActivity::class.java.getDeclaredMethod("runtimeCleanupBlocksChanges")
+            .apply { isAccessible = true }
+
+        assertEquals(true, guard.invoke(activity))
+        assertEquals(context.getString(R.string.session_cleanup_required), ShadowToast.getTextOfLatestToast())
+        assertTrue(OrphanReaper.hasSessionProcesses(context))
+
+        OrphanReaper.updateCleanupMarker(root, ProcessCleanup.Result(0, emptyList()))
+        assertEquals(false, guard.invoke(activity))
     }
 
     @Test fun survivingSessionSandboxBlocksRuntimeRemoval() {
