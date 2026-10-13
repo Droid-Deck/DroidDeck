@@ -509,9 +509,8 @@ def wait_for_steam_shortcut_overview(agent_dir, game_id, timeout=45):
 
     timeout = request_timeout({"timeout": timeout}, 45)
     deadline = time.monotonic() + timeout
-    # Steam's launch-action handler resolves a shortcut with this exact lookup before it asks
-    # appDetailsStore for details. Keep the CGameID as a string: converting it to Number loses
-    # precision, while passing it to RequestAppDetails triggers Steam's invalid uint32 argument.
+    # Steam's launch-action handler resolves this CGameID before asking for details. Preserve
+    # the original string for that lookup; RequestAppDetails instead needs the 32-bit app id.
     expression = """(() => {
         const store = globalThis.appStore;
         if (typeof store?.GetAppOverviewByGameID !== 'function') return null;
