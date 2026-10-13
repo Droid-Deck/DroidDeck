@@ -601,8 +601,14 @@ class Installer:
 
     def put(self, source, rel):
         target = self.out / rel
+        # A DuplicateFile row can name the file's own folder and name (the .NET host packages copy
+        # dotnet.exe onto itself); Windows Installer takes that as nothing to do. Found and diagnosed
+        # by whatsupbros on the DroidDeck Discord.
+        if target.exists() and Path(source).samefile(target):
+            return False
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
+        return True
 
     def install_files(self, unpacked):
         assemblies = self.assemblies()
@@ -664,8 +670,7 @@ class Installer:
             folder = self.directory(row["DestFolder"]) if row.get("DestFolder") else self.files[row["File_"]].rsplit("/", 1)[0]
             name = long_name(row.get("DestName", "")) or self.files[row["File_"]].rsplit("/", 1)[1]
             source = self.out / self.files[row["File_"]]
-            if folder and source.is_file() and "/" not in name:
-                self.put(source, folder + "/" + name)
+            if folder and source.is_file() and "/" not in name and self.put(source, folder + "/" + name):
                 self.counts["files"] += 1
         if missing:
             self.notes.append("%d file(s) were not in the package's cabinets" % missing)
