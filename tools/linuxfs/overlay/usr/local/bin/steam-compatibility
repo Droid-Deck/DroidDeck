@@ -939,17 +939,17 @@ def native_targets(steam_root, apps):
         return {}
     targets = {}
     for app, (oslist, osarch, kind) in appinfo_platforms(os.path.join(steam_root, "appcache", "appinfo.vdf"), wanted).items():
-        if kind not in PLAYABLE_TYPES or "windows" in oslist or "linux" not in oslist:
+        if kind not in PLAYABLE_TYPES or "linux" not in oslist:
             continue
         if "arm64" in osarch or "aarch64" in osarch:
+            # Leave an ARM64 Linux title to Steam's native Linux runtime. Mapping it to the
+            # global Proton tool makes Steam try to run an ARM64 Linux executable through Wine.
+            targets[app] = None
+            continue
+        if "windows" in oslist:
             continue
         targets[app] = FEX_TOOL
     return targets
-
-
-def linux_runtime_tool(name):
-    low = name.lower()
-    return low == "fex" or low.startswith("steamlinuxruntime")
 
 
 def fex_missing(steam_root):
@@ -1031,12 +1031,13 @@ def app_order(app):
 DEFERRED_GAME_TOOL = object()
 
 
-def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None):
+def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None, managed=None):
     runnable = {n.lower() for n in runnable}
     installed = set(installed)
     picks = set(picks)
     native = native or {}
     overrides = overrides or {}
+    managed = set(auto) if managed is None else set(managed)
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
@@ -1054,9 +1055,23 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             continue
         mine = auto.get(app)
         target = native.get(app, default)
-        stale = unrunnable(name, runnable) or (app in native and linux_runtime_tool(name))
+        stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):
             continue
+        if target is None:
+            # An empty Steam mapping is the native default for ARM64 Linux titles. Clear only
+            # a mapping DroidDeck previously wrote; a non-Proton per-game choice belongs to Steam.
+            # Legacy state may infer followers from their mapping, so require explicit managed-state
+            # evidence before removing a choice that could have been selected in Steam.
+            if stale:
+                target = default
+                if name != target:
+                    changes[app] = target
+                continue
+            else:
+                if name and app in managed and name == mine:
+                    changes[app] = None
+                continue
         if not name and app not in installed and app not in picks:
             continue
         if name != target:
@@ -1197,6 +1212,11 @@ def read_mapping(tokens, mapping):
 
 def set_mapping(tokens, mapping, app, tool):
     block = find_block(tokens[mapping + 1:], [app])
+    if tool is None:
+        if block is not None:
+            block += mapping + 1
+            tokens[block:block_end(tokens, block)] = []
+        return
     if block is None:
         tokens[mapping + 1:mapping + 1] = [
             '"%s"' % app, "{", '"name"', '"%s"' % tool, '"config"', '""', '"priority"', '"75"' if app == "0" else '"250"', "}"]
@@ -1261,7 +1281,9 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         overrides = requested_games(game_requests(directory), catalog)
         changes, auto = plan_mapping(
-            current, apps, names, default, followers(state, current), native_targets(steam_root, apps), picks, overrides)
+            current, apps, names, default, followers(state, current),
+            native_targets(steam_root, set(apps) | set(picks)), picks,
+            overrides, state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ())
         for app, tool in changes.items():
             set_mapping(tokens, mapping, app, tool)
         text = serialize(tokens)

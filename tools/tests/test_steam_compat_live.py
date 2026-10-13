@@ -221,6 +221,58 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual(page.sets, [("10", TOOL_11), ("11", TOOL)])
         self.assertEqual(state["auto"], {"11": TOOL})
 
+    def test_native_arm64_title_drops_auto_proton_once_and_keeps_explicit_choices(self):
+        (self.steam / "steamapps/appmanifest_11.acf").unlink()
+        (self.state / "state.json").write_text(json.dumps({
+            "default": TOOL,
+            "auto": {"10": TOOL},
+        }))
+        page = FakePage({"0": TOOL, "10": TOOL}, [TOOL, TOOL_11])
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, _apps: {"10": None}
+        try:
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [("10", "")])
+            self.assertEqual(page.mapping["10"], "")
+            self.assertEqual(state["auto"], {})
+
+            page.sets.clear()
+            self.reconcile(page)
+            self.assertEqual(page.sets, [])
+
+            (self.state / "games.json").write_text(json.dumps({
+                "version": 1,
+                "games": {"10": {"valve": True, "dir": "Proton 11.0 (ARM64)"}},
+            }))
+            state = self.reconcile(page)
+            self.assertEqual(page.sets, [("10", TOOL_11)])
+            self.assertEqual(page.mapping["10"], TOOL_11)
+            self.assertEqual(state["auto"], {})
+            (self.state / "games.json").unlink()
+
+            page.sets.clear()
+            page.mapping["10"] = "steamlinuxruntime_arm64"
+            self.reconcile(page)
+            self.assertEqual(page.mapping["10"], "steamlinuxruntime_arm64")
+            self.assertEqual(page.sets, [])
+
+            page.mapping["10"] = TOOL_11
+            self.reconcile(page)
+            self.assertEqual(page.mapping["10"], TOOL_11)
+            self.assertEqual(page.sets, [])
+
+            page.mapping["10"] = COMPAT["FEX_TOOL"]
+            self.reconcile(page)
+            self.assertEqual(page.mapping["10"], COMPAT["FEX_TOOL"])
+            self.assertEqual(page.sets, [])
+
+            page.mapping["10"] = "GE-Proton11-7"
+            self.reconcile(page)
+            self.assertEqual(page.mapping["10"], "GE-Proton11-7")
+            self.assertEqual(page.sets, [])
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
     def test_missing_per_game_proton_stays_deferred_live(self):
         page = FakePage({"0": TOOL, "10": "GE-Proton9-1", "11": TOOL_11}, [TOOL, TOOL_11])
         (self.state / "games.json").write_text(json.dumps({

@@ -420,6 +420,74 @@ class ProtonDefaultTest(unittest.TestCase):
         self.assertEqual(changes, {"0": "GE-Proton11-7", "10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
         self.assertEqual(auto, {"10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
 
+    def test_windows_only_titles_still_follow_the_default(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL}, ["42"], self.NAMES, self.TOOL, {})
+        self.assertEqual(changes, {"42": self.TOOL})
+        self.assertEqual(auto, {"42": self.TOOL})
+
+    def test_native_arm64_default_clears_only_our_auto_mapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([("0", self.TOOL), ("42", self.TOOL)]))
+            (Path(tmp) / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "auto": {"42": self.TOOL},
+            }))
+            globals_ = COMPAT["register_default"].__globals__
+            original_native_targets = globals_["native_targets"]
+            globals_["native_targets"] = lambda _root, _apps: {"42": None}
+            try:
+                COMPAT["register_default"](
+                    str(config), ["42"], catalog=self.CATALOG, directory=tmp)
+                first = config.read_bytes()
+                self.assertEqual(mapping_of(first.decode()), {"0": self.TOOL})
+                self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
+
+                COMPAT["register_default"](
+                    str(config), ["42"], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(config.read_bytes(), first)
+            finally:
+                globals_["native_targets"] = original_native_targets
+
+    def test_native_arm64_preserves_a_proton_mapping_without_managed_state(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "42": self.TOOL}, ["42"], self.NAMES, self.TOOL,
+            {"42": self.TOOL}, {"42": None}, managed=())
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
+
+    def test_native_arm64_keeps_a_chosen_valve_proton_through_its_wrapper(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "42": "proton_experimental"}, ["42"], self.NAMES,
+            self.TOOL, {}, {"42": None})
+        self.assertEqual(changes, {"42": self.TOOL})
+        self.assertEqual(auto, {})
+
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "42": self.TOOL}, ["42"], self.NAMES,
+            self.TOOL, {}, {"42": None})
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
+
+    def test_native_arm64_keeps_explicit_runtime_fex_and_proton_profiles(self):
+        fex = COMPAT["FEX_TOOL"]
+        current = {
+            "0": self.TOOL,
+            "42": COMPAT["TOOL_11"],
+            "43": "GE-Proton11-7",
+            "44": "steamlinuxruntime_arm64",
+            "45": fex,
+            "46": "",
+        }
+        changes, auto = COMPAT["plan_mapping"](
+            current, ["42", "43", "44", "45", "46"], self.NAMES, self.TOOL, {},
+            {app: None for app in ("42", "43", "44", "45", "46")},
+            overrides={"46": "GE-Proton11-7"},
+        )
+        self.assertEqual(changes, {"46": "GE-Proton11-7"})
+        self.assertEqual(auto, {})
+
     def test_titles_following_the_default_move_with_it_and_picks_stay(self):
         current = {"0": self.TOOL, "10": self.TOOL, "11": "GE-Proton11-7", "12": self.TOOL}
         auto = {"10": self.TOOL, "11": self.TOOL, "12": self.TOOL}

@@ -506,12 +506,13 @@ class AppInfoTest(unittest.TestCase):
                 (steam / "appcache").mkdir()
                 (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({
                     10: ("windows", "", "Game"), 20: ("linux", "64", "Game"), 30: ("windows,linux,macos", "", "game"),
-                    40: ("linux", "arm64", "game"), 50: ("linux", "", "Demo"), 70: ("linux", "", "Tool"), 80: ("linux", "", "config"),
+                    40: ("linux", "arm64", "game"), 41: ("windows,linux", "aarch64", "game"),
+                    50: ("linux", "", "Demo"), 70: ("linux", "", "Tool"), 80: ("linux", "", "config"),
                     90: ("linux", "", ""),
                 }, magic))
                 self.COMPAT["APPINFO_CACHE"].clear()
-                targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "50", "70", "80", "90", "1628350", "60"])
-                self.assertEqual(targets, {"20": "droiddeck-fex", "50": "droiddeck-fex"}, hex(magic))
+                targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "41", "50", "70", "80", "90", "1628350", "60"])
+                self.assertEqual(targets, {"20": "droiddeck-fex", "40": None, "41": None, "50": "droiddeck-fex"}, hex(magic))
 
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
         def deck(oslist, runtime, kind="game"):
@@ -545,14 +546,34 @@ class AppInfoTest(unittest.TestCase):
         self.assertEqual(changes, {"30": "GE-Proton11-7", "32": "GE-Proton11-7"})
         self.assertEqual(auto, {"30": "GE-Proton11-7", "32": "GE-Proton11-7"})
 
-    def test_the_mapping_sends_native_titles_to_fex_and_keeps_picks(self):
+    def test_automatic_native_mapping_uses_fex_and_keeps_explicit_tools(self):
         tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]
         changes, auto = self.COMPAT["plan_mapping"](
             {"0": tool, "20": "fex", "21": "steamlinuxruntime_sniper", "22": "GE-Proton11-7"},
             ["20", "21", "22", "23", "24"], [tool, "GE-Proton11-7"], tool, {},
             {"20": fex, "21": fex, "22": fex, "23": fex})
-        self.assertEqual(changes, {"20": fex, "21": fex, "23": fex, "24": tool})
-        self.assertEqual(auto, {"20": fex, "21": fex, "23": fex, "24": tool})
+        self.assertEqual(changes, {"23": fex, "24": tool})
+        self.assertEqual(auto, {"23": fex, "24": tool})
+
+    def test_explicit_linux_runtime_and_fex_selections_survive_default_maintenance(self):
+        tool, fex = self.COMPAT["TOOL"], self.COMPAT["FEX_TOOL"]
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool, "20": "steamlinuxruntime_arm64", "21": fex},
+            ["20", "21"], [tool], tool, {}, {"20": None, "21": fex}, ["20", "21"])
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
+
+    def test_native_arm64_default_stays_unmapped_and_old_auto_proton_is_cleared(self):
+        tool = self.COMPAT["TOOL"]
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool, "20": tool}, ["20"], [tool], tool, {"20": tool}, {"20": None}, ["20"])
+        self.assertEqual(changes, {"20": None})
+        self.assertEqual(auto, {})
+
+        changes, auto = self.COMPAT["plan_mapping"](
+            {"0": tool}, ["20"], [tool], tool, {}, {"20": None}, ["20"])
+        self.assertEqual(changes, {})
+        self.assertEqual(auto, {})
 
     def test_the_tool_files(self):
         with tempfile.TemporaryDirectory() as tmp:
