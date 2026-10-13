@@ -425,7 +425,7 @@ case $mode in
     droiddeck-steam-install || exit $?
     step "Steam client ready"
     steam_root=$XDG_DATA_HOME/Steam
-    # Register the card library (bound at /mnt/droiddeck-sd) with the client - internal storage is
+    # Register the card and USB libraries (/mnt/droiddeck-sd, /mnt/droiddeck-usb) with the client - internal storage is
     # its main library already - and the ARM64 Proton that lets it launch the Windows ones.
     # A request left in ~/.bl-proton-extra installs a third-party Proton before the client starts,
     # so it is in the Compatibility dropdown the first time the user looks. One per line, each the

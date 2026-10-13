@@ -33,7 +33,7 @@ object UsbRootMount {
     /** Where the app and the session see the drive. */
     fun path(context: Context): File = File(context.getExternalFilesDir(null), "usb")
 
-    // The same folder below FUSE; UserHandle.PER_USER_RANGE.
+    // The app's files folder as /data/media holds it, below FUSE; 100000 is UserHandle.PER_USER_RANGE.
     private fun files(context: Context): String = "/data/media/${Process.myUid() / 100000}/Android/data/${context.packageName}/files"
 
     private fun lower(context: Context): String = "${files(context)}/usb"
@@ -66,9 +66,12 @@ object UsbRootMount {
     private fun fail(context: Context, result: Result): Nothing = throw IllegalStateException(
         context.getString(R.string.usb_root_mount_failed, result.code, result.out.joinToString(" ").trim().ifEmpty { "exit ${result.code}" }))
 
-    /** USB partitions vold has nodes for, mounted by it or not. */
-    fun drives(context: Context): List<Drive> =
-        run(context, "for b in /dev/block/vold/public:*; do [ -b \"\$b\" ] && echo \"\$(blkid \"\$b\") SIZE=\\\"\$(blockdev --getsize64 \"\$b\")\\\"\"; done").out.mapNotNull(::parseBlkid)
+    /** USB partitions vold has nodes for, mounted by it or not; not volumes apps already see (SD cards). */
+    fun drives(context: Context): List<Drive> {
+        val visible = GameStorage.visibleVolumes(context)
+        return run(context, "for b in /dev/block/vold/public:*; do [ -b \"\$b\" ] && echo \"\$(blkid \"\$b\") SIZE=\\\"\$(blockdev --getsize64 \"\$b\")\\\"\"; done")
+            .out.mapNotNull(::parseBlkid).filter { it.uuid !in visible }
+    }
 
     /** `/dev/block/vold/public:8,97: LABEL="x" UUID="y" TYPE="exfat" SIZE="123"` (SIZE is ours) */
     internal fun parseBlkid(line: String): Drive? {
@@ -150,12 +153,13 @@ object UsbRootMount {
     @Synchronized
     fun unmount(context: Context): String? = attempt("unmount") {
         val m = lower(context)
-        val drive = runCatching { chosen(context) }.getOrNull()
-        val result = run(context, buildString {
-            appendLine("grep -q ' $m ' /proc/self/mountinfo || exit 0")
-            appendLine("sync; umount $m || exit 30")
-            if (drive?.fat == true) appendLine("sm mount ${drive.volume}")
-        })
+        // The device and type come from the mount itself; an exFAT/FAT drive goes back to vold.
+        val result = run(context, """
+            set -- ${'$'}(grep ' $m ' /proc/mounts | head -n 1)
+            [ -n "${'$'}1" ] || exit 0
+            sync; umount $m || exit 30
+            [ "${'$'}3" = ext4 ] || sm mount "${'$'}{1##*/}"
+        """.trimIndent())
         if (result.code == 30) throw IllegalStateException(context.getString(R.string.usb_root_busy))
         if (result.code != 0) fail(context, result)
         Log.i(TAG, "unmounted $m")
@@ -169,7 +173,10 @@ object UsbRootMount {
         e.message ?: e.javaClass.simpleName
     }
 
-    private var watching = false
+    @Volatile private var watching = false
+
+    // The watcher runs as root, so only root can stop it: by its pid.
+    @Volatile private var watcherPid = 0
 
     /** Called (off the main thread) after a plug-in or pull-out was handled, so the UI can refresh. */
     @Volatile var onChange: (() -> Unit)? = null
@@ -184,28 +191,39 @@ object UsbRootMount {
         watching = true
         val app = context.applicationContext
         Thread({
-            val lines = try { su("exec inotifyd - /dev/block/vold:nd").inputStream.bufferedReader() } catch (e: java.io.IOException) { null }
+            val lines = try { su("echo \$\$; exec inotifyd - /dev/block/vold:nd").inputStream.bufferedReader() } catch (e: java.io.IOException) { null }
             if (lines == null || lines.readLine() != ROOT) { watching = false; return@Thread }
-            // inotifyd: "n<TAB>/dev/block/vold<TAB>public:8,97" on create, "d..." on delete.
-            lines.forEachLine { line ->
-                val fields = line.split('\t')
-                if (fields.size < 3 || !fields[2].startsWith("public:") || !SessionPrefs.usbRootEnabled(app)) return@forEachLine
-                if (fields[0] == "n") {
-                    // shortcut: fixed wait for vold to finish checking the new volume; poll its state if 5 s proves short.
-                    Thread.sleep(5000)
-                    mount(app)
-                } else dropIfGone(app)
-                onChange?.invoke()
+            try {
+                watcherPid = lines.readLine()?.toIntOrNull() ?: 0
+                // inotifyd: "n<TAB>/dev/block/vold<TAB>public:8,97" on create, "d..." on delete.
+                lines.forEachLine { line ->
+                    val fields = line.split('\t')
+                    if (fields.size < 3 || !fields[2].startsWith("public:") || !SessionPrefs.usbRootEnabled(app)) return@forEachLine
+                    if (fields[0] == "n") {
+                        // vold checks a new volume before mounting it; 5 s covers that on the drives tried.
+                        Thread.sleep(5000)
+                        mount(app)
+                    } else dropIfGone(app)
+                    onChange?.invoke()
+                }
+            } finally {
+                watcherPid = 0
+                watching = false
             }
-            watching = false
         }, "usb-root-watch").start()
+    }
+
+    /** Stops [watch]'s root process; the next [watch] starts a new one. */
+    fun unwatch(context: Context) {
+        val pid = watcherPid.takeIf { it > 0 } ?: return
+        attempt("unwatch") { run(context, "kill $pid") }
     }
 
     @Synchronized
     private fun dropIfGone(context: Context) {
         val m = lower(context)
         attempt("removed") {
-            val result = run(context, "s=\$(grep ' $m ' /proc/mounts | cut -d' ' -f1); [ -z \"\$s\" ] || [ -b \"\$s\" ] && exit 1; umount -l $m")
+            val result = run(context, "s=\$(grep ' $m ' /proc/mounts | cut -d' ' -f1); { [ -z \"\$s\" ] || [ -b \"\$s\" ]; } && exit 1; umount -l $m")
             if (result.code == 0) Log.w(TAG, "drive pulled while mounted; detached $m")
         }
     }

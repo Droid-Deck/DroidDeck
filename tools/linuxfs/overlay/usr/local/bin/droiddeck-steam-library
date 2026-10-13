@@ -11,7 +11,7 @@ import re
 import sys
 
 # The client's own library is internal storage (its steamapps/common is bound to the app's root);
-# the card is the one extra library folder.
+# the card and the USB drive are the extra library folders.
 # The app binds the storage the user chose (Steam cog -> Game storage) at this path and names it
 # in BL_LIBRARY_LABEL; nothing bound = internal only, and the entry is removed so the client does
 # not keep offering a place that is not there.
