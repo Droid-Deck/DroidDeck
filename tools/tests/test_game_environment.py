@@ -27,6 +27,27 @@ def config_text(entries):
 
 
 class GameEnvironmentTest(unittest.TestCase):
+    def test_directaudio_capture_follows_the_session_microphone_setting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            probe = home / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('BANNER_AUDIO_DIRECT_MIC', 'unset'))\n")
+            probe.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            for enabled, override, expected in (("1", None, "1"), ("0", "1", "0"), ("1", "0", "0")):
+                with self.subTest(enabled=enabled, override=override):
+                    profile = {} if override is None else {
+                        "BANNER_AUDIO_DIRECT_MIC": override, "BL_MIC_ENABLED": override,
+                    }
+                    config.write_text(json.dumps({"version": 1, "games": {"42": profile}}))
+                    env = dict(os.environ, HOME=tmp, BL_MIC_ENABLED=enabled,
+                               BANNER_AUDIO_DIRECT_MIC="1", STEAM_COMPAT_DATA_PATH="/compatdata/42")
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
+                                             str(probe), "waitforexitandrun"],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected)
+
     def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

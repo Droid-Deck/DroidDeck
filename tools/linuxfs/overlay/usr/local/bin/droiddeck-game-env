@@ -310,6 +310,7 @@ def main():
     if not command:
         return 2
     env = os.environ.copy()
+    mic_enabled = env.get("BL_MIC_ENABLED")
     mark_install_scripts(command, env)
     app_id = game_id(env)
     if app_id:
@@ -338,6 +339,10 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    # A game can opt out of capture, but cannot turn it on when the session's microphone
+    # setting or Android permission denied it. Read the session value before game overrides.
+    if mic_enabled == "0":
+        env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
     command, env = start_without_steam(command, env, app_id)
     sync = load_sync()
