@@ -468,6 +468,76 @@ class ProtonDefaultTest(unittest.TestCase):
             finally:
                 globals_["native_targets"] = original_native_targets
 
+    def test_saved_native_choice_survives_valve_pick_without_appinfo(self):
+        app = "452280"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam = root / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            (steam / "steamapps").mkdir()
+            (steam / "steamapps" / ("appmanifest_%s.acf" % app)).write_text("")
+            config.write_text(config_text([("0", self.TOOL)]))
+            (root / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "auto": {},
+                "native": [app],
+            }))
+
+            globals_ = COMPAT["register_default"].__globals__
+            original_native_targets = globals_["native_targets"]
+            globals_["native_targets"] = lambda _root, _apps: {}
+            try:
+                COMPAT["register_default"](
+                    str(config), [], catalog=self.CATALOG, directory=tmp, picks=[app])
+                self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL})
+                state = json.loads((root / "state.json").read_text())
+                self.assertEqual(state["auto"], {})
+                self.assertEqual(state["native"], [app])
+            finally:
+                globals_["native_targets"] = original_native_targets
+
+    def test_shortcuts_scanner_keeps_native_choice_for_unrelated_app_list(self):
+        app, added_shortcut = "452280", "3537741571"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam = root / "Steam"
+            config = steam / "config/config.vdf"
+            config.parent.mkdir(parents=True)
+            (steam / "steamapps").mkdir()
+            (steam / "steamapps" / ("appmanifest_%s.acf" % app)).write_text("")
+            config.write_text(config_text([("0", self.TOOL)]))
+            (root / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "auto": {},
+                "native": [app],
+            }))
+
+            globals_ = COMPAT["register_default"].__globals__
+            original_native_targets = globals_["native_targets"]
+            globals_["native_targets"] = lambda _root, wanted: {
+                app: COMPAT["NATIVE_CHOICE"]
+            } if app in wanted else {}
+            try:
+                # The main compatibility scan sees the installed native game.
+                COMPAT["register_default"](
+                    str(config), [app], catalog=self.CATALOG, directory=tmp)
+                self.assertEqual(json.loads((root / "state.json").read_text())["native"], [app])
+
+                # droiddeck-steam-shortcuts runs a second scan using only its own shortcut IDs.
+                # That pass must not forget the earlier native choice while mapping the new game.
+                COMPAT["register_default"](
+                    str(config), [added_shortcut], catalog=self.CATALOG, directory=tmp)
+                state = json.loads((root / "state.json").read_text())
+                self.assertEqual(state["native"], [app])
+                self.assertEqual(state["auto"], {added_shortcut: self.TOOL})
+                self.assertEqual(mapping_of(config.read_text()), {
+                    "0": self.TOOL,
+                    added_shortcut: self.TOOL,
+                })
+            finally:
+                globals_["native_targets"] = original_native_targets
+
     def test_factorio_preserves_an_observed_native_choice_despite_ambiguous_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             steam = Path(tmp) / "Steam"

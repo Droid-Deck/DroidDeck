@@ -1048,7 +1048,7 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
     changes, kept = {}, {}
     if current.get("0", "") != default:
         changes["0"] = default
-    for app in sorted((set(current) | installed | picks | set(auto) | set(overrides)) - {"0"}, key=app_order):
+    for app in sorted((set(current) | installed | picks | set(auto) | set(overrides) | native_choices) - {"0"}, key=app_order):
         name = current.get(app, "")
         if app in overrides:
             target = overrides[app]
@@ -1062,6 +1062,11 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             continue
         mine = auto.get(app)
         target = native.get(app, default)
+        # A saved native choice remains authoritative when Steam temporarily omits the app from
+        # its installed/pick lists or appinfo is unavailable during startup. An explicit per-app
+        # mapping above still wins because `name` is non-empty in that case.
+        if not name and app in native_choices:
+            target = NATIVE_CHOICE
         stale = unrunnable(name, runnable)
         if name and not stale and (mine is None or name != mine):
             continue

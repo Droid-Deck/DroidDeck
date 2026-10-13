@@ -446,7 +446,12 @@ class Helper:
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
-            apps = sorted(set(installed) | set(picks) | set(state.get("auto", {})), key=COMPAT["app_order"])
+            prior_auto = state.get("auto", {})
+            if not isinstance(prior_auto, dict):
+                prior_auto = {}
+            prior_native = state.get("native", ())
+            native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
+            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
             overrides = COMPAT["requested_games"](
                 COMPAT["game_requests"](), catalog, [t["name"] for t in live])
             apps = sorted(set(apps) | set(overrides), key=COMPAT["app_order"])
@@ -455,13 +460,14 @@ class Helper:
             native = COMPAT["native_targets"](self.steam_root, apps)
             raw_mapping = COMPAT["read_config_mapping"](
                 os.path.join(self.steam_root, "config", "config.vdf"))
-            prior_auto = state.get("auto", {})
-            if not isinstance(prior_auto, dict):
-                prior_auto = {}
-            prior_native = state.get("native", ())
-            native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
-            if raw_mapping is not None:
-                for app in native:
+            if raw_mapping is None:
+                # A persisted native choice survives a transient unreadable config too. The live
+                # API exposes the inherited global tool in this case; it is not evidence of an
+                # explicit per-game selection. A later valid read will still honor any raw choice.
+                for app in native_choices:
+                    current[app] = ""
+            else:
+                for app in set(native) | native_choices:
                     if app in raw_mapping:
                         # The config file records explicit choices, while GetCompatTools exposes
                         # Steam's resolved fallback for an empty/inherited per-game choice.

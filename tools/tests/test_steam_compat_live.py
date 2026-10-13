@@ -334,13 +334,60 @@ class ReconcileTest(unittest.TestCase):
                 config.write_text(
                     '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
                     '"CompatToolMapping" { "0" { "name" "%s" } '
-                    '"%s" { "name" "%s" } } } } }' % (TOOL, app, choice))
+                    '"%s" { "name" "%s" } } } } } }' % (TOOL, app, choice))
                 page.mapping[app] = choice
                 page.sets.clear()
                 state = self.reconcile(page)
                 self.assertEqual(page.mapping[app], choice)
                 self.assertEqual(page.sets, [])
                 self.assertEqual(state["native"], [], choice)
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
+    def test_saved_native_choice_survives_live_restart_without_manifest_or_appinfo(self):
+        app = "452280"
+        config = self.steam / "config/config.vdf"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        (self.state / "state.json").write_text(json.dumps({
+            "default": TOOL,
+            "auto": {},
+            "native": [app],
+        }))
+
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, _apps: {}
+        try:
+            # The game is absent from installed_apps and appinfo. Steam's page still reports the
+            # inherited global Proton, but a valid config with no per-app entry proves native.
+            page = FakePage({"0": TOOL, app: "proton"}, [TOOL, TOOL_11])
+            state = self.reconcile(page)
+            self.assertNotIn(app, self.helper.installed)
+            self.assertEqual(state["native"], [app])
+            self.assertNotIn(app, state["auto"])
+            self.assertNotIn((app, TOOL), page.sets)
+            self.assertEqual(COMPAT["read_config_mapping"](str(config)), {"0": TOOL})
+
+            # A transiently malformed VDF cannot tell an inherited Proton from an explicit
+            # per-game choice, so retain the already-persisted native selection without writing.
+            config.write_text('"InstallConfigStore" { "Software" { "Other" {} } }')
+            state = self.reconcile(page)
+            self.assertEqual(state["native"], [app])
+            self.assertNotIn((app, TOOL), page.sets)
+
+            # A real raw per-app tool selection supersedes the saved native choice even while
+            # appinfo is unavailable; the native marker must not mask GE-Proton or FEX.
+            config.write_text(
+                '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+                '"CompatToolMapping" { "0" { "name" "%s" } '
+                '"%s" { "name" "GE-Proton11-7" } } } } } }' % (TOOL, app))
+            page.mapping[app] = "proton"
+            state = self.reconcile(page)
+            self.assertEqual(state["native"], [])
+            self.assertNotIn((app, TOOL), page.sets)
+            self.assertEqual(COMPAT["read_config_mapping"](str(config))[app], "GE-Proton11-7")
         finally:
             COMPAT["native_targets"] = original_native_targets
 
