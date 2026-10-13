@@ -15,9 +15,13 @@
  * host waits return at once. Each process still orders its own work; what is lost is only the GPU
  * ordering between processes, which SteamVR's own IPC (one frame at a time) mostly covers.
  *
- * Only vrcompositor needs it: tools/vr/steamvr-cardboard.sh enables it for SteamVR alone
- * (VK_INSTANCE_LAYERS + VK_LAYER_PATH), and it changes nothing for an instance that does not ask
- * for a display extension.
+ * Where it runs: droiddeck-steamvr enables it explicitly in SteamVR's own processes (VK_INSTANCE_LAYERS
+ * + VK_LAYER_PATH). It is also an implicit layer for the whole session, because processes SteamVR did
+ * not start share textures with it too: Steam's web helper draws its in-VR overlay through SteamVR,
+ * needs the exportable semaphores, and without them crashes until Steam quits. As an implicit layer
+ * it stays out of the way: an instance is "active" only when it asks for a display extension, when it
+ * was enabled explicitly, or while SteamVR runs (droiddeck-steamvr's marker file). An inactive
+ * instance and its devices get the next layer's functions untouched.
  */
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_layer.h>
@@ -74,7 +78,14 @@ static void crash_handler(int sig, siginfo_t *si, void *uc_) {
 
 static void crash_trace_install(void) {
     static int done;
-    if (done++ || !getenv("DROIDDECK_VR_CRASHTRACE")) return;
+    if (done++) return;
+    if (!getenv("DROIDDECK_VR_CRASHTRACE")) {
+        /* Or a marker beside droiddeck-steamvr's, for processes whose environment is not ours (Steam). */
+        const char *rt = getenv("XDG_RUNTIME_DIR");
+        char path[512];
+        snprintf(path, sizeof(path), "%s/droiddeck-steamvr/crashtrace", rt && *rt ? rt : "/run/droiddeck");
+        if (access(path, F_OK) != 0) return;
+    }
     static char stack[65536];
     stack_t ss = {.ss_sp = stack, .ss_size = sizeof(stack)};
     sigaltstack(&ss, NULL);
@@ -92,14 +103,28 @@ struct inst {
     PFN_vkGetInstanceProcAddr gipa;
     PFN_vkDestroyInstance destroy;
     int stripped; /* the app asked for display extensions we took out */
+    int active;   /* see the top of the file */
 };
 struct dev {
     VkDevice handle;
     PFN_vkGetDeviceProcAddr gdpa;
     PFN_vkDestroyDevice destroy;
+    int active;
 };
 
-#define MAX_OBJS 16
+/* SteamVR is running (droiddeck-steamvr start/stop keeps this file), or the layer was asked for by
+ * name: then every instance is active, whoever creates it. */
+static int vr_session_active(void) {
+    const char *layers = getenv("VK_INSTANCE_LAYERS");
+    if (layers && strstr(layers, "VK_LAYER_DROIDDECK_vr")) return 1;
+    if (getenv("DROIDDECK_VR_LAYER_FORCE")) return 1;
+    const char *rt = getenv("XDG_RUNTIME_DIR");
+    char path[512];
+    snprintf(path, sizeof(path), "%s/droiddeck-steamvr/active", rt && *rt ? rt : "/run/droiddeck");
+    return access(path, F_OK) == 0;
+}
+
+#define MAX_OBJS 64
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct inst g_inst[MAX_OBJS];
 static struct dev g_dev[MAX_OBJS];
@@ -177,11 +202,12 @@ static VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo *ci, const 
     free(names);
     if (r != VK_SUCCESS) return r;
 
+    const int active = stripped || vr_session_active();
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < MAX_OBJS; i++) {
         if (!g_inst[i].handle) {
             g_inst[i] = (struct inst){*out, next_gipa,
-                                      (PFN_vkDestroyInstance)next_gipa(*out, "vkDestroyInstance"), stripped};
+                                      (PFN_vkDestroyInstance)next_gipa(*out, "vkDestroyInstance"), stripped, active};
             break;
         }
     }
@@ -213,13 +239,14 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     struct inst *in = inst_for(pd);
     PFN_vkCreateDevice next_create = (PFN_vkCreateDevice)next_gipa(in ? in->handle : VK_NULL_HANDLE, "vkCreateDevice");
     if (!next_create) return VK_ERROR_INITIALIZATION_FAILED;
+    const int active = in && in->active;
 
     /* VK_EXT_display_control (vblank events on a display) goes too: there is no display. */
     VkDeviceCreateInfo mine = *ci;
     const char **names = calloc(ci->enabledExtensionCount + 1, sizeof(*names));
     uint32_t n = 0;
     for (uint32_t i = 0; i < ci->enabledExtensionCount; i++) {
-        if (!strcmp(ci->ppEnabledExtensionNames[i], "VK_EXT_display_control")) { say("taking %s off the device", ci->ppEnabledExtensionNames[i]); continue; }
+        if (active && !strcmp(ci->ppEnabledExtensionNames[i], "VK_EXT_display_control")) { say("taking %s off the device", ci->ppEnabledExtensionNames[i]); continue; }
         names[n++] = ci->ppEnabledExtensionNames[i];
     }
     mine.enabledExtensionCount = n;
@@ -230,7 +257,7 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < MAX_OBJS; i++) {
         if (!g_dev[i].handle) {
-            g_dev[i] = (struct dev){*out, next_gdpa, (PFN_vkDestroyDevice)next_gdpa(*out, "vkDestroyDevice")};
+            g_dev[i] = (struct dev){*out, next_gdpa, (PFN_vkDestroyDevice)next_gdpa(*out, "vkDestroyDevice"), active};
             break;
         }
     }
@@ -238,9 +265,12 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
     return VK_SUCCESS;
 }
 
+static void forget_device_semaphores(VkDevice dev);
+
 static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallbacks *alloc) {
     struct dev *d = dev_for(device);
     if (!d) return;
+    forget_device_semaphores(device);
     PFN_vkDestroyDevice f = d->destroy;
     pthread_mutex_lock(&g_lock);
     memset(d, 0, sizeof(*d));
@@ -465,91 +495,209 @@ static PFN_vkVoidFunction display_device_hook(const char *name) {
     return NULL;
 }
 
-/* ------------------------------------------------------------------ detached shared semaphores */
+/* ------------------------------------------------------------------ bridged shared semaphores
+ *
+ * SteamVR shares a timeline semaphore with every image it shares between processes, exported as an
+ * opaque fd; Turnip/KGSL cannot export one. Here such a semaphore is created unshared, and its "fd" is
+ * a memfd (named droiddeck-shared-sem) holding a 64-bit counter. Every process that has the semaphore -
+ * the creator and each importer - keeps its own real timeline semaphore, and a poller thread in each
+ * process carries values both ways: a value reached locally goes up into the counter, a value the
+ * counter shows (another process got there) is signalled locally from the host. GPU waits then work
+ * as written, about a poll period late. A binary semaphore cannot be bridged that way; GPU waits on an
+ * imported binary one are dropped (each process still orders its own work). */
+
+#include <sched.h>
+#include <stdatomic.h>
 
 #define MAX_SEMS 256
-static VkSemaphore g_unshared[MAX_SEMS]; /* created here without export: their fds are placeholders */
-static VkSemaphore g_detached[MAX_SEMS]; /* imported from a placeholder: nothing will ever signal them */
+#define MAX_TYPED 2048
+#define SHARED_NAME "droiddeck-shared-sem"
+#define POLL_US 300
 
-static int set_has(VkSemaphore *set, VkSemaphore s) {
+struct bridged {
+    VkSemaphore sem;
+    VkDevice dev;
+    _Atomic uint64_t *counter;
+    int fd;       /* the memfd, kept by the creator so every export can dup it; -1 for an importer */
+    int timeline; /* 0: binary, bridged only by dropping its waits */
+};
+static pthread_mutex_t g_br_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct bridged g_br[MAX_SEMS];
+static VkSemaphore g_timeline_sems[MAX_TYPED]; /* every timeline semaphore this process made */
+static pthread_t g_poller;
+static int g_poller_started;
+
+static int timeline_known(VkSemaphore s) {
     int r = 0;
-    pthread_mutex_lock(&g_lock);
-    for (int i = 0; i < MAX_SEMS && !r; i++) r = set[i] == s;
-    pthread_mutex_unlock(&g_lock);
+    pthread_mutex_lock(&g_br_lock);
+    for (int i = 0; i < MAX_TYPED && !r; i++) r = g_timeline_sems[i] == s;
+    pthread_mutex_unlock(&g_br_lock);
     return r;
 }
-static void set_add(VkSemaphore *set, VkSemaphore s) {
-    pthread_mutex_lock(&g_lock);
-    for (int i = 0; i < MAX_SEMS; i++) if (!set[i]) { set[i] = s; break; }
-    pthread_mutex_unlock(&g_lock);
-}
-static void set_del(VkSemaphore *set, VkSemaphore s) {
-    pthread_mutex_lock(&g_lock);
-    for (int i = 0; i < MAX_SEMS; i++) if (set[i] == s) set[i] = VK_NULL_HANDLE;
-    pthread_mutex_unlock(&g_lock);
+static void timeline_note(VkSemaphore s, int add) {
+    pthread_mutex_lock(&g_br_lock);
+    for (int i = 0; i < MAX_TYPED; i++) {
+        if (add ? !g_timeline_sems[i] : g_timeline_sems[i] == s) { g_timeline_sems[i] = add ? s : VK_NULL_HANDLE; break; }
+    }
+    pthread_mutex_unlock(&g_br_lock);
 }
 
-#define PLACEHOLDER "droiddeck-detached-sem"
-static int is_placeholder(int fd) {
+/* Under g_br_lock. */
+static struct bridged *bridged_find(VkSemaphore s) {
+    for (int i = 0; i < MAX_SEMS; i++) if (g_br[i].sem == s) return &g_br[i];
+    return NULL;
+}
+static void bridged_drop(struct bridged *b) {
+    if (b->counter) munmap((void *)b->counter, 4096);
+    if (b->fd >= 0) close(b->fd);
+    memset(b, 0, sizeof(*b));
+    b->fd = -1;
+}
+
+static void *poller(void *arg) {
+    for (;;) {
+        pthread_mutex_lock(&g_br_lock);
+        for (int i = 0; i < MAX_SEMS; i++) {
+            struct bridged *b = &g_br[i];
+            if (!b->sem || !b->timeline) continue;
+            struct dev *d = dev_for(b->dev);
+            if (!d) continue;
+            PFN_vkGetSemaphoreCounterValue get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(b->dev, "vkGetSemaphoreCounterValue");
+            if (!get) get = (PFN_vkGetSemaphoreCounterValue)d->gdpa(b->dev, "vkGetSemaphoreCounterValueKHR");
+            PFN_vkSignalSemaphore sig = (PFN_vkSignalSemaphore)d->gdpa(b->dev, "vkSignalSemaphore");
+            if (!sig) sig = (PFN_vkSignalSemaphore)d->gdpa(b->dev, "vkSignalSemaphoreKHR");
+            uint64_t local = 0;
+            if (!get || get(b->dev, b->sem, &local) != VK_SUCCESS) continue;
+            uint64_t shared = atomic_load(b->counter);
+            if (local > shared) {
+                while (local > shared && !atomic_compare_exchange_weak(b->counter, &shared, local)) {}
+            } else if (shared > local && sig) {
+                VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, NULL, b->sem, shared};
+                sig(b->dev, &si);
+            }
+        }
+        pthread_mutex_unlock(&g_br_lock);
+        usleep(POLL_US);
+    }
+    return arg;
+}
+
+static void poller_start(void) {
+    if (__atomic_exchange_n(&g_poller_started, 1, __ATOMIC_ACQ_REL)) return;
+    if (pthread_create(&g_poller, NULL, poller, NULL) == 0) pthread_detach(g_poller);
+    say("%s", "shared semaphores are bridged between processes");
+}
+
+static _Atomic uint64_t *map_counter(int fd) {
+    void *p = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    return p == MAP_FAILED ? NULL : (_Atomic uint64_t *)p;
+}
+
+static int is_shared_counter(int fd) {
     char path[64], target[128];
     snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
     ssize_t n = readlink(path, target, sizeof(target) - 1);
     if (n <= 0) return 0;
     target[n] = 0;
-    return strstr(target, PLACEHOLDER) != NULL;
+    return strstr(target, SHARED_NAME) != NULL;
 }
-
 
 static VkResult VKAPI_CALL CreateSemaphore(VkDevice d, const VkSemaphoreCreateInfo *ci, const VkAllocationCallbacks *a, VkSemaphore *out) {
     PFN_vkCreateSemaphore next = NEXT(d, CreateSemaphore);
-    VkResult r = next(d, ci, a, out);
     const VkBaseInStructure *export_info = NULL;
-    for (const VkBaseInStructure *p = ci->pNext; p; p = p->pNext)
+    const VkSemaphoreTypeCreateInfo *type_info = NULL;
+    for (const VkBaseInStructure *p = ci->pNext; p; p = p->pNext) {
         if (p->sType == VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO) export_info = p;
-    if (r == VK_SUCCESS || !export_info) return r;
+        if (p->sType == VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO) type_info = (const void *)p;
+    }
+    const int timeline = type_info && type_info->semaphoreType == VK_SEMAPHORE_TYPE_TIMELINE;
+    VkResult r = next(d, ci, a, out);
+    if (r == VK_SUCCESS) {
+        if (timeline) timeline_note(*out, 1);
+        return r;
+    }
+    if (!export_info) return r;
     /* Rebuild the chain without the export request. */
     VkSemaphoreTypeCreateInfo type = {0};
     VkSemaphoreCreateInfo mine = *ci;
     mine.pNext = NULL;
-    for (const VkBaseInStructure *p = ci->pNext; p; p = p->pNext) {
-        if (p->sType == VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO) {
-            type = *(const VkSemaphoreTypeCreateInfo *)p;
-            type.pNext = NULL;
-            mine.pNext = &type;
-        }
+    if (type_info) {
+        type = *type_info;
+        type.pNext = NULL;
+        mine.pNext = &type;
     }
     r = next(d, &mine, a, out);
-    if (r == VK_SUCCESS) {
-        static int said;
-        if (!said++) say("%s: created unshared (the driver cannot export it)", "exportable semaphore");
-        set_add(g_unshared, *out);
-    }
+    if (r != VK_SUCCESS) return r;
+    if (timeline) timeline_note(*out, 1);
+    int fd = memfd_create(SHARED_NAME, MFD_CLOEXEC);
+    _Atomic uint64_t *counter = NULL;
+    if (fd >= 0 && ftruncate(fd, 4096) == 0) counter = map_counter(fd);
+    if (!counter) { if (fd >= 0) close(fd); return r; } /* unshared, unbridged */
+    atomic_store(counter, timeline ? type_info->initialValue : 0);
+    pthread_mutex_lock(&g_br_lock);
+    struct bridged *slot = bridged_find(VK_NULL_HANDLE);
+    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline};
+    pthread_mutex_unlock(&g_br_lock);
+    if (!slot) { munmap((void *)counter, 4096); close(fd); return r; }
+    if (timeline) poller_start();
     return r;
 }
 
+static void forget_semaphore(VkSemaphore s) {
+    pthread_mutex_lock(&g_br_lock);
+    struct bridged *b = bridged_find(s);
+    if (b) bridged_drop(b);
+    pthread_mutex_unlock(&g_br_lock);
+    timeline_note(s, 0);
+}
+
+static void forget_device_semaphores(VkDevice dev) {
+    pthread_mutex_lock(&g_br_lock);
+    for (int i = 0; i < MAX_SEMS; i++) if (g_br[i].sem && g_br[i].dev == dev) bridged_drop(&g_br[i]);
+    pthread_mutex_unlock(&g_br_lock);
+}
+
 static void VKAPI_CALL DestroySemaphore(VkDevice d, VkSemaphore s, const VkAllocationCallbacks *a) {
-    set_del(g_unshared, s);
-    set_del(g_detached, s);
+    forget_semaphore(s);
     NEXT(d, DestroySemaphore)(d, s, a);
 }
 
 static VkResult VKAPI_CALL GetSemaphoreFdKHR(VkDevice d, const VkSemaphoreGetFdInfoKHR *info, int *fd) {
-    if (set_has(g_unshared, info->semaphore)) {
-        *fd = memfd_create(PLACEHOLDER, MFD_CLOEXEC);
-        return *fd >= 0 ? VK_SUCCESS : VK_ERROR_TOO_MANY_OBJECTS;
-    }
-    return NEXT(d, GetSemaphoreFdKHR)(d, info, fd);
+    pthread_mutex_lock(&g_br_lock);
+    struct bridged *b = bridged_find(info->semaphore);
+    int mine = b && b->fd >= 0 ? dup(b->fd) : -2;
+    pthread_mutex_unlock(&g_br_lock);
+    if (mine == -2) return NEXT(d, GetSemaphoreFdKHR)(d, info, fd);
+    *fd = mine;
+    return mine >= 0 ? VK_SUCCESS : VK_ERROR_TOO_MANY_OBJECTS;
 }
 
 static VkResult VKAPI_CALL ImportSemaphoreFdKHR(VkDevice d, const VkImportSemaphoreFdInfoKHR *info) {
-    if (info->fd >= 0 && is_placeholder(info->fd)) {
-        static int said;
-        if (said++ < 4) say("importing a placeholder semaphore (%s)", program_invocation_short_name);
-        close(info->fd); /* a successful import owns the fd */
-        set_add(g_detached, info->semaphore);
-        return VK_SUCCESS;
-    }
-    return NEXT(d, ImportSemaphoreFdKHR)(d, info);
+    if (info->fd < 0 || !is_shared_counter(info->fd)) return NEXT(d, ImportSemaphoreFdKHR)(d, info);
+    _Atomic uint64_t *counter = map_counter(info->fd);
+    close(info->fd); /* a successful import owns the fd */
+    const int timeline = timeline_known(info->semaphore);
+    pthread_mutex_lock(&g_br_lock);
+    struct bridged *b = bridged_find(info->semaphore);
+    if (b) bridged_drop(b);
+    b = bridged_find(VK_NULL_HANDLE);
+    if (b && counter) *b = (struct bridged){info->semaphore, d, counter, -1, timeline};
+    else if (counter) munmap((void *)counter, 4096);
+    pthread_mutex_unlock(&g_br_lock);
+    if (timeline) poller_start();
+    static int said;
+    if (said++ < 4) say(timeline ? "imported a shared timeline semaphore (%s): bridged" : "imported a shared binary semaphore (%s): its waits are dropped",
+                        program_invocation_short_name);
+    return VK_SUCCESS;
+}
+
+/* An imported binary one: nothing here will ever signal it. */
+static int drop_wait(VkSemaphore s) {
+    pthread_mutex_lock(&g_br_lock);
+    struct bridged *b = bridged_find(s);
+    int r = b && !b->timeline && b->fd < 0;
+    pthread_mutex_unlock(&g_br_lock);
+    return r;
 }
 
 /* Drops waits on detached semaphores from a list; returns the new count. */
@@ -557,7 +705,7 @@ static uint32_t keep_waits(const VkSemaphore *in, const VkPipelineStageFlags *st
                            VkSemaphore *out, VkPipelineStageFlags *out_stages, uint64_t *out_values) {
     uint32_t k = 0;
     for (uint32_t i = 0; i < n; i++) {
-        if (set_has(g_detached, in[i])) continue;
+        if (drop_wait(in[i])) continue;
         out[k] = in[i];
         if (stages) out_stages[k] = stages[i];
         if (values) out_values[k] = values[i];
@@ -571,7 +719,7 @@ static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmit
     int any = 0;
     for (uint32_t i = 0; i < count && !any; i++)
         for (uint32_t j = 0; j < submits[i].waitSemaphoreCount && !any; j++)
-            any = set_has(g_detached, submits[i].pWaitSemaphores[j]);
+            any = drop_wait(submits[i].pWaitSemaphores[j]);
     if (!any) return next(q, count, submits, fence);
     VkSubmitInfo *copy = calloc(count, sizeof(*copy));
     VkTimelineSemaphoreSubmitInfo *tl = calloc(count, sizeof(*tl));
@@ -617,7 +765,7 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
     int any = 0;
     for (uint32_t i = 0; i < count && !any; i++)
         for (uint32_t j = 0; j < submits[i].waitSemaphoreInfoCount && !any; j++)
-            any = set_has(g_detached, submits[i].pWaitSemaphoreInfos[j].semaphore);
+            any = drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore);
     if (!any) return next(q, count, submits, fence);
     VkSubmitInfo2 *copy = calloc(count, sizeof(*copy));
     VkSemaphoreSubmitInfo **waits = calloc(count, sizeof(*waits));
@@ -626,7 +774,7 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
         uint32_t n = submits[i].waitSemaphoreInfoCount, k = 0;
         waits[i] = calloc(n + 1, sizeof(VkSemaphoreSubmitInfo));
         for (uint32_t j = 0; j < n; j++)
-            if (!set_has(g_detached, submits[i].pWaitSemaphoreInfos[j].semaphore)) waits[i][k++] = submits[i].pWaitSemaphoreInfos[j];
+            if (!drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore)) waits[i][k++] = submits[i].pWaitSemaphoreInfos[j];
         copy[i].waitSemaphoreInfoCount = k;
         copy[i].pWaitSemaphoreInfos = waits[i];
     }
@@ -641,17 +789,9 @@ static VkResult VKAPI_CALL WaitSemaphores(VkDevice d, const VkSemaphoreWaitInfo 
     if (!next) next = (PFN_vkWaitSemaphores)dev_for(d)->gdpa(d, "vkWaitSemaphoresKHR");
     VkSemaphore sems[64]; uint64_t vals[64]; uint32_t k = 0;
     for (uint32_t i = 0; i < info->semaphoreCount && k < 64; i++)
-        if (!set_has(g_detached, info->pSemaphores[i])) { sems[k] = info->pSemaphores[i]; vals[k] = info->pValues[i]; k++; }
+        if (!drop_wait(info->pSemaphores[i])) { sems[k] = info->pSemaphores[i]; vals[k] = info->pValues[i]; k++; }
     if (k == info->semaphoreCount) {
-        int unshared = 0;
-        for (uint32_t i = 0; i < info->semaphoreCount; i++) unshared |= set_has(g_unshared, info->pSemaphores[i]);
-        VkResult r = next(d, info, unshared && timeout > 500000000ull ? 500000000ull : timeout);
-        if (r == VK_TIMEOUT && unshared) {
-            static int said;
-            if (said++ < 4) say("host wait on an unshared semaphore timed out (%s): another process was to signal it", program_invocation_short_name);
-            if (timeout > 500000000ull) r = next(d, info, timeout - 500000000ull);
-        }
-        return r;
+        return next(d, info, timeout);
     }
     if (!k) return VK_SUCCESS;
     VkSemaphoreWaitInfo mine = *info;
@@ -660,7 +800,6 @@ static VkResult VKAPI_CALL WaitSemaphores(VkDevice d, const VkSemaphoreWaitInfo 
 }
 
 static VkResult VKAPI_CALL GetSemaphoreCounterValue(VkDevice d, VkSemaphore s, uint64_t *value) {
-    if (set_has(g_detached, s)) { *value = UINT64_MAX / 2; return VK_SUCCESS; }
     PFN_vkGetSemaphoreCounterValue next = (PFN_vkGetSemaphoreCounterValue)dev_for(d)->gdpa(d, "vkGetSemaphoreCounterValue");
     if (!next) next = (PFN_vkGetSemaphoreCounterValue)dev_for(d)->gdpa(d, "vkGetSemaphoreCounterValueKHR");
     return next(d, s, value);
@@ -717,6 +856,7 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVr_GetInstanceProcAddr(
     if (!strcmp(name, "vkGetDeviceProcAddr")) return (PFN_vkVoidFunction)DroidDeckVr_GetDeviceProcAddr;
     if (!instance) return NULL;
     struct inst *in = inst_for(instance);
+    if (in && !in->active) return in->gipa(instance, name);
     if (in && in->stripped) {
         PFN_vkVoidFunction f = display_hook(name);
         if (!f) f = display_device_hook(name);
@@ -733,6 +873,7 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVr_GetDeviceProcAddr(Vk
     HOOK(DestroyDevice)
     if (!strcmp(name, "vkGetDeviceProcAddr")) return (PFN_vkVoidFunction)DroidDeckVr_GetDeviceProcAddr;
     struct dev *d = dev_for(device);
+    if (d && !d->active) return d->gdpa(device, name);
     {
         PFN_vkVoidFunction f = display_device_hook(name);
         if (f) return f;

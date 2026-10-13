@@ -135,6 +135,7 @@ public:
     void Submit(const EyeFrame &f) {
         std::lock_guard<std::mutex> lock(mutex_);
         frame_ = f;
+        frameAt_ = std::chrono::steady_clock::now();
         haveFrame_ = true;
         submitted_++;
         cv_.notify_one();
@@ -168,6 +169,7 @@ private:
         auto lastLog = std::chrono::steady_clock::now();
         while (true) {
             EyeFrame f;
+            std::chrono::steady_clock::time_point at;
             std::vector<PendingImport> imports;
             std::vector<uint64_t> removals;
             {
@@ -177,12 +179,17 @@ private:
                 imports.swap(pending_);
                 removals.swap(removals_);
                 f = frame_;
+                at = frameAt_;
                 bool draw = haveFrame_;
                 haveFrame_ = false;
                 if (!draw) f.texture[0] = f.texture[1] = 0;
             }
             for (auto &p : imports) Import(p);
             for (auto h : removals) Forget(h);
+            // SteamVR hands the textures over at Present with no fence the driver can wait on: give the
+            // compositor's GPU work a moment to land before copying, as ALVR does (a torn or half-drawn
+            // frame otherwise).
+            if (f.texture[0]) std::this_thread::sleep_until(at + guard_);
             if (f.texture[0] && Draw(f)) shown++;
             auto now = std::chrono::steady_clock::now();
             if (now - lastLog > std::chrono::seconds(10)) {
@@ -195,7 +202,10 @@ private:
         if (dev_) vk_.DeviceWaitIdle(dev_);
     }
 
+    std::chrono::microseconds guard_{4000};
+
     bool InitWindow() {
+        if (const char *g = getenv("DROIDDECK_VR_PRESENT_GUARD_MS")) guard_ = std::chrono::microseconds((long)(atof(g) * 1000));
         if (!x_.Load()) { Log("presenter: no libX11"); return false; }
         // gamescope's first Xwayland (:0) is where its overlays (mangoapp, Steam's) live; SteamVR's
         // processes inherit the games' display (:1), so it is not taken from DISPLAY.
@@ -471,6 +481,7 @@ private:
     std::vector<PendingImport> pending_;
     std::vector<uint64_t> removals_;
     EyeFrame frame_{};
+    std::chrono::steady_clock::time_point frameAt_{};
     bool haveFrame_ = false, exit_ = false, started_ = false;
     std::atomic<uint64_t> submitted_{0};
     std::thread thread_;

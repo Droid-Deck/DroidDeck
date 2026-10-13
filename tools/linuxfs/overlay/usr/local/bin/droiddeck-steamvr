@@ -27,6 +27,7 @@ running() { pgrep -x vrserver >/dev/null 2>&1; }
 installed() { [ -x "$steamvr/bin/linuxarm64/vrstartup" ]; }
 
 stop() {
+    rm -f "$state/active"
     for n in vrcompositor vrserver vrmonitor vrdashboard vrstartup vrwebhelper; do
         for p in $(pgrep -x "$n"); do kill "$p" 2>/dev/null; done
     done
@@ -96,6 +97,9 @@ JSON
         export PATH="$shims:$PATH"
     fi
 
+    # While this file exists, the layer is active in every Vulkan instance of the session, not only
+    # SteamVR's: Steam's web helper shares its in-VR overlay with SteamVR and needs it too.
+    : > "$state/active"
     cd "$steamvr/bin/linuxarm64" || exit 1
     setsid ./vrstartup > "$state/vrstartup.log" 2>&1 < /dev/null &
     echo "SteamVR starting; logs in $logs and $state/vrstartup.log"

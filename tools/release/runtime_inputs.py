@@ -71,7 +71,7 @@ def required():
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-vr/' + name for name in
               ['droiddeck/bin/linuxarm64/driver_droiddeck.so', 'droiddeck/driver.vrdrivermanifest',
                'droiddeck/resources/settings/default.vrsettings', 'layer/libVkLayer_droiddeck_vr.so',
-               'layer/VK_LAYER_DROIDDECK_vr.json']]
+               'layer/VK_LAYER_DROIDDECK_vr.json', 'layer/VK_LAYER_DROIDDECK_vr_implicit.json']]
     paths += ['assets/linuxfs/usr/local/lib/mangoapp/' + name for name in
               ['mangoapp', 'libfmt.so.10', 'libspdlog.so.1.13', 'libglfw.so.3', 'libtraceevent.so.1', 'libtracefs.so.1']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-comet/' + name for name in

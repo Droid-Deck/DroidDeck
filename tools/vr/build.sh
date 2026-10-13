@@ -57,7 +57,7 @@ compile() {
 compile
 
 cp -R "$here/driver_droiddeck/." "$work/out/droiddeck/"
-cp "$here/layer/VK_LAYER_DROIDDECK_vr.json" "$work/out/layer/"
+cp "$here/layer/VK_LAYER_DROIDDECK_vr.json" "$here/layer/VK_LAYER_DROIDDECK_vr_implicit.json" "$work/out/layer/"
 rm -rf "$out/droiddeck" "$out/layer"
 mkdir -p "$out"
 cp -R "$work/out/droiddeck" "$work/out/layer" "$out/"
