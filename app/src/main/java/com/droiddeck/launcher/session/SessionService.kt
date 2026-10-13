@@ -878,9 +878,12 @@ class SessionService : Service() {
                 // Links, prefixes and Steam entries made before the rename still name the old path.
                 File(LinuxRuntime.rootDir(this), "mnt/bannerlator-sd").mkdirs()
                 try {
-                    binds.addAll(SecondaryLibrary.binds(filesDir, File(library.path)))
-                    storageDiagnosticLibrary = File(library.path)
-                    Log.i(TAG, "game storage: ${library.path} -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
+                    val configured = File(library.path)
+                    val content = SecondaryLibrary.contentPath(configured)
+                    binds.addAll(SecondaryLibrary.binds(filesDir, configured, content = content))
+                    storageDiagnosticLibrary = content
+                    val route = if (content === configured) "configured" else "verified-native"
+                    Log.i(TAG, "game storage: ${content.path} ($route) -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
                 } catch (e: Exception) {
                     Log.w(TAG, "game storage: private directories could not be prepared; internal only this session", e)
                 }
@@ -895,9 +898,9 @@ class SessionService : Service() {
             val device = StorageDiagnostics.writeSnapshot(
                 sessionDir, target,
                 selectedLibrary = if (storageDiagnosticLibrary != null) "secondary" else "internal",
-                removable = storageDiagnosticLibrary?.let {
-                    runCatching { Environment.isExternalStorageRemovable(it) }.getOrDefault(false)
-                } ?: false,
+                removable = storageDiagnosticLibrary != null && library?.let {
+                    runCatching { Environment.isExternalStorageRemovable(File(it.path)) }.getOrDefault(false)
+                } == true,
             )
             if (device != null) {
                 // guest already has the session command at this point. Put these with the `env -i`

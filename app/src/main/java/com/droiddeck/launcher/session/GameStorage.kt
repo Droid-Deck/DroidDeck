@@ -15,8 +15,9 @@ import java.io.File
  * An SD card is offered through the app's own folder on it ({@code Android/data/<pkg>/files/steam}):
  * the one place on a card a targetSdk-28 app may write without a permission prompt, and a real
  * filesystem path the session can bind. Any other folder comes from the File Manager's pick mode
- * and is checked for writing before it is accepted. Both are FUSE-backed on Android and stream
- * slowly (intro movies, big asset loads); internal stays the default and the dialog says so.
+ * and is checked for writing before it is accepted. These paths usually pass through Android's
+ * storage view; the session may use a verified native card alias where the app can access it.
+ * Internal stays the default and the dialog says so.
  */
 object GameStorage {
     /** A library root: [label] as the menu lists it (a volume with its free space), [name] alone. */
