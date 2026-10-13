@@ -88,7 +88,7 @@ object DownloadQueue {
         }
     }
 
-    private class Item(var entry: DownloadEntry, val factory: () -> DownloadJob, var job: DownloadJob? = null, val cancelled: AtomicBoolean = AtomicBoolean(false), var pauseRequested: Boolean = false) {
+    private class Item(var entry: DownloadEntry, val factory: (() -> DownloadJob)? = null, val retry: (() -> Unit)? = null, var job: DownloadJob? = null, val cancelled: AtomicBoolean = AtomicBoolean(false), var pauseRequested: Boolean = false) {
         var speedAt = 0L
         var speedBytes = 0L
         var speedEwma = 0.0
@@ -138,11 +138,13 @@ object DownloadQueue {
     }
 
     /** Immediately records a failed download (e.g. from pre-flight storage check). */
-    fun recordFailed(context: Context, entry: DownloadEntry, error: String, factory: (() -> DownloadJob)? = null) {
+    fun recordFailed(context: Context, entry: DownloadEntry, error: String, retry: (() -> Unit)? = null) {
         val app = context.applicationContext
         val now = System.currentTimeMillis()
         synchronized(lock) {
+            if (items[entry.key]?.entry?.isActive == true) return
             items.remove(entry.key)
+            heldPaused.remove(entry.key)
             items[entry.key] = Item(
                 entry.copy(
                     state = DownloadState.FAILED,
@@ -152,10 +154,7 @@ object DownloadQueue {
                     startedAt = now,
                     finishedAt = now
                 ),
-                factory ?: { object : DownloadJob {
-                    override fun run(handle: JobHandle): String? = null
-                    override fun cancel(deleteFiles: Boolean) {}
-                } }
+                retry = retry
             )
             renumber()
             publishLocked()
@@ -181,14 +180,21 @@ object DownloadQueue {
 
     fun resume(context: Context, key: String) {
         val app = context.applicationContext
+        val retry: (() -> Unit)?
         synchronized(lock) {
             val item = items[key] ?: return
             if (item.entry.state != DownloadState.PAUSED && item.entry.state != DownloadState.FAILED) return
+            retry = item.retry
+            if (retry == null && item.factory == null) return
             items.remove(key)
-            items[key] = Item(item.entry.copy(state = DownloadState.QUEUED, speedBps = 0, etaSeconds = -1, error = null, startedAt = System.currentTimeMillis()), item.factory)
+            if (retry == null) {
+                items[key] = Item(item.entry.copy(state = DownloadState.QUEUED, speedBps = 0, etaSeconds = -1, error = null, startedAt = System.currentTimeMillis()), item.factory)
+            }
             renumber()
             publishLocked()
         }
+        // A preflight retry rechecks storage and enqueues the real backend, never a running placeholder.
+        if (retry != null) { retry(); return }
         StoresState.logLine("resumed \"${entry(key)?.name}\"")
         advance(app)
     }
@@ -212,7 +218,7 @@ object DownloadQueue {
             item.cancelled.set(true)
             item.job?.cancel(deleteFiles = true)
         } else {
-            Thread({ runCatching { item.factory().cancel(deleteFiles = true) } }, "store-dl-cancel").start()
+            Thread({ runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }, "store-dl-cancel").start()
         }
         StoresState.logLine("cancelled \"${item.entry.name}\"")
         StoreDownloadService.finish(app, key)
@@ -224,7 +230,7 @@ object DownloadQueue {
         val item = synchronized(lock) { items[key] } ?: return
         if (item.entry.state == DownloadState.RUNNING || item.entry.state == DownloadState.QUEUED) return
         if (item.entry.state == DownloadState.FAILED || item.entry.state == DownloadState.PAUSED) {
-            Thread({ runCatching { item.factory().cancel(deleteFiles = true) } }, "store-dl-clear").start()
+            Thread({ runCatching { item.factory?.invoke()?.cancel(deleteFiles = true) } }, "store-dl-clear").start()
         }
         synchronized(lock) { items.remove(key); publishLocked() }
         StoreDownloadService.finish(context.applicationContext, key)
@@ -306,7 +312,7 @@ object DownloadQueue {
         var result: String? = null
         var error: String? = null
         try {
-            val job = item.factory()
+            val job = checkNotNull(item.factory).invoke()
             synchronized(lock) { item.job = job }
             StoresState.logLine("${item.entry.store.label}: fetching manifest for \"${item.entry.name}\"")
             result = job.run(handle)

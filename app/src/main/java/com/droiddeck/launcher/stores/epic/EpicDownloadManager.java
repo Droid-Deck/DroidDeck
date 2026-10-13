@@ -197,18 +197,14 @@ public final class EpicDownloadManager {
                 if (freeGame > 0 && pendingBytes > freeGame) throw new InstallException("Not enough free space: need " + fmt(pendingBytes) + ", only " + fmt(freeGame) + " free");
             }
             cb.onLog("epic: cache " + (cacheOnInstallVolume ? "beside the game" : "scratch") + ", peak game additional=" + fmt(peakGameAdditional) + (cacheOnInstallVolume ? "" : ", peak cache additional=" + fmt(peakCacheAdditional)) + " for " + fmt(pendingBytes) + " of files");
-            long totalBytes = 0;
-            for (ChunkInfo c : needed) totalBytes += Math.max(c.fileSize, 1);
-            final long fTotalBytes = totalBytes;
+            final long fTotalBytes = pendingBytes;
             final int totalChunks = needed.size();
             cb.onSizes(fTotalBytes, planned);
             cb.onBytes(0, fTotalBytes, 0);
-            cb.onLog("epic: " + fmt(fTotalBytes) + " in " + totalChunks + " chunks");
+            cb.onLog("epic: " + fmt(fTotalBytes) + " to write using " + totalChunks + " unique chunks");
             cb.onLog("epic: engine=bounded-java (shared path; native availability does not change cache semantics)");
             Map<String, Integer> remainingRefs = chunkReferences(pending);
-            Set<String> creditedChunks = new LinkedHashSet<>();
             long completedBytes = 0, writtenBytes = 0;
-            long fetchedBytes = 0;
             long transferStarted = System.nanoTime();
             int completedCount = 0, doneFiles = 0, totalFiles = pending.size();
             for (FileInfo file : pending) {
@@ -238,16 +234,13 @@ public final class EpicDownloadManager {
                                 throw new InstallException("Failed to download Epic chunk " + guid);
                             }
                             cachedChunkBytes.put(guid, cachedChunk.length());
-                            fetchedBytes += Math.max(chunk.fileSize, 1);
                         }
-                        if (creditedChunks.add(guid)) {
-                            completedBytes += Math.max(chunk.fileSize, 1);
-                            completedCount++;
-                            cb.onProgress("Downloading chunks (" + completedCount + "/" + totalChunks + ")", (int) (completedBytes * 80L / Math.max(1, fTotalBytes)));
-                        }
-                        long elapsedMs = Math.max(1, (System.nanoTime() - transferStarted) / 1_000_000);
-                        cb.onBytes(completedBytes, fTotalBytes, fetchedBytes * 1000 / elapsedMs);
+                        completedCount++;
+                        cb.onProgress("Downloading chunks (part " + completedCount + ")", (int) (completedBytes * 80L / Math.max(1, fTotalBytes)));
                         copyChunkPart(cachedChunk, part, bos, fileSha, cancel, relPath);
+                        completedBytes += part.size & 0xFFFFFFFFL;
+                        long elapsedMs = Math.max(1, (System.nanoTime() - transferStarted) / 1_000_000);
+                        cb.onBytes(completedBytes, fTotalBytes, completedBytes * 1000 / elapsedMs);
                         Integer refs = remainingRefs.get(guid);
                         if (refs != null) {
                             if (refs <= 1) {

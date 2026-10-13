@@ -29,7 +29,7 @@ class EpicBoundedInstallTest {
     private lateinit var root: File
     private val requests = AtomicInteger()
     private val reject = AtomicBoolean()
-    private val bytes = ByteArray(256 * 1024) { (it % 251).toByte() }
+    private var bytes = ByteArray(256 * 1024) { (it % 251).toByte() }
 
     @Before fun setUp() {
         root = temp.newFolder("game")
@@ -176,6 +176,49 @@ class EpicBoundedInstallTest {
         val firstInstall = events.indexOf("install")
         assertTrue(firstInstall > 0)
         assertFalse(events.drop(firstInstall).contains("download"))
+    }
+
+    @Test fun sharedChunksDoNotCompleteProgressBeforeTheRemainingFilesAreWritten() {
+        val samples = mutableListOf<Pair<Long, Long>>()
+        val callback = object : EpicDownloadManager.Callback {
+            override fun onProgress(message: String, pct: Int) {}
+            override fun onBytes(done: Long, total: Long, speedBps: Long) { samples.add(done to total) }
+            override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                if (stage == "stream" && items < itemsTotal) assertTrue(samples.last().first < samples.last().second)
+            }
+        }
+        assertNotNull(install(callback = callback))
+        assertEquals(listOf(0L, bytes.size / 2L, bytes.size.toLong()), samples.map { it.first })
+        assertTrue(samples.all { it.second == bytes.size.toLong() })
+    }
+
+    @Test fun evictedSharedChunksAdvanceWriteProgressOnEveryRefetchWithoutChangingStages() {
+        bytes = ByteArray((EpicDownloadManager.MAX_RETAINED_CHUNK_CACHE_BYTES + 1024).toInt()) { (it % 251).toByte() }
+        manifest.uniqueChunks.single().apply {
+            windowSize = bytes.size
+            fileSize = bytes.size.toLong()
+            sha1 = sha(bytes)
+        }
+        manifest.files = (0..2).map { gameFile("part-$it.bin", it * 1024, 1024) }
+        val samples = mutableListOf<Long>()
+        val stages = mutableListOf<String>()
+        val callback = object : EpicDownloadManager.Callback {
+            override fun onProgress(message: String, pct: Int) {}
+            override fun onBytes(done: Long, total: Long, speedBps: Long) {
+                assertEquals(3072L, total)
+                assertFalse(stages.contains("install"))
+                samples.add(done)
+            }
+            override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                stages.add(stage)
+                if (stage == "stream" && items < itemsTotal) assertTrue(samples.last() < total)
+            }
+        }
+        assertNotNull(install(callback = callback))
+        assertEquals(3, requests.get())
+        assertEquals(listOf(0L, 1024L, 2048L, 3072L), samples)
+        assertEquals("install", stages.last())
+        repeat(3) { assertArrayEquals(bytes.copyOfRange(it * 1024, (it + 1) * 1024), File(root, "part-$it.bin").readBytes()) }
     }
 
     @Test fun hogwartsSizedSequentialPlanFitsAvailableSpaceWithoutFullChunkCache() {

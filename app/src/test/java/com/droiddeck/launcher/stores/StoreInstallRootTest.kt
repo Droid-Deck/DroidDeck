@@ -11,6 +11,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowStatFs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -75,5 +76,28 @@ class StoreInstallRootTest {
         val check = StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app))
         assertTrue(check.enough)
         assertEquals(Long.MAX_VALUE, check.requiredBytes)
+    }
+
+    @Test fun gogAndAmazonResumeChecksUseTheExistingVolumeAndDeferRemainingWork() {
+        val card = File(app.filesDir, "resume-card").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, card.path, "Card")
+        for (store in listOf(Store.GOG, Store.AMAZON)) {
+            val item = CatalogItem(store, "resume-${store.id}", "Partial ${store.id}", imageUrl = null, sizeBytes = Long.MAX_VALUE)
+            val folder = File(StoreInstallRoot.storeDir(File(card, "Games"), store), StoreInstallRoot.folderName(item.title, item.id)).apply { mkdirs() }
+            StoreInstalls.begin(folder, store, item.id, item.title, null, null)
+            val check = StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app))
+            assertTrue(check.enough)
+            assertEquals(StoreInstallRoot.availableBytes(folder), check.availableBytes)
+            assertEquals(folder, StoreInstallRoot.folderFor(app, store, item.id, item.title))
+        }
+    }
+
+    @Test fun freshGogAndAmazonStillRejectInsufficientCatalogSpace() {
+        StoreInstallRoot.internalRoot(app).mkdirs()
+        ShadowStatFs.registerStats(StoreInstallRoot.internalRoot(app).path, 1024, 100, 100)
+        for (store in listOf(Store.GOG, Store.AMAZON)) {
+            val item = CatalogItem(store, "too-large-${store.id}", "Too large ${store.id}", imageUrl = null, sizeBytes = Long.MAX_VALUE)
+            assertFalse(StoreInstallRoot.checkStorage(app, item, StoreInstallRoot.internalRoot(app)).enough)
+        }
     }
 }

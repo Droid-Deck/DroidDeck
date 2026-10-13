@@ -28,6 +28,14 @@ An Epic install on a card keeps its in-flight chunks in `cacheDir/stores/epic/<i
 `""` keeps the cache beside the game, as an internal install has it. The scratch folder is
 removed on cancel-with-delete and on uninstall.
 
+Preflight resolves an existing game's folder before selecting its target root, so a resume or
+repair on a card checks and remembers that volume rather than internal storage. Fresh GOG and
+Amazon installs can reject insufficient catalog-size space immediately; existing installs defer
+to manifest checks of the files still needing work (GOG MD5, Amazon SHA-256 where supplied).
+Preflight failures remain failed Downloads rows with Clear and Retry. Retry reruns preflight
+outside the worker lifecycle and then enqueues the real backend; it never occupies a queue slot
+with a placeholder job. Active queue persistence and ordinary backend pause/retry are unchanged.
+
 Epic installs use the same bounded Java writer whether the native engine is available or not.
 It fetches one chunk at a time, verifies it, and writes the required parts into the current
 game file. Chunks are deleted after their last use; reusable chunks are retained up to 64 MiB,
@@ -35,6 +43,12 @@ with at most one additional incoming chunk before eviction. Evicted shared chunk
 downloaded again. This trades parallel-download throughput and potentially extra network
 traffic for bounded temporary disk usage. The native batch APIs remain available but are not
 used by this install path.
+
+The bounded Epic download bar, measured rate and ETA count pending file bytes written, not unique
+compressed chunks fetched. Shared chunks therefore cannot complete the bar before later files
+are written, and an evicted chunk's refetch is reflected in the time spent doing that work.
+Streaming stays in the Download stage until all files are written and verified, then enters
+Install for registration; it does not bounce between stages for each file.
 
 The space check follows the manifest delta pass and simulates file writes, chunk fetches,
 and evictions, rather than adding the entire cache to the entire game. Completed files and

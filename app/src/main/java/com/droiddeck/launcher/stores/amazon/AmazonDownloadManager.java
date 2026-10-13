@@ -69,9 +69,10 @@ public final class AmazonDownloadManager {
             if (manifestBytes == null) throw new InstallException("The manifest could not be downloaded");
             AmazonManifest.ParsedManifest manifest = AmazonManifest.parse(manifestBytes);
             cb.onLog("amazon: " + manifest.allFiles.size() + " files, " + fmt(manifest.totalInstallSize));
+            long remainingBytes = remainingInstallBytes(manifest.allFiles, installDir);
             long usable = installDir.getUsableSpace();
-            if (manifest.totalInstallSize > 0 && usable > 0 && manifest.totalInstallSize > usable)
-                throw new InstallException("Not enough free space: need " + fmt(manifest.totalInstallSize) + ", only " + fmt(usable) + " free");
+            if (remainingBytes > 0 && usable > 0 && remainingBytes > usable)
+                throw new InstallException("Not enough free space: need " + fmt(remainingBytes) + ", only " + fmt(usable) + " free");
             cb.onSizes(manifest.totalInstallSize, manifest.totalInstallSize);
             cb.onBytes(0, manifest.totalInstallSize, 0);
             if (cancel.get()) return null;
@@ -175,7 +176,7 @@ public final class AmazonDownloadManager {
                                                  AtomicLong lastSpeedMs, AtomicLong lastSpeedBytes, AtomicLong speedBps, Callback cb, AtomicBoolean cancel) {
         File destFile = new File(installDir, file.unixPath());
         File tmpFile = new File(installDir, file.unixPath() + ".tmp");
-        if (destFile.exists() && destFile.length() == file.size) { totalDownloaded.addAndGet(file.size); return true; }
+        if (fileComplete(file, destFile)) { totalDownloaded.addAndGet(file.size); return true; }
         String fileUrl = AmazonApiClient.appendPath(baseUrl, "files/" + file.hashHex());
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             destFile.getParentFile().mkdirs();
@@ -244,6 +245,21 @@ public final class AmazonDownloadManager {
     }
 
     public static boolean isInstalled(File installDir) { return new File(installDir, COMPLETE_MARKER).exists(); }
+
+    static long remainingInstallBytes(List<AmazonManifest.ManifestFile> files, File installDir) {
+        long remaining = 0;
+        for (AmazonManifest.ManifestFile file : files) {
+            if (!fileComplete(file, new File(installDir, file.unixPath()))) remaining += file.size;
+        }
+        return remaining;
+    }
+
+    private static boolean fileComplete(AmazonManifest.ManifestFile file, File output) {
+        if (!output.isFile() || output.length() != file.size) return false;
+        if (file.hashAlgorithm != 0 || file.hashBytes.length == 0) return true;
+        try { return Arrays.equals(sha256(output), file.hashBytes); }
+        catch (Exception e) { return false; }
+    }
 
     private static byte[] sha256(File file) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
