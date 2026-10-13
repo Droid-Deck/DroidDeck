@@ -859,6 +859,15 @@ object SessionPrefs {
         prefs(context).edit().putString(CARDBOARD_KEY, cardboard.encode().toString()).apply()
     }
 
+    /** The Cardboard picture (Cardboard.SOURCE_*) to go back to once SteamVR stops; -1 = none (it was
+     *  not switched for SteamVR). Kept across activity restarts, so a SteamVR session that outlives the
+     *  activity still hands the picture back. */
+    fun cardboardSourceBeforeSteamVr(context: Context): Int = prefs(context).getInt("cardboardSourceBeforeSteamVr", -1)
+
+    fun setCardboardSourceBeforeSteamVr(context: Context, source: Int) {
+        prefs(context).edit().putInt("cardboardSourceBeforeSteamVr", source).apply()
+    }
+
     /** The prefs file [cardboard] lives in, for a change listener. */
     fun sessionPrefs(context: Context): android.content.SharedPreferences = prefs(context)
 
