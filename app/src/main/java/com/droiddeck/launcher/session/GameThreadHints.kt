@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.os.Build
 import android.os.PerformanceHintManager
+import android.os.PowerManager
 import android.os.Process
 import android.system.Os
 import android.system.OsConstants
@@ -21,9 +22,11 @@ import java.io.File
  * child process went from cores 0-5 to 6-7 and ran 1.7x faster within a second.
  *
  * Once a second the busiest threads of this UID are read from /proc; one busy more than [ENTER] of
- * the time joins the session, and leaves it under [LEAVE] - well below, since it runs faster where
- * it was moved. While the session has threads it reports them behind target, which is what asks
- * for the boost: the reports carry no frame timing, the busy share is the signal.
+ * the time (averaged with the second before, so a loading spike does not count) joins the session,
+ * and leaves it under [LEAVE] - well below, since it runs faster where it was moved. While the
+ * session has threads it reports them behind target, which is what asks for the boost: the reports
+ * carry no frame timing, the busy share is the signal (a capped game's frame interval looks the same
+ * as a slow one's). Nothing is boosted while the device runs hot or saves power.
  */
 object GameThreadHints {
     private const val TAG = "GameThreadHints"
@@ -32,7 +35,7 @@ object GameThreadHints {
     private const val SCAN_EVERY = 20 // reports, so once a second
     private const val ENTER = 0.6
     private const val LEAVE = 0.3
-    private const val MAX_THREADS = 3 // the QTI HAL boosts up to 5 threads of a session
+    private const val MAX_THREADS = 2 // one per prime core; a third would be sped up in place instead
     private const val TOP_PROCESSES = 3
 
     /** Busy, but not the game: the app itself and the Steam client, whose UI would otherwise hold the prime cores. */
@@ -48,8 +51,9 @@ object GameThreadHints {
         if (Build.VERSION.SDK_INT < 31 || Build.SOC_MODEL != "CQ8725S") return "game thread hints: Odin 3 only"
         val hm = context.getSystemService(PerformanceHintManager::class.java)
             ?: return "game thread hints: no PerformanceHintManager"
+        val pm = context.getSystemService(PowerManager::class.java)
         worker?.interrupt()
-        worker = Thread({ run(hm) }, "game-thread-hints").apply { isDaemon = true; start() }
+        worker = Thread({ run(hm, pm) }, "game-thread-hints").apply { isDaemon = true; start() }
         return "game thread hints: watching"
     }
 
@@ -60,7 +64,7 @@ object GameThreadHints {
         worker = null
     }
 
-    private fun run(hm: PerformanceHintManager) {
+    private fun run(hm: PerformanceHintManager, pm: PowerManager) {
         val scanner = Scanner()
         var session: PerformanceHintManager.Session? = null
         var boosted = emptySet<Int>()
@@ -69,7 +73,8 @@ object GameThreadHints {
             while (!Thread.currentThread().isInterrupted) {
                 if (tick++ % SCAN_EVERY == 0) {
                     val busy = scanner.sample()
-                    val next = pick(boosted, busy)
+                    val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE
+                    val next = if (spare) emptySet() else pick(boosted, busy)
                     if (next != boosted) {
                         session = update(hm, session, next)
                         // No session means a thread exited in between: tried again next second.
@@ -122,6 +127,7 @@ object GameThreadHints {
         private var lastNs = 0L
         private var lastProcess = HashMap<Int, Long>()
         private var lastThread = HashMap<Int, Long>()
+        private var lastBusy = HashMap<Int, Double>()
 
         /** Only the busiest few processes have their threads read, so a second costs a few dozen small reads. */
         fun sample(): Map<Int, Double> {
@@ -149,10 +155,11 @@ object GameThreadHints {
                     val tid = entry.toIntOrNull() ?: return@forEach
                     val ticks = cpuTicks("/proc/$pid/task/$tid/stat") ?: return@forEach
                     thread[tid] = ticks
-                    lastThread[tid]?.let { before -> busy[tid] = (ticks - before) / hz / seconds }
+                    lastThread[tid]?.let { before -> busy[tid] = ((ticks - before) / hz / seconds + (lastBusy[tid] ?: 0.0)) / 2 }
                 }
             }
             lastThread = thread
+            lastBusy = busy
             return busy
         }
 

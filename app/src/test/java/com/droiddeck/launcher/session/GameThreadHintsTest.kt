@@ -13,9 +13,9 @@ class GameThreadHintsTest {
         assertEquals(emptySet<Int>(), GameThreadHints.pick(setOf(1), mapOf(1 to 0.2)))
     }
 
-    @Test fun `at most three threads, the boosted ones kept before busier newcomers`() {
+    @Test fun `at most two threads, the boosted ones kept before busier newcomers`() {
         val busy = mapOf(1 to 0.4, 2 to 0.9, 3 to 0.8, 4 to 0.7, 5 to 0.95)
-        assertEquals(setOf(1, 5, 2), GameThreadHints.pick(setOf(1), busy))
+        assertEquals(setOf(1, 5), GameThreadHints.pick(setOf(1), busy))
     }
 
     @Test fun `a thread gone from proc is dropped`() {
