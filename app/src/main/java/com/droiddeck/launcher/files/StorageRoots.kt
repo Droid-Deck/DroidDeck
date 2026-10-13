@@ -6,6 +6,7 @@ import android.os.Environment
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.GameStorage
 import java.io.File
 
 /**
@@ -100,6 +101,13 @@ object StorageRoots {
         }
         File("/mnt/media_rw").listFiles().orEmpty().forEach { child ->
             if (child.isDirectory) volumeOf(child.name).candidates += child
+        }
+        // A USB drive Android hides from apps, mounted with root or reachable with All files access.
+        GameStorage.usbDrive(context)?.let { usb ->
+            volumeOf(usb.name).apply {
+                label = GameStorage.usbLabel(context)
+                candidates += usb
+            }
         }
 
         // App-specific directories, which stay reachable when shared storage is not.

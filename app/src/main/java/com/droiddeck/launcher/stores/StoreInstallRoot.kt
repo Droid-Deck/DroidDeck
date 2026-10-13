@@ -13,8 +13,8 @@ import java.util.zip.CRC32
  *
  * The default root is the app's own internal storage - the runtime's tree, where the folder sits at
  * /root/Games/Stores and needs no bind - whatever the session's Game storage setting says. An SD
- * card the app may write (its app folder, `GameStorage.options`) is offered as a second root at
- * Install time and never chosen silently. Every root is scanned, so a game stays in the library
+ * card the app may write (its app folder, `GameStorage.options`) and a USB drive (`GameStorage.usbDrive`)
+ * are offered as further roots at Install time and never chosen silently. Every root is scanned, so a game stays in the library
  * wherever it went. A card that is the Steam library is already bound (`/mnt/droiddeck-sd`); any
  * other card's root is bound at a fixed place of its own (`/mnt/droiddeck-stores/<volume>`), so a
  * shortcut's path - and with it its appid - stays the same from one session to the next.
@@ -36,17 +36,17 @@ object StoreInstallRoot {
     fun targets(context: Context): List<Target> {
         val internal = Target(internalRoot(context), context.getString(com.droiddeck.launcher.R.string.games_internal), removable = false)
         val cards = GameStorage.options(context).map { Target(File(it.path, ON_VOLUME), it.name, removable = true) }
-        return listOf(internal) + cards
+        val usb = GameStorage.usbDrive(context)?.let { Target(File(it, ON_VOLUME), GameStorage.usbLabel(context), removable = true) }
+        return listOf(internal) + cards + listOfNotNull(usb)
     }
 
     /** The default root, when nothing asks: internal storage. */
     fun installRoot(context: Context): File = internalRoot(context)
 
-    /** Every root that may hold store games: the internal one, every card's, and the Steam library's (older installs). */
+    /** Every root that may hold store games: every target's, and the Steam library's (older installs). */
     fun roots(context: Context): List<File> {
-        val cards = GameStorage.options(context).map { File(it.path, ON_VOLUME) }
         val library = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
-        return (listOf(internalRoot(context)) + cards + listOfNotNull(library)).distinctBy { it.absolutePath }
+        return (targets(context).map { it.root } + listOfNotNull(library)).distinctBy { it.absolutePath }
     }
 
     /**

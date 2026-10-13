@@ -11,7 +11,7 @@ import re
 import sys
 
 # The client's own library is internal storage (its steamapps/common is bound to the app's root);
-# the card is the one extra library folder.
+# the card and the USB drive are the extra library folders.
 # The app binds the storage the user chose (Steam cog -> Game storage) at this path and names it
 # in BL_LIBRARY_LABEL; nothing bound = internal only, and the entry is removed so the client does
 # not keep offering a place that is not there.
@@ -170,6 +170,8 @@ def relabel(steam_root, target, label):
 
 
 GAMES_DIR = "/root/Games/"
+# The USB drive's library, listed in BL_STEAM_LIBRARIES while the drive is there.
+USB = "/mnt/droiddeck-usb"
 
 
 def wanted():
@@ -210,7 +212,7 @@ def main():
     if managed:
         keep = {library for library, _ in libraries}
         for library in registered(steam_root):
-            if library not in keep and (library == LIBRARIES[0][0] or library.startswith(GAMES_DIR)):
+            if library not in keep and (library in (LIBRARIES[0][0], USB) or library.startswith(GAMES_DIR)):
                 forget(steam_root, library)
 
 

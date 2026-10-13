@@ -425,7 +425,7 @@ case $mode in
     droiddeck-steam-install || exit $?
     step "Steam client ready"
     steam_root=$XDG_DATA_HOME/Steam
-    # Register the card library (bound at /mnt/droiddeck-sd) with the client - internal storage is
+    # Register the card and USB libraries (/mnt/droiddeck-sd, /mnt/droiddeck-usb) with the client - internal storage is
     # its main library already - and the ARM64 Proton that lets it launch the Windows ones.
     # A request left in ~/.bl-proton-extra installs a third-party Proton before the client starts,
     # so it is in the Compatibility dropdown the first time the user looks. One per line, each the
@@ -744,10 +744,12 @@ case $mode in
         changed_since "$seed_stamp" "${libraries[@]}" && return 0
         for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
                    /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+                   /mnt/droiddeck-usb/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
                    /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
                    "$steam_root"/compatibilitytools.d/*/files/share/default_pfx*/system.reg \
                    "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
                    /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
+                   /mnt/droiddeck-usb/steamapps/compatdata/*/pfx/system.reg \
                    /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
           [ -f "$reg" ] && [ ! -f "${reg%/*}/.droiddeck-redists" ] && return 0
         done
@@ -757,7 +759,7 @@ case $mode in
         nap 5
         beat=$((beat + 1))
         [ "$((beat % 3))" -eq 0 ] || continue
-        libraries=("$steam_root/steamapps" /mnt/droiddeck/steamapps /mnt/droiddeck-sd/steamapps /root/Games/*/steamapps)
+        libraries=("$steam_root/steamapps" /mnt/droiddeck/steamapps /mnt/droiddeck-sd/steamapps /mnt/droiddeck-usb/steamapps /root/Games/*/steamapps)
         seed=; compat=
         seed_due && seed=1
         compat_due && compat=1
