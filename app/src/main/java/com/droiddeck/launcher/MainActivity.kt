@@ -1230,6 +1230,8 @@ class MainActivity : ComponentActivity() {
                 )
             },
         )
+        // A download can finish in the session drawer while this page is visible.
+        androidx.compose.runtime.LaunchedEffect(components.compDownloadRevision) { components.refreshComponents() }
         // A Proton installed or removed changes the stack's list of Protons.
         androidx.compose.runtime.LaunchedEffect(protons.protonBusyId) { if (protons.protonBusyId == null) components.refreshComponents() }
     }
