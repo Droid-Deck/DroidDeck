@@ -1532,7 +1532,6 @@ class MainActivity : ComponentActivity() {
         touchMode = SessionPrefs.touchMode(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
-        zramCompression = SessionPrefs.zramCompression(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         directAudio = SessionPrefs.directAudio(this)
@@ -1546,7 +1545,8 @@ class MainActivity : ComponentActivity() {
         // added-games folders, the storage volumes) lands while it rises.
         Thread({
             val zram = com.droiddeck.launcher.core.ZramSupport.supported()
-            ui.post { zramSupported = zram }
+            val zramOn = SessionPrefs.zramCompression(this)
+            ui.post { zramSupported = zram; zramCompression = zramOn }
             drivers.refreshDrivers()
             val storage = GameStorage.options(this)
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
