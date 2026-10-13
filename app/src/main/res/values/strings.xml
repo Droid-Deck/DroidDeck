@@ -391,7 +391,6 @@
     <string name="usb_access_allow">Allow</string>
     <string name="usb_root_title">Use USB drive via root (experimental)</string>
     <string name="usb_root_hint">Mounts a USB drive Android hides from apps, then offers it as game storage. Needs root.</string>
-    <string name="usb_root_drive">USB drive</string>
     <string name="usb_root_no_drive">None found</string>
     <string name="usb_root_volume">USB drive</string>
     <string name="usb_root_unnamed">%1$s drive</string>
@@ -402,7 +401,7 @@
     <string name="usb_root_eject_running">Stop the session before ejecting the drive.</string>
     <string name="usb_root_prepare">Prepare ext4</string>
     <string name="usb_root_prepare_confirm">Tap to confirm</string>
-    <string name="usb_root_prepare_hint">An ext4 drive needs its owner and SELinux labels set once before Android can share it. Prepare does that; it does not erase anything.</string>
+    <string name="usb_root_prepare_hint">An ext4 drive needs its owner and SELinux labels set once before DroidDeck can use it. Prepare does that; it does not erase anything.</string>
     <string name="usb_root_denied">Root access was denied or is not available.</string>
     <string name="usb_root_not_plugged">The chosen USB drive is not plugged in.</string>
     <string name="usb_root_needs_prepare">This ext4 drive needs Prepare before it can be used.</string>

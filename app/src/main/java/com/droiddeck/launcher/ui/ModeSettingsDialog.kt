@@ -400,12 +400,12 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                         "$label (${it.type})"
                     }
                     val driveOpen = host.open == "usb-drive"
-                    SettingsRow(stringResource(R.string.usb_root_drive), null, highlighted = driveOpen) {
+                    SettingsRow(stringResource(R.string.usb_root_volume), null, highlighted = driveOpen) {
                         androidx.compose.foundation.layout.Box {
                             ValueChip(chosen?.let(name) ?: stringResource(R.string.usb_root_no_drive), driveOpen, enabled = usb.drives.isNotEmpty()) {
                                 host.open = if (driveOpen) null else "usb-drive"
                             }
-                            AnchoredMenu(driveOpen, onDismiss = { if (host.open == "usb-drive") host.open = null }, title = stringResource(R.string.usb_root_drive)) { firstItemFocus ->
+                            AnchoredMenu(driveOpen, onDismiss = { if (host.open == "usb-drive") host.open = null }, title = stringResource(R.string.usb_root_volume)) { firstItemFocus ->
                                 usb.drives.forEachIndexed { index, d ->
                                     MenuItem(name(d), checked = d.uuid == usb.drive, focusRequester = if (index == 0) firstItemFocus else null) {
                                         a.onUsbDrive(d.uuid)
