@@ -291,6 +291,7 @@ static struct wl_event_source *g_render_idle, *g_frame_timer;
  * window) a fallback timer renders instead. */
 static int g_dirty;                         /* something changed since the last render */
 static int64_t g_last_vsync_ns;             /* last tick, 0 = none yet */
+static int64_t g_tick_vsync_ns;             /* the vsync that tick is for (Choreographer's frame time) */
 static int64_t g_refresh_ns = 16666667;     /* measured tick interval (pacing only, never reported) */
 static struct wl_event_source *g_fallback_timer;
 static int g_fallback_armed;
@@ -931,6 +932,20 @@ static uint32_t nominal_refresh_ns(void) {
     int mhz = g_output_refresh_mhz;
     if (mhz <= 0) mhz = 60000;
     return (uint32_t)(1000000000000LL / (int64_t)mhz);
+}
+
+/* The vblank a scene drawn at render_ns belongs to, for wp_presentation: the vsync of the tick that
+ * drew it (Choreographer's frame time). Gamescope's Wayland backend anchors its vblank clock to this
+ * and wakes a red zone before the next refresh. Reporting the end of the render instead (a few ms
+ * past the tick) put its wakeups on top of the next tick: some frames missed it and showed twice,
+ * others were replaced before they were shown (a 60 Hz Thor got ~50 distinct frames a second from
+ * gamescope). Not the refresh after it either: gamescope then wakes a whole refresh late and runs
+ * at half rate. Without a fresh tick (the fallback timer) it is the render time. */
+static int64_t presented_ns(int64_t render_ns) {
+    if (!g_tick_vsync_ns || render_ns - g_last_vsync_ns > (int64_t)nominal_refresh_ns() ||
+        render_ns < g_tick_vsync_ns)
+        return render_ns;
+    return g_tick_vsync_ns;
 }
 
 static void feedback_present_all(struct wl_list *list, int64_t t) {
@@ -2218,7 +2233,7 @@ static void render_scene(void) {
     free(hs.is_hdr);
     if (hdr_copy && rendered && droiddeck_color_hdr_open()) hdr_count_copied(&dl, hdr_copy);
     if (rendered) {
-        int64_t t = now_ns();
+        int64_t t = presented_ns(t_scene);
         g_stat_frames++;
         /* A surface outside the scene (role-less, not placed yet, a hidden helper window such
          * as wined3d's device window) was not shown, so its feedback is discarded rather than
@@ -2283,7 +2298,7 @@ static void on_vsync(int64_t frame_time_ns) {
         if (d > 3000000LL && d < 40000000LL) g_refresh_ns = (g_refresh_ns * 7 + d) / 8;
     }
     g_last_vsync_ns = now;
-    (void)frame_time_ns;
+    g_tick_vsync_ns = frame_time_ns;
     /* The app's surface may have been replaced or taken away since the last frame: apply that now
      * (the app never waits for us), and redraw the scene onto a new one. */
     if (vkp_apply_window_request()) g_dirty = 1;
