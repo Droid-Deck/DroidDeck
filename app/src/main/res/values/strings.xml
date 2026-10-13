@@ -23,6 +23,7 @@
     <string name="session_wait_stopping">Waiting for the previous session to finish stopping.</string>
     <string name="session_start_failed">The session could not start safely. Share the logs with a bug report, then try again.</string>
     <string name="session_cleanup_failed">Some session processes could not be stopped. Share the logs with a bug report. If another attempt fails, force-stop DroidDeck in Android settings.</string>
+    <string name="session_cleanup_required">Session cleanup must finish before changing the runtime. Start a session and stop it normally, then try again.</string>
     <string name="frame_gen_title">Frame generation</string>
     <string name="frame_gen_hint">Select the frame generation mode</string>
     <string name="frame_gen_off">Off</string>
@@ -173,7 +174,6 @@
     <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
     <string name="session_end_program">This program</string>
     <string name="session_end_fex_missing">%1$s is built for x86 PCs and runs through FEX, which is not installed yet. Start Steam once while signed in and let it download FEX and the Steam Linux Runtime, then start this again.</string>
-    <string name="session_end_replaced">Steam reported "Session Replaced." Another Steam client signed into the same account can cause this, but these logs do not identify the source. Nearby network or sign-in messages alone do not show that the internet connection failed.</string>
     <string name="add_app_flatpak_hint">A Flathub app ID or its Flathub page. Flatpak is set up first if it is not yet.</string>
     <string name="add_app_file">File</string>
     <string name="add_app_no_file">No file chosen</string>
