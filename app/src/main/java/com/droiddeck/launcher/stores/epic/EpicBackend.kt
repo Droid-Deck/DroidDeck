@@ -136,6 +136,8 @@ object EpicBackend : StoreBackend, EpicLaunchSupport {
                     EpicLibrary.rememberSize(app, item.id, diskBytes)
                 }
                 override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                    // Assembly overlaps chunk fetching; only the final install event advances the UI.
+                    if (stage == "stream") return
                     handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
                     handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
                 }

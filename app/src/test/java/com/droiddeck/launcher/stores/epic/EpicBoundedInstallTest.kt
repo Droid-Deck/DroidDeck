@@ -106,7 +106,7 @@ class EpicBoundedInstallTest {
         val callback = object : EpicDownloadManager.Callback {
             override fun onProgress(message: String, pct: Int) {}
             override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
-                if (stage == "install" && items == 1) cancel.set(true)
+                if (stage == "stream" && items == 1) cancel.set(true)
             }
         }
         assertNull(install(cancel, callback))
@@ -121,7 +121,7 @@ class EpicBoundedInstallTest {
         val cancel = AtomicBoolean()
         val callback = object : EpicDownloadManager.Callback {
             override fun onProgress(message: String, pct: Int) {
-                if (message.startsWith("Downloading chunks")) cancel.set(true)
+                if (message.startsWith("Downloading chunks (")) cancel.set(true)
             }
         }
         assertNull(install(cancel, callback))
@@ -154,6 +154,28 @@ class EpicBoundedInstallTest {
         assertFalse(File(root, "game.bin").exists())
         reject.set(false)
         assertNotNull(install())
+    }
+
+    @Test fun boundedProgressNeverReentersDownloadAfterEnteringInstall() {
+        val events = mutableListOf<String>()
+        val callback = object : EpicDownloadManager.Callback {
+            override fun onProgress(message: String, pct: Int) {
+                if (message.startsWith("Downloading chunks")) events.add("download")
+                if (message.startsWith("Writing")) events.add("install")
+            }
+            override fun onBytes(done: Long, total: Long, speedBps: Long) { events.add("download") }
+            override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                if (stage == "install") {
+                    assertEquals(total, done)
+                    assertEquals(itemsTotal, items)
+                    events.add("install")
+                }
+            }
+        }
+        assertNotNull(install(callback = callback))
+        val firstInstall = events.indexOf("install")
+        assertTrue(firstInstall > 0)
+        assertFalse(events.drop(firstInstall).contains("download"))
     }
 
     @Test fun hogwartsSizedSequentialPlanFitsAvailableSpaceWithoutFullChunkCache() {

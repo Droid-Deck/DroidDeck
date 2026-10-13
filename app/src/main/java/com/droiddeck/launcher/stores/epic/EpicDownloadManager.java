@@ -215,7 +215,7 @@ public final class EpicDownloadManager {
                 if (cancel.get()) return null;
                 String relPath = file.filename.replace("\\", "/");
                 File outFile = new File(installDir, relPath);
-                cb.onProgress("Writing: " + (relPath.contains("/") ? relPath.substring(relPath.lastIndexOf('/') + 1) : relPath), 80 + (int) (doneFiles * 20L / totalFiles));
+                cb.onProgress("Downloading chunks: " + (relPath.contains("/") ? relPath.substring(relPath.lastIndexOf('/') + 1) : relPath), (int) (completedBytes * 80L / Math.max(1, fTotalBytes)));
                 // Like the native assembler, write to the final path and remove it on failure.
                 // A sibling "<name>.part" can itself be a legitimate file in the manifest.
                 File partFile = outFile;
@@ -276,9 +276,10 @@ public final class EpicDownloadManager {
                 }
                 doneFiles++;
                 writtenBytes += file.fileSize();
-                cb.onStage("install", writtenBytes, pendingBytes, doneFiles, totalFiles);
+                cb.onStage("stream", writtenBytes, pendingBytes, doneFiles, totalFiles);
             }
             deleteDir(chunkCacheDir);
+            cb.onStage("install", writtenBytes, pendingBytes, doneFiles, totalFiles);
             cb.onProgress("Complete", 100);
             return new Result(manifest.launchExe, manifest.buildVersion, planned).withPrereq(manifest);
         } catch (InstallException e) {
