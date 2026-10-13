@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GameThreadHintsTest {
@@ -20,5 +22,14 @@ class GameThreadHintsTest {
 
     @Test fun `a thread gone from proc is dropped`() {
         assertEquals(setOf(2), GameThreadHints.pick(setOf(1, 2), mapOf(2 to 0.7)))
+    }
+
+    @Test fun `a game at the panel's rate or a fraction of it holds pace`() {
+        assertTrue(GameThreadHints.holdsPace(119.0, 120.0))
+        assertTrue(GameThreadHints.holdsPace(60.5, 120.0))
+        assertTrue(GameThreadHints.holdsPace(30.0, 120.0))
+        assertFalse(GameThreadHints.holdsPace(92.0, 120.0))   // falling behind: boost
+        assertFalse(GameThreadHints.holdsPace(105.0, 120.0))
+        assertFalse(GameThreadHints.holdsPace(3.0, 120.0))    // headless or loading: boost
     }
 }

@@ -8,7 +8,9 @@ import android.os.Process
 import android.system.Os
 import android.system.OsConstants
 import android.util.Log
+import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
+import kotlin.math.abs
 
 /**
  * The game's busiest threads named to Android's performance hint service (ADPF) for a session.
@@ -27,6 +29,13 @@ import java.io.File
  * session has threads it reports them behind target, which is what asks for the boost: the reports
  * carry no frame timing, the busy share is the signal (a capped game's frame interval looks the same
  * as a slow one's). Nothing is boosted while the device is critically hot or saves power.
+ *
+ * Nor while the game holds the panel's rate or a fraction of it ([holdsPace]): there is nothing to
+ * gain, and it cost frame pacing - Serious Sam capped at 120 fps ran its boosted main thread on prime
+ * cores the governor kept at 2.2 GHz, slower than a 3.5 GHz mid core, and 23-25% of its frames fell
+ * under 90 fps against 2-7% unboosted. A game with no frames (Factorio's benchmark, a loading screen)
+ * or one falling behind the panel is boosted; one holding pace keeps what it has for [PACE_LEAVE_S]
+ * seconds and is then let go.
  */
 object GameThreadHints {
     private const val TAG = "GameThreadHints"
@@ -37,6 +46,9 @@ object GameThreadHints {
     private const val LEAVE = 0.15 // a capped game's main thread idles to ~30% on a prime core; under 0.3 it hopped back and forth
     private const val MAX_THREADS = 2 // one per prime core; a third would be sped up in place instead
     private const val TOP_PROCESSES = 3
+    private const val PACE_WINDOW_S = 3
+    private const val PACE_LEAVE_S = 10
+    private const val PACE_TOLERANCE = 0.08
 
     /** Busy, but not the game: the app itself and the Steam client, whose UI would otherwise hold the prime cores. */
     private val NOT_GAMES = setOf("steam", "steamwebhelper")
@@ -68,20 +80,32 @@ object GameThreadHints {
         val scanner = Scanner()
         var session: PerformanceHintManager.Session? = null
         var boosted = emptySet<Int>()
+        val frames = ArrayDeque<Long>()
+        var pacedFor = 0
         var tick = 0
         try {
             while (!Thread.currentThread().isInterrupted) {
                 if (tick++ % SCAN_EVERY == 0) {
                     val busy = scanner.sample()
+                    frames.addLast(WaylandCompositor.gameFrameCount())
+                    if (frames.size > PACE_WINDOW_S + 1) frames.removeFirst()
+                    val fps = (frames.last() - frames.first()).toDouble() / (frames.size - 1).coerceAtLeast(1)
+                    val paced = frames.size > PACE_WINDOW_S && holdsPace(fps, SessionState.refreshHz.toDouble())
+                    pacedFor = if (paced) pacedFor + 1 else 0
                     // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
                     val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL
-                    val next = if (spare) emptySet() else pick(boosted, busy)
+                    val next = when {
+                        spare || pacedFor >= PACE_LEAVE_S -> emptySet()
+                        paced -> pick(boosted, busy.filterKeys { it in boosted })
+                        else -> pick(boosted, busy)
+                    }
                     if (next != boosted) {
                         session = update(hm, session, next)
                         // No session means a thread exited in between: tried again next second.
                         boosted = if (session == null) emptySet() else next
                         Log.i(TAG, (if (session == null && next.isNotEmpty()) "no session for " else "boosting ") +
-                            next.joinToString { "${readName("/proc/$it/comm")}/$it ${((busy[it] ?: 0.0) * 100).toInt()}%" }.ifEmpty { "nothing" })
+                            next.joinToString { "${readName("/proc/$it/comm")}/$it ${((busy[it] ?: 0.0) * 100).toInt()}%" }.ifEmpty { "nothing" } +
+                            " (game ${fps.toInt()} fps${if (paced) ", holding pace" else ""})")
                     }
                 }
                 session?.reportActualWorkDuration(TARGET_NS * 3 / 2)
@@ -106,6 +130,15 @@ object GameThreadHints {
             null
         }
     }
+
+    /**
+     * Whether a game presenting [fps] frames a second keeps up with a [refreshHz] panel: within
+     * [PACE_TOLERANCE] of the rate or of a half, a third or a quarter of it (a 60 fps limiter on 120 Hz).
+     * A game with next to no frames (a headless benchmark, a loading screen) does not.
+     */
+    // ponytail: a CPU-bound game that happens to run at ~60 fps on a 120 Hz panel reads as limited; narrow the band if that shows up
+    internal fun holdsPace(fps: Double, refreshHz: Double): Boolean =
+        fps >= 10 && refreshHz > 0 && (1..4).any { k -> abs(fps - refreshHz / k) < PACE_TOLERANCE * refreshHz / k }
 
     /**
      * The threads to boost next: those already boosted that are still above [LEAVE], then new ones

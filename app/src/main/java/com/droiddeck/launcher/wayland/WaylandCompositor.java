@@ -69,6 +69,10 @@ public final class WaylandCompositor {
 
     private static volatile long lastFrameNanos;
     private static volatile long frameIntervalNanos;
+    private static volatile long gameFrames; // written by the compositor thread only
+
+    /** Frames the game has presented since the app started; the rate is the difference over time. */
+    public static long gameFrameCount() { return gameFrames; }
 
     /**
      * How long frames are taking to arrive right now, in ms, or -1 before the first: the smoothed
@@ -86,6 +90,7 @@ public final class WaylandCompositor {
         long now = System.nanoTime();
         long previous = lastFrameNanos;
         lastFrameNanos = now;
+        gameFrames++;
         if (previous != 0) {
             long interval = now - previous;
             long smoothed = frameIntervalNanos;
