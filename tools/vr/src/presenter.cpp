@@ -10,9 +10,12 @@ typedef unsigned long VisualID;
 #include "xdg-shell-client-protocol.h"
 
 #include "presenter.h"
+#include "present_sync.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <condition_variable>
 #include <cstdarg>
 #include <cstdio>
@@ -20,7 +23,11 @@ typedef unsigned long VisualID;
 #include <cstring>
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <linux/futex.h>
 #include <mutex>
+#include <string>
+#include <sys/mman.h>
+#include <sys/syscall.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -141,6 +148,11 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         frame_ = f;
         frameAt_ = std::chrono::steady_clock::now();
+        const droiddeck_present_sync *sync = MapSync(frameAt_);
+        const uint32_t issued = sync ? __atomic_load_n(&sync->issued, __ATOMIC_ACQUIRE) : 0;
+        frameTracked_ = sync && issued != lastIssued_;
+        frameMark_ = issued;
+        lastIssued_ = issued;
         haveFrame_ = true;
         submitted_++;
         cv_.notify_one();
@@ -176,11 +188,15 @@ private:
             Log("presenter: unavailable, frames are not shown");
             return;
         }
-        uint64_t shown = 0;
+        if (const char *g = getenv("DROIDDECK_VR_PRESENT_GUARD_MS")) guard_ = std::chrono::microseconds((long)(atof(g) * 1000));
+        uint64_t shown = 0, waited = 0, late = 0;
+        std::chrono::steady_clock::duration longest{};
         auto lastLog = std::chrono::steady_clock::now();
         while (true) {
             EyeFrame f;
             std::chrono::steady_clock::time_point at;
+            uint32_t mark = 0;
+            bool tracked = false;
             std::vector<PendingImport> imports;
             std::vector<uint64_t> removals;
             {
@@ -191,6 +207,8 @@ private:
                 removals.swap(removals_);
                 f = frame_;
                 at = frameAt_;
+                mark = frameMark_;
+                tracked = frameTracked_;
                 bool draw = haveFrame_;
                 haveFrame_ = false;
                 if (!draw) f.texture[0] = f.texture[1] = 0;
@@ -201,13 +219,26 @@ private:
             // SteamVR hands the textures over at Present with no fence the driver can wait on: give the
             // compositor's GPU work a moment to land before copying, as ALVR does (a torn or half-drawn
             // frame otherwise).
-            if (f.texture[0]) std::this_thread::sleep_until(at + guard_);
+            if (f.texture[0] && tracked) {
+                const auto start = std::chrono::steady_clock::now();
+                const int r = WaitDrawn(mark, start + kDrawnTimeout);
+                if (r > 0) {
+                    waited++;
+                    longest = std::max(longest, std::chrono::steady_clock::now() - start);
+                } else if (r < 0) {
+                    late++;
+                }
+            } else if (f.texture[0]) {
+                std::this_thread::sleep_until(at + guard_);
+            }
             if (f.texture[0] && Draw(f)) shown++;
             auto now = std::chrono::steady_clock::now();
             if (now - lastLog > std::chrono::seconds(10)) {
-                Log("presenter: %llu frames shown, %llu submitted (last 10 s)", (unsigned long long)shown,
-                    (unsigned long long)submitted_.exchange(0));
-                shown = 0;
+                Log("presenter: %llu frames shown, %llu submitted, %llu waited for the GPU (longest %.1f ms), %llu late (last 10 s)",
+                    (unsigned long long)shown, (unsigned long long)submitted_.exchange(0), (unsigned long long)waited,
+                    std::chrono::duration<double, std::milli>(longest).count(), (unsigned long long)late);
+                shown = waited = late = 0;
+                longest = {};
                 lastLog = now;
             }
         }
@@ -215,6 +246,38 @@ private:
     }
 
     std::chrono::microseconds guard_{4000};
+    static constexpr std::chrono::milliseconds kDrawnTimeout{100};
+
+    const droiddeck_present_sync *MapSync(std::chrono::steady_clock::time_point now) {
+        if (sync_) return sync_;
+        if (syncTried_.time_since_epoch().count() && now - syncTried_ < std::chrono::seconds(1)) return nullptr;
+        syncTried_ = now;
+        const char *rt = getenv("XDG_RUNTIME_DIR");
+        std::string path = std::string(rt && *rt ? rt : "/run/droiddeck") + "/droiddeck-steamvr/" DROIDDECK_PRESENT_SYNC_NAME;
+        int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+        if (fd < 0) return nullptr;
+        void *m = mmap(nullptr, DROIDDECK_PRESENT_SYNC_SIZE, PROT_READ, MAP_SHARED, fd, 0);
+        close(fd);
+        if (m == MAP_FAILED) return nullptr;
+        sync_ = (const droiddeck_present_sync *)m;
+        Log("presenter: frames wait for the compositor's GPU work (%s)", path.c_str());
+        return sync_;
+    }
+
+    int WaitDrawn(uint32_t mark, std::chrono::steady_clock::time_point until) {
+        const droiddeck_present_sync *s = sync_;
+        int slept = 0;
+        while (true) {
+            const uint32_t done = __atomic_load_n(&s->done, __ATOMIC_ACQUIRE);
+            if ((int32_t)(done - mark) >= 0) return slept;
+            const auto left = until - std::chrono::steady_clock::now();
+            if (left <= std::chrono::steady_clock::duration::zero()) return -1;
+            const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(left).count();
+            struct timespec ts = {(time_t)(ns / 1000000000), (long)(ns % 1000000000)};
+            syscall(SYS_futex, const_cast<uint32_t *>(&s->done), FUTEX_WAIT, done, &ts, nullptr, 0);
+            slept = 1;
+        }
+    }
 
     // ------------------------------------------------------------ Wayland: straight to DroidDeck's compositor
     // The compositor the app runs (wayland-0 in the session's runtime dir, beside gamescope's socket)
@@ -289,7 +352,6 @@ private:
     }
 
     bool InitWindow() {
-        if (const char *g = getenv("DROIDDECK_VR_PRESENT_GUARD_MS")) guard_ = std::chrono::microseconds((long)(atof(g) * 1000));
         if (!x_.Load()) { Log("presenter: no libX11"); return false; }
         // gamescope's first Xwayland (:0) is where its overlays (mangoapp, Steam's) live; SteamVR's
         // processes inherit the games' display (:1), so it is not taken from DISPLAY.
@@ -556,6 +618,10 @@ private:
         VkPipelineStageFlags wait = VK_PIPELINE_STAGE_TRANSFER_BIT;
         VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr, 1, &acquired_, &wait, 1, &cmd_, 1, &rendered_};
         if ((r = vk_.QueueSubmit(queue_, 1, &si, fence_)) != VK_SUCCESS) { Log("presenter: submit %d", r); return false; }
+        if (vk_.WaitForFences(dev_, 1, &fence_, VK_TRUE, (uint64_t)std::chrono::nanoseconds(kDrawnTimeout).count()) == VK_TIMEOUT) {
+            static int said;
+            if (said++ < 3) Log("presenter: the copy took over %lld ms; showing it anyway", (long long)kDrawnTimeout.count());
+        }
         VkPresentInfoKHR pi = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, nullptr, 1, &rendered_, 1, &swapchain_, &idx, nullptr};
         r = vk_.QueuePresentKHR(queue_, &pi);
         if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR) {
@@ -571,6 +637,10 @@ private:
     std::vector<uint64_t> removals_;
     EyeFrame frame_{};
     std::chrono::steady_clock::time_point frameAt_{};
+    uint32_t frameMark_ = 0, lastIssued_ = 0;
+    bool frameTracked_ = false;
+    const droiddeck_present_sync *sync_ = nullptr;
+    std::chrono::steady_clock::time_point syncTried_{};
     bool haveFrame_ = false, exit_ = false, started_ = false;
     std::atomic<uint64_t> submitted_{0};
     std::thread thread_;

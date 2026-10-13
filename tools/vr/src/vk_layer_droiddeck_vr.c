@@ -295,11 +295,13 @@ static VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice pd, const VkDeviceCreat
 }
 
 static void forget_device_semaphores(VkDevice dev);
+static void track_forget_device(VkDevice dev);
 
 static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallbacks *alloc) {
     struct dev *d = dev_for(device);
     if (!d) return;
     forget_device_semaphores(device);
+    track_forget_device(device);
     PFN_vkDestroyDevice f = d->destroy;
     pthread_mutex_lock(&g_lock);
     memset(d, 0, sizeof(*d));
@@ -588,6 +590,7 @@ struct bridged {
     int timeline; /* 0: binary, bridged only by dropping its waits */
     unsigned long ino; /* the memfd's inode, which names the semaphore across processes in traces */
     uint64_t submitted; /* the highest value this process has queued a signal of */
+    uint64_t seen, seen_us;
 };
 static pthread_mutex_t g_br_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct bridged g_br[MAX_SEMS];
@@ -634,6 +637,8 @@ static int sem_trace_on(void) {
     return on;
 }
 
+static uint64_t now_us(void);
+
 static void *poller(void *arg) {
     unsigned ticks = 0;
     for (;;) {
@@ -651,6 +656,7 @@ static void *poller(void *arg) {
             uint64_t local = 0;
             if (!get || get(b->dev, b->sem, &local) != VK_SUCCESS) continue;
             uint64_t shared = atomic_load(b->counter);
+            if (shared != b->seen) { b->seen = shared; b->seen_us = now_us(); }
             if (trace) {
                 char line[192];
                 snprintf(line, sizeof(line), "%s sem %p %s counter %lu local %llu shared %llu", program_invocation_short_name,
@@ -729,7 +735,7 @@ static VkResult VKAPI_CALL CreateSemaphore(VkDevice d, const VkSemaphoreCreateIn
     atomic_store(counter, timeline ? type_info->initialValue : 0);
     pthread_mutex_lock(&g_br_lock);
     struct bridged *slot = bridged_find(VK_NULL_HANDLE);
-    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline, fd_ino(fd), 0};
+    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline, fd_ino(fd), 0, atomic_load(counter), now_us()};
     pthread_mutex_unlock(&g_br_lock);
     if (!slot) { munmap((void *)counter, 4096); close(fd); return r; }
     if (timeline) poller_start();
@@ -775,7 +781,7 @@ static VkResult VKAPI_CALL ImportSemaphoreFdKHR(VkDevice d, const VkImportSemaph
     struct bridged *b = bridged_find(info->semaphore);
     if (b) bridged_drop(b);
     b = bridged_find(VK_NULL_HANDLE);
-    if (b && counter) *b = (struct bridged){info->semaphore, d, counter, -1, timeline, ino, 0};
+    if (b && counter) *b = (struct bridged){info->semaphore, d, counter, -1, timeline, ino, 0, atomic_load(counter), now_us()};
     else if (counter) munmap((void *)counter, 4096);
     pthread_mutex_unlock(&g_br_lock);
     if (timeline) poller_start();
@@ -802,6 +808,7 @@ static uint64_t now_us(void) {
 
 /* How long a submit may wait for another process to reach a shared value before the wait is dropped. */
 #define SUBMIT_GRACE_US 3000
+#define SHARED_IDLE_US 100000
 
 /* Whether a submit should drop its GPU wait on s for value.
  *
@@ -818,6 +825,7 @@ static int submit_drop_wait(VkSemaphore s, uint64_t value) {
     if (!b->timeline) { int r = b->fd < 0; pthread_mutex_unlock(&g_br_lock); return r; }
     const int imported = b->fd < 0;
     const uint64_t queued = b->submitted;
+    const uint64_t seen_us = b->seen_us;
     VkDevice dev = b->dev;
     _Atomic uint64_t *counter = b->counter;
     pthread_mutex_unlock(&g_br_lock);
@@ -830,7 +838,8 @@ static int submit_drop_wait(VkSemaphore s, uint64_t value) {
     PFN_vkSignalSemaphore sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphore");
     if (!sig) sig = (PFN_vkSignalSemaphore)d->gdpa(dev, "vkSignalSemaphoreKHR");
     if (!get) return 0;
-    const uint64_t until = now_us() + SUBMIT_GRACE_US;
+    const uint64_t start = now_us();
+    const uint64_t until = start + (start - seen_us > SHARED_IDLE_US ? 0 : SUBMIT_GRACE_US);
     for (;;) {
         uint64_t local = 0;
         if (get(dev, s, &local) == VK_SUCCESS && local >= value) return 0;
@@ -901,6 +910,167 @@ static void trace_sem(const char *what, VkSemaphore sem, uint64_t value) {
     say("%s", line);
 }
 
+#include <limits.h>
+#include <linux/futex.h>
+#include <sys/syscall.h>
+#include "present_sync.h"
+
+#define TRACK_SLOTS 64
+
+struct tracked {
+    VkDevice dev;
+    VkFence fence;
+    PFN_vkWaitForFences wait;
+    PFN_vkResetFences reset;
+    PFN_vkDestroyFence destroy;
+    int busy;
+};
+static pthread_mutex_t g_trk_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_trk_cond = PTHREAD_COND_INITIALIZER;
+static struct tracked g_trk[TRACK_SLOTS];
+static int g_trk_queue[TRACK_SLOTS];
+static unsigned g_trk_head, g_trk_tail;
+static struct droiddeck_present_sync *g_sync;
+static pthread_once_t g_sync_once = PTHREAD_ONCE_INIT;
+
+static void sync_wake(struct droiddeck_present_sync *s) {
+    syscall(SYS_futex, &s->done, FUTEX_WAKE, INT_MAX, NULL, NULL, 0);
+}
+
+static void *completer(void *arg) {
+    struct droiddeck_present_sync *s = arg;
+    for (;;) {
+        pthread_mutex_lock(&g_trk_lock);
+        while (g_trk_head == g_trk_tail) pthread_cond_wait(&g_trk_cond, &g_trk_lock);
+        const int slot = g_trk_queue[g_trk_tail % TRACK_SLOTS];
+        struct tracked t = g_trk[slot];
+        pthread_mutex_unlock(&g_trk_lock);
+        VkResult r;
+        do r = t.wait(t.dev, 1, &t.fence, VK_TRUE, 100000000ull); while (r == VK_TIMEOUT);
+        t.reset(t.dev, 1, &t.fence);
+        pthread_mutex_lock(&g_trk_lock);
+        g_trk[slot].busy = 0;
+        g_trk_tail++;
+        pthread_cond_broadcast(&g_trk_cond);
+        pthread_mutex_unlock(&g_trk_lock);
+        __atomic_fetch_add(&s->done, 1, __ATOMIC_RELEASE);
+        sync_wake(s);
+    }
+    return NULL;
+}
+
+static void sync_init(void) {
+    if (strcmp(program_invocation_short_name, "vrcompositor")) return;
+    const char *rt = getenv("XDG_RUNTIME_DIR");
+    char path[512];
+    snprintf(path, sizeof(path), "%s/droiddeck-steamvr/%s", rt && *rt ? rt : "/run/droiddeck", DROIDDECK_PRESENT_SYNC_NAME);
+    int fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    if (fd < 0) return;
+    void *m = ftruncate(fd, DROIDDECK_PRESENT_SYNC_SIZE) == 0
+        ? mmap(NULL, DROIDDECK_PRESENT_SYNC_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0) : MAP_FAILED;
+    close(fd);
+    if (m == MAP_FAILED) return;
+    struct droiddeck_present_sync *s = m;
+    __atomic_store_n(&s->done, __atomic_load_n(&s->issued, __ATOMIC_ACQUIRE), __ATOMIC_RELEASE);
+    sync_wake(s);
+    pthread_t t;
+    if (pthread_create(&t, NULL, completer, s) != 0) { munmap(m, DROIDDECK_PRESENT_SYNC_SIZE); return; }
+    pthread_detach(t);
+    g_sync = s;
+    say("%s", "frames go to the presenter once their GPU work is done");
+}
+
+static int track_take(VkQueue q) {
+    pthread_once(&g_sync_once, sync_init);
+    if (!g_sync) return -1;
+    struct dev *d = dev_for(q);
+    if (!d) return -1;
+    VkDevice dev = d->handle;
+    pthread_mutex_lock(&g_trk_lock);
+    for (;;) {
+        int own = -1, empty = -1, idle = -1;
+        for (int i = 0; i < TRACK_SLOTS && own < 0; i++) {
+            if (g_trk[i].busy) continue;
+            if (g_trk[i].dev == dev) own = i;
+            else if (!g_trk[i].dev) { if (empty < 0) empty = i; }
+            else if (idle < 0) idle = i;
+        }
+        if (own < 0 && empty < 0 && idle >= 0) {
+            g_trk[idle].destroy(g_trk[idle].dev, g_trk[idle].fence, NULL);
+            memset(&g_trk[idle], 0, sizeof(g_trk[idle]));
+            empty = idle;
+        }
+        if (own < 0 && empty >= 0) {
+            struct tracked t = {.dev = dev};
+            t.wait = (PFN_vkWaitForFences)d->gdpa(dev, "vkWaitForFences");
+            t.reset = (PFN_vkResetFences)d->gdpa(dev, "vkResetFences");
+            t.destroy = (PFN_vkDestroyFence)d->gdpa(dev, "vkDestroyFence");
+            PFN_vkCreateFence create = (PFN_vkCreateFence)d->gdpa(dev, "vkCreateFence");
+            VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0};
+            if (!t.wait || !t.reset || !t.destroy || !create || create(dev, &fci, NULL, &t.fence) != VK_SUCCESS) {
+                pthread_mutex_unlock(&g_trk_lock);
+                return -1;
+            }
+            g_trk[empty] = t;
+            own = empty;
+        }
+        if (own >= 0) {
+            g_trk[own].busy = 1;
+            pthread_mutex_unlock(&g_trk_lock);
+            return own;
+        }
+        pthread_cond_wait(&g_trk_cond, &g_trk_lock);
+    }
+}
+
+static void track_submitted(int slot, VkResult r) {
+    pthread_mutex_lock(&g_trk_lock);
+    if (r == VK_SUCCESS) {
+        g_trk_queue[g_trk_head % TRACK_SLOTS] = slot;
+        g_trk_head++;
+        __atomic_fetch_add(&g_sync->issued, 1, __ATOMIC_RELEASE);
+    } else {
+        g_trk[slot].reset(g_trk[slot].dev, 1, &g_trk[slot].fence);
+        g_trk[slot].busy = 0;
+    }
+    pthread_cond_broadcast(&g_trk_cond);
+    pthread_mutex_unlock(&g_trk_lock);
+}
+
+static void track_forget_device(VkDevice dev) {
+    pthread_mutex_lock(&g_trk_lock);
+    for (;;) {
+        int busy = 0;
+        for (int i = 0; i < TRACK_SLOTS; i++) busy |= g_trk[i].dev == dev && g_trk[i].busy;
+        if (!busy) break;
+        pthread_cond_wait(&g_trk_cond, &g_trk_lock);
+    }
+    for (int i = 0; i < TRACK_SLOTS; i++) {
+        if (g_trk[i].dev != dev) continue;
+        g_trk[i].destroy(dev, g_trk[i].fence, NULL);
+        memset(&g_trk[i], 0, sizeof(g_trk[i]));
+    }
+    pthread_mutex_unlock(&g_trk_lock);
+}
+
+static VkResult submit_tracked(PFN_vkQueueSubmit next, VkQueue q, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
+    const int slot = track_take(q);
+    if (slot < 0) return next(q, count, submits, fence);
+    const VkFence mine = g_trk[slot].fence;
+    VkResult r = next(q, count, submits, fence ? fence : mine);
+    track_submitted(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
+    return r;
+}
+
+static VkResult submit2_tracked(PFN_vkQueueSubmit2 next, VkQueue q, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence) {
+    const int slot = track_take(q);
+    if (slot < 0) return next(q, count, submits, fence);
+    const VkFence mine = g_trk[slot].fence;
+    VkResult r = next(q, count, submits, fence ? fence : mine);
+    track_submitted(slot, r == VK_SUCCESS && fence ? next(q, 0, NULL, mine) : r);
+    return r;
+}
+
 static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
     PFN_vkQueueSubmit next = (PFN_vkQueueSubmit)dev_for(q)->gdpa(dev_for(q)->handle, "vkQueueSubmit");
     if (sem_trace_on())
@@ -924,7 +1094,7 @@ static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmit
             any = submit_drop_wait(submits[i].pWaitSemaphores[j], t && j < t->waitSemaphoreValueCount ? t->pWaitSemaphoreValues[j] : 0);
     }
     if (!any) {
-        VkResult r = next(q, count, submits, fence);
+        VkResult r = submit_tracked(next, q, count, submits, fence);
         note_submit_signals(count, submits);
         return r;
     }
@@ -960,7 +1130,7 @@ static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmit
             copy[i].pNext = &tl[i]; /* other structs before it are dropped: SteamVR chains only this one */
         }
     }
-    VkResult r = next(q, count, copy, fence);
+    VkResult r = submit_tracked(next, q, count, copy, fence);
     note_submit_signals(count, submits);
     for (uint32_t i = 0; i < count * 3; i++) free(bufs[i]);
     free(bufs); free(tl); free(copy);
@@ -982,7 +1152,7 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
         for (uint32_t j = 0; j < submits[i].waitSemaphoreInfoCount && !any; j++)
             any = submit_drop_wait(submits[i].pWaitSemaphoreInfos[j].semaphore, submits[i].pWaitSemaphoreInfos[j].value);
     if (!any) {
-        VkResult r = next(q, count, submits, fence);
+        VkResult r = submit2_tracked(next, q, count, submits, fence);
         note_submit2_signals(count, submits);
         return r;
     }
@@ -998,7 +1168,7 @@ static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmi
         copy[i].waitSemaphoreInfoCount = k;
         copy[i].pWaitSemaphoreInfos = waits[i];
     }
-    VkResult r = next(q, count, copy, fence);
+    VkResult r = submit2_tracked(next, q, count, copy, fence);
     note_submit2_signals(count, submits);
     for (uint32_t i = 0; i < count; i++) free(waits[i]);
     free(waits); free(copy);

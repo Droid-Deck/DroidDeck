@@ -104,7 +104,9 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      compositor signals only after the client has submitted and said so, which deadlocked every app
      before its first frame (`helloxr`'s swapchain acquire, DXVK's submit thread in a Proton game).
      A submit's wait on an imported shared value that is neither reached nor queued in that process
-     gets 3 ms for the other process to reach it, then is dropped;
+     gets 3 ms for the other process to reach it, then is dropped. On a counter that has not moved for
+     100 ms it is dropped at once: Angry Birds VR waits on two such values a frame, and the grace cost
+     its submit thread 6 ms a frame and held it at 60 fps;
    - Steam's web helper has the semaphore bridge whenever SteamVR is installed: its GPU process
      outlives SteamVR runs, and one started without the layer crashed when SteamVR showed Steam's
      overlays, until Steam quit;
@@ -148,8 +150,13 @@ a pose written to the shared file turns SteamVR's view. Started from the drawer 
   A presses show up in the ring the driver reads.
 - **Layers**: only the first layer of each frame is drawn. SteamVR's compositor composites the
   dashboard into it, so this has not mattered yet.
-- **Timing**: no reprojection, and the presenter blits whatever was submitted last, a guard delay
-  after it arrived. The chain is SteamVR → presenter → DroidDeck compositor → lens pass.
+- **Timing**: no reprojection. The presenter blits the frame submitted last once `vrcompositor`'s GPU
+  work for it is done: the layer fences that process's submits and counts issued and finished ones in
+  `present-sync` beside the `active` marker, and the presenter sleeps on the count (a futex). Without
+  the file it falls back to a guard delay after the frame arrived (`DROIDDECK_VR_PRESENT_GUARD_MS`,
+  4 ms). It hands its own picture to Wayland only once its blit is done, because KGSL does not order
+  the DroidDeck compositor's copy after it. The chain is SteamVR → presenter → DroidDeck compositor →
+  lens pass.
 - **Cross-process GPU sync** is a poll away from exact (see the semaphore note above); binary
   semaphores are not bridged.
 - **Apps and games**: Windows VR games run through Proton ARM64 (FEX for the x86-64 game, DXVK, and
