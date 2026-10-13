@@ -22,6 +22,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +59,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -153,6 +157,7 @@ internal fun PrimaryButton(
     /** The Steam tab's own Play: bigger than any other button on a page. */
     large: Boolean = false,
     icon: ImageVector? = null,
+    fill: Boolean = false,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -172,7 +177,8 @@ internal fun PrimaryButton(
     // Where it sits, so a session it starts can grow out of it (LaunchFlood).
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (fill) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
         modifier = modifier.then(track)
             .onGloballyPositioned { placed[0] = it }
             // 48dp to touch on a handheld; compact rows keep 44.
@@ -192,18 +198,34 @@ internal fun PrimaryButton(
                 onClick()
             }
             .padding(
-                start = if (large) 20.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
-                end = if (large) 26.dp else if (compact) 10.dp else 18.dp,
+                start = if (fill) 12.dp else if (large) 20.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
+                end = if (fill) 12.dp else if (large) 26.dp else if (compact) 10.dp else 18.dp,
                 top = if (large) 16.dp else if (compact) 7.dp else 11.dp,
                 bottom = if (large) 16.dp else if (compact) 7.dp else 11.dp,
             ),
     ) {
         val fg = if (enabled) colors.onPrimary else colors.onSurfaceVariant
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(if (large) 20.dp else 17.dp))
-        Text(
-            text, fontSize = if (large) 17.sp else if (compact) 12.sp else 15.sp,
-            fontWeight = if (large) FontWeight.Bold else FontWeight.SemiBold, letterSpacing = 0.5.sp, color = fg, maxLines = 1,
-        )
+        val style = LocalTextStyle.current.merge(TextStyle(
+            fontSize = if (large) 17.sp else if (compact) 12.sp else 15.sp,
+            fontWeight = if (large) FontWeight.Bold else FontWeight.SemiBold, letterSpacing = 0.5.sp, color = fg,
+        ))
+        if (fill) FittedLabel(text, style, Modifier.weight(1f, fill = false))
+        else Text(text, style = style, maxLines = 1)
+    }
+}
+
+@Composable
+private fun FittedLabel(text: String, style: TextStyle, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier) {
+        val measurer = rememberTextMeasurer()
+        val max = constraints.maxWidth
+        val size = remember(text, style, max) {
+            var size = style.fontSize
+            while (size.value > 10f && measurer.measure(text, style.copy(fontSize = size), maxLines = 1, softWrap = false).size.width > max) size = (size.value - 0.5f).sp
+            size
+        }
+        Text(text, style = style.copy(fontSize = size), maxLines = 1, softWrap = false)
     }
 }
 

@@ -161,6 +161,8 @@ internal val LocalSheetBeat = staticCompositionLocalOf<SheetBeat?> { null }
 
 internal val LocalSheetChipWidth = compositionLocalOf { Dp.Unspecified }
 
+internal val LocalPlayRect = compositionLocalOf<Rect?> { null }
+
 private val ChipGap = 6.dp
 
 internal fun sheetChipWidth(row: Dp, count: Int): Dp =
@@ -727,7 +729,7 @@ internal fun LiftHero(
                 }
             }
         }
-        CompositionLocalProvider(LocalSheetChipWidth provides chipWidth) { overlay { sink.value } }
+        CompositionLocalProvider(LocalSheetChipWidth provides chipWidth, LocalPlayRect provides restRect) { overlay { sink.value } }
     }
 }
 

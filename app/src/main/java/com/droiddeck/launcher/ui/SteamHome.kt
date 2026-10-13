@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.fillMaxWidth
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -113,8 +114,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             if (glasses.present) DropSheet(
                 drop, glasses.model, GlassesIcon, glassesTabs(glasses), covered = lifted,
                 beside = { enabled ->
-                    PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy, large = true, icon = Icons.Filled.PlayArrow,
-                        modifier = Modifier.testTag("play-steamvr")) { if (enabled) a.onPlaySteamVr() }
+                    PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy, large = true, icon = Icons.Filled.PlayArrow, fill = true,
+                        modifier = Modifier.fillMaxWidth().testTag("play-steamvr")) { if (enabled) a.onPlaySteamVr() }
                 },
             ) { tab ->
                 GlassesGroups(rememberMenuHost(), glasses, glassesSettings, inSession = false, tab = tab)

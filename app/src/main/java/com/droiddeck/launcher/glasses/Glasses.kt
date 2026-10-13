@@ -114,6 +114,8 @@ object Glasses {
     private var asked = false
     private var lastModeSentAt = 0L
     private var sbsAskedAt = 0L
+    private var glassesMode = 0
+    private var autoModeSent = false
 
     @Volatile private var sink: PoseSink? = null
     @Volatile private var probe: ((ByteArray) -> Unit)? = null
@@ -203,6 +205,8 @@ object Glasses {
     fun setScreenWidthDm(dm: Int) = post { update { it.copy(screenWidthDm = dm.coerceIn(5, 200)) } }
     fun setScreenDistanceDm(dm: Int) = post { update { it.copy(screenDistanceDm = dm.coerceIn(5, 200)) } }
     fun setVrFovDeg(deg: Int) = post { update { it.copy(vrFovDeg = deg.coerceIn(GlassesSettings.VR_FOV_MIN, GlassesSettings.VR_FOV_MAX)) } }
+
+    fun outputHz(): Int = _settings.value.let { if (_state.value.sbs) it.sbsHz else it.refreshHz }
 
     fun glassesDisplay(): Display? = _state.value.displayId.takeIf { it != Display.INVALID_DISPLAY }?.let { displays.getDisplay(it) }
 
@@ -395,6 +399,8 @@ object Glasses {
         }
         link = l
         linkDevice = device
+        glassesMode = 0
+        autoModeSent = false
         Log.i(TAG, "opened ${model?.name} pid=0x%04X imu=%s".format(device.productId, l.hasImu))
         publish { it.copy(connected = true) }
         listOf(VitureProtocol.MSG_GET_BRIGHTNESS, VitureProtocol.MSG_GET_VOLUME, VitureProtocol.MSG_GET_DISPLAY).forEachIndexed { i, msg ->
@@ -412,6 +418,7 @@ object Glasses {
         val l = link ?: return
         link = null
         linkDevice = null
+        glassesMode = 0
         l.close()
         publish { it.copy(connected = false, tracking = false) }
         Log.i(TAG, "link closed")
@@ -425,10 +432,15 @@ object Glasses {
 
     private fun applyMode(force: Boolean) {
         val s = _state.value
+        val m = model ?: return
         if (!s.canControl || !s.usable || s.sbs) return
-        val want = _settings.value.refreshHz
-        if (!force && abs(s.hz - want) < 1.5f) return
-        if (!force && SystemClock.uptimeMillis() - lastModeSentAt < 8_000) return
+        val hz = _settings.value.refreshHz
+        if (glassesMode == m.mode(hz, false)) return
+        if (!force) {
+            if (autoModeSent || SystemClock.uptimeMillis() - lastModeSentAt < 8_000) return
+            if (glassesMode == 0 && abs(s.hz - hz) < 1.5f) return
+            autoModeSent = true
+        }
         sendMode(false)
     }
 
@@ -496,7 +508,12 @@ object Glasses {
         when (frame.msgId) {
             VitureProtocol.EVENT_DISPLAY -> {
                 Log.i(TAG, "glasses switched to mode 0x%02X".format(event))
+                glassesMode = event
                 publish { it.copy(sbs = VitureProtocol.modeIsSbs(event)) }
+            }
+            VitureProtocol.EVENT_DISPLAY_STEP -> model?.modeForStep(event)?.let { mode ->
+                Log.i(TAG, "glasses report mode 0x%02X".format(mode))
+                glassesMode = mode
             }
             VitureProtocol.EVENT_BRIGHTNESS -> publish { it.copy(brightness = event) }
             VitureProtocol.EVENT_VOLUME -> publish { it.copy(volume = event) }
@@ -505,8 +522,11 @@ object Glasses {
             VitureProtocol.MSG_DISPLAY -> if (event != 0) {
                 Log.w(TAG, "glasses refused display mode 0x%02X".format(p.getOrNull(1)?.toInt()?.and(0xFF) ?: 0))
                 sbsAskedAt = 0L
+            } else answer?.let { glassesMode = it }
+            VitureProtocol.MSG_GET_DISPLAY -> answer?.let { v ->
+                glassesMode = v
+                if (VitureProtocol.modeIsSbs(v) != _state.value.sbs && !_state.value.hasDisplay) publish { it.copy(sbs = VitureProtocol.modeIsSbs(v)) }
             }
-            VitureProtocol.MSG_GET_DISPLAY -> answer?.let { v -> if (VitureProtocol.modeIsSbs(v) != _state.value.sbs && !_state.value.hasDisplay) publish { it.copy(sbs = VitureProtocol.modeIsSbs(v)) } }
         }
     }
 

@@ -440,10 +440,15 @@ internal fun BoxWithConstraintsScope.DropSheet(
     val sideInset = if (narrow) 20.dp else 44.dp
     val besideShown = enabled && !state.open && !state.shown
     val r1 = rest
-    if (r1 != null && (besideShown || state.sink.value < 0.99f)) Box(
+    val play = LocalPlayRect.current
+    if (r1 != null && play != null && (besideShown || state.sink.value < 0.99f)) Box(
         Modifier
-            .align(Alignment.TopEnd)
-            .padding(top = sideInset, end = sideInset + with(density) { r1.width.toDp() } + 12.dp)
+            .offset {
+                val gap = 12.dp.roundToPx()
+                val below = play.right + gap > r1.left
+                IntOffset(play.left.roundToInt(), if (below) r1.bottom.roundToInt() + gap else sideInset.roundToPx())
+            }
+            .width(with(density) { play.width.toDp() })
             .graphicsLayer { alpha = (1f - state.sink.value) * (1f - covered()) }
             .zIndex(2f)
             .focusProperties { canFocus = besideShown },

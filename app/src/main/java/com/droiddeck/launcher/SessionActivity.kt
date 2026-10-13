@@ -1580,7 +1580,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * active; it is the rate gamescope gives Steam, and the QAM's Frame Limit divides it.
      */
     private fun refreshHz(): Float {
-        if (glassesScreen != null) glasses.hz.takeIf { it > 1f }?.let { return it }
+        glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val hz = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
@@ -2846,7 +2846,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val want = started && !isInPictureInPictureMode && !runtimeRemovalBlocked && g.usable && glassesSettings.gameOnGlasses
         val target = if (want) Glasses.glassesDisplay()?.takeIf { it.isValid } else null
         val current = glassesScreen
-        if (current != null && current.display.displayId == target?.displayId) return
+        if (current != null && current.display.displayId == target?.displayId) {
+            current.prefer(Glasses.outputHz())
+            return
+        }
         if (current != null) {
             glassesScreen = null
             glassesOutputActive = false
@@ -2857,7 +2860,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
         }
         if (target != null) {
-            val screen = GlassesScreen(this, target, this)
+            val screen = GlassesScreen(this, target, Glasses.outputHz(), this)
             try {
                 screen.show()
             } catch (e: Exception) {

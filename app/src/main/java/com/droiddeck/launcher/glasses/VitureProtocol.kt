@@ -27,6 +27,7 @@ object VitureProtocol {
     const val EVENT_BRIGHTNESS = 0x0301
     const val EVENT_DISPLAY = 0x0302
     const val EVENT_VOLUME = 0x0304
+    const val EVENT_DISPLAY_STEP = 0x030D
 
     const val IMU_RATE_240 = 3
 
@@ -50,6 +51,14 @@ object VitureProtocol {
             tall -> when { hz >= 120 -> 0x44; hz >= 90 -> 0x43; else -> 0x41 }
             sbs -> if (hz >= 90 && sbs90) 0x35 else 0x32
             else -> when { hz >= 120 -> 0x34; hz >= 90 -> 0x33; else -> 0x31 }
+        }
+
+        fun modeForStep(step: Int): Int? = if (tall) null else when (step) {
+            1 -> 0x31
+            2 -> 0x33
+            3 -> 0x34
+            4 -> 0x32
+            else -> null
         }
     }
 

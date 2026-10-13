@@ -10,24 +10,38 @@ import android.view.SurfaceView
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
+import kotlin.math.abs
 
-class GlassesScreen(context: Context, display: Display, private val callback: SurfaceHolder.Callback) : Presentation(context, display) {
+class GlassesScreen(context: Context, display: Display, refreshHz: Int, private val callback: SurfaceHolder.Callback) : Presentation(context, display) {
     val surfaceView = SurfaceView(getContext())
     val holder: SurfaceHolder get() = surfaceView.holder
+    private var wantHz = refreshHz
+
+    val hz: Float get() {
+        val id = window?.attributes?.preferredDisplayModeId ?: 0
+        return display.supportedModes.firstOrNull { id != 0 && it.modeId == id }?.refreshRate ?: display.refreshRate
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = FrameLayout(context).apply { setBackgroundColor(Color.BLACK) }
         root.addView(surfaceView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         setContentView(root)
-        window?.apply {
-            addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            attributes = attributes.apply {
-                display.supportedModes.maxByOrNull { it.refreshRate * 10_000 + it.physicalWidth }?.let { best ->
-                    if (display.mode.physicalWidth == best.physicalWidth) preferredDisplayModeId = best.modeId
-                }
-            }
-        }
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        applyMode()
         surfaceView.holder.addCallback(callback)
+    }
+
+    fun prefer(hz: Int) {
+        if (hz == wantHz) return
+        wantHz = hz
+        applyMode()
+    }
+
+    private fun applyMode() {
+        val w = window ?: return
+        val width = display.mode.physicalWidth
+        val best = display.supportedModes.filter { it.physicalWidth == width }.minByOrNull { abs(it.refreshRate - wantHz) } ?: return
+        if (w.attributes.preferredDisplayModeId != best.modeId) w.attributes = w.attributes.apply { preferredDisplayModeId = best.modeId }
     }
 }
