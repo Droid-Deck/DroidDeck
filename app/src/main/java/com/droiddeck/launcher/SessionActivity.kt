@@ -1604,6 +1604,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         startActivity(again)
     }
 
+    /**
+     * One line of advice for a failure the log identifies, or null. The one this recognises: the
+     * ENOSYS storm - dozens of `socket(): Function not implemented` / `shared memfd open() failed`
+     * lines - which is proot's seccomp acceleration failing an x86 helper (Steam's xalia under
+     * FEX) on some devices (a Fold 5, twice). The switch that answers it is in Performance, and a
+     * user who never opens the log would not know. Steam's explicit `Session Replaced` marker is
+     * also surfaced cautiously: nearby network or sign-in messages do not identify the replacing client.
+     */
     private class EndHint(val text: String, val evenOnSuccess: Boolean = false)
 
     private fun sessionEndHint(log: File?): EndHint? {
@@ -1611,6 +1619,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return try {
             var enosys = 0
             var fexMissing = false
+            val sessionReplaced = log.parentFile?.let {
+                com.droiddeck.launcher.session.SteamSessionDiagnostics.hasSessionReplaced(File(it, "steam"))
+            } == true
+            // The tail is where a dying session says why; 512 KB covers the storm without reading a 1 GB log.
             val size = log.length()
             java.io.RandomAccessFile(log, "r").use { f ->
                 val start = maxOf(0L, size - 512L * 1024)
@@ -1625,6 +1637,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (fexMissing) {
                 val what = com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_end_program)
                 EndHint(getString(R.string.session_end_fex_missing, what), evenOnSuccess = true)
+            } else if (sessionReplaced) {
+                EndHint(getString(R.string.session_end_replaced))
             } else if (enosys >= 8) {
                 EndHint(resources.getQuantityString(R.plurals.session_hint_enosys, enosys, enosys,
                     getString(R.string.perf_title), getString(R.string.perf_seccomp), getString(R.string.perf_xalia)))
