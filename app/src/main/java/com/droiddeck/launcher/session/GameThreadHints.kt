@@ -26,7 +26,7 @@ import java.io.File
  * and leaves it under [LEAVE] - well below, since it runs faster where it was moved. While the
  * session has threads it reports them behind target, which is what asks for the boost: the reports
  * carry no frame timing, the busy share is the signal (a capped game's frame interval looks the same
- * as a slow one's). Nothing is boosted while the device runs hot or saves power.
+ * as a slow one's). Nothing is boosted while the device is critically hot or saves power.
  */
 object GameThreadHints {
     private const val TAG = "GameThreadHints"
@@ -73,7 +73,8 @@ object GameThreadHints {
             while (!Thread.currentThread().isInterrupted) {
                 if (tick++ % SCAN_EVERY == 0) {
                     val busy = scanner.sample()
-                    val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE
+                    // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
+                    val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL
                     val next = if (spare) emptySet() else pick(boosted, busy)
                     if (next != boosted) {
                         session = update(hm, session, next)
