@@ -126,6 +126,39 @@ class SteamDownloadMonitorTest {
         }
     }
 
+    @Test fun theClientIsPendingUntilItIsInstalledAndStamped() {
+        val root = Files.createTempDirectory("droiddeck-steam-client-").toFile()
+        try {
+            val steam = File(root, "root/.local/share/Steam")
+            assertTrue(SteamDownloadMonitor.clientInstallPending(root))
+            File(steam, "steamrtarm64").mkdirs()
+            File(steam, "steamrtarm64/steam").writeText("client")
+            // Unpacked but not finished: droiddeck-steam-install stamps the client last.
+            assertTrue(SteamDownloadMonitor.clientInstallPending(root))
+            File(steam, "package").mkdirs()
+            File(steam, "package/droiddeck-installed").writeText("1791686101\n")
+            assertFalse(SteamDownloadMonitor.clientInstallPending(root))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test fun anOlderStampCountsAndARepairRequestIsPending() {
+        val root = Files.createTempDirectory("droiddeck-steam-client-").toFile()
+        try {
+            val steam = File(root, "root/.local/share/Steam")
+            File(steam, "steamrtarm64").mkdirs()
+            File(steam, "steamrtarm64/steam").writeText("client")
+            File(steam, "package").mkdirs()
+            File(steam, "package/bannerlator-installed").writeText("1\n")
+            assertFalse(SteamDownloadMonitor.clientInstallPending(root))
+            File(root, "root/.bl-steam-repair").writeText("1\n")
+            assertTrue(SteamDownloadMonitor.clientInstallPending(root))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     private fun manifest(root: File, appId: String, downloaded: Long, total: Long, flags: Int): File {
         val file = File(root, "steamapps/appmanifest_$appId.acf")
         check(file.parentFile?.mkdirs() != false)

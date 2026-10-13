@@ -126,13 +126,26 @@ internal class SteamDownloadMonitor {
     private fun value(text: String, key: String): String? =
         Regex("\"$key\"\\s+\"([^\"]*)\"").find(text)?.groupValues?.get(1)
 
-    private companion object {
-        const val MANIFEST_PROGRESS_GRACE_MS = 8_000L
+    companion object {
+        /**
+         * The runtime has yet to fetch the Steam client: a first run, or a repair asked for or begun
+         * (droiddeck-steam-install drops its stamp as it starts one). That download runs before
+         * anything is on screen, and a paused session pauses it with the rest.
+         */
+        fun clientInstallPending(runtimeRoot: File): Boolean {
+            val home = File(runtimeRoot, "root")
+            val steam = File(home, ".local/share/Steam")
+            val stamped = File(steam, "package/droiddeck-installed").isFile ||
+                File(steam, "package/bannerlator-installed").isFile
+            return !(stamped && File(steam, "steamrtarm64/steam").isFile) || File(home, ".bl-steam-repair").exists()
+        }
+
+        private const val MANIFEST_PROGRESS_GRACE_MS = 8_000L
         // Longer than Steam's ~60 s between rate lines, for when no traffic counter is available.
-        const val CONTENT_ACTIVITY_GRACE_MS = 90_000L
-        const val MIN_RECEIVE_BYTES_PER_SEC = 64L * 1024L
-        val PATH = Regex("\"path\"\\s+\"([^\"]+)\"")
-        val CONTENT_UPDATE = Regex("""AppID (\d+) (App|Workshop|Shader) update changed : (.*)""")
-        val CURRENT_RATE = Regex("""Current download rate: ([\d.]+) Mbps""")
+        private const val CONTENT_ACTIVITY_GRACE_MS = 90_000L
+        private const val MIN_RECEIVE_BYTES_PER_SEC = 64L * 1024L
+        private val PATH = Regex("\"path\"\\s+\"([^\"]+)\"")
+        private val CONTENT_UPDATE = Regex("""AppID (\d+) (App|Workshop|Shader) update changed : (.*)""")
+        private val CURRENT_RATE = Regex("""Current download rate: ([\d.]+) Mbps""")
     }
 }

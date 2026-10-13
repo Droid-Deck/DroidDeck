@@ -421,7 +421,9 @@ case $mode in
     esac
     ;;
   steam)
-    step "checking the Steam client (first run downloads it, ~1-2 min with nothing on screen)"
+    # A first run downloads the client (about 360 MB in 2026): minutes on a slow connection, with
+    # the progress in megabytes on the loading screen.
+    step "checking the Steam client (a first run downloads it)"
     droiddeck-steam-install || exit $?
     step "Steam client ready"
     steam_root=$XDG_DATA_HOME/Steam

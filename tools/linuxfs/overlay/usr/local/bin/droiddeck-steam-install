@@ -12,6 +12,9 @@ stamp=$steam_root/package/droiddeck-installed
 legacy_stamp=$steam_root/package/bannerlator-installed
 unconfirmed=$steam_root/package/droiddeck-unconfirmed
 repair_request=$HOME/.bl-steam-repair
+# The parts of an unfinished download: a session that ends, or loses its connection, part way
+# through picks up where it stopped instead of fetching the whole client again.
+parts=$steam_root/package/droiddeck-download
 if [ -f "$legacy_stamp" ] && [ ! -f "$stamp" ]; then
   mv -f "$legacy_stamp" "$stamp" || true
 fi
@@ -24,6 +27,11 @@ elif [ -f "$unconfirmed" ] && ! grep -qx repaired "$unconfirmed" \
 fi
 if [ -n "$repair" ]; then
   echo "== STEP $(date -u +%H:%M:%S) repairing the Steam client ($repair)"
+  # A repair unpacks every part again - once: an interrupted one keeps what it has redone.
+  if [ ! -f "$parts/.repair" ]; then
+    rm -rf "$parts"
+    mkdir -p "$parts" && : > "$parts/.repair"
+  fi
   rm -f "$stamp" "$legacy_stamp" "$steam_root/.crash" "$steam_root/steam.pid" \
     "$steam_root"/package/steam_client_*.manifest "$steam_root"/package/steam_client_*.installed
   for part in "$steam_root"/package/*.zip.*; do
@@ -41,26 +49,105 @@ fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-curl -fsSL "$cdn/$manifest" -o "$work/manifest"
+
+# A sleep that starts no process (droiddeck-session's nap): read -t on a pipe nothing writes to.
+nap() {
+  [ -n "${nap_fd:-}" ] || exec {nap_fd}<> <(:)
+  read -r -t "$1" -u "$nap_fd" _ 2>/dev/null || :
+}
+size_of() {
+  local n=0
+  [ -f "$1" ] && n=$(wc -c < "$1")
+  echo $((n))
+}
+# A connection can stall without closing (Wi-Fi power save, a phone changing networks), and
+# curl's default then is to wait for ever with nothing on screen. A transfer under 4 KB/s for a
+# minute is dropped and resumed from the bytes already on disk.
+limits=(--connect-timeout 30 --speed-limit 4096 --speed-time 60)
+# Seconds between attempts that made no progress; the download fails after the last one.
+read -r -a delays <<< "${BL_STEAM_RETRY_DELAYS:-5 10 20 30 30}"
+
+step() { echo "== STEP $(date -u +%H:%M:%S) $*"; }
+# The line the app's loading screen reads: the part, its number, and megabytes overall. A third
+# argument is said after it (a stall), and is always said; otherwise only a change is.
+progress() {
+  local mb=$(( (done_bytes + $(size_of "$1")) / 1000000 ))
+  [ -z "${3:-}" ] && [ "$mb" = "${shown_mb:-}" ] && [ "$2" = "${shown_part:-}" ] && return 0
+  shown_mb=$mb shown_part=$2
+  step "downloading Steam: $2 ($i/$total), $mb of $((total_bytes / 1000000)) MB${3:+ - $3}"
+}
+
+# fetch URL FILE SIZE SHA256 PART: FILE complete and checked, resuming whatever is already there.
+fetch() {
+  local url=$1 dest=$2 size=$3 sum=$4 part=$5 failures=0 bad=0 finished=0 before rc fd wait
+  while :; do
+    # Whole once it is as long as the manifest says, or (no size given) once curl finished it.
+    if [ -f "$dest" ] && { [ "$finished" = 1 ] || { [ "$size" -gt 0 ] && [ "$(size_of "$dest")" -ge "$size" ]; }; }; then
+      echo "$sum  $dest" | sha256sum -c --quiet 2>/dev/null && return 0
+      # Bytes that do not check out are fetched whole again, a few times at most.
+      rm -f "$dest"
+      finished=0 bad=$((bad + 1))
+      [ "$bad" -lt 3 ] || { echo "droiddeck-steam-install: $part does not match its checksum" >&2; return 1; }
+    fi
+    before=$(size_of "$dest")
+    # curl's status comes back through the pipe (|| keeps set -e from ending the subshell before it
+    # is said); until then a progress line every 5 s.
+    exec {fd}< <(curl -fsSL "${limits[@]}" -C - -o "$dest" "$url" && echo 0 || echo $?)
+    until read -r -t 5 -u "$fd" rc; do
+      if [ $? -le 128 ]; then rc=1; break; fi
+      progress "$dest" "$part"
+    done
+    exec {fd}<&-
+    if [ "$rc" = 0 ]; then finished=1; continue; fi
+    # 33: the server would not resume. Start the part over.
+    [ "$rc" = 33 ] && rm -f "$dest"
+    if [ "$(size_of "$dest")" -gt "$before" ]; then failures=0; else failures=$((failures + 1)); fi
+    if [ "$failures" -gt "${#delays[@]}" ]; then
+      echo "droiddeck-steam-install: could not download $part (curl exit $rc); what arrived is kept for the next try" >&2
+      return 1
+    fi
+    wait=${delays[$((failures > 0 ? failures - 1 : 0))]}
+    progress "$dest" "$part" "interrupted (curl exit $rc), trying again in ${wait} s"
+    nap "$wait"
+  done
+}
+
+curl -fsSL "${limits[@]}" --retry 5 --retry-connrefused --retry-delay 5 "$cdn/$manifest" -o "$work/manifest"
 version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
-# Every component block: its name, then the plain zip's file name and sha256.
+# Every component block: its name, then the plain zip's file name, sha256 and size.
 awk -F'"' '
   /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
   $2 == "file" { file[block] = $4 }
   $2 == "sha2" { sha[block] = $4 }
-  END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b] }
+  $2 == "size" { size[block] = $4 }
+  END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b], size[b] + 0 }
 ' "$work/manifest" | sort > "$work/parts"
 [ -s "$work/parts" ] || { echo "droiddeck-steam-install: no client components in $manifest" >&2; exit 1; }
 total=$(grep -c . "$work/parts" 2>/dev/null || echo 0)
+total_bytes=$(awk '{ n += $4 } END { print n + 0 }' "$work/parts")
 
-mkdir -p "$steam_root/package"
-while read -r block file sum; do
+mkdir -p "$parts"
+# What an earlier attempt left for another client version is no use to this one. A part's file
+# name carries its own hash, so a name still listed is the same part.
+for left in "$parts"/*; do
+  [ -e "$left" ] || continue
+  name=${left##*/}
+  name=${name%.unpacked}
+  grep -qF " $name " "$work/parts" || rm -rf "$left"
+done
+done_bytes=0
+while read -r block file sum size; do
   i=$((${i:-0} + 1))
-  echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($i/$total)"
-  curl -fsSL "$cdn/$file" -o "$work/$file"
-  echo "$sum  $work/$file" | sha256sum -c --quiet
-  unzip -qo "$work/$file" -d "$steam_root"
-  rm -f "$work/$file"
+  if [ -f "$parts/$file.unpacked" ]; then
+    done_bytes=$((done_bytes + size))
+    continue
+  fi
+  progress "$parts/$file" "$block"
+  fetch "$cdn/$file" "$parts/$file" "$size" "$sum" "$block" || exit 1
+  unzip -qo "$parts/$file" -d "$steam_root"
+  : > "$parts/$file.unpacked"
+  rm -f "$parts/$file"
+  done_bytes=$((done_bytes + size))
 done < "$work/parts"
 # Some entries are zipped with Windows separators; unzip keeps the backslash in the file name.
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
@@ -90,6 +177,7 @@ ln -sfn "$steam_root/linuxarm64" "$HOME/.steam/sdkarm64"
 ln -sfn "$steam_root/steamrtarm64" "$HOME/.steam/binarm64"
 ln -sfn "$steam_root/linux32" "$HOME/.steam/sdk32"
 echo "$version" > "$stamp"
+rm -rf "$parts"
 if [ -n "$repair" ]; then
   echo repaired > "$unconfirmed"
   rm -f "$repair_request"
