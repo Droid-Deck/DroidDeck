@@ -1215,7 +1215,7 @@ def set_mapping(tokens, mapping, app, tool):
     if tool is None:
         if block is not None:
             block += mapping + 1
-            tokens[block:block_end(tokens, block)] = []
+            del tokens[block - 1:block_end(tokens, block) + 1]
         return
     if block is None:
         tokens[mapping + 1:mapping + 1] = [

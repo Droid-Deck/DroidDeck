@@ -442,6 +442,8 @@ class ProtonDefaultTest(unittest.TestCase):
                     str(config), ["42"], catalog=self.CATALOG, directory=tmp)
                 first = config.read_bytes()
                 self.assertEqual(mapping_of(first.decode()), {"0": self.TOOL})
+                self.assertEqual(COMPAT["tokenize"](first.decode()),
+                                 COMPAT["tokenize"](config_text([("0", self.TOOL)])))
                 self.assertEqual(json.loads((Path(tmp) / "state.json").read_text())["auto"], {})
 
                 COMPAT["register_default"](
