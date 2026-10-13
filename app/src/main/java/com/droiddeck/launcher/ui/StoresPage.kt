@@ -438,7 +438,7 @@ private fun InstallWhere(item: CatalogItem) {
             StepTitle(title)
             StepList {
                 targets.forEachIndexed { i, t ->
-                    val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item, t.root, !t.removable)
+                    val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item)
                     val isLow = needed > 0 && t.freeBytes in 1 until needed
                     val trailingText = if (isLow) {
                         stringResource(R.string.stores_storage_low, formatBytes(t.freeBytes), formatBytes(needed))

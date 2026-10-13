@@ -56,16 +56,12 @@ class StoreInstallRootTest {
         assertEquals("a_b_c", dir.name)
     }
 
-    @Test fun estimatedBytesNeededCountsDoubleForEpicInternalStorage() {
+    @Test fun estimatedBytesNeededUsesKnownInstallSizeForAllStores() {
         val item = CatalogItem(Store.EPIC, "game1", "Game 1", imageUrl = null, owned = true, sizeBytes = 10_000_000L)
-        val internalDir = StoreInstallRoot.internalRoot(app)
-        val cardDir = File(app.filesDir, "card/Games")
-
-        assertEquals(20_000_000L, StoreInstallRoot.estimatedBytesNeeded(item, internalDir, isInternal = true))
-        assertEquals(10_000_000L, StoreInstallRoot.estimatedBytesNeeded(item, cardDir, isInternal = false))
+        assertEquals(10_000_000L, StoreInstallRoot.estimatedBytesNeeded(item))
 
         val gogItem = CatalogItem(Store.GOG, "game2", "Game 2", imageUrl = null, owned = true, sizeBytes = 10_000_000L)
-        assertEquals(10_000_000L, StoreInstallRoot.estimatedBytesNeeded(gogItem, internalDir, isInternal = true))
+        assertEquals(10_000_000L, StoreInstallRoot.estimatedBytesNeeded(gogItem))
     }
 
     @Test fun checkStorageReportsEnoughWhenSpaceIsUnknownOrAvailable() {

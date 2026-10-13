@@ -2085,7 +2085,6 @@
     <string name="stores_target_internal">Internal</string>
     <string name="stores_target_free">%1$s free</string>
     <string name="stores_storage_insufficient">Not enough free space: need %1$s, only %2$s free</string>
-    <string name="stores_storage_internal_cache_insufficient">Not enough internal space for download cache: need %1$s, only %2$s free</string>
     <string name="stores_storage_low">Insufficient space (%1$s free, need %2$s)</string>
     <string name="stores_notification_channel">Store downloads</string>
     <string name="stores_notification_channel_hint">Shows game download progress and keeps downloads running in the background</string>
