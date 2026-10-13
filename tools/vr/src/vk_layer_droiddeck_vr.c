@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -87,13 +88,19 @@ static void crash_trace_install(void) {
         if (access(path, F_OK) != 0) return;
     }
     static char stack[65536];
-    stack_t ss = {.ss_sp = stack, .ss_size = sizeof(stack)};
-    sigaltstack(&ss, NULL);
+    stack_t old_ss, ss = {.ss_sp = stack, .ss_size = sizeof(stack)};
+    if (sigaltstack(NULL, &old_ss) == 0 && (old_ss.ss_flags & SS_DISABLE)) sigaltstack(&ss, NULL);
     struct sigaction sa = {0};
     sa.sa_sigaction = crash_handler;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
     int sigs[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
-    for (unsigned i = 0; i < sizeof(sigs) / sizeof(*sigs); i++) sigaction(sigs[i], &sa, NULL);
+    for (unsigned i = 0; i < sizeof(sigs) / sizeof(*sigs); i++) {
+        /* Only where nothing handles the signal yet: Wine and FEX (Proton games) take SIGSEGV as part
+         * of their normal work, and replacing their handler crashes the game. */
+        struct sigaction old;
+        if (sigaction(sigs[i], NULL, &old) == 0 && !(old.sa_flags & SA_SIGINFO) && old.sa_handler == SIG_DFL)
+            sigaction(sigs[i], &sa, NULL);
+    }
 }
 
 /* ------------------------------------------------------------------ dispatch */
@@ -520,6 +527,7 @@ struct bridged {
     _Atomic uint64_t *counter;
     int fd;       /* the memfd, kept by the creator so every export can dup it; -1 for an importer */
     int timeline; /* 0: binary, bridged only by dropping its waits */
+    unsigned long ino; /* the memfd's inode, which names the semaphore across processes in traces */
 };
 static pthread_mutex_t g_br_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct bridged g_br[MAX_SEMS];
@@ -554,8 +562,22 @@ static void bridged_drop(struct bridged *b) {
     b->fd = -1;
 }
 
+/* A `semtrace` file beside droiddeck-steamvr's marker: log every bridged semaphore every 2 s. */
+static int sem_trace_on(void) {
+    static int checked, on;
+    if (!checked++) {
+        const char *rt = getenv("XDG_RUNTIME_DIR");
+        char path[512];
+        snprintf(path, sizeof(path), "%s/droiddeck-steamvr/semtrace", rt && *rt ? rt : "/run/droiddeck");
+        on = access(path, F_OK) == 0;
+    }
+    return on;
+}
+
 static void *poller(void *arg) {
+    unsigned ticks = 0;
     for (;;) {
+        const int trace = sem_trace_on() && (++ticks % (2000000 / POLL_US) == 0);
         pthread_mutex_lock(&g_br_lock);
         for (int i = 0; i < MAX_SEMS; i++) {
             struct bridged *b = &g_br[i];
@@ -569,6 +591,12 @@ static void *poller(void *arg) {
             uint64_t local = 0;
             if (!get || get(b->dev, b->sem, &local) != VK_SUCCESS) continue;
             uint64_t shared = atomic_load(b->counter);
+            if (trace) {
+                char line[192];
+                snprintf(line, sizeof(line), "%s sem %p %s counter %lu local %llu shared %llu", program_invocation_short_name,
+                         (void *)b->sem, b->fd >= 0 ? "made here" : "imported", b->ino, (unsigned long long)local, (unsigned long long)shared);
+                say("%s", line);
+            }
             if (local > shared) {
                 while (local > shared && !atomic_compare_exchange_weak(b->counter, &shared, local)) {}
             } else if (shared > local && sig) {
@@ -591,6 +619,11 @@ static void poller_start(void) {
 static _Atomic uint64_t *map_counter(int fd) {
     void *p = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     return p == MAP_FAILED ? NULL : (_Atomic uint64_t *)p;
+}
+
+static unsigned long fd_ino(int fd) {
+    struct stat st;
+    return fstat(fd, &st) == 0 ? (unsigned long)st.st_ino : 0;
 }
 
 static int is_shared_counter(int fd) {
@@ -636,7 +669,7 @@ static VkResult VKAPI_CALL CreateSemaphore(VkDevice d, const VkSemaphoreCreateIn
     atomic_store(counter, timeline ? type_info->initialValue : 0);
     pthread_mutex_lock(&g_br_lock);
     struct bridged *slot = bridged_find(VK_NULL_HANDLE);
-    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline};
+    if (slot) *slot = (struct bridged){*out, d, counter, fd, timeline, fd_ino(fd)};
     pthread_mutex_unlock(&g_br_lock);
     if (!slot) { munmap((void *)counter, 4096); close(fd); return r; }
     if (timeline) poller_start();
@@ -675,13 +708,14 @@ static VkResult VKAPI_CALL GetSemaphoreFdKHR(VkDevice d, const VkSemaphoreGetFdI
 static VkResult VKAPI_CALL ImportSemaphoreFdKHR(VkDevice d, const VkImportSemaphoreFdInfoKHR *info) {
     if (info->fd < 0 || !is_shared_counter(info->fd)) return NEXT(d, ImportSemaphoreFdKHR)(d, info);
     _Atomic uint64_t *counter = map_counter(info->fd);
+    const unsigned long ino = fd_ino(info->fd);
     close(info->fd); /* a successful import owns the fd */
     const int timeline = timeline_known(info->semaphore);
     pthread_mutex_lock(&g_br_lock);
     struct bridged *b = bridged_find(info->semaphore);
     if (b) bridged_drop(b);
     b = bridged_find(VK_NULL_HANDLE);
-    if (b && counter) *b = (struct bridged){info->semaphore, d, counter, -1, timeline};
+    if (b && counter) *b = (struct bridged){info->semaphore, d, counter, -1, timeline, ino};
     else if (counter) munmap((void *)counter, 4096);
     pthread_mutex_unlock(&g_br_lock);
     if (timeline) poller_start();
@@ -714,8 +748,32 @@ static uint32_t keep_waits(const VkSemaphore *in, const VkPipelineStageFlags *st
     return k;
 }
 
+/* semtrace: the first wait and the first signal of each shared semaphore, and its first few values. */
+static void trace_sem(const char *what, VkSemaphore sem, uint64_t value) {
+    if (!sem_trace_on() || value > 3) return;
+    pthread_mutex_lock(&g_br_lock);
+    struct bridged *b = bridged_find(sem);
+    unsigned long ino = b ? b->ino : 0;
+    pthread_mutex_unlock(&g_br_lock);
+    if (!ino) return;
+    char line[160];
+    snprintf(line, sizeof(line), "%s %s %p value %llu counter %lu", program_invocation_short_name, what, (void *)sem,
+             (unsigned long long)value, ino);
+    say("%s", line);
+}
+
 static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
     PFN_vkQueueSubmit next = (PFN_vkQueueSubmit)dev_for(q)->gdpa(dev_for(q)->handle, "vkQueueSubmit");
+    if (sem_trace_on())
+        for (uint32_t i = 0; i < count; i++) {
+            const VkTimelineSemaphoreSubmitInfo *t = NULL;
+            for (const VkBaseInStructure *p = submits[i].pNext; p; p = p->pNext)
+                if (p->sType == VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO) t = (const void *)p;
+            for (uint32_t j = 0; j < submits[i].waitSemaphoreCount; j++)
+                trace_sem("waits", submits[i].pWaitSemaphores[j], t && j < t->waitSemaphoreValueCount ? t->pWaitSemaphoreValues[j] : 0);
+            for (uint32_t j = 0; j < submits[i].signalSemaphoreCount; j++)
+                trace_sem("signals", submits[i].pSignalSemaphores[j], t && j < t->signalSemaphoreValueCount ? t->pSignalSemaphoreValues[j] : 0);
+        }
     int any = 0;
     for (uint32_t i = 0; i < count && !any; i++)
         for (uint32_t j = 0; j < submits[i].waitSemaphoreCount && !any; j++)
@@ -762,6 +820,13 @@ static VkResult VKAPI_CALL QueueSubmit(VkQueue q, uint32_t count, const VkSubmit
 static VkResult VKAPI_CALL QueueSubmit2(VkQueue q, uint32_t count, const VkSubmitInfo2 *submits, VkFence fence) {
     PFN_vkQueueSubmit2 next = (PFN_vkQueueSubmit2)dev_for(q)->gdpa(dev_for(q)->handle, "vkQueueSubmit2");
     if (!next) next = (PFN_vkQueueSubmit2)dev_for(q)->gdpa(dev_for(q)->handle, "vkQueueSubmit2KHR");
+    if (sem_trace_on())
+        for (uint32_t i = 0; i < count; i++) {
+            for (uint32_t j = 0; j < submits[i].waitSemaphoreInfoCount; j++)
+                trace_sem("waits", submits[i].pWaitSemaphoreInfos[j].semaphore, submits[i].pWaitSemaphoreInfos[j].value);
+            for (uint32_t j = 0; j < submits[i].signalSemaphoreInfoCount; j++)
+                trace_sem("signals", submits[i].pSignalSemaphoreInfos[j].semaphore, submits[i].pSignalSemaphoreInfos[j].value);
+        }
     int any = 0;
     for (uint32_t i = 0; i < count && !any; i++)
         for (uint32_t j = 0; j < submits[i].waitSemaphoreInfoCount && !any; j++)

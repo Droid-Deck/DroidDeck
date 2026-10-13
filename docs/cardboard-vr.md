@@ -94,7 +94,12 @@ switches the picture to side-by-side and runs SteamVR with three DroidDeck piece
      outright (the first version) the dashboard showed torn, half-drawn tiles;
    - `DROIDDECK_VR_CRASHTRACE=1` (or a `crashtrace` file beside the `active` marker, for processes like
      Steam whose environment is not ours) prints a backtrace on a fatal signal. `vrcompositor`'s
-     launcher drops `LD_PRELOAD`, but the layer is loaded there.
+     launcher drops `LD_PRELOAD`, but the layer is loaded there. It only takes signals nobody handles
+     yet: Wine and FEX handle `SIGSEGV` as part of running a Proton game, and a replaced handler
+     crashed The Lab;
+   - a `semtrace` file beside the marker logs, every 2 s, each bridged semaphore's local and shared
+     value and the memfd inode that names it in every process, plus the first waits and signals
+     (values up to 3) submitted on them.
 3. **`droiddeck-steamvr`**, the guest helper (`status | install | start | stop`), which the app drives
    through the guest agent's fixed `vr` request (no agent commands needed). It also supplies an `xset`
    stand-in, because the dashboard's web helper checks the X server with it.
