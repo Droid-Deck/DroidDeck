@@ -137,6 +137,36 @@ object DownloadQueue {
         advance(app)
     }
 
+    /** Immediately records a failed download (e.g. from pre-flight storage check). */
+    fun recordFailed(context: Context, entry: DownloadEntry, error: String, factory: (() -> DownloadJob)? = null) {
+        val app = context.applicationContext
+        val now = System.currentTimeMillis()
+        synchronized(lock) {
+            items.remove(entry.key)
+            items[entry.key] = Item(
+                entry.copy(
+                    state = DownloadState.FAILED,
+                    error = error,
+                    speedBps = 0,
+                    etaSeconds = -1,
+                    startedAt = now,
+                    finishedAt = now
+                ),
+                factory ?: { object : DownloadJob {
+                    override fun run(handle: JobHandle): String? = null
+                    override fun cancel(deleteFiles: Boolean) {}
+                } }
+            )
+            renumber()
+            publishLocked()
+        }
+        StoresState.logLine("${entry.store.label}: \"${entry.name}\" failed: $error")
+        main.post {
+            android.widget.Toast.makeText(app, error, android.widget.Toast.LENGTH_LONG).show()
+        }
+        StoreDownloadService.ended(app, entry.copy(state = DownloadState.FAILED, error = error), installed = false, gamesKey = null)
+    }
+
     fun pause(key: String) {
         val item = synchronized(lock) { items[key] } ?: return
         synchronized(lock) {
@@ -308,6 +338,10 @@ object DownloadQueue {
             }
             DownloadState.FAILED -> {
                 StoresState.logLine("${item.entry.store.label}: \"${item.entry.name}\" failed: $error")
+                val failMsg = error ?: context.getString(com.droiddeck.launcher.R.string.stores_dl_failed)
+                main.post {
+                    android.widget.Toast.makeText(context.applicationContext, failMsg, android.widget.Toast.LENGTH_LONG).show()
+                }
                 StoreDownloadService.ended(context, item.entry, installed = false, gamesKey = null)
             }
             DownloadState.CANCELLED -> StoresState.notifyLibraryChanged(context)

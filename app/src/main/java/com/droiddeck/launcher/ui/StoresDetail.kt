@@ -51,7 +51,9 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val id = key.substringAfter(':')
     val item = (StoresState.library[store].orEmpty() + StoresState.shelves[store]?.all.orEmpty()).firstOrNull { it.id == id }
     val installed = StoresState.installedGame(store, id)
-    val download = StoresState.download("${store.id}:$id")?.takeIf { it.isActive }
+    val rawDownload = StoresState.download("${store.id}:$id")
+    val download = rawDownload?.takeIf { it.isActive }
+    val failedDownload = rawDownload?.takeIf { it.state == DownloadState.FAILED }
     val title = item?.title ?: installed?.sidecar?.title ?: id
     Rise(0) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 12.dp)) {
@@ -73,12 +75,24 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                 val state = when {
                     installed != null -> stringResource(R.string.stores_eyebrow_installed) + " · " + com.droiddeck.launcher.stores.StoreInstallRoot.labelFor(ctx, installed.folder)
                     download != null && download.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + download.location
+                    failedDownload != null && failedDownload.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + failedDownload.location
                     item?.owned == true -> stringResource(R.string.stores_eyebrow_library)
                     else -> stringResource(R.string.stores_eyebrow_store)
                 }
                 val size = (item?.sizeBytes ?: 0L).takeIf { it > 0 }?.let { " · " + formatBytes(it) } ?: ""
                 Text((state + size).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = pal.signal)
                 Text(title, fontSize = if (narrow) 24.sp else 30.sp, lineHeight = if (narrow) 27.sp else 33.sp, fontWeight = FontWeight.Black, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (!failedDownload?.error.isNullOrBlank()) {
+                    Text(
+                        failedDownload!!.error!!,
+                        fontSize = 13.sp,
+                        lineHeight = 17.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.error,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Actions {
                     when {
                         installed != null -> {
@@ -94,6 +108,16 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                             if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { com.droiddeck.launcher.stores.download.DownloadQueue.pause(download.key) }
                             else PrimaryButton(stringResource(R.string.stores_dl_resume), main = true) { com.droiddeck.launcher.stores.download.DownloadQueue.resume(ctx, download.key) }
                             ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm)) { com.droiddeck.launcher.stores.download.DownloadQueue.cancel(ctx, download.key) }
+                        }
+                        failedDownload != null -> {
+                            ActionChip(stringResource(R.string.stores_dl_failed), ok = false)
+                            PrimaryButton(stringResource(R.string.stores_dl_resume), main = true) {
+                                if (item != null) StoresState.requestInstall(ctx, item)
+                                else com.droiddeck.launcher.stores.download.DownloadQueue.retry(ctx, failedDownload.key)
+                            }
+                            ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) {
+                                com.droiddeck.launcher.stores.download.DownloadQueue.clear(ctx, failedDownload.key)
+                            }
                         }
                         item?.owned == true && StoresState.isUnfinished(item) -> {
                             InstallButton(stringResource(R.string.stores_resume_install)) { StoresState.requestInstall(ctx, item) }

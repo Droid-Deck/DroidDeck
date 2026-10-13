@@ -438,10 +438,17 @@ private fun InstallWhere(item: CatalogItem) {
             StepTitle(title)
             StepList {
                 targets.forEachIndexed { i, t ->
+                    val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item, t.root, !t.removable)
+                    val isLow = needed > 0 && t.freeBytes in 1 until needed
+                    val trailingText = if (isLow) {
+                        stringResource(R.string.stores_storage_low, formatBytes(t.freeBytes), formatBytes(needed))
+                    } else {
+                        stringResource(R.string.stores_target_free, formatBytes(t.freeBytes))
+                    }
                     StepChoice(
                         label = if (t.removable) t.label else internalLabel,
                         icon = if (t.removable) androidx.compose.material.icons.Icons.Outlined.SdCard else androidx.compose.material.icons.Icons.Outlined.Smartphone,
-                        trailing = stringResource(R.string.stores_target_free, formatBytes(t.freeBytes)),
+                        trailing = trailingText,
                         enabled = open,
                         modifier = Modifier.fillMaxWidth().stepItem(1 + i).then(if (i == defaultIndex) Modifier.focusRequester(first) else Modifier),
                     ) {

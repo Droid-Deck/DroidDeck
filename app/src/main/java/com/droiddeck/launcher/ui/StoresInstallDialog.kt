@@ -67,10 +67,18 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
         Rise(1) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 targets.forEachIndexed { i, t ->
+                    val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item, t.root, !t.removable)
+                    val isLow = needed > 0 && t.freeBytes in 1 until needed
+                    val freeText = if (isLow) {
+                        stringResource(R.string.stores_storage_low, formatBytes(t.freeBytes), formatBytes(needed))
+                    } else {
+                        stringResource(R.string.stores_target_free, formatBytes(t.freeBytes))
+                    }
                     TargetRow(
                         label = if (t.removable) t.label else stringResource(R.string.stores_target_internal),
-                        free = stringResource(R.string.stores_target_free, formatBytes(t.freeBytes)),
+                        free = freeText,
                         removable = t.removable, focus = focus[i],
+                        warning = isLow,
                     ) {
                         SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
                         StoresState.install(ctx, item, t.root)
@@ -83,7 +91,7 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun TargetRow(label: String, free: String, removable: Boolean, focus: FocusRequester, onPick: () -> Unit) {
+private fun TargetRow(label: String, free: String, removable: Boolean, focus: FocusRequester, warning: Boolean = false, onPick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -99,6 +107,6 @@ private fun TargetRow(label: String, free: String, removable: Boolean, focus: Fo
     ) {
         Icon(if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(22.dp))
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(free, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
+        Text(free, fontSize = 12.sp, color = if (warning) colors.error else colors.onSurfaceVariant, maxLines = 1)
     }
 }

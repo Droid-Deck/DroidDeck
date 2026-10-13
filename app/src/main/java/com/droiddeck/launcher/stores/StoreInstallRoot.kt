@@ -14,7 +14,80 @@ object StoreInstallRoot {
     const val GUEST_EXTERNAL = "/mnt/droiddeck-stores"
 
     class Target(val root: File, val label: String, val removable: Boolean) {
-        val freeBytes: Long get() = try { StatFs((if (root.isDirectory) root else root.parentFile ?: root).path).availableBytes } catch (e: Exception) { 0L }
+        val freeBytes: Long get() = availableBytes(root)
+    }
+
+    data class StorageCheck(
+        val enough: Boolean,
+        val requiredBytes: Long,
+        val availableBytes: Long,
+        val internalRequiredBytes: Long = 0L,
+        val internalAvailableBytes: Long = 0L,
+        val isInternalShortage: Boolean = false,
+        val errorMessage: String? = null
+    )
+
+    fun availableBytes(file: File): Long = try {
+        val dir = if (file.isDirectory) file else (file.parentFile ?: file)
+        if (!dir.exists()) dir.mkdirs()
+        StatFs(if (dir.exists()) dir.path else file.path).availableBytes
+    } catch (e: Exception) {
+        try { file.usableSpace } catch (ignored: Exception) { 0L }
+    }
+
+    /**
+     * Estimated bytes needed for an install. Epic on internal storage needs both chunk cache
+     * and assembled files simultaneously (~2x game size).
+     */
+    fun estimatedBytesNeeded(item: CatalogItem, targetRoot: File, isInternal: Boolean): Long {
+        val size = StoreSizes.size(item)
+        if (size <= 0L) return 0L
+        return if (item.store == Store.EPIC && isInternal) size * 2 else size
+    }
+
+    /** Pre-install storage check to detect insufficient space before starting. */
+    fun checkStorage(context: Context, item: CatalogItem, targetRoot: File): StorageCheck {
+        val size = StoreSizes.size(item)
+        val freeTarget = availableBytes(targetRoot)
+        if (size <= 0L) return StorageCheck(enough = true, requiredBytes = 0L, availableBytes = freeTarget)
+        val internal = isInternal(context, targetRoot)
+        if (internal) {
+            val needed = if (item.store == Store.EPIC) size * 2 else size
+            if (freeTarget in 1 until needed) {
+                val msg = if (item.store == Store.EPIC) {
+                    context.getString(
+                        com.droiddeck.launcher.R.string.stores_storage_insufficient,
+                        formatBytes(needed),
+                        formatBytes(freeTarget)
+                    ) + " (" + formatBytes(size) + " + " + formatBytes(size) + " " + context.getString(com.droiddeck.launcher.R.string.stores_stage_download).lowercase() + ")"
+                } else {
+                    context.getString(com.droiddeck.launcher.R.string.stores_storage_insufficient, formatBytes(needed), formatBytes(freeTarget))
+                }
+                return StorageCheck(enough = false, requiredBytes = needed, availableBytes = freeTarget, errorMessage = msg)
+            }
+            return StorageCheck(enough = true, requiredBytes = needed, availableBytes = freeTarget)
+        } else {
+            if (freeTarget in 1 until size) {
+                val msg = context.getString(com.droiddeck.launcher.R.string.stores_storage_insufficient, formatBytes(size), formatBytes(freeTarget))
+                return StorageCheck(enough = false, requiredBytes = size, availableBytes = freeTarget, errorMessage = msg)
+            }
+            if (item.store == Store.EPIC) {
+                val internalFree = availableBytes(context.cacheDir)
+                if (internalFree in 1 until size) {
+                    val msg = context.getString(com.droiddeck.launcher.R.string.stores_storage_internal_cache_insufficient, formatBytes(size), formatBytes(internalFree))
+                    return StorageCheck(
+                        enough = false,
+                        requiredBytes = size,
+                        availableBytes = freeTarget,
+                        internalRequiredBytes = size,
+                        internalAvailableBytes = internalFree,
+                        isInternalShortage = true,
+                        errorMessage = msg
+                    )
+                }
+            }
+            return StorageCheck(enough = true, requiredBytes = size, availableBytes = freeTarget)
+        }
     }
 
     fun internalRoot(context: Context): File = File(LinuxRuntime.rootDir(context), INTERNAL)
