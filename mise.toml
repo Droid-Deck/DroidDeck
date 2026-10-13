@@ -1,0 +1,7 @@
+[tools]
+java = "temurin-17"
+python = "3"
+gh = "latest"
+rust = { version = "stable", targets = "aarch64-linux-android" }
+"cargo:cargo-ndk" = "latest"
+android-sdk = "latest"
