@@ -1,20 +1,14 @@
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
-index 5b0e300..0f807b1 100644
+index 5b0e300..b9b07ca 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -6875,10 +6875,25 @@ static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vb
+@@ -6875,10 +6875,19 @@ static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vb
  	{
  		if ( g_nSteamCompMgrTargetFPS && bShouldLimitFPS && nRefreshHz > nTargetFPS )
  		{
 -			int nVblankDivisor = nRefreshHz / nTargetFPS;
 +			if ( w && now )
 +			{
-+				// Per window and by time, as the VRR branch does: the next frame may go out on the
-+				// first refresh a capped interval after this window's last one. Every Nth refresh of
-+				// a fixed grid made a frame that missed its slot wait a whole extra slot - at 30 on
-+				// 60 Hz, one picture held for three or four refreshes ("small stops and ladders" with
-+				// frame generation) - where an in-game limiter only slips it by one refresh. Half a
-+				// refresh of tolerance keeps an on-time window on every Nth refresh as before.
 +				uint64_t schedule = w->last_commit_first_latch_time + g_SteamCompMgrLimitedAppRefreshCycle;
 +				if ( now + g_SteamCompMgrAppRefreshCycle / 2 < schedule )
 +					bSendCallback = false;
