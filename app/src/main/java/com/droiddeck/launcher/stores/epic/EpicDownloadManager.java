@@ -172,15 +172,11 @@ public final class EpicDownloadManager {
             if (!chunkCacheDir.isDirectory() && !chunkCacheDir.mkdirs()) throw new InstallException("Could not create Epic chunk cache");
             Map<String, Long> cachedChunkBytes = prepareBoundedCache(chunkCacheDir, needed);
             long pendingBytes = 0;
+            long reclaimableBytes = 0;
             for (FileInfo f : pending) {
                 pendingBytes += f.fileSize();
                 File output = new File(installDir, f.filename.replace("\\", "/"));
-                File parent = output.getParentFile();
-                if (parent != null) parent.mkdirs();
-                // This file failed the delta check, so it cannot be resumed as a valid install.
-                // Remove it before estimating/writing its replacement to avoid requiring space
-                // for both the corrupt file and its verified replacement.
-                if (output.isFile() && !output.delete() && output.exists()) throw new InstallException("Could not replace incomplete file " + output.getName());
+                if (output.isFile()) reclaimableBytes += output.length();
             }
             boolean cacheOnInstallVolume = cachePath.isEmpty();
             long peakGameAdditional = cacheOnInstallVolume
@@ -188,13 +184,23 @@ public final class EpicDownloadManager {
                     : pendingBytes;
             long peakCacheAdditional = cacheOnInstallVolume
                     ? 0 : estimatePeakAdditionalBytes(pending, chunksByGuid, cachedChunkBytes, false);
+            peakGameAdditional = Math.max(0, peakGameAdditional - reclaimableBytes);
             long freeGame = installDir.getUsableSpace();
             if (cacheOnInstallVolume) {
                 if (freeGame > 0 && peakGameAdditional > freeGame) throw new InstallException("Not enough free space for the bounded Epic install: need up to " + fmt(peakGameAdditional) + " additional, only " + fmt(freeGame) + " free");
             } else {
                 long freeCache = chunkCacheDir.getUsableSpace();
                 if (freeCache > 0 && peakCacheAdditional > freeCache) throw new InstallException("Not enough internal space for the bounded Epic download cache: need up to " + fmt(peakCacheAdditional) + " additional, only " + fmt(freeCache) + " free");
-                if (freeGame > 0 && pendingBytes > freeGame) throw new InstallException("Not enough free space: need " + fmt(pendingBytes) + ", only " + fmt(freeGame) + " free");
+                if (freeGame > 0 && peakGameAdditional > freeGame) throw new InstallException("Not enough free space: need " + fmt(peakGameAdditional) + ", only " + fmt(freeGame) + " free");
+            }
+            if (cancel.get()) return null;
+            // Reclaim invalid/old outputs only after both volume checks accept the update.
+            // The peak estimate assumes these bytes are released before replacement writes.
+            for (FileInfo f : pending) {
+                File output = new File(installDir, f.filename.replace("\\", "/"));
+                File parent = output.getParentFile();
+                if (parent != null) parent.mkdirs();
+                if (output.isFile() && !output.delete() && output.exists()) throw new InstallException("Could not replace incomplete file " + output.getName());
             }
             cb.onLog("epic: cache " + (cacheOnInstallVolume ? "beside the game" : "scratch") + ", peak game additional=" + fmt(peakGameAdditional) + (cacheOnInstallVolume ? "" : ", peak cache additional=" + fmt(peakCacheAdditional)) + " for " + fmt(pendingBytes) + " of files");
             final long fTotalBytes = pendingBytes;

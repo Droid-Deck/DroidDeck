@@ -101,6 +101,43 @@ class EpicBoundedInstallTest {
         assertEquals("Verified files must not be downloaded again", 1, requests.get())
     }
 
+    private fun oversizedUpdate() {
+        val file = manifest.files[0]
+        val part = file.parts[0]
+        file.parts.clear()
+        repeat(100_000) {
+            file.parts.add(EpicDownloadManager.ChunkPart().apply {
+                guid = part.guid
+                size = Int.MAX_VALUE
+            })
+        }
+    }
+
+    @Test fun insufficientInstallSpacePreservesExistingFilesOnBothCacheLayouts() {
+        val oldGame = byteArrayOf(9, 8, 7)
+        val oldPart = byteArrayOf(6, 5, 4)
+        File(root, "game.bin").writeBytes(oldGame)
+        File(root, "game.bin.part").writeBytes(oldPart)
+        oversizedUpdate()
+        assertTrue(manifest.files[0].fileSize() > root.usableSpace)
+
+        for (cache in listOf("", temp.newFolder("scratch-rejected").path)) {
+            val error = assertThrows(EpicDownloadManager.InstallException::class.java) { install(cache = cache) }
+            assertTrue(error.message.orEmpty().contains("Not enough free space"))
+            assertArrayEquals(oldGame, File(root, "game.bin").readBytes())
+            assertArrayEquals(oldPart, File(root, "game.bin.part").readBytes())
+        }
+        assertEquals(0, requests.get())
+    }
+
+    @Test fun acceptedUpdateReplacesOutdatedFilesWithVerifiedOutputs() {
+        File(root, "game.bin").writeBytes(byteArrayOf(9, 8, 7))
+        File(root, "game.bin.part").writeBytes(byteArrayOf(6, 5, 4))
+        assertNotNull(install())
+        assertArrayEquals(bytes.copyOfRange(0, bytes.size / 2), File(root, "game.bin").readBytes())
+        assertArrayEquals(bytes.copyOfRange(bytes.size / 2, bytes.size), File(root, "game.bin.part").readBytes())
+    }
+
     @Test fun pauseKeepsCompletedFilesAndResumeReusesSharedCache() {
         val cancel = AtomicBoolean()
         val callback = object : EpicDownloadManager.Callback {

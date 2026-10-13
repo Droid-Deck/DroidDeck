@@ -51,7 +51,9 @@ Streaming stays in the Download stage until all files are written and verified, 
 Install for registration; it does not bounce between stages for each file.
 
 The space check follows the manifest delta pass and simulates file writes, chunk fetches,
-and evictions, rather than adding the entire cache to the entire game. Completed files and
+and evictions, rather than adding the entire cache to the entire game. It accounts for space
+reclaimable from outdated outputs without deleting them until both game and cache volume
+checks pass. An insufficient-space rejection preserves existing game files. Completed files and
 verified cached chunks are accounted for on resume. On a card, game and cache requirements
 are checked separately. File SHA-1 hashes are checked where supplied by the manifest; failed
 or cancelled output files are removed, and an interrupted process is repaired by the next
