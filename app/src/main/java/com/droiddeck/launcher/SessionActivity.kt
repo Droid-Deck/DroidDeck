@@ -62,6 +62,7 @@ import com.droiddeck.launcher.input.SessionClipboard
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.SteamControllerBle
+import com.droiddeck.launcher.input.DirectTouchHold
 import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
@@ -188,6 +189,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
     private var watching = true
     private lateinit var touchpad: TouchpadGestures
+    private lateinit var directTouchHold: DirectTouchHold
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var cursorPos by mutableStateOf(androidx.compose.ui.geometry.Offset(-100f, -100f))
     private var cursorVisible by mutableStateOf(false)
@@ -454,6 +456,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { root.addView(it) }
         keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
+        directTouchHold = DirectTouchHold(PointerGestures.slop(this), pointerListener) {
+            WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
+        }
         // One arrow, ours: Android draws a system pointer for a mouse over any window, and the
         // session already draws the pointer it is sent.
         val noCursor = android.view.PointerIcon.getSystemIcon(this, android.view.PointerIcon.TYPE_NULL)
@@ -1120,6 +1125,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val nextTouchMode = SessionPrefs.touchMode(this)
         if (touchMode != nextTouchMode) {
             if (::touchpad.isInitialized) touchpad.cancel()
+            if (::directTouchHold.isInitialized) directTouchHold.cancel()
             if (CompositorHost.isStarted) {
                 WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
                 listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
@@ -2111,6 +2117,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (next == routedTouchMode) return
         if (::touchpad.isInitialized) touchpad.cancel()
+        if (::directTouchHold.isInitialized) directTouchHold.cancel()
         if (CompositorHost.isStarted) WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
         if (next == SessionPrefs.TOUCH_OFF) cursorVisible = false
         routedTouchMode = next
@@ -2150,6 +2157,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return touchpad.onTouch(event)
         }
         val rect = drawnRect() ?: return false
+        if (directTouchHold.onTouch(event)) return true
         fun sendTouch(action: Int, index: Int) {
             val x = event.getX(index).coerceIn(rect.left, rect.right)
             val y = event.getY(index).coerceIn(rect.top, rect.bottom)
@@ -2307,6 +2315,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             controls.visibility = View.GONE
             steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
+            applyTouchRouting()
             return
         }
         val buttonsOnly = forced == SessionPrefs.OSC_STEAM_QAM
@@ -2323,6 +2332,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (steam == null) {
             steamTouchControls?.let { it.releaseAll(); it.visibility = View.GONE }
             com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
+            applyTouchRouting()
         }
         controls.setButtonsOnly(buttonsOnly)
         val show = when (forced) {
@@ -2389,6 +2399,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onScreenControls?.releaseAll()
             padBridge?.releaseAll()
             touchpad.cancel()
+            directTouchHold.cancel()
             guestKeysDown.toList().forEach { sendGuestKey(it, false) }
             keyboard?.hide()
             sessionClipboard.stop()
@@ -2506,6 +2517,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onPause() {
         if (runtimeRemovalBlocked) { super.onPause(); return }
         sessionClipboard.stop()
+        if (::directTouchHold.isInitialized) directTouchHold.cancel()
         // Do not carry transient session UI across an app/display transition. In particular, the
         // drawer's dim layer can otherwise remain over Steam when this activity returns.
         drawerOpen = false
