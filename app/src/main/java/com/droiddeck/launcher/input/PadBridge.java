@@ -38,6 +38,7 @@ public final class PadBridge {
     private static final float DEAD_ZONE = 0.12f;
     private static final int[] JOYSTICK_AXES = {
             MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
+            MotionEvent.AXIS_RX, MotionEvent.AXIS_RY,
             MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y, MotionEvent.AXIS_LTRIGGER,
             MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS
     };
@@ -340,13 +341,32 @@ public final class PadBridge {
         // Android's Y axis grows downwards and evdev's ABS_Y does too, so no flip here: what the
         // pad reports as "down" is what the client is told.
         pad.leftY = axis(event, MotionEvent.AXIS_Y);
-        pad.rightX = axis(event, MotionEvent.AXIS_Z);
-        pad.rightY = axis(event, MotionEvent.AXIS_RZ);
-        float lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
-        float rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
-        // Some pads only report the triggers on BRAKE/GAS.
-        if (lt == 0f) lt = event.getAxisValue(MotionEvent.AXIS_BRAKE);
-        if (rt == 0f) rt = event.getAxisValue(MotionEvent.AXIS_GAS);
+        InputDevice device = event.getDevice();
+        // Confirmed on PowerA 20d6:2063 and PDP 0e6f:02f0: RX/RY are the right stick, while
+        // Z/RZ are independent triggers resting at -1 and fully pressed at +1.
+        // Keep the override device-specific until other layouts are verified.
+        boolean wiredXboxLayout = device != null
+                && ((device.getVendorId() == 0x20d6 && device.getProductId() == 0x2063)
+                || (device.getVendorId() == 0x0e6f && device.getProductId() == 0x02f0))
+                && device.getMotionRange(MotionEvent.AXIS_RX, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_RY, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_Z, event.getSource()) != null
+                && device.getMotionRange(MotionEvent.AXIS_RZ, event.getSource()) != null;
+        pad.rightX = axis(event, wiredXboxLayout ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
+        pad.rightY = axis(event, wiredXboxLayout ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
+        float lt;
+        float rt;
+        if (wiredXboxLayout) {
+            // Read triggers without the stick dead zone: -1 must become zero.
+            lt = Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_Z) + 1f) / 2f));
+            rt = Math.max(0f, Math.min(1f, (event.getAxisValue(MotionEvent.AXIS_RZ) + 1f) / 2f));
+        } else {
+            lt = event.getAxisValue(MotionEvent.AXIS_LTRIGGER);
+            rt = event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
+            // Some pads only report the triggers on BRAKE/GAS.
+            if (lt == 0f) lt = event.getAxisValue(MotionEvent.AXIS_BRAKE);
+            if (rt == 0f) rt = event.getAxisValue(MotionEvent.AXIS_GAS);
+        }
         pad.leftTrigger = lt;
         pad.rightTrigger = rt;
         float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
