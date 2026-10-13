@@ -106,13 +106,12 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     val (glasses, glassesSettings) = rememberGlasses()
     val drop = rememberDropSheetState()
     LaunchedEffect(glasses.present) { if (!glasses.present && (drop.open || drop.shown)) drop.reset() }
-    val glassesLabel = stringResource(R.string.glasses_open)
     LiftHero(
         key = "steam", tabs = tabs,
         drop = drop.takeIf { glasses.present },
         overlay = { lifted ->
-            if (glasses.present) DropSheet(drop, glasses.model, GlassesIcon, glassesLabel, covered = lifted) {
-                GlassesGroups(rememberMenuHost(), glasses, glassesSettings, inSession = false)
+            if (glasses.present) DropSheet(drop, glasses.model, GlassesIcon, glassesTabs(glasses), covered = lifted) { tab ->
+                GlassesGroups(rememberMenuHost(), glasses, glassesSettings, inSession = false, tab = tab)
             }
         },
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,

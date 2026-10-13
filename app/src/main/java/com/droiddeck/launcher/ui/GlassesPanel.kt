@@ -62,6 +62,17 @@ internal fun rememberGlasses(): Pair<GlassesState, GlassesSettings> {
     return g to s
 }
 
+internal object GlassesTab {
+    const val DISPLAY = "display"
+    const val HARDWARE = "hardware"
+    const val TRACKING = "tracking"
+}
+
+@Composable
+internal fun glassesTabs(g: GlassesState): List<Pair<String, String>> =
+    listOf(GlassesTab.DISPLAY to stringResource(R.string.glasses_display)) +
+        (if (g.canControl) listOf(GlassesTab.HARDWARE to stringResource(R.string.glasses_hardware), GlassesTab.TRACKING to stringResource(R.string.glasses_tracking)) else emptyList())
+
 @Composable
 internal fun GlassesGroups(
     host: MenuHost,
@@ -70,9 +81,11 @@ internal fun GlassesGroups(
     track: (String) -> Modifier = { Modifier },
     onRecenter: (() -> Unit)? = null,
     inSession: Boolean = true,
+    tab: String? = null,
     steamVr: @Composable () -> Unit = {},
 ) {
-    SettingsGroup(g.model) {
+    val display = tab == null || tab == GlassesTab.DISPLAY
+    if (display) SettingsGroup(g.model) {
         val status = if (g.hasDisplay) stringResource(R.string.glasses_status, g.width, g.height, kotlin.math.round(g.hz).toInt(),
             stringResource(if (g.sbs) R.string.glasses_mode_3d else R.string.glasses_mode_2d)) else null
         when {
@@ -89,7 +102,7 @@ internal fun GlassesGroups(
         ToggleRow(host, "glasses-game", stringResource(R.string.glasses_game_on), stringResource(R.string.glasses_game_on_hint),
             s.gameOnGlasses, chipModifier = track("glasses-game")) { Glasses.setGameOnGlasses(it) }
     }
-    if (g.canControl) SettingsGroup(stringResource(R.string.glasses_display)) {
+    if (display && g.canControl) SettingsGroup(stringResource(R.string.glasses_display)) {
         ChoiceRow(host, "glasses-hz", stringResource(R.string.glasses_refresh), null,
             listOf(60, 90, 120).map { it to "$it Hz" }, s.refreshHz, chipModifier = track("glasses-hz")) { Glasses.setRefreshHz(it) }
         if (g.sbsSupport == GlassesState.SBS_FAILS && !g.sbs) {
@@ -116,7 +129,7 @@ internal fun GlassesGroups(
         }
         steamVr()
     }
-    if (g.canControl) SettingsGroup(stringResource(R.string.glasses_hardware)) {
+    if ((tab == null || tab == GlassesTab.HARDWARE) && g.canControl) SettingsGroup(stringResource(R.string.glasses_hardware)) {
         SliderRow(stringResource(R.string.glasses_brightness), null, g.brightness.coerceAtLeast(0), 0..g.brightnessMax, step = 1,
             modifier = track("glasses-brightness")) { Glasses.setBrightness(it) }
         SliderRow(stringResource(R.string.glasses_volume), null, g.volume.coerceAtLeast(0), 0..g.volumeMax, step = 1,
@@ -124,7 +137,7 @@ internal fun GlassesGroups(
         ToggleRow(host, "glasses-sunblock", stringResource(R.string.glasses_sunblock), stringResource(R.string.glasses_sunblock_hint),
             g.sunblock, chipModifier = track("glasses-sunblock")) { Glasses.setSunblock(it) }
     }
-    if (g.canControl) SettingsGroup(stringResource(R.string.glasses_tracking)) {
+    if ((tab == null || tab == GlassesTab.TRACKING) && g.canControl) SettingsGroup(stringResource(R.string.glasses_tracking)) {
         ToggleRow(host, "glasses-tracking", stringResource(R.string.glasses_head_tracking), stringResource(R.string.glasses_head_tracking_hint),
             s.headTracking, chipModifier = track("glasses-tracking")) { Glasses.setHeadTracking(it) }
         if (onRecenter != null && s.headTracking) ActionRow(stringResource(R.string.glasses_recenter), null,

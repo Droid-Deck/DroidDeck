@@ -43,6 +43,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.Job
@@ -724,7 +725,7 @@ internal fun LiftHero(
  * saying there is a drawer to pull up. Still with animations off.
  */
 @Composable
-private fun Handle(height: Dp) {
+internal fun Handle(height: Dp, down: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
@@ -752,8 +753,8 @@ private fun Handle(height: Dp) {
     ) {
         Text(stringResource(R.string.drawer_page_settings), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
         Icon(
-            Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else -3.dp.toPx() * lift },
+            if (down) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
+            modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else (if (down) 3.dp else -3.dp).toPx() * lift },
         )
     }
 }
