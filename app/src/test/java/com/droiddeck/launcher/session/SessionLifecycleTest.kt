@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Looper
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -22,6 +23,8 @@ import org.robolectric.annotation.LooperMode
 @LooperMode(LooperMode.Mode.PAUSED)
 class SessionLifecycleTest {
     @Before @After fun reset() {
+        OrphanReaper.closeSessionWork()
+        OrphanReaper.clearCleanupRequired(LinuxRuntime.rootDir(RuntimeEnvironment.getApplication()))
         SessionState.running = false
         SessionState.finishStop()
         SessionState.stopRequested = false
@@ -52,6 +55,46 @@ class SessionLifecycleTest {
         assertTrue(SessionState.stopping)
         SessionState.finishStop()
         assertTrue(SessionState.tryStart())
+    }
+
+    @Test fun teardownClosesAndDrainsInFlightSessionWork() {
+        assertTrue(SessionState.tryStart())
+        assertTrue(OrphanReaper.openSessionWork())
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val worker = Thread {
+            OrphanReaper.withSessionWork {
+                entered.countDown()
+                release.await()
+            }
+        }
+        worker.start()
+        try {
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            OrphanReaper.closeSessionWork()
+            assertNull(OrphanReaper.withSessionWork { fail("closed session work must not start") })
+            val draining = java.util.concurrent.CountDownLatch(1)
+            val drain = Thread {
+                draining.countDown()
+                OrphanReaper.awaitSessionWork()
+            }
+            drain.start()
+            assertTrue(draining.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
+            while (drain.state != Thread.State.BLOCKED && System.nanoTime() < deadline) Thread.yield()
+            assertEquals(Thread.State.BLOCKED, drain.state)
+            assertTrue(drain.isAlive)
+            release.countDown()
+            worker.join(5000)
+            drain.join(5000)
+            assertFalse(worker.isAlive)
+            assertFalse(drain.isAlive)
+        } finally {
+            release.countDown()
+            worker.join(5000)
+            SessionState.beginStop()
+            SessionState.finishStop()
+        }
     }
 
     @Test fun activityRecreatedDuringStopReattachesAndReceivesCompletion() {
@@ -158,11 +201,31 @@ class SessionLifecycleTest {
 
     @Test fun failedCleanupStillBlocksRuntimeRemovalUntilTeardownFinishes() {
         beginTeardown()
-        SessionState.phase = SessionPhase.FAILED
         val context = RuntimeEnvironment.getApplication()
-        assertNull(LinuxRuntimeInstaller.beginUninstall(context))
-        assertNull(LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop"))
-        assertFalse(LinuxRuntimeInstaller.isBusy())
+        val root = LinuxRuntime.rootDir(context)
+        OrphanReaper.markCleanupRequired(root)
+        SessionEvents.fail("SESSION_CLEANUP_FAILED", "Session processes are still running", -1)
+        val service = Robolectric.buildService(SessionService::class.java).create()
+        try {
+            SessionService::class.java.getDeclaredMethod(
+                "finishSessionStop", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+            ).apply { isAccessible = true }.invoke(service.get(), -1, 0)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertFalse(SessionState.stopping)
+            assertTrue(OrphanReaper.hasSessionProcesses(context))
+            assertTrue(java.io.File(context.filesDir, "session-cleanup-required").isFile)
+            assertNull(LinuxRuntimeInstaller.beginUninstall(context))
+            assertNull(LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop"))
+            assertFalse(LinuxRuntimeInstaller.isBusy())
+
+            OrphanReaper.updateCleanupMarker(root, ProcessCleanup.Result(0, emptyList()))
+            assertFalse(OrphanReaper.hasSessionProcesses(context))
+            val maintenance = LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop")
+            assertNotNull(maintenance)
+            assertTrue(maintenance.run(null) { null })
+        } finally {
+            service.destroy()
+        }
     }
 
     @Test fun survivingSessionSandboxBlocksRuntimeRemoval() {
