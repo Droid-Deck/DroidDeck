@@ -1,0 +1,126 @@
+#!/usr/bin/python3
+"""Programs the app asks the desktop to open: Battle.net from its tile on the Desktop tab.
+
+    droiddeck-desktop-requests            runs each request until the desktop ends
+    droiddeck-desktop-requests --install  writes the autostart entry Plasma starts this from
+
+The app leaves a request in the session root ($BL_LAUNCH_DIR/desktop-open, tmp + rename): the
+program's path on the first line, then one argument a line. It writes one as the desktop starts and
+into a desktop that is already running. Plasma starts this once its shell is up, from the autostart
+entry, so a program opened here has the session's environment, as one opened from the menu has.
+It then looks for a request every POLL seconds. Only the app's own programs (in /usr/local/bin) run.
+"""
+import fcntl
+import os
+import subprocess
+import sys
+import time
+
+BIN = "/usr/local/bin"
+REQUEST = "desktop-open"
+AUTOSTART = "/etc/xdg/autostart/droiddeck-desktop-requests.desktop"
+ENTRY = ("[Desktop Entry]\nType=Application\nName=DroidDeck requests\nExec=%s\n"
+         "OnlyShowIn=KDE;\nNoDisplay=true\n" % os.path.join(BIN, "droiddeck-desktop-requests"))
+POLL = 1
+
+
+def say(message):
+    print("droiddeck-desktop-requests: %s" % message, file=sys.stderr, flush=True)
+
+
+def install(path=AUTOSTART):
+    try:
+        with open(path, encoding="utf-8") as f:
+            if f.read() == ENTRY:
+                return
+    except OSError:
+        pass
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        f.write(ENTRY)
+    os.replace(path + ".tmp", path)
+
+
+def take(folder):
+    """The request waiting in [folder], read and removed, as [program, args...]; None when there is none."""
+    path = os.path.join(folder, REQUEST)
+    taken = path + ".taken"
+    try:
+        os.replace(path, taken)
+    except OSError:
+        return None
+    try:
+        with open(taken, encoding="utf-8") as f:
+            lines = f.read().split("\n")
+    except OSError:
+        return None
+    finally:
+        try:
+            os.remove(taken)
+        except OSError:
+            pass
+    while lines and not lines[-1]:
+        lines.pop()
+    return lines or None
+
+
+def allowed(program, folder=BIN):
+    return os.path.dirname(program) == folder and os.path.isfile(program) and os.access(program, os.X_OK)
+
+
+def run(request, folder=BIN):
+    program = request[0]
+    if not allowed(program, folder):
+        say("not opening %r: only the app's own programs in %s" % (program, folder))
+        return False
+    say("opening %s" % " ".join(request))
+    try:
+        subprocess.Popen(request, stdin=subprocess.DEVNULL, start_new_session=True)
+    except OSError as error:
+        say("%s: %s" % (program, error))
+        return False
+    return True
+
+
+def single(folder):
+    """This desktop's only copy: the lock, or None when another copy holds it."""
+    handle = open(os.path.join(folder, "droiddeck-desktop-requests.lock"), "w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return None
+    return handle
+
+
+def serve(folder, rounds=None, poll=POLL):
+    done = 0
+    while rounds is None or done < rounds:
+        request = take(folder)
+        if request:
+            run(request)
+        done += 1
+        if rounds is None or done < rounds:
+            time.sleep(poll)
+
+
+def main(argv):
+    if argv[:1] == ["--install"]:
+        install()
+        return 0
+    if argv:
+        say("usage: droiddeck-desktop-requests [--install]")
+        return 2
+    folder = os.environ.get("BL_LAUNCH_DIR")
+    if not folder or not os.path.isdir(folder):
+        return 0
+    lock = single(os.environ.get("XDG_RUNTIME_DIR") or folder)
+    if lock is None:
+        return 0
+    with lock:
+        serve(folder)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

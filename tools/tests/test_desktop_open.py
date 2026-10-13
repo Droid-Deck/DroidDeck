@@ -456,6 +456,16 @@ class ProtonRunTest(Temp):
                          ("0", "0", str(appid << 32 | 0x02000000), "1"))
         self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(self.root / ("steamapps/compatdata/%d" % appid)))
 
+    def test_a_window_draws_with_the_desktops_software_gl(self):
+        target = RUN["Target"]("2596113170", "/c", "/i", str(self.root), "fixed")
+        session = {"MESA_LOADER_DRIVER_OVERRIDE": "zink", "GALLIUM_DRIVER": "zink", "LIBGL_KOPPER_DRI2": "true"}
+        env = RUN["environment"](session, target, "/tool", str(self.root), window=True)
+        self.assertEqual((env["LIBGL_ALWAYS_SOFTWARE"], env["GALLIUM_DRIVER"]), ("1", "llvmpipe"))
+        self.assertNotIn("MESA_LOADER_DRIVER_OVERRIDE", env)
+        self.assertNotIn("LIBGL_KOPPER_DRI2", env)
+        # Full screen on the GPU keeps the session's choice.
+        self.assertEqual(RUN["environment"](session, target, "/tool", str(self.root))["GALLIUM_DRIVER"], "zink")
+
     def test_a_steam_game_keeps_its_own_id(self):
         target = RUN["Target"]("413150", "/c", "/i", str(self.root), "steam")
         env = RUN["environment"]({"PROTON_USE_WINED3D": "0"}, target, "/tool", str(self.root), window=True)

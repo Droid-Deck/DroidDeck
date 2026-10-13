@@ -211,6 +211,10 @@ object AddedGames {
         // Games the Stores section installed: one folder each under <root>/<Store>/, with a sidecar.
         // An unfinished one (sidecar still `installing`, or none at all) is neither a game nor Custom.
         for (folder in StoreInstallRoot.gameFolders(context)) if (StoreInstallRoot.isFinished(folder)) scanGame(context, folder, out)
+        // The games Battle.net installed in its prefix: each a shortcut that has Battle.net launch it.
+        for (game in com.droiddeck.launcher.runtime.BattleNet.games(context)) {
+            if (game.folder.path !in removed) com.droiddeck.launcher.runtime.BattleNet.shortcut(context, game)?.let(out::add)
+        }
         return out.distinctBy { it.folder.canonicalPath }
     }
 
@@ -500,6 +504,8 @@ object AddedGames {
                 .append(",\"dir\":").append(quote(g.guestDir)).append(",\"appid\":").append(g.appId)
                 .append(",\"seen\":").append(SessionPrefs.addedGameExeSeen(context, g.folder.path))
             if (g.launchOptions.isNotEmpty()) json.append(",\"launch\":").append(quote(g.launchOptions))
+            // Battle.net launches its games: never one made a Steam install of the same title.
+            if (g.source == com.droiddeck.launcher.runtime.BattleNet.SOURCE) json.append(",\"route\":false")
             // The art, as the session sees it: the app's cache is bound at its own path, a file in
             // the game's folder at the folder's guest path.
             val art = AddedGameArt.resolve(context, g)

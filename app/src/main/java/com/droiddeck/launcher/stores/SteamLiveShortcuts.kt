@@ -41,7 +41,7 @@ object SteamLiveShortcuts {
         val wanted = games.filter(include)
         if (wanted.isEmpty() || !clientRunning()) return
         val list = JSONArray()
-        for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir))
+        for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir).put("launch", g.launchOptions))
         val js = """
             (async () => {
               const want = ${list};
@@ -50,7 +50,7 @@ object SteamLiveShortcuts {
               let added = 0;
               for (const w of want) {
                 if (have.some(a => a.data && strip(a.data.strExePath) === w.exe && a.data.strAppName === w.name)) continue;
-                const id = await SteamClient.Apps.AddShortcut(w.name, w.exe, w.dir, "");
+                const id = await SteamClient.Apps.AddShortcut(w.name, w.exe, w.dir, w.launch);
                 if (!id) continue;
                 try { SteamClient.Apps.AddUserTagToApps([id], ${JSONObject.quote(TAG_NAME)}); } catch (e) {}
                 try { SteamClient.Apps.SpecifyCompatTool(id, ${JSONObject.quote(COMPAT_TOOL)}); } catch (e) {}

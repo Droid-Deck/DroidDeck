@@ -31,8 +31,12 @@ object Library {
     ) {
         /** Decimal form used by Steam links and Android shortcuts, including unsigned shortcut ids. */
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
-        /** Key used by per-game environment and Windows-component profiles. */
-        val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
+        /** Key used by per-game environment and Windows-component profiles: Battle.net's prefix for its games, which run there. */
+        val profileKey: String get() = when {
+            source == com.droiddeck.launcher.runtime.BattleNet.SOURCE -> com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
+            library == ADDED -> java.lang.Integer.toUnsignedString(appId)
+            else -> appId.toString()
+        }
     }
     /** The [SteamGame.library] of a game added to the library rather than installed by Steam, and the [SteamGame.source] of a plain added folder. */
     const val ADDED = "added"
@@ -166,7 +170,8 @@ object Library {
             SteamGame(
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
                 hero = art.hero ?: art.header, gameFiles = g.folder,
-                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
+                protonPrefix = if (g.source == com.droiddeck.launcher.runtime.BattleNet.SOURCE) File(com.droiddeck.launcher.runtime.BattleNet.prefix(context), "pfx").takeIf { it.isDirectory }
+                    else protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId,
             )
