@@ -6,24 +6,17 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.*
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], manifest = Config.NONE)
 class DesktopMaintenanceTest {
     @Test(timeout = 15000) fun reservationBlocksRuntimeChangesAndFollowersSurviveScreenRecreation() {
-        val context = RuntimeEnvironment.getApplication()
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
-        val operation = LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop")!!
+        val operation = LinuxRuntimeInstaller.beginMaintenance(null, "Removing desktop")!!
         assertTrue(LinuxRuntimeInstaller.isBusy())
         assertTrue(LinuxRuntimeInstaller.isMaintaining())
         assertFalse(LinuxRuntimeInstaller.isRemoving())
         assertFalse(LinuxRuntimeInstaller.install(null, null, null))
-        assertNull(LinuxRuntimeInstaller.beginMaintenance(context, "other"))
+        assertNull(LinuxRuntimeInstaller.beginMaintenance(null, "other"))
         assertNull(LinuxRuntimeInstaller.beginUninstall(null, java.io.File("unused")))
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -54,18 +47,17 @@ class DesktopMaintenanceTest {
     }
 
     @Test(timeout = 15000) fun refusesActiveOrStartingSessionsAndReportsFailureWithoutRetainingTheReservation() {
-        val context = RuntimeEnvironment.getApplication()
         SessionState.phase = SessionPhase.STARTING_GUEST
-        assertNull(LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop"))
+        assertNull(LinuxRuntimeInstaller.beginMaintenance(null, "Removing desktop"))
         SessionState.phase = SessionPhase.IDLE
         SessionState.running = true
-        assertNull(LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop"))
+        assertNull(LinuxRuntimeInstaller.beginMaintenance(null, "Removing desktop"))
         SessionState.running = false
-        val operation = LinuxRuntimeInstaller.beginMaintenance(context, "Removing desktop")!!
+        val operation = LinuxRuntimeInstaller.beginMaintenance(null, "Removing desktop")!!
         assertFalse(operation.run(null) { "cannot unlink" })
         assertEquals("cannot unlink", LinuxRuntimeInstaller.removalError())
         assertFalse(LinuxRuntimeInstaller.isBusy())
-        assertTrue(LinuxRuntimeInstaller.beginMaintenance(context, "retry")!!.run(null) { null })
+        assertTrue(LinuxRuntimeInstaller.beginMaintenance(null, "retry")!!.run(null) { null })
         assertNull(LinuxRuntimeInstaller.removalError())
     }
 }
