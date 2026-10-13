@@ -1489,13 +1489,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * The rate of the mode PerfMode asked for, not the one the panel is still in: the switch lands
      * some frames after onCreate, and read too early it gave gamescope `-r 60` on a 120 Hz panel -
      * the client and every game then paced themselves to 60. (WinNative's requestedPanelRefreshRate.)
+     * Never above the user's peak refresh rate, which Android holds the panel to whatever mode is
+     * active; it is the rate gamescope gives Steam, and the QAM's Frame Limit divides it.
      */
     private fun refreshHz(): Float {
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val hz = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
             ?: display?.refreshRate ?: 60f
-        return if (hz > 1f) hz else 60f
+        val capped = minOf(hz, PerfMode.peakRefreshCap(this))
+        return if (capped > 1f) capped else 60f
     }
 
     /**
