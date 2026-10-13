@@ -83,9 +83,11 @@ Added by DroidDeck:
   Host build: `ioctl` 31.6 -> 0.5 us; `stat`/`statx`/`faccessat2` about 44 -> 28 us (one stop).
 - `0015-statx-mnt-id-fdinfo.patch` - kernels before 5.8 can complete `statx` without the mount ID
   that libglnx requires while chasing an open descriptor. PRoot keeps the exit stop on those
-  kernels and fills only a missing ordinary `STATX_MNT_ID` for `AT_EMPTY_PATH` when the descriptor's
-  fdinfo inode matches the successful statx result. It does not synthesize
-  `STATX_MNT_ID_UNIQUE`.
+  kernels and fills only a missing ordinary `STATX_MNT_ID` for `AT_EMPTY_PATH` after pinning the
+  tracee descriptor, matching its device and inode to the successful statx result, and reading
+  `mnt_id` from the pin's fdinfo. A later close/reuse of the tracee fd cannot redirect that read;
+  a concurrent reuse for the same inode through a different bind mount is indistinguishable at
+  the exit stop. It does not synthesize `STATX_MNT_ID_UNIQUE`.
 
 Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-performance.md`):
 
