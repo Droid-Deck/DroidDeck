@@ -12,6 +12,8 @@ and reports every run.
   answers each command with JSON. It and the session-start Activity (`AgentStartActivity`) are in
   every build and require `android.permission.DUMP`, held by the ADB shell and privileged or
   explicitly granted callers. The provider checks the calling permission before decoding requests.
+  A build shipped under another package (`tools/release/variants.txt`) answers at
+  `content://<package>.agent`: set `DROIDDECK_PACKAGE` to that package for `droiddeckctl`.
 - **The guest agent** `droiddeck-agent` runs inside every session (started by
   `droiddeck-session`). It runs commands with the session's own environment, publishes gamescope's
   focus, and talks to the Steam client's DevTools, which only accepts guest processes. The app and

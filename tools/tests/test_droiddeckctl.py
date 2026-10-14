@@ -12,6 +12,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+import unittest.mock
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
@@ -121,6 +122,15 @@ class DroiddeckctlTest(FakeAdbTest):
             ctl.provider_call(str(self.adb), "fake-1", "guest", request={"stdin": "x" * ctl.REQUEST_CAP})
         self.assertEqual("INVALID_REQUEST", caught.exception.code)
         self.assertFalse(self.calls())
+
+    def test_a_variant_package_is_reached_through_its_own_provider_and_activity(self):
+        with unittest.mock.patch.dict(os.environ, {"DROIDDECK_PACKAGE": "com.antutu.benchmark.full"}):
+            variant = load("droiddeckctl")
+        self.assertEqual("content://com.antutu.benchmark.full.agent", variant.AUTHORITY)
+        with self.assertRaises(variant.ControlError):  # the fake adb does not answer `am start`
+            variant.start_agent_activity(str(self.adb), "fake-1", {"mode": "steam"})
+        started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
+        self.assertIn("com.antutu.benchmark.full/com.droiddeck.launcher.agent.AgentStartActivity", started[0])
 
     def test_state_passes_through_with_the_serial(self):
         self.configure({"state": state()})

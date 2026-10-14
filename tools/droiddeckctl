@@ -18,8 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from adb_device import DeviceResolutionError, resolve_serial
 
 
-AUTHORITY = "content://com.droiddeck.launcher.agent"
-PACKAGE = "com.droiddeck.launcher"
+# tools/release/variants.txt: the same app also ships as other packages (e.g. com.antutu.benchmark.full).
+PACKAGE = os.environ.get("DROIDDECK_PACKAGE", "com.droiddeck.launcher")
+AUTHORITY = f"content://{PACKAGE}.agent"
 STEAM_CLIENT_APP = 769
 REQUEST_CAP = 256 * 1024
 
@@ -117,7 +118,7 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
         "start",
         "-W",
         "-n",
-        f"{PACKAGE}/.agent.AgentStartActivity",
+        f"{PACKAGE}/com.droiddeck.launcher.agent.AgentStartActivity",
         "--es",
         "request",
         encoded,
