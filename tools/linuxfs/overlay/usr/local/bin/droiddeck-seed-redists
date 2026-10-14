@@ -139,6 +139,51 @@ unseed() {
   return 1
 }
 
+# The ledger lines whose values the registry still holds, in both views where we wrote both. A Proton
+# update replaces its default_pfx system.reg but not our ledger beside it, and new prefixes copy both.
+present() { awk -F'\t' '
+  NR == FNR {
+    path = $1
+    if (path != "vcrt") {
+      sub(/^HKEY_LOCAL_MACHINE\\\\/, "", path)
+      if (path == $1)
+        next
+    }
+    n++
+    line[n] = $0
+    need[n] = 0
+    if (path == "vcrt") {
+      for (a = split("x86 x64 arm64", arch, " "); a > 0; a--) {
+        runtime = "microsoft\\\\visualstudio\\\\14.0\\\\vc\\\\runtimes\\\\" arch[a]
+        key[n, ++need[n]] = "[software\\\\" runtime "]" SUBSEP "installed"
+        key[n, ++need[n]] = "[software\\\\wow6432node\\\\" runtime "]" SUBSEP "installed"
+      }
+    } else {
+      both = substr(path, 1, 10) == "Software\\\\"
+      path = tolower(path)
+      key[n, ++need[n]] = "[" path "]" SUBSEP tolower($2)
+      if (both)
+        key[n, ++need[n]] = "[software\\\\wow6432node\\\\" substr(path, 11) "]" SUBSEP tolower($2)
+    }
+    for (j = 1; j <= need[n]; j++) wanted[key[n, j]] = 1
+    next
+  }
+  /^\[/ { section = tolower(substr($0, 1, index($0, "]"))) }
+  /^"/ {
+    value = substr($0, 2)
+    value = tolower(substr(value, 1, index(value, "\"=") - 1))
+    if ((section SUBSEP value) in wanted)
+      seen[section SUBSEP value] = 1
+  }
+  END {
+    for (i = 1; i <= n; i++) {
+      ok = 1
+      for (j = 1; j <= need[i]; j++) if (!(key[i, j] in seen)) ok = 0
+      if (ok) print line[i]
+    }
+  }
+' - "$1"; }
+
 for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
@@ -165,6 +210,17 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
     for line in "${kept[@]}"; do had[$line]=1; done
     printf '%s\n' "${kept[@]}" >"$seeded"
     echo "== took Vulkan runtime markers out of $reg"
+  fi
+  if [ ${#had[@]} -gt 0 ]; then
+    declare -A held=()
+    while IFS= read -r line; do [[ $line == *$'\t'* ]] && held[$line]=1; done < <(printf '%s\n' "${!had[@]}" | present "$reg")
+    if [ ${#held[@]} -lt ${#had[@]} ]; then
+      echo "== $((${#had[@]} - ${#held[@]})) recorded redist markers are gone from $reg"
+      had=()
+      for line in "${!held[@]}"; do had[$line]=1; done
+      printf '%s\n' "${!had[@]}" >"$seeded"
+    fi
+    unset held
   fi
   missing=()
   for line in "${want[@]}"; do [ -n "${had[$line]:-}" ] || missing+=("$line"); done

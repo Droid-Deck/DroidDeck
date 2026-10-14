@@ -477,6 +477,55 @@ def steam_selection(agent_dir, timeout=5):
     return {"appId": int(value)}
 
 
+def steam_shortcut_app_id(game_id):
+    """Return the 32-bit app id in Steam's shortcut CGameID form, or None for other ids.
+
+    DroidDeck's shortcut IDs are `(appid << 32) | 0x02000000`. The URL still needs that full
+    CGameID for RunGame; the app-details API separately needs the unsigned 32-bit app id.
+    """
+    if not isinstance(game_id, str) or not game_id.isascii() or not game_id.isdigit():
+        return None
+    try:
+        game_id_value = int(game_id)
+    except ValueError:
+        return None
+    if str(game_id_value) != game_id or not 0 < game_id_value <= 0xFFFFFFFFFFFFFFFF:
+        return None
+    if game_id_value <= 0xFFFFFFFF or game_id_value & 0xFFFFFFFF != 0x02000000:
+        return None
+    app_id = game_id_value >> 32
+    return app_id if 0 < app_id <= 0xFFFFFFFF else None
+
+
+def wait_for_steam_shortcut_overview(agent_dir, game_id, timeout=45):
+    """Wait until Steam can map a shortcut CGameID to its 32-bit app overview."""
+    app_id = steam_shortcut_app_id(game_id)
+    if app_id is None:
+        return {"supported": False, "ready": False}
+
+    timeout = request_timeout({"timeout": timeout}, 45)
+    deadline = time.monotonic() + timeout
+    expression = """(() => {
+        const store = globalThis.appStore;
+        if (typeof store?.GetAppOverviewByGameID !== 'function') return null;
+        const overview = store.GetAppOverviewByGameID(%s);
+        return overview == null ? null : String(overview.appid);
+    })()""" % json.dumps(game_id)
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            result = cdp_eval(agent_dir, expression, await_promise=False,
+                              timeout=min(5, max(0.25, remaining)))
+            if result.get("value") == str(app_id):
+                return {"supported": True, "ready": True, "appId": app_id}
+        except AgentError as error:
+            if error.code not in ("NO_DEVTOOLS", "DEVTOOLS_UNREACHABLE", "NO_TARGET", "TIMEOUT"):
+                raise
+        time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+    raise AgentError("STEAM_OVERVIEW_TIMEOUT", "Steam did not load shortcut app overview %d" % app_id)
+
 
 def game_pids(app_id):
     """Our processes started for this Steam app (Steam sets SteamAppId / SteamGameId in their
@@ -740,6 +789,21 @@ def main(argv):
     if not base:
         print("BL_LAUNCH_DIR is not set", file=sys.stderr)
         return 2
+    if argv and argv[0] == "--wait-steam-shortcut-overview":
+        if len(argv) not in (2, 3):
+            print("usage: droiddeck-agent --wait-steam-shortcut-overview <cgameid> [timeout-seconds]", file=sys.stderr)
+            return 2
+        timeout = argv[2] if len(argv) == 3 else 45
+        try:
+            prepared = wait_for_steam_shortcut_overview(Path(base) / "agent", argv[1], timeout)
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: shortcut overview was not ready: %s" % error, file=sys.stderr)
+            return 1
+        if not prepared["supported"]:
+            print("droiddeck-agent: id is not a DroidDeck shortcut CGameID")
+            return 3
+        print("droiddeck-agent: Steam overview is ready for shortcut app %d" % prepared["appId"])
+        return 0
     serve(Path(base) / "agent", focus="--no-focus" not in argv)
     return 0
 

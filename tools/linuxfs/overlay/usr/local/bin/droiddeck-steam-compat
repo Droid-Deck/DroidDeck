@@ -442,27 +442,49 @@ class Helper:
             installed = COMPAT["installed_apps"](self.steam_root)
             self.installed = installed
             picks = COMPAT["valve_picks"](self.steam_root)
-            apps = sorted(set(installed) | set(picks) | set(state.get("auto", {})), key=COMPAT["app_order"])
+            prior_auto = state.get("auto", {})
+            if not isinstance(prior_auto, dict):
+                prior_auto = {}
+            prior_native = state.get("native", ())
+            native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
+            apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
             overrides = COMPAT["requested_games"](
                 COMPAT["game_requests"](), catalog, [t["name"] for t in live])
             apps = sorted(set(apps) | set(overrides), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
             current["0"] = top["selected"]
-            native = COMPAT["native_targets"](self.steam_root, installed)
+            native = COMPAT["native_targets"](self.steam_root, apps)
+            raw_mapping = COMPAT["read_config_mapping"](
+                os.path.join(self.steam_root, "config", "config.vdf"))
+            if raw_mapping is None:
+                for app in native_choices:
+                    current[app] = ""
+            else:
+                for app in set(native) | native_choices:
+                    if app in raw_mapping:
+                        current[app] = raw_mapping[app]
+                    elif app in prior_auto or app in native_choices:
+                        current[app] = ""
             changes, auto = COMPAT["plan_mapping"](
                 current, installed, [t["name"] for t in live], default,
-                COMPAT["followers"](state, current), native, picks, overrides)
+                COMPAT["followers"](state, current), native, picks, overrides,
+                prior_auto.keys(), native_choices)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
-                page.compat("set(%d, %s)" % (int(app), json.dumps(tool)))
-                say("%s -> %s" % ("default" if app == "0" else "app %s" % app, tool))
-            state.update(auto=auto, tools=catalog, live=True)
+                page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
+                say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
+                                   tool if tool is not None else "Steam native default"))
+            state.update(
+                auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
+                native=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
+                tools=catalog, live=True)
             if waiting:
                 state["pending"] = wanted
                 say("%s is new to the running client; it applies when Steam next starts" % wanted)
             else:
                 state.pop("pending", None)
             COMPAT["write_json"](state_file, state)
-        if native or os.path.exists(COMPAT["fex_wanted_marker"]()):
+        if (any(app in installed and tool == COMPAT["FEX_TOOL"] for app, tool in native.items()) or
+                os.path.exists(COMPAT["fex_wanted_marker"]())):
             for app in COMPAT["request_fex"](self.steam_root, self.fex_asked):
                 say("asked the client to install %s for x86 Linux titles and programs" % app)
 

@@ -25,22 +25,17 @@ object CloudSavePaths {
     }
 
     fun epic(template: String, prefix: File, install: File, accountId: String, appName: String): File? {
-        val norm = template.replace('\\', '/').trim().trimStart('/')
-        val match = Regex("^\\{([^}]+)\\}").find(norm) ?: return null
+        val parsed = com.droiddeck.launcher.stores.epic.EpicSaveTemplate.parse(template, accountId, appName) ?: return null
         val profile = profile(prefix)
-        val (base, boundary) = when (match.groupValues[1].lowercase()) {
-            "installdir" -> install to install
-            "userprofile" -> profile to profile
-            "userdir" -> File(profile, "Documents") to profile
-            "usersavedgames" -> File(profile, "Saved Games") to profile
-            "appdata", "localappdata" -> File(profile, "AppData/Local") to profile
-            "roamingappdata" -> File(profile, "AppData/Roaming") to profile
-            else -> return null
+        val (base, boundary) = when (parsed.root) {
+            com.droiddeck.launcher.stores.epic.EpicSaveTemplate.Root.INSTALL_DIR -> install to install
+            com.droiddeck.launcher.stores.epic.EpicSaveTemplate.Root.USER_PROFILE -> profile to profile
+            com.droiddeck.launcher.stores.epic.EpicSaveTemplate.Root.DOCUMENTS -> File(profile, "Documents") to profile
+            com.droiddeck.launcher.stores.epic.EpicSaveTemplate.Root.SAVED_GAMES -> File(profile, "Saved Games") to profile
+            com.droiddeck.launcher.stores.epic.EpicSaveTemplate.Root.LOCAL_APPDATA -> File(profile, "AppData/Local") to profile
+            com.droiddeck.launcher.stores.epic.EpicSaveTemplate.Root.ROAMING_APPDATA -> File(profile, "AppData/Roaming") to profile
         }
-        val rest = norm.substring(match.value.length)
-            .replace("{epicid}", accountId, ignoreCase = true)
-            .replace("{appname}", appName, ignoreCase = true)
-        return walk(base, boundary, rest, fuzzy = true)
+        return walk(base, boundary, parsed.rest, fuzzy = true)
     }
 
     private fun walk(base: File, boundary: File, rest: String, fuzzy: Boolean): File? {
