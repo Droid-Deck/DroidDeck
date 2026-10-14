@@ -6,8 +6,8 @@ index d74268b..bf72267 100644
          void Wayland_Keyboard_RepeatInfo( wl_keyboard *pKeyboard, int32_t nRate, int32_t nDelay );
          static const wl_keyboard_listener s_KeyboardListener;
  
-+        // Touch from the host compositor (DroidDeck): each finger goes to wlserver's touch path,
-+        // the one a Steam Deck's touchscreen drives, instead of being dropped.
++
++
 +        void Wayland_Touch_Down( wl_touch *pTouch, uint32_t uSerial, uint32_t uTime, wl_surface *pSurface, int32_t nId, wl_fixed_t fX, wl_fixed_t fY );
 +        void Wayland_Touch_Up( wl_touch *pTouch, uint32_t uSerial, uint32_t uTime, int32_t nId );
 +        void Wayland_Touch_Motion( wl_touch *pTouch, uint32_t uTime, int32_t nId, wl_fixed_t fX, wl_fixed_t fY );
@@ -58,7 +58,7 @@ index d74268b..bf72267 100644
 +        }
 +    }
 +
-+    // Touch
++
 +
 +    bool CWaylandInputThread::TouchToOutput( wl_surface *pSurface, wl_fixed_t fX, wl_fixed_t fY, double *pflX, double *pflY )
 +    {
@@ -75,7 +75,7 @@ index d74268b..bf72267 100644
 +        *pflY = ( wl_fixed_to_double( fY ) * uScale / 120.0 + oState->nDestY ) / g_nOutputHeight;
 +        return true;
 +    }
-+    // Touch ids are offset by one: the nested pointer already moves wlserver's touch 0.
++
 +    void CWaylandInputThread::Wayland_Touch_Down( wl_touch *pTouch, uint32_t uSerial, uint32_t uTime, wl_surface *pSurface, int32_t nId, wl_fixed_t fX, wl_fixed_t fY )
 +    {
 +        double flX, flY;

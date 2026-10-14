@@ -10,6 +10,47 @@ import org.junit.rules.TemporaryFolder
 class SecondaryLibraryTest {
     @get:Rule val tmp = TemporaryFolder()
 
+    @Test fun directContentKeepsTheConfiguredLibrarysPrivateDirectories() {
+        val files = tmp.newFolder("files")
+        val library = tmp.newFolder("shared")
+        val content = tmp.newFolder("direct")
+        val private = SecondaryLibrary.privateRoot(files, library)
+        val binds = SecondaryLibrary.binds(files, library, listOf("/mnt/droiddeck-sd"), content)
+        assertEquals("${content.path}:/mnt/droiddeck-sd", binds.first())
+        assertTrue(binds.contains("$private/steamapps/compatdata:/mnt/droiddeck-sd/steamapps/compatdata"))
+        assertFalse(SecondaryLibrary.privateRoot(files, content).exists())
+    }
+
+    @Test fun aWritableAliasIsSelectedAndItsProbeIsRemoved() {
+        val library = tmp.newFolder("shared")
+        val candidate = File(tmp.root, "direct")
+        Files.createSymbolicLink(candidate.toPath(), library.toPath())
+        assertEquals(candidate, SecondaryLibrary.verifiedAlias(library, candidate))
+        assertTrue(library.listFiles()!!.isEmpty())
+    }
+
+    @Test fun aDeniedAliasFallsBackBeforeCreatingAProbe() {
+        val library = tmp.newFolder("shared")
+        val candidate = tmp.newFolder("denied")
+        assertEquals(library, SecondaryLibrary.verifiedAlias(library, candidate) { false })
+        assertTrue(candidate.listFiles()!!.isEmpty())
+        assertTrue(library.listFiles()!!.isEmpty())
+    }
+
+    @Test fun anUnrelatedOrMissingDirectoryCannotReplaceTheLibrary() {
+        val library = tmp.newFolder("shared")
+        val candidate = tmp.newFolder("other")
+        assertEquals(library, SecondaryLibrary.verifiedAlias(library, candidate))
+        assertTrue(candidate.listFiles()!!.isEmpty())
+        assertTrue(library.listFiles()!!.isEmpty())
+        assertEquals(library, SecondaryLibrary.verifiedAlias(library, File(tmp.root, "missing")))
+    }
+
+    @Test fun aNonStorageLibraryKeepsItsConfiguredPath() {
+        val library = tmp.newFolder("games")
+        assertSame(library, SecondaryLibrary.contentPath(library))
+    }
+
     @Test fun gamesStaySharedButPrefixesAndNativeDownloadsArePrivate() {
         val files = tmp.newFolder("files")
         val library = tmp.newFolder("card")

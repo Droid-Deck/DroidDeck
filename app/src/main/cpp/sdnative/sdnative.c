@@ -1,11 +1,3 @@
-/*
- * One function: the release fence the fake-input ring writer needs.
- *
- * FakeInputWriter publishes events into a shared-memory ring that libfakeinput.so reads from
- * another process. Java's memory model says nothing about what a foreign reader sees, so the
- * writer calls this between filling the events and advancing the sequence counter: everything
- * written before it is visible to the reader before the counter moves.
- */
 #include <jni.h>
 #include <stdatomic.h>
 

@@ -3,7 +3,6 @@
     <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:colorBackground">#FF101418</item>
     </style>
-    <!-- A session owns the whole panel: no bars, no title, and black behind the compositor. -->
     <style name="SessionTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@android:color/black</item>
     </style>

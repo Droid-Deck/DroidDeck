@@ -193,7 +193,6 @@ namespace dxvk {
     } u;
 
     size_t pick_capacity(size_t n) {
-      // Pick next largest power of two for the new capacity
       return size_t(1u) << ((sizeof(n) * 8u) - bit::lzcnt(n - 1));
     }
 

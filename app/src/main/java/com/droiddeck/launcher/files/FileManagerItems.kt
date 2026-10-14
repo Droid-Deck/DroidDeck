@@ -77,23 +77,16 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// The File Manager's rows, tiles, favourites and context menu.
 
-// Semantic identity colours for the favourite-card drive badge. Intentionally NOT theme
-// accent colours - they identify the storage source at a glance. Returns (background, foreground).
 private fun badgeColors(loc: FavLocation): Pair<Color, Color> {
     val white = Color(0xFFFFFFFF)
     return when {
-        loc.storage == FavStorage.INTERNAL -> Color(0xFF2E5FB0) to white   // blue
-        loc.storage == FavStorage.SD -> Color(0xFF2E7D32) to white         // green
-        else -> Color(0xFF555555) to white                                 // grey
+        loc.storage == FavStorage.INTERNAL -> Color(0xFF2E5FB0) to white
+        loc.storage == FavStorage.SD -> Color(0xFF2E7D32) to white
+        else -> Color(0xFF555555) to white
     }
 }
 
-// The context-menu item list shared by the list rows (FileItemRow) and the grid tiles
-// (FileGridTile), so both open the identical menu. Gating (isDir/canRun/isInno/looksLikeArchive) is
-// recomputed from [file] here - one source of truth for what each item shows. Every item dismisses
-// the menu first, then runs its action.
 @Composable
 private fun FileContextMenuItems(
     file: File,
@@ -114,15 +107,12 @@ private fun FileContextMenuItems(
         onClick = { onDismissMenu(); onSelect() },
     )
     MenuItemDivider()
-    // Properties: basic info + Read-only / Hidden toggles, for ANY file or folder (handy for config
-    // files like .txt/.cfg/.ini). Kept near the top since it's a common reason to open this menu.
     DropdownMenuItem(
         text = { Text(stringResource(R.string.fm_properties)) },
         leadingIcon = { Icon(Icons.Filled.Info, null, tint = MaterialTheme.colorScheme.primary) },
         onClick = { onDismissMenu(); onProperties() },
     )
     MenuItemDivider()
-    // Favorites are directories - only folders get the pin toggle.
     if (isDir) {
         DropdownMenuItem(
             text = { Text(if (isFavorite) stringResource(R.string.fm_favorite_remove) else stringResource(R.string.fm_favorite_add)) },
@@ -189,11 +179,8 @@ internal fun FileItemRow(
     val context = LocalContext.current
     val isDir = file.isDirectory
     val isExe = !isDir && file.name.lowercase().let { it.endsWith(".exe") || it.endsWith(".bat") || it.endsWith(".msi") || it.endsWith(".sh") }
-    // Image files show a real thumbnail instead of the generic file icon (handy when picking a
-    // wallpaper/icon). Coil sizes the decode to the 36dp slot and caches it, so scrolling stays smooth.
     val isImage = !isDir && file.extension.lowercase() in IMAGE_THUMB_EXTS
 
-    // For real PE executables, try to pull out the embedded application icon (async, off the main thread).
     var exeIcon by remember(file.absolutePath) { mutableStateOf<ImageBitmap?>(null) }
     if (!isDir && file.name.lowercase().endsWith(".exe")) {
         LaunchedEffect(file.absolutePath) {
@@ -207,8 +194,6 @@ internal fun FileItemRow(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 3.dp)
             .combinedClickable(
-                // In selection mode a tap toggles instead of opening, so you can rattle through a
-                // folder without long-pressing every single row.
                 onClick = { if (selectionMode) onToggleSelect() else onTap() },
                 onLongClick = onLongPress,
             ),
@@ -231,7 +216,6 @@ internal fun FileItemRow(
                 Spacer(Modifier.width(4.dp))
             }
             when {
-                // Show the executable's own embedded icon when we managed to extract one.
                 exeIcon != null -> Image(
                     bitmap = exeIcon!!,
                     contentDescription = null,
@@ -249,7 +233,6 @@ internal fun FileItemRow(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(if (compact) 24.dp else 36.dp),
                 )
-                // Real image preview. Falls back to the generic file icon while loading or on decode failure.
                 isImage -> AsyncImage(
                     model = file,
                     contentDescription = null,
@@ -313,8 +296,6 @@ internal fun FileItemRow(
     }
 }
 
-// The ".." row at the top of a folder: one level up, styled like a folder row so it reads as part
-// of the list and takes controller focus the same way.
 @Composable
 internal fun ParentFolderRow(compact: Boolean = false, onTap: () -> Unit) {
     Card(
@@ -354,8 +335,6 @@ internal fun ParentFolderRow(compact: Boolean = false, onTap: () -> Unit) {
     }
 }
 
-// Dedicated Favorites list that replaces the file list while the star toggle is on.
-// Reads the store keyed on [favTick] so it recomposes after any pin/unpin.
 @Composable
 internal fun FavoritesList(
     currentDir: File,
@@ -431,9 +410,6 @@ internal fun FavoritesList(
     }
 }
 
-// A single favourite - matches the FileItemRow card style (surfaceContainer + outline +
-// RoundedCornerShape(10.dp)). Shows the folder name, a coloured drive badge + origin text,
-// and the full display path; tapping jumps into it, the filled star unpins.
 @Composable
 private fun FavoriteCard(
     file: File,
@@ -472,7 +448,6 @@ private fun FavoriteCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(2.dp))
-                // Origin line: coloured drive badge + source description.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = stringResource(loc.driveLabel),
@@ -517,13 +492,6 @@ private fun FavoriteCard(
     }
 }
 
-/**
- * One entry in the File Manager's grid view: a big thumbnail with the name under it.
- *
- * Deliberately drops size and date - at this width they truncate to noise. The grid is for
- * recognising things by sight (screenshots, covers, game folders); the list stays the view for
- * reading details.
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun FileGridTile(
@@ -554,7 +522,6 @@ internal fun FileGridTile(
             if (bmp != null) exeIcon = bmp.asImageBitmap()
         }
     }
-    // The tile has no ⋮ button - long-press opens this menu, anchored to the Box around the Card.
     Box {
         Card(
             modifier = Modifier
@@ -608,8 +575,6 @@ internal fun FileGridTile(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                // Always reserve two lines (issue #475): a one-line name used to make its card shorter than
-                // its neighbours, so grid rows had ragged heights. Fixed min/max keeps every tile the same size.
                 Text(
                     file.name,
                     color = MaterialTheme.colorScheme.onSurface,

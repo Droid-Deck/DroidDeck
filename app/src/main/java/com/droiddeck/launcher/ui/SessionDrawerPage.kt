@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.ui
 
-/** Stable page identities keep focus and scroll positions when a secondary display comes and goes. */
 internal enum class SessionDrawerPage(val firstControl: String) {
     CONTROLLER("touch"),
     SECOND_SCREEN("second-screen:none"),

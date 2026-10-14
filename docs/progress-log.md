@@ -7,6 +7,67 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-10 - `feat/wincomp-auto-sources`: Windows components picked by the game's source
+
+- **Per source** (`WinCompSources`): Steam - Steamworks Shared depots from the appmanifest or the
+  client's app info (`SteamAppInfo`, appinfo.vdf v27-29, cached per appid, weekly retry); GOG - the
+  build's `dependencies` (now kept in the sidecar); Epic - the manifest's prerequisite (now parsed
+  and kept); Amazon - fuel.json `PostInstall`; Custom - Steam's list when its files name the appid
+  (on by itself), when only the name matches (Recommended); else the folder scan. Unmapped entries
+  are listed with their own names; mapping tables in one place.
+- **One Steam match per game** (`SteamMatch`, `files/steam-matches.json`), used by the art fetch
+  and the components alike; the earlier art lookup is taken over.
+- **On by itself** (`AutoComponents`): at store install, add/edit, page open and before a launch
+  from DroidDeck; `wincomponents.json` keeps `auto` (with reasons) and `user` switches beside the
+  effective `games` list (still version 1). A user switch always wins. The page gets "On for this
+  game" with reasons and "Also listed".
+- **Device fix:** on a Steam game (Need for Speed Payback) only the already-downloaded d3dx9 went
+  on; vcredist2013/2019 stayed Recommended, never downloaded (Steam games have no install event
+  here). Every refresh (page open, launch, an app-start sweep over Steam games, install/add/edit)
+  now queues the missing automatic picks for a background download and turns each on when it
+  lands; the open page shows the progress and reloads.
+- **Gentle on the device:** one low-priority worker and one queue (games and components each once,
+  what the user asked for first); nothing while a session runs; the start-up sweep and pre-launch
+  looks only queue, wait ten seconds after start, and skip battery saver, a warm device or a
+  metered network; runtime helpers under nice 19 / ionice idle; a game's list kept and worked out
+  again only when its files change, on the worker. Tests: download lands, queue paused while a
+  session runs, unfavourable device, dedupe.
+- **Fluid:** after a session the Games tab reads Steam's manifests first (no wait for the added
+  games' walk), a newly installed game eases into the list and its components' list is queued on
+  the worker. The components page shows "Checking what this game needs…" (small spinner) until
+  the list is worked out, never "nothing found" before; "On for this game" expands in, components
+  on their way sit there with their progress and a "Turning on N components…" line, and rows ease
+  in (~250 ms; instant with animations off).
+- **Quieter:** "Checking…" only when the game's list was never worked out; a kept list shows at
+  once and is checked again silently, its changes easing in. The lists wait for the catalog and
+  fade in once; "Loading the components…" only after 300 ms.
+- **Offline:** with no validated network, components not downloaded yet are greyed and cannot be
+  switched ("Available when online"), automatic picks on their way included (no progress bar);
+  downloaded ones stay usable. The page follows the network live, and downloads wait in the queue
+  until it is back.
+- **Every source, older installs:** the start/after-session pass covers all games (Custom, GOG,
+  Epic, Amazon). GOG/Epic games installed before the sidecar kept the list get it once from the
+  store's build manifest with the saved sign-in (`StoreListBackfill`; no game files; weekly retry
+  on failure). Fresh installs keep the keys even when empty.
+- **Apps the client never saw** (Dragon's Dogma 2, 2054970 not in appinfo.vdf): the client ask
+  gave nothing (no `SteamClient` call returns depots), so Steam is asked anonymously instead
+  (`SteamPics`: CM list, WebSocket CM, anonymous logon, PICS access tokens + product info, ≤25
+  apps a request, one connection a pass, on the worker; Kotlin, no new library). Prototyped first
+  against Steam from the build host: 2054970 → depot 228988 (VC++ 2019), 1190460 → one shared
+  depot. Cached in steam-appinfo.json like the client's, weekly retry on a miss.
+- **Installed during a session:** the Steam libraries' appmanifests are looked at every 5 s while
+  a session runs; a game turning fully installed gets one in-session job (waits while a game runs)
+  that writes its automatic picks and downloads only its missing components; the launch waits up
+  to 10 s for components listed in `wincomponents-pending.json`, never when nothing is pending.
+- **Checks:** a store list counts as read only when the manifest was read whole (`listRead`;
+  GOG: a manifest with depots, Epic: the prerequisite fields read); older empty lists are fetched
+  once more. Log: `backfill: <game> gog deps=[...]` / `epic prereq=<name|none>`, plus the
+  manifest's depot/file count. Unity's `*_Data/Managed` is skipped by the folder scan (Mono
+  assemblies, not .NET Framework).
+- Docs: `docs/development/windows-components-sources.md`. Tests: `WinCompSourcesTest` (each
+  source's fixture, certainty rules, appinfo reading, auto picks, user overrides, shared match),
+  `AddedGameArtLookupTest` updated. Not yet on a device.
+
 ## 2026-10-10 - `fix/games-folder-migration`: Games folders become entries, not Steam libraries
 
 - **Seen on a device:** Steam's Install dialog listed "Games (Internal shared storage)" and "Games

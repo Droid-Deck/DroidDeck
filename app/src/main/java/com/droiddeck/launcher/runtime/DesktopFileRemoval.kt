@@ -7,7 +7,6 @@ import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
 
-/** Removes only unchanged, recorded package files. Never visits home or follows a symlink. */
 internal object DesktopFileRemoval {
     data class Entry(val kind: String, val size: Long, val identity: String, val path: String) {
         companion object {
@@ -37,14 +36,13 @@ internal object DesktopFileRemoval {
                 else -> attrs.isRegularFile && attrs.size() == entry.size && sha(file, buffer) == entry.identity
             }
             if (!matches) { kept++; continue }
-            Files.delete(file.toPath()) // A failure propagates; the pending marker makes retry possible.
+            Files.delete(file.toPath())
             removed++
             bytes += if (attrs.isRegularFile) attrs.size() else 0
             var parent = file.parentFile
             while (parent != root && parent != null) { directories.add(parent); parent = parent.parentFile }
             if (index % 200 == 0) progress(if (total > 0) index * 99 / total else -1)
         }
-        // Only now-empty parents of removed files, never a recursive delete of a package directory.
         for (dir in directories.sortedByDescending { it.path.length }) {
             if (dir.list()?.isEmpty() == true && !dir.delete()) throw IOException("Cannot remove $dir")
         }
@@ -56,7 +54,6 @@ internal object DesktopFileRemoval {
         if (Files.isSymbolicLink(root.toPath())) return null
         val parts = name.split('/')
         if (parts.firstOrNull() !in setOf("usr", "etc") || parts.any { it.isEmpty() || it == "." || it == ".." }) return null
-        // Even an in-root symlink in a parent can redirect deletion into a user's data.
         var parent = root
         for (part in parts.dropLast(1)) {
             parent = File(parent, part)
@@ -76,7 +73,6 @@ internal object DesktopFileRemoval {
         }
     }
 
-    /** The base runtime's pacman database is still present: desktop archives never replace it. */
     fun runtimeFiles(root: File): Set<String> = buildSet {
         val database = File(root, "var/lib/pacman/local")
         if (!database.isDirectory || Files.isSymbolicLink(database.toPath())) throw IOException("Runtime package database missing")

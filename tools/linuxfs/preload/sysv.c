@@ -1,14 +1,3 @@
-/* System V semaphores and shared memory for programs in the Linux runtime.
- *
- * Android kernels are built without System V IPC, so semget/shmget fail with ENOSYS. Steam's tier0
- * creates its client-instance semaphore with semget and gives up when that fails. This library is
- * LD_PRELOADed into the session and keeps each object in a file under /dev/shm (a bound directory
- * the whole session shares): a semaphore set is an array of counters waited on with futexes, a
- * segment is a plain file that shmat maps. Objects are found by the inode of their file, which is
- * what the id is. semop applies its operations one by one (no all-or-nothing across a set) and
- * SEM_UNDO is accepted but not performed - enough for the client, which uses single-counter sets.
- * A message queue is a table of slots in its file: gamescope hands mangoapp (Deck mode's performance
- * overlay) each frame's timings through one. */
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <errno.h>
@@ -34,7 +23,7 @@
 #include <unistd.h>
 
 #define DIR_DEFAULT "/dev/shm/wnsysv"
-#define SEM_MAGIC 0x574e5345u /* "WNSE" */
+#define SEM_MAGIC 0x574e5345u
 #define MAX_OBJECTS 64
 
 struct sem_header {
@@ -43,9 +32,11 @@ struct sem_header {
     uint32_t key;
     uint32_t mode;
     int32_t creator_pid;
-    int32_t pad[11];
+    _Atomic uint32_t otime;
+    _Atomic uint32_t ctime;
+    int32_t pad[9];
 };
-/* The counters follow the header, one 32-bit word each (a futex word). */
+_Static_assert(sizeof(struct sem_header) == 64, "semaphore files written by older sessions keep their layout");
 
 struct sem_map { int id; struct sem_header *hdr; size_t len; };
 struct shm_map { void *addr; size_t len; int id; };
@@ -70,7 +61,6 @@ static int object_id(int fd) {
     return (int)(st.st_ino & 0x7fffffff);
 }
 
-/* Open the object file of kind ("sem"/"shm") for key, creating it as flags ask. */
 static int open_object(const char *kind, key_t key, int flags, int *created) {
     char path[PATH_MAX];
     int oflags = O_RDWR | O_CLOEXEC;
@@ -92,7 +82,6 @@ static int open_object(const char *kind, key_t key, int flags, int *created) {
     return fd;
 }
 
-/* The object file for an id, found by inode. */
 static int open_by_id(const char *kind, int id) {
     DIR *d = opendir(object_dir());
     if (!d) return -1;
@@ -135,7 +124,6 @@ static long futex(void *addr, int op, int val, const struct timespec *timeout) {
     return syscall(SYS_futex, addr, op, val, timeout, NULL, 0);
 }
 
-/* ------------------------------------------------------------------ semaphores */
 
 static struct sem_map *sem_lookup(int id) {
     for (int i = 0; i < MAX_OBJECTS; i++)
@@ -176,7 +164,8 @@ int semget(key_t key, int nsems, int semflg) {
         size_t len = sizeof(struct sem_header) + (size_t)nsems * sizeof(int32_t);
         if (ftruncate(fd, (off_t)len) != 0) { close(fd); return -1; }
         struct sem_header h = {.magic = SEM_MAGIC, .nsems = (uint32_t)nsems, .key = (uint32_t)key,
-                               .mode = (uint32_t)(semflg & 0777), .creator_pid = (int32_t)getpid()};
+                               .mode = (uint32_t)(semflg & 0777), .creator_pid = (int32_t)getpid(),
+                               .ctime = (uint32_t)time(NULL)};
         if (pwrite(fd, &h, sizeof(h), 0) != (ssize_t)sizeof(h)) { close(fd); return -1; }
     } else {
         struct sem_header h;
@@ -220,8 +209,9 @@ int semtimedop(int semid, struct sembuf *sops, size_t nsops, const struct timesp
         } else if (sem_wait_op(w, sops[i].sem_op, sops[i].sem_flg, timeout) != 0) {
             return -1;
         }
-        if (sops[i].sem_op < 0) futex(w, FUTEX_WAKE, INT_MAX, NULL); /* zero-waiters see the change */
+        if (sops[i].sem_op < 0) futex(w, FUTEX_WAKE, INT_MAX, NULL);
     }
+    atomic_store(&h->otime, (uint32_t)time(NULL));
     return 0;
 }
 
@@ -256,6 +246,7 @@ int semctl(int semid, int semnum, int cmd, ...) {
         if (semnum < 0 || (uint32_t)semnum >= h->nsems) { errno = EINVAL; return -1; }
         atomic_store(&words[semnum], (int32_t)(intptr_t)arg.buf);
         futex(&words[semnum], FUTEX_WAKE, INT_MAX, NULL);
+        atomic_store(&h->ctime, (uint32_t)time(NULL));
         return 0;
     case GETALL:
         for (uint32_t i = 0; i < h->nsems; i++) arg.array[i] = (unsigned short)atomic_load(&words[i]);
@@ -265,6 +256,7 @@ int semctl(int semid, int semnum, int cmd, ...) {
             atomic_store(&words[i], arg.array[i]);
             futex(&words[i], FUTEX_WAKE, INT_MAX, NULL);
         }
+        atomic_store(&h->ctime, (uint32_t)time(NULL));
         return 0;
     case GETPID: return h->creator_pid;
     case GETNCNT: case GETZCNT: return 0;
@@ -275,17 +267,15 @@ int semctl(int semid, int semnum, int cmd, ...) {
         arg.buf->sem_perm.gid = arg.buf->sem_perm.cgid = getgid();
         arg.buf->sem_perm.mode = (unsigned short)h->mode;
         arg.buf->sem_nsems = h->nsems;
+        arg.buf->sem_otime = (time_t)atomic_load(&h->otime);
+        arg.buf->sem_ctime = (time_t)atomic_load(&h->ctime);
         return 0;
-    case IPC_SET: return 0;
+    case IPC_SET: atomic_store(&h->ctime, (uint32_t)time(NULL)); return 0;
     default: errno = EINVAL; return -1;
     }
 }
 
-/* ------------------------------------------------------------------ shared memory */
 
-/* Linux keeps a removed segment attachable until the last detach, which X clients rely on: they
- * remove the segment right after asking the server to attach it. A removed segment is renamed out
- * of key lookup instead, and removed for good once it has been out of use for a while. */
 static int remove_shm(int id) {
     DIR *d = opendir(object_dir());
     if (!d) return -1;
@@ -399,18 +389,18 @@ int shmctl(int shmid, int cmd, struct shmid_ds *buf) {
     }
 }
 
-/* ------------------------------------------------------------------ message queues */
 
-/* Only what gamescope and mangoapp use: msgtyp 0 or > 0, IPC_NOWAIT and IPC_RMID. */
-#define MSG_MAGIC 0x574e4d51u /* "WNMQ" */
+
+
+#define MSG_MAGIC 0x574e4d51u
 #define MSG_SLOTS 32
 
 struct msg_queue {
     uint32_t magic;
-    _Atomic int32_t lock;    /* 0 free, else the holder's pid */
-    _Atomic int32_t changed; /* bumped on every send and receive; waiters sleep on it */
+    _Atomic int32_t lock;
+    _Atomic int32_t changed;
     uint64_t next_seq;
-    struct { uint64_t seq; long mtype; size_t len; char data[2048]; } slot[MSG_SLOTS]; /* seq 0: free */
+    struct { uint64_t seq; long mtype; size_t len; char data[2048]; } slot[MSG_SLOTS];
 };
 
 static struct msg_queue *msg_map(int id) {
@@ -425,7 +415,6 @@ static struct msg_queue *msg_map(int id) {
     return NULL;
 }
 
-/* A process killed while holding the lock (Android ends sessions without warning) loses it. */
 static void msg_lock(struct msg_queue *q) {
     for (int32_t owner = 0; !atomic_compare_exchange_strong(&q->lock, &owner, getpid()); owner = 0) {
         if (kill(owner, 0) != 0 && errno == ESRCH) atomic_compare_exchange_strong(&q->lock, &owner, 0);
@@ -519,12 +508,6 @@ int msgctl(int msqid, int cmd, struct msqid_ds *buf) {
     return rc;
 }
 
-/*
- * fork() carries over only the calling thread, so a lock another thread was holding at that
- * instant stays held in the child by a thread that is not there to release it. Taking it before
- * the fork makes the copy consistent; the parent then unlocks it and the child, whose one thread
- * never locked it, gets a fresh one. (WinNative 79aa7f68.)
- */
 static void sysv_lock_before_fork(void) { pthread_mutex_lock(&g_lock); }
 static void sysv_unlock_after_fork(void) { pthread_mutex_unlock(&g_lock); }
 static void sysv_reset_after_fork(void) { pthread_mutex_init(&g_lock, NULL); }

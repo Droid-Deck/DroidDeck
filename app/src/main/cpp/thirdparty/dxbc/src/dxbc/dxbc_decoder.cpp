@@ -41,8 +41,6 @@ namespace dxvk {
   void DxbcDecodeContext::decodeInstruction(DxbcCodeSlice& code) {
     const uint32_t token0 = code.at(0);
     
-    // Initialize the instruction structure. Some of these values
-    // may not get written otherwise while decoding the instruction.
     m_instruction.op             = static_cast<DxbcOpcode>(bit::extract(token0, 0, 10));
     m_instruction.opClass        = DxbcInstClass::Undefined;
     m_instruction.sampleControls = { 0, 0, 0 };
@@ -56,12 +54,8 @@ namespace dxvk {
     m_instruction.customDataSize = 0;
     m_instruction.customData     = nullptr;
     
-    // Reset the index pointer, which may still contain
-    // a non-zero value from the previous iteration
     m_indexId = 0;
     
-    // Instruction length, in DWORDs. This includes the token
-    // itself and any other prefix that an instruction may have.
     uint32_t length = 0;
     
     if (m_instruction.op == DxbcOpcode::CustomData) {
@@ -72,8 +66,6 @@ namespace dxvk {
       this->decodeOperation(code.take(length));
     }
     
-    // Advance the caller's slice to the next token so that
-    // they can make consecutive calls to decodeInstruction()
     code = code.skip(length);
   }
   
@@ -86,11 +78,9 @@ namespace dxvk {
       return;
     }
     
-    // Custom data blocks have their own instruction class
     m_instruction.op      = DxbcOpcode::CustomData;
     m_instruction.opClass = DxbcInstClass::CustomData;
     
-    // We'll point into the code buffer rather than making a copy
     m_instruction.customDataType = static_cast<DxbcCustomDataClass>(
       bit::extract(code.at(0), 11, 31));
     m_instruction.customDataSize = blockLength - 2;
@@ -101,15 +91,11 @@ namespace dxvk {
   void DxbcDecodeContext::decodeOperation(DxbcCodeSlice code) {
     uint32_t token = code.read();
     
-    // Result modifiers, which are applied to common ALU ops
     m_instruction.modifiers.saturate = !!bit::extract(token, 13, 13);
     m_instruction.modifiers.precise  = !!bit::extract(token, 19, 22);
     
-    // Opcode controls. It will depend on the
-    // opcode itself which ones are valid.
     m_instruction.controls = DxbcShaderOpcodeControls(token);
     
-    // Process extended opcode tokens
     while (bit::extract(token, 31, 31)) {
       token = code.read();
       
@@ -128,7 +114,6 @@ namespace dxvk {
           aoffimmi.v = bit::extract(token, 13, 16);
           aoffimmi.w = bit::extract(token, 17, 20);
           
-          // Four-bit signed numbers, sign-extend them
           m_instruction.sampleControls.u = aoffimmi.u;
           m_instruction.sampleControls.v = aoffimmi.v;
           m_instruction.sampleControls.w = aoffimmi.w;
@@ -136,7 +121,7 @@ namespace dxvk {
         
         case DxbcExtOpcode::ResourceDim:
         case DxbcExtOpcode::ResourceReturnType:
-          break;  // part of resource description
+          break;
         
         default:
           Logger::warn(str::format(
@@ -145,9 +130,6 @@ namespace dxvk {
       }
     }
     
-    // Retrieve the instruction format in order to parse the
-    // operands. Doing this mostly automatically means that
-    // the compiler can rely on the operands being valid.
     const DxbcInstFormat format = dxbcInstructionFormat(m_instruction.op);
     m_instruction.opClass = format.instructionClass;
     
@@ -157,39 +139,29 @@ namespace dxvk {
   
   
   void DxbcDecodeContext::decodeComponentSelection(DxbcRegister& reg, uint32_t token) {
-    // Pick the correct component selection mode based on the
-    // component count. We'll simplify this here so that the
-    // compiler can assume that everything is a 4D vector.
     reg.componentCount = static_cast<DxbcComponentCount>(bit::extract(token, 0, 1));
     
     switch (reg.componentCount) {
-      // No components - used for samplers etc.
       case DxbcComponentCount::Component0:
         reg.mask    = DxbcRegMask(false, false, false, false);
         reg.swizzle = DxbcRegSwizzle(0, 0, 0, 0);
         break;
       
-      // One component - used for immediates
-      // and a few built-in registers.
       case DxbcComponentCount::Component1:
         reg.mask    = DxbcRegMask(true, false, false, false);
         reg.swizzle = DxbcRegSwizzle(0, 0, 0, 0);
         break;
       
-      // Four components - everything else. This requires us
-      // to actually parse the component selection mode.
       case DxbcComponentCount::Component4: {
         const DxbcRegMode componentMode =
           static_cast<DxbcRegMode>(bit::extract(token, 2, 3));
         
         switch (componentMode) {
-          // Write mask for destination operands
           case DxbcRegMode::Mask:
             reg.mask    = bit::extract(token, 4, 7);
             reg.swizzle = DxbcRegSwizzle(0, 1, 2, 3);
             break;
           
-          // Swizzle for source operands (including resources)
           case DxbcRegMode::Swizzle:
             reg.mask    = DxbcRegMask(true, true, true, true);
             reg.swizzle = DxbcRegSwizzle(
@@ -199,9 +171,6 @@ namespace dxvk {
               bit::extract(token, 10, 11));
             break;
           
-          // Selection of one component. We can generate both a
-          // mask and a swizzle for this so that the compiler
-          // won't have to deal with this case specifically.
           case DxbcRegMode::Select1: {
             const uint32_t n = bit::extract(token, 4, 5);
             reg.mask    = DxbcRegMask(n == 0, n == 1, n == 2, n == 3);
@@ -223,13 +192,10 @@ namespace dxvk {
     while (bit::extract(token, 31, 31)) {
       token = code.read();
       
-      // Type of the extended operand token
       const DxbcOperandExt extTokenType =
         static_cast<DxbcOperandExt>(bit::extract(token, 0, 5));
       
       switch (extTokenType) {
-        // Operand modifiers, which are used to manipulate the
-        // value of a source operand during the load operation
         case DxbcOperandExt::OperandModifier:
           reg.modifiers = bit::extract(token, 6, 13);
           break;
@@ -247,13 +213,10 @@ namespace dxvk {
     if (reg.type == DxbcOperandType::Imm32
      || reg.type == DxbcOperandType::Imm64) {
       switch (reg.componentCount) {
-        // This is commonly used if only one vector
-        // component is involved in an operation
         case DxbcComponentCount::Component1: {
           reg.imm.u32_1 = code.read();
         } break;
         
-        // Typical four-component vector
         case DxbcComponentCount::Component4: {
           reg.imm.u32_4[0] = code.read();
           reg.imm.u32_4[1] = code.read();
@@ -272,7 +235,6 @@ namespace dxvk {
     reg.idxDim = bit::extract(token, 20, 21);
     
     for (uint32_t i = 0; i < reg.idxDim; i++) {
-      // An index can be encoded in various different ways
       const DxbcOperandIndexRepresentation repr =
         static_cast<DxbcOperandIndexRepresentation>(
           bit::extract(token, 22 + 3 * i, 24 + 3 * i));

@@ -54,16 +54,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * A PC keyboard on screen: every key is a physical key (a Linux evdev code) pressed and released
- * on the session's wl_keyboard, as a USB keyboard would - Esc, the function row, Ctrl, Alt, Super,
- * the arrows and the editing block included, none of which the Android keyboard can send.
- *
- * A key goes down when a finger lands on it and up when it lifts, so holding one repeats it the way
- * the program's own key repeat does. Ctrl, Shift, Alt and Super are sticky: one tap holds the
- * modifier for the next key, a second tap locks it, a third lets it go. A controller moves over the
- * keys with the d-pad and presses with A.
- */
 private data class PcKey(val label: String, val code: Int, val weight: Float = 1f, val shifted: String? = null, @StringRes val labelRes: Int = 0)
 
 private fun k(label: String, code: Int, weight: Float = 1f, shifted: String? = null) = PcKey(label, code, weight, shifted)
@@ -110,7 +100,6 @@ private const val MOD_LOCKED = 2
 
 @Composable
 fun PcKeyboard(
-    /** evdev code, pressed. */
     sendKey: (Int, Boolean) -> Unit,
     onAndroidKeyboard: () -> Unit,
     onClose: () -> Unit,
@@ -142,21 +131,17 @@ fun PcKeyboard(
         if (key.code == 58) capsOn = !capsOn
         releaseOnceModifiers()
     }
-    // Nothing is left held when the keyboard goes away.
     androidx.compose.runtime.DisposableEffect(Unit) {
         onDispose { for ((code, state) in mods.toMap()) if (state != MOD_OFF) sendKey(code, false) }
     }
     LaunchedEffect(Unit) { runCatching { firstKey.requestFocus() } }
 
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        // Slightly under half the screen, header included, so the program stays in view above it:
-        // six rows share what is left of 47% after the header, the gaps and the padding.
         val rowHeight = ((maxHeight * 0.47f - 24.dp - 3.dp * 6 - 10.dp) / 6).coerceIn(24.dp, 44.dp)
         Box(
             Modifier.fillMaxWidth()
                 .background(Color(0xE6101418), RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
                 .border(1.dp, pal.line2, RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
-                // Touches on the keyboard stop here; the program underneath never sees them.
                 .pointerInput(Unit) { awaitEachGesture { awaitFirstDown().consume(); waitForUpOrCancellation()?.consume() } }
                 .padding(horizontal = 8.dp, vertical = 5.dp),
         ) {
@@ -221,7 +206,6 @@ private fun RowScope.KeyCap(
                     down = false; onUp()
                 }
             }
-            // A controller: A (or the d-pad's centre) is the finger.
             .onPreviewKeyEvent { e ->
                 val kc = e.key.nativeKeyCode
                 if (kc != KeyEvent.KEYCODE_BUTTON_A && kc != KeyEvent.KEYCODE_DPAD_CENTER && kc != KeyEvent.KEYCODE_ENTER) return@onPreviewKeyEvent false

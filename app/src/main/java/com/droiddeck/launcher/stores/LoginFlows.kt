@@ -5,7 +5,6 @@ import android.util.Log
 import android.webkit.WebView
 import com.droiddeck.launcher.stores.gog.GogAuth
 
-/** The three stores' sign-in flows for [StoreLoginActivity]. */
 internal object LoginFlows {
     private const val TAG = "StoreLogin"
 
@@ -15,15 +14,9 @@ internal object LoginFlows {
         Store.AMAZON -> amazonFlow()
     }
 
-    /** Set by the Epic and Amazon backends when they are in the build; null keeps the chip's card honest. */
     @Volatile var epicFlow: () -> StoreLoginActivity.Flow? = { null }
     @Volatile var amazonFlow: () -> StoreLoginActivity.Flow? = { null }
 
-    /**
-     * GOG's implicit grant: the token arrives in the redirect URL's fragment. The CSRF state is
-     * checked only when GOG echoes one back - its social-login path returns none, and treating
-     * that as a mismatch threw away good tokens.
-     */
     private class GogFlow(private val state: String) : StoreLoginActivity.Flow {
         override val startUrl: String get() = GogAuth.authUrl(state)
         override val userAgent: String get() = GogAuth.GALAXY_UA
@@ -39,7 +32,6 @@ internal object LoginFlows {
             }
             val access = frag.getQueryParameter("access_token")
             if (access.isNullOrEmpty()) {
-                // The keys only, never the values: the fragment carries live tokens.
                 Log.w(TAG, "gog: redirect without access_token; keys=${frag.queryParameterNames}")
                 return activity.getString(com.droiddeck.launcher.R.string.stores_login_error_verification)
             }

@@ -8,15 +8,6 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.io.File
 import java.util.zip.CRC32
 
-/**
- * Games folders (the roots earlier builds let the user add in Steam settings) become what the
- * Games tab's "Add all games in this folder" makes: one entry per game ([AddedExes]). Everything
- * a game had is keyed by its own folder and stays as it was - the chosen exe, the shortcut appid,
- * the name, Start in, launch options, art choices, a removal. The roots stay bound into the
- * session at the same guest paths ([SessionPrefs.gameFolderBinds]), so every exe keeps its path
- * inside the session and every Steam shortcut its target; they are no longer Steam libraries.
- * Runs whenever saved roots remain (so twice is the same as once) and clears them after.
- */
 object GamesFolderMigration {
     private const val TAG = "GamesFolderMigration"
 
@@ -26,7 +17,6 @@ object GamesFolderMigration {
         if (dirs.isEmpty()) return
         val roots = legacyRoots(SessionPrefs.gameFolderBinds(context).map { it.first } + dirs)
             .filter { root -> root.host.path in dirs }
-        // The binds first: a game's guest path (and with it the shortcut's appid) depends on them.
         SessionPrefs.setGameFolderBinds(context, SessionPrefs.gameFolderBinds(context) + roots.map { it.host.path to it.guest })
         val removed = SessionPrefs.removedAddedGames(context).toSet()
         val entries = AddedExes.list(context).map { it.folder }.toMutableSet()
@@ -50,10 +40,6 @@ object GamesFolderMigration {
         SessionPrefs.setGamesFoldersMigrated(context)
     }
 
-    /**
-     * The guest paths earlier builds gave Games folders: /root/Games/<folder name>, with a short
-     * hash of the host path when two share a name. Kept exactly, so nothing moves in the session.
-     */
     internal fun legacyRoots(paths: List<String>): List<AddedGames.Root> {
         val hosts = paths.distinct().map { File(it) }
         val names = hosts.groupingBy { it.name.lowercase() }.eachCount()
