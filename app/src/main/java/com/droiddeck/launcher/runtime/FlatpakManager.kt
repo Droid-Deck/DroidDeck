@@ -1,0 +1,194 @@
+package com.droiddeck.launcher.runtime
+
+import android.content.Context
+import android.util.Log
+import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.FileUtils
+import org.json.JSONObject
+import java.io.File
+
+object FlatpakManager {
+    private const val TAG = "FlatpakManager"
+    const val FLATPAK = "/usr/bin/flatpak"
+    const val BWRAP = "/usr/local/bin/droiddeck-bwrap"
+    const val LAUNCHER = "/usr/local/bin/droiddeck-flatpak-run"
+    private const val HELPER = "/usr/local/bin/droiddeck-flatpak"
+    private const val SETUP = "/usr/local/bin/droiddeck-flatpak-setup"
+    private const val USER_DIR = "root/.local/share/flatpak"
+
+    @Volatile var busy: String? = null
+        private set
+
+    class App(val id: String, val name: String, val icon: File?, val branch: String, val summary: String?)
+
+    fun ready(context: Context): Boolean {
+        val root = LinuxRuntime.rootDir(context)
+        return File(root, FLATPAK.substring(1)).isFile &&
+            File(root, "var/cache/droiddeck-flatpak/installed").isFile &&
+            (FileUtils.readString(File(root, "$USER_DIR/repo/config"))?.contains("[remote \"flathub\"]") == true)
+    }
+
+    private fun arch(): String = when (android.os.Build.SUPPORTED_ABIS.firstOrNull()) {
+        "x86_64" -> "x86_64"
+        else -> "aarch64"
+    }
+
+    fun installedApps(context: Context): List<App> {
+        val apps = File(LinuxRuntime.rootDir(context), "$USER_DIR/app")
+        val arch = arch()
+        return apps.listFiles()?.mapNotNull { dir ->
+            val id = dir.name
+            val archDir = File(dir, arch)
+            val branch = archDir.listFiles()?.firstOrNull { File(it, "active").exists() } ?: return@mapNotNull null
+            val active = File(branch, "active")
+            val export = File(active, "export/share")
+            val desktop = FileUtils.readString(File(export, "applications/$id.desktop"))
+            val name = desktop?.let { entry(it, "Name") } ?: id.substringAfterLast('.')
+            val summary = desktop?.let { entry(it, "Comment") }
+            App(id, name, icon(export, id), branch.name, summary)
+        }?.sortedBy { it.name.lowercase() } ?: emptyList()
+    }
+
+    fun isInstalled(context: Context, id: String): Boolean =
+        File(LinuxRuntime.rootDir(context), "$USER_DIR/app/$id/${arch()}").listFiles()?.any { File(it, "active").exists() } == true
+
+    private fun entry(desktop: String, key: String): String? {
+        var inMain = false
+        for (line in desktop.lineSequence()) {
+            val t = line.trim()
+            if (t.startsWith("[")) { inMain = t == "[Desktop Entry]"; continue }
+            if (inMain && t.startsWith("$key=")) return t.substringAfter('=').trim().takeIf { it.isNotEmpty() }
+        }
+        return null
+    }
+
+    private fun icon(export: File, id: String): File? {
+        val hicolor = File(export, "icons/hicolor")
+        return hicolor.listFiles()
+            ?.mapNotNull { size -> size.name.substringBefore('x').toIntOrNull()?.let { it to File(size, "apps/$id.png") } }
+            ?.filter { it.second.isFile }
+            ?.maxByOrNull { it.first }?.second
+    }
+
+    private fun runGuest(context: Context, argv: List<String>, fakeRoot: Boolean, onLine: (String) -> Unit): Int {
+        val name = "flatpak-" + (argv.getOrNull(2)?.takeIf { argv.getOrNull(1) == HELPER } ?: "setup")
+        return GuestCommand.run(context, argv, fakeRoot, name, onLine = onLine)
+    }
+
+    private inline fun <T> exclusive(what: String, ifBusy: () -> T, block: () -> T): T {
+        synchronized(this) {
+            if (busy != null) return ifBusy()
+            busy = what
+        }
+        try { return block() } finally { busy = null }
+    }
+
+    fun setup(context: Context, onProgress: (String, Int) -> Unit): String? {
+        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
+        return exclusive("setup", { context.getString(R.string.flatpakmgr_busy) }) {
+            var failure: String? = null
+            val status = runGuest(context, listOf("/bin/bash", SETUP), fakeRoot = true) { line ->
+                Log.i(TAG, "setup: $line")
+                when {
+                    line.startsWith("== STEP ") -> onProgress(line.removePrefix("== STEP "), -1)
+                    line.startsWith("== FAIL ") -> failure = line.removePrefix("== FAIL ")
+                }
+            }
+            when {
+                failure != null -> failure
+                status != 0 -> context.getString(R.string.flatpakmgr_setup_failed, status)
+                !ready(context) -> context.getString(R.string.flatpakmgr_setup_unfinished)
+                else -> null
+            }
+        }
+    }
+
+    private fun transaction(
+        context: Context, verb: String, id: String?, onProgress: (String, Int) -> Unit, onDone: (JSONObject) -> Unit = {},
+    ): String? {
+        if (!ready(context)) return context.getString(R.string.flatpakmgr_not_ready)
+        return exclusive("$verb:${id ?: "all"}", { context.getString(R.string.flatpakmgr_busy) }) {
+            var error: String? = null
+            var step = context.getString(R.string.flatpakmgr_starting)
+            val argv = listOfNotNull("/usr/bin/python3", HELPER, verb, id)
+            val status = runGuest(context, argv, fakeRoot = false) { line ->
+                val o = runCatching { JSONObject(line) }.getOrNull()
+                if (o == null) { Log.i(TAG, "$verb: $line"); return@runGuest }
+                when (o.optString("e")) {
+                    "op" -> { step = stage(context, o); onProgress(step, overall(o, 0)) }
+                    "progress" -> onProgress(step, overall(o, o.optInt("percent")))
+                    "error" -> { error = o.optString("message"); Log.w(TAG, "$verb $id: $error") }
+                    "warning" -> Log.w(TAG, "$verb $id: ${o.optString("message")}")
+                    "done" -> onDone(o)
+                }
+            }
+            error ?: if (status != 0) context.getString(R.string.flatpakmgr_exit_status, status) else null
+        }
+    }
+
+    private fun stage(context: Context, o: JSONObject): String {
+        val ref = o.optString("ref")
+        if (ref.isEmpty()) return o.optString("status").ifEmpty { context.getString(R.string.setup_check_busy) }
+        val name = refLabel(ref) { id, args -> context.getString(id, *args) }
+        val n = o.optInt("n")
+        val kind = o.optString("kind")
+        return if (n > 1) context.getString(when (kind) {
+            "uninstall" -> R.string.flatpakmgr_removing_step
+            "update" -> R.string.flatpakmgr_updating_step
+            else -> R.string.flatpakmgr_installing_step
+        }, name, o.optInt("i"), n)
+        else context.getString(when (kind) {
+            "uninstall" -> R.string.flatpakmgr_removing
+            "update" -> R.string.flatpakmgr_updating
+            else -> R.string.flatpakmgr_installing
+        }, name)
+    }
+
+    internal fun refLabel(ref: String, text: (Int, Array<out Any>) -> String): String {
+        val parts = ref.split('/')
+        val id = parts.getOrNull(1) ?: return ref
+        if (parts.firstOrNull() == "app") return id.substringAfterLast('.')
+        val branch = parts.getOrNull(3)
+        return when {
+            id.endsWith(".Locale") -> text(R.string.flatpakmgr_ref_translations, emptyArray())
+            ".GL." in id || ".GL32." in id -> text(R.string.flatpakmgr_ref_graphics_drivers, emptyArray())
+            "codecs" in id.lowercase() || id.endsWith(".ffmpeg-full") -> text(R.string.flatpakmgr_ref_media_codecs, emptyArray())
+            id.endsWith(".Platform") -> when (val vendor = id.removeSuffix(".Platform").substringAfterLast('.')) {
+                "gnome", "kde" -> vendor.uppercase()
+                else -> vendor.replaceFirstChar { it.uppercase() }
+            }.let { if (branch != null) text(R.string.flatpakmgr_ref_runtime_branch, arrayOf(it, branch)) else text(R.string.flatpakmgr_ref_runtime, arrayOf(it)) }
+            else -> id.substringAfterLast('.')
+        }
+    }
+
+    private fun overall(o: JSONObject, percent: Int): Int {
+        val n = o.optInt("n").coerceAtLeast(1)
+        val i = o.optInt("i").coerceIn(1, n)
+        return (((i - 1) * 100 + percent.coerceIn(0, 100)) / n)
+    }
+
+    fun install(context: Context, id: String, onProgress: (String, Int) -> Unit) = transaction(context, "install", id, onProgress)
+    fun uninstall(context: Context, id: String, onProgress: (String, Int) -> Unit) = transaction(context, "uninstall", id, onProgress)
+
+    fun installBundle(context: Context, guestPath: String, onProgress: (String, Int) -> Unit): Pair<String?, String?> {
+        var id: String? = null
+        val problem = transaction(context, "install-bundle", guestPath, onProgress) { id = it.optString("id").ifEmpty { null } }
+        return id to problem
+    }
+    fun update(context: Context, id: String?, onProgress: (String, Int) -> Unit) = transaction(context, "update", id, onProgress)
+
+    fun updates(context: Context): Set<String>? {
+        if (!ready(context)) return emptySet()
+        var apps: Set<String>? = null
+        exclusive("updates", {}) {
+            runGuest(context, listOf("/usr/bin/python3", HELPER, "updates"), fakeRoot = false) { line ->
+                val o = runCatching { JSONObject(line) }.getOrNull() ?: return@runGuest
+                if (o.optString("e") == "updates") {
+                    val a = o.optJSONArray("apps")
+                    apps = (0 until (a?.length() ?: 0)).map { a!!.getString(it) }.toSet()
+                }
+            }
+        }
+        return apps
+    }
+}

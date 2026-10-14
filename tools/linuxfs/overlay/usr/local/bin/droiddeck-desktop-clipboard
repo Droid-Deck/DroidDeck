@@ -1,0 +1,7 @@
+#!/bin/bash
+[ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -n "${DISPLAY:-}" ] || exit 0
+/usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
+child=$!
+trap 'kill "$child" 2>/dev/null' EXIT
+trap 'exit 0' TERM INT
+wait "$child"

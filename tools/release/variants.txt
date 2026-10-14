@@ -1,0 +1,4 @@
+standard    com.droiddeck.launcher       -
+pubg        com.tencent.ig               -pubg
+antutu      com.antutu.benchmark.full    -antutu
+ludashi     com.ludashi.benchmark        -ludashi

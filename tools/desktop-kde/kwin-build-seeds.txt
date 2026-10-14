@@ -1,0 +1,15 @@
+kwin
+base-devel
+cmake
+ninja
+gcc
+make
+pkgconf
+extra-cmake-modules
+kdoctools
+krunner
+plasma-wayland-protocols
+python
+vulkan-headers
+wayland-protocols
+xorg-xwayland

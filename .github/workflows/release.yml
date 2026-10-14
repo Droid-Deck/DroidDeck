@@ -1,0 +1,117 @@
+name: Release APKs
+run-name: release ${{ inputs.version }} from main ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for the file names, e.g. 0.1.7
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  find:
+    name: find the main build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    outputs:
+      run_id: ${{ steps.find.outputs.run_id }}
+      variants: ${{ steps.find.outputs.variants }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ $VERSION =~ ^[0-9A-Za-z._-]+$ ]] || { echo "::error::version '$VERSION': letters, digits, . _ - only"; exit 1; }
+          name=$(sed -n 's/^ *versionName "\(.*\)"$/\1/p' app/build.gradle)
+          [[ $VERSION == "$name" || $VERSION == "$name"-* ]] || {
+            echo "::error::version '$VERSION' does not match versionName '$name' in app/build.gradle: bump versionName and versionCode first"; exit 1;
+          }
+          runs=$(gh run list -R "$GITHUB_REPOSITORY" --workflow build.yml --branch main --commit "$GITHUB_SHA" \
+                   --status success --json databaseId,event,headSha -L 20)
+          id=$(jq -r --arg sha "$GITHUB_SHA" \
+                 '[.[] | select(.headSha == $sha and (.event == "push" or .event == "workflow_dispatch"))][0].databaseId // empty' <<<"$runs")
+          if [ -z "$id" ]; then
+            echo "::error::main ${GITHUB_SHA::7} has no successful Build APK run yet: wait for it, then release"
+            exit 1
+          fi
+          variants=$(awk '!/^#/ && NF { print $1 }' tools/release/variants.txt | jq -R . | jq -sc .)
+          echo "run_id=$id" >> "$GITHUB_OUTPUT"
+          echo "variants=$variants" >> "$GITHUB_OUTPUT"
+          echo "Signing Build APK run $id (main ${GITHUB_SHA::7}) as $VERSION: $variants" >> "$GITHUB_STEP_SUMMARY"
+
+  sign:
+    needs: find
+    uses: ./.github/workflows/sign.yml
+    with:
+      environment: release
+      variants: ${{ needs.find.outputs.variants }}
+      run_id: ${{ needs.find.outputs.run_id }}
+      label: ${{ inputs.version }}
+      artifact: droiddeck-release
+    secrets: inherit
+
+  publish:
+    name: publish the release
+    needs: [find, sign]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: droiddeck-release-*
+          merge-multiple: true
+          path: out
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          BUILD_RUN: ${{ needs.find.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          notes="docs/releases/$VERSION.md"
+          [ -f "$notes" ] || { echo "::error::$notes is missing: add the release notes first"; exit 1; }
+          if gh release view "$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::release $VERSION already exists"; exit 1
+          fi
+          title=$(sed -n '1s/^# *//p' "$notes")
+          [ -n "$title" ] || title="DroidDeck $VERSION"
+          raw="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$VERSION/docs/releases/media/"
+          {
+            sed '1{/^# /d;}' "$notes" | sed -E "s#(\]\(|src=\")media/#\1$raw#g"
+            echo
+            echo "---"
+            echo
+            echo "Built by [Build APK run $BUILD_RUN]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN) from \`$GITHUB_SHA\`, signed and published by [Release APKs run $GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+          } > "$RUNNER_TEMP/body.md"
+          ( cd out && cat SHA256SUMS-*.txt | sort -k2 > SHA256SUMS.txt && rm SHA256SUMS-*.txt && cat SHA256SUMS.txt )
+          gh release create "$VERSION" -R "$GITHUB_REPOSITORY" out/*.apk out/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "$title" --notes-file "$RUNNER_TEMP/body.md" --latest
+          echo "Published [$title]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$VERSION)" >> "$GITHUB_STEP_SUMMARY"
+
+  catalog:
+    needs: publish
+    uses: ./.github/workflows/update-catalog.yml
+    permissions:
+      contents: read
+      pull-requests: read
+    secrets: inherit
