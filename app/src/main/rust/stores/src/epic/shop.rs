@@ -240,8 +240,6 @@ fn mature_tags(item: &Value) -> bool {
     })
 }
 
-/// Cover art for the signed-out wall: every game in the promotions feed, free now or not.
-/// The feed is static and unauthenticated, so it still answers when the GraphQL search is refused.
 pub fn wall_art(promotion_list: &[Value]) -> Vec<String> {
     let mut seen = HashSet::new();
     promotion_list

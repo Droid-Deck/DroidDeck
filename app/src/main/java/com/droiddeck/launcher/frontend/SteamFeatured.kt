@@ -11,10 +11,6 @@ import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * Steam's public featured games (top sellers, new releases, specials), used to fill the Steam
- * home wall when the library is empty or too small to cover it without repeats. Needs no login.
- */
 object SteamFeatured {
     class Game(val appId: Int, val name: String, val art: String)
 
@@ -26,7 +22,6 @@ object SteamFeatured {
     private val SECTIONS = listOf("top_sellers", "new_releases", "specials")
     private const val ASSET_ROOT = "https://shared.akamai.steamstatic.com/store_item_assets/"
 
-    /** Steam content descriptors for sexual content (some nudity, adult only, frequent nudity). */
     private val HIDDEN_DESCRIPTORS = setOf(1, 3, 4)
 
     var games by mutableStateOf<List<Game>>(emptyList())
@@ -66,10 +61,6 @@ object SteamFeatured {
         }, "steam-featured").start()
     }
 
-    /**
-     * Newer apps keep their capsule under a hashed path, so the plain library_600x900.jpg URL 404s.
-     * One GetItems call returns every app's asset paths and content descriptors.
-     */
     private fun withArt(ids: Collection<Int>, cc: String): List<Game> {
         if (ids.isEmpty()) return emptyList()
         val input = JSONObject()

@@ -64,7 +64,6 @@ object AmazonBackend : StoreBackend {
         }, "amazon-shelves").start()
     }
 
-    /** The library sync owns the listed games; the featured art only rides along for the sign-in wall. */
     private fun withArt(art: List<String>) {
         val s = StoresState.shelves[store]
         StoresState.shelves[store] = if (s == null) com.droiddeck.launcher.stores.StoreShelves(art = art)

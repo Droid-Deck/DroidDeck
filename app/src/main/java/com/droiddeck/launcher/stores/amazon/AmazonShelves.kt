@@ -9,11 +9,6 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-/**
- * Cover art for the signed-out Amazon page. Amazon has no public game catalog, so this reads the
- * Prime Gaming featured games the claims page shows to visitors: the page hands out a CSRF token
- * and session cookies, and its GraphQL endpoint answers the featured query with them.
- */
 object AmazonShelves {
     private const val TAG = "AmazonShelves"
     private const val PAGE = "https://luna.amazon.com/claims/home"
@@ -62,7 +57,6 @@ object AmazonShelves {
         }.distinct()
     }
 
-    /** GETs the claims page, following redirects by hand so each hop's cookies are kept. */
     private fun openPage(): Pair<String, String>? {
         val jar = LinkedHashMap<String, String>()
         var url = PAGE

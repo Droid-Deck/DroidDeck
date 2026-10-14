@@ -31,7 +31,6 @@ class StoreShelves(
     val deals: List<CatalogItem> = emptyList(),
     val free: List<CatalogItem> = emptyList(),
     val trending: List<CatalogItem> = emptyList(),
-    /** Extra cover URLs for the signed-out wall only; never listed as games. */
     val art: List<String> = emptyList(),
 ) {
     val isEmpty: Boolean get() = whatsNew.isEmpty() && deals.isEmpty() && free.isEmpty() && trending.isEmpty()

@@ -154,7 +154,6 @@ internal fun CapsuleWall(
 ) {
     val pal = LocalPalette.current
     val blank = remember(pal) { WallCapsule(Brush.linearGradient(listOf(pal.surface, pal.background)), edge = pal.line) }
-    // A small library tops up with featured games so the wall has no repeats; owned games keep the low indices.
     val padding = remember(games, featured) {
         val owned = games.map { it.appId }.toSet()
         featured.filter { it.appId !in owned }.take((WALL_DISTINCT - games.size).coerceAtLeast(0))
