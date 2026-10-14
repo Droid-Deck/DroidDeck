@@ -36,8 +36,10 @@
 //! new request goes out. Memory is that budget plus one decompressed chunk per pool thread.
 //!
 //! **Each file is replaced safely**, with the bounded Java writer's rules: written into a unique
-//! sibling `.droiddeck-epic-*.stage` file (never a manifest path, so a game file legitimately
-//! named `x.part` is safe), its SHA-1 computed as the bytes go out (parts written out of order are
+//! `.stage` file in the manager's owned staging directory (`<installDir>/.droiddeck-epic-staging`,
+//! whose leftovers the manager recovers before the next run; a sibling `.droiddeck-epic-*.stage`
+//! when no directory is given), never a manifest path, so a game file legitimately named `x.part`
+//! is safe. Its SHA-1 computed as the bytes go out (parts written out of order are
 //! read back once the bytes before them are in, while they are still in the page cache), then
 //! synced, its size and hash checked, the install marked `updating` once (the Java callback,
 //! before the first replacement), and the stage renamed over the destination. On cancel or failure
@@ -211,6 +213,8 @@ pub struct StreamRequest {
     pub install_dir: String,
     /// `""` = `<installDir>/.chunks`; a path = scratch cache (internal storage for a card install).
     pub chunk_cache_dir: String,
+    /// The manager's owned staging directory on the install volume; `""` = stage beside each file.
+    pub staging_dir: String,
     pub cdn_prefixes: Vec<String>,
     /// Indices into `manifest.files` of the files still to write (Java's delta pass), in order.
     pub pending_file_indices: Vec<usize>,
@@ -264,6 +268,8 @@ pub struct StreamPlan {
     pub event_first_copy: Vec<bool>,
     /// Every manifest file's destination: a staging name may never be one of them.
     pub reserved: HashSet<PathBuf>,
+    /// Where staging files go; `None` = beside each destination.
+    pub staging_dir: Option<PathBuf>,
     pub bytes_total: u64,
     pub budget: u64,
     pub hosts: Vec<String>,
@@ -364,6 +370,15 @@ pub fn build_stream_plan(req: &StreamRequest) -> Result<StreamPlan, String> {
     }
 
     let install_dir = PathBuf::from(&req.install_dir);
+    let staging_dir = if req.staging_dir.is_empty() {
+        None
+    } else {
+        let dir = PathBuf::from(&req.staging_dir);
+        if !dir.is_dir() {
+            return Err(format!("stream: staging dir {} missing", dir.display()));
+        }
+        Some(dir)
+    };
     let cache_dir = resolve_cache_dir(&req.install_dir, &req.chunk_cache_dir);
     fs::create_dir_all(&cache_dir)
         .map_err(|e| format!("stream: mkdirs {}: {e}", cache_dir.display()))?;
@@ -440,6 +455,7 @@ pub fn build_stream_plan(req: &StreamRequest) -> Result<StreamPlan, String> {
         event_first_file,
         event_first_copy,
         reserved,
+        staging_dir,
         bytes_total,
         budget: req.cache_budget,
         hosts,
@@ -848,8 +864,8 @@ impl<'a> Engine<'a> {
         Ok(())
     }
 
-    /// A unique sibling `.droiddeck-epic-*.stage` file, never a manifest path
-    /// (`createStagingFile`).
+    /// A unique `.stage` file in the owned staging directory (or beside the destination), never a
+    /// manifest path (`createStagingFile`). The destination's directory is created either way.
     fn open_staging(&self, f: usize, w: &mut FileWriter) -> Result<(), SinkError> {
         let file = &self.plan.files[f];
         let dest = self.plan.install_dir.join(&file.rel_path);
@@ -858,14 +874,18 @@ impl<'a> Engine<'a> {
             .map(Path::to_path_buf)
             .unwrap_or_else(|| self.plan.install_dir.clone());
         fs::create_dir_all(&parent).map_err(|err| fatal_write(&file.rel_path, err))?;
+        let (stage_dir, prefix) = match &self.plan.staging_dir {
+            Some(dir) => (dir.clone(), "stream-"),
+            None => (parent.clone(), ".droiddeck-epic-"),
+        };
         for _ in 0..64 {
             let nanos = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.subsec_nanos())
                 .unwrap_or(0);
             let seq = STAGE_SEQ.fetch_add(1, Ordering::Relaxed);
-            let path = parent.join(format!(
-                ".droiddeck-epic-{}{seq}{nanos}.stage",
+            let path = stage_dir.join(format!(
+                "{prefix}{}-{seq}-{nanos}.stage",
                 std::process::id()
             ));
             if self.plan.reserved.contains(&path) {
@@ -1330,6 +1350,7 @@ mod tests {
                 manifest_bytes: self.manifest(),
                 install_dir: self.install.to_str().unwrap().to_string(),
                 chunk_cache_dir: self.dir.join("cache").to_str().unwrap().to_string(),
+                staging_dir: String::new(),
                 cdn_prefixes: vec!["http://127.0.0.1:9/Builds/x".to_string()],
                 pending_file_indices: pending,
                 expected_bytes: None,
@@ -1606,6 +1627,33 @@ mod tests {
         });
         assert_eq!(fs::read(fx.install.join("c.bin")).unwrap(), b"old c");
         assert!(fx.stages().is_empty());
+    }
+
+    #[test]
+    fn an_owned_staging_dir_holds_the_stages_and_is_left_empty() {
+        let fx = Fixture::new("stream-staging");
+        let staging = fx.install.join(".droiddeck-epic-staging");
+        fs::create_dir_all(&staging).unwrap();
+        let mut req = fx.request(vec![0, 1, 2], 1 << 20);
+        req.staging_dir = staging.to_str().unwrap().to_string();
+        let plan = build_stream_plan(&req).unwrap();
+        let cancel = AtomicBool::new(false);
+        let rec = Recorder::new();
+        with_engine(&plan, &cancel, &rec, |engine| {
+            engine.start().unwrap();
+            engine.process(&item(0), fx.body_for(&plan, 0)).unwrap();
+            let stages: Vec<_> = fs::read_dir(&staging).unwrap().flatten().collect();
+            assert_eq!(stages.len(), 1, "a.bin is staged in the owned directory");
+            assert!(stages[0].file_name().to_string_lossy().ends_with(".stage"));
+            for id in 1..plan.fetch_events.len() {
+                engine.process(&item(id), fx.body_for(&plan, id)).unwrap();
+            }
+        });
+        assert_eq!(fs::read_dir(&staging).unwrap().count(), 0);
+        assert_eq!(fs::read(fx.install.join("dir/b.bin")).unwrap(), fx.expected(1));
+        let mut missing = fx.request(vec![0], 1 << 20);
+        missing.staging_dir = fx.dir.join("nope").to_str().unwrap().to_string();
+        assert!(build_stream_plan(&missing).unwrap_err().contains("staging dir"));
     }
 
     #[test]

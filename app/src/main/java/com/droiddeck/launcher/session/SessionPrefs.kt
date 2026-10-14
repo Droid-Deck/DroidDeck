@@ -84,9 +84,10 @@ object SessionPrefs {
 
     /**
      * Hidden A/B switch for the Epic installer: "adaptive" (default: native parallel fetch written
-     * straight into staged files), "batch" (the older whole-cache native fetch, then native
-     * assembly; needs about twice the game's size free) or "java" (the bounded one-chunk-at-a-time
-     * Java writer). No UI; set it in the `session` preferences for benchmarks.
+     * straight into staged files), "lookahead" (the native ordered-lookahead engine that caches each
+     * chunk and copies it into staged files), "batch" (the older whole-cache native fetch, then
+     * native assembly; needs about twice the game's size free) or "java" (the bounded Java writer).
+     * No UI; set it in the `session` preferences for benchmarks.
      */
     fun storesEpicMode(context: Context): String = prefs(context).getString("storesEpicMode", "adaptive") ?: "adaptive"
 

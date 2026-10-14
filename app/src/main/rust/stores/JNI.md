@@ -112,11 +112,14 @@ On-disk protocol (what a resumed run, by either engine, relies on): a file is as
 
 ## `com.droiddeck.launcher.stores.epic.EpicNative`
 
-The manager's default Epic install is the **stream** run (`nativeStream`, below): the chunks
-are fetched in parallel and written straight into staged files as they arrive. The lookahead
-install and the batch pair stay selectable (the hidden `storesEpicMode` preference).
+The manager's default Epic install is the **stream** run (`nativeStream`, mode `adaptive`,
+below): the chunks are fetched in parallel and written straight into staged files as they arrive;
+on device it measured about 83 MB/s on a 71 GB install. The **lookahead** install
+(`nativeInstallAdaptive`, mode `lookahead`) is its fallback when the stream engine's space plan
+does not fit, and is selectable directly, as is the legacy batch pair (`nativeStart` +
+`nativeAssemble`, mode `batch`), through the hidden `storesEpicMode` preference.
 
-### Production adaptive install (snapshot schema v1)
+### Lookahead install (snapshot schema v1)
 
 `nativeInstallAdaptive(request: String, listener: EpicNative.Listener): Long`
 exports `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeInstallAdaptive`.
@@ -142,9 +145,10 @@ return zero after `onComplete(false, error, 0)` and are **terminal**, not fallba
 and verified swapped file counts, not fetched wire bytes. Fetch and staged assembly overlap
 in one native run, using the same pure reservation/release policy as the peak planner.
 Cancellation/release joins native workers; no worker survives the terminal callback/handle
-release. Only `StoresNative.ensureLoaded() == false` selects bounded parallel Java.
+release. Only `StoresNative.ensureLoaded() == false` selects bounded parallel Java; the same rule
+holds for `nativeStream`.
 
-### Legacy batch APIs (not the production installer)
+### Legacy batch APIs (mode `batch`, for A/B runs)
 
 Two explicit calls provide the legacy batch interface:
 
@@ -262,24 +266,26 @@ Bannerlator's `BlEpicDownload.run(...)` wraps `nativeStart` in a blocking call t
 
 | Method | JNI signature | Symbol |
 |---|---|---|
-| `nativeStream(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;[Ljava/lang/String;[IJJLjava/lang/String;IILjava/lang/Object;)J` (last parameter is the listener) | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStream` |
+| `nativeStream(...)`: Long | `([BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;[IJJLjava/lang/String;IILcom/droiddeck/launcher/stores/epic/EpicNative$StreamListener;)J` | `Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeStream` |
 
 ```kotlin
 @JvmStatic private external fun nativeStream(
-    manifest: ByteArray, installDir: String, chunkCacheDir: String, cdnPrefixes: Array<String>,
-    pendingFileIdx: IntArray, expectedBytes: Long, cacheBudget: Long, caBundlePath: String,
+    manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String,
+    cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long, cacheBudget: Long, caBundlePath: String,
     maxWorkers: Int, processWorkers: Int, listener: StreamListener,
 ): Long
 ```
 
-Parameters as `nativeStart`, except `expectedBytes` (the manager's `Σ fileSize` of the pending
+Parameters as `nativeStart`, plus `stagingDir` (the manager's owned
+`<installDir>/.droiddeck-epic-staging`, which must exist; `""` = stage beside each file), and
+except `expectedBytes` (the manager's `Σ fileSize` of the pending
 files, `-1` = no cross-check; no chunk count) and `cacheBudget` (the most bytes of shared chunks
 the cache may hold; the manager sizes it from free space, `0` = never cache, refetch instead).
 `chunkCacheDir` is `""` (`<installDir>/.chunks`) or a scratch directory; the manager falls back to
 `""` for a card install when internal storage cannot hold the budget.
 
 What the run does (`epic/stream.rs`): a chunk one file part uses is decompressed, verified and
-written at the part's offset into that file's unique sibling `.droiddeck-epic-*.stage` file; a
+written at the part's offset into a unique `stream-*.stage` file in `stagingDir`; a
 chunk several parts use is also kept in the cache, decompressed, as `<GUID>` (a later copy after
 an eviction as `<GUID>.<n>`) and deleted after its last covered part. The plan evicts by furthest
 next use when the budget would be exceeded and fetches the evicted chunk again later. Each file,
@@ -289,8 +295,8 @@ renamed over its destination. Cancel or failure removes every unfinished stage f
 
 Planning runs on the calling thread and also prepares the cache (keeps verified chunks this
 install needs, deletes everything else, as the Java writer does). A refusal returns `0` after a
-synchronous `onComplete(false, reason, 0)`; nothing was fetched or written, and the manager runs
-its bounded Java writer.
+synchronous `onComplete(false, reason, 0)`; nothing was fetched or written, and the manager fails
+the install with that reason (it does not switch engines once the library is loaded).
 
 | `StreamListener` method | JNI signature | When |
 |---|---|---|

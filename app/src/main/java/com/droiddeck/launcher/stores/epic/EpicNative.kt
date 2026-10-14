@@ -62,12 +62,12 @@ object EpicNative {
 
     /**
      * The adaptive install of the files [pendingFileIdx] (indices into the manifest's file list),
-     * with at most [cacheBudget] bytes of shared chunks cached. `started == false` means nothing
-     * was fetched or written and the caller runs the bounded Java writer.
+     * with at most [cacheBudget] bytes of shared chunks cached, staged in [stagingDir] (the
+     * manager's owned staging directory). `started == false` means nothing was fetched or written.
      */
     @JvmStatic
     fun stream(
-        manifest: ByteArray, installDir: String, chunkCacheDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long,
+        manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long,
         cacheBudget: Long, caBundlePath: String, maxWorkers: Int, processWorkers: Int, cancel: AtomicBoolean?, listener: StreamListener,
     ): Result {
         if (!StoresNative.ensureLoaded()) return Result(false, false, false, "engine not built", 0L, 0, 0)
@@ -89,10 +89,10 @@ object EpicNative {
             }
         }
         val handle: Long = try {
-            nativeStream(manifest, installDir, chunkCacheDir, cdnPrefixes, pendingFileIdx, expectedBytes, cacheBudget, caBundlePath, maxWorkers, processWorkers, inner)
+            nativeStream(manifest, installDir, chunkCacheDir, stagingDir, cdnPrefixes, pendingFileIdx, expectedBytes, cacheBudget, caBundlePath, maxWorkers, processWorkers, inner)
         } catch (t: Throwable) {
             Log.w(TAG, "engine unavailable: ${t.javaClass.simpleName}: ${t.message}")
-            return Result(false, false, false, "nativeStream: ${t.javaClass.simpleName}", 0L, 0, 0)
+            return Result(false, false, false, "nativeStream: ${t.javaClass.simpleName}: ${t.message}", 0L, 0, 0)
         }
         if (handle == 0L) return Result(false, false, false, completion.get()?.error ?: "not started", 0L, 0, totalRef.get())
         var cancelSent = false
@@ -104,6 +104,7 @@ object EpicNative {
                 }
             }
         } finally {
+            if (completion.get() == null) nativeCancel(handle)
             nativeRelease(handle)
         }
         val c = completion.get()
@@ -175,7 +176,7 @@ object EpicNative {
 
     @JvmStatic
     private external fun nativeStream(
-        manifest: ByteArray, installDir: String, chunkCacheDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long,
+        manifest: ByteArray, installDir: String, chunkCacheDir: String, stagingDir: String, cdnPrefixes: Array<String>, pendingFileIdx: IntArray, expectedBytes: Long,
         cacheBudget: Long, caBundlePath: String, maxWorkers: Int, processWorkers: Int, listener: StreamListener,
     ): Long
 

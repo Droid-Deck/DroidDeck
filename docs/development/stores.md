@@ -45,45 +45,57 @@ with a placeholder job. Failures are kept in the Downloads UI, notification and 
 duplicated as transient failure toasts. Active queue persistence and ordinary backend pause/retry
 are unchanged.
 
-Epic installs have three writers, all with the same per-file safety rules (below):
+Epic installs have four writers, all with the same per-file safety rules (below). The hidden
+`storesEpicMode` string in the `session` preferences picks one: `adaptive` (default), `lookahead`,
+`batch` or `java`. There is no UI for it; set it on a test device to compare the modes on the same
+game. Every mode logs an `epic: summary mode=<mode>` line (files, bytes written, elapsed, average
+MB/s). When `libdroiddeckstores.so` does not load, every mode runs the Java writer. Once it is
+loaded, an engine failure (refused plan, ABI mismatch, network, hash or I/O failure, unsupported
+atomic swap) fails the install; it never silently reruns as Java downloads.
 
-- **Adaptive (default when `libdroiddeckstores.so` loads)** - `EpicNative.stream`,
-  `epic/stream.rs`. The chunks go through the shared fetch core in the order their files need
-  them, with its full adaptivity (window ramp, per-host caps, in-flight byte budget, retries,
-  host rotation, stall handoff). A chunk only one file part uses is verified and written straight
-  into that file's staging file at the part's offset, in whatever order it arrives; no cache. A
-  chunk several parts use is written into every part whose file the download has reached and kept,
-  decompressed, in the cache until its last part is written. The cache has a byte budget; the plan
-  simulates the install in file order and, when the budget would be exceeded, drops the cached
-  chunk needed furthest ahead and downloads it again later. Files are opened only once the
-  download reaches them, so the set of half-written files stays within the fetch window. All writes
-  happen in the fetch core's process pool, whose completion frees the in-flight byte budget: a slow
-  card throttles the download instead of growing memory. Each file's SHA-1 is computed as its
-  parts are written (parts that arrived out of order are read back once the bytes before them are
-  in). The run logs `stream-plan` (direct vs shared chunks, planned refetches, budget) and
-  `stream-summary mode=adaptive` (peak cache, peak staging, refetches, bytes written from the
-  download vs from the cache, average MB/s).
-- **Bounded Java** - when the library does not load or link, when the engine refuses the plan,
-  or when the adaptive space plan does not fit while this one might. It fetches one chunk at a
-  time, verifies it, and writes the required parts into the current game file. Chunks are deleted
-  after their last use; reusable chunks are retained up to 64 MiB, with at most one additional
-  incoming chunk before eviction. Evicted shared chunks may be downloaded again. It logs
-  `epic: summary mode=java-bounded`.
-- **Batch** - the earlier native design, kept for A/B benchmarks: every chunk fetched into the
-  cache in parallel, then the files assembled from it (`EpicNative.run` + `EpicNative.assemble`).
-  It needs the cache and the files at once (about twice the game) and checks exactly that before
-  starting; it writes files in place, so an existing install is marked `updating` before assembly.
-  It logs `epic: summary mode=batch`.
-Epic installs use **native adaptive fetch/assembly** when `libdroiddeckstores.so` loads.
-The Java delta pass sends a versioned snapshot of pending files, chunk metadata, verified cache
-lengths, old output lengths and both measured free-space probes to Rust. The native planner and
-execution share one ordered moving-window policy. Before any chunk request, Rust chooses the
-largest safe lookahead (128, 64, 32, 16, 8, 4, 2 or 1 part references) and reusable-cache budget
-(64 MiB, 16 MiB or zero) whose simulated staged-file and cache peaks fit.
-Native device IDs also detect an explicitly named cache on the game volume, so two separate
-paths cannot incorrectly turn one filesystem's requirement into two independent checks.
+**Adaptive (default)** - `EpicNative.stream`, `epic/stream.rs`. Measured on device: about
+83 MB/s on a 71 GB install. The chunks go through the shared fetch core in the order their files
+need them, with its full adaptivity (window ramp, per-host caps, in-flight byte budget, retries,
+host rotation, stall handoff). A chunk only one file part uses is verified and written straight
+into that file's staging file at the part's offset, in whatever order it arrives; it is never
+cached, so each byte is written once. A chunk several parts use is written into every part whose
+file the download has reached and kept, decompressed, in the cache until its last part is written.
+The cache has a byte budget; the plan simulates the install in file order and, when the budget
+would be exceeded, drops the cached chunk needed furthest ahead and downloads it again later.
+Files are opened only once the download reaches them, so the set of half-written files stays
+within the fetch window. All writes happen in the fetch core's process pool, whose completion
+frees the in-flight byte budget: a slow card throttles the download instead of growing memory.
+Each file's SHA-1 is computed as its parts are written (parts that arrived out of order are read
+back once the bytes before them are in). Stage files go into the owned staging namespace below.
+The run logs `stream-plan` (direct vs shared chunks, planned refetches, budget) and
+`stream-summary mode=adaptive` (peak cache, peak staging, refetches, bytes written from the
+download vs from the cache).
 
-| Storage situation | Native policy |
+Its space plan (`EpicDownloadManager.planAdaptiveSpace`, unit-tested in `EpicAdaptivePlanTest`)
+checks each volume for what lands on it. The game volume: the sequential staged-file peak
+(remaining file bytes, each replaced file's old copy credited only after its swap), plus, for an
+update, the largest old file plus 256 MiB for files finishing out of order within the fetch
+window, plus the cache when it is beside the game. The cache volume: the budget plus 64 MiB of
+chunks in transit. The budget is half the cache volume's free space after those needs, at most
+1 GiB (256 MiB when free space is unknown; 0 is allowed and means every reuse is a refetch). On a
+card install the cache stays on internal scratch unless internal storage cannot hold at least
+64 MiB of it; then the cache goes beside the game (still released chunk by chunk) instead of
+failing. A plan that does not fit logs the short storage and the shortfall and hands over to the
+lookahead engine, which narrows its window to the space there is (or fails its own preflight with
+an explicit error). Running out of space in the middle of an adaptive run is not destructive: a
+failed write fails the run, unfinished staging files are removed, the old files stay.
+
+**Lookahead** - `EpicNative.installAdaptive`, `epic/adaptive.rs`; also the adaptive engine's
+fallback when its space plan does not fit. The Java delta pass sends a versioned snapshot of
+pending files, chunk metadata, verified cache lengths, old output lengths and both measured
+free-space probes to Rust. The native planner and execution share one ordered moving-window
+policy. Before any chunk request, Rust chooses the largest safe lookahead (128, 64, 32, 16, 8, 4,
+2 or 1 part references) and reusable-cache budget (64 MiB, 16 MiB or zero) whose simulated
+staged-file and cache peaks fit. Native device IDs also detect an explicitly named cache on the
+game volume, so two separate paths cannot incorrectly turn one filesystem's requirement into two
+independent checks.
+
+| Storage situation | Lookahead policy |
 | --- | --- |
 | Plenty of room | Up to 128 references ahead, up to 32 network requests, 64 MiB reusable data |
 | Tight | Smaller lookahead and/or reusable budget; parallel fetching remains where space permits |
@@ -91,68 +103,46 @@ paths cannot incorrectly turn one filesystem's requirement into two independent 
 | Does not fit even the minimal schedule | Explicit preflight error before requests or replacement |
 | Free space unknown | Conservative bounded lookahead (at most eight), not an invented zero |
 
-The native fetch coordinator reuses `fetch_core`'s host scheduling, retries, adaptive network
-window and decode pool. The staged writer runs concurrently, waiting only for its next required
-chunk, and reads parts through the native assembler's streaming copy primitive. GUIDs in the
-lookahead are reserved once before submission, at their full decoded size. Chunks are released
-at last use on **both** cache layouts; distant reusable data is oldest-first bounded and may
-be refetched. At most the selected reusable budget plus distinct lookahead decoded sizes is
-resident/reserved. New request admission re-probes both volumes and can shrink unsent lookahead
-or retention if headroom disappears; already in-flight reservations remain protected.
-If even existing reservations cannot fit, the run fails and joins its workers rather than
-waiting indefinitely or deleting old game files. An install to SD retains its internal scratch
-cache, so assembled output is the only game data written to the card.
+The lookahead fetch coordinator reuses `fetch_core`'s host scheduling, retries, adaptive network
+window and decode pool. Each chunk is cached, then its parts are copied into staged files by a
+writer that runs concurrently, waiting only for its next required chunk, through the native
+assembler's streaming copy primitive. GUIDs in the lookahead are reserved once before submission,
+at their full decoded size. Chunks are released at last use on **both** cache layouts; distant
+reusable data is oldest-first bounded and may be refetched. At most the selected reusable budget
+plus distinct lookahead decoded sizes is resident/reserved. New request admission re-probes both
+volumes and can shrink unsent lookahead or retention if headroom disappears; already in-flight
+reservations remain protected. If even existing reservations cannot fit, the run fails and joins
+its workers rather than waiting indefinitely or deleting old game files. An install to SD retains
+its internal scratch cache, so assembled output is the only game data written to the card.
 
-Only failure to **load** the native library selects the Java fallback. An ABI mismatch, native
-planning/network/hash/I/O failure or unsupported atomic swap does not silently rerun Java.
-Eight fallback Java workers prefetch the next eight chunk-part references, across file boundaries,
-while one writer assembles and verifies files in manifest order. Shared GUIDs within that window
-are fetched only once. Chunks are deleted after their last use; other reusable chunks are retained
-up to 64 MiB. At most eight additional decoded chunks (complete or in flight) coexist with that
-retained cache. The size bound is 64 MiB plus the decoded sizes of the window's distinct GUIDs,
-not a fixed eight-MiB allowance: manifests can supply larger chunk windows. Evicted distant shared
-chunks may be downloaded again. No worker downloads outside the moving window; cancellation and
-failure disconnect and join all workers before returning or removing the cache.
-The legacy native batch APIs remain available but are not used by the production install path.
+**Java** - without the native library, or with `storesEpicMode=java`. Eight Java workers prefetch
+the next eight chunk-part references, across file boundaries, while one writer assembles and
+verifies files in manifest order. Shared GUIDs within that window are fetched only once. Chunks
+are deleted after their last use; other reusable chunks are retained up to 64 MiB. At most eight
+additional decoded chunks (complete or in flight) coexist with that retained cache. The size
+bound is 64 MiB plus the decoded sizes of the window's distinct GUIDs, not a fixed eight-MiB
+allowance: manifests can supply larger chunk windows. Evicted distant shared chunks may be
+downloaded again. No worker downloads outside the moving window; cancellation and failure
+disconnect and join all workers before returning or removing the cache. Its summary line is
+`mode=java-bounded`.
 
-The earlier batch design intentionally prioritizes parallel-download throughput. Native
-`epic/assemble.rs::build_assemble_plan` enables `scratch_cache` only for a nonempty cache path.
-`run_assemble` decrements per-file chunk references and removes chunks at their last use **only
-when that flag is set**; the default beside-game cache is removed at the end. The native tests
-`default_cache_assembles_like_the_kotlin_loop_and_removes_the_cache_at_the_end` and
-the scratch-cache assembly tests cover that distinction. Extending last-use reclamation to
-internal native assembly could keep parallel batch throughput and reduce the overlapping
-cache/output peak, but batch fetching still fills
-the cache before assembly. Production native adaptive and Java fallback paths instead overlap
-network fetches with assembly without retaining a whole-game cache. No native or Java throughput
-benchmark is claimed.
+**Batch** - the earlier native design, kept for A/B benchmarks: every chunk fetched into the
+cache in parallel, then the files assembled from it (`EpicNative.run` + `EpicNative.assemble`).
+It needs the cache and the files at once (about twice the game) and checks exactly that before
+starting; it writes files in place, so an existing install is marked `updating` before assembly.
+`epic/assemble.rs::build_assemble_plan` enables `scratch_cache` only for a nonempty cache path:
+`run_assemble` then removes chunks at their last use; the default beside-game cache is removed at
+the end (`default_cache_assembles_like_the_kotlin_loop_and_removes_the_cache_at_the_end` and the
+scratch-cache assembly tests cover that distinction).
 
-The writer is chosen by the hidden `storesEpicMode` string in the `session` preferences:
-`adaptive` (default), `batch` or `java`. There is no UI for it; set it on a test device to compare
-the modes on the same game.
-
-The adaptive space plan (`EpicDownloadManager.planAdaptiveSpace`, unit-tested in
-`EpicAdaptivePlanTest`) checks each volume for what lands on it. The game volume: the sequential
-staged-file peak (remaining file bytes, each replaced file's old copy credited only after its
-swap), plus, for an update, the largest old file plus 256 MiB for files finishing out of order
-within the fetch window, plus the cache when it is beside the game. The cache volume: the budget
-plus 64 MiB of chunks in transit. The budget is half the cache volume's free space after those
-needs, at most 1 GiB (256 MiB when free space is unknown; 0 is allowed and means every reuse is a
-refetch). On a card install the cache stays on internal scratch unless internal storage cannot
-hold at least 64 MiB of it; then the cache goes beside the game (still released chunk by chunk)
-instead of failing. A plan that does not fit names the short storage and the shortfall in the log
-and hands over to the bounded writer, whose own checks decide. Running out of space in the middle
-of an adaptive run is not destructive: a failed write fails the run, unfinished staging files are
-removed, the old files stay.
-
-The Epic download bar, measured rate and ETA (adaptive and bounded) count pending file bytes written, not unique
+The Epic download bar, measured rate and ETA (adaptive, lookahead and Java) count pending file bytes written, not unique
 compressed chunks fetched. Shared chunks therefore cannot complete the bar before later files
 are written, and an evicted chunk's refetch is reflected in the time spent doing that work.
 Streaming stays in the Download stage until all files are written and verified, then enters
 Install for registration; it does not bounce between stages for each file.
 
-The space check follows the manifest delta pass and uses the same pure moving-window policy as
-execution, reserving all incoming decoded chunk sizes before writing parts and simulating
+For the lookahead and Java writers, the space check follows the manifest delta pass and uses the
+same pure moving-window policy as execution, reserving all incoming decoded chunk sizes before writing parts and simulating
 last-use releases and unpinned oldest-first evictions. Existing verified cache bytes count against
 current free space and are credited only at their scheduled release. This avoids adding the entire
 cache to the entire game without undercounting concurrent downloads. Each file is written to a
@@ -167,7 +157,7 @@ verified cached chunks are accounted for on resume. On a card, game and cache re
 are checked separately. File SHA-1 hashes are checked where supplied by the manifest; failed
 or cancelled staging files are removed without deleting old outputs. A successful run removes the
 cache. A resume within a large incomplete file restarts that file, not its individual parts.
-Both writers use `<installDir>/.droiddeck-epic-staging/`, whose `owner` marker identifies this
+All three staged writers (adaptive, lookahead, Java) use `<installDir>/.droiddeck-epic-staging/`, whose `owner` marker identifies this
 namespace. Before the delta pass and free-space probes, the manager removes orphan `.stage`
 entries only from this owned namespace. A manifest naming that directory or any descendant
 fails without deletion; an unowned directory or unexpected entry also fails conservatively.
