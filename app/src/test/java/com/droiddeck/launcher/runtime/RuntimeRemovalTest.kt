@@ -107,7 +107,6 @@ class RuntimeRemovalTest {
             follower.join(5000)
             assertEquals(true, result.get())
             assertEquals(true, followerResult.get())
-            // The last stage is "Linux runtime removed", the only one reported at 100.
             assertEquals(100, percents.last())
             assertFalse(root.exists())
             assertFalse(File(dir, "linuxfs.removing").exists())
@@ -131,7 +130,6 @@ class RuntimeRemovalTest {
         val root = runtime()
         try {
             val removal = LinuxRuntimeInstaller.beginUninstall(null, root)!!
-            // The first stage names the removal, the second counts its first entry.
             var stages = 0
             assertFalse(removal.run { _, _ ->
                 if (++stages == 2)
@@ -170,12 +168,10 @@ class RuntimeRemovalTest {
         assertNull(LinuxRuntimeInstaller.removalError())
         assertFalse(root.exists())
         assertFalse(File(dir, "linuxfs.removing").exists())
-        // Only the undeletable entry and its parents remain, out of the way.
         val trash = File(dir, LinuxRuntimeInstaller.TRASH)
         assertEquals(listOf(".steampath"), trash.walk().filter { it.isFile }.map { it.name }.toList())
         assertEquals(setOf(LinuxRuntimeInstaller.TRASH), dir.list()!!.toSet())
 
-        // Once it can be deleted, the next removal clears the trash too.
         RuntimeFileTree.refuseForTest = null
         assertTrue(LinuxRuntimeInstaller.beginUninstall(null, root)!!.run(null))
         assertFalse(trash.exists())

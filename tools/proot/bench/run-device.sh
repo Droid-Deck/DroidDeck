@@ -1,14 +1,4 @@
 #!/system/bin/sh
-# Runs a guest command on an adb-connected device the way a DroidDeck session runs proot (same
-# options, a similar number of binds), as the shell user from /data/local/tmp/dd. Layout there:
-#   mini/            a glibc rootfs subset (glibc, bash, coreutils, python) + the bench binaries
-#   proot, loader    this repo's proot (tools/proot/build.sh)        -> variant "patched"
-#   proot-vanilla    termux proot at source.env with no patches      -> variant "vanilla"
-#   proot-fp         this repo's proot incl. 0014                    -> "fastpath" / "fpoff"
-#   mini/usr/lib/libfastpath.so  tools/proot/fastpath/fastpath.c
-# NOTE: adb shell is NOT under the app seccomp policy; see docs/development/proot-performance.md.
-#
-#   run-device.sh <patched|vanilla|noseccomp|bare|fastpath|fpoff|direct> cmd...
 D=/data/local/tmp/dd
 V=$1; shift
 U=$(id -u)

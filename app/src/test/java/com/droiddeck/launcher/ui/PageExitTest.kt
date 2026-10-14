@@ -13,7 +13,6 @@ class PageExitTest {
     }
 
     @Test fun anotherPageSinks() {
-        // The GPU drivers row in Steam's settings opens Components over the same rail item.
         assertEquals(PageExit.Sink, pageExit("steam", "components", PageLeave.Ordinary))
     }
 

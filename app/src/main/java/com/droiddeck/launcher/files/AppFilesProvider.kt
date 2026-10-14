@@ -23,15 +23,6 @@ import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 
-/**
- * The app's own data folder (the Linux runtime, settings, logs) in Android's file picker, under the
- * app's name beside the phone's storage - what MT Manager's "documents provider" injection does, as
- * part of the app. Only the system's documents UI can bind it (MANAGE_DOCUMENTS); another app sees
- * a file only when the user picks it there.
- *
- * A document id is the file's absolute path, and nothing outside the data folder is ever handed out
- * or accepted: every id is resolved and checked to lie inside it.
- */
 class AppFilesProvider : DocumentsProvider() {
     private lateinit var base: File
     private lateinit var baseCanonical: String
@@ -65,8 +56,6 @@ class AppFilesProvider : DocumentsProvider() {
 
     override fun queryChildDocuments(parentDocumentId: String, projection: Array<String>?, sortOrder: String?): Cursor {
         val result = MatrixCursor(projection ?: DOCUMENT_COLUMNS)
-        // A link in the runtime that leads out of the data folder (/etc/localtime and the like) is
-        // left out rather than listed as something that cannot be opened.
         fileFor(parentDocumentId).listFiles()?.filter { inside(it) }?.forEach { addRow(result, it) }
         return result
     }
@@ -104,10 +93,6 @@ class AppFilesProvider : DocumentsProvider() {
         }
     }
 
-    /**
-     * Deletes a file or a folder and what is in it without ever following a link: the runtime holds
-     * links to places outside it, and deleting a folder must remove the link, not what it points at.
-     */
     private fun deleteTree(root: Path) {
         if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
             Files.delete(root)
@@ -158,7 +143,6 @@ class AppFilesProvider : DocumentsProvider() {
         val needle = query.lowercase()
         val pending = ArrayDeque(listOf(base))
         var visited = 0
-        // The runtime is tens of thousands of files: a bounded walk, not the whole tree.
         while (pending.isNotEmpty() && result.count < 50 && visited++ < 20000) {
             val f = pending.removeFirst()
             if (!inside(f)) continue
@@ -168,7 +152,6 @@ class AppFilesProvider : DocumentsProvider() {
         return result
     }
 
-    /** The file an id names, when it exists and lies inside the data folder (links followed). */
     private fun fileFor(documentId: String): File {
         val f = File(documentId)
         if (!f.isAbsolute || !inside(f)) throw FileNotFoundException("$documentId is outside the app's files")
@@ -177,7 +160,6 @@ class AppFilesProvider : DocumentsProvider() {
     }
 
     private fun inside(f: File): Boolean {
-        // The folder's own entries are listed as they are; a link is judged by where it leads.
         val abs = f.absoluteFile.normalize().path
         if (abs != base.absolutePath && !abs.startsWith(base.absolutePath + "/")) return false
         val real = runCatching { f.canonicalPath }.getOrNull() ?: return false
@@ -225,11 +207,6 @@ class AppFilesProvider : DocumentsProvider() {
             Document.COLUMN_LAST_MODIFIED, Document.COLUMN_FLAGS, Document.COLUMN_SIZE,
         )
 
-        /**
-         * The name in the picker. The same app ships under other package names (for the performance
-         * modes some phones give only named apps); each says which it is, so four installs are not
-         * four identical "DroidDeck" entries.
-         */
         fun titleFor(context: Context): String {
             val name = context.getString(R.string.app_name)
             return when (context.packageName) {

@@ -1,10 +1,6 @@
 #!/bin/bash
-# Fetches the native arm64 Steam client from Valve's client-update CDN into ~/.local/share/Steam.
-# The client is not redistributable, so the runtime ships this script instead of the client.
 set -eu
 cdn=https://client-update.fastly.steamstatic.com
-# The Deck's beta branch, which droiddeck-session forces on the command line too. A client already
-# on disk from another branch is left for the client to move (droiddeck-session's package/beta).
 steam_channel=steamdeck_publicbeta
 manifest=steam_client_${steam_channel}_linuxarm64
 steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
@@ -43,7 +39,6 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 curl -fsSL "$cdn/$manifest" -o "$work/manifest"
 version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
-# Every component block: its name, then the plain zip's file name and sha256.
 awk -F'"' '
   /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
   $2 == "file" { file[block] = $4 }
@@ -62,7 +57,6 @@ while read -r block file sum; do
   unzip -qo "$work/$file" -d "$steam_root"
   rm -f "$work/$file"
 done < "$work/parts"
-# Some entries are zipped with Windows separators; unzip keeps the backslash in the file name.
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}
   mkdir -p "$(dirname "$fixed")"
@@ -75,17 +69,11 @@ done
 echo "$steam_channel" > "$steam_root/package/beta"
 ln -sfn "$steam_root/steamrtarm64" "$steam_root/steamrtarm32"
 chmod +x "$steam_root/steamrtarm64/steam" 2>/dev/null || true
-# What Valve's steam.sh sets up before it runs the client (it has no arm64 branch itself).
 mkdir -p "$HOME/.steam"
 ln -sfn "$steam_root" "$HOME/.steam/root"
 ln -sfn "$steam_root" "$HOME/.steam/steam"
 ln -sfn "$steam_root/steamrtarm64" "$HOME/.steam/bin64"
 ln -sfn "$steam_root/linuxarm64" "$HOME/.steam/sdk64"
-# The arm64 client runs every game through $HOME/.steam/sdkarm64/steam-launch-wrapper. Valve's
-# steam.sh has no arm64 branch to create it, and without it a launch dies in /bin/sh before Proton
-# is ever invoked - "No such file or directory", no Proton log, and the only other clue is an
-# unrelated-looking installscript assertion. Same target as sdk64; the client picks the name by
-# architecture.
 ln -sfn "$steam_root/linuxarm64" "$HOME/.steam/sdkarm64"
 ln -sfn "$steam_root/steamrtarm64" "$HOME/.steam/binarm64"
 ln -sfn "$steam_root/linux32" "$HOME/.steam/sdk32"

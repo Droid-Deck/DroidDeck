@@ -46,7 +46,6 @@ int main(int argc, char **argv) {
 }
 """
 
-# Shell builtins only: anything it ran would be an x86 program, handed back to it.
 HANDLER = "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HANDLER_LOG\"\nexit 7\n"
 
 

@@ -68,16 +68,13 @@ import com.droiddeck.launcher.update.AppUpdates.Follow
 import com.droiddeck.launcher.update.AppUpdates.Offer
 import com.droiddeck.launcher.update.AppUpdates.Release
 
-/** The Updates page: the latest build of each channel, the one followed, and an update in progress. */
 class UpdatesState(
     val catalog: AppUpdates.Catalog? = null,
     val follow: Follow = Follow(Channel.STABLE),
     val checking: Boolean = false,
     val error: String? = null,
-    /** "Downloading", "Installing", ... while an update is under way; [percent] is -1 when unknown. */
     val stage: String? = null,
     val percent: Int = -1,
-    /** Explain "Install unknown apps" before sending the user to it. */
     val askPermission: Boolean = false,
 ) {
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
@@ -99,14 +96,11 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier) {
         PageHeader(stringResource(R.string.upd_title)) {
-            // The build that is running, beside the title where it is always in view.
             Text(
                 stringResource(R.string.upd_build, me.version, s.buildLabel), fontSize = 12.5.sp, color = colors.onSurfaceVariant,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(top = 6.dp),
             )
             val checked = u.catalog?.checkedAt?.takeIf { it > 0 }
-            // The relative time comes capitalized to stand alone (Spanish "Hace 5 minutos"); here it
-            // ends a sentence.
             if (!LocalNarrowPane.current) Text(
                 if (u.checking) stringResource(R.string.common_checking) else if (checked != null) stringResource(R.string.upd_checked, ago(checked).replaceFirstChar { it.lowercase() }) else stringResource(R.string.upd_not_checked),
                 fontSize = 13.sp, color = colors.onSurfaceVariant,
@@ -114,9 +108,6 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.store_check_updates), busy = u.checking, enabled = !u.checking && u.stage == null, onClick = ua.onCheck)
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            // Landscape has the width for channels and status side by side; a narrow pane, or a small
-            // phone's (where each channel's name and date would be cut to a word), stacks them. The
-            // Thor's top screen leaves about 690dp here and keeps them side by side.
             val stacked = LocalNarrowPane.current || maxWidth < 600.dp
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
                 if (stacked) {
@@ -125,7 +116,6 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                     ChannelLabel()
                     ChannelPicker(u, ua)
                 } else {
-                    // The label sits over both columns, so the status card lines up with the first channel.
                     ChannelLabel()
                     Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                         Box(Modifier.weight(1f)) { ChannelPicker(u, ua) }
@@ -148,7 +138,6 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     )
 }
 
-/** Where things stand, as a system updater says it: a status line, what you'd get, and one button. */
 @Composable
 private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, me: AppUpdates.Installed) {
     val colors = MaterialTheme.colorScheme
@@ -216,7 +205,6 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
     }
 }
 
-/** The change and its notes, two lines each; More opens the rest when either is cut short. */
 @Composable
 private fun ReleaseNotes(title: String, notes: String, key: String) {
     val colors = MaterialTheme.colorScheme
@@ -246,7 +234,6 @@ private fun ReleaseNotes(title: String, notes: String, key: String) {
     }
 }
 
-/** The headline for a build on offer: "DroidDeck 0.3.0", "New Preview build", "PR #93 test build". */
 @Composable
 private fun newBuild(f: Follow, r: Release) = when (f.channel) {
     Channel.STABLE -> stringResource(R.string.upd_new_stable, r.version ?: r.tag)
@@ -254,14 +241,12 @@ private fun newBuild(f: Follow, r: Release) = when (f.channel) {
     Channel.TEST -> stringResource(R.string.upd_new_test, r.pr)
 }
 
-/** A PR title as a sentence: "fix(steam): keep the client alive" -> "Keep the client alive". */
 private fun changeTitle(t: String): String =
     t.replace(Regex("""^[a-z]+(\([^)]*\))?!?:\s*"""), "").replaceFirstChar { it.uppercase() }
 
 @Composable
 private fun megabytes(bytes: Long) = stringResource(R.string.upd_mb, ((bytes + 524_288) / 1_048_576).toInt())
 
-/** The three channels as cards to pick from; Test builds opens its list of PRs under it. */
 @Composable
 private fun ChannelLabel() {
     Text(
@@ -297,7 +282,6 @@ private fun ChannelPicker(u: UpdatesState, ua: UpdatesActions) {
     }
 }
 
-/** Read-only Preview history below the status card action; only the latest build is installable. */
 @Composable
 private fun PreviewHistory(catalog: AppUpdates.Catalog?, me: AppUpdates.Installed) {
     val history = catalog?.let { AppUpdates.previewHistory(it, me) } ?: return
@@ -363,8 +347,6 @@ private fun ChannelCard(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    // Focus shows at once, as on the Components page: no ripple, no fade. Selection is the radio
-    // dot, never a ring of its own: the ring is only ever focus.
     val fill = if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -391,7 +373,6 @@ private fun ChannelCard(
     }
 }
 
-/** The one mark of a chosen option: a filled dot in a ring, beside it. */
 @Composable
 private fun RadioDot(selected: Boolean, size: androidx.compose.ui.unit.Dp = 22.dp) {
     val pal = LocalPalette.current
@@ -400,7 +381,6 @@ private fun RadioDot(selected: Boolean, size: androidx.compose.ui.unit.Dp = 22.d
     }
 }
 
-/** One test build under Test builds: its PR, what it fixes, and how fresh it is. */
 @Composable
 private fun TestRow(t: Release, selected: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme

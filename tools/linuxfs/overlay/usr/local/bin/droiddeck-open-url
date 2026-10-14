@@ -36,7 +36,6 @@ def where(url):
 
 def main(argv):
     url = argv[0] if argv else ""
-    # The Steam client's own form (steam://openurl/<address>), in case a launcher passes it on.
     if url.startswith("steam://openurl/"):
         url = url[len("steam://openurl/"):]
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")

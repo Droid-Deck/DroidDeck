@@ -1,5 +1,4 @@
 #version 450
-// One surface as a quad: dst = the target rectangle in NDC, src = the buffer rectangle in UV.
 layout(push_constant) uniform PC { vec4 dst; vec4 src; } pc;
 layout(location = 0) out vec2 uv;
 

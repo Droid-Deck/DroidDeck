@@ -1,33 +1,17 @@
 #!/bin/bash
-# An AppImage imported from the front end (AppImageManager), extracted once at import into
-#   /opt/appimages/user/<id>/app
-# and started from there: proot has no FUSE to mount the image, and extracting it at every
-# start (APPIMAGE_EXTRACT_AND_RUN) would cost the whole image in /tmp each time.
-#   droiddeck-appimage-run /opt/appimages/user/<id> [args...]
 set -u
 dir=${1:?usage: droiddeck-appimage-run <imported AppImage directory> [args...]}
 shift
 export APPDIR=$dir/app
-# APPIMAGE is left unset on purpose: with it an app believes it runs from an image file and offers
-# to add itself to the menu (DuckStation) or update the file in place - DroidDeck already does the
-# one, and there is no image file for the other.
 unset APPIMAGE
 export ARGV0=$(cat "$dir/name" 2>/dev/null || basename "$dir")
 if [ ! -x "$APPDIR/AppRun" ]; then
   echo "droiddeck-appimage-run: $APPDIR/AppRun is missing; import the AppImage again" >&2
   exit 127
 fi
-# Browsers sandbox their own children with namespaces and a setuid helper, neither of which proot
-# can give them (the Flatpak sandboxes get the same; see BwrapSpawner): Firefox and its forks (Zen,
-# LibreWolf) by these switches, Electron and Chromium builds by --no-sandbox. Chromium on Wayland
-# also asks the render node for a DRM version KGSL cannot give, so with an X server up it stays on
-# X11, which it picks from the session type.
 export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
 export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
-# Android 16 refuses Firefox the size seal on a tab's shared memory; see droiddeck-desktop.
 export MOZ_SHM_NO_SEALS=1
-# sharun images start the app through their own ld.so, patched not to read /etc/ld.so.preload, and
-# drop LD_PRELOAD unless allowed: without this the app never gets the session's pads.
 if [ -s /etc/ld.so.preload ]; then
   preload=$(tr -s '\n' ':' < /etc/ld.so.preload)
   export LD_PRELOAD="${preload%:}${LD_PRELOAD:+:$LD_PRELOAD}" SHARUN_ALLOW_LD_PRELOAD=1
@@ -74,8 +58,6 @@ fi
 echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex Qt $qt${QT_QPA_PLATFORM:+ ($QT_QPA_PLATFORM)}"
 cd "$APPDIR" || exit 1
 started=$(mktemp "${TMPDIR:-/tmp}/droiddeck-appimage.XXXXXX")
-# Apps expect a session bus; Electron's main process traps (SIGTRAP) on an address it cannot
-# parse. A run mode has none, so one is started for the app, as for Flatpak apps.
 case ${DBUS_SESSION_BUS_ADDRESS:-} in
   unix:*) "${run[@]}" "${flags[@]}" "$@" ;;
   *) unset DBUS_SESSION_BUS_ADDRESS
@@ -100,10 +82,6 @@ if [ "$rc" -ne 0 ] && [ -n "$started" ]; then
     done
 fi
 rm -f "$started"
-# The program a session was started for may hand over to another process and exit: Electron apps
-# relaunch themselves (Obsidian on its first start), launchers fork their real program. The
-# session ends with this script, and takes the rest with it - so it waits while anything running
-# from the image is still up.
 image_running() {
   local p exe arg cwd
   for p in /proc/[0-9]*; do

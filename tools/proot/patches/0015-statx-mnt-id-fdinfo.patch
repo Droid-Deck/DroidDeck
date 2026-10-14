@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: DroidDeck <droiddeck@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 00:00:00 +0000
+Subject: [PATCH] statx: supply mount IDs on kernels before 5.8
+
+On kernels before 5.8, statx can succeed without STATX_MNT_ID. Recover it
+from the already-open descriptor after verifying its identity. Keep the
+compatibility exit stop only on kernels that need the missing field.
+---
+diff --git a/src/syscall/seccomp.c b/src/syscall/seccomp.c
+index ee7b8acd68660f38fd52f56e951ffb94e9061d68..ff3a79b60e9092a296bb444c919bb3861338727f 100644
+--- a/src/syscall/seccomp.c
++++ b/src/syscall/seccomp.c
+@@ -738,4 +738,4 @@ int enable_syscall_filtering(const Tracee *tracee)
+- * the statx one emulates the call when it fails, which only a kernel
+- * before 4.11 does for want of it - a statx Android's policy traps is
+- * emulated from SIGSYS instead.  Both stops re-read and re-translate
+- * the path, and are paid on every call.
++ * the statx one emulates the syscall before 4.11 and supplies MNT_ID
++ * from fdinfo through 5.7. Android policy traps are still emulated from
++ * SIGSYS instead. Both stops re-read and re-translate the path, and are
++ * paid on every call.
+@@ -764 +764,4 @@ static void drop_unneeded_exit_stops(void)
+-			if (major > 4 || (major == 4 && minor >= 11))
++			/* Linux 4.11 introduced statx; Linux 5.8 added MNT_ID.
++			 * Keep its exit stop through 5.7 so the missing ID can be
++			 * recovered from the descriptor's fdinfo. */
++			if (major > 5 || (major == 5 && minor >= 8))
+diff --git a/src/tracee/statx.c b/src/tracee/statx.c
+index ca972f892e84461cb694dd13a37bfbc67527b320..824771ccf5934e1f870fc36a29fb22fdcad0a856 100644
+--- a/src/tracee/statx.c
++++ b/src/tracee/statx.c
+@@ -4,0 +5 @@
++#include "tracee/statx_mnt_id.h"
+@@ -125,0 +127,9 @@ int handle_statx_syscall(Tracee *tracee, bool from_sigsys) {
++	/* libglnx chases an already-open fd with AT_EMPTY_PATH and requires a
++	 * mount ID. Kernels before 5.8 can succeed without returning that field.
++	 * The tracee is stopped at this syscall exit; accept only the ordinary
++	 * mount ID and verify the fdinfo inode against the statx result. */
++	if (droiddeck_proot_statx_fill_mnt_id(tracee->pid, (int) dirfd,
++			(int) flags, guest_path, (unsigned int) mask,
++			&state.statx_buf))
++		state.updated_stats = true;
++

@@ -26,12 +26,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * The Amazon Games install pipeline, ported from Bannerlator: GetGameDownload for the download
- * root and version, `manifest.proto`, then every file fetched (the native engine when it is
- * there, eight Java threads otherwise), SHA-256 checked, written as `.tmp` and renamed. A
- * complete file on disk is skipped by size, so a rerun resumes. Blocking; the queue runs it.
- */
 public final class AmazonDownloadManager {
 
     private static final String TAG = "AmazonDownload";
@@ -46,7 +40,6 @@ public final class AmazonDownloadManager {
         void onProgress(String message, int pct);
         default void onBytes(long done, long total, long speedBps) {}
         default void onLog(String line) {}
-        /** What this run fetches and what the game takes on disk. */
         default void onSizes(long downloadBytes, long diskBytes) {}
     }
 
@@ -62,7 +55,6 @@ public final class AmazonDownloadManager {
 
     private AmazonDownloadManager() {}
 
-    /** Installs the game into {@code installDir}; null when cancelled, an exception when it fails. */
     public static Result install(Context ctx, AmazonGame game, String accessToken, File installDir, AtomicBoolean cancel, Callback cb) throws InstallException {
         if (game.entitlementId == null || game.entitlementId.isEmpty()) throw new InstallException("This game has no entitlement to download with");
         try {
@@ -134,7 +126,6 @@ public final class AmazonDownloadManager {
         }
     }
 
-    /** One entry per manifest file with the exact URL the Java loop would open and the SHA-256 when it would check it. */
     static String buildPlan(List<AmazonManifest.ManifestFile> files, String baseUrl) {
         JSONArray arr = new JSONArray();
         try {
@@ -211,7 +202,6 @@ public final class AmazonDownloadManager {
         return false;
     }
 
-    /** Streams one file; false = cancelled. */
     private static boolean downloadFile(String urlStr, File tmpFile, AtomicLong totalDownloaded, AtomicLong lastEmit, long totalSize,
                                         AtomicLong lastSpeedMs, AtomicLong lastSpeedBytes, AtomicLong speedBps, Callback cb, AtomicBoolean cancel) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
@@ -240,7 +230,6 @@ public final class AmazonDownloadManager {
         return true;
     }
 
-    /** The install size from the manifest alone, or -1. Blocking. */
     public static long fetchInstallSizeBytes(String accessToken, String entitlementId) {
         try {
             AmazonApiClient.GameDownloadSpec spec = AmazonApiClient.getGameDownload(accessToken, entitlementId);

@@ -73,6 +73,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -136,6 +137,8 @@ import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
+import com.droiddeck.launcher.gpu.Cardboard
+import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
@@ -177,16 +180,13 @@ private class DrawerFocus {
         } else if (focused == key) focused = null
     }
 
-    /** Where focus was last on [page], if anywhere. */
     fun target(page: SessionDrawerPage) = last[page]
     fun request(key: String) = runCatching { requester(key).requestFocus() }
     fun forget(page: SessionDrawerPage) { last.remove(page) }
 }
 
-/** Everything the drawer shows and does. */
 class DrawerActions(
     val steam: Boolean,
-    /** The drawer's heading: the emulator for a program from the rail, else Steam or Desktop. */
     val title: String? = null,
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
@@ -198,7 +198,6 @@ class DrawerActions(
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
     val backActionsInverted: Boolean,
-    /** What the pad is to Steam (SessionPrefs.CONTROLLER_*), switched live; null hides the row. */
     val padType: String? = null,
     val onPadType: (String) -> Unit = {},
     val touchMode: String,
@@ -206,9 +205,10 @@ class DrawerActions(
     val fexPreset: String,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
-    /** The compositor's post chain (gpu/ScreenEffects), changed live. */
     val effects: ScreenEffects = ScreenEffects.OFF,
-    /** Texture filtering for DirectX 9-11 games (core/TextureFiltering); lands on their next launch. */
+    val cardboard: Cardboard = Cardboard.OFF,
+    val cardboardSensor: Boolean = false,
+    val steamVr: SteamVr.Status? = null,
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
@@ -217,18 +217,13 @@ class DrawerActions(
     val onHud: (Boolean) -> Unit,
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
-    /** The Android keyboard (text, turned into key presses). */
     val onKeyboard: () -> Unit,
-    /** The on-screen PC keyboard: real keys, Esc, F1-F12, Ctrl, Alt... */
     val onHardwareKeyboard: () -> Unit,
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
-    /** Null hides the achievements row. */
     val onAchievements: (() -> Unit)? = null,
-    /** (unlocked, total), or null when unknown. */
     val achievementsProgress: Pair<Int, Int>? = null,
     val onOsc: (String) -> Unit,
-    /** Edits the Steam touch layout of the game in front, when Steam's controls are up. */
     val onEditSteamTouch: (() -> Unit)? = null,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
     val onRumble: (Boolean) -> Unit = {},
@@ -243,6 +238,9 @@ class DrawerActions(
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
+    val onCardboard: (Cardboard) -> Unit = {},
+    val onCardboardRecenter: () -> Unit = {},
+    val onSteamVr: (String) -> Unit = {},
     val onTextureAnisotropy: (Int?) -> Unit = {},
     val onTextureLodBias: (String?) -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
@@ -253,21 +251,22 @@ class DrawerActions(
     val pipAutoEnter: Boolean = false,
     val onPip: () -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
-    /** Unfolded controls (on a foldable; null hides the row). */
     val unfoldedControls: Boolean? = null,
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
-    /** Stop with the dialog's button's bounds on screen, for the flood to grow out of; null falls back to [onStop]. */
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
     val onClose: () -> Unit,
-    /** Games tab: every Proton with what it uses; null until first read. */
     val components: ComponentsManager.Snapshot? = null,
-    /** Re-reads the Protons (and runs swaps that waited for a game to close). */
     val onComponentsRefresh: () -> Unit = {},
-    /** Installed games available for profile inspection in the session drawer. */
+    val componentCatalog: List<ComponentsManager.CatalogItem> = emptyList(),
+    val componentCatalogAt: Long = 0,
+    val componentCatalogChecking: Boolean = false,
+    val componentDownloads: Map<String, Int> = emptyMap(),
+    val componentDownloadRevision: Long = 0,
+    val onComponentCatalogRefresh: () -> Unit = {},
+    val onComponentDownload: (ComponentsManager.CatalogItem) -> Unit = {},
     val gameProfiles: List<Pair<Long, String>> = emptyList(),
-    /** The selected game profile, or null for the Default profile. */
     val selectedGameProfileId: Long? = null,
     val selectedGameProfile: SelectedGameProfile? = null,
     val gameProfilesLoaded: Boolean = false,
@@ -277,12 +276,9 @@ class DrawerActions(
     val onSelectedGameProfileRefresh: () -> Unit = {},
     val gameFexPresetSaving: Boolean = false,
     val onGameFexPreset: (Long, String?) -> Unit = { _, _ -> },
-    /** Saves the selected game's Start without Steam (GameEnvironment.NO_STEAM). */
     val gameNoSteamSaving: Boolean = false,
     val onGameNoSteam: (Long, Boolean) -> Unit = { _, _ -> },
-    /** Swaps [value] ("orig:<build>" or a stored package file) into a Proton's component. */
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
-    /** Saves a stored package for a game, or null to inherit that component from the Default profile. */
     val onGameComponent: (appId: Long, comp: String, file: String?) -> Unit = { _, _, _ -> },
 )
 
@@ -314,7 +310,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     LaunchedEffect(a.selectedGameProfileId) {
         if (host.open == "fex") host.open = null
     }
-    LaunchedEffect(open, page) {
+    LaunchedEffect(open, page, a.componentDownloadRevision) {
         if (open && page == SessionDrawerPage.GAMES) {
             a.onGameProfilesPageOpened()
             a.onComponentsRefresh()
@@ -327,8 +323,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     LaunchedEffect(open, controllerActive) {
         if (open && !controllerActive) focusManager.clearFocus(force = true)
     }
-    // The page focus was last put on: turning to another (LB, RB, a tab) starts it at its first
-    // option; anything else (a menu closing, the drawer opening again) goes back where it was.
     var focusedPage by remember { mutableStateOf(page) }
     LaunchedEffect(open, page, controllerActive, host.open, appToChooseDisplay, confirmStop) {
         if (!open) {
@@ -339,7 +333,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             if (host.open != null || appToChooseDisplay != null || confirmStop) return@LaunchedEffect
             val turned = page != focusedPage
             focusedPage = page
-            // The page's top control: on Session that is Android apps, when it is shown.
             val first = if (page == SessionDrawerPage.SESSION && a.isHomeApp) "apps" else page.firstControl
             if (turned) focus.forget(page)
             val target = focus.target(page) ?: first
@@ -357,8 +350,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { host.open = null; a.onClose() },
     )
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().exposeTestTags(), contentAlignment = Alignment.CenterEnd) {
-        // A 4:3 or near-square screen (under 440dp tall) gets tighter padding and a shorter tab row,
-        // so the settings keep most of the height; a narrow one keeps some of the game in view.
         val short = maxHeight < 440.dp
         val sheetWidth = minOf(360.dp, maxWidth * 0.92f)
         AnimatedVisibility(
@@ -457,6 +448,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
                             }
+                            CardboardGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.EFFECTS -> {
                             ScreenEffectsGroup(host, a, advancedEffectsExpanded,
@@ -479,7 +471,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 ChoiceRow(host, "osc", stringResource(R.string.mode_osc), null,
                                     if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
                                     else listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
-                                    // Steam's touch controller is Steam's alone; elsewhere that choice behaves as Auto.
                                     if (!a.steam && a.oscMode == SessionPrefs.OSC_STEAM_TOUCH) SessionPrefs.OSC_AUTO else a.oscMode,
                                     chipModifier = focus.track(page, "osc"), onPick = a.onOsc)
                                 a.onEditSteamTouch?.let { edit ->
@@ -535,6 +526,17 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 )
                             }
                             ComponentsDrawerPage(host, a) { key -> focus.track(page, key) }
+                            ComponentDownloadsDrawerGroup(
+                                host = host,
+                                catalog = a.componentCatalog,
+                                catalogAt = a.componentCatalogAt,
+                                checking = a.componentCatalogChecking,
+                                packages = a.components?.packages.orEmpty(),
+                                downloads = a.componentDownloads,
+                                onRefresh = a.onComponentCatalogRefresh,
+                                onDownload = a.onComponentDownload,
+                                track = { key -> focus.track(page, key) },
+                            )
                         }
                         SessionDrawerPage.SESSION -> {
                             if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {
@@ -704,7 +706,6 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     }
 }
 
-/** A compact shortcut into Steam, sharing the header with Stop. */
 @Composable
 private fun SteamActionPill(
     description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier,
@@ -729,7 +730,6 @@ private fun SteamActionPill(
     }
 }
 
-/** A bumper as a keycap, 44dp to touch; LB / RB on the pad turn the page too. */
 @Composable
 private fun DrawerBumper(label: String, description: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -753,13 +753,6 @@ private fun DrawerBumper(label: String, description: String, modifier: Modifier 
     }
 }
 
-/**
- * The drawer's page tabs, QAM-style: one icon per page standing in a line in page order. The
- * selected one steps forward - full size, bright, a soft glow - while the others step back to
- * a little smaller and fade, and the whole line leans a little toward the selection. LB / RB still turn
- * the page (the buttons beside it and the pad's bumpers); a tab can be tapped or picked with the
- * pad like the dots it replaces.
- */
 @Composable
 private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPage>, modifier: Modifier = Modifier, compact: Boolean = false, onSelect: (SessionDrawerPage) -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -773,9 +766,6 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
         modifier = modifier.height(if (compact) 44.dp else 64.dp).clipToBounds(),
     ) {
         val tab = if (compact) 36f else 44f
-        // Fit the line to the room between LB and RB. Worst case is an end tab selected: full size
-        // ([tab] dp) and pushed outward by the lean, which scales with the spacing. So
-        //   (count-1) * spacing * (1 + lean/spacingMax) + tab <= width
         val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP)
         val leanStep = DRAWER_TAB_LEAN_DP * spacing / DRAWER_TAB_SPACING_DP
         val lean by animateFloatAsState(-(selectedIndex - middle) * leanStep, motion, label = "tabLean")
@@ -816,10 +806,8 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
     }
 }
 
-/** The Look row's value when the rows below match no Look. */
 private const val LOOK_CUSTOM = "custom"
 
-/** Presets and simple effects first; detailed adjustments stay behind Advanced. */
 @Composable
 private fun ScreenEffectsGroup(
     host: MenuHost, a: DrawerActions, advancedExpanded: Boolean, onAdvancedToggle: () -> Unit,
@@ -884,7 +872,52 @@ private fun ScreenEffectsGroup(
     }
 }
 
-/** Secondary-display modes are mutually exclusive and apply immediately. */
+@Composable
+private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+    val c = a.cardboard
+    SettingsGroup(stringResource(R.string.cardboard_title)) {
+        ToggleRow(host, "cardboard", stringResource(R.string.cardboard_mode), stringResource(R.string.cardboard_mode_hint),
+            c.enabled, chipModifier = track("cardboard")) { a.onCardboard(c.copy(enabled = it)) }
+        if (!c.enabled) return@SettingsGroup
+        ChoiceRow(host, "cardboard-source", stringResource(R.string.cardboard_source), null,
+            listOf(Cardboard.SOURCE_SCREEN to stringResource(R.string.cardboard_source_screen),
+                Cardboard.SOURCE_SBS to stringResource(R.string.cardboard_source_sbs)),
+            c.source, chipModifier = track("cardboard-source")) { a.onCardboard(c.copy(source = it)) }
+        ChoiceRow(host, "cardboard-viewer", stringResource(R.string.cardboard_viewer), null,
+            listOf(Cardboard.Viewer.CARDBOARD_V2.id to stringResource(R.string.cardboard_viewer_v2),
+                Cardboard.Viewer.CARDBOARD_V1.id to stringResource(R.string.cardboard_viewer_v1),
+                Cardboard.Viewer.NONE.id to stringResource(R.string.cardboard_viewer_none)),
+            c.viewer, chipModifier = track("cardboard-viewer")) { a.onCardboard(c.copy(viewer = it)) }
+        SliderRow(stringResource(R.string.cardboard_ipd), null, c.ipdMm, 50..80, step = 1,
+            format = { "$it mm" }, modifier = track("cardboard-ipd")) { a.onCardboard(c.copy(ipdMm = it)) }
+        if (c.source == Cardboard.SOURCE_SCREEN) {
+            SliderRow(stringResource(R.string.cardboard_screen_width), null, c.screenWidthDm, 5..200, step = 5,
+                format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("cardboard-width")) { a.onCardboard(c.copy(screenWidthDm = it)) }
+            SliderRow(stringResource(R.string.cardboard_screen_distance), null, c.screenDistanceDm, 5..200, step = 5,
+                format = { String.format(Locale.US, "%.1f m", it / 10f) }, modifier = track("cardboard-distance")) { a.onCardboard(c.copy(screenDistanceDm = it)) }
+        }
+        ToggleRow(host, "cardboard-tracking", stringResource(R.string.cardboard_head_tracking),
+            if (a.cardboardSensor) null else stringResource(R.string.cardboard_no_sensor),
+            c.headTracking && a.cardboardSensor, enabled = a.cardboardSensor, chipModifier = track("cardboard-tracking")) {
+            a.onCardboard(c.copy(headTracking = it))
+        }
+        if (c.headTracking && a.cardboardSensor)
+            ActionRow(stringResource(R.string.cardboard_recenter), null, stringResource(R.string.cardboard_recenter_button), a.onCardboardRecenter)
+        val vrLabel = stringResource(R.string.cardboard_steamvr)
+        when (a.steamVr) {
+            SteamVr.Status.NOT_INSTALLED -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_install_hint),
+                stringResource(R.string.cardboard_steamvr_install), { a.onSteamVr("install") })
+            SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
+            SteamVr.Status.READY -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_ready_hint),
+                stringResource(R.string.cardboard_steamvr_start), { a.onSteamVr("start") })
+            SteamVr.Status.RUNNING -> ActionRow(vrLabel, stringResource(R.string.cardboard_steamvr_running_hint),
+                stringResource(R.string.cardboard_steamvr_stop), { a.onSteamVr("stop") })
+            SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}
+            null -> {}
+        }
+    }
+}
+
 @Composable
 private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -953,7 +986,6 @@ private fun DrawerFexPresetRow(host: MenuHost, a: DrawerActions, modifier: Modif
     }
 }
 
-/** A game's Start without Steam; only with a game selected - the Default profile has no such switch. */
 @Composable
 private fun DrawerNoSteamRow(host: MenuHost, a: DrawerActions, modifier: Modifier) {
     val appId = a.selectedGameProfileId ?: return
@@ -964,7 +996,6 @@ private fun DrawerNoSteamRow(host: MenuHost, a: DrawerActions, modifier: Modifie
     ) { on -> a.onGameNoSteam(appId, on) }
 }
 
-/** Texture filtering on the Games page: DXVK options for the next DirectX 9-11 launch. */
 @Composable
 private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val inherited = a.selectedGameProfileId != null
@@ -1115,11 +1146,6 @@ private fun ProfileSummaryRow(label: String, value: String) {
     }
 }
 
-/**
- * The Games tab's components: quick swaps between what is already installed, per Proton. A swap
- * into the Proton a running game uses waits until that game closes; downloading, importing and
- * deleting stay on the Components page in the app.
- */
 @Composable
 private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -1181,7 +1207,6 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
     val running = snap.protons.filter { it.inUseByGame }
     var pick by rememberSaveable { mutableStateOf<String?>(null) }
     val view = snap.protons.firstOrNull { it.proton.id == pick } ?: running.firstOrNull() ?: snap.protons.firstOrNull()
-    // Focusable, so the pad can climb from the Proton box up to it and the page scrolls it into view.
     SettingsGroup(stringResource(R.string.drawer_running_now)) {
         val src = remember { MutableInteractionSource() }
         val hot = src.collectIsFocusedAsState().value
@@ -1236,7 +1261,6 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
             val shown = options.firstOrNull { it.first == current }?.second
             DrawerStackedChoice(
                 host, "cmp-$comp", ComponentsManager.LABEL.getValue(comp),
-                // The box already shows the choice: only say more when there is more to say.
                 st.queued?.let { stringResource(R.string.comp_next_queued, it) } ?: st.inUse.takeIf { it != shown },
                 options, current,
                 note = if (view.inUseByGame) stringResource(R.string.comp_waits_long) else stringResource(R.string.comp_applies_long),
@@ -1251,10 +1275,83 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
     )
 }
 
-/**
- * A choice for the drawer's narrow column: label, then the box across the full width, then the
- * detail underneath - so a long Proton or package name never squeezes the text beside it.
- */
+@Composable
+internal fun ComponentDownloadsDrawerGroup(
+    host: MenuHost,
+    catalog: List<ComponentsManager.CatalogItem>,
+    catalogAt: Long,
+    checking: Boolean,
+    packages: List<ComponentsManager.Package>,
+    downloads: Map<String, Int>,
+    onRefresh: () -> Unit,
+    onDownload: (ComponentsManager.CatalogItem) -> Unit,
+    track: (String) -> Modifier = { Modifier },
+) {
+    val colors = MaterialTheme.colorScheme
+    val installed = packages.map { it.file }.toSet()
+    SettingsGroup(stringResource(R.string.drawer_component_downloads)) {
+        Text(stringResource(R.string.drawer_component_downloads_hint), fontSize = 12.sp,
+            color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
+        SettingsRow(stringResource(R.string.comp_nightlies_checked,
+            if (catalogAt > 0) java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+                .format(java.util.Date(catalogAt * 1000)) else stringResource(R.string.comp_never)), null, stacked = true) {
+            ValueChip(stringResource(if (checking) R.string.common_checking else R.string.stores_refresh),
+                false, enabled = !checking, modifier = track("cmp-download-refresh"), onClick = onRefresh)
+        }
+        for (comp in ComponentsManager.COMPONENTS) {
+            val key = "cmp-download-$comp"
+            val items = catalog.filter { it.comp == comp }
+            val open = host.open == key
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text(ComponentsManager.LABEL.getValue(comp), fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                Box(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                    ValueChip(stringResource(R.string.drawer_component_choose_download), open,
+                        enabled = items.isNotEmpty(), modifier = track(key).fillMaxWidth()) {
+                        host.open = if (open) null else key
+                    }
+                    AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null },
+                        title = ComponentsManager.LABEL.getValue(comp)) { firstItemFocus ->
+                        val firstAvailable = items.firstOrNull { ComponentsManager.safeName(it.file) !in installed && it.file !in downloads }
+                        items.forEach { item ->
+                            val stored = ComponentsManager.safeName(item.file) in installed
+                            val progress = downloads[item.file]
+                            MenuItem(item.file.removeSuffix(".wcp"), checked = stored,
+                                enabled = !stored && progress == null,
+                                detail = when {
+                                    stored -> stringResource(R.string.wincomp_downloaded)
+                                    progress != null -> if (progress < 0) stringResource(R.string.wincomp_downloading, item.file.removeSuffix(".wcp")) else "$progress%"
+                                    else -> item.release + " · " + stringResource(R.string.common_size_mb, item.size / 1048576.0)
+                                },
+                                focusRequester = if (item == firstAvailable) firstItemFocus else null,
+                            ) {
+                                onDownload(item)
+                                host.open = null
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (catalog.isEmpty() && !checking) Text(
+            stringResource(if (catalogAt == 0L) R.string.comp_refresh_to_list else R.string.comp_nothing_new),
+            fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(14.dp),
+        )
+        for ((file, progress) in downloads) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+                Text(stringResource(R.string.wincomp_downloading, file.removeSuffix(".wcp")),
+                    fontSize = 12.sp, color = colors.onSurfaceVariant)
+                if (progress < 0) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                else {
+                    Text("$progress%", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    LinearProgressIndicator(progress = { progress / 100f },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun <T> DrawerStackedChoice(
     host: MenuHost, key: String, label: String, hint: String?,
@@ -1288,7 +1385,6 @@ private fun <T> DrawerStackedChoice(
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
 }
 
-/** A close row of icons: inactive tabs stay legible while the active tab leads. */
 private const val DRAWER_TAB_SPACING_DP = 48f
 
 private const val DRAWER_TAB_LEAN_DP = 8f
@@ -1297,18 +1393,11 @@ private const val DRAWER_TAB_SIDE_SCALE = 0.8f
 
 private const val DRAWER_TAB_SIDE_ALPHA = 0.8f
 
-/** Room between the Stop pill and the box that steps out under it: the pull. */
 private val StepPull = 6.dp
 private val StepBoxCorner = 16.dp
 private val StepFillet = 10.dp
 private val StepBoxMaxWidth = 264.dp
 
-/**
- * Stop's confirm, grown out of the Stop pill at [pill] (px, in the sheet): a pull the pill's width
- * drops out of it and a wider box steps out to the left under it for the choices, right edges
- * flush, so Stop lands under the pill. Cancel, B and a tap outside fold it back into the pill,
- * width first. [onStop] gets Stop's bounds on screen for the flood.
- */
 @Composable
 private fun StopConfirm(
     open: Boolean,
@@ -1324,7 +1413,6 @@ private fun StopConfirm(
     val tint = remember { Animatable(0f) }
     val dim = remember { Animatable(0f) }
     val items = remember { List(3) { Animatable(0f) } }
-    // Composed from the first open until it has folded back into the pill.
     var shown by remember { mutableStateOf(false) }
     var grown by remember { mutableStateOf(false) }
     var content by remember { mutableStateOf<IntSize?>(null) }
@@ -1378,7 +1466,6 @@ private fun StopConfirm(
     val p = pill ?: return
 
     Box(Modifier.fillMaxSize()) {
-        // The rest of the sheet dims behind it, and a tap there cancels.
         Box(
             Modifier.fillMaxSize().graphicsLayer { alpha = dim.value }.background(Color(0x59000000))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open, onClick = onCancel),
@@ -1395,7 +1482,6 @@ private fun StopConfirm(
             drawPath(path, lerp(hotFill, restFill, tint.value))
             drawPath(path, colors.error.copy(alpha = lerp(0.9f, 0.55f, tint.value)), style = Stroke(rim))
         }
-        // The pill's label rides on top, as the pull's handle.
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.offset { IntOffset(p.left.roundToInt(), p.top.roundToInt()) }
@@ -1413,7 +1499,6 @@ private fun StopConfirm(
                 .onSizeChanged { if (content != it) content = it }
                 .controllerBack(onCancel)
                 .onPreviewKeyEvent { e ->
-                    // Keep a controller in here, as the dialog's own window used to.
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (e.key) {
                         Key.DirectionUp, Key.DirectionDown -> true
@@ -1452,7 +1537,6 @@ private fun StopConfirm(
     }
 }
 
-/** One of the confirm's two choices: a capsule that fills when focused; Stop in the danger red. */
 @Composable
 private fun ConfirmChoice(label: String, danger: Boolean, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme

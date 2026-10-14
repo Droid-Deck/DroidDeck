@@ -101,8 +101,8 @@ index 6d1ba47..8557d4a 100644
   * Append to @program->filter the statements that allow anything (if
 - * unfiltered).  Note that @nb_traced_syscalls is used to make a
 - * sanity check.  This function returns -errno if an error occurred,
-+ * unfiltered).  Note that @section_length is used to make a sanity
-+ * check.  This function returns -errno if an error occurred,
++
++
   * otherwise 0.
   */
 -static int end_arch_section(struct sock_fprog *program, size_t nb_traced_syscalls)
@@ -125,7 +125,7 @@ index 6d1ba47..8557d4a 100644
  /**
   * Append to @program->filter the statements that check the current
 - * @architecture.  Note that @nb_traced_syscalls is used to make a
-+ * @architecture.  Note that @section_length is used to make a
++
   * sanity check.  This function returns -errno if an error occurred,
   * otherwise 0.
   */

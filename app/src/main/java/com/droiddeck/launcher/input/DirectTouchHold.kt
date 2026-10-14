@@ -5,7 +5,6 @@ import android.os.Looper
 import android.view.MotionEvent
 import kotlin.math.abs
 
-/** Observes raw touches; consumes the rest of a stationary hold after right-clicking. */
 class DirectTouchHold(
     private val slopPx: Float,
     private val listener: PointerGestures.Listener,
@@ -36,7 +35,6 @@ class DirectTouchHold(
         consumed = false
     }
 
-    /** True only once a hold has replaced the raw touch with a right click. */
     fun onTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {

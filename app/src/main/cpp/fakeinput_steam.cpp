@@ -1,12 +1,8 @@
 /*
- * The fake evdev layer. Taken from WinNative (maxjivi05, main 0cfc070b + feature/wayland-gamescope
- * through f1f34cd7, 2026-09-14..19), GPL-3.0: the locking, the fork handlers, the shared device
- * table, the Steam virtual-gamepad identity and the Z/RZ trigger placement are that author's.
- * Added here: an opt-in Xbox 360 identity (FAKE_EVDEV_IDENTITY=xbox360), which is what gets SDL's
- * built-in mapping applied with no configuration when the pad is read by the Steam client itself;
- * and a stand-in for /dev/uinput (FAKE_EVDEV_UINPUT=1), so the virtual pads Steam Input makes for
- * a game become more of these nodes instead of vanishing.
+ * Taken from WinNative (maxjivi05, main 0cfc070b + feature/wayland-gamescope
+ * through f1f34cd7, 2026-09-14..19), GPL-3.0.
  */
+
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -57,8 +53,6 @@
 
 #define EXPORT extern "C" __attribute__((visibility("default")))
 
-// glibc declares the request as unsigned long; bionic as int. The same source also serves the
-// Linux runtime's preload (tools/linuxfs), where Steam and SDL run against glibc.
 #ifdef __GLIBC__
 typedef unsigned long ioctl_request_t;
 #else
@@ -69,13 +63,9 @@ static constexpr uint16_t GAMEPAD_VENDOR_ID_BASE = 0x1234;
 static constexpr uint16_t GAMEPAD_PRODUCT_ID_BASE = 0x5678;
 static constexpr uint16_t GAMEPAD_VERSION = 0x0110;
 static constexpr const char *GAMEPAD_NAME_TEMPLATE = "Generic HID Gamepad %d";
-// The gamepad Steam Input presents to a game, and the name SDL reads its slot from.
 static constexpr uint16_t STEAM_VIRTUAL_VENDOR_ID = 0x28de;
 static constexpr uint16_t STEAM_VIRTUAL_PRODUCT_ID = 0x11ff;
 static constexpr const char *STEAM_VIRTUAL_NAME_TEMPLATE = "Microsoft X-Box 360 pad %d";
-// Opt-in identity for the process that reads the pad directly (the Steam client): SDL keys its
-// mapping database on bus+vendor+product, and 045E:028E is the most widely mapped id there is.
-// Not offset per slot: a real pad reports the same ids on every port.
 static constexpr uint16_t X360_VENDOR_ID = 0x045E;
 static constexpr uint16_t X360_PRODUCT_ID = 0x028E;
 static constexpr const char *X360_NAME_TEMPLATE = "Xbox 360 Controller (%d)";
@@ -90,27 +80,25 @@ static constexpr uint32_t FAKE_INPUT_RING_CAPACITY = 4096;
 static constexpr unsigned int FAKE_INPUT_MAJOR = 13;
 static constexpr unsigned int FAKE_INPUT_EVENT_MINOR_BASE = 64;
 static constexpr unsigned int FAKE_INPUT_JS_MINOR_BASE = 0;
-// Nodes from event16 up are the virtual pads programs make through the /dev/uinput stand-in;
-// below that are the app's own rings, one per slot.
 static constexpr int UINPUT_EVENT_BASE = 16;
 static constexpr int UINPUT_EVENT_LIMIT = 64;
 static constexpr uint32_t UINPUT_DESCRIPTION_MAGIC = 0x46495544;
 
 struct FakeInputRingHeader {
-  uint32_t magic;             // 0
-  uint32_t version;           // 4
-  uint32_t event_size;        // 8
-  uint32_t capacity;          // 12
-  uint64_t write_seq;         // 16
-  uint64_t generation;        // 24
-  // Authoritative absolute-state snapshot, published by the writer under a
-  // seqlock (odd snapshot_seq = write in progress). The reader replays it as a
-  // full keyframe whenever the delta stream could have desynced (open, ring
-  // overflow) so dropped events can recover without periodic duplicate input.
-  uint64_t snapshot_seq;      // 32
-  uint32_t snapshot_buttons;  // 40  bit i -> kSnapshotButtons[i] pressed
-  int16_t snapshot_axes[8];   // 44  values in kSnapshotAxisCodes order
-  uint32_t resync_seq;        // 60
+  uint32_t magic;
+  uint32_t version;
+  uint32_t event_size;
+  uint32_t capacity;
+  uint64_t write_seq;
+  uint64_t generation;
+
+
+
+
+  uint64_t snapshot_seq;
+  uint32_t snapshot_buttons;
+  int16_t snapshot_axes[8];
+  uint32_t resync_seq;
 };
 
 static_assert(sizeof(FakeInputRingHeader) == 64,
@@ -122,8 +110,6 @@ static constexpr size_t FAKE_INPUT_RING_SIZE =
     FAKE_INPUT_RING_HEADER_SIZE +
     (FAKE_INPUT_RING_CAPACITY * FAKE_INPUT_EVENT_SIZE);
 
-// What a program told the /dev/uinput stand-in about the device it made, stored after the ring
-// in that device's file so every process that opens the node answers the same identity.
 struct UinputDescription {
   uint32_t magic;
   int32_t owner_pid;
@@ -142,7 +128,6 @@ static constexpr size_t UINPUT_FILE_SIZE = FAKE_INPUT_RING_SIZE + sizeof(UinputD
 
 struct FakeController {
   char *event = nullptr;
-  // Set for a node made through the /dev/uinput stand-in; null for the app's own pads.
   const UinputDescription *uinput = nullptr;
   int slot = -1;
   FakeInputRingHeader *ring = nullptr;
@@ -157,9 +142,6 @@ struct FakeController {
     if (ring) munmap(ring, mapping_size);
     free(event);
   }
-  // Pending keyframe (full absolute-state baseline) currently streaming to the
-  // guest. The axis/button values are captured from the snapshot when the
-  // keyframe starts so the frame stays consistent across multi-read delivery.
   size_t keyframe_remaining = 0;
   int32_t keyframe_axes[8] = {0, 0, 0, 0, 0, 0, 0, 0};
   uint32_t keyframe_buttons = 0;
@@ -170,11 +152,6 @@ struct NeutralEventSpec {
   uint16_t code;
 };
 
-// Event template for a full keyframe: every button, every axis/hat, then a
-// SYN_REPORT, in this fixed order. The value carried by each event is filled
-// from the authoritative snapshot (see keyframe_value); an all-zero snapshot
-// yields the neutral baseline. Replayed on open and ring overflow so dropped
-// events cannot leave a guest stuck.
 static const NeutralEventSpec kNeutralEvents[] = {
     {EV_KEY, BTN_A},      {EV_KEY, BTN_B},      {EV_KEY, BTN_X},
     {EV_KEY, BTN_Y},      {EV_KEY, BTN_TL},     {EV_KEY, BTN_TR},
@@ -187,30 +164,15 @@ static const NeutralEventSpec kNeutralEvents[] = {
 static constexpr size_t kNeutralEventCount =
     sizeof(kNeutralEvents) / sizeof(kNeutralEvents[0]);
 
-// Axis layout of FakeInputRingHeader::snapshot_axes (mirrors the Java writer).
 static const uint16_t kSnapshotAxisCodes[8] = {
     ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_GAS, ABS_BRAKE, ABS_HAT0X, ABS_HAT0Y};
-// Bit i of FakeInputRingHeader::snapshot_buttons maps to this button code.
 static const uint16_t kSnapshotButtons[11] = {
     BTN_A,      BTN_B,      BTN_X,     BTN_Y,      BTN_TL,    BTN_TR,
     BTN_SELECT, BTN_START,  BTN_THUMBL, BTN_THUMBR,
-    // Bit 10 is the Steam button: the client's in-game menu is bound to it, and SDL reports it
-    // as button 8 from this position in the key bits.
     BTN_MODE};
 static constexpr size_t kSnapshotButtonCount =
     sizeof(kSnapshotButtons) / sizeof(kSnapshotButtons[0]);
 
-// An LD_PRELOAD interposer is called outside its own lifetime. The loader initialises libraries
-// in dependency order, and the hooks below belong to whichever library gets there first: on the
-// Linux runtime, libpython's initialiser runs before ours and calls close() and read(), so a hook
-// fires before this library has been initialised at all. A file-scope std::unordered_map or
-// std::recursive_mutex has no object yet at that moment - touching one is undefined behaviour,
-// and in practice the process dies before main(). The same window reopens at exit, after static
-// destructors have run. (Proton is a Python script, so this killed every game launched from the
-// native Steam client, and the compatibility-tool registrar with it.)
-//
-// So everything with a constructor lives behind an accessor that builds it on first use and
-// never destroys it. The leak is deliberate and bounded: one map or mutex for the process.
 namespace Logger {
 void init();
 }
@@ -266,9 +228,6 @@ static std::unordered_map<int, struct ff_effect> &ff_effects() {
   return *map;
 }
 
-// Every fd the maps hold, readable without controller_mutex(): the hooks see each read, write,
-// ioctl and poll a process makes, and almost none are on these. Set before an fd is handed out,
-// cleared once no map holds it; an fd past the bitmap takes the lock once any such fd exists.
 static constexpr int kWatchedFds = 1 << 16;
 static constexpr int kWatchedBits = sizeof(unsigned long) * 8;
 static std::atomic<unsigned long> watched_fds[kWatchedFds / kWatchedBits];
@@ -300,17 +259,6 @@ static bool fake_uinput_enabled() { return config().uinput_enabled; }
 static bool ring_paths_loaded = false;
 static int next_ff_id = 0;
 
-// fork() carries over only the calling thread, so a lock another thread was holding at that
-// instant stays held in the child by a thread that is not there to release it. Every hook below
-// takes controller_mutex, and the Steam client forks while its other threads are inside them, so
-// the child blocked on its first open() and never reached exec: the spawn never completed, the
-// client's main loop stalled past its own watchdog and it tore the session down.
-//
-// Taking the lock before the fork is what makes the copy consistent - no thread is part way
-// through the tables it guards. The parent then unlocks it. The child cannot: a recursive mutex
-// records the owning thread, the child's one thread has a new id, and unlocking one it does not
-// own is refused, which would leave the lock held for good. It gets a fresh mutex instead, which
-// is sound precisely because the fork was taken with the lock held.
 static void controller_fork_prepare() { controller_mutex().lock(); }
 static void controller_fork_parent() { controller_mutex().unlock(); }
 
@@ -325,11 +273,6 @@ static void controller_fork_child() {
 
 namespace Logger {
 int log_enabled;
-// FAKE_EVDEV_LOG_FILE: the session's pad.log, shared by every process the library is loaded in
-// (the client, each game), so a pad report has the guest side in one file of the session folder.
-// Opened with the raw syscalls (open() and close() are this library's own hooks), and only once
-// there is a line to write: most processes never log one, and each open is a stop in proot on
-// shared storage.
 static std::atomic<int> log_fd{-1};
 static std::atomic<bool> log_unusable{false};
 static char log_path[PATH_MAX];
@@ -371,7 +314,6 @@ void log(const char *message, ...) {
     std::cerr.flush();
     return;
   }
-  // One write per line: O_APPEND keeps lines from different processes whole.
   char line[512];
   struct timespec now;
   clock_gettime(CLOCK_REALTIME, &now);
@@ -392,12 +334,9 @@ void log(const char *message, ...) {
   ssize_t ignored = write(fd, line, n);
   (void)ignored;
 }
-} // namespace Logger
+}
 
 __attribute__((constructor)) static void library_init() {
-  // Warming the lazily built state, not owning it: when the loader runs this before anything
-  // calls a hook - the ordinary case - the first hook finds everything already there. Nothing
-  // below depends on it having run, which is the whole point.
   config();
   controller_mutex();
   controller_map();
@@ -408,10 +347,6 @@ send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
   if (!fake_vibration_enabled())
     return;
 
-  // Rumble is best effort: the app listens on the abstract socket below (RumbleComponent) and
-  // drives the phone's vibrator. A full listener backlog must never park
-  // winebus (or every input hook through controller_mutex()), and a closing
-  // listener must not terminate the guest with SIGPIPE.
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
   if (sock < 0)
     return;
@@ -599,8 +534,6 @@ struct SnapshotState {
 
 static long long monotonic_ms();
 
-// The writer protects the events, cursor and snapshot in one publication.
-// A busy writer is retried later; inventing a neutral state would lose holds.
 __attribute__((visibility("hidden"))) static bool
 read_snapshot(const FakeInputRingHeader *ring, SnapshotState &out) {
   for (int attempt = 0; attempt < 8; attempt++) {
@@ -620,8 +553,6 @@ read_snapshot(const FakeInputRingHeader *ring, SnapshotState &out) {
   return false;
 }
 
-// This baseline supersedes all deltas through its cursor. Replaying older
-// deltas after it can reassert a control that the snapshot already released.
 __attribute__((visibility("hidden"))) static void
 capture_keyframe(FakeController &fake, const SnapshotState &snap) {
   fake.keyframe_buttons = snap.buttons;
@@ -632,25 +563,22 @@ capture_keyframe(FakeController &fake, const SnapshotState &snap) {
   fake.needs_keyframe = false;
 }
 
-// Resolve the value a keyframe event should carry from the captured snapshot.
 __attribute__((visibility("hidden"))) static int32_t
 keyframe_value(const FakeController &fake, uint16_t type, uint16_t code) {
   if (type == EV_KEY) {
     for (size_t i = 0; i < kSnapshotButtonCount; i++)
       if (kSnapshotButtons[i] == code)
         return (fake.keyframe_buttons >> i) & 1u;
-    return 0; // a code the snapshot word does not carry
+    return 0;
   }
   if (type == EV_ABS) {
     for (int i = 0; i < 8; i++)
       if (kSnapshotAxisCodes[i] == code)
         return fake.keyframe_axes[i];
   }
-  return 0; // SYN / unknown
+  return 0;
 }
 
-// A virtual pad's ring and description live beside its node, hidden from anything that lists
-// event* names: /dev/input/.uinput-event<n>.
 __attribute__((visibility("hidden"))) static std::string uinput_ring_path(int node) {
   return std::string(fake_hook_dir()) + "/.uinput-event" + std::to_string(node);
 }
@@ -691,7 +619,6 @@ open_fake_input_ring(const char *event, int flags) {
       virtual_pad ? reinterpret_cast<const UinputDescription *>(
                         static_cast<const uint8_t *>(mapping) + FAKE_INPUT_RING_SIZE)
                   : nullptr;
-  // A virtual pad whose maker has gone (a crashed client leaves its files) is not there.
   if (!ring_header_is_valid(ring) ||
       (description && (description->magic != UINPUT_DESCRIPTION_MAGIC ||
                        !process_alive(description->owner_pid)))) {
@@ -709,8 +636,6 @@ open_fake_input_ring(const char *event, int flags) {
   controller->uinput = description;
   controller->mapping_size = mapping_size;
   controller->generation = ring_generation(ring);
-  // Establish the cursor at open so taps arriving before the first read stay
-  // queued. If publication is busy, read() will finish establishing it later.
   SnapshotState snap;
   if (read_snapshot(ring, snap) && snap.generation == controller->generation)
     capture_keyframe(*controller, snap);
@@ -725,13 +650,6 @@ open_fake_input_ring(const char *event, int flags) {
   return fd;
 }
 
-// Under the Steam client a pad it manages is hidden from the game: the client lists it in
-// SDL_GAMECONTROLLER_IGNORE_DEVICES, its overlay refuses the game's open() of the node, and the
-// game is meant to see Steam Input's virtual gamepad instead. That one is a uinput device, which
-// does not exist here, so the game was left with no controller at all. With
-// FAKE_EVDEV_STEAM_VIRTUAL set the pad carries the virtual gamepad's identity for every process
-// but the client's own, which must keep seeing the pad as the physical one it reads.
-// Whether this process is the Steam client itself. Asked once: a process never becomes another.
 __attribute__((visibility("hidden"))) static bool is_steam_client() {
   static int known;
   if (known == 0) {
@@ -757,14 +675,6 @@ __attribute__((visibility("hidden"))) static bool presents_steam_virtual() {
   return known == 1;
 }
 
-// The virtual gamepad is an X-Box 360 pad, whose triggers are ABS_Z and ABS_RZ. Wine and SDL place
-// a gamepad's axes by their position among the ones it advertises, so the triggers have to sit
-// where that pad has them: as ABS_GAS and ABS_BRAKE they follow the sticks, the right stick
-// lands on the left trigger, and a released right trigger reads as the right stick held up. That
-// is every reader but the Steam client, which maps the pad from what it finds (controller.txt)
-// and has always been shown ABS_GAS/ABS_BRAKE: a game Steam Input is off for reads this pad
-// itself (the Xbox 360 setting), and so do the desktop's programs. A pad made through
-// /dev/uinput is that pad for real, whoever reads it.
 __attribute__((visibility("hidden"))) static bool
 presents_xbox_triggers(const FakeController &fake) {
   return fake.uinput || !is_steam_client();
@@ -778,7 +688,6 @@ presented_abs_code(const FakeController &fake, uint16_t code) {
   return code;
 }
 
-// The snapshot keeps the triggers in the ABS_GAS/ABS_BRAKE places either way.
 __attribute__((visibility("hidden"))) static uint16_t snapshot_abs_code(uint16_t code) {
   if (code == ABS_Z) return ABS_BRAKE;
   if (code == ABS_RZ) return ABS_GAS;
@@ -807,8 +716,6 @@ __attribute__((visibility("hidden"))) static bool is_fake_input_fd(int fd) {
 
 static bool fake_pad_withdrawn(const FakeController &fake);
 
-// A node whose pad is gone: the app republished its ring, or the pad was switched to a type that
-// is not this node (it became the Deck or the Steam Controller again, fake_pad_withdrawn).
 static bool controller_gone(const FakeController &fake) {
   return ring_generation(fake.ring) != fake.generation || fake_pad_withdrawn(fake);
 }
@@ -820,12 +727,9 @@ __attribute__((visibility("hidden"))) static bool fake_fd_is_stale(int fd) {
   return controller != controller_map().end() && controller_gone(*controller->second);
 }
 
-// Caller holds controller_mutex().
 static bool fake_has_unread_data(const FakeController &fake) {
   if (controller_gone(fake))
     return false;
-  // Readiness never consumes resync requests or changes the read cursor.
-  // Do not spin a nonblocking guest on a producer's unfinished publication.
   if (fake.keyframe_remaining > 0) return true;
   uint64_t sequence = __atomic_load_n(&fake.ring->snapshot_seq, __ATOMIC_ACQUIRE);
   if (sequence & 1ULL) return false;
@@ -874,20 +778,6 @@ __attribute__((visibility("hidden"))) static long long monotonic_ms() {
   return static_cast<long long>(now.tv_sec) * 1000LL + now.tv_nsec / 1000000LL;
 }
 
-// ---- /dev/uinput, stood in for ----
-//
-// Under Steam, a game is meant to read Steam Input's output, not the pad: the client hides the
-// physical pad from the game (SDL_GAMECONTROLLER_IGNORE_DEVICES, and its overlay refuses the
-// open) and makes it a virtual X-Box 360 pad through /dev/uinput, which it then drives with the
-// layout the player chose. The sandbox has no uinput the client may use, so the virtual pad never
-// appeared and every game was left reading the physical pad as-is.
-//
-// So /dev/uinput is answered here. A gamepad the client makes becomes another of this library's
-// nodes - /dev/input/event16 and up - backed by a ring file of the same layout the app writes,
-// and the client's writes are that ring's events. Any process reading the node sees the identity
-// the client gave it and gets exactly what the client wrote. A device that is not a gamepad (the
-// client's virtual keyboard and mouse) is accepted and its events dropped, which is what happened
-// to them before.
 struct UinputWriter {
   UinputDescription description{};
   bool created = false;
@@ -918,8 +808,6 @@ __attribute__((visibility("hidden"))) static bool test_bit(const uint8_t *bits, 
   return bit >= 0 && static_cast<size_t>(bit) / 8 < size && (bits[bit / 8] >> (bit % 8)) & 1u;
 }
 
-// A real uinput fd reads EV_UINPUT requests and polls as writable. An eventfd that is never
-// signalled does both: nothing to read, always writable, blocking or not as the caller asked.
 __attribute__((visibility("hidden"))) static int open_uinput(int flags) {
   int fd = eventfd(0, ((flags & O_NONBLOCK) ? EFD_NONBLOCK : 0) | ((flags & O_CLOEXEC) ? EFD_CLOEXEC : 0));
   if (fd < 0) return -1;
@@ -932,8 +820,6 @@ __attribute__((visibility("hidden"))) static int open_uinput(int flags) {
   return fd;
 }
 
-// The layout the client asks for only matters to readers; what makes it a pad is a south button
-// and a left stick, which is also what every pad the ring format carries has.
 __attribute__((visibility("hidden"))) static bool is_gamepad(const UinputDescription &d) {
   return test_bit(d.evbits, sizeof(d.evbits), EV_KEY) && test_bit(d.keybits, sizeof(d.keybits), BTN_SOUTH) &&
          test_bit(d.evbits, sizeof(d.evbits), EV_ABS) && test_bit(d.absbits, sizeof(d.absbits), ABS_X);
@@ -941,8 +827,6 @@ __attribute__((visibility("hidden"))) static bool is_gamepad(const UinputDescrip
 
 __attribute__((visibility("hidden"))) static void unpublish_uinput(UinputWriter &w) {
   if (!w.published) return;
-  // Readers holding the mapping see the generation move and report the device gone; the node's
-  // removal is what tells SDL and Wine through inotify.
   __atomic_add_fetch(&w.ring->generation, 1, __ATOMIC_RELEASE);
   std::string node = std::string(fake_hook_dir()) + "/event" + std::to_string(w.node);
   unlink(node.c_str());
@@ -955,8 +839,6 @@ __attribute__((visibility("hidden"))) static void unpublish_uinput(UinputWriter 
   w.published = false;
 }
 
-// A node number is claimed by creating its ring file exclusively, so two processes making pads
-// at once cannot take the same one. A file left by a process that has gone is reclaimed.
 __attribute__((visibility("hidden"))) static int claim_uinput_node(int *fd_out) {
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
   for (int node = UINPUT_EVENT_BASE; node < UINPUT_EVENT_LIMIT; node++) {
@@ -977,7 +859,7 @@ __attribute__((visibility("hidden"))) static int claim_uinput_node(int *fd_out) 
       unlink((std::string(fake_hook_dir()) + "/event" + std::to_string(node)).c_str());
       unlink((path + ".uevent").c_str());
       unlink(path.c_str());
-      node--;  // try the same number again
+      node--;
     }
   }
   errno = ENOSPC;
@@ -1010,8 +892,6 @@ __attribute__((visibility("hidden"))) static int publish_uinput(UinputWriter &w)
   shared->owner_pid = w.owner;
   __atomic_thread_fence(__ATOMIC_RELEASE);
 
-  // The identity Wine's HID bus reads through libudev (inputudev.c in libblsession), written
-  // before the node so the first lookup finds it.
   char uevent[256];
   int length = snprintf(uevent, sizeof(uevent), "PRODUCT=%x/%x/%x/%x\nNAME=\"%s\"\nPHYS=\"%s\"\n",
                         shared->id.bustype, shared->id.vendor, shared->id.product, shared->id.version,
@@ -1039,8 +919,6 @@ __attribute__((visibility("hidden"))) static int publish_uinput(UinputWriter &w)
   return 0;
 }
 
-// Same publication as the app's writer (FakeInputWriter.flushBufferToRing): the events, then the
-// absolute state under its seqlock, then the cursor that makes both visible.
 __attribute__((visibility("hidden"))) static void flush_uinput(UinputWriter &w) {
   if (!w.published || w.pending.empty()) {
     w.pending.clear();
@@ -1081,7 +959,6 @@ __attribute__((visibility("hidden"))) static void flush_uinput(UinputWriter &w) 
 __attribute__((visibility("hidden"))) static ssize_t
 write_uinput(UinputWriter &w, const void *buf, size_t count) {
   if (!w.created) {
-    // The legacy description: written once, before UI_DEV_CREATE.
     if (count != sizeof(struct uinput_user_dev)) {
       errno = EINVAL;
       return -1;
@@ -1106,7 +983,6 @@ write_uinput(UinputWriter &w, const void *buf, size_t count) {
   const auto *events = static_cast<const struct input_event *>(buf);
   for (size_t i = 0; i < count / sizeof(struct input_event); i++) {
     w.pending.push_back(events[i]);
-    // A frame ends at SYN_REPORT; a writer that never sends one still gets its events out.
     if ((events[i].type == EV_SYN && events[i].code == SYN_REPORT) || w.pending.size() >= 64)
       flush_uinput(w);
   }
@@ -1141,7 +1017,7 @@ ioctl_uinput(UinputWriter &w, ioctl_request_t op, void *argp) {
   }
   if (w.created && number != _IOC_NR(UI_BEGIN_FF_UPLOAD) && number != _IOC_NR(UI_END_FF_UPLOAD) &&
       number != _IOC_NR(UI_BEGIN_FF_ERASE) && number != _IOC_NR(UI_END_FF_ERASE)) {
-    errno = EINVAL;  // the kernel refuses configuration once the device exists
+    errno = EINVAL;
     return -1;
   }
   switch (number) {
@@ -1190,8 +1066,6 @@ ioctl_uinput(UinputWriter &w, ioctl_request_t op, void *argp) {
       return -1;
     }
     return 0;
-  // Force feedback reaches the client only as EV_UINPUT requests on this fd, and none are ever
-  // sent: a game's rumble on a virtual pad goes straight to the app (check_ff_event).
   case _IOC_NR(UI_BEGIN_FF_UPLOAD):
   case _IOC_NR(UI_END_FF_UPLOAD):
   case _IOC_NR(UI_BEGIN_FF_ERASE):
@@ -1205,8 +1079,6 @@ ioctl_uinput(UinputWriter &w, ioctl_request_t op, void *argp) {
   }
 }
 
-// Only the process that made the device takes it down: a forked child closing its inherited
-// copy of the fd (as a spawn does before exec) must not remove the parent's pad.
 __attribute__((visibility("hidden"))) static void close_uinput(int fd) {
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
   auto it = uinput_map().find(fd);
@@ -1215,21 +1087,6 @@ __attribute__((visibility("hidden"))) static void close_uinput(int fd) {
   uinput_map().erase(it);
 }
 
-// ---- The pad as a Steam Deck controller ----
-//
-// On a Deck, and on the handhelds InputPlumber serves, the Steam client reads the built-in
-// controller itself as a Steam Deck controller: a vendor HID device it talks to over hidraw, which
-// is what gives it the Quick Access button, the back grips, gyro and trackpads, and Steam Input's
-// full treatment of the pad. With FAKE_EVDEV_DECK set the app's pad in ring slot 0 is presented to
-// the client that way: /dev/hidraw16, found through the sysfs tree the app binds into the session
-// (SteamDeckPad.kt), streams the Deck's 64-byte state report every 4 ms, as the real one does, built
-// from the ring's absolute snapshot; its feature reports are answered as InputPlumber answers them
-// for a virtual Deck. The evdev nodes of the app's pads are then withdrawn - the client would
-// otherwise count the pad twice - and games get Steam Input's virtual pad (the /dev/uinput stand-in).
-//
-// A read returns one report and never blocks past the next one, so the fd is one end of a
-// SOCK_SEQPACKET socket pair with a thread writing reports into the other end: poll, select and
-// epoll then work on it with no help from the hooks here.
 static constexpr const char *DECK_HIDRAW_PATH = "/dev/hidraw16";
 static constexpr unsigned int DECK_HIDRAW_MAJOR = 240;
 static constexpr unsigned int DECK_HIDRAW_MINOR = 16;
@@ -1238,20 +1095,16 @@ static constexpr int DECK_REPORT_INTERVAL_US = 4000;
 static constexpr const char *DECK_NAME = "Valve Software Steam Deck Controller";
 static constexpr const char *DECK_SERIAL = "DROIDDECK0001";
 
-// InputPlumber, src/drivers/steam_deck/report_descriptor.rs (CONTROLLER_DESCRIPTOR): one 64-byte
-// vendor input report and one 64-byte feature report, no report ids.
 static const uint8_t kDeckReportDescriptor[] = {
     0x06, 0xff, 0xff, 0x09, 0x01, 0xa1, 0x01, 0x09, 0x02, 0x09, 0x03, 0x15, 0x00,
     0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x81, 0x02, 0x09, 0x06, 0x09, 0x07,
     0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0};
 
-// Feature report ids (SDL, src/joystick/hidapi/steam/controller_constants.h).
 static constexpr uint8_t DECK_GET_ATTRIBUTES_VALUES = 0x83;
 static constexpr uint8_t DECK_GET_STRING_ATTRIBUTE = 0xAE;
 static constexpr uint8_t DECK_GET_CHIP_ID = 0xBA;
 static constexpr uint8_t DECK_TRIGGER_RUMBLE_CMD = 0xEB;
 
-// Button bits of the state report (SDL, SDL_hidapi_steamdeck.c): the low word, then the high.
 static constexpr uint32_t DECK_L_R2 = 0x00000001, DECK_L_L2 = 0x00000002, DECK_L_R1 = 0x00000004,
                           DECK_L_L1 = 0x00000008, DECK_L_Y = 0x00000010, DECK_L_B = 0x00000020,
                           DECK_L_X = 0x00000040, DECK_L_A = 0x00000080, DECK_L_UP = 0x00000100,
@@ -1264,8 +1117,6 @@ static constexpr uint32_t DECK_L_L5 = 0x00008000, DECK_L_R5 = 0x00010000,
                           DECK_L_LEFT_TOUCH = 0x00080000, DECK_L_RIGHT_TOUCH = 0x00100000;
 static constexpr uint32_t DECK_H_L4 = 0x00000200, DECK_H_R4 = 0x00000400;
 static constexpr uint32_t DECK_H_QAM = 0x00040000;
-// Bit 11 of the ring snapshot's button word: the Quick Access button, which an Xbox pad does not
-// have and the evdev nodes therefore never report (FakeInputWriter.SNAPSHOT_IDX_QAM).
 static constexpr uint32_t SNAPSHOT_QAM_BIT = 1u << 11;
 
 struct DeckHidraw {
@@ -1273,29 +1124,24 @@ struct DeckHidraw {
   FakeInputRingHeader *ring = nullptr;
   size_t mapping_size = 0;
   uint8_t pending_feature = 0;
-  bool touch = false;  // Steam's touch controller (below), not the Deck
-  bool triton = false; // The paired 2025 Steam Controller, with native BLE report IDs
-  bool emulated = false; // That Steam Controller made from the app's own pad (FAKE_EVDEV_TRITON_PAD)
-  uint8_t sony = 0;      // The app's own pad as a DualShock 4 (4) or DualSense (5), else 0
+  bool touch = false;
+  bool triton = false;
+  bool emulated = false;
+  uint8_t sony = 0;
 };
 
-// What the Deck has and an Xbox pad does not, after the ring's events: motion (PadMotion) and the
-// back grips and trackpads (the second screen's Deck controls, DeckControls), already in the
-// Deck's axes and units, under a seqlock (FakeInputWriter.writeMotion / writeDeckControls).
-// Absent from a ring file written without one.
 struct DeckImu {
-  uint32_t magic;  // IMU1 once written
-  uint32_t imu_mode;  // written by this library: the client's SETTING_IMU_MODE | 0x80000000
-  uint64_t seq;    // odd while being written
+  uint32_t magic;
+  uint32_t imu_mode;
+  uint64_t seq;
   int16_t accel[3];
   int16_t gyro[3];
-  int16_t pads[4];         // left X, Y, right X, Y: -32768..32767, Y up
-  uint16_t pressure[2];    // left, right: 0..32767
-  uint32_t controls;       // DECK_EXTRA_* bits
-  uint32_t pad_type;       // PAD_TYPE_* | 0x80000000, written by the app; 0 until it does
+  int16_t pads[4];
+  uint16_t pressure[2];
+  uint32_t controls;
+  uint32_t pad_type;
 };
 static_assert(offsetof(DeckImu, pad_type) == 44, "DeckImu::pad_type matches FakeInputWriter");
-// DeckImu::controls (DeckControls.kt).
 static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 4,
                           DECK_EXTRA_R5 = 8, DECK_EXTRA_LPAD_TOUCH = 16,
                           DECK_EXTRA_RPAD_TOUCH = 32, DECK_EXTRA_LPAD_CLICK = 64,
@@ -1312,13 +1158,9 @@ static constexpr uint32_t DECK_IMU_MAGIC = 0x31554D49;
 static constexpr size_t DECK_IMU_BLOCK_SIZE = 64;
 static_assert(sizeof(DeckImu) <= DECK_IMU_BLOCK_SIZE, "the IMU block is 64 bytes in the ring file");
 
-// Shared native Steam Controller reports. Field offsets match FakeInputWriter.java. Android writes
-// the original BLE input packet; this process writes Steam's HID output report for Android to send.
-// A feature read is a round trip: this process bumps get_request, Android reads the controller's
-// report characteristic and answers with get_reply set to the same number.
 struct TritonSharedData {
   uint32_t magic;
-  uint32_t connected;  // written by the app: the paired controller is connected and streaming
+  uint32_t connected;
   uint64_t input_seq;
   uint32_t report_id;
   uint32_t input_length;
@@ -1353,13 +1195,11 @@ static_assert(sizeof(TritonSharedData) <= TRITON_SHARED_BLOCK_SIZE, "Triton ring
 static constexpr const char *TRITON_HIDRAW_PATH = "/dev/hidraw18";
 static constexpr unsigned int TRITON_HIDRAW_MAJOR = 240;
 static constexpr unsigned int TRITON_HIDRAW_MINOR = 18;
-// The app's own pad as the wired Steam Controller: a node of its own, so a paired one keeps 18.
 static constexpr const char *TRITON_PAD_HIDRAW_PATH = "/dev/hidraw19";
 static constexpr unsigned int TRITON_PAD_HIDRAW_MINOR = 19;
 static constexpr int TRITON_REPORT_ID_BYTES = 1;
 static constexpr int TRITON_STATE_BYTES = 45;
 static constexpr int TRITON_REPORT_INTERVAL_US = 4000;
-// A BLE read takes a few connection intervals; past this the controller is taken to be gone.
 static constexpr int TRITON_FEATURE_TIMEOUT_MS = 500;
 static constexpr const char *TRITON_NAME = "Steam Controller";
 static constexpr const char *TRITON_SERIAL = "DROIDDECKSC01";
@@ -1407,12 +1247,6 @@ static bool fake_deck_enabled() {
   return enabled == 1;
 }
 
-// What the app's own pad is to the client, switchable while the session runs (the drawer's
-// Controller page): the Deck (/dev/hidraw16), the wired Steam Controller (/dev/hidraw19, built from
-// ring slot 0 as the Deck's reports are), or an Xbox 360 pad (its own evdev node, no HID device).
-// The app writes the choice into the slot's Deck block (DeckImu::pad_type); until it has,
-// FAKE_EVDEV_PAD_TYPE says what the session started with. Only the chosen device can be opened;
-// the others end their streams, and the client is told through udev (pad_type_thread).
 static constexpr uint32_t PAD_TYPE_DECK = 0, PAD_TYPE_STEAM = 1, PAD_TYPE_XBOX = 2, PAD_TYPE_DS4 = 3,
                           PAD_TYPE_DUALSENSE = 4, PAD_TYPE_LAST = PAD_TYPE_DUALSENSE;
 static constexpr uint32_t PAD_TYPE_SET = 0x80000000u;
@@ -1429,7 +1263,6 @@ __attribute__((visibility("hidden"))) static uint32_t session_pad_type() {
   return static_cast<uint32_t>(type);
 }
 
-// Slot 0's Deck and Triton blocks, mapped once, read-only; null until the ring file has them.
 __attribute__((visibility("hidden"))) static const uint8_t *ring_blocks() {
   static std::atomic<const uint8_t *> block{nullptr};
   static std::atomic<int> tries{0};
@@ -1455,8 +1288,6 @@ __attribute__((visibility("hidden"))) static const uint8_t *ring_blocks() {
   return mapped;
 }
 
-// The paired Bluetooth controller is offered only while the app has it connected: Steam asks a
-// device it is offered for its info, and one that never answers holds up every other controller.
 __attribute__((visibility("hidden"))) static bool triton_connected() {
   const uint8_t *blocks = ring_blocks();
   if (!blocks) return false;
@@ -1479,8 +1310,6 @@ static bool fake_triton_enabled() {
   return enabled == 1;
 }
 
-// The Deck is the client's alone: a game that found it would have the pad twice, once through it
-// and once through Steam Input's virtual pad.
 __attribute__((visibility("hidden"))) static bool process_is_steam_client() {
   static int known;
   if (known == 0) {
@@ -1497,7 +1326,6 @@ __attribute__((visibility("hidden"))) static bool process_is_steam_client() {
   return known == 1;
 }
 
-// What the client starts with, so a pad log says whether it was offered a Deck at all.
 __attribute__((constructor)) static void log_client_start() {
   config();
   if (process_is_steam_client())
@@ -1509,8 +1337,6 @@ __attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char
   return pathname && fake_deck_enabled() && !strcmp(pathname, DECK_HIDRAW_PATH) && live_pad_type() == PAD_TYPE_DECK;
 }
 
-// The app's own pad as a PlayStation controller: /dev/hidraw20 (DualShock 4) or /dev/hidraw21
-// (DualSense), USB devices of their own in SteamDeckPad's sysfs. Returns 4 or 5, or 0.
 static constexpr const char *DS4_HIDRAW_PATH = "/dev/hidraw20";
 static constexpr const char *DUALSENSE_HIDRAW_PATH = "/dev/hidraw21";
 static constexpr unsigned int DS4_HIDRAW_MINOR = 20, DUALSENSE_HIDRAW_MINOR = 21;
@@ -1531,11 +1357,8 @@ __attribute__((visibility("hidden"))) static bool is_triton_hidraw_path(const ch
   return pathname && fake_triton_enabled() && !strcmp(pathname, TRITON_HIDRAW_PATH) && triton_connected();
 }
 
-// The app's first pad is the Deck now: its evdev node is withdrawn from everyone. Further players'
-// pads are left to the client alone, which hands them to games through Steam Input.
 __attribute__((visibility("hidden"))) static bool is_withdrawn_pad_path(const char *pathname) {
   if (!fake_deck_enabled() || !pathname || strncmp(pathname, "/dev/input/", 11)) return false;
-  // As an Xbox 360 pad it is its own evdev node again, for the client and games alike.
   if (live_pad_type() == PAD_TYPE_XBOX) return false;
   const char *event = strrchr(pathname, '/') + 1;
   if (strncmp(event, "event", 5) && strncmp(event, "js", 2)) return false;
@@ -1560,15 +1383,12 @@ static inline void put32(uint8_t *at, uint32_t value) {
   for (int i = 0; i < 4; i++) at[i] = static_cast<uint8_t>(value >> (8 * i));
 }
 
-// The Deck's state report (SDL, controller_structs.h: ValveInReportHeader_t then
-// SteamDeckStatePacket_t) from the ring's snapshot: kSnapshotButtons order, kSnapshotAxisCodes
-// order, sticks as evdev has them (Y down), triggers 0..255.
 __attribute__((visibility("hidden"))) static void
 build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int32_t *axes,
                   const DeckExtras &extras) {
   memset(report, 0, DECK_REPORT_BYTES);
-  report[0] = 0x01;  // report version
-  report[2] = 0x09;  // ID_CONTROLLER_DECK_STATE
+  report[0] = 0x01;
+  report[2] = 0x09;
   report[3] = DECK_REPORT_BYTES;
   put32(report + 4, packet);
   static const uint32_t kButtonBits[11] = {DECK_L_A,    DECK_L_B,    DECK_L_X,    DECK_L_Y,
@@ -1583,7 +1403,7 @@ build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int3
   if (hat_y > 0) low |= DECK_L_DOWN;
   if (hat_x < 0) low |= DECK_L_LEFT;
   if (hat_x > 0) low |= DECK_L_RIGHT;
-  int32_t left_trigger = axes[5], right_trigger = axes[4];  // ABS_BRAKE, ABS_GAS
+  int32_t left_trigger = axes[5], right_trigger = axes[4];
   if (left_trigger > 127) low |= DECK_L_L2;
   if (right_trigger > 127) low |= DECK_L_R2;
   uint32_t controls = extras.controls;
@@ -1597,13 +1417,13 @@ build_deck_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int3
   if (controls & DECK_EXTRA_RPAD_CLICK) low |= DECK_L_RIGHT_PAD;
   put32(report + 8, low);
   put32(report + 12, high);
-  for (int i = 0; i < 4; i++) put16(report + 16 + i * 2, extras.pads[i]);  // s{Left,Right}PadX/Y
+  for (int i = 0; i < 4; i++) put16(report + 16 + i * 2, extras.pads[i]);
   for (int i = 0; i < 3; i++) {
-    put16(report + 24 + i * 2, extras.accel[i]);  // sAccelX/Y/Z
-    put16(report + 30 + i * 2, extras.gyro[i]);   // sGyroX/Y/Z
+    put16(report + 24 + i * 2, extras.accel[i]);
+    put16(report + 30 + i * 2, extras.gyro[i]);
   }
-  put16(report + 56, extras.pressure[0]);  // sPressurePadLeft
-  put16(report + 58, extras.pressure[1]);  // sPressurePadRight
+  put16(report + 56, extras.pressure[0]);
+  put16(report + 58, extras.pressure[1]);
   put16(report + 44, std::min(32767, left_trigger * 32767 / 255));
   put16(report + 46, std::min(32767, right_trigger * 32767 / 255));
   auto stick = [](int32_t value) { return std::max(-32767, std::min(32767, value)); };
@@ -1622,7 +1442,6 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
   uint32_t buttons = 0;
   int32_t axes[8] = {};
   DeckExtras extras;
-  // Switched to another type, the stream ends: the client's read fails and it lets the Deck go.
   while (live_pad_type() == PAD_TYPE_DECK) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
@@ -1631,8 +1450,6 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
     read_deck_extras(*self, extras);
     uint8_t report[DECK_REPORT_BYTES];
     build_deck_report(report, ++packet, buttons, axes, extras);
-    // A reader that fell behind loses reports rather than getting stale ones later; a reader that
-    // has closed ends the stream.
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
@@ -1644,15 +1461,6 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
   return nullptr;
 }
 
-// ---- The pad as a PlayStation controller ----
-//
-// The DualShock 4 (054c:09cc) and DualSense (054c:0ce6) as they are on USB, read by the client's
-// own PlayStation drivers (SDL's hidapi ps4/ps5 are the reference): input report 1 every 4 ms,
-// the feature reports a driver reads at start answered here (calibration, serial, firmware), and
-// output reports' rumble on the handheld's motor. Built from the same ring as the Deck's report:
-// sticks, triggers, buttons, motion (in the units the calibration below declares), and the
-// touchpad from the Deck controls' two trackpads, the left one on its left half and the right one
-// on its right half, either's click as the touchpad's.
 static constexpr int SONY_REPORT_BYTES = 64;
 static constexpr int SONY_TOUCH_WIDTH = 1920;
 static constexpr int SONY_TOUCH_HEIGHT_DS4 = 942, SONY_TOUCH_HEIGHT_DUALSENSE = 1080;
@@ -1664,8 +1472,6 @@ struct SonyTouch {
   uint8_t next_id = 0;
 };
 
-// One finger per trackpad: Deck pads are -32768..32767 with Y up; the touchpad counts from its top
-// left, 12 bits per axis.
 __attribute__((visibility("hidden"))) static void put_sony_touch(uint8_t *at, SonyTouch &touch, int side,
                                                                     bool down, int16_t x, int16_t y, int height) {
   if (down && !touch.down[side]) touch.id[side] = touch.next_id++ & 0x7f;
@@ -1687,13 +1493,12 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t butt
   uint8_t *p = report + 1;
   auto stick = [](int32_t value) { return static_cast<uint8_t>(std::max(0, std::min(255, (value + 32768) >> 8))); };
   p[0] = stick(axes[0]);
-  p[1] = stick(axes[1]);  // evdev and the PlayStation pads both count Y downwards
+  p[1] = stick(axes[1]);
   p[2] = stick(axes[2]);
   p[3] = stick(axes[3]);
   int32_t hat_x = axes[6], hat_y = axes[7];
-  static const uint8_t kHat[3][3] = {{7, 0, 1}, {6, 8, 2}, {5, 4, 3}};  // [y+1][x+1]
+  static const uint8_t kHat[3][3] = {{7, 0, 1}, {6, 8, 2}, {5, 4, 3}};
   uint8_t hat = kHat[(hat_y > 0) - (hat_y < 0) + 1][(hat_x > 0) - (hat_x < 0) + 1];
-  // Snapshot order (kButtonBits): A B X Y L1 R1 View Menu L3 R3 Steam.
   uint8_t face = (buttons & 4 ? 0x10 : 0) | (buttons & 1 ? 0x20 : 0) | (buttons & 2 ? 0x40 : 0) | (buttons & 8 ? 0x80 : 0);
   uint8_t shoulders = (buttons & 16 ? 0x01 : 0) | (buttons & 32 ? 0x02 : 0) | (axes[5] > 0 ? 0x04 : 0) |
                       (axes[4] > 0 ? 0x08 : 0) | (buttons & 64 ? 0x10 : 0) | (buttons & 128 ? 0x20 : 0) |
@@ -1702,9 +1507,6 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t butt
   uint8_t system = (buttons & 1024 ? 0x01 : 0) | (click ? 0x02 : 0);
   uint8_t left_trigger = static_cast<uint8_t>(std::max(0, std::min(255, axes[5])));
   uint8_t right_trigger = static_cast<uint8_t>(std::max(0, std::min(255, axes[4])));
-  // Motion: the Deck block's gyro is 2000 dps and its accel 2 g over 16 bits; the calibration
-  // reports declare 16 units per degree/s and 8192 per g, and the axes are the Deck's reordered as
-  // SDL reads both (Deck X, Z, -Y).
   int16_t gyro[3] = {extras.gyro[0], extras.gyro[2], static_cast<int16_t>(-extras.gyro[1])};
   int16_t accel[3] = {static_cast<int16_t>(extras.accel[0] / 2), static_cast<int16_t>(extras.accel[2] / 2),
                       static_cast<int16_t>(-extras.accel[1] / 2)};
@@ -1715,13 +1517,13 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t butt
     p[6] = static_cast<uint8_t>(system | ((packet & 0x3f) << 2));
     p[7] = left_trigger;
     p[8] = right_trigger;
-    put16(p + 9, static_cast<int>(packet * 750));  // 5.33 us ticks: 4 ms
+    put16(p + 9, static_cast<int>(packet * 750));
     for (int i = 0; i < 3; i++) {
       put16(p + 12 + i * 2, gyro[i]);
       put16(p + 18 + i * 2, accel[i]);
     }
-    p[29] = 0x1b;  // on the cable, full
-    p[32] = 1;     // one touch packet
+    p[29] = 0x1b;
+    p[32] = 1;
     p[33] = static_cast<uint8_t>(packet);
     put_sony_touch(p + 34, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DS4);
     put_sony_touch(p + 38, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DS4);
@@ -1737,11 +1539,11 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t butt
       put16(p + 15 + i * 2, gyro[i]);
       put16(p + 21 + i * 2, accel[i]);
     }
-    put32(p + 27, packet * 12000);  // 0.33 us ticks: 4 ms
+    put32(p + 27, packet * 12000);
     put_sony_touch(p + 32, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DUALSENSE);
     put_sony_touch(p + 36, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DUALSENSE);
-    p[52] = 0x2a;  // charging, full
-    p[53] = 0x08;  // USB
+    p[52] = 0x2a;
+    p[53] = 0x08;
   }
 }
 
@@ -1756,7 +1558,6 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
   int32_t axes[8] = {};
   DeckExtras extras;
   SonyTouch touch;
-  // Switched to another type, the stream ends, as unplugging the controller would.
   while (live_pad_type() == type) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
@@ -1780,7 +1581,6 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags, uin
   const char *path = sony == 4 ? DS4_HIDRAW_PATH : sony == 5 ? DUALSENSE_HIDRAW_PATH : DECK_HIDRAW_PATH;
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
   if (!process_is_steam_client()) {
-    // Only the client reads the Deck; a game sees Steam Input's virtual pad instead.
     Logger::log("deck: %s refused: not the Steam client\n", path);
     errno = ENOENT;
     return -1;
@@ -1793,7 +1593,6 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags, uin
     errno = ENODEV;
     return -1;
   }
-  // The IMU block is mapped only where the file has one: past its end a mapping faults.
   struct stat ring_stat;
   size_t mapping_size = FAKE_INPUT_RING_SIZE;
   if (fstat(ring_fd, &ring_stat) == 0 &&
@@ -1814,7 +1613,6 @@ __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags, uin
     munmap(mapping, mapping_size);
     return -1;
   }
-  // Room for a few reports only, so what the client reads is never more than a few ms old.
   int buffer = DECK_REPORT_BYTES * 4;
   setsockopt(pair[1], SOL_SOCKET, SO_SNDBUF, &buffer, sizeof(buffer));
   if (!(flags & O_CLOEXEC)) fcntl(pair[0], F_SETFD, 0);
@@ -1879,7 +1677,6 @@ __attribute__((visibility("hidden"))) static void *triton_report_thread(void *ar
   uint8_t report[TRITON_REPORT_ID_BYTES + 64] = {};
   uint8_t report_id = 0x45;
   size_t length = TRITON_STATE_BYTES;
-  // A disconnect ends the stream, as unplugging the controller would.
   while (triton_connected()) {
     if (read_triton_state(*self, report_id, report + 1, length)) {
       report[0] = report_id;
@@ -1895,8 +1692,6 @@ __attribute__((visibility("hidden"))) static void *triton_report_thread(void *ar
   return nullptr;
 }
 
-// Button bits of the Triton state report (SDL, SDL_hidapi_steam_triton.c). SDL reads MENU as Back
-// and VIEW as Start, the reverse of the Deck's names.
 static constexpr uint32_t TRITON_A = 0x00000001, TRITON_B = 0x00000002, TRITON_X = 0x00000004,
                           TRITON_Y = 0x00000008, TRITON_QAM = 0x00000010, TRITON_R3 = 0x00000020,
                           TRITON_VIEW = 0x00000040, TRITON_R4 = 0x00000080, TRITON_R5 = 0x00000100,
@@ -1909,17 +1704,10 @@ static constexpr uint32_t TRITON_A = 0x00000001, TRITON_B = 0x00000002, TRITON_X
                           TRITON_LSTICK_TOUCH = 0x01000000, TRITON_LPAD_TOUCH = 0x02000000,
                           TRITON_LPAD_CLICK = 0x04000000, TRITON_LTRIGGER_CLICK = 0x08000000,
                           TRITON_RGRIP_TOUCH = 0x10000000, TRITON_LGRIP_TOUCH = 0x20000000;
-// The pad is built in, so it is the wired controller: 28de:1302 on USB, state report 0x42 (the
-// same layout as the Bluetooth 0x45), where the paired one is 28de:1303 on Bluetooth.
 static constexpr uint8_t TRITON_STATE_WIRED = 0x42;
 static constexpr int16_t TRITON_WIRED_PRODUCT = 0x1302;
-// A stick counts as touched once it leaves its centre: the pad has no capacitive caps to ask.
 static constexpr int32_t TRITON_STICK_TOUCH = 2000;
 
-// The Triton BLE state report (SDL, controller_structs.h: TritonMTUNoQuat_t) from the ring's
-// snapshot and the Deck block, which already hold the trackpads, back buttons and motion in the
-// units both controllers share. A handheld is held whenever it is played, so both grips read as
-// touched: Steam's grip-sense activators (gyro while held, say) then simply stay on.
 __attribute__((visibility("hidden"))) static void
 build_triton_report(uint8_t *report, uint32_t packet, uint32_t buttons, const int32_t *axes,
                     const DeckExtras &extras) {
@@ -1936,7 +1724,7 @@ build_triton_report(uint8_t *report, uint32_t packet, uint32_t buttons, const in
   if (axes[7] > 0) bits |= TRITON_DOWN;
   if (axes[6] < 0) bits |= TRITON_LEFT;
   if (axes[6] > 0) bits |= TRITON_RIGHT;
-  int32_t left_trigger = axes[5], right_trigger = axes[4];  // ABS_BRAKE, ABS_GAS: 0..255
+  int32_t left_trigger = axes[5], right_trigger = axes[4];
   if (left_trigger >= 250) bits |= TRITON_LTRIGGER_CLICK;
   if (right_trigger >= 250) bits |= TRITON_RTRIGGER_CLICK;
   if (abs(axes[0]) > TRITON_STICK_TOUCH || abs(axes[1]) > TRITON_STICK_TOUCH) bits |= TRITON_LSTICK_TOUCH;
@@ -1964,7 +1752,7 @@ build_triton_report(uint8_t *report, uint32_t packet, uint32_t buttons, const in
   put16(report + 23, extras.pads[2]);
   put16(report + 25, extras.pads[3]);
   put16(report + 27, extras.pressure[1]);
-  put32(report + 29, packet * TRITON_REPORT_INTERVAL_US);  // IMU timestamp, microseconds
+  put32(report + 29, packet * TRITON_REPORT_INTERVAL_US);
   for (int i = 0; i < 3; i++) {
     put16(report + 33 + i * 2, extras.accel[i]);
     put16(report + 39 + i * 2, extras.gyro[i]);
@@ -2069,24 +1857,6 @@ __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags, b
 }
 
 
-// ---- Steam's touch controller ----
-//
-// docs/development/steam-touch-controller.md. Steam builds its touch controller (Steam Input's
-// Mobile Touch type, the one Steam Link's on-screen controls are) for any HID device with the ids
-// 0000:11fb. With FAKE_TOUCHCTL_RING set, the client is offered one as /dev/hidraw17 beside the
-// Deck, its sysfs written by the app (SteamDeckPad.kt). The app draws the controls; this side only
-// carries the device's traffic through the file FAKE_TOUCHCTL_RING names, which both map:
-//
-// - the app writes the 40-byte input report (under a seqlock), whether the device is plugged in,
-//   and the battery level;
-// - this side writes what the client tells the device: the app and action set it is on (output
-//   report 4), the action set layers added and removed (5, 6), rumble (1, also passed to the app's
-//   vibration like any pad's) and the setting report (3), and how many readers have it open.
-//
-// Plugged in and out by the app (while its controls are up and no physical pad is in use), as
-// Steam Link withdraws its touch controls: an unplugged device ends its open stream, refuses new
-// opens, and a udev event (libblsession's stand-in monitor, udevmon.c) tells the client's HID
-// discovery either way. Only the client is offered it; a game reads Steam Input's virtual pad.
 static constexpr const char *TOUCH_HIDRAW_PATH = "/dev/hidraw17";
 static constexpr unsigned int TOUCH_HIDRAW_MINOR = 17;
 static constexpr int TOUCH_REPORT_BYTES = 40;
@@ -2094,25 +1864,21 @@ static constexpr int TOUCH_REPORT_INTERVAL_US = 8000;
 static constexpr const char *TOUCH_NAME = "Mobile Touch Control";
 static constexpr const char *TOUCH_SERIAL = "DROIDDECK0001";
 static constexpr const char *TOUCH_DEVPATH = "/devices/droiddeck/usb2/2-1:1.0/0003:0000:11FB.0002/hidraw/hidraw17";
-// Generic Desktop / Game Pad: for a vendor id that is not Valve's the client opens only a device
-// with a gamepad usage. One 40-byte input report, one 64-byte output and one 64-byte feature
-// report, no report ids. Must match SteamDeckPad.kt.
 static const uint8_t kTouchReportDescriptor[] = {
     0x05, 0x01, 0x09, 0x05, 0xa1, 0x01,
     0x09, 0x02, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x28, 0x81, 0x02,
     0x09, 0x03, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0x91, 0x02,
     0x09, 0x04, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x40, 0xb1, 0x02, 0xc0};
 
-// The shared file. Must match SteamTouchDevice.kt.
 struct TouchRingFile {
-  uint32_t magic;  // TCH1
+  uint32_t magic;
   uint32_t version;
-  uint64_t report_seq;  // odd while the app writes report
+  uint64_t report_seq;
   uint8_t report[TOUCH_REPORT_BYTES];
   uint32_t plugged;
-  uint32_t battery;  // percent
-  // Written here.
-  uint64_t state_seq;  // odd while being written
+  uint32_t battery;
+
+  uint64_t state_seq;
   uint32_t opened;
   uint32_t appid;
   uint32_t action_set;
@@ -2168,7 +1934,6 @@ __attribute__((visibility("hidden"))) static bool is_touch_hidraw_path(const cha
   return pathname && !strcmp(pathname, TOUCH_HIDRAW_PATH) && process_is_steam_client() && touch_ring();
 }
 
-// The state the client gave the device, written under the ring's seqlock.
 template <typename F>
 __attribute__((visibility("hidden"))) static void touch_state(F &&write) {
   TouchRingFile *ring = touch_ring();
@@ -2185,8 +1950,6 @@ static inline uint32_t get32(const uint8_t *at) {
          static_cast<uint32_t>(at[3]) << 24;
 }
 
-// An output report from the client (Steam Link's CVirtualController::HandleFeatureReports): the
-// type, then its fields.
 __attribute__((visibility("hidden"))) static void touch_output(const uint8_t *data, size_t size) {
   if (size < 9) return;
   static std::atomic<unsigned> seen[8];
@@ -2195,7 +1958,7 @@ __attribute__((visibility("hidden"))) static void touch_output(const uint8_t *da
   if (n && (n & (n - 1)) == 0)
     Logger::log("touch: output report %u (x%u): app %u, %u\n", type, n, get32(data + 1), get32(data + 5));
   switch (type) {
-  case 1: {  // rumble: low, high, duration
+  case 1: {
     uint16_t low = data[1] | data[2] << 8, high = data[3] | data[4] << 8;
     uint32_t ms = get32(data + 5);
     touch_state([&](TouchRingFile &r) {
@@ -2207,10 +1970,10 @@ __attribute__((visibility("hidden"))) static void touch_output(const uint8_t *da
     send_vibration(low, high, static_cast<uint16_t>(std::min<uint32_t>(ms, 0xffff)), 0);
     break;
   }
-  case 3:  // a setting: 0x30 and a value
+  case 3:
     if (data[1] == 0x30) touch_state([&](TouchRingFile &r) { r.setting30 = data[2] | data[3] << 8; });
     break;
-  case 4:  // the app and its action set
+  case 4:
     touch_state([&](TouchRingFile &r) {
       r.appid = get32(data + 1);
       r.action_set = get32(data + 5);
@@ -2218,8 +1981,8 @@ __attribute__((visibility("hidden"))) static void touch_output(const uint8_t *da
       r.action_seq++;
     });
     break;
-  case 5:  // a layer added to the app's action set
-  case 6:  // and removed
+  case 5:
+  case 6:
     touch_state([&](TouchRingFile &r) {
       uint32_t layer = get32(data + 5);
       uint32_t count = std::min<uint32_t>(r.layer_count, 8);
@@ -2259,7 +2022,6 @@ __attribute__((visibility("hidden"))) static void *touch_report_thread(void *arg
     struct timespec interval = {0, TOUCH_REPORT_INTERVAL_US * 1000L};
     nanosleep(&interval, nullptr);
   }
-  // Ending the stream is the unplug: the client's read fails and it lets the controller go.
   syscall(SYS_close, self->peer);
   touch_state([](TouchRingFile &r) { if (r.opened) r.opened--; });
   return nullptr;
@@ -2312,17 +2074,17 @@ __attribute__((visibility("hidden"))) static int ioctl_touch(DeckHidraw &touch, 
   }
   size_t size = _IOC_SIZE(op);
   switch (_IOC_NR(op)) {
-  case 0x01:  // HIDIOCGRDESCSIZE
+  case 0x01:
     *static_cast<int *>(argp) = sizeof(kTouchReportDescriptor);
     return 0;
-  case 0x02: {  // HIDIOCGRDESC
+  case 0x02: {
     auto *descriptor = static_cast<uint8_t *>(argp);
     uint32_t want;
     memcpy(&want, descriptor, sizeof(want));
     memcpy(descriptor + 4, kTouchReportDescriptor, std::min<size_t>(want, sizeof(kTouchReportDescriptor)));
     return 0;
   }
-  case 0x03: {  // HIDIOCGRAWINFO
+  case 0x03: {
     struct {
       uint32_t bustype;
       int16_t vendor;
@@ -2331,13 +2093,13 @@ __attribute__((visibility("hidden"))) static int ioctl_touch(DeckHidraw &touch, 
     memcpy(argp, &info, sizeof(info));
     return 0;
   }
-  case 0x04: return copy_ioctl_string(op, argp, TOUCH_NAME);                // HIDIOCGRAWNAME
-  case 0x05: return copy_ioctl_string(op, argp, "usb-droiddeck-2/input0");  // HIDIOCGRAWPHYS
-  case 0x08: return copy_ioctl_string(op, argp, TOUCH_SERIAL);              // HIDIOCGRAWUNIQ
-  case 0x06:  // HIDIOCSFEATURE: Steam Link's controller ignores these
+  case 0x04: return copy_ioctl_string(op, argp, TOUCH_NAME);
+  case 0x05: return copy_ioctl_string(op, argp, "usb-droiddeck-2/input0");
+  case 0x08: return copy_ioctl_string(op, argp, TOUCH_SERIAL);
+  case 0x06:
     touch.pending_feature = size > 0 ? static_cast<uint8_t *>(argp)[0] : 0;
     return static_cast<int>(size);
-  case 0x07: {  // HIDIOCGFEATURE: report 2 is the battery
+  case 0x07: {
     auto *buf = static_cast<uint8_t *>(argp);
     uint8_t id = size ? buf[0] : 0;
     memset(buf, 0, size);
@@ -2355,8 +2117,6 @@ __attribute__((visibility("hidden"))) static int ioctl_touch(DeckHidraw &touch, 
   }
 }
 
-// Plugging in and out: the app flips `plugged`; this tells the client's HID discovery, which
-// otherwise never looks again (the sandbox gives it no kernel uevents).
 __attribute__((visibility("hidden"))) static int inject_uevent(const char *action, const char *devpath,
                                                                const char *subsystem, const char *devname,
                                                                unsigned major, unsigned minor) {
@@ -2370,7 +2130,6 @@ __attribute__((visibility("hidden"))) static void touch_uevent(const char *actio
   Logger::log("touch: %s (udev event to %d monitor%s)\n", action, sent, sent == 1 ? "" : "s");
 }
 
-// The devices each pad type is, as SteamDeckPad.kt describes them and inputudev.c the evdev node.
 static constexpr const char *DECK_DEVPATH = "/devices/droiddeck/usb1/1-1:1.2/0003:28DE:1205.0001/hidraw/hidraw16";
 static constexpr const char *TRITON_PAD_DEVPATH = "/devices/droiddeck/usb3/3-1:1.0/0003:28DE:1302.0004/hidraw/hidraw19";
 static constexpr const char *PAD_EVDEV_DEVPATH = "/devices/virtual/input/droiddeck0/event0";
@@ -2393,10 +2152,6 @@ __attribute__((visibility("hidden"))) static int pad_type_uevent(uint32_t type, 
   return inject_uevent(action, PAD_EVDEV_DEVPATH, "input", "/dev/input/event0", major(rdev), minor(rdev));
 }
 
-// SDL's HIDAPI in the client (the PlayStation pads' driver) finds hidraw devices by watching /dev
-// with inotify, with udev off, and looks again on any entry named hidraw<N>. The guest cannot
-// create one in /dev, so the client's watch of /dev also covers this directory (inotify_add_watch
-// below), where a switch makes and removes one.
 __attribute__((visibility("hidden"))) static std::string hidraw_event_dir() {
   return std::string(fake_hook_dir()) + "/.hidraw-events";
 }
@@ -2414,7 +2169,6 @@ __attribute__((visibility("hidden"))) static unsigned pad_type_minor(uint32_t ty
        : type == PAD_TYPE_STEAM ? TRITON_PAD_HIDRAW_MINOR : DECK_HIDRAW_MINOR;
 }
 
-// A switch, as the client sees one: the old device unplugged, then the new one plugged in.
 __attribute__((visibility("hidden"))) static void *pad_type_thread(void *) {
   static const char *kNames[] = {"Steam Deck controller", "Steam Controller", "Xbox 360 controller",
                                  "DualShock 4", "DualSense"};
@@ -2435,15 +2189,11 @@ __attribute__((visibility("hidden"))) static void *pad_type_thread(void *) {
     uint32_t now = live_pad_type();
     if (now == was || now > PAD_TYPE_LAST) continue;
     int removed = pad_type_uevent(was, "remove");
-    // Time for the client to let the old device go before the new one appears.
     struct timespec settle = {0, 300 * 1000 * 1000};
     nanosleep(&settle, nullptr);
     int added = pad_type_uevent(now, "add");
     if (was != PAD_TYPE_XBOX) poke_hidraw_watchers(pad_type_minor(was));
     if (now != PAD_TYPE_XBOX) poke_hidraw_watchers(pad_type_minor(now));
-    // The pad's evdev node comes or goes with the Xbox 360 type. Its hotplug is watched with
-    // inotify on /dev/input (SDL's, with udev off), so it is moved out and back in: everyone
-    // watching sees it removed and added, and opens it again only if it is the pad now.
     if (was == PAD_TYPE_XBOX || now == PAD_TYPE_XBOX) {
       std::string node = std::string(fake_hook_dir()) + "/event0";
       std::string aside = std::string(fake_hook_dir()) + "/.event0-switching";
@@ -2489,13 +2239,8 @@ __attribute__((constructor)) static void start_touch_controller() {
   if (pthread_create(&thread, nullptr, touch_plug_thread, nullptr) == 0) pthread_detach(thread);
 }
 
-// libudev (systemd's sd-device) accepts a device only where its directory is on sysfs, which it
-// checks with fstatfs on the directory it resolved. The Deck's sysfs is the app's own files bound
-// into /sys, so those paths are said to be sysfs; nothing else is touched.
 static constexpr long SYSFS_FS_MAGIC = 0x62656572;
 
-// FAKE_DECK_SYSFS_LISTING: stand-ins for the listings of /sys, /sys/class and /sys/bus
-// (SteamDeckPad.listingDir), for a client that is not allowed to list the real ones.
 __attribute__((visibility("hidden"))) static const char *deck_listing_dir() {
   static const char *dir = getenv("FAKE_DECK_SYSFS_LISTING");
   return dir && *dir ? dir : nullptr;
@@ -2517,9 +2262,6 @@ __attribute__((visibility("hidden"))) static bool is_deck_sysfs_fd(int fd) {
   return is_deck_sysfs_path(path);
 }
 
-// Once per process: proof the client's enumeration reached the Deck's sysfs at all. No line here
-// and no open of /dev/hidraw16 means the client never looked; a line here and no open means it
-// looked and turned the device down.
 __attribute__((visibility("hidden"))) static void note_deck_sysfs(const char *how, int result) {
   static std::atomic<bool> noted{false};
   if (!noted.exchange(true))
@@ -2563,20 +2305,12 @@ __attribute__((visibility("hidden"))) static int copy_ioctl_string(ioctl_request
   return static_cast<int>(std::min(size, strlen(value) + 1));
 }
 
-// Feature reports carry the report id (0) first, then the Valve message: type, length, payload.
-// The client repeats some feature reports (settings, rumble) for as long as it has the pad; each
-// is logged the first time and then at 2, 4, 8... so the log shows what it asked and how often
-// without a line per report.
 __attribute__((visibility("hidden"))) static void log_deck_feature(const char *what, uint8_t feature) {
   static std::atomic<unsigned> counts[2][256];
   unsigned n = ++counts[what[0] == 's'][feature];
   if ((n & (n - 1)) == 0) Logger::log("deck: feature 0x%02x %s (x%u)\n", feature, what, n);
 }
 
-// A settings report (ID_SET_SETTINGS_VALUES) is a list of (setting id, 16-bit value) triples after
-// the length byte. Returns SETTING_IMU_MODE (48, a SETTING_GYRO_MODE_* bitmask from SDL's
-// controller_constants.h) when the report changes it, logged, else -1: the client repeats its
-// settings for as long as it has the pad.
 static constexpr uint8_t DECK_SET_SETTINGS_VALUES = 0x87;
 static constexpr uint8_t DECK_SETTING_IMU_MODE = 48;
 
@@ -2593,9 +2327,6 @@ __attribute__((visibility("hidden"))) static int deck_imu_mode_change(const uint
   return -1;
 }
 
-// Tells the app whether the client wants motion (DeckImu::imu_mode, FakeInputWriter.readImuMode):
-// PadMotion reads the phone's sensors only while it does. The mapping is read-only, and the
-// client changes the mode a few times a minute at most, so the file is written directly.
 __attribute__((visibility("hidden"))) static void publish_imu_mode(const DeckHidraw &deck, int mode) {
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
   if (deck.mapping_size < FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE) return;
@@ -2631,7 +2362,6 @@ deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
   uint8_t reply[DECK_REPORT_BYTES + 1] = {};
   switch (deck.pending_feature) {
   case DECK_GET_ATTRIBUTES_VALUES: {
-    // InputPlumber's capture from a real Deck (steam_deck_uhid.rs, handle_get_report).
     static const uint8_t kAttributes[] = {0x00, 0x83, 0x2d, 0x01, 0x05, 0x12, 0x00, 0x00, 0x02,
                                           0x00, 0x00, 0x00, 0x00, 0x0a, 0x2b, 0x12, 0xa9, 0x62,
                                           0x04, 0xad, 0xf1, 0xe4, 0x65, 0x09, 0x2e, 0x00, 0x00,
@@ -2661,8 +2391,6 @@ deck_feature(DeckHidraw &deck, ioctl_request_t op, uint8_t *buf, bool set) {
   return static_cast<int>(length);
 }
 
-// The PlayStation pads' report descriptor: a gamepad with input report 1, the output report the
-// model takes (5 on a DualShock 4, 2 on a DualSense) and the feature reports a driver reads.
 static const uint8_t kDs4ReportDescriptor[] = {
     0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, 0x06, 0x00, 0xff, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08,
     0x85, 0x01, 0x09, 0x20, 0x95, 0x3f, 0x81, 0x02, 0x85, 0x05, 0x09, 0x21, 0x95, 0x1f, 0x91, 0x02,
@@ -2675,8 +2403,6 @@ static const uint8_t kDualSenseReportDescriptor[] = {
     0x85, 0x05, 0x09, 0x22, 0x95, 0x28, 0xb1, 0x02, 0x85, 0x09, 0x09, 0x23, 0x95, 0x13, 0xb1, 0x02,
     0x85, 0x20, 0x09, 0x24, 0x95, 0x3f, 0xb1, 0x02, 0xc0};
 
-// Calibration both models report the same way (SDL: LoadCalibrationData): no bias, and the
-// ranges that make a unit 1/16 degree/s and 1/8192 g, the scale build_sony_report writes in.
 __attribute__((visibility("hidden"))) static void put_sony_calibration(uint8_t *reply) {
   for (int axis = 0; axis < 3; axis++) {
     put16(reply + 7 + axis * 4, 8640);
@@ -2700,9 +2426,9 @@ __attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &
   if ((pad.sony == 4 && id == 0x02) || (pad.sony == 5 && id == 0x05)) {
     put_sony_calibration(reply);
   } else if ((pad.sony == 4 && (id == 0x12 || id == 0x81)) || (pad.sony == 5 && id == 0x09)) {
-    for (int i = 0; i < 6; i++) reply[1 + i] = SONY_MAC[5 - i];  // the address, last byte first
+    for (int i = 0; i < 6; i++) reply[1 + i] = SONY_MAC[5 - i];
   } else if (pad.sony == 5 && id == 0x20) {
-    reply[44] = 0x30;  // firmware 0x0430: past the versions SDL treats as old
+    reply[44] = 0x30;
     reply[45] = 0x04;
   }
   log_deck_feature("read", id);
@@ -2711,8 +2437,6 @@ __attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &
   return static_cast<int>(length);
 }
 
-// Rumble from the output report, when its flags say it carries rumble: a DualShock 4's report 5
-// (right/weak, then left/strong at 4 and 5), a DualSense's report 2 (at 3 and 4).
 __attribute__((visibility("hidden"))) static void sony_output(const DeckHidraw &pad, const uint8_t *data, size_t size) {
   if (!data || size < 6) return;
   int weak, strong;
@@ -2727,7 +2451,6 @@ __attribute__((visibility("hidden"))) static void sony_output(const DeckHidraw &
   } else {
     return;
   }
-  // The drivers send a new report when the rumble changes and a zero one to stop it.
   send_vibration(strong * 257, weak * 257, strong || weak ? 2000 : 0, 0);
 }
 
@@ -2763,7 +2486,7 @@ __attribute__((visibility("hidden"))) static int ioctl_sony(DeckHidraw &pad, ioc
                                                      : "Sony Interactive Entertainment DualSense Wireless Controller");
   case 0x05: return copy_ioctl_string(op, argp, pad.sony == 4 ? "usb-droiddeck-4/input3" : "usb-droiddeck-5/input3");
   case 0x08: return copy_ioctl_string(op, argp, "5e:43:4b:44:44:02");
-  case 0x06:  // HIDIOCSFEATURE: nothing the pads need is set this way
+  case 0x06:
     return static_cast<int>(_IOC_SIZE(op));
   case 0x07: return sony_feature(pad, static_cast<uint8_t *>(argp), _IOC_SIZE(op));
   default:
@@ -2779,17 +2502,17 @@ ioctl_deck(DeckHidraw &deck, ioctl_request_t op, void *argp) {
     return -1;
   }
   switch (_IOC_NR(op)) {
-  case 0x01:  // HIDIOCGRDESCSIZE
+  case 0x01:
     *static_cast<int *>(argp) = sizeof(kDeckReportDescriptor);
     return 0;
-  case 0x02: {  // HIDIOCGRDESC: struct hidraw_report_descriptor { __u32 size; __u8 value[4096]; }
+  case 0x02: {
     auto *descriptor = static_cast<uint8_t *>(argp);
     uint32_t size;
     memcpy(&size, descriptor, sizeof(size));
     memcpy(descriptor + 4, kDeckReportDescriptor, std::min<size_t>(size, sizeof(kDeckReportDescriptor)));
     return 0;
   }
-  case 0x03: {  // HIDIOCGRAWINFO: struct hidraw_devinfo { __u32 bustype; __s16 vendor, product; }
+  case 0x03: {
     struct {
       uint32_t bustype;
       int16_t vendor;
@@ -2798,11 +2521,11 @@ ioctl_deck(DeckHidraw &deck, ioctl_request_t op, void *argp) {
     memcpy(argp, &info, sizeof(info));
     return 0;
   }
-  case 0x04: return copy_ioctl_string(op, argp, DECK_NAME);                 // HIDIOCGRAWNAME
-  case 0x05: return copy_ioctl_string(op, argp, "usb-droiddeck-1/input2");  // HIDIOCGRAWPHYS
-  case 0x08: return copy_ioctl_string(op, argp, DECK_SERIAL);               // HIDIOCGRAWUNIQ
-  case 0x06: return deck_feature(deck, op, static_cast<uint8_t *>(argp), true);   // HIDIOCSFEATURE
-  case 0x07: return deck_feature(deck, op, static_cast<uint8_t *>(argp), false);  // HIDIOCGFEATURE
+  case 0x04: return copy_ioctl_string(op, argp, DECK_NAME);
+  case 0x05: return copy_ioctl_string(op, argp, "usb-droiddeck-1/input2");
+  case 0x08: return copy_ioctl_string(op, argp, DECK_SERIAL);
+  case 0x06: return deck_feature(deck, op, static_cast<uint8_t *>(argp), true);
+  case 0x07: return deck_feature(deck, op, static_cast<uint8_t *>(argp), false);
   default:
     Logger::log("deck: unhandled hidraw ioctl 0x%02x\n", _IOC_NR(op));
     errno = EINVAL;
@@ -2831,10 +2554,6 @@ __attribute__((visibility("hidden"))) static void triton_queue_output(DeckHidraw
     Logger::log("triton: %s report 0x%02x (x%u, %zu bytes)\n", feature ? "feature" : "output", report_id, n, size);
 }
 
-// HIDIOCGFEATURE: the client reads the controller's info (report 1) this way, and a device that
-// answers with nothing is dropped as a zombie. The read goes to the controller itself, as SDL's
-// BLE backend does it (hid.m, get_feature_report): its reply is the report, with the report ID
-// put in front when the controller left it out. Called without controller_mutex: it waits.
 __attribute__((visibility("hidden"))) static int triton_get_feature(DeckHidraw &triton, uint8_t *report, size_t size) {
   if (!report || size < 2 || triton.mapping_size < TRITON_SHARED_OFFSET + TRITON_SHARED_BLOCK_SIZE) {
     errno = EINVAL;
@@ -2877,9 +2596,6 @@ __attribute__((visibility("hidden"))) static int triton_get_feature(DeckHidraw &
   return -1;
 }
 
-// The emulated controller's feature reports: report ID 1, then the Valve message (type, length,
-// payload), answered here as the Deck's are. The identity is the one a 2025 Steam Controller gave
-// on device (HWID 72, its firmware timestamp), with this library's serial.
 static constexpr uint32_t TRITON_HWID = 72;
 static constexpr uint32_t TRITON_FW_TIMESTAMP = 0x6AC686B3;
 
@@ -2902,7 +2618,6 @@ __attribute__((visibility("hidden"))) static int triton_pad_feature(DeckHidraw &
   reply[1] = triton.pending_feature;
   switch (triton.pending_feature) {
   case DECK_GET_ATTRIBUTES_VALUES: {
-    // (attribute, 32-bit value) pairs: product id, capabilities, firmware timestamp, hardware id.
     static const uint8_t kIds[] = {0x01, 0x02, 0x04, 0x09, 0x0a, 0x0b};
     const uint32_t values[] = {static_cast<uint32_t>(TRITON_WIRED_PRODUCT), 0, TRITON_FW_TIMESTAMP, TRITON_HWID, 0, 4000};
     reply[2] = sizeof(kIds) * 5;
@@ -2914,7 +2629,7 @@ __attribute__((visibility("hidden"))) static int triton_pad_feature(DeckHidraw &
   }
   case DECK_GET_STRING_ATTRIBUTE:
     reply[2] = 0x14;
-    reply[3] = 0x01;  // the unit serial
+    reply[3] = 0x01;
     memcpy(reply + 4, TRITON_SERIAL, strlen(TRITON_SERIAL));
     break;
   case DECK_GET_CHIP_ID:
@@ -2930,25 +2645,22 @@ __attribute__((visibility("hidden"))) static int triton_pad_feature(DeckHidraw &
   return static_cast<int>(length);
 }
 
-// The emulated controller's haptic output reports (SDL, controller_structs.h) on the handheld's
-// own motor: rumble as asked, the trackpad pulses and effects as short ticks.
 __attribute__((visibility("hidden"))) static void triton_pad_output(const uint8_t *data, size_t size) {
   if (!data || size < 2) return;
   switch (data[0]) {
-  case 0x80:  // ID_OUT_REPORT_HAPTIC_RUMBLE: type, intensity, left {speed, gain}, right {speed, gain}
+  case 0x80:
     if (size >= 10) {
       int left = data[4] | data[5] << 8, right = data[7] | data[8] << 8;
-      // SDL repeats a held rumble every 40 ms, so each report lasts a little longer than that.
       send_vibration(left, right, left || right ? 100 : 0, 0);
     }
     break;
-  case 0x81:  // ID_OUT_REPORT_HAPTIC_PULSE: side, on_us, off_us, repeat count
+  case 0x81:
     if (size >= 8) {
       int on_ms = (data[2] | data[3] << 8) / 1000, repeat = data[6] | data[7] << 8;
       send_vibration(0, 40000, std::max(8, std::min(200, on_ms * std::max(1, repeat))), 0);
     }
     break;
-  case 0x82: case 0x83: case 0x84: case 0x85:  // command, tone, sweep, script
+  case 0x82: case 0x83: case 0x84: case 0x85:
     send_vibration(0, 30000, 15, 0);
     break;
   default:
@@ -2970,7 +2682,6 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
     uint32_t size;
     memcpy(&size, descriptor, sizeof(size));
     memcpy(descriptor + 4, kTritonReportDescriptor, std::min<size_t>(size, sizeof(kTritonReportDescriptor)));
-    // The wired controller's state report (SteamDeckPad's TRITON_WIRED_REPORT_DESCRIPTOR).
     if (triton.emulated && size > 15) descriptor[4 + 15] = TRITON_STATE_WIRED;
     return 0;
   }
@@ -2988,8 +2699,6 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
   case 0x05: return copy_ioctl_string(op, argp, triton.emulated ? "usb-droiddeck-3/input0" : "bluetooth-droiddeck-1");
   case 0x08: return copy_ioctl_string(op, argp, TRITON_SERIAL);
   case 0x06: {
-    // The client's feature reports are the report ID and 64 bytes; the last is padding the BLE
-    // characteristic does not take (SteamControllerBle.sendOutputReport drops it), so 64 are kept.
     size_t size = _IOC_SIZE(op);
     if (!argp || size < 2 || size > 65) {
       errno = EINVAL;
@@ -3008,10 +2717,6 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
   }
 }
 
-// A device scan that fails on a phone and not on the Thor: libudev gives up its whole scan on any
-// sysfs directory it cannot read for a reason other than its absence, and a phone's SELinux policy
-// denies directories a permissive device lets through. The client's /sys failures that are not
-// ENOENT are logged, each path once, so pad.log names the directory that stopped the scan.
 __attribute__((visibility("hidden"))) static std::string note_sys_failure(int dirfd, const char *pathname) {
   int saved_errno = errno;
   std::string path;
@@ -3052,11 +2757,6 @@ __attribute__((visibility("hidden"))) static std::string note_sys_failure(int di
   return path;
 }
 
-// An enforcing SELinux policy (every retail phone; the Thor only with it forced on) refuses an app
-// a listing of /sys, /sys/class and /sys/bus. libudev lists /sys/class to find the subsystems to
-// descend into and gives up its whole scan when it cannot, so the client never reached hidraw and
-// found no Deck. The client is listed the stand-ins instead - hidraw under class - and opens
-// /sys/class/hidraw itself, which is ours and readable. Only on that refusal, only for the client.
 __attribute__((visibility("hidden"))) static std::string deck_listing_for(const char *path) {
   const char *listing = deck_listing_dir();
   if (!path || !listing || errno != EACCES || !fake_deck_enabled() || !process_is_steam_client()) return {};
@@ -3072,9 +2772,6 @@ __attribute__((visibility("hidden"))) static std::string deck_listing_for(const 
 }
 
 #ifdef __GLIBC__
-// sd-device's path chase now requires a mount ID, which statx only supplies from Linux 5.8.
-// Older handheld kernels still publish the real ID in fdinfo. Scope this compatibility path to
-// libudev/libsystemd in the Deck-reading Steam client, and never invent a unique mount ID.
 __attribute__((visibility("hidden"))) static bool deck_device_library(void *caller) {
   Dl_info info;
   if (!dladdr(caller, &info) || !info.dli_fname) return false;
@@ -3099,7 +2796,6 @@ __attribute__((visibility("hidden"))) static bool deck_mount_id_from_fdinfo(
   }
   if (target < 0) return false;
   struct stat st;
-  // Pin the inode and check it still matches the successful statx before adding information.
   bool same = real_fstat(target, &st) == 0 && (buf->stx_mask & STATX_INO) &&
               st.st_ino == buf->stx_ino && major(st.st_dev) == buf->stx_dev_major &&
               minor(st.st_dev) == buf->stx_dev_minor;
@@ -3129,7 +2825,7 @@ EXPORT int statx(int dirfd, const char *path, int flags, unsigned mask, struct s
   static auto real = reinterpret_cast<decltype(&::statx)>(dlsym(RTLD_NEXT, "statx"));
   int result = real(dirfd, path, flags, mask, buf);
   int saved_errno = errno;
-  constexpr unsigned unique_mount_id = 0x4000;  // STATX_MNT_ID_UNIQUE, newer than build headers.
+  constexpr unsigned unique_mount_id = 0x4000;
   if (result == 0 && (mask & STATX_MNT_ID) &&
       !(buf->stx_mask & (STATX_MNT_ID | unique_mount_id)) && fake_deck_enabled() &&
       process_is_steam_client() && deck_device_library(__builtin_return_address(0))) {
@@ -3553,7 +3249,6 @@ EXPORT int inotify_add_watch(int fd, const char *pathname, uint32_t mask) {
     } else if (!strcmp(pathname, "/dev/input")) {
       pathname = fake_hook_dir();
     } else if (!strcmp(pathname, "/dev") && fake_deck_enabled() && process_is_steam_client()) {
-      // Beside /dev itself, not instead: the same descriptor gets both directories' events.
       std::string events = hidraw_event_dir();
       mkdir(events.c_str(), 0700);
       my_inotify_add_watch(fd, events.c_str(), mask);
@@ -3586,8 +3281,6 @@ static bool wait_snapshot(std::shared_ptr<FakeController> fake,
       return false;
     }
     if (read_snapshot(fake->ring, snap)) return true;
-    // Enumeration queries must not fail merely because Android is publishing
-    // an input frame. Other hooks (including Binder) can proceed while we wait.
     guard.unlock();
     struct timespec wait = {0, 1000000};
     int result = nanosleep(&wait, nullptr);
@@ -3602,7 +3295,6 @@ static bool wait_snapshot(std::shared_ptr<FakeController> fake,
 
 static int forward_ioctl(int fd, ioctl_request_t op, void *argp) {
   using ioctl_fn = int (*)(int, ioctl_request_t, ...);
-  // Preserve later preload hooks, including GPU allocation adapters.
   static const auto next = reinterpret_cast<ioctl_fn>(dlsym(RTLD_NEXT, "ioctl"));
   return next ? next(fd, op, argp) : static_cast<int>(syscall(SYS_ioctl, fd, op, argp));
 }
@@ -3615,9 +3307,6 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   argp = va_arg(va, void *);
   va_end(va);
 
-  // The lock must not be held across the passthrough: binder's transport is a
-  // blocking ioctl(BINDER_WRITE_READ), so a parked binder pool thread would own
-  // controller_mutex() for as long as it waits and deadlock every other ioctl.
   if (!watched(fd)) return forward_ioctl(fd, op, argp);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
   auto maker = uinput_map().find(fd);
@@ -3643,7 +3332,6 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
   int number = (op >> 0 & 0xFF);
   const char *event = controller->second->event ? controller->second->event : "event0";
   int event_number = controller->second->slot;
-  // A virtual pad answers with what its maker described, not with the app's pad identity.
   const UinputDescription *made = controller->second->uinput;
 
   if (type == 0x45 && number == 0x1) {
@@ -3866,8 +3554,6 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
     guard.unlock();
     return syscall(SYS_read, fd, buf, count);
   }
-  // Keep the mapping alive across waits, even if close() removes the fd and
-  // another open reuses its number. Every state access still holds the lock.
   auto handle = controller->second;
   FakeController &fake = *handle;
   if (count < FAKE_INPUT_EVENT_SIZE) {
@@ -3913,8 +3599,6 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
             memcpy(static_cast<uint8_t *>(buf) + i * FAKE_INPUT_EVENT_SIZE, &ev,
                    FAKE_INPUT_EVENT_SIZE);
           }
-          // A producer can lap the reader while it copies. Discard that copy
-          // instead of delivering torn/overwritten events or losing a release.
           __atomic_thread_fence(__ATOMIC_ACQUIRE);
           if (snap.sequence != __atomic_load_n(&fake.ring->snapshot_seq, __ATOMIC_RELAXED))
             continue;
@@ -3923,8 +3607,6 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
         }
       }
 
-      // Finish a captured frame before handling a newer resync. Its counter is
-      // acknowledged only when that newer snapshot is actually captured.
       size_t events = std::min(requested, fake.keyframe_remaining);
       struct timeval now = {};
       gettimeofday(&now, nullptr);
@@ -4006,7 +3688,6 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
   }
   auto made = uinput_map().find(fd);
   if (made != uinput_map().end()) {
-    // One description or whole events per vector, which is how uinput writers write.
     ssize_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
       ssize_t written = write_uinput(*made->second, iov[i].iov_base, iov[i].iov_len);
@@ -4154,8 +3835,6 @@ EXPORT int ppoll(struct pollfd *fds, nfds_t nfds,
     if (!is_fake_input_fd(fds[i].fd)) continue;
     if (!sigmask)
       return poll_fake(fds, nfds, static_cast<int>(timespec_to_ms(timeout)), nullptr);
-    // Keep signals pending between polling slices. Each kernel ppoll applies
-    // the requested mask atomically with its wait, just like a single ppoll.
     sigset_t all_signals, original_mask;
     sigfillset(&all_signals);
     int error = pthread_sigmask(SIG_SETMASK, &all_signals, &original_mask);
@@ -4315,8 +3994,6 @@ EXPORT int select(int nfds, fd_set *readfds, fd_set *writefds,
 }
 
 #ifdef __GLIBC__
-// Steam's binaries were linked against an older glibc and reach the calls above through these
-// names instead.
 static mode_t open_mode(int flags, va_list va) {
   return (flags & (O_CREAT | O_TMPFILE)) ? va_arg(va, mode_t) : 0;
 }

@@ -13,7 +13,6 @@ file(GLOB SOURCES
 
 add_library(dxbc STATIC ${SOURCES})
 
-# target
 set_target_properties(dxbc PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)

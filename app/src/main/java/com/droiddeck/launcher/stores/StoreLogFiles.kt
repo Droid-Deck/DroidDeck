@@ -8,13 +8,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 
-/**
- * The stores' log on disk, app-private: `filesDir/logs/stores/stores-<yyyy-MM-dd>.log` (beside the
- * session folders, where every log lives), one file a
- * day, the last [KEEP_DAYS] kept, each capped near [MAX_BYTES] (the full one moves to `.1`). Lines
- * arrive already redacted ([StoreLog.redactLine]). Written on one background thread, in order. The
- * session's Share logs zip carries these files, so they can be attached to a report when asked.
- */
 object StoreLogFiles {
     private const val TAG = "StoreLogFiles"
     private const val KEEP_DAYS = 7
@@ -31,10 +24,6 @@ object StoreLogFiles {
         Thread({ android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); r.run() }, "store-log-flush").apply { isDaemon = true }
     }
 
-    /**
-     * Queues one stamped line for today's file. Any thread; nothing touches the disk here. Lines are
-     * written in batches, at most every half second, on [writer] in order.
-     */
     fun append(context: Context, line: String) {
         val app = context.applicationContext
         pending.add(line)
@@ -61,7 +50,6 @@ object StoreLogFiles {
         }
     }
 
-    /** Drops the files older than [KEEP_DAYS] days. Called as the app starts. */
     fun prune(context: Context) {
         val app = context.applicationContext
         writer.execute {
@@ -73,7 +61,6 @@ object StoreLogFiles {
         }
     }
 
-    /** The files there are, oldest first, for a log share. */
     fun files(context: Context): List<File> =
         dir(context).listFiles { f -> f.isFile && NAME.matches(f.name) }?.sortedBy { it.name }.orEmpty()
 }
