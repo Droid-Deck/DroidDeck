@@ -8,6 +8,7 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.SystemClock
 import android.util.Log
+import java.util.concurrent.atomic.AtomicLong
 
 internal class VitureLink private constructor(
     private val connection: UsbDeviceConnection,
@@ -28,18 +29,27 @@ internal class VitureLink private constructor(
     private val writeLock = Any()
     private var lastSendAt = 0L
     private val readers = mutableListOf<Thread>()
+    private val bad = AtomicLong()
 
     val hasImu: Boolean get() = imuIn != null
+    val badFrames: Long get() = bad.get()
 
     private fun startReaders() {
-        mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> VitureProtocol.parse(buf, n)?.takeIf { it.crcOk }?.let(listener::onFrame) } }
+        mcuIn?.let { ep -> readers += reader("viture-mcu", ep) { buf, n -> validFrame(buf, n)?.let(listener::onFrame) } }
         imuIn?.let { ep ->
             readers += reader("viture-imu", ep) { buf, n ->
-                val frame = VitureProtocol.parse(buf, n)?.takeIf { it.crcOk } ?: return@reader
+                val frame = validFrame(buf, n) ?: return@reader
                 if (frame.magic == VitureProtocol.MAGIC_IMU) listener.onImu(frame.payload, SystemClock.elapsedRealtimeNanos())
                 else listener.onFrame(frame)
             }
         }
+    }
+
+    private fun validFrame(buf: ByteArray, n: Int): VitureProtocol.Frame? {
+        val frame = VitureProtocol.parse(buf, n) ?: return null
+        if (frame.crcOk) return frame
+        if (bad.incrementAndGet() == 1L) Log.w(TAG, "dropping frames with a bad checksum")
+        return null
     }
 
     private fun reader(name: String, ep: UsbEndpoint, onPacket: (ByteArray, Int) -> Unit): Thread =

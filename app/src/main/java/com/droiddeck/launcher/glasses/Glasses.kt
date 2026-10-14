@@ -284,6 +284,7 @@ object Glasses {
             .put("brightness", s.brightness).put("volume", s.volume)
             .put("brightnessMax", s.brightnessMax).put("volumeMax", s.volumeMax).put("sunblock", s.sunblock)
             .put("tracking", s.tracking).put("simulating", simulating.get() != null).put("imuPackets", imuPackets)
+            .put("badFrames", link?.badFrames ?: 0L)
             .put("pose", q?.let { JSONArray().put(it[0].toDouble()).put(it[1].toDouble()).put(it[2].toDouble()).put(it[3].toDouble()) } ?: JSONObject.NULL)
             .put("fovDeg", s.diagonalFovDeg.toDouble()).put("noSignal", s.noSignal).put("sbsSupport", s.sbsSupport)
             .put("settings", JSONObject().put("refreshHz", g.refreshHz).put("sbsHz", g.sbsHz).put("sunblock", g.sunblock ?: JSONObject.NULL)
