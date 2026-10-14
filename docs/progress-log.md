@@ -22,6 +22,9 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   is in, and again every twenty products, so the grid is on screen in seconds instead of after the last
   product. `mergeItems` keeps the cards already shown as the same objects, so the fills do not reset the
   scroll or the focus.
+- **The grid stays still** (`GogLibrary.sync`, `StoresPage`): those fills carry only the fields a card does
+  not draw - a fetched game's own art and title wait for the end of the round - and the progress bar is gone
+  once the grid has games, so a sync in progress no longer reads as a list still loading.
 - **The per-product fetch stays** (`fetchGame`): `api.gog.com` is what has the description, the developer,
   the publisher, the Galaxy portrait and the build generation, and the detail page reads all of those from
   the library entry, so the listing alone cannot replace it.
