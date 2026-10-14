@@ -63,12 +63,13 @@ object GogLibrary {
             onStatus(app.getString(R.string.stores_sync_game_list))
             val listing = ownedListing(token)
             // The listing is the only source of titles: without it the owned ids still sync, just without the early paint.
-            val listed: List<GogGame> = listing
+            val listed: List<GogGame> = listing?.games
                 ?: ownedIds(token)?.map { GogGame(it, "", "", "", "", "", 1, null, "", "") }
                 ?: return SyncResult.Failed(app.getString(R.string.stores_sync_gog_unreachable))
             val named = listing != null
             StoresState.logLine(if (named) "GOG: listing ${listed.size} games" else "GOG: listing unreadable, ${listed.size} owned ids")
-            val ownedSet = listed.mapTo(HashSet()) { it.gameId }
+            // A page that failed leaves games unnamed: they are still owned, so their cards and cached details stay.
+            val ownedSet = listing?.owned ?: listed.mapTo(HashSet()) { it.gameId }
             val cachedList = cached(app)
             val stale = System.currentTimeMillis() - p.getLong(LAST_SYNC_KEY, 0L) >= THROTTLE_MS
             val heavy = force || cachedList.isEmpty() || stale
@@ -76,7 +77,7 @@ object GogLibrary {
             // A product the last sync found uninstallable stays out of the list while it is re-checked.
             val skipped = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
             skipped.addAll(p.getStringSet(SKIPPED_KEY, emptySet()).orEmpty())
-            val idsToFetch = if (heavy) listed.map { it.gameId } else listed.map { it.gameId }.filter { it !in cachedIds && it !in skipped }
+            val idsToFetch = if (heavy) ownedSet.toList() else ownedSet.filter { it !in cachedIds && it !in skipped }
             val merged = LinkedHashMap<String, GogGame>()
             // The cache's own entry stays even when the game is re-fetched: its details beat the listing's.
             for (g in cachedList) if (g.gameId in ownedSet && g.gameId !in skipped) merged[g.gameId] = g
@@ -115,7 +116,7 @@ object GogLibrary {
             skipped.retainAll(ownedSet)
             p.edit().putStringSet(SKIPPED_KEY, HashSet(skipped)).apply()
             if (heavy) p.edit().putLong(LAST_SYNC_KEY, System.currentTimeMillis()).apply()
-            Log.i(TAG, "sync: owned=${listed.size} fetched=$fetched cached=${finalList.size} heavy=$heavy")
+            Log.i(TAG, "sync: owned=${ownedSet.size} fetched=$fetched cached=${finalList.size} heavy=$heavy")
             return SyncResult.Ok(sorted(merged), fetched)
         } catch (e: Exception) {
             Log.w(TAG, "sync failed: ${e.message}")
@@ -125,8 +126,9 @@ object GogLibrary {
         }
     }
 
-    private fun ownedListing(token: String): List<GogGame>? {
+    private fun ownedListing(token: String): Listing? {
         val all = ArrayList<GogGame>()
+        val owned = HashSet<String>()
         var page = 1
         var pages = 1
         while (page <= pages && page <= LIST_MAX_PAGES) {
@@ -134,14 +136,17 @@ object GogLibrary {
             val listed = StoreNet.get("$LIST_URL&page=$page", bearer = token, userAgent = GogAuth.GALAXY_UA)?.let { parseListing(it) }
             if (listed == null) {
                 StoresState.logLine("GOG: listing page $page of $pages unreadable")
+                // The unread pages hold games too: without their ids those games would leave the library and the cache.
+                owned.addAll(ownedIds(token) ?: return null)
                 break
             }
             all.addAll(listed.games)
+            owned.addAll(listed.games.map { it.gameId })
             pages = listed.totalPages
             page++
         }
         // Not one page read: the caller falls back to the owned ids.
-        return all.ifEmpty { null }
+        return all.ifEmpty { null }?.let { Listing(it, owned) }
     }
 
     private fun ownedIds(token: String): List<String>? {
@@ -178,6 +183,8 @@ object GogLibrary {
     }.getOrNull()
 
     class ListingPage(val games: List<GogGame>, val totalPages: Int)
+
+    private class Listing(val games: List<GogGame>, val owned: Set<String>)
 
     private fun sorted(merged: Map<String, GogGame>): List<GogGame> = merged.values.sortedBy { it.title.lowercase() }
 
